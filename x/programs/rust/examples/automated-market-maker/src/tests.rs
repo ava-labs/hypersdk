@@ -4,6 +4,7 @@
 use simulator::{SimpleState, Simulator};
 use wasmlanche_sdk::Address;
 const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+const MAX_GAS: u64 = 1000000000;
 
 #[test]
 fn init_program() {
@@ -20,9 +21,8 @@ fn amm_init() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    init_amm(&mut simulator, gas);
+    init_amm(&mut simulator);
 }
 
 #[test]
@@ -31,32 +31,31 @@ fn add_liquidity_same_ratio() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, lt, amm) = init_amm(&mut simulator);
     let amount: u64 = 100;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount), gas)
+        .call_program(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     simulator
-        .call_program(token_x, "approve", (amm, amount), gas)
+        .call_program(token_x, "approve", (amm, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "approve", (amm, amount), gas)
+        .call_program(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         !result.has_error(),
         "Add liquidity errored {:?}",
@@ -64,7 +63,7 @@ fn add_liquidity_same_ratio() {
     );
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
@@ -76,25 +75,24 @@ fn add_liquidity_without_approval() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, lt, amm) = init_amm(&mut simulator);
     let amount: u64 = 100;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount), gas)
+        .call_program(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(result.has_error(), "Add liquidity did not error");
 }
 
@@ -104,27 +102,26 @@ fn swap_changes_ratio() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator);
     let amount: u64 = 100;
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount + amount_x_swap), gas)
+        .call_program(token_x, "mint", (alice, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
-        .call_program(token_x, "approve", (amm, amount + amount_x_swap), gas)
+        .call_program(token_x, "approve", (amm, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "approve", (amm, amount), gas)
+        .call_program(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         !result.has_error(),
         "Add liquidity errored {:?}",
@@ -132,25 +129,25 @@ fn swap_changes_ratio() {
     );
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", alice, gas)
+        .call_program(token_y, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
 
-    let swap = simulator.call_program(amm, "swap", (token_x, amount_x_swap), gas);
+    let swap = simulator.call_program(amm, "swap", (token_x, amount_x_swap), MAX_GAS);
     assert!(!swap.has_error(), "Swap errored, {:?}", swap.error());
 
     let swap = swap.result::<u64>().unwrap();
     assert!(swap > 0, "Swap did not return any tokens");
 
     let balance_x = simulator
-        .call_program(token_x, "balance_of", alice, gas)
+        .call_program(token_x, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_x, 0, "Balance of token x is incorrect");
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", alice, gas)
+        .call_program(token_y, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert!(balance_y > 0, "Balance of token y is incorrect");
@@ -162,17 +159,16 @@ fn swap_insufficient_funds() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator);
     let amount: u64 = 100;
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount), gas)
+        .call_program(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
@@ -180,14 +176,14 @@ fn swap_insufficient_funds() {
             token_x,
             "approve",
             (amm, amount + amount_x_swap + amount_x_swap),
-            gas,
+            MAX_GAS,
         )
         .unwrap();
     simulator
-        .call_program(token_y, "approve", (amm, amount), gas)
+        .call_program(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         !result.has_error(),
         "Add liquidity errored {:?}",
@@ -195,12 +191,12 @@ fn swap_insufficient_funds() {
     );
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", alice, gas)
+        .call_program(token_y, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
 
-    let swap = simulator.call_program(amm, "swap", (token_x, amount_x_swap), gas);
+    let swap = simulator.call_program(amm, "swap", (token_x, amount_x_swap), MAX_GAS);
     assert!(swap.has_error(), "Swap succeeded with insufficient funds");
 }
 
@@ -210,9 +206,8 @@ fn swap_incorrect_token() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, _lt, amm) = init_amm(&mut simulator);
 
     let token_path = PROGRAM_PATH
         .replace("automated_market_maker", "token")
@@ -223,27 +218,27 @@ fn swap_incorrect_token() {
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount + amount_x_swap), gas)
+        .call_program(token_x, "mint", (alice, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
-        .call_program(token_x, "approve", (amm, amount + amount_x_swap), gas)
+        .call_program(token_x, "approve", (amm, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "approve", (amm, amount), gas)
+        .call_program(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         !result.has_error(),
         "Add liquidity errored {:?}",
         result.error()
     );
 
-    let swap = simulator.call_program(amm, "swap", (wrong_token, amount_x_swap), gas);
+    let swap = simulator.call_program(amm, "swap", (wrong_token, amount_x_swap), MAX_GAS);
     assert!(swap.has_error(), "Swap succeeded with incorrect token");
 }
 
@@ -253,32 +248,31 @@ fn remove_liquidity() {
     let mut simulator = Simulator::new(&mut state);
     let alice = Address::new([1; 33]);
     simulator.set_actor(alice);
-    let gas = 1000000000;
 
-    let (token_x, token_y, lt, amm) = init_amm(&mut simulator, gas);
+    let (token_x, token_y, lt, amm) = init_amm(&mut simulator);
     let amount: u64 = 100;
 
     simulator
-        .call_program(token_x, "mint", (alice, amount), gas)
+        .call_program(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "mint", (alice, amount), gas)
+        .call_program(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     simulator
-        .call_program(token_x, "approve", (amm, amount), gas)
+        .call_program(token_x, "approve", (amm, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "approve", (amm, amount), gas)
+        .call_program(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), gas);
+    let result = simulator.call_program(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         !result.has_error(),
         "Add liquidity errored {:?}",
@@ -286,12 +280,12 @@ fn remove_liquidity() {
     );
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
 
-    let result = simulator.call_program(amm, "remove_liquidity", balance, gas);
+    let result = simulator.call_program(amm, "remove_liquidity", balance, MAX_GAS);
     assert!(
         !result.has_error(),
         "Remove liquidity errored {:?}",
@@ -303,25 +297,25 @@ fn remove_liquidity() {
     assert_eq!(token_y_balance, amount, "Token y balance is incorrect");
 
     let balance = simulator
-        .call_program(lt, "balance_of", alice, gas)
+        .call_program(lt, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     let balance_x = simulator
-        .call_program(token_x, "balance_of", alice, gas)
+        .call_program(token_x, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_x, amount, "Balance of token x is incorrect");
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", alice, gas)
+        .call_program(token_y, "balance_of", alice, MAX_GAS)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, amount, "Balance of token y is incorrect");
 }
 
-fn init_amm(simulator: &mut Simulator, gas: u64) -> (Address, Address, Address, Address) {
+fn init_amm(simulator: &mut Simulator) -> (Address, Address, Address, Address) {
     let token_path = PROGRAM_PATH
         .replace("automated_market_maker", "token")
         .replace("automated-market-maker", "token");
@@ -337,10 +331,10 @@ fn init_amm(simulator: &mut Simulator, gas: u64) -> (Address, Address, Address, 
     let token_y = simulator.create_program(&token_path).program().unwrap();
     // initialize tokens
     simulator
-        .call_program(token_x, "init", ("CoinX", "CX"), gas)
+        .call_program(token_x, "init", ("CoinX", "CX"), MAX_GAS)
         .unwrap();
     simulator
-        .call_program(token_y, "init", ("YCoin", "YC"), gas)
+        .call_program(token_y, "init", ("YCoin", "YC"), MAX_GAS)
         .unwrap();
     let amm_program = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
@@ -348,16 +342,16 @@ fn init_amm(simulator: &mut Simulator, gas: u64) -> (Address, Address, Address, 
         amm_program,
         "init",
         (token_x, token_y, token_program_id),
-        gas,
+        MAX_GAS,
     );
     assert!(!result.has_error(), "Init AMM errored");
 
     // Check if the liquidity token was created
-    let lt = simulator.call_program(amm_program, "get_liquidity_token", (), gas);
+    let lt = simulator.call_program(amm_program, "get_liquidity_token", (), MAX_GAS);
     assert!(!lt.has_error(), "Get liquidity token errored");
     let lt = lt.result::<Address>().unwrap();
     // grab the name of the liquidity token
-    let lt_name = simulator.call_program(lt, "symbol", (), gas);
+    let lt_name = simulator.call_program(lt, "symbol", (), MAX_GAS);
     assert!(!lt_name.has_error(), "Get liquidity token name errored");
     let lt_name = lt_name.result::<String>().unwrap();
     assert_eq!(lt_name, "LT", "Liquidity token name is incorrect");
