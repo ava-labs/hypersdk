@@ -48,7 +48,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		c := rpc.NewJSONRPCClient(fixedNodeURL)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
-		require.Equal(chainIDFromRPC, e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID)
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		require.Equal(expectedBlockchainID, chainIDFromRPC)
 	})
 
 	ginkgo.It("GetNetwork", func() {
