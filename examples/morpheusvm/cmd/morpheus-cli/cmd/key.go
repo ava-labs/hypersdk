@@ -17,9 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/utils"
-
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 const (
@@ -188,7 +187,7 @@ var importKeyCmd = &cobra.Command{
 
 func lookupSetKeyBalance(choice int, address string, uri string, _ uint32, _ ids.ID) error {
 	// TODO: just load once
-	cli := brpc.NewJSONRPCClient(uri)
+	cli := controller.NewJSONRPCClient(uri)
 	balance, err := cli.Balance(context.TODO(), address)
 	if err != nil {
 		return err
@@ -220,7 +219,7 @@ var setKeyCmd = &cobra.Command{
 }
 
 func lookupKeyBalance(addr codec.Address, uri string, _ uint32, _ ids.ID, _ ids.ID) error {
-	_, err := handler.GetBalance(context.TODO(), brpc.NewJSONRPCClient(uri), addr)
+	_, err := handler.GetBalance(context.TODO(), controller.NewJSONRPCClient(uri), addr)
 	return err
 }
 

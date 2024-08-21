@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package controller
 
 import (
 	"context"
@@ -9,12 +9,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -73,25 +73,6 @@ func (cli *JSONRPCClient) Rules(ctx context.Context) (*vm.Rules, error) {
 	return resp.Rules, nil
 }
 
-func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, uint64, error) {
-	resp := new(TxReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"tx",
-		&TxArgs{TxID: id},
-		resp,
-	)
-	switch {
-	// We use string parsing here because the JSON-RPC library we use may not
-	// allows us to perform errors.Is.
-	case err != nil && strings.Contains(err.Error(), ErrTxNotFound.Error()):
-		return false, false, -1, 0, nil
-	case err != nil:
-		return false, false, -1, 0, err
-	}
-	return true, resp.Success, resp.Timestamp, resp.Fee, nil
-}
-
 func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
@@ -110,7 +91,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	addr string,
 	min uint64,
 ) error {
-	return rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	return jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr)
 		if err != nil {
 			return false, err
@@ -125,23 +106,6 @@ func (cli *JSONRPCClient) WaitForBalance(
 		}
 		return shouldExit, nil
 	})
-}
-
-func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error) {
-	var success bool
-	var fee uint64
-	if err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
-		found, isuccess, _, ifee, err := cli.Tx(ctx, txID)
-		if err != nil {
-			return false, err
-		}
-		success = isuccess
-		fee = ifee
-		return found, nil
-	}); err != nil {
-		return false, 0, err
-	}
-	return success, fee, nil
 }
 
 var _ chain.Parser = (*Parser)(nil)

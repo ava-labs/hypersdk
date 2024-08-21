@@ -6,13 +6,11 @@ package controller
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
 func (c *Controller) Logger() logging.Logger {
@@ -21,10 +19,6 @@ func (c *Controller) Logger() logging.Logger {
 
 func (c *Controller) Tracer() trace.Tracer {
 	return c.inner.Tracer()
-}
-
-func (c *Controller) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return c.txIndexer.GetTransaction(txID)
 }
 
 func (c *Controller) GetBalanceFromState(

@@ -5,9 +5,9 @@ package vm
 
 import (
 	"context"
-	"net/http"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -17,11 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
-	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 )
-
-type Handlers map[string]http.Handler
 
 type Config struct {
 	TraceConfig                      trace.Config    `json:"traceConfig"`
@@ -32,7 +29,6 @@ type Config struct {
 	TransactionExecutionCores        int             `json:"transactionExecutionCores"`
 	StateFetchConcurrency            int             `json:"stateFetchConcurrency"`
 	MempoolSponsorSize               int             `json:"mempoolSponsorSize"`
-	StreamingBacklogSize             int             `json:"streamingBacklogSize"`
 	StateHistoryLength               int             `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
 	IntermediateNodeCacheSize        int             `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
 	StateIntermediateWriteBufferSize int             `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
@@ -50,7 +46,6 @@ type Config struct {
 	ProcessingBuildSkip              int             `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
-	EnableJSONRPCStateHandler        bool            `json:"enableJSONRPCStateHandler"`
 	// Config is defined by the Controller
 	Config map[string]any `json:"config"`
 }
@@ -103,12 +98,9 @@ type ControllerFactory interface {
 	New(
 		inner *VM, // hypersdk VM
 		log logging.Logger,
-		chainDataDir string,
-		gatherer avametrics.MultiGatherer,
 		configBytes []byte,
 	) (
 		Controller,
-		Handlers,
 		error,
 	)
 }
@@ -118,13 +110,9 @@ type Controller interface {
 	// information in state (without clobbering things the Controller is
 	// storing).
 	StateManager() chain.StateManager
+}
 
-	// Anything that the VM wishes to store outside of state or blocks must be
-	// recorded here
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
-
-	// Shutdown should be used by the [Controller] to terminate any async
-	// processes it may be running in the background. It is invoked when
-	// `vm.Shutdown` is called.
-	Shutdown(context.Context) error
+type TxRemovedEvent struct {
+	TxID ids.ID
+	Err  error
 }

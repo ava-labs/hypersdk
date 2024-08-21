@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
@@ -18,17 +19,15 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-
-	mrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 type SpamHelper struct {
 	keyType string
-	cli     *mrpc.JSONRPCClient
-	ws      *rpc.WebSocketClient
+	cli     *controller.JSONRPCClient
+	ws      *ws.WebSocketClient
 }
 
 func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
@@ -53,8 +52,8 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 }
 
 func (sh *SpamHelper) CreateClient(uri string, _ uint32, _ ids.ID) error {
-	sh.cli = mrpc.NewJSONRPCClient(uri)
-	ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	sh.cli = controller.NewJSONRPCClient(uri)
+	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err
 	}

@@ -10,8 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
-
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 )
 
 var chainCmd = &cobra.Command{
@@ -65,8 +64,8 @@ var chainInfoCmd = &cobra.Command{
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().WatchChain(hideTxs, func(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
-			cli := brpc.NewJSONRPCClient(uri)
+		return handler.Root().WatchChain(hideTxs, func(uri string, _ uint32, _ ids.ID) (chain.Parser, error) {
+			cli := controller.NewJSONRPCClient(uri)
 			return cli.Parser(context.TODO())
 		}, handleTx)
 	},

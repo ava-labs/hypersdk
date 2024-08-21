@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -18,13 +20,11 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
-
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 const initialBalance uint64 = 10_000_000_000_000
@@ -88,8 +88,8 @@ func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
-	cli := rpc.NewJSONRPCClient(uri)
-	lcli := lrpc.NewJSONRPCClient(uri)
+	cli := jsonrpc.NewJSONRPCClient(uri)
+	lcli := controller.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
 		cli:     cli,
@@ -99,11 +99,13 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory *auth.ED25519Factory
-	cli     *rpc.JSONRPCClient
-	lcli    *lrpc.JSONRPCClient
-	count   int
-	size    int
+	factory   *auth.ED25519Factory
+	cli       *jsonrpc.JSONRPCClient
+	lcli      *controller.JSONRPCClient
+	networkID uint32
+	chainID   ids.ID
+	count     int
+	size      int
 }
 
 func (g *simpleTxWorkload) Next() bool {
@@ -137,10 +139,11 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		lcli := lrpc.NewJSONRPCClient(uri)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
+		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
+		lcli := controller.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, aotherStr)
 		require.NoError(err)
 		require.Equal(uint64(1), balance)
@@ -164,12 +167,12 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	secpAddr := auth.NewSECP256R1Address(secpPub)
 	secpFactory := auth.NewSECP256R1Factory(secpPriv)
 
-	cli := rpc.NewJSONRPCClient(uri)
+	cli := jsonrpc.NewJSONRPCClient(uri)
 	networkID, _, blockchainID, err := cli.Network(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	lcli := lrpc.NewJSONRPCClient(uri)
+	lcli := controller.NewJSONRPCClient(uri)
 
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
@@ -195,8 +198,8 @@ type addressAndFactory struct {
 type mixedAuthWorkload struct {
 	addressAndFactories []addressAndFactory
 	balance             uint64
-	cli                 *rpc.JSONRPCClient
-	lcli                *lrpc.JSONRPCClient
+	cli                 *jsonrpc.JSONRPCClient
+	lcli                *controller.JSONRPCClient
 	networkID           uint32
 	chainID             ids.ID
 	count               int
@@ -233,10 +236,11 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	g.balance = expectedBalance
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		lcli := lrpc.NewJSONRPCClient(uri)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
+		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
+		lcli := controller.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, receiverAddrStr)
 		require.NoError(err)
 		require.Equal(expectedBalance, balance)

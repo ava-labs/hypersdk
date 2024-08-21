@@ -1,19 +1,20 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package state
 
 import (
 	"context"
 	"strings"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/requester"
 )
 
 func NewJSONRPCStateClient(uri string) *JSONRPCStateClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCStateEndpoint
-	req := requester.New(uri, Name)
+	req := requester.New(uri, api.Name)
 	return &JSONRPCStateClient{requester: req}
 }
 

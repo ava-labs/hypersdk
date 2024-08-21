@@ -12,12 +12,10 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/integration"
 	"github.com/ava-labs/hypersdk/vm"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -31,7 +29,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	genAndRules, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := lrpc.NewParser(genAndRules.Genesis, &vm.UnchangingRuleFactory{UnchangingRules: genAndRules.InitialRules})
+	parser := controller.NewParser(genAndRules.Genesis, &vm.UnchangingRuleFactory{UnchangingRules: genAndRules.InitialRules})
 	genesisBytes, err := json.Marshal(genAndRules)
 	require.NoError(err)
 
@@ -46,7 +44,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		genesisBytes,
 		lconsts.ID,
 		parser,
-		rpc.JSONRPCEndpoint,
+		controller.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
 	)
