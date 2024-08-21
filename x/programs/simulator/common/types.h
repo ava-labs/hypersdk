@@ -18,7 +18,7 @@ typedef struct {
 
 typedef struct {
     const uint8_t* data;
-    unsigned int length;
+    uint64_t length;
 } Bytes;
 
 // Bytes with an additional error field
@@ -49,7 +49,7 @@ typedef struct {
 typedef struct {
     char* error;
     Bytes result;
-    unsigned int fuel;
+    uint64_t fuel;
 } CallProgramResponse;
 
 // Response from creating a program

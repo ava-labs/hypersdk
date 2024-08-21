@@ -84,13 +84,16 @@ impl<'a> Simulator<'a> {
     /// `CallProgramResponse` with:
     /// - `result<R>()`: Call result (specify type `R`)
     /// - `error()` or `has_error()`: Error information
-    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
+    pub fn call_program<T>(
         &self,
         program: Address,
         method: &str,
         params: T,
         gas: u64,
-    ) -> CallProgramResponse {
+    ) -> CallProgramResponse
+    where
+        T: wasmlanche_sdk::borsh::BorshSerialize,
+    {
         // serialize the params
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
