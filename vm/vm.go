@@ -473,7 +473,7 @@ func (vm *VM) Initialize(
 	go vm.markReady()
 
 	for _, factory := range vm.blockSubscriptionFactories {
-		subscription, err := factory.New(controllerContext.ChainDataDir)
+		subscription, err := factory.New()
 		if err != nil {
 			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}

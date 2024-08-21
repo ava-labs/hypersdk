@@ -79,7 +79,7 @@ type subscriptionFuncFactory[T any] struct {
 	AcceptF func(t T) error
 }
 
-func (s subscriptionFuncFactory[T]) New(string) (event.Subscription[T], error) {
+func (s subscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
 	return subscriptionFunc[T](s), nil
 }
 

@@ -64,7 +64,7 @@ type subscriptionFactory struct {
 	indexer *txDBIndexer
 }
 
-func (s *subscriptionFactory) New(string) (event.Subscription[*chain.StatelessBlock], error) {
+func (s *subscriptionFactory) New() (event.Subscription[*chain.StatelessBlock], error) {
 	return s.indexer, nil
 }
 
