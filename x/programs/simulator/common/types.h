@@ -42,7 +42,7 @@ typedef struct {
     // params borsh serialized as byte vector
     Bytes params;
     // max allowed gas during execution
-    unsigned int max_gas;
+    uint64_t max_gas;
 } SimulatorCallContext;
 
 // Response from calling a program

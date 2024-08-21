@@ -92,7 +92,7 @@ func (s *Mutable) Remove(_ context.Context, key []byte) error {
 
 	keyStruct := C.Bytes{
 		data:   (*C.uint8_t)(keyBytes),
-		length: C.uint64(len(key)),
+		length: C.uint64_t(len(key)),
 	}
 
 	C.bridge_remove_callback(s.remove_callback, s.stateObj, keyStruct)

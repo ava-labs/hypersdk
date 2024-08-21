@@ -2,10 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use crate::bindings::{Bytes, BytesWithError};
-use std::{
-    collections::HashMap,
-    ffi::{CStr, CString},
-};
+use std::{collections::HashMap, ffi::CString};
 
 // define constant error messages
 // TODO: Would love a less-hardcodey way of representing errors between rust <-> go
@@ -66,7 +63,7 @@ pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> Byt
         Some(v) => BytesWithError {
             bytes: Bytes {
                 data: v.as_ptr(),
-                length: v.len(),
+                length: v.len() as u64,
             },
             error: std::ptr::null(),
         },
@@ -75,9 +72,7 @@ pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> Byt
                 data: std::ptr::null_mut(),
                 length: 0,
             },
-            error: CStr::from_bytes_with_nul(bytes!(ERR_NOT_FOUND))
-                .unwrap()
-                .as_ptr(),
+            error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
         },
     }
 }

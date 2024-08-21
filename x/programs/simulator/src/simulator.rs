@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use libc::{c_char, c_uint};
+use libc::c_char;
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
@@ -119,9 +119,9 @@ impl<'a> Simulator<'a> {
             method: method.as_ptr(),
             params: Bytes {
                 data: params.as_ptr(),
-                length: params.len() as c_uint,
+                length: params.len() as u64,
             },
-            max_gas: gas as c_uint,
+            max_gas: gas,
         }
     }
 
