@@ -43,18 +43,14 @@ func main() {
 }
 
 func runFunc(*cobra.Command, []string) error {
-	logFactory := logging.NewFactory(logging.Config{
-		DisplayLevel: logging.Debug,
-	})
-
-	log, err := logFactory.Make("main")
-	if err != nil {
-		return fmt.Errorf("failed to initialize log: %w", err)
-	}
-
-	if err := ulimit.Set(ulimit.DefaultFDLimit, log); err != nil {
+	if err := ulimit.Set(ulimit.DefaultFDLimit, logging.NoLog{}); err != nil {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	return rpcchainvm.Serve(context.TODO(), controller.New())
+	controller, err := controller.New()
+	if err != nil {
+		return fmt.Errorf("failed to initialize controller: %w", err)
+	}
+
+	return rpcchainvm.Serve(context.TODO(), controller)
 }
