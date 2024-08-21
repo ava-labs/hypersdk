@@ -140,6 +140,7 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
+	genesisLoader func(b []byte) (Genesis, error),
 	options ...Option,
 ) (*VM, error) {
 	vm := &VM{
@@ -151,7 +152,7 @@ func New(
 		authEngine:     authEngine,
 		genesisAndRuleHandler: &genesisAndRuleHandler{
 			LoadRules:   LoadRules,
-			LoadGenesis: LoadStateBranchFactorGenesis,
+			LoadGenesis: genesisLoader,
 		},
 	}
 	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
