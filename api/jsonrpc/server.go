@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	Name     = "hypersdk"
 	Endpoint = "/coreapi"
 )
 
@@ -27,7 +26,7 @@ var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
 type JSONRPCServerFactory struct{}
 
 func (JSONRPCServerFactory) New(vm api.VM) (api.Handler, error) {
-	handler, err := api.NewJSONRPCHandler(Name, NewJSONRPCServer(vm))
+	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCServer(vm))
 	if err != nil {
 		return api.Handler{}, err
 	}

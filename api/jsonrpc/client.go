@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
@@ -36,7 +37,7 @@ type JSONRPCClient struct {
 func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
-	req := requester.New(uri, Name)
+	req := requester.New(uri, api.Name)
 	return &JSONRPCClient{requester: req}
 }
 

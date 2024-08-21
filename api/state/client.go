@@ -7,13 +7,14 @@ import (
 	"context"
 	"strings"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/requester"
 )
 
-func NewJSONRPCStateClient(uri string, name string) *JSONRPCStateClient {
+func NewJSONRPCStateClient(uri string) *JSONRPCStateClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCStateEndpoint
-	req := requester.New(uri, name)
+	req := requester.New(uri, api.Name)
 	return &JSONRPCStateClient{requester: req}
 }
 

@@ -7,6 +7,8 @@ import (
 	"net/http"
 )
 
+const Name = "hypersdk"
+
 type Handler struct {
 	Path    string
 	Handler http.Handler
