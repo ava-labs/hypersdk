@@ -28,11 +28,10 @@ fn main() {
     let ffi_package = Path::new(&dir).join("ffi");
     let state_package = Path::new(&dir).join("state");
     let go_file = Path::new(&ffi_package).join("ffi.go");
-    // Invalidate the build script whenever the Go file changes
+
+    // rerun the build script if go files change
     println!("cargo:rerun-if-changed={}", state_package.to_string_lossy());
     println!("cargo:rerun-if-changed={}", ffi_package.to_string_lossy());
-    // // Invalidate the build script whenever the Go file changes
-    // println!("cargo:rerun-if-changed={}", go_file.to_string_lossy());
 
     // Build the Go library
     let status = Command::new("go")
