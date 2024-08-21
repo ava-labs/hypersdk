@@ -6,6 +6,5 @@
 	"features": {
 		//uncomment if you want to install rust
 		// "ghcr.io/devcontainers/features/rust:1": {}
-	},
-	"postCreateCommand": "sudo chown -R $USER /go && sudo chown -R $USER /tmp/hypersdk/",
+	}
 }
