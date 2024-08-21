@@ -6,9 +6,14 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if ! [[ "$0" =~ scripts/build.release.sh ]]; then
-  echo "must be run from morpheusvm root"
-  exit 255
+if [ -n "$1" ]; then
+    # Attempt to change to the directory provided as the argument
+    if cd "$1"; then
+        echo "cd $1"
+    else
+        echo "failed to cd to directory; $1"
+        exit 255
+    fi
 fi
 
 # shellcheck source=/scripts/constants.sh
