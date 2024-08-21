@@ -179,15 +179,16 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 
-	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
-		vm.Fatal("failed to update the last processed height", zap.Error(err))
-	}
-
-	// Update subscriptions
+	// Subscriptions must be updated before setting the last processed height
+	// key to guarantee at-least-once delivery semantics
 	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Accept(b); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
+	}
+
+	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
+		vm.Fatal("failed to update the last processed height", zap.Error(err))
 	}
 }
 
