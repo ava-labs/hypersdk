@@ -33,9 +33,8 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/onsi/ginkgo/v2"
-
 	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 // TODO integration tests require MinBlockGap to be 0, so that BuildBlock can be called
