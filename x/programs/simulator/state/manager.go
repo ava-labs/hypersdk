@@ -81,15 +81,15 @@ func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutab
 
 // GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the programbytes
 // Errors if there is no found account or an error fetching
-func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error) {
 	programID, exists, err := p.getAccountProgram(ctx, account)
 	if err != nil {
-		return ids.Empty, err
+		return nil, err
 	}
 	if !exists {
-		return ids.Empty, ErrUnknownAccount
+		return nil, ErrUnknownAccount
 	}
-	return programID, nil
+	return programID[:], nil
 }
 
 func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
