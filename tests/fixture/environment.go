@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,8 +24,6 @@ func NewTestEnvironment(
 	vmID ids.ID,
 	genesisBytes []byte,
 ) *e2e.TestEnvironment {
-	require := require.New(testContext)
-
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
 	nodes[0].Flags[config.HTTPPortKey] = config.DefaultHTTPPort
@@ -45,24 +44,30 @@ func NewTestEnvironment(
 
 	chainID := network.GetSubnet(vmName).Chains[0].ChainID
 	if chainID != ids.Empty {
-		baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
-		adminClient := admin.NewClient(baseURI)
-
-		aliases, err := adminClient.GetChainAliases(testContext.DefaultContext(), chainID.String())
-		require.NoError(err)
-
-		hasAlias := false
-		for _, alias := range aliases {
-			if alias == vmName {
-				hasAlias = true
-			}
-		}
-
-		if !hasAlias {
-			err = adminClient.AliasChain(testContext.DefaultContext(), chainID.String(), vmName)
-			require.NoError(err)
-		}
+		setupDefaultChainAlias(chainID, testContext, vmName)
 	}
 
 	return testEnv
+}
+
+func setupDefaultChainAlias(chainID ids.ID, tc tests.TestContext, vmName string) {
+	require := require.New(ginkgo.GinkgoT())
+
+	baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
+	adminClient := admin.NewClient(baseURI)
+
+	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
+	require.NoError(err)
+
+	hasAlias := false
+	for _, alias := range aliases {
+		if alias == vmName {
+			hasAlias = true
+		}
+	}
+
+	if !hasAlias {
+		err = adminClient.AliasChain(tc.DefaultContext(), chainID.String(), vmName)
+		require.NoError(err)
+	}
 }
