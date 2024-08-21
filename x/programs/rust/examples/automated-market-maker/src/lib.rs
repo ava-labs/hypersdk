@@ -191,7 +191,7 @@ fn reserves(
     let balance_x = token::allowance(
         token_x,
         *context.program().account(),
-       * context.program().account(),
+        *context.program().account(),
     );
     let balance_y = token::allowance(
         token_y,
