@@ -6,7 +6,6 @@ package controller
 import (
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -30,9 +29,9 @@ var (
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(log logging.Logger, tracer trace.Tracer, db database.Database, options ...vm.Option) (*vm.VM, error) {
+func New(log logging.Logger, tracer trace.Tracer, options ...vm.Option) *vm.VM {
 	opts := []vm.Option{
-		indexer.WithIndexer(db, consts.Name, indexer.Endpoint),
+		indexer.WithIndexer(consts.Name, indexer.Endpoint),
 		ws.WithWebsocketAPI(log, tracer, registry.Action, registry.Auth, 10_000_000),
 		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
 		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
@@ -44,7 +43,7 @@ func New(log logging.Logger, tracer trace.Tracer, db database.Database, options 
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
+func NewWithOptions(options ...vm.Option) *vm.VM {
 	return vm.New(
 		&factory{},
 		consts.Version,

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -19,9 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 	"github.com/ava-labs/hypersdk/vm"
 
+	"github.com/onsi/ginkgo/v2"
+
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 func TestIntegration(t *testing.T) {
@@ -42,8 +42,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	vmF := func(options ...vm.Option) (*vm.VM, error) {
-		return controller.New(logging.NoLog{}, trace.Noop, memdb.New(), options...)
+	vmF := func(options ...vm.Option) *vm.VM {
+		return controller.New(logging.NoLog{}, trace.Noop, options...)
 	}
 
 	// Setup imports the integration test coverage

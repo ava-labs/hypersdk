@@ -59,6 +59,7 @@ const (
 )
 
 type VM struct {
+	DataDir string
 	factory ControllerFactory
 	c       Controller
 	v       *version.Semantic
@@ -69,6 +70,7 @@ type VM struct {
 
 	config                     Config
 	genesis                    Genesis
+	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
@@ -145,30 +147,16 @@ func New(
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
-) (*VM, error) {
-	vm := &VM{
+) *VM {
+	return &VM{
 		factory:        factory,
 		v:              v,
 		config:         NewConfig(),
 		actionRegistry: actionRegistry,
 		authRegistry:   authRegistry,
 		authEngine:     authEngine,
+		options:        options,
 	}
-
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return nil, err
-	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
-	vm.gossiper = txGossiper
-
-	for _, option := range options {
-		option(vm)
-	}
-
-	return vm, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -183,6 +171,7 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
+	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	// This will be overwritten when we accept the first block (in state sync) or
@@ -216,6 +205,21 @@ func (vm *VM) Initialize(
 		return err
 	}
 
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return err
+	}
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
+
+	for _, option := range vm.options {
+		if err := option(vm); err != nil {
+			return err
+		}
+	}
+
 	// TODO do not expose entire context to the Controller
 	//
 	// Note: does not copy the consensus lock but this is safe because the
@@ -236,7 +240,7 @@ func (vm *VM) Initialize(
 		Metrics:        vm.snowCtx.Metrics,
 		WarpSigner:     vm.snowCtx.WarpSigner,
 		ValidatorState: vm.snowCtx.ValidatorState,
-		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+		ChainDataDir:   vm.DataDir,
 	}
 
 	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
@@ -469,7 +473,7 @@ func (vm *VM) Initialize(
 	go vm.markReady()
 
 	for _, factory := range vm.blockSubscriptionFactories {
-		subscription, err := factory.New()
+		subscription, err := factory.New(controllerContext.ChainDataDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
@@ -478,7 +482,7 @@ func (vm *VM) Initialize(
 	}
 
 	for _, factory := range vm.txRemovedSubscriptionFactories {
-		subscription, err := factory.New()
+		subscription, err := factory.New(controllerContext.ChainDataDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
 		}

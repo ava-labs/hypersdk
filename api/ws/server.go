@@ -40,7 +40,7 @@ func WithWebsocketAPI(
 	authRegistry *codec.TypeParser[chain.Auth],
 	maxPendingMessages int,
 ) vm.Option {
-	return func(v *vm.VM) {
+	return func(v *vm.VM) error {
 		server, handler := NewWebSocketServer(
 			v,
 			log,
@@ -63,9 +63,15 @@ func WithWebsocketAPI(
 			},
 		}
 
-		vm.WithBlockSubscriptions(blockSubscription)(v)
-		vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v)
-		vm.WithVMAPIs(webSocketFactory)(v)
+		if err := vm.WithBlockSubscriptions(blockSubscription)(v); err != nil {
+			return err
+		}
+
+		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v); err != nil {
+			return err
+		}
+
+		return vm.WithVMAPIs(webSocketFactory)(v)
 	}
 }
 
@@ -73,7 +79,7 @@ type subscriptionFuncFactory[T any] struct {
 	AcceptF func(t T) error
 }
 
-func (s subscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
+func (s subscriptionFuncFactory[T]) New(string) (event.Subscription[T], error) {
 	return subscriptionFunc[T](s), nil
 }
 

@@ -33,8 +33,9 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
+	"github.com/onsi/ginkgo/v2"
+
 	hutils "github.com/ava-labs/hypersdk/utils"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 // TODO integration tests require MinBlockGap to be 0, so that BuildBlock can be called
@@ -56,7 +57,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
+	createVM              func(...vm.Option) *vm.VM
 	genesisBytes          []byte
 	vmID                  ids.ID
 	parser                chain.Parser
@@ -89,7 +90,7 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) (*vm.VM, error),
+	newVM func(...vm.Option) *vm.VM,
 	genesis []byte,
 	id ids.ID,
 	vmParser chain.Parser,
@@ -155,11 +156,10 @@ func setInstances() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v, err := createVM(
+		v := createVM(
 			vm.WithManualGossiper(),
 			vm.WithManualBuilder(),
 		)
-		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,

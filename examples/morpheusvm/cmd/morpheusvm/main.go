@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/ulimit"
@@ -58,11 +57,7 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	// TODO use disk-based db
-	controller, err := controller.New(log, trace.Noop, memdb.New())
-	if err != nil {
-		return fmt.Errorf("failed to initialize controller: %w", err)
-	}
+	controller := controller.New(log, trace.Noop)
 
 	return rpcchainvm.Serve(context.TODO(), controller)
 }

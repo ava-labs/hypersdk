@@ -5,7 +5,7 @@ package event
 
 // SubscriptionFactory returns an instance of a concrete Subscription
 type SubscriptionFactory[T any] interface {
-	New() (Subscription[T], error)
+	New(chainDataDir string) (Subscription[T], error)
 }
 
 // Subscription defines how to consume events
