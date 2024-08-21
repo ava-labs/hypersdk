@@ -131,7 +131,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Program {
+    pub fn deploy(&self, program_id: &[u8], account_creation_data: &[u8]) -> Program {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]

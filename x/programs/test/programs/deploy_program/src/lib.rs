@@ -4,6 +4,6 @@
 use wasmlanche_sdk::{public, Context, Id, Program};
 
 #[public]
-pub fn deploy(ctx: &mut Context, program_id: Id) -> Program {
-    ctx.deploy(program_id, &[])
+pub fn deploy(ctx: &mut Context, program_id: Vec<u8>) -> Program {
+    ctx.deploy(&program_id, &[])
 }
