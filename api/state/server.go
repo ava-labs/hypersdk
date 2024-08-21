@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package state
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 )
+
+const JSONRPCStateEndpoint = "/corestate"
 
 type StateReader interface {
 	Tracer() trace.Tracer
