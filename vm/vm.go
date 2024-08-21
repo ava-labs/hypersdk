@@ -125,7 +125,7 @@ type VM struct {
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *network.Manager
 
-	metrics  *Metrics
+	metrics  *utils.Metrics
 	profiler profiler.ContinuousProfiler
 
 	ready chan struct{}
@@ -188,7 +188,7 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	// TODO: cleanup metrics registration
-	defaultRegistry, metrics, err := newMetrics()
+	defaultRegistry, metrics, err := utils.NewMetrics()
 	if err != nil {
 		return err
 	}
@@ -747,7 +747,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	// the index on-disk because peers may query us for
 	// blocks we don't have yet at tip and we don't want
 	// to count that as a historical read.
-	vm.metrics.blocksFromDisk.Inc()
+	vm.metrics.BlocksFromDisk.Inc()
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
@@ -756,7 +756,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
-		vm.metrics.blockParse.Observe(float64(time.Since(start)))
+		vm.metrics.BlockParse.Observe(float64(time.Since(start)))
 	}()
 
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
@@ -800,7 +800,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+		vm.metrics.BlockBuild.Observe(float64(time.Since(start)))
 	}()
 
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
@@ -853,7 +853,7 @@ func (vm *VM) Submit(
 ) (errs []error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
-	vm.metrics.txsSubmitted.Add(float64(len(txs)))
+	vm.metrics.TxsSubmitted.Add(float64(len(txs)))
 
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
@@ -953,7 +953,7 @@ func (vm *VM) Submit(
 	}
 	vm.mempool.Add(ctx, validTxs)
 	vm.checkActivity(ctx)
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
+	vm.metrics.MempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 
@@ -1094,7 +1094,7 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
 		return blkID, nil
 	}
-	vm.metrics.blocksHeightsFromDisk.Inc()
+	vm.metrics.BlocksHeightsFromDisk.Inc()
 	return vm.GetBlockHeightID(height)
 }
 

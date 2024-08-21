@@ -152,7 +152,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 			return err
 		}
 		expired = true
-		vm.metrics.deletedBlocks.Inc()
+		vm.metrics.DeletedBlocks.Inc()
 		vm.Logger().Info("deleted block", zap.Uint64("height", expiryHeight))
 	}
 	if err := batch.Write(); err != nil {

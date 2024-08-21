@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const defaultOps = 4
@@ -47,12 +48,14 @@ type TStateView struct {
 	scope        state.Keys
 	scopeStorage map[string][]byte
 
+	metrics *utils.Metrics
+
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, metrics *utils.Metrics) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
@@ -61,6 +64,8 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateVi
 
 		scope:        scope,
 		scopeStorage: storage,
+
+		metrics: metrics,
 
 		allocates: make(map[string]uint16, len(scope)),
 		writes:    make(map[string]uint16, len(scope)),
@@ -74,15 +79,18 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 
 		switch op.t {
 		case createOp:
+			ts.metrics.UpdateAllocOperations(ts.allocates[op.k], 0)
 			delete(ts.allocates, op.k)
 			if op.pastWrites != nil {
 				// If previously deleted value, we need to restore
 				// that modification.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], *op.pastWrites)
 				ts.writes[op.k] = *op.pastWrites // must be 0 (delete)
 				ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
 			} else {
 				// If this was the first time we were writing to the key,
 				// we can remove the record of that write.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], 0)
 				delete(ts.writes, op.k)
 				delete(ts.pendingChangedKeys, op.k)
 			}
@@ -90,11 +98,13 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 			if op.pastWrites != nil {
 				// If we previously wrote to the key in this view,
 				// we should restore that.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], *op.pastWrites)
 				ts.writes[op.k] = *op.pastWrites
 				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 			} else {
 				// If this was our first time writing to the key,
 				// we should remove record of that write.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], 0)
 				delete(ts.writes, op.k)
 				delete(ts.pendingChangedKeys, op.k)
 			}
@@ -106,11 +116,13 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 				// The key should have already been removed from allocates,
 				// so we don't need to explicitly delete it if [op.pastAllocates]
 				// is nil.
+				ts.metrics.UpdateAllocOperations(ts.allocates[op.k], *op.pastAllocates)
 				ts.allocates[op.k] = *op.pastAllocates
 			}
 			if op.pastWrites != nil {
 				// If we removed a newly written key, we should revert
 				// it back to its previous value.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], *op.pastWrites)
 				ts.writes[op.k] = *op.pastWrites
 				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 			} else {
@@ -118,6 +130,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 				// we should remove it from tracking.
 				//
 				// This should never happen if [op.pastAllocates] != nil.
+				ts.metrics.UpdateWriteOperations(ts.writes[op.k], 0)
 				delete(ts.writes, op.k)
 				delete(ts.pendingChangedKeys, op.k)
 			}
@@ -219,6 +232,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 			return nil
 		}
 		op.t = insertOp
+		ts.metrics.UpdateWriteOperations(ts.writes[op.k], valueChunks)
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
 		// New entry requires Allocate
@@ -230,12 +244,16 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		}
 		op.t = createOp
 		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
+		ts.metrics.UpdateAllocOperations(ts.allocates[op.k], keyChunks)
 		ts.allocates[k] = keyChunks
+		ts.metrics.UpdateWriteOperations(ts.writes[op.k], valueChunks)
 		ts.writes[k] = valueChunks
 	}
 	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
 	if ts.isUnchanged(ctx, k, value, true) {
+		ts.metrics.UpdateAllocOperations(ts.allocates[op.k], 0)
+		ts.metrics.UpdateWriteOperations(ts.writes[op.k], 0)
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
@@ -266,16 +284,23 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	if _, ok := ts.allocates[k]; ok {
 		// If delete after allocating in the same view, it is
 		// as if nothing happened.
+		ts.metrics.UpdateAllocOperations(ts.allocates[k], 0)
+		ts.metrics.UpdateWriteOperations(ts.writes[k], 0)
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
+		// We don't have access to the vm, so should probably provide a pointer to metrics
+		// ts.metrics.AllocKeyOperations.Reset()
 	} else {
 		// If this is not a new allocation, we mark as an
 		// explicit delete.
+		ts.metrics.UpdateWriteOperations(ts.writes[k], 0)
 		ts.writes[k] = 0
 		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	}
 	if ts.isUnchanged(ctx, k, nil, false) {
+		ts.metrics.UpdateAllocOperations(ts.allocates[k], 0)
+		ts.metrics.UpdateWriteOperations(ts.writes[k], 0)
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)

@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
@@ -100,7 +101,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
-	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
+	vm.metrics.TxsVerified.Add(float64(len(b.Txs)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
@@ -152,7 +153,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	start := time.Now()
 	defer func() {
-		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
+		vm.metrics.BlockProcess.Observe(float64(time.Since(start)))
 	}()
 
 	// We skip blocks that were not processed because metadata required to
@@ -188,11 +189,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	// Update price metrics
 	feeManager := b.FeeManager()
-	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
-	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
-	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
-	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
-	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+	vm.metrics.BandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
+	vm.metrics.ComputePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
+	vm.metrics.StorageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
+	vm.metrics.StorageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
+	vm.metrics.StorageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
 		vm.Fatal("failed to update the last processed height", zap.Error(err))
@@ -224,7 +225,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
+	vm.metrics.TxsAccepted.Add(float64(len(b.Txs)))
 
 	// Update accepted blocks on-disk and caches
 	if err := vm.UpdateLastAccepted(b); err != nil {
@@ -363,23 +364,23 @@ func (vm *VM) StateManager() chain.StateManager {
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
-	vm.metrics.rootCalculated.Observe(float64(t))
+	vm.metrics.RootCalculated.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitRoot(t time.Duration) {
-	vm.metrics.waitRoot.Observe(float64(t))
+	vm.metrics.WaitRoot.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
-	vm.metrics.waitSignatures.Observe(float64(t))
+	vm.metrics.WaitSignatures.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c int) {
-	vm.metrics.stateChanges.Add(float64(c))
+	vm.metrics.StateChanges.Add(float64(c))
 }
 
 func (vm *VM) RecordStateOperations(c int) {
-	vm.metrics.stateOperations.Add(float64(c))
+	vm.metrics.StateOperations.Add(float64(c))
 }
 
 func (vm *VM) GetVerifyAuth() bool {
@@ -387,19 +388,19 @@ func (vm *VM) GetVerifyAuth() bool {
 }
 
 func (vm *VM) RecordTxsGossiped(c int) {
-	vm.metrics.txsGossiped.Add(float64(c))
+	vm.metrics.TxsGossiped.Add(float64(c))
 }
 
 func (vm *VM) RecordTxsReceived(c int) {
-	vm.metrics.txsReceived.Add(float64(c))
+	vm.metrics.TxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
+	vm.metrics.SeenTxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordBuildCapped() {
-	vm.metrics.buildCapped.Inc()
+	vm.metrics.BuildCapped.Inc()
 }
 
 func (vm *VM) GetTargetBuildDuration() time.Duration {
@@ -411,7 +412,7 @@ func (vm *VM) GetTargetGossipDuration() time.Duration {
 }
 
 func (vm *VM) RecordEmptyBlockBuilt() {
-	vm.metrics.emptyBlockBuilt.Inc()
+	vm.metrics.EmptyBlockBuilt.Inc()
 }
 
 func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
@@ -431,15 +432,40 @@ func (vm *VM) cacheAuth(auth chain.Auth) {
 }
 
 func (vm *VM) RecordBlockVerify(t time.Duration) {
-	vm.metrics.blockVerify.Observe(float64(t))
+	vm.metrics.BlockVerify.Observe(float64(t))
 }
 
 func (vm *VM) RecordBlockAccept(t time.Duration) {
-	vm.metrics.blockAccept.Observe(float64(t))
+	vm.metrics.BlockAccept.Observe(float64(t))
 }
 
 func (vm *VM) RecordClearedMempool() {
-	vm.metrics.clearedMempool.Inc()
+	vm.metrics.ClearedMempool.Inc()
+}
+
+func (vm *VM) RecordKeyOperation(alloc bool) {
+	if alloc {
+		vm.metrics.AllocKeyOperations.Inc()
+	} else {
+		vm.metrics.WriteKeyOperations.Inc()
+	}
+}
+
+// TODO remove
+func (vm *VM) ResetKeyOperation(alloc bool) {
+	if alloc {
+		vm.metrics.AllocKeyOperations = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "tstate",
+			Name:      "alloc_key_operations",
+			Help:      "number of allocates operations",
+		})
+	} else {
+		vm.metrics.WriteKeyOperations = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "tstate",
+			Name:      "alloc_key_operations",
+			Help:      "number of allocates operations",
+		})
+	}
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
@@ -459,9 +485,9 @@ func (vm *VM) GetStateFetchConcurrency() int {
 }
 
 func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
-	return vm.metrics.executorBuildRecorder
+	return vm.metrics.ExecutorBuildRecorder
 }
 
 func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
-	return vm.metrics.executorVerifyRecorder
+	return vm.metrics.ExecutorVerifyRecorder
 }
