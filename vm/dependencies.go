@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -89,10 +88,6 @@ func NewConfig() Config {
 type Genesis interface {
 	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable) error
 	GetStateBranchFactor() merkledb.BranchFactor
-}
-
-type GenesisAndRuleHandler interface {
-	ParseGenesisAndUpgradeBytes(genesis []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
 }
 
 type RuleFactory interface {

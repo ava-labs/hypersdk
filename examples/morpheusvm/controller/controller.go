@@ -39,13 +39,11 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		registry.Auth,
 		auth.Engines(),
 		append([]vm.Option{
-			vm.WithGenesisAndRuleHandler(
-				&vm.SplitGenesisAndRuleHandler{
-					LoadRules: vm.LoadRules,
-					LoadGenesis: func(b []byte) (vm.Genesis, error) {
-						return vm.LoadBech32Genesis(b, storage.SetBalance)
-					},
-				}),
+			vm.WithCustomGenesisLoader(
+				func(b []byte) (vm.Genesis, error) {
+					return vm.LoadBech32Genesis(b, storage.SetBalance)
+				},
+			),
 		}, options...)...,
 	)
 }

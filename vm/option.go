@@ -4,6 +4,8 @@
 package vm
 
 import (
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/gossiper"
 )
@@ -22,8 +24,14 @@ func WithManualGossiper() Option {
 	}
 }
 
-func WithGenesisAndRuleHandler(rp GenesisAndRuleHandler) Option {
+func WithCustomGenesisLoader(loadGenesis func(genesisBytes []byte) (Genesis, error)) Option {
 	return func(vm *VM) {
-		vm.genesisAndRuleHandler = rp
+		vm.genesisAndRuleHandler.LoadGenesis = loadGenesis
+	}
+}
+
+func WithCustomRuleLoader(loadRules func(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)) Option {
+	return func(vm *VM) {
+		vm.genesisAndRuleHandler.LoadRules = loadRules
 	}
 }

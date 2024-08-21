@@ -69,7 +69,7 @@ type VM struct {
 	config                Config
 	genesis               Genesis
 	ruleFactory           RuleFactory
-	genesisAndRuleHandler GenesisAndRuleHandler
+	genesisAndRuleHandler *genesisAndRuleHandler
 	builder               builder.Builder
 	gossiper              gossiper.Gossiper
 	rawStateDB            database.Database
@@ -149,7 +149,7 @@ func New(
 		actionRegistry: actionRegistry,
 		authRegistry:   authRegistry,
 		authEngine:     authEngine,
-		genesisAndRuleHandler: &SplitGenesisAndRuleHandler{
+		genesisAndRuleHandler: &genesisAndRuleHandler{
 			LoadRules:   LoadRules,
 			LoadGenesis: LoadStateBranchFactorGenesis,
 		},

@@ -32,37 +32,33 @@ var genGenesisCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		type genAndRules struct {
-			*vm.Bech32Genesis
-			*vm.Rules
-		}
-		combined := genAndRules{}
-		combined.Bech32Genesis = vm.NewBech32Genesis(storage.SetBalance)
-		combined.Rules = vm.NewRules()
+		combined := &vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules]{}
+		combined.Genesis = vm.NewBech32Genesis(storage.SetBalance)
+		combined.InitialRules = vm.NewRules()
 
 		if len(minUnitPrice) > 0 {
 			d, err := fees.ParseDimensions(minUnitPrice)
 			if err != nil {
 				return err
 			}
-			combined.MinUnitPrice = d
+			combined.InitialRules.MinUnitPrice = d
 		}
 		if len(maxBlockUnits) > 0 {
 			d, err := fees.ParseDimensions(maxBlockUnits)
 			if err != nil {
 				return err
 			}
-			combined.MaxBlockUnits = d
+			combined.InitialRules.MaxBlockUnits = d
 		}
 		if len(windowTargetUnits) > 0 {
 			d, err := fees.ParseDimensions(windowTargetUnits)
 			if err != nil {
 				return err
 			}
-			combined.WindowTargetUnits = d
+			combined.InitialRules.WindowTargetUnits = d
 		}
 		if minBlockGap >= 0 {
-			combined.MinBlockGap = minBlockGap
+			combined.InitialRules.MinBlockGap = minBlockGap
 		}
 
 		a, err := os.ReadFile(args[0])
@@ -73,7 +69,7 @@ var genGenesisCmd = &cobra.Command{
 		if err := json.Unmarshal(a, &allocs); err != nil {
 			return err
 		}
-		combined.CustomAllocation = allocs
+		combined.Genesis.CustomAllocation = allocs
 
 		b, err := json.Marshal(combined)
 		if err != nil {

@@ -62,25 +62,20 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-type genAndRules struct {
-	*vm.Bech32Genesis
-	*vm.Rules
-}
-
-func New(minBlockGap int64) (*genAndRules, workload.TxWorkloadFactory, error) {
-	combined := &genAndRules{}
-	combined.Rules = vm.NewRules()
+func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules], workload.TxWorkloadFactory, error) {
+	combined := &vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules]{}
+	combined.InitialRules = vm.NewRules()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	combined.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	combined.InitialRules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
 	// a block that exceeds the maximum size allowed by AvalancheGo.
-	combined.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	combined.Rules.MinBlockGap = minBlockGap
+	combined.InitialRules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	combined.InitialRules.MinBlockGap = minBlockGap
 
-	combined.Bech32Genesis = vm.NewBech32Genesis(storage.SetBalance)
+	combined.Genesis = vm.NewBech32Genesis(storage.SetBalance)
 
 	for _, prefundedAddrStr := range ed25519AddrStrs {
-		combined.Bech32Genesis.CustomAllocation = append(combined.Bech32Genesis.CustomAllocation, &vm.CustomAllocation{
+		combined.Genesis.CustomAllocation = append(combined.Genesis.CustomAllocation, &vm.CustomAllocation{
 			Address: prefundedAddrStr,
 			Balance: initialBalance,
 		})

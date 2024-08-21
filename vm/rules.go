@@ -176,18 +176,26 @@ func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
 	return r.UnchangingRules
 }
 
-// SplitGenesisAndRuleHandler needs a better name
-type SplitGenesisAndRuleHandler struct {
+type genesisAndRuleHandler struct {
 	LoadRules   func(b []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)
 	LoadGenesis func(b []byte) (Genesis, error)
 }
 
-func (grh *SplitGenesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
-	genesis, err := grh.LoadGenesis(initialBytes)
+type jsonStruct struct {
+	G json.RawMessage `json:"genesis"`
+	R json.RawMessage `json:"rules"`
+}
+
+func (grh *genesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
+	splitData := &jsonStruct{}
+	if err := json.Unmarshal(initialBytes, splitData); err != nil {
+		return nil, nil, err
+	}
+	genesis, err := grh.LoadGenesis(splitData.G)
 	if err != nil {
 		return nil, nil, err
 	}
-	rules, err := grh.LoadRules(initialBytes, upgradeBytes, networkID, chainID)
+	rules, err := grh.LoadRules(splitData.R, upgradeBytes, networkID, chainID)
 	if err != nil {
 		return nil, nil, err
 	}

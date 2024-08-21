@@ -28,11 +28,11 @@ func TestIntegration(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
-	combined, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
+	genAndRules, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := lrpc.NewParser(combined.Bech32Genesis, &vm.UnchangingRuleFactory{UnchangingRules: combined.Rules})
-	genesisBytes, err := json.Marshal(combined)
+	parser := lrpc.NewParser(genAndRules.Genesis, &vm.UnchangingRuleFactory{UnchangingRules: genAndRules.InitialRules})
+	genesisBytes, err := json.Marshal(genAndRules)
 	require.NoError(err)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
