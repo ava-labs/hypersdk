@@ -10,6 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -36,7 +37,7 @@ var genGenesisCmd = &cobra.Command{
 			*vm.Rules
 		}
 		combined := genAndRules{}
-		combined.Bech32Genesis = vm.NewBech32Genesis()
+		combined.Bech32Genesis = vm.NewBech32Genesis(storage.SetBalance)
 		combined.Rules = vm.NewRules()
 
 		if len(minUnitPrice) > 0 {
