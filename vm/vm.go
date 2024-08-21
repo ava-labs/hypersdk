@@ -1209,14 +1209,14 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
-		var blk *chain.StatelessBlock
-		if height == vm.lastAccepted.Height() {
-			blk = vm.lastAccepted
-		} else {
-			blk, err = vm.GetDiskBlock(ctx, height)
-			if err != nil {
-				return fmt.Errorf("could not find accepted block at height %d on disk", height)
-			}
+		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
+		}
+
+		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}
 
 		vm.acceptedQueue <- blk
