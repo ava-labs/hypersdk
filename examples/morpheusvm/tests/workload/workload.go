@@ -99,13 +99,11 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *jsonrpc.JSONRPCClient
-	lcli      *controller.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
+	factory *auth.ED25519Factory
+	cli     *jsonrpc.JSONRPCClient
+	lcli    *controller.JSONRPCClient
+	count   int
+	size    int
 }
 
 func (g *simpleTxWorkload) Next() bool {
