@@ -72,10 +72,13 @@ unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
 const _: fn() = || {
     type TypeForTypeTest = u32;
-    const SIZE: usize = ::core::mem::size_of::<PrefixType>() + ::core::mem::size_of::<MaxChunksType>() + ::core::mem::size_of::<TypeForTypeTest>();
+    const SIZE: usize = ::core::mem::size_of::<PrefixType>()
+        + ::core::mem::size_of::<MaxChunksType>()
+        + ::core::mem::size_of::<TypeForTypeTest>();
     #[doc(hidden)]
     struct TypeWithoutPadding([u8; SIZE]);
-    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<TypeForTypeTest>, TypeWithoutPadding>;
+    let _ =
+        ::core::mem::transmute::<crate::state::PrefixedKey<TypeForTypeTest>, TypeWithoutPadding>;
 };
 
 /// A trait for defining the associated value for a given state-key.
