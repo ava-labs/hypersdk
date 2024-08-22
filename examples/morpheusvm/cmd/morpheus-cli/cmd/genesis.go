@@ -10,6 +10,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/vm"
@@ -32,8 +34,12 @@ var genGenesisCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		combined := &vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules]{}
-		combined.Genesis = vm.NewBech32Genesis(storage.SetBalance)
+		combined := &vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules]{}
+		combined.Genesis = vm.NewAllocationGenesis(
+			func(saddr string) (codec.Address, error) {
+				return codec.ParseAddressBech32(consts.HRP, saddr)
+			},
+			storage.SetBalance)
 		combined.InitialRules = vm.NewRules()
 
 		if len(minUnitPrice) > 0 {
