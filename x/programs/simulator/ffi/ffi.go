@@ -45,7 +45,7 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	callInfo := createRuntimeCallInfo(state, ctx)
 	config := runtime.NewConfig()
 	config.SetDebugInfo(true)
-	
+
 	rt := runtime.NewRuntime(config, SimLogger)
 	result, err := rt.CallProgram(SimContext, callInfo)
 	if err != nil {
