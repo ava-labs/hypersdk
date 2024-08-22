@@ -13,10 +13,6 @@ typedef struct {
 } Address;
 
 typedef struct {
-    unsigned char id[32];
-} ID;
-
-typedef struct {
     const uint8_t* data;
     unsigned int length;
 } Bytes;
@@ -55,7 +51,7 @@ typedef struct {
 // Response from creating a program
 typedef struct {
     Address program_address;
-    ID program_id;
+    Bytes program_id;
     const char *error;
 } CreateProgramResponse;
 

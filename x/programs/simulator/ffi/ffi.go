@@ -109,9 +109,10 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	}
 	return C.CreateProgramResponse{
 		error: nil,
-		program_id: C.ID{
-			*(*[32]C.uchar)(C.CBytes(programID[:])), //nolint:all
-		},
+		program_id: C.Bytes{
+			data:   (*C.uint8_t)(C.CBytes(programID[:])),
+			length: C.uint(len(programID[:])),
+		}, //nolint:all
 		program_address: C.Address{
 			*(*[33]C.uchar)(C.CBytes(account[:])), //nolint:all
 		},
