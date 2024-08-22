@@ -1,10 +1,9 @@
 {
 	"name": "Go",
-	"build": {
-		"dockerfile": "Dockerfile"
-	},
+	"image": "mcr.microsoft.com/devcontainers/base",
 	"features": {
-		//uncomment if you want to install rust
-		// "ghcr.io/devcontainers/features/rust:1": {}
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "1.21.12"
+		}
 	}
 }
