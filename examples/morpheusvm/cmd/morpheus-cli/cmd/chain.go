@@ -21,26 +21,6 @@ var importChainCmd = &cobra.Command{
 	},
 }
 
-var importANRChainCmd = &cobra.Command{
-	Use: "import-anr",
-	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().ImportANR()
-	},
-}
-
-var importAvalancheOpsChainCmd = &cobra.Command{
-	Use: "import-ops [path]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) != 1 {
-			return ErrInvalidArgs
-		}
-		return nil
-	},
-	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().ImportOps(args[0])
-	},
-}
-
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
