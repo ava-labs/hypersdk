@@ -38,7 +38,6 @@ fn main() {
         common_package.to_string_lossy()
     );
 
-    println!("cargo:rerun-if-changed={}", output.to_string_lossy());
     // Build the Go library
     let status = Command::new("go")
         .args(["build", "-buildmode=c-shared", "-tags=debug", "-o"])

@@ -25,7 +25,6 @@ state_schema! {
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(context: &mut Context, name: String, symbol: String) {
-    wasmlanche_sdk::dbg!("init token*****");
     let actor = context.actor();
 
     context
