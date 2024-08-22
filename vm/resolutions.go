@@ -34,19 +34,19 @@ var (
 )
 
 func (vm *VM) ChainID() ids.ID {
-	return vm.snowCtx.ChainID
+	return vm.SnowCtx.ChainID
 }
 
 func (vm *VM) NetworkID() uint32 {
-	return vm.snowCtx.NetworkID
+	return vm.SnowCtx.NetworkID
 }
 
 func (vm *VM) SubnetID() ids.ID {
-	return vm.snowCtx.SubnetID
+	return vm.SnowCtx.SubnetID
 }
 
 func (vm *VM) ValidatorState() validators.State {
-	return vm.snowCtx.ValidatorState
+	return vm.SnowCtx.ValidatorState
 }
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
@@ -62,7 +62,7 @@ func (vm *VM) Tracer() trace.Tracer {
 }
 
 func (vm *VM) Logger() logging.Logger {
-	return vm.snowCtx.Log
+	return vm.SnowCtx.Log
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
@@ -111,7 +111,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 
 	if b.Processed() {
 		fm := b.FeeManager()
-		vm.snowCtx.Log.Info(
+		vm.SnowCtx.Log.Info(
 			"verified block",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
@@ -124,7 +124,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	} else {
 		// [b.FeeManager] is not populated if the block
 		// has not been processed.
-		vm.snowCtx.Log.Info(
+		vm.SnowCtx.Log.Info(
 			"skipped block verification",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
@@ -146,7 +146,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 
 	// Ensure children of block are cleared, they may never be
 	// verified
-	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
+	vm.SnowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
 func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
@@ -161,7 +161,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// We don't need to worry about dangling messages in listeners because we
 	// don't allow subscription until the node is healthy.
 	if !b.Processed() {
-		vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
+		vm.SnowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
 		return
 	}
 
@@ -196,7 +196,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// Always close [acceptorDone] or we may block shutdown.
 	defer func() {
 		close(vm.acceptorDone)
-		vm.snowCtx.Log.Info("acceptor queue shutdown")
+		vm.SnowCtx.Log.Info("acceptor queue shutdown")
 	}()
 
 	// The VM closes [acceptedQueue] during shutdown. We wait for all enqueued blocks
@@ -205,7 +205,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for b := range vm.acceptedQueue {
 		vm.processAcceptedBlock(b)
-		vm.snowCtx.Log.Info(
+		vm.SnowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
@@ -273,7 +273,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	// Enqueue block for processing
 	vm.acceptedQueue <- b
 
-	vm.snowCtx.Log.Info(
+	vm.SnowCtx.Log.Info(
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
@@ -300,7 +300,7 @@ func (vm *VM) CurrentValidators(
 }
 
 func (vm *VM) NodeID() ids.NodeID {
-	return vm.snowCtx.NodeID
+	return vm.SnowCtx.NodeID
 }
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {

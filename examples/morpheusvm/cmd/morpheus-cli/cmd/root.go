@@ -36,6 +36,8 @@ var (
 	prometheusData        string
 	startPrometheus       bool
 
+	externalSubscriberPort string
+
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
@@ -52,6 +54,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		startExternalSubscriberCommand,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -182,6 +185,14 @@ func init() {
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,
+	)
+
+	// startExternalSubscriber
+	startExternalSubscriberCommand.PersistentFlags().StringVar(
+		&externalSubscriberPort,
+		"external-subscriber-port",
+		":9001",
+		"port number to host external subscriber server",
 	)
 }
 

@@ -1,0 +1,26 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+syntax = "proto3";
+
+package externalsubscriber;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber";
+
+service ExternalSubscriber {
+  rpc Initialize(InitializeRequest) returns (google.protobuf.Empty);
+  rpc AcceptBlock(BlockRequest) returns (google.protobuf.Empty);
+}
+
+message InitializeRequest {
+  uint32 network_id = 1;
+  bytes chain_id = 2;
+  bytes genesis = 3;
+}
+
+message BlockRequest {
+  bytes block_data = 1;
+  bytes results = 2;
+}

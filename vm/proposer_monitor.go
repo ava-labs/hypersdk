@@ -41,9 +41,9 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	return &ProposerMonitor{
 		vm: vm,
 		proposer: proposer.New(
-			vm.snowCtx.ValidatorState,
-			vm.snowCtx.SubnetID,
-			vm.snowCtx.ChainID,
+			vm.SnowCtx.ValidatorState,
+			vm.SnowCtx.SubnetID,
+			vm.SnowCtx.ChainID,
 		),
 		proposerCache: &cache.LRU[string, []ids.NodeID]{Size: proposerMonitorLRUSize},
 	}
@@ -58,14 +58,14 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		return nil
 	}
 	start := time.Now()
-	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+	pHeight, err := p.vm.SnowCtx.ValidatorState.GetCurrentHeight(ctx)
 	if err != nil {
 		return err
 	}
-	p.validators, err = p.vm.snowCtx.ValidatorState.GetValidatorSet(
+	p.validators, err = p.vm.SnowCtx.ValidatorState.GetValidatorSet(
 		ctx,
 		pHeight,
-		p.vm.snowCtx.SubnetID,
+		p.vm.SnowCtx.SubnetID,
 	)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		pks[string(bls.PublicKeyToCompressedBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Info(
+	p.vm.SnowCtx.Log.Info(
 		"refreshed proposer monitor",
 		zap.Uint64("previous", p.currentPHeight),
 		zap.Uint64("new", pHeight),
