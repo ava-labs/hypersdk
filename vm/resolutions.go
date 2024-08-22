@@ -165,25 +165,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		return
 	}
 
-	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.Fatal("accepted processing failed", zap.Error(err))
-	}
-
 	// TODO: consider removing this (unused and requires an extra iteration)
 	for _, tx := range b.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
-	}
-
-	// Update server
-	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
-	}
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 
 	// Update price metrics
@@ -193,6 +178,14 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+
+	// Subscriptions must be updated before setting the last processed height
+	// key to guarantee at-least-once delivery semantics
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Accept(b); err != nil {
+			vm.Fatal("subscription failed to process block", zap.Error(err))
+		}
+	}
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
 		vm.Fatal("failed to update the last processed height", zap.Error(err))

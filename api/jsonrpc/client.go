@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package jsonrpc
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
@@ -35,8 +36,8 @@ type JSONRPCClient struct {
 
 func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
-	uri += JSONRPCEndpoint
-	req := requester.New(uri, Name)
+	uri += Endpoint
+	req := requester.New(uri, api.Name)
 	return &JSONRPCClient{requester: req}
 }
 

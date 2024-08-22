@@ -4,40 +4,72 @@
 package indexer
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
+	"path/filepath"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var (
-	_ AcceptedSubscriber = (*TxDBIndexer)(nil)
-	_ AcceptedSubscriber = (*NoOpTxIndexer)(nil)
-
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
+
+	_ event.SubscriptionFactory[*chain.StatelessBlock] = (*subscriptionFactory)(nil)
+	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-type TxIndexer interface {
-	AcceptedSubscriber
-	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
+func WithIndexer(name string, path string) vm.Option {
+	return func(v *vm.VM) error {
+		dbPath := filepath.Join(v.DataDir, "indexer", "db")
+		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
+		if err != nil {
+			return err
+		}
+
+		indexer := &txDBIndexer{
+			db: db,
+		}
+
+		subscriptionFactory := &subscriptionFactory{
+			indexer: indexer,
+		}
+
+		apiFactory := &apiFactory{
+			path:    path,
+			name:    name,
+			indexer: indexer,
+		}
+
+		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v); err != nil {
+			return err
+		}
+
+		return vm.WithVMAPIs(apiFactory)(v)
+	}
 }
 
-type TxDBIndexer struct {
+type subscriptionFactory struct {
+	indexer *txDBIndexer
+}
+
+func (s *subscriptionFactory) New() (event.Subscription[*chain.StatelessBlock], error) {
+	return s.indexer, nil
+}
+
+type txDBIndexer struct {
 	db database.Database
 }
 
-func NewTxDBIndexer(db database.Database) *TxDBIndexer {
-	return &TxDBIndexer{db: db}
-}
-
-func (t *TxDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
+func (t *txDBIndexer) Accept(blk *chain.StatelessBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
@@ -60,7 +92,11 @@ func (t *TxDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) err
 	return batch.Write()
 }
 
-func (*TxDBIndexer) storeTransaction(
+func (t *txDBIndexer) Close() error {
+	return t.db.Close()
+}
+
+func (*txDBIndexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -80,7 +116,7 @@ func (*TxDBIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (t *TxDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil
@@ -99,18 +135,4 @@ func (t *TxDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 	}
 	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, timestamp, success, d, fee, nil
-}
-
-type NoOpTxIndexer struct{}
-
-func NewNoOpTxIndexer() *NoOpTxIndexer {
-	return &NoOpTxIndexer{}
-}
-
-func (*NoOpTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
-	return nil
-}
-
-func (*NoOpTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return false, 0, false, fees.Dimensions{}, 0, errors.New("tx indexer not enabled")
 }

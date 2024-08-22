@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package jsonrpc
 
 import (
 	"errors"
@@ -10,17 +10,38 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-type JSONRPCServer struct {
-	vm VM
+const (
+	Endpoint = "/coreapi"
+)
+
+var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
+
+type JSONRPCServerFactory struct{}
+
+func (JSONRPCServerFactory) New(vm api.VM) (api.Handler, error) {
+	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCServer(vm))
+	if err != nil {
+		return api.Handler{}, err
+	}
+
+	return api.Handler{
+		Path:    Endpoint,
+		Handler: handler,
+	}, nil
 }
 
-func NewJSONRPCServer(vm VM) *JSONRPCServer {
+type JSONRPCServer struct {
+	vm api.VM
+}
+
+func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
 	return &JSONRPCServer{vm}
 }
 
