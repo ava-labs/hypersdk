@@ -12,9 +12,8 @@ use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
 use std::{cell::RefCell, collections::HashMap};
 
-
 // maximum number of chunks that can be stored at the key as big endian u16
-pub const STATE_MAX_CHUNKS: [u8;2] = [0,4];
+pub const STATE_MAX_CHUNKS: [u8; 2] = [0, 4];
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -56,7 +55,7 @@ pub struct PrefixedKey<K: NoUninit> {
     key: K,
 
     // maximum number of chunks that can be stored at this key as big endian u16
-    max_chunks: [u8;2],
+    max_chunks: [u8; 2],
 }
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
