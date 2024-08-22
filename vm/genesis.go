@@ -69,8 +69,8 @@ type AllocationGenesis struct {
 
 func NewAllocationGenesis(
 	parseAddress func(saddr string) (codec.Address, error),
-	setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error) *AllocationGenesis {
-
+	setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error,
+) *AllocationGenesis {
 	return &AllocationGenesis{
 		StateBranchFactorGenesis: NewStateBranchFactorGenesis(),
 		CustomAllocation:         []*CustomAllocation{},

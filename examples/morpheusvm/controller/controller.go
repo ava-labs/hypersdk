@@ -5,7 +5,6 @@ package controller
 
 import (
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/codec"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -13,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
