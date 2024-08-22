@@ -12,6 +12,9 @@ use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
 use std::{cell::RefCell, collections::HashMap};
 
+
+// maximum number of chunks that can be stored at the key as big endian u16
+// TODO: don't use this const and instead adjust this per stored type
 pub const STATE_MAX_CHUNKS: [u8;2] = [0,4];
 
 #[derive(Clone, thiserror::Error, Debug)]
@@ -52,7 +55,9 @@ pub struct State<'a> {
 pub struct PrefixedKey<K: NoUninit> {
     prefix: u8,
     key: K,
-    size: [u8;2],
+
+    // maximum number of chunks that can be stored at this key as big endian u16
+    max_chunks: [u8;2],
 }
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
