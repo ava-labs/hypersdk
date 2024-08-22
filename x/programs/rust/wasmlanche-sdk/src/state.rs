@@ -47,16 +47,17 @@ pub struct State<'a> {
     cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
 }
 
+type PrefixType = u8;
+type MaxChunksType = [u8; size_of::<u16>()];
+
 #[doc(hidden)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct PrefixedKey<K: NoUninit> {
-    prefix: u8,
+    prefix: PrefixType,
     key: K,
-
-    // maximum number of chunks that can be stored at this key as big endian u16
-    max_chunks: [u8; 2],
-}
+    max_chunks: MaxChunksType,
+};
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
     fn as_ref(&self) -> &[u8] {
@@ -70,9 +71,11 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
 const _: fn() = || {
-    #[doc(hidden)]
-    struct TypeWithoutPadding([u8; 3 + ::core::mem::size_of::<u32>()]);
-    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
+    type TypeForTypeTest = u32;
+    const SIZE: usize = ::core::mem::size_of::<PrefixType>() + ::core::mem::size_of::<MaxChunksType>() + ::core::mem::size_of::<TypeForTypeTest>();
+    #[doc(hidden]
+    struct TypeWithoutPadding([u8; SIZE]);
+    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<TypeForTypeTest>, TypeWithoutPadding>;
 };
 
 /// A trait for defining the associated value for a given state-key.
