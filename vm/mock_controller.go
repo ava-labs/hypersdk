@@ -10,7 +10,6 @@
 package vm
 
 import (
-	context "context"
 	reflect "reflect"
 
 	chain "github.com/ava-labs/hypersdk/chain"
@@ -40,20 +39,6 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 	return m.recorder
 }
 
-// Accepted mocks base method.
-func (m *MockController) Accepted(arg0 context.Context, arg1 *chain.StatelessBlock) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Accepted", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Accepted indicates an expected call of Accepted.
-func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Accepted", reflect.TypeOf((*MockController)(nil).Accepted), arg0, arg1)
-}
-
 // Rules mocks base method.
 func (m *MockController) Rules(arg0 int64) chain.Rules {
 	m.ctrl.T.Helper()
@@ -66,20 +51,6 @@ func (m *MockController) Rules(arg0 int64) chain.Rules {
 func (mr *MockControllerMockRecorder) Rules(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rules", reflect.TypeOf((*MockController)(nil).Rules), arg0)
-}
-
-// Shutdown mocks base method.
-func (m *MockController) Shutdown(arg0 context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Shutdown", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Shutdown indicates an expected call of Shutdown.
-func (mr *MockControllerMockRecorder) Shutdown(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shutdown", reflect.TypeOf((*MockController)(nil).Shutdown), arg0)
 }
 
 // StateManager mocks base method.

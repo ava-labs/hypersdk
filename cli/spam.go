@@ -22,13 +22,14 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -97,7 +98,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
@@ -210,14 +211,14 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	webSocketClient, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
 	funds := map[codec.Address]uint64{}
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
-	p := &pacer{ws: ws}
+	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -257,12 +258,12 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	issuers := []*issuer{}
 	for i := 0; i < len(uris); i++ {
 		for j := 0; j < numClients; j++ {
-			cli := rpc.NewJSONRPCClient(uris[i])
-			ws, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			cli := jsonrpc.NewJSONRPCClient(uris[i])
+			webSocketClient, err := ws.NewWebSocketClient(uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: ws, parser: parser, uri: uris[i]}
+			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: uris[i]}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -426,7 +427,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	var returnedBalance uint64
-	p = &pacer{ws: ws}
+	p = &pacer{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
@@ -464,7 +465,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 }
 
 type pacer struct {
-	ws *rpc.WebSocketClient
+	ws *ws.WebSocketClient
 
 	inflight chan struct{}
 	done     chan error
@@ -517,8 +518,8 @@ type issuer struct {
 
 	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
-	cli            *rpc.JSONRPCClient
-	ws             *rpc.WebSocketClient
+	cli            *jsonrpc.JSONRPCClient
+	ws             *ws.WebSocketClient
 	outstandingTxs int
 	abandoned      error
 }
@@ -544,7 +545,7 @@ func (i *issuer) Start(ctx context.Context) {
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(wsErr.Error(), rpc.ErrExpired.Error()) {
+				if !strings.Contains(wsErr.Error(), ws.ErrExpired.Error()) {
 					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 				}
 			}
@@ -602,7 +603,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 
 			// Attempt to recreate issuer
 			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %s\n", i.i, i.uri)
-			ws, err := rpc.NewWebSocketClient(i.uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			ws, err := ws.NewWebSocketClient(i.uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				i.abandoned = err
 				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)

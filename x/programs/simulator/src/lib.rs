@@ -29,7 +29,9 @@ mod bindings {
                 // # Safety:
                 // Address is a simple wrapper around an array of bytes
                 // this will fail at compile time if the size is changed
-                address: unsafe { std::mem::transmute::<SdkAddress, [libc::c_uchar; 33]>(value) },
+                address: unsafe {
+                    std::mem::transmute::<SdkAddress, [libc::c_uchar; SdkAddress::LEN]>(value)
+                },
             }
         }
     }

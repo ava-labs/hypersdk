@@ -23,12 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -55,7 +56,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
+	createVM              func(...vm.Option) *vm.VM
 	genesisBytes          []byte
 	vmID                  ids.ID
 	parser                chain.Parser
@@ -73,7 +74,7 @@ type instance struct {
 	JSONRPCServer           *httptest.Server
 	ControllerJSONRPCServer *httptest.Server
 	WebSocketServer         *httptest.Server
-	cli                     *rpc.JSONRPCClient // clients for embedded VMs
+	cli                     *jsonrpc.JSONRPCClient // clients for embedded VMs
 }
 
 func init() {
@@ -88,7 +89,7 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) (*vm.VM, error),
+	newVM func(...vm.Option) *vm.VM,
 	genesis []byte,
 	id ids.ID,
 	vmParser chain.Parser,
@@ -154,11 +155,10 @@ func setInstances() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v, err := createVM(
+		v := createVM(
 			vm.WithManualGossiper(),
 			vm.WithManualBuilder(),
 		)
-		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
@@ -180,9 +180,9 @@ func setInstances() {
 		}
 
 		routerServer := httptest.NewServer(router)
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		jsonRPCServer := httptest.NewServer(hd[jsonrpc.Endpoint])
 		ljsonRPCServer := httptest.NewServer(hd[customJSONRPCEndpoint])
-		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint])
+		webSocketServer := httptest.NewServer(hd[ws.Endpoint])
 		instances[i] = instance{
 			chainID:                 snowCtx.ChainID,
 			nodeID:                  snowCtx.NodeID,
@@ -192,7 +192,7 @@ func setInstances() {
 			JSONRPCServer:           jsonRPCServer,
 			ControllerJSONRPCServer: ljsonRPCServer,
 			WebSocketServer:         webSocketServer,
-			cli:                     rpc.NewJSONRPCClient(jsonRPCServer.URL),
+			cli:                     jsonrpc.NewJSONRPCClient(jsonRPCServer.URL),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -473,7 +473,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		accept(false) // don't care about results
 
 		// Subscribe to blocks
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+		cli, err := ws.NewWebSocketClient(instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		require.NoError(err)
 		require.NoError(cli.RegisterBlocks())
 
@@ -510,7 +510,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+		cli, err := ws.NewWebSocketClient(instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		require.NoError(err)
 
 		// Create tx

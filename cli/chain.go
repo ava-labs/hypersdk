@@ -16,11 +16,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 )
@@ -185,7 +186,7 @@ func (h *Handler) PrintChainInfo() error {
 	if err != nil {
 		return err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
 	networkID, subnetID, chainID, err := cli.Network(context.Background())
 	if err != nil {
 		return err
@@ -213,7 +214,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 		return err
 	}
 	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-	rcli := rpc.NewJSONRPCClient(uris[0])
+	rcli := jsonrpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := rcli.Network(context.TODO())
 	if err != nil {
 		return err
@@ -222,7 +223,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 	if err != nil {
 		return err
 	}
-	scli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	scli, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}

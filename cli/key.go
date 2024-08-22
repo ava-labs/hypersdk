@@ -6,8 +6,8 @@ package cli
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/cli/prompt"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -28,7 +28,7 @@ func (h *Handler) SetKey() error {
 		utils.Outf("{{red}}no available chains{{/}}\n")
 		return nil
 	}
-	rcli := rpc.NewJSONRPCClient(uris[0])
+	rcli := jsonrpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := rcli.Network(context.TODO())
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (h *Handler) Balance(checkAllChains bool) error {
 	}
 	for _, uri := range uris[:max] {
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-		rcli := rpc.NewJSONRPCClient(uris[0])
+		rcli := jsonrpc.NewJSONRPCClient(uris[0])
 		networkID, _, _, err := rcli.Network(context.TODO())
 		if err != nil {
 			return err
