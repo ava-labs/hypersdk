@@ -148,6 +148,7 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
+	genesisLoader func(b []byte) (Genesis, error),
 	options ...Option,
 ) *VM {
 	return &VM{
@@ -159,7 +160,7 @@ func New(
 		authEngine:     authEngine,
 		genesisAndRuleHandler: &genesisAndRuleHandler{
 			LoadRules:   LoadRules,
-			LoadGenesis: LoadStateBranchFactorGenesis,
+			LoadGenesis: genesisLoader,
 		},
 		options: options,
 	}

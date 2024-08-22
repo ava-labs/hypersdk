@@ -45,13 +45,10 @@ func NewWithOptions(options ...vm.Option) *vm.VM {
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
-		append([]vm.Option{
-			vm.WithCustomGenesisLoader(
-				func(b []byte) (vm.Genesis, error) {
-					return vm.LoadBech32Genesis(b, storage.SetBalance)
-				},
-			),
-		}, options...)...,
+		func(b []byte) (vm.Genesis, error) {
+			return vm.LoadBech32Genesis(b, storage.SetBalance)
+		},
+		options...,
 	)
 }
 
