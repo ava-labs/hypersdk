@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -42,15 +43,27 @@ func NewTestEnvironment(
 		network,
 	)
 
-	chainID := network.GetSubnet(vmName).Chains[0].ChainID
-	if chainID != ids.Empty {
-		setupDefaultChainAlias(chainID, testContext, vmName)
-	}
+	chainID := getChainIdFromPlatform(testContext, vmID)
+	setupDefaultChainAlias(testContext, chainID, vmName)
 
 	return testEnv
 }
 
-func setupDefaultChainAlias(chainID ids.ID, tc tests.TestContext, vmName string) {
+func getChainIdFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
+	platformClient := platformvm.NewClient(fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort))
+	chains, err := platformClient.GetBlockchains(tc.DefaultContext())
+	require.NoError(tc, err)
+
+	for _, chain := range chains {
+		if chain.VMID == vmid {
+			return chain.ID
+		}
+	}
+	require.FailNow(tc, "chain not found")
+	return ids.Empty
+}
+
+func setupDefaultChainAlias(tc tests.TestContext, chainID ids.ID, vmName string) {
 	require := require.New(ginkgo.GinkgoT())
 
 	baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
@@ -59,15 +72,12 @@ func setupDefaultChainAlias(chainID ids.ID, tc tests.TestContext, vmName string)
 	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
 	require.NoError(err)
 
-	hasAlias := false
 	for _, alias := range aliases {
 		if alias == vmName {
-			hasAlias = true
+			return // already exists
 		}
 	}
 
-	if !hasAlias {
-		err = adminClient.AliasChain(tc.DefaultContext(), chainID.String(), vmName)
-		require.NoError(err)
-	}
+	err = adminClient.AliasChain(tc.DefaultContext(), chainID.String(), vmName)
+	require.NoError(err)
 }
