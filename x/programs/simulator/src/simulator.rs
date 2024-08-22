@@ -12,8 +12,7 @@ use wasmlanche_sdk::{Address, ExternalCallError, Id};
 
 use crate::{
     bindings::{
-        Address as BindingAddress, Bytes, CallProgramResponse, CreateProgramResponse,
-        SimulatorCallContext,
+        Address as BindingAddress, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
     },
     state::{Mutable, SimpleState},
 };
@@ -94,35 +93,12 @@ impl<'a> Simulator<'a> {
     where
         T: wasmlanche_sdk::borsh::BorshSerialize,
     {
-        // serialize the params
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
-        // build the call context
-        let context = self.new_call_context(program, &method, &params, gas);
+        let context = SimulatorCallContext::new(self, program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
         unsafe { call_program(state_addr, &context) }
-    }
-
-    fn new_call_context(
-        &self,
-        program: Address,
-        method: &CString,
-        params: &[u8],
-        gas: u64,
-    ) -> SimulatorCallContext {
-        SimulatorCallContext {
-            program_address: program.into(),
-            actor_address: self.actor.into(),
-            height: self.height,
-            timestamp: self.timestamp,
-            method: method.as_ptr(),
-            params: Bytes {
-                data: params.as_ptr(),
-                length: params.len() as u64,
-            },
-            max_gas: gas,
-        }
     }
 
     /// Returns the actor address for the simulator.
