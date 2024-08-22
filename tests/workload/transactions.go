@@ -9,8 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
@@ -24,7 +25,7 @@ type TxWorkloadFactory interface {
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }
 
-type TxAssertion func(ctx context.Context, uri string) error
+type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
 
 // TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
 // The caller must proceed in the following sequence:
@@ -51,7 +52,7 @@ type TxWorkloadIterator interface {
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
 	for generator.Next() {
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
@@ -61,8 +62,7 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []st
 		require.NoError(err)
 
 		for _, uri := range uris {
-			err := confirm(ctx, uri)
-			require.NoError(err)
+			confirm(ctx, require, uri)
 		}
 	}
 }
@@ -71,7 +71,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	uri := uris[0]
 	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
-	client := rpc.NewJSONRPCClient(uri)
+	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
 	require.NoError(err)
@@ -85,7 +85,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 		_, err = client.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		require.NoError(confirm(ctx, uri))
+		confirm(ctx, require, uri)
 
 		_, acceptedHeight, _, err := client.Accepted(ctx)
 		require.NoError(err)
@@ -93,8 +93,8 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 
 	for _, uri := range uris {
-		client := rpc.NewJSONRPCClient(uri)
-		err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+		client := jsonrpc.NewJSONRPCClient(uri)
+		err := jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
 			if err != nil {
 				return false, err
@@ -110,11 +110,12 @@ func GenerateUntilCancel(
 	uris []string,
 	generator TxWorkloadIterator,
 ) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
 	// Use backgroundCtx within the loop to avoid erroring due to an expected
 	// context cancellation.
 	backgroundCtx := context.Background()
+	ignoreFailureRequire := require.New(IgnoreFailureTestingT{})
 	for generator.Next() && ctx.Err() == nil {
 		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
 		if err != nil {
@@ -129,7 +130,17 @@ func GenerateUntilCancel(
 		}
 
 		for _, uri := range uris {
-			_ = confirm(backgroundCtx, uri)
+			confirm(backgroundCtx, ignoreFailureRequire, uri)
 		}
 	}
 }
+
+// IngoreFailureTestingT is a testing.T implementation that ignores all failures
+// and logs errors through utils.Outf(...)
+type IgnoreFailureTestingT struct{}
+
+func (IgnoreFailureTestingT) Errorf(str string, args ...interface{}) {
+	utils.Outf("DROPPING ERROR: "+str, args...)
+}
+
+func (IgnoreFailureTestingT) FailNow() {}
