@@ -31,13 +31,13 @@ var (
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.Address `json:"to"`
+	To codec.Address `json:"to" serialize:"true"`
 
 	// Amount are transferred to [To].
-	Value uint64 `json:"value"`
+	Value uint64 `json:"value" serialize:"true"`
 
 	// Optional message to accompany transaction.
-	Memo []byte `json:"memo"`
+	Memo []byte `json:"memo" serialize:"true"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
