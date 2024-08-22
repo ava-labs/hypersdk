@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use libc::{c_char, c_uint};
+use libc::c_char;
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
@@ -84,13 +84,16 @@ impl<'a> Simulator<'a> {
     /// `CallProgramResponse` with:
     /// - `result<R>()`: Call result (specify type `R`)
     /// - `error()` or `has_error()`: Error information
-    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
+    pub fn call_program<T>(
         &self,
         program: Address,
         method: &str,
         params: T,
         gas: u64,
-    ) -> CallProgramResponse {
+    ) -> CallProgramResponse
+    where
+        T: wasmlanche_sdk::borsh::BorshSerialize,
+    {
         // serialize the params
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
@@ -116,9 +119,9 @@ impl<'a> Simulator<'a> {
             method: method.as_ptr(),
             params: Bytes {
                 data: params.as_ptr(),
-                length: params.len() as c_uint,
+                length: params.len() as u64,
             },
-            max_gas: gas as c_uint,
+            max_gas: gas,
         }
     }
 

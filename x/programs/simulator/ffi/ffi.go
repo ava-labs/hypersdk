@@ -149,9 +149,9 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 		error: errPtr,
 		result: C.Bytes{
 			data:   (*C.uint8_t)(C.CBytes(result)),
-			length: C.uint(len(result)),
+			length: C.uint64_t(len(result)),
 		},
-		fuel: C.uint(fuel),
+		fuel: C.uint64_t(fuel),
 	}
 }
 
