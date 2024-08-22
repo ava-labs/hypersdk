@@ -33,19 +33,6 @@ func checkKeyType(k string) error {
 	}
 }
 
-func getKeyType(addr codec.Address) (string, error) {
-	switch addr[0] {
-	case auth.ED25519ID:
-		return ed25519Key, nil
-	case auth.SECP256R1ID:
-		return secp256r1Key, nil
-	case auth.BLSID:
-		return blsKey, nil
-	default:
-		return "", ErrInvalidKeyType
-	}
-}
-
 func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 	switch k {
 	case ed25519Key:
