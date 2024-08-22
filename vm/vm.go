@@ -63,7 +63,7 @@ type VM struct {
 	DataDir string
 	v       *version.Semantic
 
-	snowCtx         *snow.Context
+	SnowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
@@ -71,6 +71,7 @@ type VM struct {
 
 	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
 	genesis                    genesis.Genesis
+	GenesisBytes               []byte
 	ruleFactory                genesis.RuleFactory
 	options                    []Option
 	builder                    builder.Builder
@@ -184,8 +185,8 @@ func (vm *VM) Initialize(
 	appSender common.AppSender,
 ) error {
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
-	vm.snowCtx = snowCtx
-	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
+	vm.SnowCtx = snowCtx
+	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.SnowCtx.PublicKey)
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
@@ -199,25 +200,26 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := vm.snowCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
+	if err := vm.SnowCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
+	vm.networkManager = network.NewManager(vm.SnowCtx.Log, vm.SnowCtx.NodeID, appSender)
 
 	pebbleConfig := pebble.NewDefaultConfig()
-	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	vm.vmDB, err = storage.New(pebbleConfig, vm.SnowCtx.ChainDataDir, blockDB, vm.SnowCtx.Metrics)
 	if err != nil {
 		return err
 	}
 
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.SnowCtx.ChainDataDir, stateDB, vm.SnowCtx.Metrics)
 	if err != nil {
 		return err
 	}
 
-	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.SnowCtx.NetworkID, vm.SnowCtx.ChainID)
+	vm.GenesisBytes = genesisBytes
 	if err != nil {
 		return err
 	}
@@ -285,7 +287,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
+	if err := vm.SnowCtx.Metrics.Register("state", merkleRegistry); err != nil {
 		return err
 	}
 
@@ -428,7 +430,7 @@ func (vm *VM) Initialize(
 	syncRegistry := prometheus.NewRegistry()
 	vm.stateSyncNetworkClient, err = avasync.NewNetworkClient(
 		stateSyncSender,
-		vm.snowCtx.NodeID,
+		vm.SnowCtx.NodeID,
 		int64(vm.config.StateSyncParallelism),
 		vm.Logger(),
 		"",
@@ -438,10 +440,10 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := vm.snowCtx.Metrics.Register("sync", syncRegistry); err != nil {
+	if err := vm.SnowCtx.Metrics.Register("sync", syncRegistry); err != nil {
 		return err
 	}
-	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
+	vm.stateSyncClient = vm.NewStateSyncClient(vm.SnowCtx.Metrics)
 	vm.stateSyncNetworkServer = avasync.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
@@ -512,7 +514,7 @@ func (vm *VM) markReady() {
 	// We can begin partailly verifying blocks here because
 	// we have the full state but can't detect duplicate transactions
 	// because we haven't yet observed a full [ValidityWindow].
-	vm.snowCtx.Log.Info("state sync client ready")
+	vm.SnowCtx.Log.Info("state sync client ready")
 
 	// Wait for a full [ValidityWindow] before
 	// we are willing to vote on blocks.
@@ -521,14 +523,14 @@ func (vm *VM) markReady() {
 		return
 	case <-vm.seenValidityWindow:
 	}
-	vm.snowCtx.Log.Info("validity window ready")
+	vm.SnowCtx.Log.Info("validity window ready")
 	if vm.stateSyncClient.Started() {
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
 
 	// Mark node ready and attempt to build a block.
-	vm.snowCtx.Log.Info(
+	vm.SnowCtx.Log.Info(
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
@@ -540,7 +542,7 @@ func (vm *VM) isReady() bool {
 	case <-vm.ready:
 		return true
 	default:
-		vm.snowCtx.Log.Info("node is not ready yet")
+		vm.SnowCtx.Log.Info("node is not ready yet")
 		return false
 	}
 }
@@ -651,7 +653,7 @@ func (vm *VM) Shutdown(context.Context) error {
 	}
 
 	// Close DBs
-	if vm.snowCtx == nil {
+	if vm.SnowCtx == nil {
 		return nil
 	}
 	if err := vm.vmDB.Close(); err != nil {
@@ -773,7 +775,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	// If we have seen this block before, return it with the most
 	// up-to-date info
 	if oldBlk, err := vm.GetStatelessBlock(ctx, id); err == nil {
-		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
+		vm.SnowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
 
@@ -789,11 +791,11 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		vm,
 	)
 	if err != nil {
-		vm.snowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
+		vm.SnowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
-	vm.snowCtx.Log.Info(
+	vm.SnowCtx.Log.Info(
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
@@ -816,7 +818,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	// We call [QueueNotify] when the VM becomes ready, so exiting
 	// early here should not cause us to stop producing blocks.
 	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
+		vm.SnowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
 
@@ -830,21 +832,21 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
 	if processingBlocks > vm.config.ProcessingBuildSkip {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
+		vm.SnowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
 		return nil, ErrTooManyProcessing
 	}
 
 	// Build block and store as parsed
 	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
-		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
+		vm.SnowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
 	blk, err := chain.BuildBlock(ctx, vm, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
-		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
+		vm.SnowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
@@ -939,7 +941,7 @@ func (vm *VM) Submit(
 
 				for _, subscription := range vm.txRemovedSubscriptions {
 					if err := subscription.Accept(event); err != nil {
-						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
+						vm.SnowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
 					}
 				}
 
@@ -973,7 +975,7 @@ func (vm *VM) Submit(
 // "SetPreference" implements "block.ChainVM"
 // replaces "core.SnowmanVM.SetPreference"
 func (vm *VM) SetPreference(_ context.Context, id ids.ID) error {
-	vm.snowCtx.Log.Debug("set preference", zap.Stringer("id", id))
+	vm.SnowCtx.Log.Debug("set preference", zap.Stringer("id", id))
 	vm.preferred = id
 	return nil
 }
@@ -1119,7 +1121,7 @@ func (vm *VM) backfillSeenTransactions() {
 	// contains no transactions)
 	blk := vm.lastAccepted
 	if blk.Hght == 0 {
-		vm.snowCtx.Log.Info("no seen transactions to backfill")
+		vm.SnowCtx.Log.Info("no seen transactions to backfill")
 		vm.startSeenTime = 0
 		vm.seenValidityWindowOnce.Do(func() {
 			close(vm.seenValidityWindow)
@@ -1161,7 +1163,7 @@ func (vm *VM) backfillSeenTransactions() {
 		// Set next blk in lookback
 		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
 		if err != nil {
-			vm.snowCtx.Log.Info("could not load block, exiting backfill",
+			vm.SnowCtx.Log.Info("could not load block, exiting backfill",
 				zap.Uint64("height", blk.Height()-1),
 				zap.Stringer("blockID", blk.Prnt),
 				zap.Error(err),
@@ -1170,7 +1172,7 @@ func (vm *VM) backfillSeenTransactions() {
 		}
 		blk = tblk
 	}
-	vm.snowCtx.Log.Info(
+	vm.SnowCtx.Log.Info(
 		"backfilled seen txs",
 		zap.Uint64("start", oldest),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
@@ -1186,13 +1188,13 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) {
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		blk, err := vm.GetDiskBlock(ctx, i)
 		if err != nil {
-			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
+			vm.SnowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
 			continue
 		}
 		vm.acceptedBlocksByID.Put(blk.ID(), blk)
 		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	}
-	vm.snowCtx.Log.Info("loaded blocks from disk",
+	vm.SnowCtx.Log.Info("loaded blocks from disk",
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
@@ -1218,7 +1220,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 		return nil
 	}
 	acceptedToRestore := end - start + 1
-	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
+	vm.SnowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
 		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
@@ -1233,7 +1235,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 
 		vm.acceptedQueue <- blk
 	}
-	vm.snowCtx.Log.Info("finished restoring accepted queue")
+	vm.SnowCtx.Log.Info("finished restoring accepted queue")
 
 	return nil
 }
@@ -1244,6 +1246,6 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 // the shutdown will complete given that we have encountered a fatal
 // issue. It is better to ensure we exit to surface the error.
 func (vm *VM) Fatal(msg string, fields ...zap.Field) {
-	vm.snowCtx.Log.Fatal(msg, fields...)
+	vm.SnowCtx.Log.Fatal(msg, fields...)
 	panic("fatal error")
 }
