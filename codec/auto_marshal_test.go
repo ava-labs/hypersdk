@@ -13,6 +13,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 
+	"github.com/ava-labs/avalanchego/codec/hierarchycodec"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+
 	reflect "reflect"
 )
 
@@ -53,6 +56,52 @@ func TestMarshalTransfer(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
+
+}
+
+func TestMarshalTransferViaReflectCodec(t *testing.T) {
+	require := require.New(t)
+	type testStructure struct {
+		// To is the recipient of the [Value].
+		To codec.Address `json:"to" serialize:"true"`
+
+		// Amount are transferred to [To].
+		Value uint64 `json:"value" serialize:"true"`
+
+		// Optional message to accompany transaction.
+		Memo []byte `json:"memo" serialize:"true"`
+	}
+
+	transfer := testStructure{
+		To:    codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		Value: 12876198273671286,
+		Memo:  []byte("Hello World"),
+	}
+
+	manualPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	// this is a copy of actions.Transfer.Marshal() logic
+	manualPacker.PackAddress(transfer.To)
+	manualPacker.PackUint64(transfer.Value)
+	manualPacker.PackBytes(transfer.Memo)
+	expectedBytes := manualPacker.Bytes()
+
+	codecInstance := hierarchycodec.NewDefault()
+
+	p := wrappers.Packer{
+		MaxSize: consts.NetworkSizeLimit,
+		Bytes:   make([]byte, 0, 128),
+	}
+	err := codecInstance.MarshalInto(transfer, &p)
+	require.NoError(err)
+
+	myStructBytes := p.Bytes
+
+	var restoredStruct testStructure
+	err = codecInstance.Unmarshal(myStructBytes, &restoredStruct)
+	require.NoError(err)
+
+	require.Equal(transfer, restoredStruct)
+	require.Equal(expectedBytes, myStructBytes)
 }
 
 func TestMarshalNumber(t *testing.T) {

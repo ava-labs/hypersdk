@@ -4,38 +4,46 @@
 package codec_test
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/codec/hierarchycodec"
+	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-// $  go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
 // goos: linux
 // goarch: amd64
 // pkg: github.com/ava-labs/hypersdk/codec
 // cpu: AMD EPYC 7763 64-Core Processor
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-8                 16926199                73.60 ns/op          128 B/op          2 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-8                     48778156                23.37 ns/op            0 B/op          0 allocs/op
-// BenchmarkMarshalUnmarshal/InnerOuter-Reflection-8                3665438               316.4 ns/op           392 B/op          3 allocs/op
-// BenchmarkMarshalUnmarshal/InnerOuter-Manual-8                    9388050               127.0 ns/op           320 B/op          1 allocs/op
-// BenchmarkMarshalUnmarshal/BigFlatObject-Reflection-8             8642730               140.9 ns/op           128 B/op          1 allocs/op
-// BenchmarkMarshalUnmarshal/BigFlatObject-Manual-8                27176488                44.62 ns/op            0 B/op          0 allocs/op
+// BenchmarkUnmarshal/Transfer-Reflection-8                18605090                67.82 ns/op
+// BenchmarkUnmarshal/Transfer-Manual-8                    53652610                23.31 ns/op
+// BenchmarkUnmarshal/Transfer-HierarchyCodec-8            15073975                80.71 ns/op
+// BenchmarkUnmarshal/Transfer-LinearCodec-8               14412846                81.09 ns/op
+// BenchmarkUnmarshal/Transfer100k-Reflection-8                 223           5296090 ns/op
+// BenchmarkUnmarshal/Transfer100k-Manual-8                    1549            772336 ns/op
+// BenchmarkUnmarshal/Transfer100k-Linear-8                     146           7305998 ns/op
+// BenchmarkUnmarshal/Transfer100k-Hierarchy-8                  174           7093466 ns/op
+// BenchmarkUnmarshal/InnerOuter-Reflection-8               4092855               294.0 ns/op
+// BenchmarkUnmarshal/InnerOuter-Manual-8                  13011302                89.33 ns/op
+// BenchmarkUnmarshal/BigFlatObject-Reflection-8            8254015               141.0 ns/op
+// BenchmarkUnmarshal/BigFlatObject-Manual-8               25456747                46.72 ns/op
 // PASS
-// ok      github.com/ava-labs/hypersdk/codec      7.936s
-func BenchmarkMarshalUnmarshal(b *testing.B) {
+// ok      github.com/ava-labs/hypersdk/codec      17.075s
+
+func BenchmarkUnmarshal(b *testing.B) {
+	var err error
 	require := require.New(b)
 	sampleSize := 100000
 
 	type Transfer struct {
-		To    codec.Address `json:"to"`
-		Value uint64        `json:"value"`
-		Memo  []byte        `json:"memo"`
+		To    codec.Address `json:"to" serialize:"true"`
+		Value uint64        `json:"value" serialize:"true"`
+		Memo  []byte        `json:"memo" serialize:"true"`
 	}
 	transfersEncoded := make([][]byte, sampleSize)
 	for i := 0; i < sampleSize; i++ {
@@ -92,17 +100,125 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	// compare auto and manual unmarshaling just to make sure they are the same
-	var autoRestored, manualRestored Transfer
-	err := unpackAutoTransfer(transfersEncoded[0], &autoRestored)
-	require.NoError(err)
-	err = unpackManualTransfer(transfersEncoded[0], &manualRestored)
-	require.NoError(err)
-	if autoRestored.To != manualRestored.To ||
-		autoRestored.Value != manualRestored.Value ||
-		!bytes.Equal(autoRestored.Memo, manualRestored.Memo) {
-		require.Fail("mismatch between auto and manual unmarshaled data")
+	hierarchyCodecInstance := hierarchycodec.NewDefault()
+
+	unpackHierarchyCodec := func(bytes []byte, restored *Transfer) error {
+		return hierarchyCodecInstance.Unmarshal(bytes, restored)
 	}
+
+	b.Run("Transfer-HierarchyCodec", func(b *testing.B) {
+		i := 0
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				i++
+				var restored Transfer
+				err := unpackHierarchyCodec(transfersEncoded[i%sampleSize], &restored)
+				if err != nil {
+					b.Fatal(err) //nolint:forbidigo
+				}
+			}
+		})
+	})
+
+	linearCodecInstance := linearcodec.NewDefault()
+
+	unpackLinearCodec := func(bytes []byte, restored *Transfer) error {
+		return linearCodecInstance.Unmarshal(bytes, restored)
+	}
+
+	b.Run("Transfer-LinearCodec", func(b *testing.B) {
+		i := 0
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				i++
+				var restored Transfer
+				err := unpackLinearCodec(transfersEncoded[i%sampleSize], &restored)
+				if err != nil {
+					b.Fatal(err) //nolint:forbidigo
+				}
+			}
+		})
+	})
+
+	//check that all unmarshaled results are the same
+	var (
+		autoRestored      Transfer
+		manualRestored    Transfer
+		hierarchyRestored Transfer
+		linearRestored    Transfer
+	)
+
+	// Unmarshal using different methods
+	require.NoError(unpackAutoTransfer(transfersEncoded[0], &autoRestored))
+	require.NoError(unpackManualTransfer(transfersEncoded[0], &manualRestored))
+	require.NoError(unpackHierarchyCodec(transfersEncoded[0], &hierarchyRestored))
+	require.NoError(unpackLinearCodec(transfersEncoded[0], &linearRestored))
+
+	// Compare all unmarshaled results
+	transfers := []Transfer{autoRestored, manualRestored, hierarchyRestored, linearRestored}
+	for i := 1; i < len(transfers); i++ {
+		require.Equal(transfers[0].To, transfers[i].To, "Mismatch in 'To' field")
+		require.Equal(transfers[0].Value, transfers[i].Value, "Mismatch in 'Value' field")
+		require.Equal(transfers[0].Memo, transfers[i].Memo, "Mismatch in 'Memo' field")
+	}
+
+	//100k runs for VRYX
+
+	b.Run("Transfer100k-Reflection", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for i := 0; i < 100000; i++ {
+					var restored Transfer
+					err := unpackAutoTransfer(transfersEncoded[i%sampleSize], &restored)
+					if err != nil {
+						b.Fatal(err) //nolint:forbidigo
+					}
+				}
+			}
+		})
+	})
+
+	b.Run("Transfer100k-Manual", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for i := 0; i < 100000; i++ {
+					var restored Transfer
+					err := unpackManualTransfer(transfersEncoded[i%sampleSize], &restored)
+					if err != nil {
+						b.Fatal(err) //nolint:forbidigo
+					}
+				}
+			}
+		})
+	})
+
+	b.Run("Transfer100k-Linear", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for i := 0; i < 100000; i++ {
+					var restored Transfer
+					err := unpackLinearCodec(transfersEncoded[i%sampleSize], &restored)
+					if err != nil {
+						b.Fatal(err) //nolint:forbidigo
+					}
+				}
+			}
+		})
+	})
+
+	b.Run("Transfer100k-Hierarchy", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for i := 0; i < 100000; i++ {
+					var restored Transfer
+					err := unpackHierarchyCodec(transfersEncoded[i%sampleSize], &restored)
+					if err != nil {
+						b.Fatal(err) //nolint:forbidigo
+					}
+				}
+			}
+		})
+	})
 
 	type InnerStruct struct {
 		Field1 int32
