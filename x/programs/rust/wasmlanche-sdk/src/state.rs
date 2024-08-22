@@ -12,6 +12,8 @@ use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
 use std::{cell::RefCell, collections::HashMap};
 
+pub const STATE_MAX_CHUNKS: [u8;2] = [0,4];
+
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
     #[error("invalid byte length: {0}")]
@@ -50,6 +52,7 @@ pub struct State<'a> {
 pub struct PrefixedKey<K: NoUninit> {
     prefix: u8,
     key: K,
+    size: [u8;2],
 }
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
@@ -65,7 +68,7 @@ unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
 const _: fn() = || {
     #[doc(hidden)]
-    struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<u32>()]);
+    struct TypeWithoutPadding([u8; 3 + ::core::mem::size_of::<u32>()]);
     let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
 };
 
@@ -90,6 +93,7 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     PrefixedKey {
         prefix: K::prefix(),
         key,
+        size: STATE_MAX_CHUNKS,
     }
 }
 
