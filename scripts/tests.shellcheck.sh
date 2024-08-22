@@ -18,7 +18,7 @@ VERSION="v0.10.0"
 function get_version {
   local target_path=$1
   if command -v "${target_path}" > /dev/null; then
-    echo "v$("${target_path}" --version | grep version: | awk '{print $2}')"
+    echo "$("${target_path}" --version | grep version: | awk 'v{print $2}')"
   fi
 }
 

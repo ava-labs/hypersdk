@@ -33,6 +33,7 @@ function rm_previous_cov_reports() {
     rm -f integration.coverage.out
     rm -f integration.coverage.html
 }
+
 function add_license_headers() {
   echo "adding license headers"
 
