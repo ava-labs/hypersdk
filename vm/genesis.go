@@ -49,37 +49,44 @@ func LoadStateBranchFactorGenesis(b []byte) (Genesis, error) {
 	return g, nil
 }
 
-var _ Genesis = (*Bech32Genesis)(nil)
+var _ Genesis = (*AllocationGenesis)(nil)
 
 type CustomAllocation struct {
 	Address string `json:"address"`
 	Balance uint64 `json:"balance"`
 }
 
-type Bech32Genesis struct {
+type AllocationGenesis struct {
 	*StateBranchFactorGenesis
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
-	setBalance       func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error
+
+	// functions required for allocation
+	setBalance   func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error
+	parseAddress func(saddr string) (codec.Address, error)
 }
 
-func NewBech32Genesis(setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error) *Bech32Genesis {
-	return &Bech32Genesis{
+func NewAllocationGenesis(
+	parseAddress func(saddr string) (codec.Address, error),
+	setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error) *AllocationGenesis {
+
+	return &AllocationGenesis{
 		StateBranchFactorGenesis: NewStateBranchFactorGenesis(),
 		CustomAllocation:         []*CustomAllocation{},
 		setBalance:               setBalance,
+		parseAddress:             parseAddress,
 	}
 }
 
-func (g *Bech32Genesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
+func (g *AllocationGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
 	if err := g.StateBranchFactorGenesis.InitializeState(ctx, tracer, mu); err != nil {
 		return err
 	}
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		addr, err := codec.ParseAnyHrpAddressBech32(alloc.Address)
+		addr, err := g.parseAddress(alloc.Address)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
@@ -94,8 +101,8 @@ func (g *Bech32Genesis) InitializeState(ctx context.Context, tracer trace.Tracer
 	return nil
 }
 
-func LoadBech32Genesis(b []byte, setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error) (*Bech32Genesis, error) {
-	g := NewBech32Genesis(setBalance)
+func LoadAllocationGenesis(b []byte, parseAddress func(saddr string) (codec.Address, error), setBalance func(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error) (*AllocationGenesis, error) {
+	g := NewAllocationGenesis(parseAddress, setBalance)
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)

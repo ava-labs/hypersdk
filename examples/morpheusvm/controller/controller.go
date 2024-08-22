@@ -5,6 +5,7 @@ package controller
 
 import (
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/codec"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -46,7 +47,10 @@ func NewWithOptions(options ...vm.Option) *vm.VM {
 		registry.Auth,
 		auth.Engines(),
 		func(b []byte) (vm.Genesis, error) {
-			return vm.LoadBech32Genesis(b, storage.SetBalance)
+			return vm.LoadAllocationGenesis(
+				b,
+				func(addr string) (codec.Address, error) { return codec.ParseAddressBech32(consts.HRP, addr) },
+				storage.SetBalance)
 		},
 		options...,
 	)

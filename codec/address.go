@@ -82,13 +82,6 @@ func ParseAddressBech32(hrp, saddr string) (Address, error) {
 	return addr, nil
 }
 
-// ParseAnyHrpAddressBech32 parses a Bech32 encoded address string and extracts
-// its [AddressBytes]. If there is an error reading the address ParseAnyHrpAddressBech32 returns an error.
-func ParseAnyHrpAddressBech32(saddr string) (Address, error) {
-	_, addr, err := parseAddressBech32(saddr)
-	return addr, err
-}
-
 // parseAddressBech32 parses a Bech32 encoded address string and extracts
 // its [AddressBytes]. If there is an error reading the address parseAddressBech32 returns an error.
 func parseAddressBech32(saddr string) (string, Address, error) {

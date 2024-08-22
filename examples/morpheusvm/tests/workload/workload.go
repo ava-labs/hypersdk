@@ -62,8 +62,8 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules], workload.TxWorkloadFactory, error) {
-	combined := &vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.Rules]{}
+func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules], workload.TxWorkloadFactory, error) {
+	combined := &vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules]{}
 	combined.InitialRules = vm.NewRules()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
 	combined.InitialRules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
@@ -72,7 +72,7 @@ func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.Bech32Genesis, *vm.
 	combined.InitialRules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	combined.InitialRules.MinBlockGap = minBlockGap
 
-	combined.Genesis = vm.NewBech32Genesis(storage.SetBalance)
+	combined.Genesis = vm.NewAllocationGenesis(func(addr string) (codec.Address, error) { return codec.ParseAddressBech32(consts.HRP, addr) }, storage.SetBalance)
 
 	for _, prefundedAddrStr := range ed25519AddrStrs {
 		combined.Genesis.CustomAllocation = append(combined.Genesis.CustomAllocation, &vm.CustomAllocation{

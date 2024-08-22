@@ -35,11 +35,11 @@ func NewJSONRPCServer(c vm.Controller) *JSONRPCServer {
 }
 
 type GenesisReply struct {
-	Genesis *vm.Bech32Genesis `json:"genesis"`
+	Genesis *vm.AllocationGenesis `json:"genesis"`
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = j.c.inner.Genesis().(*vm.Bech32Genesis)
+	reply.Genesis = j.c.inner.Genesis().(*vm.AllocationGenesis)
 	return nil
 }
 
