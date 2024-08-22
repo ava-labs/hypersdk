@@ -14,7 +14,6 @@ use std::{cell::RefCell, collections::HashMap};
 
 
 // maximum number of chunks that can be stored at the key as big endian u16
-// TODO: don't use this const and instead adjust this per stored type
 pub const STATE_MAX_CHUNKS: [u8;2] = [0,4];
 
 #[derive(Clone, thiserror::Error, Debug)]
@@ -98,7 +97,9 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     PrefixedKey {
         prefix: K::prefix(),
         key,
-        size: STATE_MAX_CHUNKS,
+
+        // TODO: don't use this const and instead adjust this per stored type
+        max_chunks: STATE_MAX_CHUNKS,
     }
 }
 
