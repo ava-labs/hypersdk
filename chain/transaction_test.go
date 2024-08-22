@@ -3,6 +3,7 @@ package chain_test
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,11 +16,45 @@ import (
 )
 
 var _ chain.Action = (*mockTransferAction)(nil)
+var _ chain.Action = (*action2)(nil)
 
 type mockTransferAction struct {
 	To    codec.Address `json:"to" serialize:"true"`
 	Value uint64        `json:"value" serialize:"true"`
 	Memo  []byte        `json:"memo" serialize:"true"`
+}
+
+type action2 struct {
+	A uint64
+	B uint64
+}
+
+func (a *action2) ComputeUnits(chain.Rules) uint64 {
+	panic("unimplemented")
+}
+
+func (a *action2) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+	panic("unimplemented")
+}
+
+func (a *action2) GetTypeID() uint8 {
+	return 222
+}
+
+func (a *action2) Size() int {
+	return 16
+}
+
+func (a *action2) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+	panic("unimplemented")
+}
+
+func (a *action2) StateKeysMaxChunks() []uint16 {
+	panic("unimplemented")
+}
+
+func (a *action2) ValidRange(chain.Rules) (start int64, end int64) {
+	panic("unimplemented")
 }
 
 func (m *mockTransferAction) ComputeUnits(chain.Rules) uint64 {
@@ -29,7 +64,7 @@ func (m *mockTransferAction) Execute(ctx context.Context, r chain.Rules, mu stat
 	panic("Execute unimplemented")
 }
 func (m *mockTransferAction) GetTypeID() uint8 {
-	return 0
+	return 111
 }
 func (m *mockTransferAction) Size() int {
 	return 0
@@ -46,8 +81,16 @@ func (m *mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
 
 func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer mockTransferAction
+	fmt.Printf("unmarshalling transfer, offset=%d\n, bytes len=%d\n", p.Offset(), len(p.Bytes()))
 	err := codec.AutoUnmarshalStruct(p, &transfer)
 	return &transfer, err
+}
+
+func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
+	fmt.Printf("unmarshalling action2, offset=%d\n, bytes len=%d\n", p.Offset(), len(p.Bytes()))
+	var action action2
+	err := codec.AutoUnmarshalStruct(p, &action)
+	return &action, err
 }
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
@@ -64,13 +107,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 				Value: 4,
 				Memo:  []byte("hello"),
 			},
-			&mockTransferAction{
-				To:    codec.Address{1, 2, 3, 4},
-				Value: 5,
-				Memo:  []byte("world"),
+			&action2{
+				A: 2,
+				B: 4,
 			},
 		},
-		Auth: nil,
 	}
 
 	privBytes, err := hex.DecodeString("323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7")
@@ -84,13 +125,14 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 	authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
 	actionRegistry.Register((&mockTransferAction{}).GetTypeID(), unmarshalTransfer)
+	actionRegistry.Register((&action2{}).GetTypeID(), unmarshalAction2)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
 
 	require.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
-		require.Equal(action, tx.Actions[i])
+		require.Equal(tx.Actions[i], action)
 	}
 
 	signedDigest, err := signedTx.Digest()
