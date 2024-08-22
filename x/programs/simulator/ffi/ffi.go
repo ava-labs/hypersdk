@@ -43,8 +43,10 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	// build the call info
 	callInfo := createRuntimeCallInfo(state, ctx)
+	config := runtime.NewConfig()
+	config.SetDebugInfo(true)
 
-	rt := runtime.NewRuntime(runtime.NewConfig(), SimLogger)
+	rt := runtime.NewRuntime(config, SimLogger)
 	result, err := rt.CallProgram(SimContext, callInfo)
 	if err != nil {
 		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
