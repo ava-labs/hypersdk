@@ -13,7 +13,7 @@ use sdk_macros::impl_to_pairs;
 use std::{cell::RefCell, collections::HashMap};
 
 // maximum number of chunks that can be stored at the key as big endian u16
-pub const STATE_MAX_CHUNKS: [u8; 2] = [0, 4];
+pub const STATE_MAX_CHUNKS: [u8; 2] = 4u16.to_be_bytes();
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
