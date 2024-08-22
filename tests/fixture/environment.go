@@ -43,13 +43,13 @@ func NewTestEnvironment(
 		network,
 	)
 
-	chainID := getChainIdFromPlatform(testContext, vmID)
+	chainID := getChainIDFromPlatform(testContext, vmID)
 	setupDefaultChainAlias(testContext, chainID, vmName)
 
 	return testEnv
 }
 
-func getChainIdFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
+func getChainIDFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
 	platformClient := platformvm.NewClient(fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort))
 	chains, err := platformClient.GetBlockchains(tc.DefaultContext())
 	require.NoError(tc, err)
