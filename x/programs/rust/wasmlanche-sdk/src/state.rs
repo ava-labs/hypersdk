@@ -10,7 +10,7 @@ use crate::{
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, mem::size_of};
 
 // maximum number of chunks that can be stored at the key as big endian u16
 pub const STATE_MAX_CHUNKS: [u8; 2] = 4u16.to_be_bytes();
@@ -57,7 +57,7 @@ pub struct PrefixedKey<K: NoUninit> {
     prefix: PrefixType,
     key: K,
     max_chunks: MaxChunksType,
-};
+}
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
     fn as_ref(&self) -> &[u8] {
