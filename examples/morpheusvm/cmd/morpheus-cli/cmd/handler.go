@@ -139,3 +139,18 @@ func (*Controller) Address(addr codec.Address) string {
 func (*Controller) ParseAddress(addr string) (codec.Address, error) {
 	return codec.ParseAddressBech32(consts.HRP, addr)
 }
+
+func (*Controller) GetParser(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
+	cli := brpc.NewJSONRPCClient(uri, networkID, chainID)
+	return cli.Parser(context.TODO())
+}
+
+func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
+	handleTx(tx, result)
+}
+
+func (*Controller) LookupBalance(address string, uri string, networkID uint32, chainID ids.ID) (uint64, error) {
+	cli := brpc.NewJSONRPCClient(uri, networkID, chainID)
+	balance, err := cli.Balance(context.TODO(), address)
+	return balance, err
+}

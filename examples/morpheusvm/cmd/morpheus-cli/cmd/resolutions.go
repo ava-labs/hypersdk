@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -53,7 +52,11 @@ func sendAndWait(
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), result.Success)
+		status := "❌"
+		if result.Success {
+			status = "✅"
+		}
+		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
 	}
 	return result.Success, tx.ID(), nil
 }
@@ -70,7 +73,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 		return
 	}
@@ -91,7 +94,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 	}
 }

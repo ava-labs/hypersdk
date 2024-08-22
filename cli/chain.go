@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -26,11 +26,11 @@ import (
 )
 
 func (h *Handler) ImportChain() error {
-	chainID, err := h.PromptID("chainID")
+	chainID, err := prompt.ID("chainID")
 	if err != nil {
 		return err
 	}
-	uri, err := h.PromptString("uri", 0, consts.MaxInt)
+	uri, err := prompt.String("uri", 0, consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,11 @@ func (h *Handler) ImportOps(opsPath string) error {
 }
 
 func (h *Handler) SetDefaultChain() error {
-	chainID, _, err := h.PromptChain("set default chain", nil)
+	chains, err := h.GetChains()
+	if err != nil {
+		return err
+	}
+	chainID, _, err := prompt.SelectChain("set default chain", chains)
 	if err != nil {
 		return err
 	}
@@ -173,7 +177,11 @@ func (h *Handler) SetDefaultChain() error {
 }
 
 func (h *Handler) PrintChainInfo() error {
-	_, uris, err := h.PromptChain("select chainID", nil)
+	chains, err := h.GetChains()
+	if err != nil {
+		return err
+	}
+	_, uris, err := prompt.SelectChain("select chainID", chains)
 	if err != nil {
 		return err
 	}
@@ -191,9 +199,13 @@ func (h *Handler) PrintChainInfo() error {
 	return nil
 }
 
-func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
+func (h *Handler) WatchChain(hideTxs bool) error {
 	ctx := context.Background()
-	chainID, uris, err := h.PromptChain("select chainID", nil)
+	chains, err := h.GetChains()
+	if err != nil {
+		return err
+	}
+	chainID, uris, err := prompt.SelectChain("select chainID", chains)
 	if err != nil {
 		return err
 	}
@@ -206,7 +218,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	if err != nil {
 		return err
 	}
-	parser, err := getParser(uris[0], networkID, chainID)
+	parser, err := h.c.GetParser(uris[0], networkID, chainID)
 	if err != nil {
 		return err
 	}
@@ -258,8 +270,8 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
-				ParseDimensions(consumed),
-				ParseDimensions(prices),
+				consumed,
+				prices,
 				float64(window.Sum(tpsWindow))/tpsDivisor,
 				time.Now().UnixMilli()-blk.Tmstmp,
 				time.Since(lastBlockDetailed).Milliseconds(),
@@ -271,8 +283,8 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
-				ParseDimensions(consumed),
-				ParseDimensions(prices),
+				consumed,
+				prices,
 			)
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 		}
@@ -282,7 +294,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			continue
 		}
 		for i, tx := range blk.Txs {
-			handleTx(tx, results[i])
+			h.c.HandleTx(tx, results[i])
 		}
 	}
 	return nil

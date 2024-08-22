@@ -5,9 +5,23 @@ package cli
 
 import (
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/pebble"
 )
+
+type Controller interface {
+	DatabasePath() string
+	Symbol() string
+	Decimals() uint8
+	Address(codec.Address) string
+	ParseAddress(string) (codec.Address, error)
+	GetParser(string, uint32, ids.ID) (chain.Parser, error)
+	HandleTx(*chain.Transaction, *chain.Result)
+	LookupBalance(address string, uri string, networkID uint32, chainID ids.ID) (uint64, error)
+}
 
 type Handler struct {
 	c Controller

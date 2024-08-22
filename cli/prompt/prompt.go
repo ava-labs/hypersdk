@@ -1,30 +1,42 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package cli
+package prompt
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/manifoldco/promptui"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-func (h *Handler) PromptAddress(label string) (codec.Address, error) {
+var (
+	ErrInputEmpty           = errors.New("input is empty")
+	ErrInputTooLarge        = errors.New("input is too large")
+	ErrInvalidChoice        = errors.New("invalid choice")
+	ErrIndexOutOfRange      = errors.New("index out-of-range")
+	ErrInsufficientBalance  = errors.New("insufficient balance")
+	ErrDuplicate            = errors.New("duplicate")
+	ErrNoChains             = errors.New("no available chains")
+	ErrNoKeys               = errors.New("no available keys")
+	ErrTxFailed             = errors.New("tx failed on-chain")
+	ErrInsufficientAccounts = errors.New("insufficient accounts")
+)
+
+func Address(label string, parseAddress func(string) (codec.Address, error)) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			_, err := h.c.ParseAddress(input)
+			_, err := parseAddress(input)
 			return err
 		},
 	}
@@ -33,10 +45,10 @@ func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
-	return h.c.ParseAddress(recipient)
+	return parseAddress(recipient)
 }
 
-func (*Handler) PromptString(label string, min int, max int) (string, error) {
+func String(label string, min int, max int) (string, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -56,8 +68,7 @@ func (*Handler) PromptString(label string, min int, max int) (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
-	symbol := h.c.Symbol()
+func Asset(label string, symbol string, allowNative bool) (ids.ID, error) {
 	text := fmt.Sprintf("%s (use %s for native token)", label, symbol)
 	if !allowNative {
 		text = label
@@ -93,7 +104,7 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func (*Handler) PromptAmount(
+func Amount(
 	label string,
 	decimals uint8,
 	balance uint64,
@@ -126,7 +137,7 @@ func (*Handler) PromptAmount(
 	return utils.ParseBalance(rawAmount, decimals)
 }
 
-func (*Handler) PromptInt(
+func Int(
 	label string,
 	max int,
 ) (int, error) {
@@ -157,7 +168,7 @@ func (*Handler) PromptInt(
 	return strconv.Atoi(rawAmount)
 }
 
-func (*Handler) PromptFloat(
+func Float(
 	label string,
 	max float64,
 ) (float64, error) {
@@ -188,7 +199,7 @@ func (*Handler) PromptFloat(
 	return strconv.ParseFloat(rawAmount, 64)
 }
 
-func (*Handler) PromptChoice(label string, max int) (int, error) {
+func Choice(label string, max int) (int, error) {
 	if max == 1 {
 		utils.Outf("{{yellow}}%s:{{/}} 0 [auto-selected]\n", label)
 		return 0, nil
@@ -216,7 +227,7 @@ func (*Handler) PromptChoice(label string, max int) (int, error) {
 	return strconv.Atoi(rawIndex)
 }
 
-func (*Handler) PromptTime(label string) (int64, error) {
+func Time(label string) (int64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -234,7 +245,7 @@ func (*Handler) PromptTime(label string) (int64, error) {
 	return strconv.ParseInt(rawTime, 10, 64)
 }
 
-func (*Handler) PromptContinue() (bool, error) {
+func Continue() (bool, error) {
 	promptText := promptui.Prompt{
 		Label: "continue (y/n)",
 		Validate: func(input string) error {
@@ -260,7 +271,7 @@ func (*Handler) PromptContinue() (bool, error) {
 	return true, nil
 }
 
-func (*Handler) PromptBool(label string) (bool, error) {
+func Bool(label string) (bool, error) {
 	promptText := promptui.Prompt{
 		Label: label + " (y/n)",
 		Validate: func(input string) error {
@@ -285,7 +296,7 @@ func (*Handler) PromptBool(label string) (bool, error) {
 	return true, nil
 }
 
-func (*Handler) PromptID(label string) (ids.ID, error) {
+func ID(label string) (ids.ID, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -308,32 +319,14 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
-func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
-	chains, err := h.GetChains()
-	if err != nil {
-		return ids.Empty, nil, err
-	}
-	filteredChains := make([]ids.ID, 0, len(chains))
-	excludedChains := []ids.ID{}
-	for chainID := range chains {
-		if excluded != nil && excluded.Contains(chainID) {
-			excludedChains = append(excludedChains, chainID)
-			continue
-		}
-		filteredChains = append(filteredChains, chainID)
-	}
-	if len(filteredChains) == 0 {
-		return ids.Empty, nil, ErrNoChains
-	}
-
+func SelectChain(label string, chainToRPCs map[ids.ID][]string) (ids.ID, []string, error) {
 	// Select chain
 	utils.Outf(
-		"{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n",
-		len(filteredChains),
-		excludedChains,
+		"{{cyan}}available chains:{{/}} %d\n",
+		len(chainToRPCs),
 	)
-	keys := make([]ids.ID, 0, len(filteredChains))
-	for _, chainID := range filteredChains {
+	keys := make([]ids.ID, 0, len(chainToRPCs))
+	for chainID := range chainToRPCs {
 		utils.Outf(
 			"%d) {{cyan}}chainID:{{/}} %s\n",
 			len(keys),
@@ -342,40 +335,10 @@ func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, [
 		keys = append(keys, chainID)
 	}
 
-	chainIndex, err := h.PromptChoice(label, len(keys))
+	chainIndex, err := Choice(label, len(keys))
 	if err != nil {
 		return ids.Empty, nil, err
 	}
 	chainID := keys[chainIndex]
-	return chainID, chains[chainID], nil
-}
-
-func (*Handler) PrintStatus(txID ids.ID, success bool) {
-	status := "❌"
-	if success {
-		status = "✅"
-	}
-	utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
-}
-
-func PrintUnitPrices(d fees.Dimensions) {
-	utils.Outf(
-		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage(read):{{/}} %d {{yellow}}storage(allocate):{{/}} %d {{yellow}}storage(write):{{/}} %d\n",
-		d[fees.Bandwidth],
-		d[fees.Compute],
-		d[fees.StorageRead],
-		d[fees.StorageAllocate],
-		d[fees.StorageWrite],
-	)
-}
-
-func ParseDimensions(d fees.Dimensions) string {
-	return fmt.Sprintf(
-		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
-		d[fees.Bandwidth],
-		d[fees.Compute],
-		d[fees.StorageRead],
-		d[fees.StorageAllocate],
-		d[fees.StorageWrite],
-	)
+	return chainID, chainToRPCs[chainID], nil
 }
