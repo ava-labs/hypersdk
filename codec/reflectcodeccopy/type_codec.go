@@ -500,20 +500,15 @@ func (c *genericCodec) marshal(
 // Unmarshal unmarshals [bytes] into [dest], where [dest] must be a pointer or
 // interface
 func (c *genericCodec) Unmarshal(bytes []byte, dest interface{}) error {
-	if dest == nil {
-		return codec.ErrUnmarshalNil
-	}
-
 	p := wrappers.Packer{
 		Bytes: bytes,
 	}
-	destPtr := reflect.ValueOf(dest)
-	if destPtr.Kind() != reflect.Ptr {
-		return errNeedPointer
-	}
-	if err := c.unmarshal(&p, destPtr.Elem(), nil /*=typeStack*/); err != nil {
+
+	err := c.UnmarshalPacker(&p, dest)
+	if err != nil {
 		return err
 	}
+
 	if p.Offset != len(bytes) {
 		return fmt.Errorf("%w: read %d provided %d",
 			codec.ErrExtraSpace,
@@ -522,6 +517,21 @@ func (c *genericCodec) Unmarshal(bytes []byte, dest interface{}) error {
 		)
 	}
 	return nil
+}
+
+// UnmarshalPacker unmarshals [p] into [dest], where [dest] must be a pointer or
+// interface
+func (c *genericCodec) UnmarshalPacker(p *wrappers.Packer, dest interface{}) error {
+	if dest == nil {
+		return codec.ErrUnmarshalNil
+	}
+
+	destPtr := reflect.ValueOf(dest)
+	if destPtr.Kind() != reflect.Ptr {
+		return errNeedPointer
+	}
+
+	return c.unmarshal(p, destPtr.Elem(), nil /*=typeStack*/)
 }
 
 // Unmarshal from p.Bytes into [value]. [value] must be addressable.

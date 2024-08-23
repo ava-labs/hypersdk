@@ -143,7 +143,8 @@ func TestMarshalTransferViaReflectCodecCopy(t *testing.T) {
 	myStructBytes := p.Bytes
 
 	var restoredStruct testStructure
-	err = codecInstance.Unmarshal(myStructBytes, &restoredStruct)
+	p.Offset = 0 // reset to read from the start
+	err = codecInstance.UnmarshalPacker(&p, &restoredStruct)
 	require.NoError(err)
 
 	require.Equal(transfer, restoredStruct)

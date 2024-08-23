@@ -6,6 +6,7 @@ import "github.com/ava-labs/avalanchego/utils/wrappers"
 type Codec interface {
 	MarshalInto(interface{}, *wrappers.Packer) error
 	Unmarshal([]byte, interface{}) error
+	UnmarshalPacker(*wrappers.Packer, interface{}) error
 
 	// Returns the size, in bytes, of [value] when it's marshaled
 	Size(value interface{}) (int, error)
