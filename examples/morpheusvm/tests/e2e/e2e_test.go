@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -55,11 +56,20 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	)
 
 	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-	return e2e.NewTestEnvironment(
-		e2e.NewTestContext(),
+
+	testContext := e2e.NewTestContext()
+
+	fmt.Println("DEBUG: ChainID before NewTestEnvironment is", network.GetSubnet(consts.Name).Chains[0].ChainID)
+
+	testEnvBytes := e2e.NewTestEnvironment(
+		testContext,
 		flagVars,
 		network,
 	).Marshal()
+
+	fmt.Println("DEBUG: ChainID after NewTestEnvironment is", network.GetSubnet(consts.Name).Chains[0].ChainID)
+
+	return testEnvBytes
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
