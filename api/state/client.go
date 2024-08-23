@@ -30,7 +30,7 @@ func (c *JSONRPCStateClient) ReadState(ctx context.Context, keys [][]byte) ([][]
 		return nil, nil, err
 	}
 
-	var errs []error
+	errs := make([]error, 0, len(res.Errors))
 	for _, err := range res.Errors {
 		var newerr error
 		if err != "" {
