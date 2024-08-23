@@ -17,6 +17,8 @@ typedef struct {
     uint64_t length;
 } Bytes;
 
+typedef Bytes ProgramID;
+
 // Bytes with an additional error field
 typedef struct {
     Bytes bytes;
@@ -51,7 +53,7 @@ typedef struct {
 // Response from creating a program
 typedef struct {
     Address program_address;
-    Bytes program_id;
+    ProgramID program_id;
     const char *error;
 } CreateProgramResponse;
 
