@@ -5,6 +5,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -33,16 +34,25 @@ var (
 	ErrExpired = errors.New("expired")
 )
 
-func WithWebsocketAPI(maxPendingMessages int) vm.Option {
-	return func(v *vm.VM) error {
+type WSConfig struct {
+	MaxPendingMessages int `json:"maxPendingMessages"`
+}
+
+func WithWebsocketAPI() vm.Option {
+	return func(v *vm.VM, r json.RawMessage) error {
 		actionRegistry, authRegistry := v.Registry()
+		var wsConfig WSConfig
+		if err := json.Unmarshal(r, &wsConfig); err != nil {
+			return err
+		}
+
 		server, handler := NewWebSocketServer(
 			v,
 			v.Logger(),
 			v.Tracer(),
 			actionRegistry,
 			authRegistry,
-			maxPendingMessages,
+			wsConfig.MaxPendingMessages,
 		)
 
 		webSocketFactory := NewWebSocketServerFactory(handler)
@@ -58,15 +68,15 @@ func WithWebsocketAPI(maxPendingMessages int) vm.Option {
 			},
 		}
 
-		if err := vm.WithBlockSubscriptions(blockSubscription)(v); err != nil {
+		if err := vm.WithBlockSubscriptions(blockSubscription)(v, r); err != nil {
 			return err
 		}
 
-		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v); err != nil {
+		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v, r); err != nil {
 			return err
 		}
 
-		return vm.WithVMAPIs(webSocketFactory)(v)
+		return vm.WithVMAPIs(webSocketFactory)(v, r)
 	}
 }
 

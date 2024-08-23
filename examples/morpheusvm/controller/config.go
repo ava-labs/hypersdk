@@ -5,10 +5,13 @@ package controller
 
 import (
 	"encoding/json"
+
+	"github.com/ava-labs/hypersdk/api/ws"
 )
 
 type Config struct {
-	StoreTransactions bool `json:"storeTransactions"`
+	StoreTransactions bool        `json:"storeTransactions"`
+	WS                ws.WSConfig `json:"ws"`
 }
 
 func newConfig(b []byte) (*Config, error) {

@@ -28,28 +28,28 @@ var (
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) *vm.VM {
-	opts := []vm.Option{
-		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
-		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
+func New(namespacedOptions ...vm.NamespacedOption) *vm.VM {
+	opts := []vm.NamespacedOption{
+		vm.NewNamespacedOption("indexer", indexer.WithIndexer(consts.Name, indexer.Endpoint)),
+		vm.NewNamespacedOption("ws", ws.WithWebsocketAPI()),
+		vm.NewNamespacedOption("vmAPI", vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{})),
+		vm.NewNamespacedOption("controllerAPI", vm.WithControllerAPIs(&jsonRPCServerFactory{})),
 	}
 
-	opts = append(opts, options...)
+	opts = append(opts, namespacedOptions...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) *vm.VM {
+func NewWithOptions(namespacedOptions ...vm.NamespacedOption) *vm.VM {
 	return vm.New(
 		&factory{},
 		consts.Version,
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
-		options...,
+		namespacedOptions...,
 	)
 }
 

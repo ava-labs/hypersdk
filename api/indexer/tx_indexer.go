@@ -5,6 +5,7 @@ package indexer
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 
@@ -28,7 +29,7 @@ var (
 )
 
 func WithIndexer(name string, path string) vm.Option {
-	return func(v *vm.VM) error {
+	return func(v *vm.VM, r json.RawMessage) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 		if err != nil {
@@ -49,11 +50,11 @@ func WithIndexer(name string, path string) vm.Option {
 			indexer: indexer,
 		}
 
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v); err != nil {
+		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v, r); err != nil {
 			return err
 		}
 
-		return vm.WithVMAPIs(apiFactory)(v)
+		return vm.WithVMAPIs(apiFactory)(v, r)
 	}
 }
 

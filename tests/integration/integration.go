@@ -56,8 +56,9 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) *vm.VM
+	createVM              func(...vm.NamespacedOption) *vm.VM
 	genesisBytes          []byte
+	configBytes           []byte
 	vmID                  ids.ID
 	parser                chain.Parser
 	customJSONRPCEndpoint string
@@ -89,8 +90,9 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) *vm.VM,
+	newVM func(...vm.NamespacedOption) *vm.VM,
 	genesis []byte,
+	config []byte,
 	id ids.ID,
 	vmParser chain.Parser,
 	customEndpoint string,
@@ -99,6 +101,7 @@ func Setup(
 ) {
 	createVM = newVM
 	genesisBytes = genesis
+	configBytes = config
 	vmID = id
 	parser = vmParser
 	customJSONRPCEndpoint = customEndpoint
@@ -156,8 +159,8 @@ func setInstances() {
 		db := memdb.New()
 
 		v := createVM(
-			vm.WithManualGossiper(),
-			vm.WithManualBuilder(),
+			vm.NewNamespacedOption("manualGossiper", vm.WithManualGossiper()),
+			vm.NewNamespacedOption("manualBuilder", vm.WithManualBuilder()),
 		)
 		require.NoError(v.Initialize(
 			context.TODO(),
@@ -165,7 +168,7 @@ func setInstances() {
 			db,
 			genesisBytes,
 			nil,
-			[]byte(`{}`),
+			configBytes,
 			toEngine,
 			nil,
 			app,

@@ -70,7 +70,7 @@ type VM struct {
 
 	config                     Config
 	genesis                    Genesis
-	options                    []Option
+	namespacedOptions          []NamespacedOption
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
@@ -146,16 +146,16 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	options ...Option,
+	namespacedOptions ...NamespacedOption,
 ) *VM {
 	return &VM{
-		factory:        factory,
-		v:              v,
-		config:         NewConfig(),
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
-		authEngine:     authEngine,
-		options:        options,
+		factory:           factory,
+		v:                 v,
+		config:            NewConfig(),
+		actionRegistry:    actionRegistry,
+		authRegistry:      authRegistry,
+		authEngine:        authEngine,
+		namespacedOptions: namespacedOptions,
 	}
 }
 
@@ -269,8 +269,20 @@ func (vm *VM) Initialize(
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 
-	for _, option := range vm.options {
-		if err := option(vm); err != nil {
+	namespacedConfig := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(controllerConfigBytes, &namespacedConfig); err != nil {
+		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+	}
+
+	allocatedNamespaces := make(map[string]struct{})
+	for _, namespacedOption := range vm.namespacedOptions {
+		_, ok := allocatedNamespaces[namespacedOption.Namespace]
+		if ok {
+			return fmt.Errorf("namespace %s already allocated", namespacedOption.Namespace)
+		}
+		allocatedNamespaces[namespacedOption.Namespace] = struct{}{}
+		config := namespacedConfig[namespacedOption.Namespace]
+		if err := namespacedOption.Option(vm, config); err != nil {
 			return err
 		}
 	}
