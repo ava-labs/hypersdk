@@ -58,4 +58,4 @@ fi
 # compatible with both macos and linux (unlike the use of -printf).
 #
 # shellcheck disable=SC2035
-find * -name "*.sh" -type f -print0 | xargs -0 "${SHELLCHECK}" -x "$@"
+find * -name "*.sh" -type f -print0 | xargs -0 "${SHELLCHECK}" "$@"
