@@ -62,7 +62,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			codec.AutoMarshalStruct(p, action)
+			codec.GlobalLinearCodecInstanceREMOVEME.MarshalInto(action, p.P)
 		}
 	}
 	return p.Bytes(), p.Err()
@@ -373,7 +373,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			codec.AutoMarshalStruct(p, action)
+			codec.GlobalLinearCodecInstanceREMOVEME.MarshalInto(action, p.P)
 		}
 	}
 	authID := t.Auth.GetTypeID()
