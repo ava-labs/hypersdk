@@ -5,12 +5,11 @@ use crate::{
     context::{CacheKey, CacheValue},
     memory::HostPtr,
     types::Address,
-    Context,
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -40,8 +39,14 @@ pub fn get_balance(account: Address) -> u64 {
     borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
-pub struct State<'a> {
-    cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
+pub struct Cache {
+    cache: HashMap<CacheKey, Option<CacheValue>>,
+}
+
+impl Drop for Cache {
+    fn drop(&mut self) {
+        self.flush();
+    }
 }
 
 #[doc(hidden)]
@@ -80,9 +85,9 @@ pub unsafe trait Schema: NoUninit {
 
     /// # Errors
     /// Will return an error when there's an issue with deserialization
-    fn get(self, context: &mut Context) -> Result<Option<Self::Value>, Error> {
+    fn get(self, state_cache: &mut Cache) -> Result<Option<Self::Value>, Error> {
         let key = to_key(self);
-        context.get_with_raw_key(key.as_ref())
+        state_cache.get_with_raw_key(key.as_ref())
     }
 }
 
@@ -93,14 +98,22 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     }
 }
 
-impl<'a> State<'a> {
+impl Default for Cache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Cache {
     #[must_use]
-    pub fn new(cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>) -> Self {
-        Self { cache }
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::default(),
+        }
     }
 
-    pub fn store<Pairs: IntoPairs>(self, pairs: Pairs) -> Result<(), Error> {
-        let cache = &mut self.cache.borrow_mut();
+    pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
+        let cache = &mut self.cache;
 
         pairs.into_pairs().into_iter().try_for_each(|result| {
             result.map(|(k, v)| {
@@ -111,18 +124,18 @@ impl<'a> State<'a> {
         Ok(())
     }
 
-    pub fn store_by_key<K>(self, key: K, value: K::Value) -> Result<(), Error>
+    pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
     {
         self.store(((key, value),))
     }
 
-    pub(crate) fn get_with_raw_key<V>(self, key: &[u8]) -> Result<Option<V>, Error>
+    pub(crate) fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
-        let mut cache = self.cache.borrow_mut();
+        let cache = &mut self.cache;
 
         if let Some(value) = cache.get(key) {
             value
@@ -143,19 +156,8 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn delete<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
-        self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
-    }
-
-    /// Only used internally
-    /// The closure is only called if the key already exists in the cache
-    /// The closure may mutate the value and return anything it likes for deserializaiton
-    fn get_mut_with<K: Schema, F>(self, key: K, f: F) -> Result<Option<K::Value>, Error>
-    where
-        F: FnOnce(&mut CacheValue) -> borsh::io::Result<K::Value>,
-    {
-        let mut cache = self.cache.borrow_mut();
-
+    pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
+        let cache = &mut self.cache;
         let key = to_key(key);
 
         let cache_entry = if let Some(value) = cache.get_mut(key.as_ref()) {
@@ -169,12 +171,14 @@ impl<'a> State<'a> {
         match cache_entry {
             None => Ok(None),
             Some(val) if val.is_empty() => Ok(None),
-            Some(val) => f(val).map_err(|_| Error::Deserialization).map(Some),
+            Some(val) => from_slice(&std::mem::take(val))
+                .map_err(|_| Error::Deserialization)
+                .map(Some),
         }
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    pub(super) fn flush(&self) {
+    pub(super) fn flush(&mut self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
@@ -187,7 +191,7 @@ impl<'a> State<'a> {
             value: CacheValue,
         }
 
-        let mut cache = self.cache.borrow_mut();
+        let cache = &mut self.cache;
 
         let args: Vec<_> = cache
             .drain()
