@@ -13,5 +13,5 @@ fi
 
 # Specify the version of golangci-lint. Should be upgraded after linting issues are resolved.
 export GOLANGCI_LINT_VERSION="v1.51.2"
-
+export ADD_LICENSE=false
 ../../scripts/lint.sh

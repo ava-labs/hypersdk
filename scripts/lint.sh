@@ -26,7 +26,10 @@ else
   TARGET="${1}"
 fi
 
-add_license_headers -check
+ADD_LICENSE=${ADD_LICENSE:-true}
+if [ "$ADD_LICENSE" ]; then
+  add_license_headers -check
+fi
 
 echo "done"
 

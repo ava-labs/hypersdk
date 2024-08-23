@@ -44,8 +44,7 @@ function rm_previous_cov_reports() {
 function add_license_headers() {
   echo "adding license headers"
 
-  go install -v github.com/google/addlicense@latest
-  check_command addlicense
+  install_if_not_exists addlicense github.com/google/addlicense@latest
   local license_file="license-header.txt"
   if [[ ! -f "$license_file" ]]; then
     license_file="../../license-header.txt"
