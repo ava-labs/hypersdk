@@ -33,4 +33,5 @@ type VM interface {
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
+	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 }
