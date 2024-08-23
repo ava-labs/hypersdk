@@ -3,7 +3,6 @@
 # See the file LICENSE for licensing terms.
 
 set -e
-set -x
 
 if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
   echo "must be run from hypersdk root"
