@@ -46,7 +46,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	tc := e2e.NewTestContext()
 
-	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
+	testEnv := fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes)
+	tc.Outf("{{orange}}Chain ID: %v{{/}}\n", testEnv.GetNetwork().GetSubnet(consts.Name).Chains[0].ChainID)
+	return testEnv.Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
