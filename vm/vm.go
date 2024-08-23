@@ -69,7 +69,7 @@ type VM[T any] struct {
 	proposerMonitor *ProposerMonitor[T]
 
 	config                     Config
-	ControllerConfig T
+	ControllerConfig           T
 	genesis                    Genesis
 	options                    []Option[T]
 	builder                    builder.Builder
@@ -272,6 +272,25 @@ func (vm *VM[T]) Initialize(
 
 	for _, option := range vm.options {
 		if err := option(vm); err != nil {
+			return err
+		}
+	}
+
+	namespacedConfig := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(configBytes, &namespacedConfig); err != nil {
+		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+	}
+	namespacedOptions := []NamespacedOption[T]{}
+	allocatedNamespaces := make(map[string]struct{})
+	for _, namespacedoption := range namespacedOptions {
+		_, ok := allocatedNamespaces[namespacedoption.Namespace]
+		if ok {
+			return fmt.Errorf("namespace %s already allocated", namespacedoption.Namespace)
+		}
+
+		allocatedNamespaces[namespacedoption.Namespace] = struct{}{}
+		config := namespacedConfig[namespacedoption.Namespace]
+		if err := namespacedoption.Option(vm, config); err != nil {
 			return err
 		}
 	}

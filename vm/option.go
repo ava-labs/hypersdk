@@ -13,6 +13,11 @@ import (
 
 type Option[T any] func(*VM[T]) error
 
+type NamespacedOption[T any] struct {
+	Option    func(*VM[T], []byte) error
+	Namespace string
+}
+
 func WithManualBuilder[T any]() Option[T] {
 	return func(vm *VM[T]) error {
 		vm.builder = builder.NewManual(vm)
