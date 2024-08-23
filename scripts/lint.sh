@@ -27,11 +27,9 @@ else
 fi
 
 ADD_LICENSE=${ADD_LICENSE:-true}
-if [ "$ADD_LICENSE" ]; then
+if [ "$ADD_LICENSE" = true ]; then
   add_license_headers -check
 fi
-
-echo "done"
 
 # by default, "./scripts/lint.sh" runs all lint tests
 TESTS=${TESTS:-"golangci_lint gci"}
