@@ -142,18 +142,18 @@ func accountProgramKey(account []byte) []byte {
 // Creates a key an account balance key
 func accountDataKey(account []byte, key []byte) (k []byte) {
 	// accountPrefix + account + accountDataPrefix + key
-	k = make([]byte, 2+len(account)+len(key))
-	k[0] = accountPrefix
-	copy(k[1:], account)
-	k[1+len(account)] = accountDataPrefix
-	copy(k[1+len(account)+1:], key)
+	k = make([]byte, 0, 2+len(account)+len(key))
+	k = append(k, accountPrefix)
+	k = append(k, account...)
+	k = append(k, accountDataPrefix)
+	k = append(k, key...)
 	return
 }
 
 func programKey(key []byte) (k []byte) {
-	k = make([]byte, 1+len(key))
-	k[0] = programPrefix
-	copy(k[1:], key)
+	k = make([]byte, 0, 1+len(key))
+	k = append(k, programPrefix)
+	k = append(k, key...)
 	return
 }
 
@@ -165,7 +165,7 @@ func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account cod
 	if err != nil {
 		return ids.Empty, false, err
 	}
-	return ids.ID(v[:32]), true, nil
+	return ids.ID(v[:ids.IDLen]), true, nil
 }
 
 func (p *ProgramStateManager) setAccountProgram(
@@ -200,8 +200,9 @@ func (p *ProgramStateManager) SetProgram(
 // gets the public key mapped to the given name.
 func GetPublicKey(ctx context.Context, db state.Immutable, name string) (ed25519.PublicKey, bool, error) {
 	k := make([]byte, 1+ed25519.PublicKeyLen)
-	k[0] = addressStoragePrefix
-	copy(k[1:], name)
+	k = append(k, addressStoragePrefix)
+	k = append(k, []byte(name)...)
+
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return ed25519.EmptyPublicKey, false, nil
@@ -214,7 +215,7 @@ func GetPublicKey(ctx context.Context, db state.Immutable, name string) (ed25519
 
 func SetKey(ctx context.Context, db state.Mutable, privateKey ed25519.PrivateKey, name string) error {
 	k := make([]byte, 1+ed25519.PublicKeyLen)
-	k[0] = addressStoragePrefix
-	copy(k[1:], name)
+	k = append(k, addressStoragePrefix)
+	k = append(k, []byte(name)...)
 	return db.Insert(ctx, k, privateKey[:])
 }

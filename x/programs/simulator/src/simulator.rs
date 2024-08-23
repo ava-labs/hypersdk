@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use libc::{c_char, c_uint};
+use libc::c_char;
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
@@ -12,8 +12,7 @@ use wasmlanche_sdk::{Address, ExternalCallError};
 
 use crate::{
     bindings::{
-        Address as BindingAddress, Bytes, CallProgramResponse, CreateProgramResponse,
-        SimulatorCallContext,
+        Address as BindingAddress, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
     },
     state::{Mutable, SimpleState},
 };
@@ -84,42 +83,22 @@ impl<'a> Simulator<'a> {
     /// `CallProgramResponse` with:
     /// - `result<R>()`: Call result (specify type `R`)
     /// - `error()` or `has_error()`: Error information
-    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
+    pub fn call_program<T>(
         &self,
         program: Address,
         method: &str,
         params: T,
         gas: u64,
-    ) -> CallProgramResponse {
-        // serialize the params
+    ) -> CallProgramResponse
+    where
+        T: wasmlanche_sdk::borsh::BorshSerialize,
+    {
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
-        // build the call context
-        let context = self.new_call_context(program, &method, &params, gas);
+        let context = SimulatorCallContext::new(self, program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
         unsafe { call_program(state_addr, &context) }
-    }
-
-    fn new_call_context(
-        &self,
-        program: Address,
-        method: &CString,
-        params: &[u8],
-        gas: u64,
-    ) -> SimulatorCallContext {
-        SimulatorCallContext {
-            program_address: program.into(),
-            actor_address: self.actor.into(),
-            height: self.height,
-            timestamp: self.timestamp,
-            method: method.as_ptr(),
-            params: Bytes {
-                data: params.as_ptr(),
-                length: params.len() as c_uint,
-            },
-            max_gas: gas as c_uint,
-        }
     }
 
     /// Returns the actor address for the simulator.

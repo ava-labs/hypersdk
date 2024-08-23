@@ -14,7 +14,7 @@ typedef struct {
 
 typedef struct {
     const uint8_t* data;
-    unsigned int length;
+    uint64_t length;
 } Bytes;
 
 // Bytes with an additional error field
@@ -38,14 +38,14 @@ typedef struct {
     // params borsh serialized as byte vector
     Bytes params;
     // max allowed gas during execution
-    unsigned int max_gas;
+    uint64_t max_gas;
 } SimulatorCallContext;
 
 // Response from calling a program
 typedef struct {
     char* error;
     Bytes result;
-    unsigned int fuel;
+    uint64_t fuel;
 } CallProgramResponse;
 
 // Response from creating a program
