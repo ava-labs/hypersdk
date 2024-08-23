@@ -67,7 +67,7 @@ func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.AllocationGenesis, 
 	combined.InitialRules = vm.NewRules()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
 	combined.InitialRules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
 	// a block that exceeds the maximum size allowed by AvalancheGo.
 	combined.InitialRules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	combined.InitialRules.MinBlockGap = minBlockGap
