@@ -38,7 +38,7 @@ type callProgramInput struct {
 }
 
 type deployProgramInput struct {
-	ProgramID           []byte
+	ProgramID           ProgramID
 	AccountCreationData []byte
 }
 

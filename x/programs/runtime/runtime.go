@@ -43,13 +43,13 @@ type ProgramManager interface {
 	GetProgramState(address codec.Address) state.Mutable
 	// GetAccountProgram returns the program ID associated with the given account.
 	// An account represents a specific instance of a program.
-	GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error)
+	GetAccountProgram(ctx context.Context, account codec.Address) (ProgramID, error)
 	// GetProgramBytes returns the compiled WASM bytes of the program with the given ID.
-	GetProgramBytes(ctx context.Context, programID []byte) ([]byte, error)
+	GetProgramBytes(ctx context.Context, programID ProgramID) ([]byte, error)
 	// NewAccountWithProgram creates a new account that represents a specific instance of a program.
-	NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error)
+	NewAccountWithProgram(ctx context.Context, programID ProgramID, accountCreationData []byte) (codec.Address, error)
 	// SetAccountProgram associates the given program ID with the given account.
-	SetAccountProgram(ctx context.Context, account codec.Address, programID []byte) error
+	SetAccountProgram(ctx context.Context, account codec.Address, programID ProgramID) error
 }
 
 func NewRuntime(

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
@@ -37,7 +36,7 @@ func TestRuntimeCallProgramBasicAttachValue(t *testing.T) {
 
 	program := newTestProgram(ctx, "simple")
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
-	program.Runtime.StateManager.(test.StateManager).Balances[actor] = 10
+	program.Runtime.StateManager.(TestStateManager).Balances[actor] = 10
 
 	actorBalance, err := program.Runtime.StateManager.GetBalance(context.Background(), actor)
 	require.NoError(err)

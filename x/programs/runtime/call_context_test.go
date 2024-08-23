@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestCallContext(t *testing.T) {
@@ -29,7 +28,7 @@ func TestCallContext(t *testing.T) {
 		logging.NoLog{},
 	).WithDefaults(
 		CallInfo{
-			State:   &test.StateManager{ProgramsMap: map[string]string{stringedID: "call_program"}, AccountMap: map[codec.Address]string{programAccount: stringedID}},
+			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID: "call_program"}, AccountMap: map[codec.Address]string{programAccount: stringedID}},
 			Program: programAccount,
 			Fuel:    1000000,
 		})
@@ -78,7 +77,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	).WithDefaults(
 		CallInfo{
 			Program: program0Address,
-			State:   &test.StateManager{ProgramsMap: map[string]string{stringedID0: "call_program"}, AccountMap: map[codec.Address]string{program0Address: stringedID0}},
+			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID0: "call_program"}, AccountMap: map[codec.Address]string{program0Address: stringedID0}},
 			Fuel:    1000000,
 		})
 
@@ -88,7 +87,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		ctx,
 		&CallInfo{
 			Program:      program1Address,
-			State:        &test.StateManager{ProgramsMap: map[string]string{stringedID1: "call_program"}, AccountMap: map[codec.Address]string{program1Address: stringedID1}},
+			State:        &TestStateManager{ProgramsMap: map[string]string{stringedID1: "call_program"}, AccountMap: map[codec.Address]string{program1Address: stringedID1}},
 			FunctionName: "actor_check",
 		})
 	require.ErrorIs(err, errCannotOverwrite)
