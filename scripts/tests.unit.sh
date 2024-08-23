@@ -18,4 +18,4 @@ source "$HYPERSDK_PATH"/scripts/constants.sh
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck
 # shellcheck disable=SC2046
-go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find ./x/programs/cmd ./examples/morpheusvm -name "*.go" | xargs -n1 dirname | sort -u | xargs)
+go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find ./x/programs/cmd ./examples/morpheusvm -type f -name "*.go" -print0 | xargs -n1 dirname | sort -u | xargs)

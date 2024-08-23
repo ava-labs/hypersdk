@@ -13,12 +13,21 @@ if ! [[ "$0" =~ scripts/tests.shellcheck.sh ]]; then
   exit 255
 fi
 
+HYPERSDK_PATH=$(
+  cd "$(dirname "${BASH_SOURCE[0]}")"
+  cd .. && pwd
+)
+
+source "$HYPERSDK_PATH"/scripts/common/utils.sh
+
+check_command shellcheck
+
 VERSION="v0.10.0"
 
 function get_version {
   local target_path=$1
   if command -v "${target_path}" > /dev/null; then
-    echo "$("${target_path}" --version | grep version: | awk 'v{print $2}')"
+    "${target_path}" --version | grep version: | awk 'v{print $2}'
   fi
 }
 
