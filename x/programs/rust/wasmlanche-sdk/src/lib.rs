@@ -71,7 +71,7 @@ mod types;
 pub use self::{
     context::{Context, ExternalCallContext},
     program::{send, ExternalCallError, Program},
-    state::{get_balance, Error, PrefixedKey, Schema},
+    state::{get_balance, macro_types, Error},
     types::{Address, Gas, Id, ProgramID, ID_LEN},
 };
 #[doc(hidden)]
