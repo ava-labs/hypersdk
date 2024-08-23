@@ -108,8 +108,11 @@ linters-settings:
     excludes:
       - G107 # https://securego.io/docs/rules/g107.html
   depguard:
-    list-type: blacklist
-    packages-with-error-message:
-      - io/ioutil: 'io/ioutil is deprecated. Use package io or os instead.'
-      - github.com/stretchr/testify/assert: 'github.com/stretchr/testify/require should be used instead.'
+    rules:
+      packages:
+        deny:
+          - pkg: "github.com/stretchr/testify/assert"
+            desc: github.com/stretchr/testify/require should be used instead.
+          - pkg: "io/ioutil"
+            desc: io/ioutil is deprecated. Use package io or os instead.
     include-go-root: true

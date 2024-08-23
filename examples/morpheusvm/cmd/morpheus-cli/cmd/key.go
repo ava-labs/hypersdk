@@ -133,7 +133,7 @@ var keyCmd = &cobra.Command{
 
 var genKeyCmd = &cobra.Command{
 	Use: "generate [ed25519/secp256r1/bls]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
@@ -160,7 +160,7 @@ var genKeyCmd = &cobra.Command{
 
 var importKeyCmd = &cobra.Command{
 	Use: "import [type] [path]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 2 {
 			return ErrInvalidArgs
 		}
