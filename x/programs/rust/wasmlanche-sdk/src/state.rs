@@ -75,6 +75,7 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! prefixed_key_size_check {
     ($($module:ident)::*, $ty:ty) => {
@@ -268,6 +269,7 @@ impl_to_pairs!(3, Schema);
 impl_to_pairs!(2, Schema);
 impl_to_pairs!(1, Schema);
 
+#[doc(hidden)]
 pub mod macro_types {
     pub use super::{MaxChunksType, PrefixType, PrefixedKey, Schema};
 }
