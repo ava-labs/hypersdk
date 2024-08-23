@@ -3,7 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program, ProgramID};
 
 #[cfg(test)]
 mod tests;
@@ -22,7 +22,7 @@ const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Vec<u8>) {
+pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: ProgramID) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
     let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
     token::init(
