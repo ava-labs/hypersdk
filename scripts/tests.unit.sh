@@ -3,19 +3,19 @@
 # See the file LICENSE for licensing terms.
 
 set -e
+set -x
 
 if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
   echo "must be run from hypersdk root"
   exit 255
 fi
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
-# shellcheck source=/scripts/constants.sh
-source "$HYPERSDK_PATH"/scripts/constants.sh
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${SCRIPT_DIR}"/constants.sh
 
-# Provision of the list of tests requires word splitting, so disable the shellcheck
-# shellcheck disable=SC2046
-go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find ./x/programs/cmd ./examples/morpheusvm -type f -name "*.go" -print0 | xargs -n1 dirname | sort -u | xargs)
+file_args=()
+while IFS= read -r line; do
+    file_args+=("$line")
+done < <(find . -type f -name "*.go" | grep -v "./x/programs/cmd" | grep -v "./examples/morpheusvm" | xargs -n1 dirname | sort -u)
+
+go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" "${file_args[@]}"

@@ -13,12 +13,8 @@ if ! [[ "$0" =~ scripts/tests.shellcheck.sh ]]; then
   exit 255
 fi
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
-
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR"/common/utils.sh
 
 check_command shellcheck
 

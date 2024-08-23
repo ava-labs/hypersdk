@@ -7,13 +7,8 @@ if ! [[ "$0" =~ scripts/tests.actionlint.sh ]]; then
   exit 255
 fi
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
-
-# shellcheck source=/scripts/common/utils.sh
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR"/common/utils.sh
 
 go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.1
 

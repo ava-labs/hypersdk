@@ -12,12 +12,8 @@ fi
 # Default version of golangci-lint
 GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.56.1"}
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
-# shellcheck source=/scripts/common/utils.sh
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR"/common/utils.sh
 
 if [ "$#" -eq 0 ]; then
   # by default, check all source code

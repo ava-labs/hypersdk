@@ -9,14 +9,9 @@ if ! [[ "$0" =~ scripts/mock.gen.sh ]]; then
   exit 255
 fi
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
-# shellcheck source=/scripts/common/utils.sh
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
-# shellcheck source=/scripts/constants.sh
-source "$HYPERSDK_PATH"/scripts/constants.sh
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR"/common/utils.sh
+source "$SCRIPT_DIR"/constants.sh
 
 if ! command -v mockgen &> /dev/null
 then
