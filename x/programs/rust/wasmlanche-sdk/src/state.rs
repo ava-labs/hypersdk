@@ -9,7 +9,10 @@ use crate::{
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::size_of};
+
+// maximum number of chunks that can be stored at the key as big endian u16
+pub const STATE_MAX_CHUNKS: [u8; 2] = 4u16.to_be_bytes();
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -49,12 +52,16 @@ impl Drop for Cache {
     }
 }
 
+pub type PrefixType = u8;
+pub type MaxChunksType = [u8; size_of::<u16>()];
+
 #[doc(hidden)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct PrefixedKey<K: NoUninit> {
-    prefix: u8,
+    prefix: PrefixType,
     key: K,
+    max_chunks: MaxChunksType,
 }
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
@@ -68,11 +75,24 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
-const _: fn() = || {
-    #[doc(hidden)]
-    struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<u32>()]);
-    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
-};
+#[doc(hidden)]
+#[macro_export]
+macro_rules! prefixed_key_size_check {
+    ($($module:ident)::*, $ty:ty) => {
+        const _: fn() = || {
+            type TypeForTypeTest = $ty;
+            type PrefixedKey = $($module::)*PrefixedKey<TypeForTypeTest>;
+            const SIZE: usize = ::core::mem::size_of::<$($module::)*PrefixType>()
+                + ::core::mem::size_of::<$($module::)*MaxChunksType>()
+                + ::core::mem::size_of::<TypeForTypeTest>();
+            #[doc(hidden)]
+            struct TypeWithoutPadding([u8; SIZE]);
+            let _ = ::core::mem::transmute::<PrefixedKey, TypeWithoutPadding>;
+        };
+    };
+}
+
+prefixed_key_size_check!(self::macro_types, u32);
 
 /// A trait for defining the associated value for a given state-key.
 /// This trait is not meant to be implemented manually but should instead be implemented with the [`state_schema!`](crate::state_schema) macro.
@@ -95,6 +115,9 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     PrefixedKey {
         prefix: K::prefix(),
         key,
+
+        // TODO: don't use this const and instead adjust this per stored type
+        max_chunks: STATE_MAX_CHUNKS,
     }
 }
 
@@ -245,3 +268,8 @@ impl_to_pairs!(4, Schema);
 impl_to_pairs!(3, Schema);
 impl_to_pairs!(2, Schema);
 impl_to_pairs!(1, Schema);
+
+#[doc(hidden)]
+pub mod macro_types {
+    pub use super::{MaxChunksType, PrefixType, PrefixedKey, Schema};
+}
