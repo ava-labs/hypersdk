@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 set -euo pipefail
 set -exu
@@ -15,8 +17,6 @@ fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR"/common/utils.sh
-
-check_command shellcheck
 
 VERSION="v0.10.0"
 

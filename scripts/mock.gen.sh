@@ -13,15 +13,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR"/common/utils.sh
 source "$SCRIPT_DIR"/constants.sh
 
-if ! command -v mockgen &> /dev/null
-then
-  echo "mockgen not found, installing..."
-  # https://github.com/uber-go/mock
-  go install -v go.uber.org/mock/mockgen@v0.4.0
-fi
-
-# alert the user if they do not have $GOPATH properly configured
-check_command mockgen
+install_if_not_exists mockgen go.uber.org/mock/mockgen@v0.4.0
 
 # tuples of (source interface import path, comma-separated interface names, output file path)
 input="scripts/mocks.mockgen.txt"

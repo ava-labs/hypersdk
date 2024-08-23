@@ -31,16 +31,13 @@ TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
-
-  # alert the user if they do not have $GOPATH properly configured
-  check_command golangci-lint
+  install_if_not_exists golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
 
   golangci-lint run --config .golangci.yml
 }
 
 function test_gci {
-  go install -v github.com/daixiang0/gci@v0.12.1
+  install_if_not_exists gci github.com/daixiang0/gci@v0.12.1
   FILES=$(gci list --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .)
   if [[ "${FILES}" ]]; then
     echo ""
