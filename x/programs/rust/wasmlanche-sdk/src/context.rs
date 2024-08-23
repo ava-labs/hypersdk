@@ -3,7 +3,7 @@
 
 use crate::{
     state::{Cache, Error, IntoPairs, Schema},
-    types::{Address, ProgramID},
+    types::{Address, ProgramId},
     Gas, HostPtr, Id, Program,
 };
 use borsh::BorshDeserialize;
@@ -147,7 +147,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: ProgramID, account_creation_data: &[u8]) -> Program {
+    pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Program {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]
