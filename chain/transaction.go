@@ -484,12 +484,7 @@ func unmarshalActions(
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
 		if unmarshalAction == nil {
-			var action Action
-			err := codec.AutoUnmarshalStruct(p, &action)
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not unmarshal action", err)
-			}
-			actions = append(actions, action)
+			panic("unmarshalAction is nil")
 		} else {
 			action, err := unmarshalAction(p)
 			if err != nil {
