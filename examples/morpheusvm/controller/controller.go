@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -32,7 +33,7 @@ func New(options ...vm.Option) *vm.VM {
 	opts := []vm.Option{
 		indexer.WithIndexer(consts.Name, indexer.Endpoint),
 		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
+		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}, state.JSONRPCStateServerFactory{}),
 		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
 	}
 
