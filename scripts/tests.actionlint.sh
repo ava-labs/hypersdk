@@ -10,6 +10,7 @@ if ! [[ "$0" =~ scripts/tests.actionlint.sh ]]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/common/utils.sh
 source "$SCRIPT_DIR"/common/utils.sh
 
 install_if_not_exists actionlint github.com/rhysd/actionlint/cmd/actionlint@v1.7.1

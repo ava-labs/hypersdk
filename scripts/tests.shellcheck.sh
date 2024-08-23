@@ -16,6 +16,7 @@ if ! [[ "$0" =~ scripts/tests.shellcheck.sh ]]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/common/utils.sh
 source "$SCRIPT_DIR"/common/utils.sh
 
 VERSION="v0.10.0"
@@ -57,4 +58,4 @@ fi
 # compatible with both macos and linux (unlike the use of -printf).
 #
 # shellcheck disable=SC2035
-find * -name "*.sh" -type f -print0 | xargs -0 "${SHELLCHECK}" "$@"
+find * -name "*.sh" -type f -print0 | xargs -0 "${SHELLCHECK}" -x "$@"

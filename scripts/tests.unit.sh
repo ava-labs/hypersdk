@@ -10,6 +10,7 @@ if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/constants.sh
 source "${SCRIPT_DIR}"/constants.sh
 
 file_args=()

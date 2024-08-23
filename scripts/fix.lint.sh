@@ -13,8 +13,7 @@ fi
 
 # Calculate the directory where the script is located
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-
-# Source the utils.sh script using an absolute path
+# shellcheck source=/scripts/common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
 add_license_headers ""

@@ -13,6 +13,7 @@ fi
 GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.56.1"}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/common/utils.sh
 source "$SCRIPT_DIR"/common/utils.sh
 
 if [ "$#" -eq 0 ]; then

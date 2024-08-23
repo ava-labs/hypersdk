@@ -10,7 +10,9 @@ if ! [[ "$0" =~ scripts/mock.gen.sh ]]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/common/utils.sh
 source "$SCRIPT_DIR"/common/utils.sh
+# shellcheck source=/scripts/constants.sh
 source "$SCRIPT_DIR"/constants.sh
 
 install_if_not_exists mockgen go.uber.org/mock/mockgen@v0.4.0
