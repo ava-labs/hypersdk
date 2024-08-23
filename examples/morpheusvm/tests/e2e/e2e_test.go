@@ -56,18 +56,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	)
 
 	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-
-	testContext := e2e.NewTestContext()
-
-	fmt.Println("DEBUG: ChainID before NewTestEnvironment is", network.GetSubnet(consts.Name).Chains[0].ChainID)
-
 	testEnvBytes := e2e.NewTestEnvironment(
-		testContext,
+		e2e.NewTestContext(),
 		flagVars,
 		network,
 	).Marshal()
 
-	fmt.Println("DEBUG: ChainID after NewTestEnvironment is", network.GetSubnet(consts.Name).Chains[0].ChainID)
+	fmt.Println("DEBUG: ChainID after e2e.NewTestEnvironment call is", network.GetSubnet(consts.Name).Chains[0].ChainID)
 
 	return testEnvBytes
 }, func(envBytes []byte) {
