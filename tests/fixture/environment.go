@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var StableNodeURI = fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
+
 func NewTestEnvironment(
 	testContext tests.TestContext,
 	flagVars *e2e.FlagVars,
@@ -50,7 +52,7 @@ func NewTestEnvironment(
 
 func getChainIDFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
 	require := require.New(tc)
-	platformClient := platformvm.NewClient(fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort))
+	platformClient := platformvm.NewClient(StableNodeURI)
 	chains, err := platformClient.GetBlockchains(tc.DefaultContext())
 	require.NoError(err)
 
@@ -66,8 +68,7 @@ func getChainIDFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
 func setupDefaultChainAlias(tc tests.TestContext, chainID ids.ID, vmName string) {
 	require := require.New(tc)
 
-	baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
-	adminClient := admin.NewClient(baseURI)
+	adminClient := admin.NewClient(StableNodeURI)
 
 	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
 	require.NoError(err)
