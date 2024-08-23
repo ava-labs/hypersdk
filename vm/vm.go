@@ -70,7 +70,7 @@ type VM struct {
 
 	config                     Config
 	genesis                    Genesis
-	namespacedOptions          []NamespacedOption
+	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
@@ -146,17 +146,25 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	namespacedOptions ...NamespacedOption,
-) *VM {
-	return &VM{
-		factory:           factory,
-		v:                 v,
-		config:            NewConfig(),
-		actionRegistry:    actionRegistry,
-		authRegistry:      authRegistry,
-		authEngine:        authEngine,
-		namespacedOptions: namespacedOptions,
+	options ...Option,
+) (*VM, error) {
+	allocatedNamespaces := set.NewSet[string](len(options))
+	for _, option := range options {
+		if allocatedNamespaces.Contains(option.Namespace) {
+			return nil, fmt.Errorf("namespace %s already allocated", option.Namespace)
+		}
+		allocatedNamespaces.Add(option.Namespace)
 	}
+
+	return &VM{
+		factory:        factory,
+		v:              v,
+		config:         NewConfig(),
+		actionRegistry: actionRegistry,
+		authRegistry:   authRegistry,
+		authEngine:     authEngine,
+		options:        options,
+	}, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -274,15 +282,10 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
 	}
 
-	allocatedNamespaces := make(map[string]struct{})
-	for _, namespacedOption := range vm.namespacedOptions {
-		_, ok := allocatedNamespaces[namespacedOption.Namespace]
-		if ok {
-			return fmt.Errorf("namespace %s already allocated", namespacedOption.Namespace)
-		}
-		allocatedNamespaces[namespacedOption.Namespace] = struct{}{}
-		config := namespacedConfig[namespacedOption.Namespace]
-		if err := namespacedOption.Option(vm, config); err != nil {
+	for _, Option := range vm.options {
+		config := namespacedConfig[Option.Namespace]
+		snowCtx.Log.Debug("ctx", zap.Any("name", Option.Namespace), zap.Any("Conf", config))
+		if err := Option.OptionFunc(vm, config); err != nil {
 			return err
 		}
 	}

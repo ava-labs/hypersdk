@@ -24,7 +24,10 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-const Endpoint = "/corews"
+const (
+	Endpoint  = "/corews"
+	Namespace = "websocket"
+)
 
 var (
 	_ api.HandlerFactory[api.VM]          = (*WebSocketServerFactory)(nil)
@@ -34,50 +37,52 @@ var (
 	ErrExpired = errors.New("expired")
 )
 
-type WSConfig struct {
+type Config struct {
 	MaxPendingMessages int `json:"maxPendingMessages"`
 }
 
-func WithWebsocketAPI() vm.Option {
-	return func(v *vm.VM, r json.RawMessage) error {
-		actionRegistry, authRegistry := v.Registry()
-		var wsConfig WSConfig
-		if err := json.Unmarshal(r, &wsConfig); err != nil {
-			return err
-		}
+func With() vm.Option {
+	return vm.NewOption(Namespace, OptionFunc)
+}
 
-		server, handler := NewWebSocketServer(
-			v,
-			v.Logger(),
-			v.Tracer(),
-			actionRegistry,
-			authRegistry,
-			wsConfig.MaxPendingMessages,
-		)
-
-		webSocketFactory := NewWebSocketServerFactory(handler)
-		txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
-			AcceptF: func(event vm.TxRemovedEvent) error {
-				return server.RemoveTx(event.TxID, event.Err)
-			},
-		}
-
-		blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
-			AcceptF: func(event *chain.StatelessBlock) error {
-				return server.AcceptBlock(event)
-			},
-		}
-
-		if err := vm.WithBlockSubscriptions(blockSubscription)(v, r); err != nil {
-			return err
-		}
-
-		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v, r); err != nil {
-			return err
-		}
-
-		return vm.WithVMAPIs(webSocketFactory)(v, r)
+func OptionFunc(v *vm.VM, configBytes []byte) error {
+	actionRegistry, authRegistry := v.Registry()
+	var config Config
+	if err := json.Unmarshal(configBytes, &config); err != nil {
+		return err
 	}
+
+	server, handler := NewWebSocketServer(
+		v,
+		v.Logger(),
+		v.Tracer(),
+		actionRegistry,
+		authRegistry,
+		config.MaxPendingMessages,
+	)
+
+	webSocketFactory := NewWebSocketServerFactory(handler)
+	txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
+		AcceptF: func(event vm.TxRemovedEvent) error {
+			return server.RemoveTx(event.TxID, event.Err)
+		},
+	}
+
+	blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
+		AcceptF: func(event *chain.StatelessBlock) error {
+			return server.AcceptBlock(event)
+		},
+	}
+
+	if err := vm.WithBlockSubscriptions(blockSubscription)(v, configBytes); err != nil {
+		return err
+	}
+
+	if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v, configBytes); err != nil {
+		return err
+	}
+
+	return vm.WithVMAPIs(webSocketFactory)(v, configBytes)
 }
 
 type subscriptionFuncFactory[T any] struct {

@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,7 +57,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.NamespacedOption) *vm.VM
+	createVM              func(...vm.Option) (*vm.VM, error)
 	genesisBytes          []byte
 	configBytes           []byte
 	vmID                  ids.ID
@@ -90,9 +91,8 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.NamespacedOption) *vm.VM,
+	newVM func(...vm.Option) (*vm.VM, error),
 	genesis []byte,
-	config []byte,
 	id ids.ID,
 	vmParser chain.Parser,
 	customEndpoint string,
@@ -101,7 +101,6 @@ func Setup(
 ) {
 	createVM = newVM
 	genesisBytes = genesis
-	configBytes = config
 	vmID = id
 	parser = vmParser
 	customJSONRPCEndpoint = customEndpoint
@@ -122,6 +121,17 @@ func setInstances() {
 	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
+
+	vmConfig := vm.NewConfig()
+	vmConfig.Config = map[string]any{
+		"txIndexer": true,
+		"websocket": ws.Config{
+			MaxPendingMessages: 10_000,
+		},
+	}
+	cb, err := json.Marshal(vmConfig)
+	require.NoError(err)
+	configBytes = cb
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
@@ -158,10 +168,11 @@ func setInstances() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := createVM(
-			vm.NewNamespacedOption("manualGossiper", vm.WithManualGossiper()),
-			vm.NewNamespacedOption("manualBuilder", vm.WithManualBuilder()),
+		v, err := createVM(
+			vm.NewOption("manualGossiper", vm.WithManualGossiper()),
+			vm.NewOption("manualBuilder", vm.WithManualBuilder()),
 		)
+		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,

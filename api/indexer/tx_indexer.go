@@ -5,7 +5,6 @@ package indexer
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
+const Namespace = "txIndexer"
+
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
@@ -28,8 +29,12 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func WithIndexer(name string, path string) vm.Option {
-	return func(v *vm.VM, r json.RawMessage) error {
+func With(name string, path string) vm.Option {
+	return vm.NewOption(Namespace, OptionFunc(name, path))
+}
+
+func OptionFunc(name string, path string) vm.OptionFunc {
+	return func(v *vm.VM, configBytes []byte) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 		if err != nil {
@@ -50,11 +55,11 @@ func WithIndexer(name string, path string) vm.Option {
 			indexer: indexer,
 		}
 
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v, r); err != nil {
+		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v, configBytes); err != nil {
 			return err
 		}
 
-		return vm.WithVMAPIs(apiFactory)(v, r)
+		return vm.WithVMAPIs(apiFactory)(v, configBytes)
 	}
 }
 

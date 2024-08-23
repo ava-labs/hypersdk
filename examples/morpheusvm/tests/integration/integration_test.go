@@ -10,12 +10,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/tests/integration"
-	"github.com/ava-labs/hypersdk/vm"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
@@ -40,21 +38,10 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	vmConfig := vm.NewConfig()
-	vmConfig.Config = make(map[string]any)
-	vmConfig.Config["storeTransactions"] = true
-	vmConfig.Config["ws"] = ws.WSConfig{
-		MaxPendingMessages: 10_000,
-	}
-
-	configBytes, err := json.Marshal(vmConfig)
-	require.NoError(err)
-
 	// Setup imports the integration test coverage
 	integration.Setup(
 		controller.New,
 		genesisBytes,
-		configBytes,
 		lconsts.ID,
 		parser,
 		controller.JSONRPCEndpoint,
