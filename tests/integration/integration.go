@@ -88,8 +88,8 @@ func init() {
 	log = l
 }
 
-func Setup(
-	newVM func(...vm.Option[any]) *vm.VM[any],
+func Setup[T any](
+	newVM func(...vm.Option[T]) *vm.VM[T],
 	genesis []byte,
 	id ids.ID,
 	vmParser chain.Parser,
