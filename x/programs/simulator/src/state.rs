@@ -63,7 +63,7 @@ pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> Byt
         Some(v) => BytesWithError {
             bytes: Bytes {
                 data: v.as_ptr(),
-                length: v.len() as u32,
+                length: v.len() as u64,
             },
             error: std::ptr::null(),
         },
