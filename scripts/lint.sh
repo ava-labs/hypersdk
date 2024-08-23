@@ -3,6 +3,7 @@
 # See the file LICENSE for licensing terms.
 
 set -euo pipefail
+set -x
 
 if ! [[ "$0" =~ scripts/lint.sh ]]; then
   echo "must be run from repository root"
@@ -26,6 +27,8 @@ else
 fi
 
 add_license_headers -check
+
+echo "done"
 
 # by default, "./scripts/lint.sh" runs all lint tests
 TESTS=${TESTS:-"golangci_lint gci"}
