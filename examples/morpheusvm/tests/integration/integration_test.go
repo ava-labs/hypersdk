@@ -39,7 +39,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
 	// Setup imports the integration test coverage
-	integration.Setup(
+	integration.Setup( 
 		controller.New,
 		genesisBytes,
 		lconsts.ID,

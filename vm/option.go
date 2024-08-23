@@ -11,45 +11,45 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 )
 
-type Option func(*VM) error
+type Option[T any] func(*VM[T]) error
 
-func WithManualBuilder() Option {
-	return func(vm *VM) error {
+func WithManualBuilder[T any]() Option[T] {
+	return func(vm *VM[T]) error {
 		vm.builder = builder.NewManual(vm)
 		return nil
 	}
 }
 
-func WithManualGossiper() Option {
-	return func(vm *VM) error {
+func WithManualGossiper[T any]() Option[T] {
+	return func(vm *VM[T]) error {
 		vm.gossiper = gossiper.NewManual(vm)
 		return nil
 	}
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) Option {
-	return func(vm *VM) error {
+func WithBlockSubscriptions[T any](subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) Option[T] {
+	return func(vm *VM[T]) error {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
 		return nil
 	}
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Option {
-	return func(vm *VM) error {
+func WithVMAPIs[T any](apiHandlerFactories ...api.HandlerFactory[api.VM]) Option[T] {
+	return func(vm *VM[T]) error {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
 		return nil
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) Option {
-	return func(vm *VM) error {
+func WithControllerAPIs[T any](apiHandlerFactories ...api.HandlerFactory[Controller]) Option[T] {
+	return func(vm *VM[T]) error {
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
 		return nil
 	}
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option {
-	return func(vm *VM) error {
+func WithTxRemovedSubscriptions[T any](subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option[T] {
+	return func(vm *VM[T]) error {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
 		return nil
 	}

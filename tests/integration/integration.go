@@ -56,7 +56,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) *vm.VM
+	createVM              func(...vm.Option[any]) *vm.VM[any]
 	genesisBytes          []byte
 	vmID                  ids.ID
 	parser                chain.Parser
@@ -68,7 +68,7 @@ var (
 type instance struct {
 	chainID                 ids.ID
 	nodeID                  ids.NodeID
-	vm                      *vm.VM
+	vm                      *vm.VM[any]
 	toEngine                chan common.Message
 	routerServer            *httptest.Server
 	JSONRPCServer           *httptest.Server
@@ -89,7 +89,7 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) *vm.VM,
+	newVM func(...vm.Option[any]) *vm.VM[any],
 	genesis []byte,
 	id ids.ID,
 	vmParser chain.Parser,
@@ -156,8 +156,8 @@ func setInstances() {
 		db := memdb.New()
 
 		v := createVM(
-			vm.WithManualGossiper(),
-			vm.WithManualBuilder(),
+			vm.WithManualGossiper[any](),
+			vm.WithManualBuilder[any](),
 		)
 		require.NoError(v.Initialize(
 			context.TODO(),

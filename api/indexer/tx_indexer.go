@@ -27,8 +27,8 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func WithIndexer(name string, path string) vm.Option {
-	return func(v *vm.VM) error {
+func WithIndexer[T any](name string, path string) vm.Option[T] {
+	return func(v *vm.VM[T]) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 		if err != nil {
@@ -49,11 +49,11 @@ func WithIndexer(name string, path string) vm.Option {
 			indexer: indexer,
 		}
 
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v); err != nil {
+		if err := vm.WithBlockSubscriptions[T](subscriptionFactory)(v); err != nil {
 			return err
 		}
 
-		return vm.WithVMAPIs(apiFactory)(v)
+		return vm.WithVMAPIs[T](apiFactory)(v)
 	}
 }
 

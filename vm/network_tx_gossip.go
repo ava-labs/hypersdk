@@ -12,23 +12,23 @@ import (
 	"go.uber.org/zap"
 )
 
-type TxGossipHandler struct {
-	vm *VM
+type TxGossipHandler[T any] struct {
+	vm *VM[T]
 }
 
-func NewTxGossipHandler(vm *VM) *TxGossipHandler {
-	return &TxGossipHandler{vm}
+func NewTxGossipHandler[T any](vm *VM[T]) *TxGossipHandler[T] {
+	return &TxGossipHandler[T]{vm}
 }
 
-func (*TxGossipHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
+func (*TxGossipHandler[_]) Connected(context.Context, ids.NodeID, *version.Application) error {
 	return nil
 }
 
-func (*TxGossipHandler) Disconnected(context.Context, ids.NodeID) error {
+func (*TxGossipHandler[_]) Disconnected(context.Context, ids.NodeID) error {
 	return nil
 }
 
-func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (t *TxGossipHandler[_]) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	if !t.vm.isReady() {
 		t.vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
 		return nil
@@ -37,7 +37,7 @@ func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 	return t.vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
 }
 
-func (*TxGossipHandler) AppRequest(
+func (*TxGossipHandler[_]) AppRequest(
 	context.Context,
 	ids.NodeID,
 	uint32,
@@ -47,7 +47,7 @@ func (*TxGossipHandler) AppRequest(
 	return nil
 }
 
-func (*TxGossipHandler) AppRequestFailed(
+func (*TxGossipHandler[_]) AppRequestFailed(
 	context.Context,
 	ids.NodeID,
 	uint32,
@@ -55,7 +55,7 @@ func (*TxGossipHandler) AppRequestFailed(
 	return nil
 }
 
-func (*TxGossipHandler) AppResponse(
+func (*TxGossipHandler[_]) AppResponse(
 	context.Context,
 	ids.NodeID,
 	uint32,
@@ -64,7 +64,7 @@ func (*TxGossipHandler) AppResponse(
 	return nil
 }
 
-func (*TxGossipHandler) CrossChainAppRequest(
+func (*TxGossipHandler[_]) CrossChainAppRequest(
 	context.Context,
 	ids.ID,
 	uint32,
@@ -74,10 +74,10 @@ func (*TxGossipHandler) CrossChainAppRequest(
 	return nil
 }
 
-func (*TxGossipHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+func (*TxGossipHandler[_]) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
 	return nil
 }
 
-func (*TxGossipHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+func (*TxGossipHandler[_]) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
 	return nil
 }

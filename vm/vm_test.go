@@ -40,7 +40,7 @@ func TestBlockCache(t *testing.T) {
 	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	controller := NewMockController(ctrl)
-	vm := VM{
+	vm := VM[interface{}]{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  NewConfig(),
 		vmDB:    memdb.New(),

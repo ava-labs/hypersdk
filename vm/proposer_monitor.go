@@ -23,8 +23,8 @@ const (
 	proposerMonitorLRUSize = 60
 )
 
-type ProposerMonitor struct {
-	vm       *VM
+type ProposerMonitor[T any] struct {
+	vm       *VM[T]
 	proposer proposer.Windower
 
 	currentPHeight      uint64
@@ -37,8 +37,8 @@ type ProposerMonitor struct {
 	rl sync.Mutex
 }
 
-func NewProposerMonitor(vm *VM) *ProposerMonitor {
-	return &ProposerMonitor{
+func NewProposerMonitor[T any](vm *VM[T]) *ProposerMonitor[T] {
+	return &ProposerMonitor[T]{
 		vm: vm,
 		proposer: proposer.New(
 			vm.snowCtx.ValidatorState,
@@ -49,7 +49,7 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	}
 }
 
-func (p *ProposerMonitor) refresh(ctx context.Context) error {
+func (p *ProposerMonitor[_]) refresh(ctx context.Context) error {
 	p.rl.Lock()
 	defer p.rl.Unlock()
 
@@ -89,7 +89,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 	return nil
 }
 
-func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, error) {
+func (p *ProposerMonitor[_]) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, error) {
 	if err := p.refresh(ctx); err != nil {
 		return false, err
 	}
@@ -97,7 +97,7 @@ func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (b
 	return ok, nil
 }
 
-func (p *ProposerMonitor) Proposers(
+func (p *ProposerMonitor[_]) Proposers(
 	ctx context.Context,
 	diff int,
 	depth int,
@@ -130,7 +130,7 @@ func (p *ProposerMonitor) Proposers(
 	return proposersToGossip, nil
 }
 
-func (p *ProposerMonitor) Validators(
+func (p *ProposerMonitor[_]) Validators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	if err := p.refresh(ctx); err != nil {

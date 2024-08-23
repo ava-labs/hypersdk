@@ -19,8 +19,8 @@ import (
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
-type stateSyncerClient struct {
-	vm          *VM
+type stateSyncerClient[T any] struct {
+	vm          *VM[T]
 	gatherer    avametrics.MultiGatherer
 	syncManager *avasync.Manager
 
@@ -38,17 +38,17 @@ type stateSyncerClient struct {
 }
 
 // TODO: break out into own package
-func (vm *VM) NewStateSyncClient(
+func (vm *VM[T]) NewStateSyncClient(
 	gatherer avametrics.MultiGatherer,
-) *stateSyncerClient {
-	return &stateSyncerClient{
+) *stateSyncerClient[T] {
+	return &stateSyncerClient[T]{
 		vm:       vm,
 		gatherer: gatherer,
 		done:     make(chan struct{}),
 	}
 }
 
-func (*stateSyncerClient) StateSyncEnabled(context.Context) (bool, error) {
+func (*stateSyncerClient[_]) StateSyncEnabled(context.Context) (bool, error) {
 	// We always start the state syncer and may fallback to normal bootstrapping
 	// if we are close to tip.
 	//
@@ -56,7 +56,7 @@ func (*stateSyncerClient) StateSyncEnabled(context.Context) (bool, error) {
 	return true, nil
 }
 
-func (*stateSyncerClient) GetOngoingSyncStateSummary(
+func (*stateSyncerClient[_]) GetOngoingSyncStateSummary(
 	context.Context,
 ) (block.StateSummary, error) {
 	// Because the history of MerkleDB change proofs tends to be short, we always
@@ -67,7 +67,7 @@ func (*stateSyncerClient) GetOngoingSyncStateSummary(
 	return nil, database.ErrNotFound
 }
 
-func (s *stateSyncerClient) AcceptedSyncableBlock(
+func (s *stateSyncerClient[_]) AcceptedSyncableBlock(
 	_ context.Context,
 	sb *chain.SyncableBlock,
 ) (block.StateSyncMode, error) {
@@ -199,7 +199,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 }
 
 // finishSync is responsible for updating disk and memory pointers
-func (s *stateSyncerClient) finishSync() error {
+func (s *stateSyncerClient[_]) finishSync() error {
 	if s.targetUpdated {
 		// Will look like block on start accepted then last block before beginning
 		// bootstrapping is accepted.
@@ -211,14 +211,14 @@ func (s *stateSyncerClient) finishSync() error {
 	return s.vm.PutDiskIsSyncing(false)
 }
 
-func (s *stateSyncerClient) Started() bool {
+func (s *stateSyncerClient[_]) Started() bool {
 	return s.startedSync
 }
 
 // ForceDone is used by the [VM] to skip the sync process or to close the
 // channel if the sync process never started (i.e. [AcceptedSyncableBlock] will
 // never be called)
-func (s *stateSyncerClient) ForceDone() {
+func (s *stateSyncerClient[_]) ForceDone() {
 	if s.startedSync {
 		// If we started sync, we must wait for it to finish
 		return
@@ -229,7 +229,7 @@ func (s *stateSyncerClient) ForceDone() {
 }
 
 // Shutdown can be called to abort an ongoing sync.
-func (s *stateSyncerClient) Shutdown() error {
+func (s *stateSyncerClient[_]) Shutdown() error {
 	if s.syncManager != nil {
 		s.syncManager.Close()
 		<-s.done // wait for goroutine to exit
@@ -238,9 +238,9 @@ func (s *stateSyncerClient) Shutdown() error {
 }
 
 // Error returns a non-nil error if one occurred during the sync.
-func (s *stateSyncerClient) Error() error { return s.stateSyncErr }
+func (s *stateSyncerClient[_]) Error() error { return s.stateSyncErr }
 
-func (s *stateSyncerClient) StateReady() bool {
+func (s *stateSyncerClient[_]) StateReady() bool {
 	select {
 	case <-s.done:
 		return true
@@ -257,7 +257,7 @@ func (s *stateSyncerClient) StateReady() bool {
 
 // UpdateSyncTarget returns a boolean indicating if the root was
 // updated and an error if one occurred while updating the root.
-func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+func (s *stateSyncerClient[_]) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
 	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
 	if errors.Is(err, avasync.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing

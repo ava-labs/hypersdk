@@ -24,16 +24,16 @@ import (
 
 var (
 	_ vm.Controller        = (*Controller)(nil)
-	_ vm.ControllerFactory = (*factory)(nil)
+	_ vm.ControllerFactory[Config] = (*factory)(nil)
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) *vm.VM {
-	opts := []vm.Option{
-		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
-		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
+func New(options ...vm.Option[Config]) *vm.VM[Config] {
+	opts := []vm.Option[Config]{
+		indexer.WithIndexer[Config](consts.Name, indexer.Endpoint),
+		ws.WithWebsocketAPI[Config](),
+		vm.WithVMAPIs[Config](jsonrpc.JSONRPCServerFactory{}),
+		vm.WithControllerAPIs[Config](&jsonRPCServerFactory{}),
 	}
 
 	opts = append(opts, options...)
@@ -42,8 +42,8 @@ func New(options ...vm.Option) *vm.VM {
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) *vm.VM {
-	return vm.New(
+func NewWithOptions(options ...vm.Option[Config]) *vm.VM[Config] {
+	return vm.New[Config](
 		&factory{},
 		consts.Version,
 		registry.Action,
@@ -56,7 +56,7 @@ func NewWithOptions(options ...vm.Option) *vm.VM {
 type factory struct{}
 
 func (*factory) New(
-	inner *vm.VM,
+	inner *vm.VM[Config],
 	log logging.Logger,
 	networkID uint32,
 	chainID ids.ID,
@@ -98,7 +98,7 @@ func (*factory) New(
 }
 
 type Controller struct {
-	inner     *vm.VM
+	inner     *vm.VM[Config]
 	log       logging.Logger
 	networkID uint32
 	chainID   ids.ID

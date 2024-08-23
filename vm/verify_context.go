@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	_ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
+	_ chain.VerifyContext = (*AcceptedVerifyContext[interface{}])(nil)
 	_ chain.VerifyContext = (*PendingVerifyContext)(nil)
 )
 
-func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
+func (vm *VM[T]) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
 	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
 	if blockHeight == 0 {
 		return nil, errors.New("cannot get context of genesis block")
@@ -48,7 +48,7 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 
 	// If the parent block is accepted and processed, we should
 	// just use the accepted state as the verification context.
-	return &AcceptedVerifyContext{vm}, nil
+	return &AcceptedVerifyContext[T]{vm}, nil
 }
 
 type PendingVerifyContext struct {
@@ -63,17 +63,17 @@ func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64
 	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
-type AcceptedVerifyContext struct {
-	vm *VM
+type AcceptedVerifyContext[T any] struct {
+	vm *VM[T]
 }
 
 // We disregard [verify] because [GetVerifyContext] ensures
 // we will never need to verify a block if [AcceptedVerifyContext] is returned.
-func (a *AcceptedVerifyContext) View(context.Context, bool) (state.View, error) {
+func (a *AcceptedVerifyContext[_]) View(context.Context, bool) (state.View, error) {
 	return a.vm.State()
 }
 
-func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (a *AcceptedVerifyContext[_]) IsRepeat(ctx context.Context, _ int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
 	bits := a.vm.IsRepeat(ctx, txs, marker, stop)
 	return bits, nil
 }

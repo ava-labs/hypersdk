@@ -91,9 +91,9 @@ type AuthEngine interface {
 	Cache(auth chain.Auth)
 }
 
-type ControllerFactory interface {
+type ControllerFactory[T any] interface {
 	New(
-		inner *VM, // hypersdk VM
+		inner *VM[T], // hypersdk VM
 		log logging.Logger,
 		networkID uint32,
 		chainID ids.ID,

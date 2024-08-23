@@ -5,15 +5,21 @@ package controller
 
 import (
 	"encoding/json"
+
+	"github.com/ava-labs/hypersdk/api/ws"
 )
+
+var _ ws.WSConfig = (*Config)(nil)
 
 type Config struct {
 	StoreTransactions bool `json:"storeTransactions"`
+	MaxPendingMessages int `json:"maxPendingMessages"`
 }
 
 func newConfig(b []byte) (*Config, error) {
 	c := &Config{
 		StoreTransactions: true,
+		MaxPendingMessages: 10_000,
 	}
 
 	if len(b) > 0 {
@@ -23,4 +29,8 @@ func newConfig(b []byte) (*Config, error) {
 	}
 
 	return c, nil
+}
+
+func (c Config) GetMaxPendingMessages() int {
+	return c.MaxPendingMessages
 }

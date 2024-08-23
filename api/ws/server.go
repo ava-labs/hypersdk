@@ -33,8 +33,12 @@ var (
 	ErrExpired = errors.New("expired")
 )
 
-func WithWebsocketAPI(maxPendingMessages int) vm.Option {
-	return func(v *vm.VM) error {
+type WSConfig interface {
+	GetMaxPendingMessages() int
+}
+
+func WithWebsocketAPI[T WSConfig]() vm.Option[T] {
+	return func(v *vm.VM[T]) error {
 		actionRegistry, authRegistry := v.Registry()
 		server, handler := NewWebSocketServer(
 			v,
@@ -42,7 +46,7 @@ func WithWebsocketAPI(maxPendingMessages int) vm.Option {
 			v.Tracer(),
 			actionRegistry,
 			authRegistry,
-			maxPendingMessages,
+			v.ControllerConfig.GetMaxPendingMessages(),
 		)
 
 		webSocketFactory := NewWebSocketServerFactory(handler)
@@ -58,15 +62,15 @@ func WithWebsocketAPI(maxPendingMessages int) vm.Option {
 			},
 		}
 
-		if err := vm.WithBlockSubscriptions(blockSubscription)(v); err != nil {
+		if err := vm.WithBlockSubscriptions[T](blockSubscription)(v); err != nil {
 			return err
 		}
 
-		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v); err != nil {
+		if err := vm.WithTxRemovedSubscriptions[T](txRemovedSubscription)(v); err != nil {
 			return err
 		}
 
-		return vm.WithVMAPIs(webSocketFactory)(v)
+		return vm.WithVMAPIs[T](webSocketFactory)(v)
 	}
 }
 

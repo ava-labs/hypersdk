@@ -61,23 +61,23 @@ func PrefixBlockHeightIDKey(height uint64) []byte {
 	return k
 }
 
-func (vm *VM) HasGenesis() (bool, error) {
+func (vm *VM[_]) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatelessBlock, error) {
+func (vm *VM[_]) GetGenesis(ctx context.Context) (*chain.StatelessBlock, error) {
 	return vm.GetDiskBlock(ctx, 0)
 }
 
-func (vm *VM) SetLastAcceptedHeight(height uint64) error {
+func (vm *VM[_]) SetLastAcceptedHeight(height uint64) error {
 	return vm.vmDB.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, height))
 }
 
-func (vm *VM) HasLastAccepted() (bool, error) {
+func (vm *VM[_]) HasLastAccepted() (bool, error) {
 	return vm.vmDB.Has(lastAccepted)
 }
 
-func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
+func (vm *VM[_]) GetLastAcceptedHeight() (uint64, error) {
 	b, err := vm.vmDB.Get(lastAccepted)
 	if err != nil {
 		return 0, err
@@ -85,15 +85,15 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) SetLastProcessedHeight(height uint64) error {
+func (vm *VM[_]) SetLastProcessedHeight(height uint64) error {
 	return vm.vmDB.Put(lastProcessed, binary.BigEndian.AppendUint64(nil, height))
 }
 
-func (vm *VM) HasLastProcessed() (bool, error) {
+func (vm *VM[_]) HasLastProcessed() (bool, error) {
 	return vm.vmDB.Has(lastProcessed)
 }
 
-func (vm *VM) GetLastProcessedHeight() (uint64, error) {
+func (vm *VM[_]) GetLastProcessedHeight() (uint64, error) {
 	b, err := vm.vmDB.Get(lastProcessed)
 	if err != nil {
 		return 0, err
@@ -101,7 +101,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldCompact(expiryHeight uint64) bool {
+func (vm *VM[_]) shouldCompact(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
 		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
 		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
@@ -118,7 +118,7 @@ func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 //
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
-func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+func (vm *VM[_]) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
@@ -174,7 +174,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
-func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
+func (vm *VM[_]) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockKey(height))
 	if err != nil {
 		return nil, err
@@ -182,11 +182,11 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 	return chain.ParseBlock(ctx, b, true, vm)
 }
 
-func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
+func (vm *VM[_]) HasDiskBlock(height uint64) (bool, error) {
 	return vm.vmDB.Has(PrefixBlockKey(height))
 }
 
-func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
+func (vm *VM[_]) GetBlockHeightID(height uint64) (ids.ID, error) {
 	b, err := vm.vmDB.Get(PrefixBlockHeightIDKey(height))
 	if err != nil {
 		return ids.Empty, err
@@ -194,7 +194,7 @@ func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
 	return ids.ID(b), nil
 }
 
-func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
+func (vm *VM[_]) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 	b, err := vm.vmDB.Get(PrefixBlockIDHeightKey(blkID))
 	if err != nil {
 		return 0, err
@@ -206,11 +206,11 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 //
 // This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
 // of waiting for the database to run a compaction (and potentially delete GBs of data at once).
-func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
+func (vm *VM[_]) CompactDiskBlocks(lastExpired uint64) error {
 	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
 }
 
-func (vm *VM) GetDiskIsSyncing() (bool, error) {
+func (vm *VM[_]) GetDiskIsSyncing() (bool, error) {
 	v, err := vm.vmDB.Get(isSyncing)
 	if errors.Is(err, database.ErrNotFound) {
 		return false, nil
@@ -221,7 +221,7 @@ func (vm *VM) GetDiskIsSyncing() (bool, error) {
 	return v[0] == 0x1, nil
 }
 
-func (vm *VM) PutDiskIsSyncing(v bool) error {
+func (vm *VM[_]) PutDiskIsSyncing(v bool) error {
 	if v {
 		return vm.vmDB.Put(isSyncing, []byte{0x1})
 	}
