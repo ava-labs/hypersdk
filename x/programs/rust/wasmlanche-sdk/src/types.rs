@@ -13,6 +13,8 @@ pub type Id = [u8; ID_LEN];
 /// Gas type alias.
 pub type Gas = u64;
 
+pub type ProgramID = Vec<u8>;
+
 /// A newtype wrapper around address bytes.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]

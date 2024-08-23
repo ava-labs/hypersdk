@@ -72,7 +72,7 @@ pub use self::{
     context::{Context, ExternalCallContext},
     program::{send, ExternalCallError, Program},
     state::{get_balance, Error, PrefixedKey, Schema},
-    types::{Address, Gas, Id, ID_LEN},
+    types::{Address, Gas, Id, ProgramID, ID_LEN},
 };
 #[doc(hidden)]
 pub use self::{

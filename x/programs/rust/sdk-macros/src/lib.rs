@@ -357,7 +357,10 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
 
                     const _: fn() = || {
                         #[doc(hidden)]
-                        struct TypeWithoutPadding([u8; 3 + ::core::mem::size_of::<#key_type_name>()]);
+                        const SIZE: usize = ::core::mem::size_of::<PrefixType>()
+                            + ::core::mem::size_of::<MaxChunksType>()
+                            + ::core::mem::size_of::<TypeForTypeTest>();
+                        struct TypeWithoutPadding([u8; SIZE]);
                         let _ = ::core::mem::transmute::<wasmlanche_sdk::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
                     };
 
