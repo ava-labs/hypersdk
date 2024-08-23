@@ -145,7 +145,7 @@ jobs:
         run: scripts/tests.integration.sh
 
   morpheusvm-e2e-tests:
-    needs: [hypersdk-tests]
+    needs: [morpheusvm-lint, morpheusvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
@@ -170,7 +170,7 @@ jobs:
           name: morpheusvm-e2e-tmpnet-data
 
   morpheusvm-release:
-    needs: [morpheusvm-lint, morpheusvm-unit-tests, morpheusvm-e2e-tests]
+    needs: [morpheusvm-e2e-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     permissions:
