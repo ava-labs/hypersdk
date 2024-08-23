@@ -8,7 +8,7 @@ use std::{
     str::Utf8Error,
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError};
+use wasmlanche_sdk::{Address, ExternalCallError, ProgramID};
 
 use crate::{
     bindings::{
@@ -158,7 +158,7 @@ impl CreateProgramResponse {
     ///
     /// Multiple program addresses can reference the same program ID, similar to
     /// how multiple instances of a smart contract can share the same bytecode.
-    pub fn program_id(&self) -> Result<Vec<u8>, SimulatorError> {
+    pub fn program_id(&self) -> Result<ProgramID, SimulatorError> {
         if self.has_error() {
             let error = self.error()?;
             return Err(SimulatorError::CreateProgram(error.into()));
