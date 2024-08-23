@@ -483,15 +483,12 @@ func unmarshalActions(
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
-		if unmarshalAction == nil {
-			panic("unmarshalAction is nil")
-		} else {
-			action, err := unmarshalAction(p)
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not unmarshal action", err)
-			}
-			actions = append(actions, action)
+
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
 		}
+		actions = append(actions, action)
 	}
 	return actions, nil
 }
