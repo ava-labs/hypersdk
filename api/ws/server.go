@@ -38,6 +38,7 @@ var (
 )
 
 type Config struct {
+	Enabled bool `json:"enabled"`
 	MaxPendingMessages int `json:"maxPendingMessages"`
 }
 
@@ -50,6 +51,9 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	var config Config
 	if err := json.Unmarshal(configBytes, &config); err != nil {
 		return err
+	}
+	if !config.Enabled {
+		return nil
 	}
 
 	server, handler := NewWebSocketServer(
