@@ -42,13 +42,20 @@ type Config struct {
 	MaxPendingMessages int `json:"maxPendingMessages"`
 }
 
+func NewDefaultConfig() Config {
+	return Config{
+		Enabled: true,
+		MaxPendingMessages: 10_000_000,
+	}
+}
+
 func With() vm.Option {
 	return vm.NewOption(Namespace, OptionFunc)
 }
 
 func OptionFunc(v *vm.VM, configBytes []byte) error {
 	actionRegistry, authRegistry := v.Registry()
-	var config Config
+	config := NewDefaultConfig()
 	if err := json.Unmarshal(configBytes, &config); err != nil {
 		return err
 	}
