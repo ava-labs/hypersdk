@@ -102,7 +102,7 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 		}
 	}
 
-	account, err := programManager.NewAccountWithProgram(context.TODO(), programID, []byte{})
+	account, err := programManager.NewAccountWithProgram(context.TODO(), programID[:], []byte{})
 	if err != nil {
 		errmsg := "program deployment failed: " + err.Error()
 		return C.CreateProgramResponse{
@@ -111,8 +111,9 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	}
 	return C.CreateProgramResponse{
 		error: nil,
-		program_id: C.ID{
-			*(*[32]C.uchar)(C.CBytes(programID[:])), //nolint:all
+		program_id: C.ProgramId{
+			data:   (*C.uint8_t)(C.CBytes(programID[:])), //nolint:all
+			length: (C.size_t)(len(programID[:])),
 		},
 		program_address: C.Address{
 			*(*[33]C.uchar)(C.CBytes(account[:])), //nolint:all
@@ -149,7 +150,7 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 		error: errPtr,
 		result: C.Bytes{
 			data:   (*C.uint8_t)(C.CBytes(result)),
-			length: C.uint64_t(len(result)),
+			length: C.size_t(len(result)),
 		},
 		fuel: C.uint64_t(fuel),
 	}

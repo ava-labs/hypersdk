@@ -8,7 +8,6 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/cache"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
@@ -22,7 +21,7 @@ type WasmRuntime struct {
 	hostImports *Imports
 	cfg         *Config
 
-	programCache cache.Cacher[ids.ID, *wasmtime.Module]
+	programCache cache.Cacher[string, *wasmtime.Module]
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -44,13 +43,13 @@ type ProgramManager interface {
 	GetProgramState(address codec.Address) state.Mutable
 	// GetAccountProgram returns the program ID associated with the given account.
 	// An account represents a specific instance of a program.
-	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
+	GetAccountProgram(ctx context.Context, account codec.Address) (ProgramID, error)
 	// GetProgramBytes returns the compiled WASM bytes of the program with the given ID.
-	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	GetProgramBytes(ctx context.Context, programID ProgramID) ([]byte, error)
 	// NewAccountWithProgram creates a new account that represents a specific instance of a program.
-	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
+	NewAccountWithProgram(ctx context.Context, programID ProgramID, accountCreationData []byte) (codec.Address, error)
 	// SetAccountProgram associates the given program ID with the given account.
-	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
+	SetAccountProgram(ctx context.Context, account codec.Address, programID ProgramID) error
 }
 
 func NewRuntime(
@@ -64,7 +63,7 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
-		programCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id ids.ID, mod *wasmtime.Module) int {
+		programCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id string, mod *wasmtime.Module) int {
 			bytes, err := mod.Serialize()
 			if err != nil {
 				panic(err)
@@ -90,8 +89,8 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.linkerNeedsInitialization = true
 }
 
-func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id ids.ID) (*wasmtime.Module, error) {
-	if mod, ok := r.programCache.Get(id); ok {
+func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id []byte) (*wasmtime.Module, error) {
+	if mod, ok := r.programCache.Get(string(id)); ok {
 		return mod, nil
 	}
 	programBytes, err := callInfo.State.GetProgramBytes(ctx, id)
@@ -102,7 +101,7 @@ func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id ids.
 	if err != nil {
 		return nil, err
 	}
-	r.programCache.Put(id, mod)
+	r.programCache.Put(string(id), mod)
 	return mod, nil
 }
 

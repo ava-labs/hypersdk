@@ -2,17 +2,19 @@
 // See the file LICENSE for licensing terms.
 
 use crate::bindings::{Bytes, BytesWithError};
-use std::{collections::HashMap, ffi::CString};
+use std::{collections::HashMap, ffi::CString, ops::Deref};
 
 // define constant error messages
 // TODO: Would love a less-hardcodey way of representing errors between rust <-> go
 pub const ERR_NOT_FOUND: &str = "not found";
 
+type BoxedSlice = Box<[u8]>;
+
 /// A simple key-value store representing the state of the simulated VM.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct SimpleState {
-    state: HashMap<Vec<u8>, Vec<u8>>,
+    state: HashMap<BoxedSlice, BoxedSlice>,
 }
 
 impl SimpleState {
@@ -21,16 +23,16 @@ impl SimpleState {
             state: HashMap::new(),
         }
     }
-    pub fn get_value(&self, key: &[u8]) -> Option<&Vec<u8>> {
-        self.state.get(key)
+    pub fn get_value(&self, key: &[u8]) -> Option<&[u8]> {
+        self.state.get(key).map(|v| v.deref())
     }
 
-    pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
+    pub fn insert(&mut self, key: BoxedSlice, value: BoxedSlice) {
         self.state.insert(key, value);
     }
 
-    pub fn remove(&mut self, key: Vec<u8>) {
-        self.state.remove(&key);
+    pub fn remove(&mut self, key: &[u8]) {
+        self.state.remove(key);
     }
 }
 impl Default for SimpleState {
@@ -59,30 +61,24 @@ impl<'a> Mutable<'a> {
 }
 
 pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> BytesWithError {
-    match state.get_value(&key) {
-        Some(v) => BytesWithError {
-            bytes: Bytes {
-                data: v.as_ptr(),
-                length: v.len() as u64,
-            },
-            error: std::ptr::null(),
-        },
-        None => BytesWithError {
-            bytes: Bytes {
-                data: std::ptr::null_mut(),
-                length: 0,
-            },
-            error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
-        },
-    }
+    let (bytes, error) = match state.get_value(key.deref()) {
+        Some(v) => (v.into(), std::ptr::null_mut()),
+        None => (
+            Default::default(),
+            CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
+        ),
+    };
+
+    BytesWithError { bytes, error }
 }
 
 pub extern "C" fn insert_state_callback(state: &mut SimpleState, key: Bytes, value: Bytes) {
-    state.insert(key.to_vec(), value.to_vec());
+    let [key, value] = [key, value].map(|x| Box::<[u8]>::from(x.deref()));
+    state.insert(key, value);
 }
 
 pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) {
-    state.remove(key.to_vec());
+    state.remove(key.deref());
 }
 
 /// Callback functions for retrieving/modifying state values.
