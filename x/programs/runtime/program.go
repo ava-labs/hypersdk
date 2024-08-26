@@ -20,6 +20,8 @@ const (
 	MemoryName = "memory"
 )
 
+type ProgramID []byte
+
 type Context struct {
 	Program   codec.Address
 	Actor     codec.Address

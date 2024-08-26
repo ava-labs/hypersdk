@@ -46,7 +46,7 @@ func (s *Mutable) GetValue(_ context.Context, key []byte) ([]byte, error) {
 
 	bytesStruct := C.Bytes{
 		data:   (*C.uint8_t)(bytesPtr),
-		length: C.uint64_t(len(key)),
+		length: C.size_t(len(key)),
 	}
 	valueBytes := C.bridge_get_callback(s.get_value_callback, s.stateObj, bytesStruct)
 
@@ -73,12 +73,12 @@ func (s *Mutable) Insert(_ context.Context, key []byte, value []byte) error {
 
 	keyStruct := C.Bytes{
 		data:   (*C.uint8_t)(keyBytes),
-		length: C.uint64_t(len(key)),
+		length: C.size_t(len(key)),
 	}
 
 	valueStruct := C.Bytes{
 		data:   (*C.uint8_t)(valueBytes),
-		length: C.uint64_t(len(value)),
+		length: C.size_t(len(value)),
 	}
 
 	C.bridge_insert_callback(s.insert_callback, s.stateObj, keyStruct, valueStruct)
@@ -92,7 +92,7 @@ func (s *Mutable) Remove(_ context.Context, key []byte) error {
 
 	keyStruct := C.Bytes{
 		data:   (*C.uint8_t)(keyBytes),
-		length: C.uint64_t(len(key)),
+		length: C.size_t(len(key)),
 	}
 
 	C.bridge_remove_callback(s.remove_callback, s.stateObj, keyStruct)
