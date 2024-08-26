@@ -25,18 +25,24 @@ func NewOption(namespace string, optionFunc OptionFunc) Option {
 	}
 }
 
-func WithManualBuilder() OptionFunc {
-	return func(vm *VM, _ []byte) error {
-		vm.builder = builder.NewManual(vm)
-		return nil
-	}
+func WithManualBuilder() Option {
+	return NewOption(
+		"manualBuilder",
+		func(vm *VM, _ []byte) error {
+			vm.builder = builder.NewManual(vm)
+			return nil
+		},
+	)
 }
 
-func WithManualGossiper() OptionFunc {
-	return func(vm *VM, _ []byte) error {
-		vm.gossiper = gossiper.NewManual(vm)
-		return nil
-	}
+func WithManualGossiper() Option {
+	return NewOption(
+		"manualGossiper",
+		func(vm *VM, _ []byte) error {
+			vm.gossiper = gossiper.NewManual(vm)
+			return nil
+		},
+	)
 }
 
 func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) OptionFunc {

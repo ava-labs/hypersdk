@@ -169,8 +169,8 @@ func setInstances() {
 		db := memdb.New()
 
 		v, err := createVM(
-			vm.NewOption("manualGossiper", vm.WithManualGossiper()),
-			vm.NewOption("manualBuilder", vm.WithManualBuilder()),
+			vm.WithManualGossiper(),
+			vm.WithManualBuilder(),
 		)
 		require.NoError(err)
 		require.NoError(v.Initialize(
