@@ -8,7 +8,7 @@ import "github.com/ava-labs/hypersdk/vm"
 const Namespace = "core"
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, func(v *vm.VM, b []byte) error {
+	return vm.NewOption(Namespace, func(v *vm.VM, _ []byte) error {
 		vm.WithVMAPIs(JSONRPCServerFactory{})(v)
 		return nil
 	})
