@@ -284,7 +284,6 @@ func (vm *VM) Initialize(
 
 	for _, Option := range vm.options {
 		config := namespacedConfig[Option.Namespace]
-		snowCtx.Log.Debug("ctx", zap.Any("name", Option.Namespace), zap.Any("Conf", config))
 		if err := Option.OptionFunc(vm, config); err != nil {
 			return err
 		}

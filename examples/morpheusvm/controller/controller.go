@@ -42,14 +42,14 @@ func New(options ...vm.Option) (*vm.VM, error) {
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(namespacedOptions ...vm.Option) (*vm.VM, error) {
+func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
 		consts.Version,
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
-		namespacedOptions...,
+		options...,
 	)
 }
 

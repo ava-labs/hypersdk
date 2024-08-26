@@ -15,14 +15,14 @@ import (
 	rpc "github.com/gorilla/rpc/v2/json2"
 )
 
-type OptionFunc func(*Options)
+type Option func(*Options)
 
 type Options struct {
 	headers     http.Header
 	queryParams url.Values
 }
 
-func NewOptions(ops []OptionFunc) *Options {
+func NewOptions(ops []Option) *Options {
 	o := &Options{
 		headers:     http.Header{},
 		queryParams: url.Values{},
@@ -31,7 +31,7 @@ func NewOptions(ops []OptionFunc) *Options {
 	return o
 }
 
-func (o *Options) applyOptions(ops []OptionFunc) {
+func (o *Options) applyOptions(ops []Option) {
 	for _, op := range ops {
 		op(o)
 	}
@@ -45,13 +45,13 @@ func (o *Options) QueryParams() url.Values {
 	return o.queryParams
 }
 
-func WithHeader(key, val string) OptionFunc {
+func WithHeader(key, val string) Option {
 	return func(o *Options) {
 		o.headers.Set(key, val)
 	}
 }
 
-func WithQueryParam(key, val string) OptionFunc {
+func WithQueryParam(key, val string) Option {
 	return func(o *Options) {
 		o.queryParams.Set(key, val)
 	}
@@ -83,7 +83,7 @@ func (e *EndpointRequester) SendRequest(
 	method string,
 	params interface{},
 	reply interface{},
-	options ...OptionFunc,
+	options ...Option,
 ) error {
 	uri, err := url.Parse(e.uri)
 	if err != nil {
@@ -107,7 +107,7 @@ func SendJSONRequest(
 	method string,
 	params interface{},
 	reply interface{},
-	options ...OptionFunc,
+	options ...Option,
 ) error {
 	requestBodyBytes, err := rpc.EncodeClientRequest(method, params)
 	if err != nil {
