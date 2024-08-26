@@ -34,7 +34,6 @@ function rm_previous_cov_reports() {
     rm -f integration.coverage.html
 }
 function add_license_headers() {
-  echo "adding license headers"
 
   go install -v github.com/google/addlicense@latest
   check_command addlicense
@@ -44,15 +43,19 @@ function add_license_headers() {
   fi
 
   local check_flag=""
+  local action="adding"
   if [[ "$1" == "-check" ]]; then
     check_flag="-check"
+    action="checking"
   fi
 
+  echo "${action} license headers"
+
   # run for all go files
-  find . -type f -name '*.go' -print0 | xargs -0 -n1 addlicense -f "$license_file" "$check_flag"
+  find . -type f -name '*.go' -print0 | xargs -0 -n1 addlicense -f "$license_file" ${check_flag:+"$check_flag"}
 
   # Check for .rs files and only run if they exist
   if find . -type f -name '*.rs' | read -r; then
-    find . -type f -name '*.rs' -print0 | xargs -0 -n1 addlicense -f "$license_file" "$check_flag"
+    find . -type f -name '*.rs' -print0 | xargs -0 -n1 addlicense -f "$license_file" ${check_flag:+"$check_flag"}
   fi
 }
