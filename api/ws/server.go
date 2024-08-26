@@ -74,15 +74,11 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 		},
 	}
 
-	if err := vm.WithBlockSubscriptions(blockSubscription)(v, configBytes); err != nil {
-		return err
-	}
+	vm.WithBlockSubscriptions(blockSubscription)(v)
+	vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v)
+	vm.WithVMAPIs(webSocketFactory)(v)
 
-	if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v, configBytes); err != nil {
-		return err
-	}
-
-	return vm.WithVMAPIs(webSocketFactory)(v, configBytes)
+	return nil
 }
 
 type subscriptionFuncFactory[T any] struct {

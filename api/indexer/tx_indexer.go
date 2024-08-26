@@ -34,7 +34,7 @@ func With(name string, path string) vm.Option {
 }
 
 func OptionFunc(name string, path string) vm.OptionFunc {
-	return func(v *vm.VM, configBytes []byte) error {
+	return func(v *vm.VM, _ []byte) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 		if err != nil {
@@ -55,11 +55,10 @@ func OptionFunc(name string, path string) vm.OptionFunc {
 			indexer: indexer,
 		}
 
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v, configBytes); err != nil {
-			return err
-		}
+		vm.WithBlockSubscriptions(subscriptionFactory)(v)
+		vm.WithVMAPIs(apiFactory)(v)
 
-		return vm.WithVMAPIs(apiFactory)(v, configBytes)
+		return nil
 	}
 }
 

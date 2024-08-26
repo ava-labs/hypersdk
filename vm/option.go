@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 )
 
+type VMFunc func(*VM)
+
 type OptionFunc func(*VM, []byte) error
 
 type Option struct {
@@ -45,30 +47,26 @@ func WithManualGossiper() Option {
 	)
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) OptionFunc {
-	return func(vm *VM, _ []byte) error {
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) VMFunc {
+	return func(vm *VM) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
-		return nil
 	}
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) OptionFunc {
-	return func(vm *VM, _ []byte) error {
+func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) VMFunc {
+	return func(vm *VM) {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
-		return nil
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) OptionFunc {
-	return func(vm *VM, _ []byte) error {
+func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) VMFunc {
+	return func(vm *VM) {
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
-		return nil
 	}
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) OptionFunc {
-	return func(vm *VM, _ []byte) error {
+func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) VMFunc {
+	return func(vm *VM) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
-		return nil
 	}
 }
