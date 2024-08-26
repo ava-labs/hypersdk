@@ -9,7 +9,7 @@ const Namespace = "core"
 
 func With() vm.Option {
 	return vm.NewOption(Namespace, func(v *vm.VM, b []byte) error {
-		vm.WithVMAPIs(JSONRPCServerFactory{})
+		vm.WithVMAPIs(JSONRPCServerFactory{})(v)
 		return nil
 	})
 }
