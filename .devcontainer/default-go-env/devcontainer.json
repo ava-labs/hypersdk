@@ -1,0 +1,4 @@
+{
+	"name": "Default Go Environment",
+	"image": "mcr.microsoft.com/devcontainers/go:1.22-bookworm"
+}
