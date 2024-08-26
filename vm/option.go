@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 )
 
-type VMFunc func(*VM)
+type RegisterFunc func(*VM)
 
 type OptionFunc func(*VM, []byte) error
 
@@ -27,45 +27,48 @@ func NewOption(namespace string, optionFunc OptionFunc) Option {
 	}
 }
 
-func WithManualBuilder() Option {
+func WithBuilder() RegisterFunc {
+	return func(vm *VM) {
+		vm.builder = builder.NewManual(vm)
+	}
+}
+
+func WithGossiper() RegisterFunc {
+	return func(vm *VM) {
+		vm.gossiper = gossiper.NewManual(vm)
+	}
+}
+
+func WithManual() Option {
 	return NewOption(
-		"manualBuilder",
+		"manual",
 		func(vm *VM, _ []byte) error {
-			vm.builder = builder.NewManual(vm)
+			WithBuilder()(vm)
+			WithGossiper()(vm)
 			return nil
 		},
 	)
 }
 
-func WithManualGossiper() Option {
-	return NewOption(
-		"manualGossiper",
-		func(vm *VM, _ []byte) error {
-			vm.gossiper = gossiper.NewManual(vm)
-			return nil
-		},
-	)
-}
-
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) VMFunc {
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) RegisterFunc {
 	return func(vm *VM) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
 	}
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) VMFunc {
+func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc {
 	return func(vm *VM) {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) VMFunc {
+func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) RegisterFunc {
 	return func(vm *VM) {
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
 	}
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) VMFunc {
+func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
 	return func(vm *VM) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
 	}
