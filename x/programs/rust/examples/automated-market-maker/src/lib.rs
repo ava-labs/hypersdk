@@ -3,7 +3,10 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Id, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program, ProgramId};
+
+#[cfg(test)]
+mod tests;
 
 mod math;
 
@@ -19,7 +22,7 @@ const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Id) {
+pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: ProgramId) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
     let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
     token::init(
@@ -45,17 +48,17 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     // ensure the token_program_in is one of the tokens
     internal::check_token(context, &token_program_in);
 
-    let (token_in, token_out) = external_token_contracts(context);
+    let (token_x, token_y) = external_token_contracts(context);
 
     // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in.account() == token_in.program().account() {
-        (token_in, token_out)
+    let (token_in, token_out) = if token_program_in.account() == token_x.program().account() {
+        (token_x, token_y)
     } else {
-        (token_out, token_in)
+        (token_y, token_x)
     };
 
     // calculate the amount of tokens in the pool
-    let (reserve_token_in, reserve_token_out) = reserves(&token_in, &token_out);
+    let (reserve_token_in, reserve_token_out) = reserves(context, &token_in, &token_out);
     assert!(reserve_token_out > 0, "insufficient liquidity");
 
     // x * y = k
@@ -90,7 +93,7 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     let lp_token = external_liquidity_token(context);
 
     // calculate the amount of tokens in the pool
-    let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
 
     // ensure the proper ratio
     assert_eq!(
@@ -144,7 +147,7 @@ pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) 
 
     let total_shares = token::total_supply(&lp_token);
     let (token_x, token_y) = external_token_contracts(context);
-    let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
 
     let amount_x = (shares * reserve_x) / total_shares;
     let amount_y = (shares * reserve_y) / total_shares;
@@ -180,16 +183,20 @@ pub fn get_liquidity_token(context: &mut Context) -> Program {
 }
 
 /// Returns the token reserves in the pool
-fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (Units, Units) {
+fn reserves(
+    context: &Context,
+    token_x: &ExternalCallContext,
+    token_y: &ExternalCallContext,
+) -> (Units, Units) {
     let balance_x = token::allowance(
         token_x,
-        *token_x.program().account(),
-        *token_x.program().account(),
+        *context.program().account(),
+        *context.program().account(),
     );
     let balance_y = token::allowance(
         token_y,
-        *token_y.program().account(),
-        *token_y.program().account(),
+        *context.program().account(),
+        *context.program().account(),
     );
 
     (balance_x, balance_y)

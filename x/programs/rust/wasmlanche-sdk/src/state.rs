@@ -5,12 +5,14 @@ use crate::{
     context::{CacheKey, CacheValue},
     memory::HostPtr,
     types::Address,
-    Context,
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::{cell::RefCell, collections::HashMap};
+use std::{collections::HashMap, mem::size_of};
+
+// maximum number of chunks that can be stored at the key as big endian u16
+pub const STATE_MAX_CHUNKS: [u8; 2] = 4u16.to_be_bytes();
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -40,16 +42,26 @@ pub fn get_balance(account: Address) -> u64 {
     borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
-pub struct State<'a> {
-    cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
+pub struct Cache {
+    cache: HashMap<CacheKey, Option<CacheValue>>,
 }
+
+impl Drop for Cache {
+    fn drop(&mut self) {
+        self.flush();
+    }
+}
+
+pub type PrefixType = u8;
+pub type MaxChunksType = [u8; size_of::<u16>()];
 
 #[doc(hidden)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct PrefixedKey<K: NoUninit> {
-    prefix: u8,
+    prefix: PrefixType,
     key: K,
+    max_chunks: MaxChunksType,
 }
 
 impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
@@ -63,11 +75,24 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
-const _: fn() = || {
-    #[doc(hidden)]
-    struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<u32>()]);
-    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
-};
+#[doc(hidden)]
+#[macro_export]
+macro_rules! prefixed_key_size_check {
+    ($($module:ident)::*, $ty:ty) => {
+        const _: fn() = || {
+            type TypeForTypeTest = $ty;
+            type PrefixedKey = $($module::)*PrefixedKey<TypeForTypeTest>;
+            const SIZE: usize = ::core::mem::size_of::<$($module::)*PrefixType>()
+                + ::core::mem::size_of::<$($module::)*MaxChunksType>()
+                + ::core::mem::size_of::<TypeForTypeTest>();
+            #[doc(hidden)]
+            struct TypeWithoutPadding([u8; SIZE]);
+            let _ = ::core::mem::transmute::<PrefixedKey, TypeWithoutPadding>;
+        };
+    };
+}
+
+prefixed_key_size_check!(self::macro_types, u32);
 
 /// A trait for defining the associated value for a given state-key.
 /// This trait is not meant to be implemented manually but should instead be implemented with the [`state_schema!`](crate::state_schema) macro.
@@ -80,9 +105,9 @@ pub unsafe trait Schema: NoUninit {
 
     /// # Errors
     /// Will return an error when there's an issue with deserialization
-    fn get(self, context: &mut Context) -> Result<Option<Self::Value>, Error> {
+    fn get(self, state_cache: &mut Cache) -> Result<Option<Self::Value>, Error> {
         let key = to_key(self);
-        context.get_with_raw_key(key.as_ref())
+        state_cache.get_with_raw_key(key.as_ref())
     }
 }
 
@@ -90,17 +115,28 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     PrefixedKey {
         prefix: K::prefix(),
         key,
+
+        // TODO: don't use this const and instead adjust this per stored type
+        max_chunks: STATE_MAX_CHUNKS,
     }
 }
 
-impl<'a> State<'a> {
+impl Default for Cache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Cache {
     #[must_use]
-    pub fn new(cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>) -> Self {
-        Self { cache }
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::default(),
+        }
     }
 
-    pub fn store<Pairs: IntoPairs>(self, pairs: Pairs) -> Result<(), Error> {
-        let cache = &mut self.cache.borrow_mut();
+    pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
+        let cache = &mut self.cache;
 
         pairs.into_pairs().into_iter().try_for_each(|result| {
             result.map(|(k, v)| {
@@ -111,18 +147,18 @@ impl<'a> State<'a> {
         Ok(())
     }
 
-    pub fn store_by_key<K>(self, key: K, value: K::Value) -> Result<(), Error>
+    pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
     {
         self.store(((key, value),))
     }
 
-    pub(crate) fn get_with_raw_key<V>(self, key: &[u8]) -> Result<Option<V>, Error>
+    pub(crate) fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
-        let mut cache = self.cache.borrow_mut();
+        let cache = &mut self.cache;
 
         if let Some(value) = cache.get(key) {
             value
@@ -143,19 +179,8 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn delete<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
-        self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
-    }
-
-    /// Only used internally
-    /// The closure is only called if the key already exists in the cache
-    /// The closure may mutate the value and return anything it likes for deserializaiton
-    fn get_mut_with<K: Schema, F>(self, key: K, f: F) -> Result<Option<K::Value>, Error>
-    where
-        F: FnOnce(&mut CacheValue) -> borsh::io::Result<K::Value>,
-    {
-        let mut cache = self.cache.borrow_mut();
-
+    pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
+        let cache = &mut self.cache;
         let key = to_key(key);
 
         let cache_entry = if let Some(value) = cache.get_mut(key.as_ref()) {
@@ -169,12 +194,14 @@ impl<'a> State<'a> {
         match cache_entry {
             None => Ok(None),
             Some(val) if val.is_empty() => Ok(None),
-            Some(val) => f(val).map_err(|_| Error::Deserialization).map(Some),
+            Some(val) => from_slice(&std::mem::take(val))
+                .map_err(|_| Error::Deserialization)
+                .map(Some),
         }
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    pub(super) fn flush(&self) {
+    pub(super) fn flush(&mut self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
@@ -187,7 +214,7 @@ impl<'a> State<'a> {
             value: CacheValue,
         }
 
-        let mut cache = self.cache.borrow_mut();
+        let cache = &mut self.cache;
 
         let args: Vec<_> = cache
             .drain()
@@ -241,3 +268,8 @@ impl_to_pairs!(4, Schema);
 impl_to_pairs!(3, Schema);
 impl_to_pairs!(2, Schema);
 impl_to_pairs!(1, Schema);
+
+#[doc(hidden)]
+pub mod macro_types {
+    pub use super::{MaxChunksType, PrefixType, PrefixedKey, Schema};
+}

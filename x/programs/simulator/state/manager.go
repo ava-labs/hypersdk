@@ -81,18 +81,18 @@ func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutab
 
 // GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the programbytes
 // Errors if there is no found account or an error fetching
-func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (runtime.ProgramID, error) {
 	programID, exists, err := p.getAccountProgram(ctx, account)
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty[:], err
 	}
 	if !exists {
-		return ids.Empty, ErrUnknownAccount
+		return ids.Empty[:], ErrUnknownAccount
 	}
-	return programID, nil
+	return programID[:], nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID runtime.ProgramID) ([]byte, error) {
 	// TODO: take fee out of balance?
 	programBytes, exists, err := p.getProgram(ctx, programID)
 	if err != nil {
@@ -104,13 +104,13 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids
 	return programBytes, nil
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
-	newID := sha256.Sum256(append(programID[:], accountCreationData...))
+func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID runtime.ProgramID, accountCreationData []byte) (codec.Address, error) {
+	newID := sha256.Sum256(append(programID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
 	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID runtime.ProgramID) error {
 	return p.setAccountProgram(ctx, account, programID)
 }
 
@@ -142,18 +142,18 @@ func accountProgramKey(account []byte) []byte {
 // Creates a key an account balance key
 func accountDataKey(account []byte, key []byte) (k []byte) {
 	// accountPrefix + account + accountDataPrefix + key
-	k = make([]byte, 2+len(account)+len(key))
-	k[0] = accountPrefix
-	copy(k[1:], account)
-	k[1+len(account)] = accountDataPrefix
-	copy(k[1+len(account)+1:], key)
+	k = make([]byte, 0, 2+len(account)+len(key))
+	k = append(k, accountPrefix)
+	k = append(k, account...)
+	k = append(k, accountDataPrefix)
+	k = append(k, key...)
 	return
 }
 
 func programKey(key []byte) (k []byte) {
-	k = make([]byte, 1+len(key))
-	k[0] = programPrefix
-	copy(k[1:], key)
+	k = make([]byte, 0, 1+len(key))
+	k = append(k, programPrefix)
+	k = append(k, key...)
 	return
 }
 
@@ -165,20 +165,20 @@ func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account cod
 	if err != nil {
 		return ids.Empty, false, err
 	}
-	return ids.ID(v[:32]), true, nil
+	return ids.ID(v[:ids.IDLen]), true, nil
 }
 
 func (p *ProgramStateManager) setAccountProgram(
 	ctx context.Context,
 	account codec.Address,
-	programID ids.ID,
+	programID []byte,
 ) error {
-	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID[:])
+	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID)
 }
 
 // [programID] -> [programBytes]
-func (p *ProgramStateManager) getProgram(ctx context.Context, programID ids.ID) ([]byte, bool, error) {
-	v, err := p.db.GetValue(ctx, programKey(programID[:]))
+func (p *ProgramStateManager) getProgram(ctx context.Context, programID runtime.ProgramID) ([]byte, bool, error) {
+	v, err := p.db.GetValue(ctx, programKey(programID))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
@@ -200,8 +200,9 @@ func (p *ProgramStateManager) SetProgram(
 // gets the public key mapped to the given name.
 func GetPublicKey(ctx context.Context, db state.Immutable, name string) (ed25519.PublicKey, bool, error) {
 	k := make([]byte, 1+ed25519.PublicKeyLen)
-	k[0] = addressStoragePrefix
-	copy(k[1:], name)
+	k = append(k, addressStoragePrefix)
+	k = append(k, []byte(name)...)
+
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return ed25519.EmptyPublicKey, false, nil
@@ -214,7 +215,7 @@ func GetPublicKey(ctx context.Context, db state.Immutable, name string) (ed25519
 
 func SetKey(ctx context.Context, db state.Mutable, privateKey ed25519.PrivateKey, name string) error {
 	k := make([]byte, 1+ed25519.PublicKeyLen)
-	k[0] = addressStoragePrefix
-	copy(k[1:], name)
+	k = append(k, addressStoragePrefix)
+	k = append(k, []byte(name)...)
 	return db.Insert(ctx, k, privateKey[:])
 }

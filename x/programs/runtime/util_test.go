@@ -5,13 +5,109 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
+
+type TestStateManager struct {
+	ProgramsMap map[string]string
+	AccountMap  map[codec.Address]string
+	Balances    map[codec.Address]uint64
+	Mu          state.Mutable
+}
+
+func (t TestStateManager) GetAccountProgram(_ context.Context, account codec.Address) (ProgramID, error) {
+	if programID, ok := t.AccountMap[account]; ok {
+		return ProgramID(programID), nil
+	}
+	return ids.Empty[:], nil
+}
+
+func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID) ([]byte, error) {
+	programName, ok := t.ProgramsMap[string(programID)]
+	if !ok {
+		return nil, errors.New("couldn't find program")
+	}
+	if err := test.CompileTest(programName); err != nil {
+		return nil, err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
+}
+
+func (t TestStateManager) NewAccountWithProgram(_ context.Context, programID ProgramID, _ []byte) (codec.Address, error) {
+	account := codec.CreateAddress(0, ids.GenerateTestID())
+	t.AccountMap[account] = string(programID)
+	return account, nil
+}
+
+func (t TestStateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ProgramID) error {
+	t.AccountMap[account] = string(programID)
+	return nil
+}
+
+func (t TestStateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
+	if balance, ok := t.Balances[address]; ok {
+		return balance, nil
+	}
+	return 0, nil
+}
+
+func (t TestStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	balance, err := t.GetBalance(ctx, from)
+	if err != nil {
+		return err
+	}
+	if balance < amount {
+		return errors.New("insufficient balance")
+	}
+	t.Balances[from] -= amount
+	t.Balances[to] += amount
+	return nil
+}
+
+func (t TestStateManager) GetProgramState(address codec.Address) state.Mutable {
+	return &prefixedState{address: address, inner: t.Mu}
+}
+
+var _ state.Mutable = (*prefixedState)(nil)
+
+type prefixedState struct {
+	address codec.Address
+	inner   state.Mutable
+}
+
+func (p *prefixedState) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return p.inner.GetValue(ctx, prependAccountToKey(p.address, key))
+}
+
+func (p *prefixedState) Insert(ctx context.Context, key []byte, value []byte) error {
+	return p.inner.Insert(ctx, prependAccountToKey(p.address, key), value)
+}
+
+func (p *prefixedState) Remove(ctx context.Context, key []byte) error {
+	return p.inner.Remove(ctx, prependAccountToKey(p.address, key))
+}
+
+// prependAccountToKey makes the key relative to the account
+func prependAccountToKey(account codec.Address, key []byte) []byte {
+	result := make([]byte, len(account)+len(key)+1)
+	copy(result, account[:])
+	copy(result[len(account):], "/")
+	copy(result[len(account)+1:], key)
+	return result
+}
 
 type testRuntime struct {
 	Context      context.Context
@@ -69,8 +165,8 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-func (t *testRuntime) AddProgram(programID []byte, programName string) {
-	t.StateManager.(test.StateManager).ProgramsMap[string(programID)] = programName
+func (t *testRuntime) AddProgram(programID ProgramID, programName string) {
+	t.StateManager.(TestStateManager).ProgramsMap[string(programID)] = programName
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -94,7 +190,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			callContext: NewRuntime(
 				NewConfig(),
 				logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
-			StateManager: test.StateManager{
+			StateManager: TestStateManager{
 				ProgramsMap: map[string]string{stringedID: program},
 				AccountMap:  map[codec.Address]string{account: stringedID},
 				Balances:    map[codec.Address]uint64{},

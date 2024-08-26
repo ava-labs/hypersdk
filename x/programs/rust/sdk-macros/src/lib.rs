@@ -325,54 +325,47 @@ impl Parse for KeyPair {
 pub fn state_schema(input: TokenStream) -> TokenStream {
     let key_pairs =
         parse_macro_input!(input with Punctuated::<KeyPair, Token![,]>::parse_terminated);
-    let result: Result<_, Error> = key_pairs
-        .into_iter()
-        .enumerate()
-        .try_fold(
-            quote! {},
-            |mut token_stream,
-             (
-                i,
-                KeyPair {
-                    key_comments,
-                    key_vis,
-                    key_type_name,
-                    key_fields,
-                    value_type,
-                },
-            )| {
-                let i = u8::try_from(i).map_err(|_| {
-                    Error::new(
-                        key_type_name.span(),
-                        "Cannot exceed `u8::MAX + 1` keys in a state-schema",
-                    )
-                })?;
-
-                token_stream.extend(Some(quote! {
-                    #(#key_comments)*
-                    #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::NoUninit)]
-                    #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
-                    #[repr(C)]
-                    #key_vis struct #key_type_name #key_fields;
-
-                    const _: fn() = || {
-                        #[doc(hidden)]
-                        struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<#key_type_name>()]);
-                        let _ = ::core::mem::transmute::<wasmlanche_sdk::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
-                    };
-
-                    unsafe impl wasmlanche_sdk::Schema for #key_type_name {
-                        type Value = #value_type;
-
-                        fn prefix() -> u8 {
-                            #i
-                        }
-                    }
-                }));
-
-                Ok(token_stream)
+    let result: Result<_, Error> = key_pairs.into_iter().enumerate().try_fold(
+        quote! {},
+        |mut token_stream,
+         (
+            i,
+            KeyPair {
+                key_comments,
+                key_vis,
+                key_type_name,
+                key_fields,
+                value_type,
             },
-        );
+        )| {
+            let i = u8::try_from(i).map_err(|_| {
+                Error::new(
+                    key_type_name.span(),
+                    "Cannot exceed `u8::MAX + 1` keys in a state-schema",
+                )
+            })?;
+
+            token_stream.extend(Some(quote! {
+                #(#key_comments)*
+                #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::NoUninit)]
+                #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
+                #[repr(C)]
+                #key_vis struct #key_type_name #key_fields;
+
+                wasmlanche_sdk::prefixed_key_size_check!(wasmlanche_sdk::macro_types, #key_type_name);
+
+                unsafe impl wasmlanche_sdk::macro_types::Schema for #key_type_name {
+                    type Value = #value_type;
+
+                    fn prefix() -> u8 {
+                        #i
+                    }
+                }
+            }));
+
+            Ok(token_stream)
+        },
+    );
 
     match result {
         Ok(token_stream) => token_stream,

@@ -1,10 +1,11 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package rpc
+package ws
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -19,6 +20,10 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
+
+const DefaultHandshakeTimeout = 10 * time.Second
+
+var ErrClosed = errors.New("closed")
 
 type WebSocketClient struct {
 	cl   sync.Once
@@ -46,7 +51,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		uri = "ws://" + uri
 	}
 	uri = strings.TrimSuffix(uri, "/")
-	uri += WebSocketEndpoint
+	uri += Endpoint
 	// source: https://github.com/gorilla/websocket/blob/76ecc29eff79f0cedf70c530605e486fc32131d1/client.go#L140-L144
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
