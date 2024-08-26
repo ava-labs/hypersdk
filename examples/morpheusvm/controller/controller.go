@@ -32,20 +32,13 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	opts := []vm.Option{
 		indexer.With(consts.Name, indexer.Endpoint),
 		ws.With(),
+		vm.WrapRegisterFunc("vmAPIs", vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{})),
+		vm.WrapRegisterFunc("controllerAPIs", vm.WithControllerAPIs(&jsonRPCServerFactory{})),
 	}
 
 	opts = append(opts, options...)
 
-	v, err := NewWithOptions(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Register APIs
-	vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{})(v)
-	vm.WithControllerAPIs(&jsonRPCServerFactory{})(v)
-
-	return v, nil
+	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options

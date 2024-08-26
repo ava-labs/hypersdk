@@ -27,6 +27,16 @@ func NewOption(namespace string, optionFunc OptionFunc) Option {
 	}
 }
 
+func WrapRegisterFunc(namespace string, registerFunc RegisterFunc) Option {
+	return NewOption(
+		namespace,
+		func(v *VM, _ []byte) error {
+			registerFunc(v)
+			return nil
+		},
+	)
+}
+
 func WithBuilder() RegisterFunc {
 	return func(vm *VM) {
 		vm.builder = builder.NewManual(vm)

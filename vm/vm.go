@@ -236,8 +236,10 @@ func (vm *VM) Initialize(
 		ChainDataDir:   vm.DataDir,
 	}
 
-	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+			return fmt.Errorf("failed to unmarshal config: %w", err)
+		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 

@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -59,7 +58,6 @@ var (
 	// Injected values populated by Setup
 	createVM              func(...vm.Option) (*vm.VM, error)
 	genesisBytes          []byte
-	configBytes           []byte
 	vmID                  ids.ID
 	parser                chain.Parser
 	customJSONRPCEndpoint string
@@ -122,11 +120,6 @@ func setInstances() {
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
 
-	vmConfig := vm.NewConfig()
-	cb, err := json.Marshal(vmConfig)
-	require.NoError(err)
-	configBytes = cb
-
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
 			n := len(instances)
@@ -172,7 +165,7 @@ func setInstances() {
 			db,
 			genesisBytes,
 			nil,
-			configBytes,
+			nil,
 			toEngine,
 			nil,
 			app,
