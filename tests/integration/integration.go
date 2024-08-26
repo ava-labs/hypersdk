@@ -56,7 +56,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) *vm.VM
+	createVM              func(...vm.Option) (*vm.VM, error)
 	genesisBytes          []byte
 	vmID                  ids.ID
 	parser                chain.Parser
@@ -89,7 +89,7 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) *vm.VM,
+	newVM func(...vm.Option) (*vm.VM, error),
 	genesis []byte,
 	id ids.ID,
 	vmParser chain.Parser,
@@ -155,17 +155,17 @@ func setInstances() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := createVM(
-			vm.WithManualGossiper(),
-			vm.WithManualBuilder(),
+		v, err := createVM(
+			vm.WithManual(),
 		)
+		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
 			db,
 			genesisBytes,
 			nil,
-			[]byte(`{}`),
+			nil,
 			toEngine,
 			nil,
 			app,

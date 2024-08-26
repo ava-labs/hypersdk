@@ -19,6 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
+const Namespace = "txIndexer"
+
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
@@ -27,8 +29,12 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func WithIndexer(name string, path string) vm.Option {
-	return func(v *vm.VM) error {
+func With(name string, path string) vm.Option {
+	return vm.NewOption(Namespace, OptionFunc(name, path))
+}
+
+func OptionFunc(name string, path string) vm.OptionFunc {
+	return func(v *vm.VM, _ []byte) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 		if err != nil {
@@ -49,11 +55,10 @@ func WithIndexer(name string, path string) vm.Option {
 			indexer: indexer,
 		}
 
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v); err != nil {
-			return err
-		}
+		vm.WithBlockSubscriptions(subscriptionFactory)(v)
+		vm.WithVMAPIs(apiFactory)(v)
 
-		return vm.WithVMAPIs(apiFactory)(v)
+		return nil
 	}
 }
 
