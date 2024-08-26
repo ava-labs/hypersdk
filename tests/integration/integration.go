@@ -123,12 +123,6 @@ func setInstances() {
 	chainID := ids.GenerateTestID()
 
 	vmConfig := vm.NewConfig()
-	vmConfig.Config = map[string]any{
-		"txIndexer": true,
-		"websocket": ws.Config{
-			MaxPendingMessages: 10_000,
-		},
-	}
 	cb, err := json.Marshal(vmConfig)
 	require.NoError(err)
 	configBytes = cb
