@@ -3,7 +3,6 @@
 # See the file LICENSE for licensing terms.
 
 set -euo pipefail
-set -x
 
 if ! [[ "$0" =~ scripts/lint.sh ]]; then
   echo "must be run from repository root"
