@@ -38,13 +38,13 @@ var (
 )
 
 type Config struct {
-	Enabled bool `json:"enabled"`
-	MaxPendingMessages int `json:"maxPendingMessages"`
+	Enabled            bool `json:"enabled"`
+	MaxPendingMessages int  `json:"maxPendingMessages"`
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		Enabled: true,
+		Enabled:            true,
 		MaxPendingMessages: 10_000_000,
 	}
 }
@@ -56,8 +56,10 @@ func With() vm.Option {
 func OptionFunc(v *vm.VM, configBytes []byte) error {
 	actionRegistry, authRegistry := v.Registry()
 	config := NewDefaultConfig()
-	if err := json.Unmarshal(configBytes, &config); err != nil {
-		return err
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &config); err != nil {
+			return err
+		}
 	}
 	if !config.Enabled {
 		return nil
