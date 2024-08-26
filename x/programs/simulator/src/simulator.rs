@@ -8,7 +8,7 @@ use std::{
     str::Utf8Error,
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError, ProgramID};
+use wasmlanche_sdk::{Address, ExternalCallError, ProgramId};
 
 use crate::{
     bindings::{
@@ -158,12 +158,18 @@ impl CreateProgramResponse {
     ///
     /// Multiple program addresses can reference the same program ID, similar to
     /// how multiple instances of a smart contract can share the same bytecode.
-    pub fn program_id(&self) -> Result<ProgramID, SimulatorError> {
+    pub fn program_id(&self) -> Result<ProgramId, SimulatorError> {
         if self.has_error() {
             let error = self.error()?;
             return Err(SimulatorError::CreateProgram(error.into()));
-        };
-        Ok(self.program_id.to_vec())
+        }
+
+        // TODO:
+        // This should give back a borrowed ProgramId
+        // we need to differentiate between the two types
+        // we should also explore the ability to deserialize
+        // borrowed types for the public API of programs
+        Ok(Box::<[u8]>::from(self.program_id).into())
     }
 
     /// Returns the error message if the program creation failed.
@@ -263,7 +269,7 @@ mod tests {
             .chain(b"balance".iter().copied())
             .collect();
 
-        state.insert(key, exptected_balance.to_be_bytes().to_vec());
+        state.insert(key, Box::from(exptected_balance.to_be_bytes()));
 
         let simulator = Simulator::new(&mut state);
 
