@@ -32,7 +32,7 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func With(name string, path string) vm.Option {
+func With() vm.Option {
 	return vm.NewOption(Namespace, OptionFunc)
 }
 
