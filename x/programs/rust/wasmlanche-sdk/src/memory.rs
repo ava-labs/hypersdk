@@ -10,13 +10,22 @@
 extern crate alloc;
 
 use alloc::alloc::{alloc as allocate, dealloc as deallocate, handle_alloc_error, Layout};
-use core::{cell::RefCell, mem::ManuallyDrop, ops::Deref, slice};
+use core::{
+    cell::{LazyCell, RefCell},
+    mem::ManuallyDrop,
+    ops::Deref,
+    slice,
+};
 use hashbrown::HashMap;
 
-thread_local! {
-    /// Map of pointer to the length of its content on the heap
-    static ALLOCATIONS: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
-}
+/// Map of pointer to the length of its content on the heap
+
+// TODO:
+// `RefCell` shouldn't be necessary here since we need unsafe access anyway.
+// However, it does guarantee no UB on a single-thread.
+
+static mut ALLOCATIONS: LazyCell<RefCell<HashMap<*const u8, usize>>> =
+    LazyCell::new(|| RefCell::new(HashMap::new()));
 
 #[doc(hidden)]
 /// A pointer where data points to the host.
@@ -28,11 +37,15 @@ impl Deref for HostPtr {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        let len = ALLOCATIONS
-            .with_borrow(|allocations| allocations.get(&self.0).copied())
-            .expect("attempted to deref invalid host pointer");
+        unsafe {
+            let len = ALLOCATIONS
+                .borrow()
+                .get(&self.0)
+                .copied()
+                .expect("attempted to deref invalid host pointer");
 
-        unsafe { slice::from_raw_parts(self.0, len) }
+            slice::from_raw_parts(self.0, len)
+        }
     }
 }
 
@@ -83,15 +96,20 @@ extern "C" fn alloc(len: usize) -> HostPtr {
         handle_alloc_error(layout);
     }
 
-    ALLOCATIONS.with_borrow_mut(|s| s.insert(ptr, len));
+    unsafe {
+        ALLOCATIONS.borrow_mut().insert(ptr, len);
+    }
 
     HostPtr(ptr.cast_const())
 }
 
 fn remove(ptr: *const u8) -> usize {
-    ALLOCATIONS
-        .with_borrow_mut(|allocations| allocations.remove(&ptr))
-        .expect("attempted to drop invalid host pointer")
+    unsafe {
+        ALLOCATIONS
+            .borrow_mut()
+            .remove(&ptr)
+            .expect("attempted to drop invalid host pointer")
+    }
 }
 
 #[cfg(test)]
@@ -122,9 +140,9 @@ mod tests {
         let data = ManuallyDrop::new(data);
         let ptr = data.as_ptr();
 
-        ALLOCATIONS.with_borrow_mut(move |allocations| {
-            allocations.insert(ptr, data.len());
-        });
+        unsafe {
+            ALLOCATIONS.borrow_mut().insert(ptr, data.len());
+        }
 
         assert_eq!(&*HostPtr(ptr), &cloned);
     }
@@ -136,9 +154,9 @@ mod tests {
         let data = ManuallyDrop::new(data);
         let ptr = data.as_ptr();
 
-        ALLOCATIONS.with_borrow_mut(move |allocations| {
-            allocations.insert(ptr, data.len());
-        });
+        unsafe {
+            ALLOCATIONS.borrow_mut().insert(ptr, data.len());
+        }
 
         let host_ptr = ManuallyDrop::new(HostPtr(ptr));
         assert_eq!(&**host_ptr, &cloned);
@@ -153,15 +171,15 @@ mod tests {
         let data = ManuallyDrop::new(data);
         let ptr = data.as_ptr();
 
-        ALLOCATIONS.with_borrow_mut(move |allocations| {
-            allocations.insert(ptr, data.len());
-        });
+        unsafe {
+            ALLOCATIONS.borrow_mut().insert(ptr, data.len());
+        }
 
         assert_eq!(Vec::from(HostPtr(ptr)), cloned);
 
-        ALLOCATIONS.with_borrow(|allocations| {
-            assert!(allocations.get(&ptr).is_none());
-        });
+        unsafe {
+            assert!(ALLOCATIONS.borrow().get(&ptr).is_none());
+        }
     }
 
     #[test]
@@ -170,15 +188,15 @@ mod tests {
         let data = ManuallyDrop::new(data);
         let ptr = data.as_ptr();
 
-        ALLOCATIONS.with_borrow_mut(move |allocations| {
-            allocations.insert(ptr, data.len());
-        });
+        unsafe {
+            ALLOCATIONS.borrow_mut().insert(ptr, data.len());
+        }
 
         drop(HostPtr(ptr));
 
-        ALLOCATIONS.with_borrow(|allocations| {
-            assert!(allocations.get(&ptr).is_none());
-        });
+        unsafe {
+            assert!(ALLOCATIONS.borrow().get(&ptr).is_none());
+        }
 
         // overwrites old allocation
         let data = vec![0x00];

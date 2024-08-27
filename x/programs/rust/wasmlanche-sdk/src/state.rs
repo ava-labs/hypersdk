@@ -1,11 +1,14 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+extern crate alloc;
+
 use crate::{
     context::{CacheKey, CacheValue},
     memory::HostPtr,
     types::Address,
 };
+use alloc::{boxed::Box, vec::Vec};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use core::mem::{self, size_of};
