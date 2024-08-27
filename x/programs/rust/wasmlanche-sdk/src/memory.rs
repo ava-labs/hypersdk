@@ -14,6 +14,7 @@ thread_local! {
     static ALLOCATIONS: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
+#[doc(hidden)]
 /// A pointer where data points to the host.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[repr(transparent)]
@@ -37,9 +38,7 @@ impl Drop for HostPtr {
             return;
         }
 
-        let len = ALLOCATIONS
-            .with_borrow_mut(|allocations| allocations.remove(&self.0))
-            .expect("attempted to drop invalid host pointer");
+        let len = remove(self.0);
         let layout = Layout::array::<u8>(len).expect("capacity overflow");
 
         unsafe { std::alloc::dealloc(self.0.cast_mut(), layout) };
@@ -51,9 +50,7 @@ impl From<HostPtr> for Vec<u8> {
         // drop will dealloc the bytes
         let host_ptr = ManuallyDrop::new(host_ptr);
 
-        let len = ALLOCATIONS
-            .with_borrow_mut(|allocations| allocations.remove(&host_ptr.0))
-            .expect("attempted to drop invalid host pointer");
+        let len = remove(host_ptr.0);
 
         unsafe { Vec::from_raw_parts(host_ptr.0.cast_mut(), len, len) }
     }
@@ -71,7 +68,7 @@ impl HostPtr {
 /// # Panics
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
-pub extern "C" fn alloc(len: usize) -> HostPtr {
+extern "C" fn alloc(len: usize) -> HostPtr {
     assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
@@ -87,22 +84,100 @@ pub extern "C" fn alloc(len: usize) -> HostPtr {
     HostPtr(ptr.cast_const())
 }
 
+fn remove(ptr: *const u8) -> usize {
+    ALLOCATIONS
+        .with_borrow_mut(|allocations| allocations.remove(&ptr))
+        .expect("attempted to drop invalid host pointer")
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::useless_vec)]
     use super::*;
 
     #[test]
-    fn data_allocation() {
-        let len = 1024;
-        let ptr = alloc(len);
-        let vec: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
-        unsafe { std::ptr::copy(vec.as_ptr(), ptr.0.cast_mut(), vec.len()) }
-        assert_eq!(*ptr, vec);
+    #[should_panic(expected = "attempted to deref invalid host pointer")]
+    fn deref_untracked_pointer() {
+        let ptr = HostPtr(std::ptr::null());
+        let _ = &*ptr;
+    }
 
-        let inner = ptr.0;
+    #[test]
+    #[should_panic(expected = "attempted to drop invalid host pointer")]
+    fn drop_untracked_pointer() {
+        let data = vec![0xff, 0xaa];
+        let ptr = HostPtr(data.as_ptr());
         drop(ptr);
+    }
 
-        ALLOCATIONS.with_borrow(|map| assert!(!map.contains_key(&inner)));
+    #[test]
+    fn deref_tracked_pointer() {
+        let data = vec![0xff];
+        let cloned = data.clone();
+        let data = ManuallyDrop::new(data);
+        let ptr = data.as_ptr();
+
+        ALLOCATIONS.with_borrow_mut(move |allocations| {
+            allocations.insert(ptr, data.len());
+        });
+
+        assert_eq!(&*HostPtr(ptr), &cloned);
+    }
+
+    #[test]
+    fn deref_is_borrow() {
+        let data = vec![0xff];
+        let cloned = data.clone();
+        let data = ManuallyDrop::new(data);
+        let ptr = data.as_ptr();
+
+        ALLOCATIONS.with_borrow_mut(move |allocations| {
+            allocations.insert(ptr, data.len());
+        });
+
+        let host_ptr = ManuallyDrop::new(HostPtr(ptr));
+        assert_eq!(&**host_ptr, &cloned);
+        let host_ptr = HostPtr(ptr);
+        assert_eq!(&*host_ptr, &cloned);
+    }
+
+    #[test]
+    fn host_pointer_to_vec_takes_bytes() {
+        let data = vec![0xff];
+        let cloned = data.clone();
+        let data = ManuallyDrop::new(data);
+        let ptr = data.as_ptr();
+
+        ALLOCATIONS.with_borrow_mut(move |allocations| {
+            allocations.insert(ptr, data.len());
+        });
+
+        assert_eq!(Vec::from(HostPtr(ptr)), cloned);
+
+        ALLOCATIONS.with_borrow(|allocations| {
+            assert!(allocations.get(&ptr).is_none());
+        });
+    }
+
+    #[test]
+    fn dropping_host_pointer_deallocates() {
+        let data = vec![0xff];
+        let data = ManuallyDrop::new(data);
+        let ptr = data.as_ptr();
+
+        ALLOCATIONS.with_borrow_mut(move |allocations| {
+            allocations.insert(ptr, data.len());
+        });
+
+        drop(HostPtr(ptr));
+
+        ALLOCATIONS.with_borrow(|allocations| {
+            assert!(allocations.get(&ptr).is_none());
+        });
+
+        // overwrites old allocation
+        let data = vec![0x00];
+        assert_eq!(data.as_ptr(), ptr);
     }
 
     #[test]
@@ -112,25 +187,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "capacity overflow"]
-    fn big_allocation_fails() {
-        // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
-        alloc(isize::MAX as usize + 1);
+    fn allocate_normal_length_data() {
+        let len = 1024;
+        let data: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
+        let ptr = alloc(len);
+        unsafe { std::ptr::copy(data.as_ptr(), ptr.0.cast_mut(), data.len()) }
+
+        assert_eq!(&*ptr, &*data);
     }
-
-    // TODO these two tests make the code abort and not panic, it's hard to write an assertion here
-    // #[test]
-    // #[should_panic]
-    // fn two_big_allocation_fails() {
-    //     // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
-    //     alloc((isize::MAX / 2) as usize + 1);
-    //     alloc((isize::MAX / 2) as usize + 1);
-    // }
-
-    //     #[test]
-    //     #[should_panic]
-    //     fn null_pointer_allocation() {
-    //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
-    //         alloc(isize::MAX as usize);
-    //     }
 }

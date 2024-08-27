@@ -31,13 +31,13 @@ var (
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.Address `json:"to"`
+	To codec.Address `serialize:"true" json:"to"`
 
 	// Amount are transferred to [To].
-	Value uint64 `json:"value"`
+	Value uint64 `serialize:"true" json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo []byte `json:"memo" mask:"byteString"`
+	Memo []byte `serialize:"true"  json:"memo" mask:"byteString"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -98,7 +98,7 @@ func (t *Transfer) Size() int {
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	err := codec.AutoUnmarshalStruct(p, &transfer)
+	err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 

@@ -26,16 +26,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/pebble"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/trace"
@@ -58,6 +59,7 @@ const (
 )
 
 type VM struct {
+	DataDir string
 	factory ControllerFactory
 	c       Controller
 	v       *version.Semantic
@@ -66,17 +68,26 @@ type VM struct {
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
-	gossiper       gossiper.Gossiper
-	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
-	vmDB           database.Database
-	handlers       Handlers
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
-	authEngine     map[uint8]AuthEngine
+	config                     Config
+	genesis                    Genesis
+	options                    []Option
+	builder                    builder.Builder
+	gossiper                   gossiper.Gossiper
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
+	// TODO remove by returning an verification error from the submit tx api
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
+
+	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
+	controllerAPIHandlerFactories []api.HandlerFactory[Controller]
+	rawStateDB                    database.Database
+	stateDB                       merkledb.MerkleDB
+	vmDB                          database.Database
+	handlers                      map[string]http.Handler
+	actionRegistry                chain.ActionRegistry
+	authRegistry                  chain.AuthRegistry
+	authEngine                    map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -103,9 +114,6 @@ type VM struct {
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
 	acceptorDone  chan struct{}
-
-	// Transactions that streaming users are currently subscribed to
-	webSocketServer *rpc.WebSocketServer
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
@@ -140,29 +148,23 @@ func New(
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
-	vm := &VM{
+	allocatedNamespaces := set.NewSet[string](len(options))
+	for _, option := range options {
+		if allocatedNamespaces.Contains(option.Namespace) {
+			return nil, fmt.Errorf("namespace %s already allocated", option.Namespace)
+		}
+		allocatedNamespaces.Add(option.Namespace)
+	}
+
+	return &VM{
 		factory:        factory,
 		v:              v,
 		config:         NewConfig(),
 		actionRegistry: actionRegistry,
 		authRegistry:   authRegistry,
 		authEngine:     authEngine,
-	}
-
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return nil, err
-	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
-	vm.gossiper = txGossiper
-
-	for _, option := range options {
-		option(vm)
-	}
-
-	return vm, nil
+		options:        options,
+	}, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -177,6 +179,7 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
+	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	// This will be overwritten when we accept the first block (in state sync) or
@@ -230,11 +233,13 @@ func (vm *VM) Initialize(
 		Metrics:        vm.snowCtx.Metrics,
 		WarpSigner:     vm.snowCtx.WarpSigner,
 		ValidatorState: vm.snowCtx.ValidatorState,
-		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+		ChainDataDir:   vm.DataDir,
 	}
 
-	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+			return fmt.Errorf("failed to unmarshal config: %w", err)
+		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
@@ -244,13 +249,11 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
+	vm.c, vm.genesis, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,
 		controllerContext.ChainID,
-		controllerContext.ChainDataDir,
-		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
 		controllerConfigBytes,
@@ -266,6 +269,27 @@ func (vm *VM) Initialize(
 	}
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
+
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return err
+	}
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
+
+	namespacedConfig := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(controllerConfigBytes, &namespacedConfig); err != nil {
+		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+	}
+
+	for _, Option := range vm.options {
+		config := namespacedConfig[Option.Namespace]
+		if err := Option.OptionFunc(vm, config); err != nil {
+			return err
+		}
+	}
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -352,10 +376,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
-		if err := vm.loadAcceptedBlocks(ctx); err != nil {
-			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
-			return err
-		}
+		vm.loadAcceptedBlocks(ctx)
 		// It is not guaranteed that the last accepted state on-disk matches the post-execution
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
@@ -467,32 +488,49 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
-	if err != nil {
-		return fmt.Errorf("unable to create handler: %w", err)
-	}
-	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
-		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
-	}
-	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
-	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
-		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
-	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
-	vm.webSocketServer = webSocketServer
-	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
-
-	// Add optional direct state read handler
-	if vm.config.EnableJSONRPCStateHandler {
-		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
-			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
-		}
-		jsonRPCStateHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCStateServer(vm))
+	for _, factory := range vm.blockSubscriptionFactories {
+		subscription, err := factory.New()
 		if err != nil {
-			return fmt.Errorf("unable to create handler: %w", err)
+			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
-		vm.handlers[rpc.JSONRPCStateEndpoint] = jsonRPCStateHandler
+
+		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
+	}
+
+	for _, factory := range vm.txRemovedSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
+		}
+
+		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
+	}
+
+	vm.handlers = make(map[string]http.Handler)
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
+	}
+
+	for _, apiFactory := range vm.controllerAPIHandlerFactories {
+		api, err := apiFactory.New(vm.c)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
 	}
 
 	err = vm.restoreAcceptedQueue(ctx)
@@ -637,7 +675,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(ctx context.Context) error {
+func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
@@ -657,12 +695,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
-	// shutdown.
-	if err := vm.c.Shutdown(ctx); err != nil {
-		return err
-	}
-
 	// Close DBs
 	if vm.snowCtx == nil {
 		return nil
@@ -673,7 +705,25 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateDB.Close(); err != nil {
 		return err
 	}
-	return vm.rawStateDB.Close()
+
+	if err := vm.rawStateDB.Close(); err != nil {
+		return err
+	}
+
+	// Close subscriptions
+	for _, subscription := range vm.txRemovedSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -927,9 +977,17 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				event := TxRemovedEvent{
+					TxID: txID,
+					Err:  err,
 				}
+
+				for _, subscription := range vm.txRemovedSubscriptions {
+					if err := subscription.Accept(event); err != nil {
+						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
+					}
+				}
+
 				errs = append(errs, err)
 				continue
 			}
@@ -1164,7 +1222,7 @@ func (vm *VM) backfillSeenTransactions() {
 	)
 }
 
-func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+func (vm *VM) loadAcceptedBlocks(ctx context.Context) {
 	start := uint64(0)
 	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
@@ -1183,7 +1241,6 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
-	return nil
 }
 
 func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
@@ -1209,14 +1266,14 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
-		var blk *chain.StatelessBlock
-		if height == vm.lastAccepted.Height() {
-			blk = vm.lastAccepted
-		} else {
-			blk, err = vm.GetDiskBlock(ctx, height)
-			if err != nil {
-				return fmt.Errorf("could not find accepted block at height %d on disk", height)
-			}
+		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
+		}
+
+		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}
 
 		vm.acceptedQueue <- blk

@@ -6,25 +6,28 @@ package codec
 import (
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/window"
 )
 
+var LinearCodecInstance = linearcodec.NewDefault()
+
 // Packer is a wrapper struct for the Packer struct
 // from avalanchego/utils/wrappers/packing.go. A bool [required] parameter is
 // added to many unpacking methods, which signals the packer to add an error
 // if the expected method does not unpack properly.
 type Packer struct {
-	p *wrappers.Packer
+	*wrappers.Packer
 }
 
 // NewReader returns a Packer instance with the current byte array set to [byte]
 // and it's MaxSize set to [limit].
 func NewReader(src []byte, limit int) *Packer {
 	return &Packer{
-		p: &wrappers.Packer{Bytes: src, MaxSize: limit},
+		Packer: &wrappers.Packer{Bytes: src, MaxSize: limit},
 	}
 }
 
@@ -32,60 +35,33 @@ func NewReader(src []byte, limit int) *Packer {
 // MaxSize set to [limit].
 func NewWriter(initial, limit int) *Packer {
 	return &Packer{
-		p: &wrappers.Packer{Bytes: make([]byte, 0, initial), MaxSize: limit},
+		Packer: &wrappers.Packer{Bytes: make([]byte, 0, initial), MaxSize: limit},
 	}
 }
 
-func (p *Packer) PackBool(src bool) {
-	p.p.PackBool(src)
-}
-
-func (p *Packer) UnpackBool() bool {
-	return p.p.UnpackBool()
-}
-
-func (p *Packer) PackID(src ids.ID) {
-	p.p.PackFixedBytes(src[:])
+func (p *Packer) PackID(id ids.ID) {
+	p.Packer.PackFixedBytes(id[:])
 }
 
 // UnpackID unpacks an avalanchego ID into [dest]. If [required] is true,
 // and the unpacked bytes are empty, Packer will add an ErrFieldNotPopulated error.
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(ids.IDLen))
+	copy((*dest)[:], p.Packer.UnpackFixedBytes(ids.IDLen))
 	if required && *dest == ids.Empty {
-		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}
 }
 
-func (p *Packer) PackByte(b byte) {
-	p.p.PackByte(b)
-}
-
-func (p *Packer) UnpackByte() byte {
-	return p.p.UnpackByte()
-}
-
-func (p *Packer) PackFixedBytes(b []byte) {
-	p.p.PackFixedBytes(b)
-}
-
+// FIXME: do we need this or UnpackFixedBytes is enough?
 func (p *Packer) PackAddress(a Address) {
-	p.p.PackFixedBytes(a[:])
+	p.Packer.PackFixedBytes(a[:])
 }
 
 func (p *Packer) UnpackAddress(dest *Address) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
+	copy((*dest)[:], p.Packer.UnpackFixedBytes(AddressLen))
 	if *dest == EmptyAddress {
-		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
-}
-
-func (p *Packer) PackBytes(b []byte) {
-	p.p.PackBytes(b)
-}
-
-func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
-	copy((*dest), p.p.UnpackFixedBytes(size))
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
@@ -94,109 +70,62 @@ func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
 // UnpackBytes adds an err ErrFieldNotPopulated to the Packer.
 func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 	if limit >= 0 {
-		*dest = p.p.UnpackLimitedBytes(uint32(limit))
+		*dest = p.Packer.UnpackLimitedBytes(uint32(limit))
 	} else {
-		*dest = p.p.UnpackBytes()
+		*dest = p.Packer.UnpackBytes()
 	}
 	if required && len(*dest) == 0 {
-		p.addErr(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
 	}
-}
-
-func (p *Packer) PackUint64(v uint64) {
-	p.p.PackLong(v)
 }
 
 func (p *Packer) UnpackUint64(required bool) uint64 {
-	v := p.p.UnpackLong()
+	v := p.Packer.UnpackLong()
 	if required && v == 0 {
-		p.addErr(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
 	}
 	return v
 }
 
-func (p *Packer) PackInt64(v int64) {
-	p.p.PackLong(uint64(v))
-}
-
 func (p *Packer) UnpackInt64(required bool) int64 {
-	v := p.p.UnpackLong()
+	v := p.Packer.UnpackLong()
 	if required && v == 0 {
-		p.addErr(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
 	}
 	return int64(v)
 }
 
-// PackInt now accepts uint32 to ensure full support for 64-bit machines
-func (p *Packer) PackInt(v uint32) {
-	p.p.PackInt(v)
-}
-
 func (p *Packer) UnpackInt(required bool) uint32 {
-	v := p.p.UnpackInt()
+	v := p.Packer.UnpackInt()
 	if required && v == 0 {
-		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return v
 }
 
+// FIXME: do we need this or UnpackFixedBytes is enough?
 func (p *Packer) PackWindow(w window.Window) {
-	p.p.PackFixedBytes(w[:])
+	p.Packer.PackFixedBytes(w[:])
 }
 
 func (p *Packer) UnpackWindow(w *window.Window) {
-	copy((*w)[:], p.p.UnpackFixedBytes(window.WindowSliceSize))
-}
-
-// Deprecated: Use PackBytes for better performance.
-func (p *Packer) PackString(s string) {
-	p.p.PackStr(s)
+	copy((*w)[:], p.Packer.UnpackFixedBytes(window.WindowSliceSize))
 }
 
 // Deprecated: Use UnpackBytes for better performance.
 func (p *Packer) UnpackString(required bool) string {
-	str := p.p.UnpackStr()
+	str := p.Packer.UnpackStr()
 	if required && len(str) == 0 {
-		p.addErr(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
+		p.Packer.Errs.Add(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
 	}
 	return str
 }
 
-// Empty is called after parsing a byte array to ensure there is nothing left
-// to parse.
 func (p *Packer) Empty() bool {
-	return p.p.Offset == len(p.p.Bytes)
+	return p.Packer.Offset == len(p.Packer.Bytes)
 }
 
-func (p *Packer) Err() error {
-	return p.p.Err
-}
-
-func (p *Packer) Bytes() []byte {
-	return p.p.Bytes
-}
-
-func (p *Packer) addErr(err error) {
-	p.p.Errs.Add(err)
-}
-
-func (p *Packer) Offset() int {
-	return p.p.Offset
-}
-
-// additional functions added for auto packer
-func (p *Packer) PackShort(v uint16) {
-	p.p.PackShort(v)
-}
-
-func (p *Packer) UnpackShort() uint16 {
-	return p.p.UnpackShort()
-}
-
-func (p *Packer) PackLong(v uint64) {
-	p.p.PackLong(v)
-}
-
-func (p *Packer) UnpackLong() uint64 {
-	return p.p.UnpackLong()
+// FIXME: consider removing
+func (p *Packer) UnpackFixedBytesInto(size int, dest *[]byte) {
+	copy((*dest), p.Packer.UnpackFixedBytes(size))
 }

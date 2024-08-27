@@ -43,8 +43,10 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	// build the call info
 	callInfo := createRuntimeCallInfo(state, ctx)
+	config := runtime.NewConfig()
+	config.SetDebugInfo(true)
 
-	rt := runtime.NewRuntime(runtime.NewConfig(), SimLogger)
+	rt := runtime.NewRuntime(config, SimLogger)
 	result, err := rt.CallProgram(SimContext, callInfo)
 	if err != nil {
 		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
@@ -100,7 +102,7 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 		}
 	}
 
-	account, err := programManager.NewAccountWithProgram(context.TODO(), programID, []byte{})
+	account, err := programManager.NewAccountWithProgram(context.TODO(), programID[:], []byte{})
 	if err != nil {
 		errmsg := "program deployment failed: " + err.Error()
 		return C.CreateProgramResponse{
@@ -109,8 +111,9 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	}
 	return C.CreateProgramResponse{
 		error: nil,
-		program_id: C.ID{
-			*(*[32]C.uchar)(C.CBytes(programID[:])), //nolint:all
+		program_id: C.ProgramId{
+			data:   (*C.uint8_t)(C.CBytes(programID[:])), //nolint:all
+			length: (C.size_t)(len(programID[:])),
 		},
 		program_address: C.Address{
 			*(*[33]C.uchar)(C.CBytes(account[:])), //nolint:all
@@ -147,9 +150,49 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 		error: errPtr,
 		result: C.Bytes{
 			data:   (*C.uint8_t)(C.CBytes(result)),
-			length: C.uint(len(result)),
+			length: C.size_t(len(result)),
 		},
-		fuel: C.uint(fuel),
+		fuel: C.uint64_t(fuel),
+	}
+}
+
+// getBalance returns the balance of [account].
+// Panics if there is an error.
+//
+//export GetBalance
+func GetBalance(db *C.Mutable, address C.Address) C.uint64_t {
+	if db == nil {
+		panic(ErrInvalidParam)
+	}
+
+	state := simState.NewSimulatorState(unsafe.Pointer(db))
+	pState := simState.NewProgramStateManager(state)
+	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen) //nolint:all
+
+	balance, err := pState.GetBalance(SimContext, codec.Address(account))
+	if err != nil {
+		panic(err)
+	}
+
+	return C.uint64_t(balance)
+}
+
+// SetBalance sets the balance of [account] to [balance].
+// Panics if there is an error.
+//
+//export SetBalance
+func SetBalance(db *C.Mutable, address C.Address, balance C.uint64_t) {
+	if db == nil {
+		panic(ErrInvalidParam)
+	}
+
+	state := simState.NewSimulatorState(unsafe.Pointer(db))
+	pState := simState.NewProgramStateManager(state)
+	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen) //nolint:all
+
+	err := pState.SetBalance(SimContext, codec.Address(account), uint64(balance))
+	if err != nil {
+		panic(err)
 	}
 }
 

@@ -2,30 +2,51 @@
 // See the file LICENSE for licensing terms.
 
 use crate::{
-    state::{self, Error, IntoPairs, Schema, State},
-    types::Address,
+    state::{Cache, Error, IntoPairs, Schema},
+    types::{Address, ProgramId},
     Gas, HostPtr, Id, Program,
 };
 use borsh::BorshDeserialize;
-use std::{cell::RefCell, collections::HashMap};
 
 pub type CacheKey = Box<[u8]>;
 pub type CacheValue = Vec<u8>;
 
 /// Representation of the context that is passed to programs at runtime.
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context {
     program: Program,
     actor: Address,
     height: u64,
     timestamp: u64,
     action_id: Id,
-    state_cache: RefCell<HashMap<CacheKey, Option<CacheValue>>>,
+    state_cache: Cache,
 }
 
-impl Drop for Context {
-    fn drop(&mut self) {
-        State::new(&self.state_cache).flush();
+#[cfg(feature = "debug")]
+mod debug {
+
+    use super::Context;
+
+    macro_rules! debug_struct_fields {
+        ($f:expr, $struct_name:ty, $($name:expr),* $(,)*) => {
+            $f.debug_struct(stringify!(struct_name))
+                $(.field(stringify!($name), $name))*
+                .finish()
+        };
+    }
+
+    impl std::fmt::Debug for Context {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self {
+                program,
+                actor,
+                height,
+                timestamp,
+                action_id,
+                state_cache: _,
+            } = self;
+
+            debug_struct_fields!(f, Context, program, actor, height, timestamp, action_id)
+        }
     }
 }
 
@@ -43,81 +64,90 @@ impl BorshDeserialize for Context {
             height,
             timestamp,
             action_id,
-            state_cache: RefCell::new(HashMap::new()),
+            state_cache: Cache::new(),
         })
     }
 }
 
 impl Context {
+    #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
     }
 
+    /// Returns the address of the actor that is executing the program.
+    #[must_use]
     pub fn actor(&self) -> Address {
         self.actor
     }
 
+    /// Returns the block-height
+    #[must_use]
     pub fn height(&self) -> u64 {
         self.height
     }
 
+    /// Returns the block-timestamp
+    #[must_use]
     pub fn timestamp(&self) -> u64 {
         self.timestamp
     }
 
+    /// Returns the action-id
+    #[must_use]
     pub fn action_id(&self) -> Id {
         self.action_id
     }
 
-    /// See [`State::get`].
+    /// Get a value from state.
+    ///
     /// # Errors
-    /// See [`State::get`].
-    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, state::Error>
+    /// Returns an [`Error`] if the key cannot be serialized or if
+    /// the host fails to read the key and value.
+    ///
+    /// # Panics
+    /// Panics if the value cannot be converted from i32 to usize.
+    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, Error>
     where
         Key: Schema,
     {
-        key.get(self)
+        key.get(&mut self.state_cache)
     }
 
-    /// Should not use this function directly.
+    /// Store a key and value to the host storage. If the key already exists,
+    /// the value will be overwritten.
     /// # Errors
-    /// Errors when there's an issue deserializing.
-    pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, state::Error>
-    where
-        V: BorshDeserialize,
-    {
-        State::new(&self.state_cache).get_with_raw_key(key)
-    }
-
-    /// See [`State::store_by_key`].
-    /// # Errors
-    /// See [`State::store_by_key`].
-    pub fn store_by_key<K>(&self, key: K, value: K::Value) -> Result<(), Error>
+    /// Returns an [`Error`] if the key or value cannot be
+    /// serialized or if the host fails to handle the operation.
+    pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
     {
-        State::new(&self.state_cache).store_by_key(key, value)
+        self.state_cache.store_by_key(key, value)
     }
 
-    /// See [`State::store`].
+    /// Store a list of tuple of key and value to the host storage.
     /// # Errors
-    /// See [`State::store`].    
-    pub fn store<Pairs: IntoPairs>(&self, pairs: Pairs) -> Result<(), Error> {
-        State::new(&self.state_cache).store(pairs)
+    /// Returns an [`Error`] if the key or value cannot be
+    /// serialized or if the host fails to handle the operation.
+    pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
+        self.state_cache.store(pairs)
     }
 
-    /// See [`State::delete`].
+    /// Delete a value from the hosts's storage.
     /// # Errors
-    /// See [`State::delete`].
-    pub fn delete<K: Schema>(&self, key: K) -> Result<Option<K::Value>, Error> {
-        State::new(&self.state_cache).delete(key)
+    /// Returns an [Error] if the value is inexistent
+    /// or if the key cannot be serialized
+    /// or if the host fails to delete the key and the associated value
+    pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
+        self.state_cache.delete(key)
     }
 
     /// Deploy an instance of the specified program and returns the account of the new instance
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Program {
+    pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Program {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestCallContext(t *testing.T) {
@@ -23,12 +22,13 @@ func TestCallContext(t *testing.T) {
 	defer cancel()
 	programID := ids.GenerateTestID()
 	programAccount := codec.CreateAddress(0, programID)
+	stringedID := string(programID[:])
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
 		CallInfo{
-			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{programID: "call_program"}, AccountMap: map[codec.Address]ids.ID{programAccount: programID}},
+			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID: "call_program"}, AccountMap: map[codec.Address]string{programAccount: stringedID}},
 			Program: programAccount,
 			Fuel:    1000000,
 		})
@@ -69,6 +69,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	program0Address := codec.CreateAddress(0, program0ID)
 	program1ID := ids.GenerateTestID()
 	program1Address := codec.CreateAddress(1, program1ID)
+	stringedID0 := string(program0ID[:])
 
 	r := NewRuntime(
 		NewConfig(),
@@ -76,16 +77,17 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	).WithDefaults(
 		CallInfo{
 			Program: program0Address,
-			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{program0ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program0Address: program0ID}},
+			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID0: "call_program"}, AccountMap: map[codec.Address]string{program0Address: stringedID0}},
 			Fuel:    1000000,
 		})
 
+	stringedID1 := string(program1ID[:])
 	// try to use a context that has a default program with a different program
 	result, err := r.CallProgram(
 		ctx,
 		&CallInfo{
 			Program:      program1Address,
-			State:        &test.StateManager{ProgramsMap: map[ids.ID]string{program1ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program1Address: program1ID}},
+			State:        &TestStateManager{ProgramsMap: map[string]string{stringedID1: "call_program"}, AccountMap: map[codec.Address]string{program1Address: stringedID1}},
 			FunctionName: "actor_check",
 		})
 	require.ErrorIs(err, errCannotOverwrite)

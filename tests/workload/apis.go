@@ -9,12 +9,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
 func Ping(ctx context.Context, require *require.Assertions, uris []string) {
 	for _, uri := range uris {
-		client := rpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient(uri)
 		ok, err := client.Ping(ctx)
 		require.NoError(err)
 		require.True(ok)
@@ -23,7 +23,7 @@ func Ping(ctx context.Context, require *require.Assertions, uris []string) {
 
 func GetNetwork(ctx context.Context, require *require.Assertions, uris []string, expectedNetworkID uint32, expectedChainID ids.ID) {
 	for _, uri := range uris {
-		client := rpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient(uri)
 		networkID, _, chainID, err := client.Network(ctx)
 		require.NoError(err)
 		require.Equal(expectedNetworkID, networkID)

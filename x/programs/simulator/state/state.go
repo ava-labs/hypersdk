@@ -32,34 +32,21 @@ func NewSimulatorState(db unsafe.Pointer) *Mutable {
 	return mutable
 }
 
-func (s *Mutable) GetValue(_ context.Context, key []byte) ([]byte, error) {
-	return s.getValue(key)
-}
-
-func (s *Mutable) Insert(_ context.Context, key []byte, value []byte) error {
-	return s.insert(key, value)
-}
-
-func (s *Mutable) Remove(_ context.Context, key []byte) error {
-	return s.remove(key)
-}
-
-// In C, a function argument written as a fixed size array actually requires a
+// GetValue returns the value associated with the key.
+// If the key doesn't exist, returns database.ErrNotFound.
+// If there is an error, returns an error.
+//
+// Note: In C, a function argument written as a fixed size array actually requires a
 // pointer to the first element of the array. C compilers are aware of this calling
 // convention and adjust the call accordingly, but Go cannot. In Go, you must pass
 // the pointer to the first element explicitly: C.f(&C.x[0]).
-//
-// get_value_ptr is a pointer to the get state callback function
-// dbPtr is a pointer to the state object on the rust side of the simulator
-// key is the key to be used to get the value from the state object
-// this function returns the value grabbed from the state object
-func (s *Mutable) getValue(key []byte) ([]byte, error) {
+func (s *Mutable) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	bytesPtr := C.CBytes(key)
 	defer C.free(bytesPtr)
 
 	bytesStruct := C.Bytes{
 		data:   (*C.uint8_t)(bytesPtr),
-		length: C.uint(len(key)),
+		length: C.size_t(len(key)),
 	}
 	valueBytes := C.bridge_get_callback(s.get_value_callback, s.stateObj, bytesStruct)
 
@@ -76,7 +63,7 @@ func (s *Mutable) getValue(key []byte) ([]byte, error) {
 	return val, nil
 }
 
-func (s *Mutable) insert(key []byte, value []byte) error {
+func (s *Mutable) Insert(_ context.Context, key []byte, value []byte) error {
 	// this will malloc
 	keyBytes := C.CBytes(key)
 	defer C.free(keyBytes)
@@ -86,12 +73,12 @@ func (s *Mutable) insert(key []byte, value []byte) error {
 
 	keyStruct := C.Bytes{
 		data:   (*C.uint8_t)(keyBytes),
-		length: C.uint(len(key)),
+		length: C.size_t(len(key)),
 	}
 
 	valueStruct := C.Bytes{
 		data:   (*C.uint8_t)(valueBytes),
-		length: C.uint(len(value)),
+		length: C.size_t(len(value)),
 	}
 
 	C.bridge_insert_callback(s.insert_callback, s.stateObj, keyStruct, valueStruct)
@@ -99,13 +86,13 @@ func (s *Mutable) insert(key []byte, value []byte) error {
 	return nil
 }
 
-func (s *Mutable) remove(key []byte) error {
+func (s *Mutable) Remove(_ context.Context, key []byte) error {
 	keyBytes := C.CBytes(key)
 	defer C.free(keyBytes)
 
 	keyStruct := C.Bytes{
 		data:   (*C.uint8_t)(keyBytes),
-		length: C.uint(len(key)),
+		length: C.size_t(len(key)),
 	}
 
 	C.bridge_remove_callback(s.remove_callback, s.stateObj, keyStruct)

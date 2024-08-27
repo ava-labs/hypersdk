@@ -49,8 +49,7 @@ func runFunc(*cobra.Command, []string) error {
 
 	controller, err := controller.New()
 	if err != nil {
-		return fmt.Errorf("failed to initialize controller: %w", err)
+		return err
 	}
-
 	return rpcchainvm.Serve(context.TODO(), controller)
 }
