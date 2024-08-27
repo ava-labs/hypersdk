@@ -5,7 +5,7 @@ use std::{
     alloc::{GlobalAlloc, Layout, System},
     cell::UnsafeCell,
 };
-use wasmlanche_sdk::{public, Context};
+use wasmlanche::{public, Context};
 
 struct HighestAllocatedAddress {
     value: UnsafeCell<usize>,

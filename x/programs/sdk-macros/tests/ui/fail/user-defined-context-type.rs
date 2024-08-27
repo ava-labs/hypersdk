@@ -2,10 +2,10 @@
 // See the file LICENSE for licensing terms.
 
 use sdk_macros::public;
-use wasmlanche_sdk::borsh::BorshDeserialize;
+use wasmlanche::borsh::BorshDeserialize;
 
 #[derive(BorshDeserialize)]
-#[borsh(crate = "wasmlanche_sdk::borsh")]
+#[borsh(crate = "wasmlanche::borsh")]
 struct Context;
 
 #[public]

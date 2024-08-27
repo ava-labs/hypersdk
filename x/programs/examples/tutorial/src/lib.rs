@@ -3,7 +3,7 @@
 
 // Here, we import the `public` attribute-macro, the `state_schema` macro,
 // and the `Address` and `Context` types
-use wasmlanche_sdk::{public, state_schema, Address, Context};
+use wasmlanche::{public, state_schema, Address, Context};
 
 // Count is a type alias. It makes it easy to change the type of the counter
 // without having to update multiple places. For instance, if you wanted to
@@ -23,7 +23,7 @@ state_schema! {
     Counter(Address) => Count,
 }
 
-// NOTE: use `wasmlanche_sdk::dbg!` for debugging. It's works like the `std::dbg!` macro.
+// NOTE: use `wasmlanche::dbg!` for debugging. It's works like the `std::dbg!` macro.
 
 // The `///` syntax is used to document the function. This documentation
 // will be visible when the documentation is generated with `cargo doc`
@@ -71,7 +71,7 @@ mod tests {
     // the line below imports everthing from the parent module (code above)
     use super::*;
     use simulator::{SimpleState, Simulator};
-    use wasmlanche_sdk::Address;
+    use wasmlanche::Address;
 
     // This is a constant that is set by the build script. It's the path to the
     // .wasm file that's output when we compile.

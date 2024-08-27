@@ -4,7 +4,7 @@
 use sdk_macros::public;
 
 #[allow(unused_imports)]
-use wasmlanche_sdk::Context;
+use wasmlanche::Context;
 
 #[public]
 fn test(_: &mut Context) {}

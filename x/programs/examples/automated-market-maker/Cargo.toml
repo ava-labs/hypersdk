@@ -8,10 +8,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 token = { path = "../token", features = ["bindings"] }
-wasmlanche-sdk = { workspace = true, features = ["debug"] }
+wasmlanche = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
 
 [build-dependencies]
-wasmlanche-sdk = { workspace = true, features = ["build"] }
+wasmlanche = { workspace = true, features = ["build"] }
