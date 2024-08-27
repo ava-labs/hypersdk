@@ -76,7 +76,7 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 		if len(v.String()) > math.MaxUint16 {
 			return ErrStringTooLong
 		}
-		p.PackString(v.String())
+		p.PackStr(v.String())
 	case reflect.Bool:
 		p.PackBool(v.Bool())
 	default:
@@ -167,11 +167,7 @@ func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.T
 		}
 	}
 
-	if p.Err() != nil {
-		return p.Err()
-	}
-
-	return nil
+	return p.Err
 }
 
 type fieldInfo struct {
@@ -218,7 +214,7 @@ func AutoMarshalStruct(p *Packer, item interface{}) {
 	// Handle pointer to struct
 	if t.Kind() == reflect.Ptr {
 		if v.IsNil() {
-			p.addErr(errors.New("cannot marshal nil pointer"))
+			p.Errs.Add(errors.New("cannot marshal nil pointer"))
 			return
 		}
 		v = v.Elem()
@@ -227,7 +223,7 @@ func AutoMarshalStruct(p *Packer, item interface{}) {
 
 	// Ensure we're dealing with a struct
 	if t.Kind() != reflect.Struct {
-		p.addErr(fmt.Errorf("AutoMarshalStruct expects a struct or pointer to struct, got %v", t.Kind()))
+		p.Errs.Add(fmt.Errorf("AutoMarshalStruct expects a struct or pointer to struct, got %v", t.Kind()))
 		return
 	}
 
@@ -237,7 +233,7 @@ func AutoMarshalStruct(p *Packer, item interface{}) {
 		field := v.Field(fi.index)
 		err := marshalValue(p, field, fi.kind, fi.typ)
 		if err != nil {
-			p.addErr(err)
+			p.Errs.Add(err)
 		}
 	}
 }

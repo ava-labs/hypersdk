@@ -46,8 +46,8 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		}
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, transfer)
-		require.NoError(packer.Err())
-		transfersEncoded[i] = packer.Bytes()
+		require.NoError(packer.Err)
+		transfersEncoded[i] = packer.Bytes
 	}
 
 	unpackAutoTransfer := func(bytes []byte, restored *Transfer) error {
@@ -75,7 +75,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		r.UnpackAddress(&restored.To)
 		restored.Value = r.UnpackUint64(false)
 		r.UnpackBytes(-1, false, &restored.Memo)
-		return r.Err()
+		return r.Err
 	}
 
 	b.Run("Transfer-Manual", func(b *testing.B) {
@@ -133,8 +133,8 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, test)
-		require.NoError(packer.Err())
-		outerStructsEncoded[i] = packer.Bytes()
+		require.NoError(packer.Err)
+		outerStructsEncoded[i] = packer.Bytes
 	}
 
 	unpackAutoOuter := func(bytes []byte, restored *OuterStruct) error {
@@ -165,7 +165,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 			restored.InnerField[i].Field1 = int32(p.UnpackInt(false))
 			p.UnpackBytes(-1, false, &restored.InnerField[i].Field2)
 		}
-		return p.Err()
+		return p.Err
 	}
 
 	b.Run("InnerOuter-Manual", func(b *testing.B) {
@@ -261,8 +261,8 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		}
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, test)
-		require.NoError(packer.Err())
-		bigFlatObjectsEncoded[i] = packer.Bytes()
+		require.NoError(packer.Err)
+		bigFlatObjectsEncoded[i] = packer.Bytes
 	}
 
 	unpackAutoBigFlat := func(bytes []byte, restored *BigFlatObject) error {
@@ -316,7 +316,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		restored.Field28 = int32(p.UnpackInt(false))
 		restored.Field29 = int32(p.UnpackInt(false))
 		restored.Field30 = int32(p.UnpackInt(false))
-		return p.Err()
+		return p.Err
 	}
 
 	b.Run("BigFlatObject-Manual", func(b *testing.B) {

@@ -26,11 +26,11 @@ func TestNewWriter(t *testing.T) {
 	// Pack up to the limit
 	bytes := []byte{1, 2}
 	wr.PackFixedBytes(bytes)
-	require.Equal(bytes, wr.Bytes(), "Bytes not packed correctly.")
+	require.Equal(bytes, wr.Bytes, "Bytes not packed correctly.")
 	// Pack past limit
 	wr.PackFixedBytes(bytes)
-	require.Len(wr.Bytes(), 2, "Bytes overpacked.")
-	err := wr.Err()
+	require.Len(wr.Bytes, 2, "Bytes overpacked.")
+	err := wr.Err
 	require.ErrorIs(err, wrappers.ErrInsufficientLength)
 }
 
@@ -41,27 +41,26 @@ func TestPackerID(t *testing.T) {
 		require := require.New(t)
 
 		wp.PackID(id)
-		returnedID, err := ids.ToID(wp.Bytes())
+		returnedID, err := ids.ToID(wp.Bytes)
 		require.NoError(err, "Error retrieving ID.")
 		require.Equal(id, returnedID, "ids.ID not packed correctly.")
-		require.NoError(wp.Err(), "Error packing ID.")
+		require.NoError(wp.Err, "Error packing ID.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		require := require.New(t)
 
-		rp := NewReader(wp.Bytes(), ids.IDLen)
-		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		rp := NewReader(wp.Bytes, ids.IDLen)
+		require.Equal(wp.Bytes, rp.Bytes, "Reader not initialized correctly.")
 		unpackedID := ids.Empty
 		rp.UnpackID(true, &unpackedID)
 		require.Equal(id, unpackedID, "UnpackID unpacked incorrectly.")
-		require.NoError(rp.Err(), "UnpackID set an error.")
+		require.NoError(rp.Err, "UnpackID set an error.")
 
 		// Unpacking again should error
 		unpackedID = ids.Empty
 		rp.UnpackID(true, &unpackedID)
 		require.Equal(ids.Empty, unpackedID, "UnpackID unpacked incorrectly.")
-		err := rp.Err()
-		require.ErrorIs(err, wrappers.ErrInsufficientLength)
+		require.ErrorIs(rp.Err, wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -74,22 +73,22 @@ func TestPackerWindow(t *testing.T) {
 		require := require.New(t)
 
 		wp.PackWindow(wind)
-		require.Equal(TestWindow, wp.Bytes()[:len(TestWindow)], "Window not packed correctly.")
-		require.Len(wp.Bytes(), window.WindowSliceSize, "Window not packed correctly.")
-		require.NoError(wp.Err(), "Error packing window.")
+		require.Equal(TestWindow, wp.Bytes[:len(TestWindow)], "Window not packed correctly.")
+		require.Len(wp.Bytes, window.WindowSliceSize, "Window not packed correctly.")
+		require.NoError(wp.Err, "Error packing window.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		require := require.New(t)
 
-		rp := NewReader(wp.Bytes(), window.WindowSliceSize)
-		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		rp := NewReader(wp.Bytes, window.WindowSliceSize)
+		require.Equal(wp.Bytes, rp.Bytes, "Reader not initialized correctly.")
 		var unpackedWindow window.Window
 		rp.UnpackWindow(&unpackedWindow)
 		require.Equal(wind, unpackedWindow, "UnpackWindow unpacked incorrectly.")
-		require.NoError(rp.Err(), "UnpackWindow set an error.")
+		require.NoError(rp.Err, "UnpackWindow set an error.")
 		// Unpacking again should error
 		rp.UnpackWindow(&unpackedWindow)
-		err := rp.Err()
+		err := rp.Err
 		require.ErrorIs(err, wrappers.ErrInsufficientLength)
 	})
 }
@@ -102,8 +101,8 @@ func TestPackerAddress(t *testing.T) {
 		require := require.New(t)
 
 		wp.PackAddress(addr)
-		b := wp.Bytes()
-		require.NoError(wp.Err())
+		b := wp.Bytes
+		require.NoError(wp.Err)
 		require.Len(b, AddressLen)
 		require.Equal(uint8(1), b[0])
 		require.Equal(id[:], b[1:])
@@ -111,12 +110,12 @@ func TestPackerAddress(t *testing.T) {
 	t.Run("Unpack", func(t *testing.T) {
 		require := require.New(t)
 
-		rp := NewReader(wp.Bytes(), AddressLen)
-		require.Equal(wp.Bytes(), rp.Bytes())
+		rp := NewReader(wp.Bytes, AddressLen)
+		require.Equal(wp.Bytes, rp.Bytes)
 		var unpackedAddr Address
 		rp.UnpackAddress(&unpackedAddr)
 		require.Equal(addr[:], unpackedAddr[:])
-		require.NoError(rp.Err())
+		require.NoError(rp.Err)
 	})
 }
 
@@ -128,14 +127,13 @@ func TestNewReader(t *testing.T) {
 	wp.PackInt(vInt)
 	wp.PackBool(true)
 	// Create reader
-	rp := NewReader(wp.Bytes(), 2)
-	require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+	rp := NewReader(wp.Bytes, 2)
+	require.Equal(wp.Bytes, rp.Bytes, "Reader not initialized correctly.")
 	// Unpack both values
 	require.Equal(vInt, rp.UnpackInt(true), "Reader unpacked correctly.")
 	require.True(rp.UnpackBool(), "Reader unpacked correctly.")
-	require.NoError(rp.Err(), "Reader set error during unpack.")
+	require.NoError(rp.Err, "Reader set error during unpack.")
 	// Unpacked not packed with required
 	require.Zero(rp.UnpackUint64(true), "Reader unpacked correctly.")
-	err := rp.Err()
-	require.ErrorIs(err, wrappers.ErrInsufficientLength)
+	require.ErrorIs(rp.Err, wrappers.ErrInsufficientLength)
 }

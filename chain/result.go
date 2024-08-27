@@ -43,7 +43,7 @@ func (r *Result) Marshal(p *codec.Packer) error {
 		}
 	}
 	p.PackFixedBytes(r.Units.Bytes())
-	p.PackUint64(r.Fee)
+	p.PackLong(r.Fee)
 	return nil
 }
 
@@ -56,7 +56,7 @@ func MarshalResults(src []*Result) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return p.Bytes(), p.Err()
+	return p.Bytes, p.Err
 }
 
 func UnmarshalResult(p *codec.Packer) (*Result, error) {
@@ -77,8 +77,7 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		outputs = append(outputs, actionOutputs)
 	}
 	result.Outputs = outputs
-	consumedRaw := make([]byte, fees.DimensionsLen)
-	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
+	consumedRaw := p.UnpackFixedBytes(fees.DimensionsLen)
 	units, err := fees.UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
@@ -86,7 +85,7 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result.Units = units
 	result.Fee = p.UnpackUint64(false)
 	// Wait to check if empty until after all results are unpacked.
-	return result, p.Err()
+	return result, p.Err
 }
 
 func UnmarshalResults(src []byte) ([]*Result, error) {

@@ -37,15 +37,15 @@ func TestMarshalTransfer(t *testing.T) {
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	// this is a copy of actions.Transfer.Marshal() logic
 	packer.PackAddress(transfer.To)
-	packer.PackUint64(transfer.Value)
+	packer.PackLong(transfer.Value)
 	packer.PackBytes(transfer.Memo)
-	expectedBytes := packer.Bytes()
+	expectedBytes := packer.Bytes
 
 	packer = codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, transfer)
-	require.NoError(t, packer.Err())
+	require.NoError(t, packer.Err)
 
-	require.Equal(t, expectedBytes, packer.Bytes())
+	require.Equal(t, expectedBytes, packer.Bytes)
 
 	// unmarshal
 	var restoredStruct testStructure
@@ -114,10 +114,10 @@ func TestMarshalNumber(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.NoError(t, packer.Err())
+	require.NoError(t, packer.Err)
 
 	var restoredStruct NumberStructure
-	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), 0), &restoredStruct)
+	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, 0), &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -158,10 +158,10 @@ func TestMarshalFlatTypes(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.NoError(t, packer.Err())
+	require.NoError(t, packer.Err)
 
 	var restoredStruct FlatStructure
-	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restoredStruct)
+	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -188,7 +188,7 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 	}
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	bytes := packer.Bytes()
+	bytes := packer.Bytes
 
 	var restoredStruct FlatStructure
 	err := codec.AutoUnmarshalStruct(codec.NewReader(bytes, consts.NetworkSizeLimit), &restoredStruct)
@@ -235,10 +235,10 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.NoError(t, packer.Err())
+	require.NoError(t, packer.Err)
 
 	var restoredStruct ComplexStruct
-	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restoredStruct)
+	err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -349,8 +349,8 @@ func TestMarshalSizes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 			codec.AutoMarshalStruct(packer, tt.value)
-			require.NoError(t, packer.Err())
-			bytes := packer.Bytes()
+			require.NoError(t, packer.Err)
+			bytes := packer.Bytes
 
 			// Check size
 			require.Len(t, bytes, tt.expectedSize, "Encoded size mismatch")
@@ -380,10 +380,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Outer
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test, restored)
@@ -395,10 +395,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Empty
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test, restored)
@@ -413,10 +413,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Mixed
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test.Exported, restored.Exported)
@@ -434,7 +434,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.ErrorIs(t, packer.Err(), codec.ErrUnsupportedFieldType)
+		require.ErrorIs(t, packer.Err, codec.ErrUnsupportedFieldType)
 	})
 
 	t.Run("PointerToStruct", func(t *testing.T) {
@@ -448,10 +448,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored MyStruct
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 		require.Equal(t, test, restored)
 	})
@@ -467,10 +467,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Outer
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test, restored)
@@ -488,10 +488,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Outer
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test.OtherField, restored.OtherField)
@@ -506,7 +506,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.ErrorIs(t, packer.Err(), codec.ErrUnsupportedFieldType)
+		require.ErrorIs(t, packer.Err, codec.ErrUnsupportedFieldType)
 	})
 
 	t.Run("CustomType", func(t *testing.T) {
@@ -518,10 +518,10 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, &test)
-		require.NoError(t, packer.Err())
+		require.NoError(t, packer.Err)
 
 		var restored Struct
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes, consts.NetworkSizeLimit), &restored)
 		require.NoError(t, err)
 
 		require.Equal(t, test, restored)
@@ -555,8 +555,8 @@ func TestMarshalLengths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 			codec.AutoMarshalStruct(packer, tt.value)
-			require.NoError(t, packer.Err())
-			bytes := packer.Bytes()
+			require.NoError(t, packer.Err)
+			bytes := packer.Bytes
 
 			require.Len(t, bytes, tt.expected, "Expected length %d, got %d")
 
@@ -586,8 +586,8 @@ func TestMarshalLongBytes(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.NoError(t, packer.Err())
-	bytes := packer.Bytes()
+	require.NoError(t, packer.Err)
+	bytes := packer.Bytes
 
 	// 70000 bytes for the data + 4 bytes for the length prefix
 	expectedLength := 70000 + 4
@@ -617,7 +617,7 @@ func TestMarshalLongArray(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.ErrorIs(t, packer.Err(), codec.ErrTooManyItems)
+	require.ErrorIs(t, packer.Err, codec.ErrTooManyItems)
 }
 
 func TestMarshalLongMap(t *testing.T) {
@@ -636,7 +636,7 @@ func TestMarshalLongMap(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.ErrorIs(t, packer.Err(), codec.ErrTooManyItems)
+	require.ErrorIs(t, packer.Err, codec.ErrTooManyItems)
 }
 
 func TestMarshalLongString(t *testing.T) {
@@ -653,5 +653,5 @@ func TestMarshalLongString(t *testing.T) {
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
-	require.ErrorIs(t, packer.Err(), codec.ErrStringTooLong)
+	require.ErrorIs(t, packer.Err, codec.ErrStringTooLong)
 }
