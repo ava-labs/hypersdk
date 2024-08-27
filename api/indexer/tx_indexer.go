@@ -19,6 +19,11 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
+const (
+	Name      = "indexer"
+	Namespace = "indexer"
+)
+
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
@@ -27,34 +32,35 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func WithIndexer(name string, path string) vm.Option {
-	return func(v *vm.VM) error {
-		dbPath := filepath.Join(v.DataDir, "indexer", "db")
-		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
-		if err != nil {
-			return err
-		}
+func With() vm.Option {
+	return vm.NewOption(Namespace, OptionFunc)
+}
 
-		indexer := &txDBIndexer{
-			db: db,
-		}
-
-		subscriptionFactory := &subscriptionFactory{
-			indexer: indexer,
-		}
-
-		apiFactory := &apiFactory{
-			path:    path,
-			name:    name,
-			indexer: indexer,
-		}
-
-		if err := vm.WithBlockSubscriptions(subscriptionFactory)(v); err != nil {
-			return err
-		}
-
-		return vm.WithVMAPIs(apiFactory)(v)
+func OptionFunc(v *vm.VM, _ []byte) error {
+	dbPath := filepath.Join(v.DataDir, "indexer", "db")
+	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
+	if err != nil {
+		return err
 	}
+
+	indexer := &txDBIndexer{
+		db: db,
+	}
+
+	subscriptionFactory := &subscriptionFactory{
+		indexer: indexer,
+	}
+
+	apiFactory := &apiFactory{
+		path:    Endpoint,
+		name:    Name,
+		indexer: indexer,
+	}
+
+	vm.WithBlockSubscriptions(subscriptionFactory)(v)
+	vm.WithVMAPIs(apiFactory)(v)
+
+	return nil
 }
 
 type subscriptionFactory struct {
