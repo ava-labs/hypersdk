@@ -12,7 +12,7 @@ pub enum SimulatorError {
     #[error("Error across the FFI boundary: {0}")]
     Ffi(#[from] Utf8Error),
     #[error(transparent)]
-    Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
+    Serialization(#[from] wasmlanche::borsh::io::Error),
     #[error(transparent)]
     ExternalCall(#[from] ExternalCallError),
     #[error("Error during program creation")]
@@ -21,10 +21,10 @@ pub enum SimulatorError {
     CallProgram(String),
 }
 
-pub struct ExternalCallError(wasmlanche_sdk::ExternalCallError);
+pub struct ExternalCallError(wasmlanche::ExternalCallError);
 
-impl From<wasmlanche_sdk::ExternalCallError> for ExternalCallError {
-    fn from(e: wasmlanche_sdk::ExternalCallError) -> Self {
+impl From<wasmlanche::ExternalCallError> for ExternalCallError {
+    fn from(e: wasmlanche::ExternalCallError) -> Self {
         Self(e)
     }
 }

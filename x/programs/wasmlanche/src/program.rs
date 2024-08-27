@@ -63,7 +63,7 @@ impl Program {
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     /// # Examples
     /// ```no_run
-    /// # use wasmlanche_sdk::{Address, Program};
+    /// # use wasmlanche::{Address, Program};
     /// #
     /// # let program_id = [0; Address::LEN];
     /// # let target: Program = borsh::from_slice(&program_id).unwrap();
@@ -73,7 +73,7 @@ impl Program {
     /// let value = 0;
     /// let has_incremented: bool = target.call_function("increment", &params, max_units, value)?;
     /// assert!(has_incremented);
-    /// # Ok::<(), wasmlanche_sdk::ExternalCallError>(())
+    /// # Ok::<(), wasmlanche::ExternalCallError>(())
     /// ```
     pub fn call_function<T: BorshDeserialize>(
         &self,

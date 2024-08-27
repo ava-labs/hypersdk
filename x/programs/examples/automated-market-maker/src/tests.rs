@@ -2,7 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use simulator::{SimpleState, Simulator};
-use wasmlanche_sdk::Address;
+use wasmlanche::Address;
 const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 const MAX_GAS: u64 = 1000000000;
 

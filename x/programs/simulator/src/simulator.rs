@@ -10,7 +10,7 @@ use crate::{
 };
 use libc::c_char;
 use std::ffi::{CStr, CString};
-use wasmlanche_sdk::{Address, ProgramId};
+use wasmlanche::{Address, ProgramId};
 
 #[link(name = "simulator")]
 extern "C" {
@@ -72,9 +72,9 @@ impl<'a> Simulator<'a> {
         gas: u64,
     ) -> CallProgramResponse
     where
-        T: wasmlanche_sdk::borsh::BorshSerialize,
+        T: wasmlanche::borsh::BorshSerialize,
     {
-        let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
+        let params = wasmlanche::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         let context = SimulatorCallContext::new(self, program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
@@ -186,14 +186,14 @@ impl CallProgramResponse {
     /// `Result<T, SimulatorError>` where T is the expected return type
     pub fn result<T>(&self) -> Result<T, SimulatorError>
     where
-        T: wasmlanche_sdk::borsh::BorshDeserialize,
+        T: wasmlanche::borsh::BorshDeserialize,
     {
         if self.has_error() {
             let error = self.error()?;
             return Err(SimulatorError::CallProgram(error.into()));
         };
 
-        Ok(wasmlanche_sdk::borsh::from_slice(&self.result)?)
+        Ok(wasmlanche::borsh::from_slice(&self.result)?)
     }
 
     /// Returns whether the program call resulted in an error.

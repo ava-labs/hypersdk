@@ -17,7 +17,7 @@ use syn::{
     TypeParamBound, TypePath, TypeReference, TypeTuple, Visibility,
 };
 
-const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
+const CONTEXT_TYPE: &str = "&mut wasmlanche::Context";
 
 /// The `public` attribute macro will make the function you attach it to an entry-point for your smart-contract.
 /// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
@@ -157,8 +157,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let external_call = quote! {
         mod private {
             use super::*;
-            #[derive(wasmlanche_sdk::borsh::BorshDeserialize)]
-            #[borsh(crate = "wasmlanche_sdk::borsh")]
+            #[derive(wasmlanche::borsh::BorshDeserialize)]
+            #[borsh(crate = "wasmlanche::borsh")]
             struct Args {
                 ctx: #context_type,
                 #(#args_props),*
@@ -171,16 +171,16 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
-                wasmlanche_sdk::register_panic();
+            unsafe extern "C" fn #name(args: wasmlanche::HostPtr) {
+                wasmlanche::register_panic();
 
                 let result = {
-                    let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
+                    let args: Args = wasmlanche::borsh::from_slice(&args).expect("error fetching serialized args");
 
                     let Args { mut ctx, #(#args_names),* } = args;
 
                     let result = super::#name(&mut ctx, #(#args_names_2),*);
-                    wasmlanche_sdk::borsh::to_vec(&result).expect("error serializing result")
+                    wasmlanche::borsh::to_vec(&result).expect("error serializing result")
                 };
 
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
@@ -189,7 +189,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let inputs: Punctuated<FnArg, Token![,]> =
-        std::iter::once(parse_str("ctx: &wasmlanche_sdk::ExternalCallContext").unwrap())
+        std::iter::once(parse_str("ctx: &wasmlanche::ExternalCallContext").unwrap())
             .chain(binding_args_props)
             .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
@@ -204,7 +204,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let block = Box::new(parse_quote! {{
-        let args = wasmlanche_sdk::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
+        let args = wasmlanche::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         ctx
             .program()
             .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
@@ -290,7 +290,7 @@ impl Parse for KeyPair {
 
 /// A procedural macro that generates a state schema for a program.
 /// ```
-/// # use wasmlanche_sdk::{state_schema, Address};
+/// # use wasmlanche::{state_schema, Address};
 /// #
 /// state_schema! {
 ///     /// Unit-struct style key with a cardinality of 1
@@ -347,14 +347,14 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
 
             token_stream.extend(Some(quote! {
                 #(#key_comments)*
-                #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::NoUninit)]
-                #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
+                #[derive(Copy, Clone, wasmlanche::bytemuck::NoUninit)]
+                #[bytemuck(crate = "wasmlanche::bytemuck")]
                 #[repr(C)]
                 #key_vis struct #key_type_name #key_fields;
 
-                wasmlanche_sdk::prefixed_key_size_check!(wasmlanche_sdk::macro_types, #key_type_name);
+                wasmlanche::prefixed_key_size_check!(wasmlanche::macro_types, #key_type_name);
 
-                unsafe impl wasmlanche_sdk::macro_types::Schema for #key_type_name {
+                unsafe impl wasmlanche::macro_types::Schema for #key_type_name {
                     type Value = #value_type;
 
                     fn prefix() -> u8 {

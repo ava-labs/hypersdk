@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche_sdk::{public, Address, Context, ExternalCallContext, Program};
+use wasmlanche::{public, Address, Context, ExternalCallContext, Program};
 
 #[public]
 pub fn inc(_: &mut Context, external: Program, address: Address) {
@@ -19,7 +19,7 @@ pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
 mod tests {
     use simulator::{SimpleState, Simulator};
 
-    use wasmlanche_sdk::Address;
+    use wasmlanche::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
