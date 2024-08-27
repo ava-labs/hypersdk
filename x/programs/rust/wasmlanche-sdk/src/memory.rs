@@ -7,14 +7,11 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+extern crate alloc;
+
+use alloc::alloc::{alloc as allocate, dealloc as deallocate, handle_alloc_error, Layout};
+use core::{cell::RefCell, mem::ManuallyDrop, ops::Deref, slice};
 use hashbrown::HashMap;
-use std::{
-    alloc::{self, Layout},
-    cell::RefCell,
-    mem::ManuallyDrop,
-    ops::Deref,
-    slice,
-};
 
 thread_local! {
     /// Map of pointer to the length of its content on the heap
@@ -48,7 +45,7 @@ impl Drop for HostPtr {
         let len = remove(self.0);
         let layout = Layout::array::<u8>(len).expect("capacity overflow");
 
-        unsafe { alloc::dealloc(self.0.cast_mut(), layout) };
+        unsafe { deallocate(self.0.cast_mut(), layout) };
     }
 }
 
@@ -80,10 +77,10 @@ extern "C" fn alloc(len: usize) -> HostPtr {
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
 
-    let ptr = unsafe { alloc::alloc(layout) };
+    let ptr = unsafe { allocate(layout) };
 
     if ptr.is_null() {
-        alloc::handle_alloc_error(layout);
+        handle_alloc_error(layout);
     }
 
     ALLOCATIONS.with_borrow_mut(|s| s.insert(ptr, len));
