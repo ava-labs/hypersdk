@@ -203,7 +203,7 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
-    use crate::{*};
+    use crate::*;
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values

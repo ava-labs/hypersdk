@@ -21,13 +21,12 @@ pub struct Context {
     state_cache: Cache,
 }
 
-
 impl Context {
     #[must_use]
     pub fn new_test_context() -> Self {
         Self {
             program: Program::new_test_program(),
-            actor: Address::default(), 
+            actor: Address::default(),
             height: 0,
             timestamp: 0,
             action_id: Id::default(),

@@ -3,9 +3,9 @@
 
 use crate::{
     context::{CacheKey, CacheValue},
+    dbg,
     memory::HostPtr,
     types::Address,
-    dbg
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
@@ -232,7 +232,6 @@ impl Cache {
     pub(super) fn flush(&mut self) {
         self.cache.clear();
     }
-
 }
 
 fn get_bytes(key: &[u8]) -> Option<CacheValue> {

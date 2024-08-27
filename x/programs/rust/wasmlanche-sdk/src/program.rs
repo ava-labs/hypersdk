@@ -54,14 +54,9 @@ impl Program {
     }
 
     pub fn new_test_program() -> Self {
-        Self { account: Address::default() }
-    }
-
-    pub fn new_test_program_with_id(id: Id) -> Self {
-        // prefix the id with the program prefix
-        let prefix = [0_u8; 1];
-        let account = [&prefix[..], &id[..]].concat();
-        Self { account: Address::new(account.try_into().unwrap()) }
+        Self {
+            account: Address::default(),
+        }
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method
