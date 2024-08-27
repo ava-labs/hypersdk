@@ -98,7 +98,7 @@ func (t *Transfer) Size() int {
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	err := codec.AutoUnmarshalStruct(p, &transfer)
+	err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 

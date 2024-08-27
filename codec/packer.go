@@ -6,11 +6,14 @@ package codec
 import (
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/window"
 )
+
+var LinearCodecInstance = linearcodec.NewDefault()
 
 // Packer is a wrapper struct for the Packer struct
 // from avalanchego/utils/wrappers/packing.go. A bool [required] parameter is

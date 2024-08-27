@@ -92,13 +92,13 @@ func (*mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
 
 func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer mockTransferAction
-	err := codec.AutoUnmarshalStruct(p, &transfer)
+	err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 
 func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	var action action2
-	err := codec.AutoUnmarshalStruct(p, &action)
+	err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &action)
 	return &action, err
 }
 

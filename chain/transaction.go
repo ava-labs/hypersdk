@@ -62,7 +62,10 @@ func (t *Transaction) Digest() ([]byte, error) {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			codec.AutoMarshalStruct(p, action)
+			err := codec.LinearCodecInstance.MarshalInto(action, p.Packer)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return p.Bytes, p.Err
@@ -373,7 +376,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			codec.AutoMarshalStruct(p, action)
+			codec.LinearCodecInstance.MarshalInto(action, p.Packer)
 		}
 	}
 	authID := t.Auth.GetTypeID()
@@ -485,7 +488,7 @@ func unmarshalActions(
 		}
 		if unmarshalAction == nil {
 			var action Action
-			err := codec.AutoUnmarshalStruct(p, &action)
+			err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &action)
 			if err != nil {
 				return nil, fmt.Errorf("%w: could not unmarshal action", err)
 			}
