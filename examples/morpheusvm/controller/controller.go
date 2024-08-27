@@ -28,7 +28,7 @@ var (
 	_ vm.ControllerFactory = (*factory)(nil)
 )
 
-// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled; 
+// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled
 func New(options ...vm.Option) (*vm.VM, error) {
 	opts := append([]vm.Option{
 		indexer.With(),
