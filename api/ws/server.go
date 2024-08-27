@@ -5,6 +5,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -23,7 +24,10 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-const Endpoint = "/corews"
+const (
+	Endpoint  = "/corews"
+	Namespace = "websocket"
+)
 
 var (
 	_ api.HandlerFactory[api.VM]          = (*WebSocketServerFactory)(nil)
@@ -33,41 +37,61 @@ var (
 	ErrExpired = errors.New("expired")
 )
 
-func WithWebsocketAPI(maxPendingMessages int) vm.Option {
-	return func(v *vm.VM) error {
-		actionRegistry, authRegistry := v.Registry()
-		server, handler := NewWebSocketServer(
-			v,
-			v.Logger(),
-			v.Tracer(),
-			actionRegistry,
-			authRegistry,
-			maxPendingMessages,
-		)
+type Config struct {
+	Enabled            bool `json:"enabled"`
+	MaxPendingMessages int  `json:"maxPendingMessages"`
+}
 
-		webSocketFactory := NewWebSocketServerFactory(handler)
-		txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
-			AcceptF: func(event vm.TxRemovedEvent) error {
-				return server.RemoveTx(event.TxID, event.Err)
-			},
-		}
-
-		blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
-			AcceptF: func(event *chain.StatelessBlock) error {
-				return server.AcceptBlock(event)
-			},
-		}
-
-		if err := vm.WithBlockSubscriptions(blockSubscription)(v); err != nil {
-			return err
-		}
-
-		if err := vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v); err != nil {
-			return err
-		}
-
-		return vm.WithVMAPIs(webSocketFactory)(v)
+func NewDefaultConfig() Config {
+	return Config{
+		Enabled:            true,
+		MaxPendingMessages: 10_000_000,
 	}
+}
+
+func With() vm.Option {
+	return vm.NewOption(Namespace, OptionFunc)
+}
+
+func OptionFunc(v *vm.VM, configBytes []byte) error {
+	actionRegistry, authRegistry := v.Registry()
+	config := NewDefaultConfig()
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &config); err != nil {
+			return err
+		}
+	}
+	if !config.Enabled {
+		return nil
+	}
+
+	server, handler := NewWebSocketServer(
+		v,
+		v.Logger(),
+		v.Tracer(),
+		actionRegistry,
+		authRegistry,
+		config.MaxPendingMessages,
+	)
+
+	webSocketFactory := NewWebSocketServerFactory(handler)
+	txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
+		AcceptF: func(event vm.TxRemovedEvent) error {
+			return server.RemoveTx(event.TxID, event.Err)
+		},
+	}
+
+	blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
+		AcceptF: func(event *chain.StatelessBlock) error {
+			return server.AcceptBlock(event)
+		},
+	}
+
+	vm.WithBlockSubscriptions(blockSubscription)(v)
+	vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v)
+	vm.WithVMAPIs(webSocketFactory)(v)
+
+	return nil
 }
 
 type subscriptionFuncFactory[T any] struct {

@@ -147,7 +147,15 @@ func New(
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
-) *VM {
+) (*VM, error) {
+	allocatedNamespaces := set.NewSet[string](len(options))
+	for _, option := range options {
+		if allocatedNamespaces.Contains(option.Namespace) {
+			return nil, fmt.Errorf("namespace %s already allocated", option.Namespace)
+		}
+		allocatedNamespaces.Add(option.Namespace)
+	}
+
 	return &VM{
 		factory:        factory,
 		v:              v,
@@ -156,7 +164,7 @@ func New(
 		authRegistry:   authRegistry,
 		authEngine:     authEngine,
 		options:        options,
-	}
+	}, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -228,8 +236,10 @@ func (vm *VM) Initialize(
 		ChainDataDir:   vm.DataDir,
 	}
 
-	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+			return fmt.Errorf("failed to unmarshal config: %w", err)
+		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
@@ -269,8 +279,14 @@ func (vm *VM) Initialize(
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 
-	for _, option := range vm.options {
-		if err := option(vm); err != nil {
+	namespacedConfig := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(controllerConfigBytes, &namespacedConfig); err != nil {
+		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+	}
+
+	for _, Option := range vm.options {
+		config := namespacedConfig[Option.Namespace]
+		if err := Option.OptionFunc(vm, config); err != nil {
 			return err
 		}
 	}
