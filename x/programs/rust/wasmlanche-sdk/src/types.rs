@@ -3,7 +3,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use std::{array, mem::size_of};
+use core::{array, mem::size_of};
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
