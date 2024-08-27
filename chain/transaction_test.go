@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package chain_test
 
 import (
@@ -6,75 +9,84 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/stretchr/testify/require"
 )
 
-var _ chain.Action = (*mockTransferAction)(nil)
-var _ chain.Action = (*action2)(nil)
+var (
+	_ chain.Action = (*mockTransferAction)(nil)
+	_ chain.Action = (*action2)(nil)
+)
 
 type mockTransferAction struct {
-	To    codec.Address `json:"to" serialize:"true"`
-	Value uint64        `json:"value" serialize:"true"`
-	Memo  []byte        `json:"memo" serialize:"true"`
+	To    codec.Address `serialize:"true" json:"to"`
+	Value uint64        `serialize:"true" json:"value"`
+	Memo  []byte        `serialize:"true" json:"memo"`
 }
 
 type action2 struct {
-	A uint64 `json:"a" serialize:"true"`
-	B uint64 `json:"b" serialize:"true"`
+	A uint64 `serialize:"true" json:"a"`
+	B uint64 `serialize:"true" json:"b"`
 }
 
-func (a *action2) ComputeUnits(chain.Rules) uint64 {
+func (*action2) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (a *action2) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (*action2) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
 	panic("unimplemented")
 }
 
-func (a *action2) GetTypeID() uint8 {
+func (*action2) GetTypeID() uint8 {
 	return 222
 }
 
-func (a *action2) Size() int {
+func (*action2) Size() int {
 	return 16
 }
 
-func (a *action2) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (*action2) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
-func (a *action2) StateKeysMaxChunks() []uint16 {
+func (*action2) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
-func (a *action2) ValidRange(chain.Rules) (start int64, end int64) {
+func (*action2) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("unimplemented")
 }
 
-func (m *mockTransferAction) ComputeUnits(chain.Rules) uint64 {
+func (*mockTransferAction) ComputeUnits(chain.Rules) uint64 {
 	panic("ComputeUnits unimplemented")
 }
-func (m *mockTransferAction) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+
+func (*mockTransferAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
 	panic("Execute unimplemented")
 }
-func (m *mockTransferAction) GetTypeID() uint8 {
+
+func (*mockTransferAction) GetTypeID() uint8 {
 	return 111
 }
-func (m *mockTransferAction) Size() int {
+
+func (*mockTransferAction) Size() int {
 	return 0
 }
-func (m *mockTransferAction) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+
+func (*mockTransferAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	panic("StateKeys unimplemented")
 }
-func (m *mockTransferAction) StateKeysMaxChunks() []uint16 {
+
+func (*mockTransferAction) StateKeysMaxChunks() []uint16 {
 	panic("StateKeysMaxChunks unimplemented")
 }
-func (m *mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
+
+func (*mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("ValidRange unimplemented")
 }
 
@@ -89,6 +101,7 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	err := codec.AutoUnmarshalStruct(p, &action)
 	return &action, err
 }
+
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
@@ -122,12 +135,15 @@ func TestMarshalUnmarshal(t *testing.T) {
 	priv := ed25519.PrivateKey(privBytes)
 	factory := auth.NewED25519Factory(priv)
 
-	var actionRegistry *codec.TypeParser[chain.Action] = codec.NewTypeParser[chain.Action]()
-	var authRegistry *codec.TypeParser[chain.Auth] = codec.NewTypeParser[chain.Auth]()
+	actionRegistry := codec.NewTypeParser[chain.Action]()
+	authRegistry := codec.NewTypeParser[chain.Auth]()
 
-	authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
-	actionRegistry.Register((&mockTransferAction{}).GetTypeID(), unmarshalTransfer)
-	actionRegistry.Register((&action2{}).GetTypeID(), unmarshalAction2)
+	err = authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
+	require.NoError(err)
+	err = actionRegistry.Register((&mockTransferAction{}).GetTypeID(), unmarshalTransfer)
+	require.NoError(err)
+	err = actionRegistry.Register((&action2{}).GetTypeID(), unmarshalAction2)
+	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
