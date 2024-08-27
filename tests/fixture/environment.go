@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,25 +43,10 @@ func NewTestEnvironment(
 		network,
 	)
 
-	chainID := getChainIDFromPlatform(testContext, vmID)
+	chainID := testEnv.GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 	setupDefaultChainAlias(testContext, chainID, vmName)
 
 	return testEnv
-}
-
-func getChainIDFromPlatform(tc tests.TestContext, vmid ids.ID) ids.ID {
-	require := require.New(tc)
-	platformClient := platformvm.NewClient(StableNodeURI)
-	chains, err := platformClient.GetBlockchains(tc.DefaultContext())
-	require.NoError(err)
-
-	for _, chain := range chains {
-		if chain.VMID == vmid {
-			return chain.ID
-		}
-	}
-	require.FailNow("chain not found")
-	return ids.Empty
 }
 
 func setupDefaultChainAlias(tc tests.TestContext, chainID ids.ID, vmName string) {

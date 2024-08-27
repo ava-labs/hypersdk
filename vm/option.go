@@ -11,46 +11,75 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 )
 
-type Option func(*VM) error
+type RegisterFunc func(*VM)
 
-func WithManualBuilder() Option {
-	return func(vm *VM) error {
+type OptionFunc func(*VM, []byte) error
+
+type Option struct {
+	Namespace  string
+	OptionFunc OptionFunc
+}
+
+func NewOption(namespace string, optionFunc OptionFunc) Option {
+	return Option{
+		Namespace:  namespace,
+		OptionFunc: optionFunc,
+	}
+}
+
+func WrapRegisterFunc(namespace string, registerFunc RegisterFunc) Option {
+	return NewOption(
+		namespace,
+		func(v *VM, _ []byte) error {
+			registerFunc(v)
+			return nil
+		},
+	)
+}
+
+func WithBuilder() RegisterFunc {
+	return func(vm *VM) {
 		vm.builder = builder.NewManual(vm)
-		return nil
 	}
 }
 
-func WithManualGossiper() Option {
-	return func(vm *VM) error {
+func WithGossiper() RegisterFunc {
+	return func(vm *VM) {
 		vm.gossiper = gossiper.NewManual(vm)
-		return nil
 	}
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) Option {
-	return func(vm *VM) error {
+func WithManual() Option {
+	return NewOption(
+		"manual",
+		func(vm *VM, _ []byte) error {
+			WithBuilder()(vm)
+			WithGossiper()(vm)
+			return nil
+		},
+	)
+}
+
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) RegisterFunc {
+	return func(vm *VM) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
-		return nil
 	}
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Option {
-	return func(vm *VM) error {
+func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc {
+	return func(vm *VM) {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
-		return nil
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) Option {
-	return func(vm *VM) error {
+func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) RegisterFunc {
+	return func(vm *VM) {
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
-		return nil
 	}
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option {
-	return func(vm *VM) error {
+func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
+	return func(vm *VM) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
-		return nil
 	}
 }
