@@ -56,13 +56,15 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
-	genesisBytes          []byte
-	vmID                  ids.ID
-	parser                chain.Parser
-	customJSONRPCEndpoint string
-	txWorkloadFactory     workload.TxWorkloadFactory
-	authFactory           chain.AuthFactory
+	createVM               func(...vm.Option) (*vm.VM, error)
+	genesisBytes           []byte
+	configBytes            [][]byte
+	vmID                   ids.ID
+	parser                 chain.Parser
+	customJSONRPCEndpoint  string
+	txWorkloadFactory      workload.TxWorkloadFactory
+	authFactory            chain.AuthFactory
+	testSubscriberWorkload workload.TestSubscriberServer
 )
 
 type instance struct {
@@ -91,19 +93,23 @@ func init() {
 func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
 	genesis []byte,
+	config [][]byte,
 	id ids.ID,
 	vmParser chain.Parser,
 	customEndpoint string,
 	workloadFactory workload.TxWorkloadFactory,
 	authF chain.AuthFactory,
+	e workload.TestSubscriberServer,
 ) {
 	createVM = newVM
 	genesisBytes = genesis
+	configBytes = config
 	vmID = id
 	parser = vmParser
 	customJSONRPCEndpoint = customEndpoint
 	txWorkloadFactory = workloadFactory
 	authFactory = authF
+	testSubscriberWorkload = e
 
 	setInstances()
 }
@@ -115,6 +121,14 @@ func setInstances() {
 
 	// create embedded VMs
 	instances = make([]instance, numVMs)
+	// start external subscriber server
+	testSubscriberWorkload.StartHandler()
+
+	if configBytes != nil {
+		require.Len(configBytes, numVMs, "mismatch between number of VMs and configs provided")
+	} else {
+		configBytes = make([][]byte, 3)
+	}
 
 	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()
@@ -165,7 +179,7 @@ func setInstances() {
 			db,
 			genesisBytes,
 			nil,
-			nil,
+			configBytes[i],
 			toEngine,
 			nil,
 			app,
@@ -219,6 +233,8 @@ var _ = ginkgo.AfterSuite(func() {
 		iv.WebSocketServer.Close()
 		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
+
+	testSubscriberWorkload.StopHandler()
 })
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -570,6 +586,53 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				txAssertion(cctx, require, uris[0])
 			}
 		}
+	})
+
+	ginkgo.It("Communicates with external subscriber", func() {
+		ginkgo.By("sending empty blocks", func() {
+			// Wait to be able to send TXs again
+			time.Sleep(2 * time.Second)
+
+			testSubscriberWorkload.OpenChannels()
+			defer testSubscriberWorkload.CloseChannels()
+
+			blk, err := instances[0].vm.BuildBlock(ctx)
+			require.NoError(err)
+
+			require.NoError(blk.Verify(ctx))
+
+			require.NoError(instances[0].vm.SetPreference(ctx, blk.ID()))
+
+			require.NoError(blk.Accept(ctx))
+			blocks = append(blocks, blk)
+
+			statelessBlk := blk.(*chain.StatelessBlock)
+			testSubscriberWorkload.Get(require, statelessBlk)
+		})
+
+		ginkgo.By("sending non-empty blocks", func() {
+			// Wait to be able to send TXs again
+			time.Sleep(2 * time.Second)
+
+			testSubscriberWorkload.OpenChannels()
+			defer testSubscriberWorkload.CloseChannels()
+
+			workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
+			require.NoError(err)
+
+			tx, _, err := workload.GenerateTxWithAssertion(ctx)
+			require.NoError(err)
+			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
+			require.NoError(err)
+
+			accept := expectBlk(instances[0])
+			_ = accept(true)
+
+			latestBlock := blocks[len(blocks)-1]
+			blk := latestBlock.(*chain.StatelessBlock)
+
+			testSubscriberWorkload.Get(require, blk)
+		})
 	})
 })
 

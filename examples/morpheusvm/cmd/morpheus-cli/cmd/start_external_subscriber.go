@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,11 +11,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
-	"github.com/ava-labs/hypersdk/genesis"
 )
 
 var (
@@ -24,16 +21,6 @@ var (
 	log                 logging.Logger
 	acceptedSubscribers []event.Subscription[externalsubscriber.ExternalSubscriberSubscriptionData]
 )
-
-// Used as a lambda function for creating ExternalSubscriberServer parser
-func ParserFactory(genesisBytes []byte) (chain.Parser, error) {
-	var genesis genesis.DefaultGenesis
-	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
-		return nil, err
-	}
-	parser := controller.NewParser(&genesis)
-	return parser, nil
-}
 
 var startExternalSubscriberCommand = &cobra.Command{
 	Use:   "start-external-subscriber",
@@ -52,7 +39,7 @@ var startExternalSubscriberCommand = &cobra.Command{
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, ParserFactory, acceptedSubscribers)
+		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, controller.ParserFactory, acceptedSubscribers)
 		grpcHandler, err := externalsubscriber.NewGRPCHandler(externalSubscriberServer, log, externalSubscriberPort)
 		if err != nil {
 			return err

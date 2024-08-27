@@ -27,8 +27,8 @@ var (
 // TODO: switch to eventually using chain.Stateless block
 // Wrapper to pass blocks + results to subscribers
 type ExternalSubscriberSubscriptionData struct {
-	blk     *chain.StatefulBlock
-	results []*chain.Result
+	Blk     *chain.StatefulBlock
+	Results []*chain.Result
 }
 
 func NewExternalSubscriberSubscriptionData(
@@ -36,8 +36,8 @@ func NewExternalSubscriberSubscriptionData(
 	results []*chain.Result,
 ) *ExternalSubscriberSubscriptionData {
 	return &ExternalSubscriberSubscriptionData{
-		blk:     blk,
-		results: results,
+		Blk:     blk,
+		Results: results,
 	}
 }
 

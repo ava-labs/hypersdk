@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
@@ -112,4 +113,14 @@ func (*Parser) StateManager() chain.StateManager {
 
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
 	return &Parser{genesis: genesis}
+}
+
+// Used as a lambda function for creating ExternalSubscriberServer parser
+func ParserFactory(genesisBytes []byte) (chain.Parser, error) {
+	var genesis genesis.DefaultGenesis
+	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
+		return nil, err
+	}
+	parser := NewParser(&genesis)
+	return parser, nil
 }
