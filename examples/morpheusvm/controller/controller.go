@@ -30,7 +30,7 @@ var (
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
 func New(options ...vm.Option) (*vm.VM, error) {
 	opts := []vm.Option{
-		indexer.With(consts.Name, indexer.Endpoint),
+		indexer.With(),
 		ws.With(),
 		vm.WrapRegisterFunc("vmAPIs", vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{})),
 		vm.WrapRegisterFunc("controllerAPIs", vm.WithControllerAPIs(&jsonRPCServerFactory{})),
