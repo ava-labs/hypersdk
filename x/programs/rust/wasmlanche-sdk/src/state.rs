@@ -159,8 +159,6 @@ impl Cache {
     where
         V: BorshDeserialize,
     {
-        crate::dbg!("get_with_raw_key");
-
         let cache = &mut self.cache;
         if let Some(value) = cache.get(key) {
             value
@@ -203,52 +201,52 @@ impl Cache {
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
+    #[cfg(not(feature = "unit_test"))]
     pub(super) fn flush(&mut self) {
-        // #[link(wasm_import_module = "state")]
-        // extern "C" {
-        //     #[link_name = "put"]
-        //     fn put(ptr: *const u8, len: usize);
-        // }
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put"]
+            fn put(ptr: *const u8, len: usize);
+        }
 
-        // #[derive(BorshSerialize)]
-        // struct PutArgs<Key> {
-        //     key: Key,
-        //     value: CacheValue,
-        // }
+        #[derive(BorshSerialize)]
+        struct PutArgs<Key> {
+            key: Key,
+            value: CacheValue,
+        }
 
-        // let cache = &mut self.cache;
+        let cache = &mut self.cache;
 
-        // let args: Vec<_> = cache
-        //     .drain()
-        //     .filter_map(|(key, val)| val.map(|value| PutArgs { key, value }))
-        //     .collect();
+        let args: Vec<_> = cache
+            .drain()
+            .filter_map(|(key, val)| val.map(|value| PutArgs { key, value }))
+            .collect();
 
-        // if !args.is_empty() {
-        //     let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-        //     unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
-        // }
+        if !args.is_empty() {
+            let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
+            unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
+        }
     }
-}
 
+    #[cfg(feature = "unit_test")]
+    pub(super) fn flush(&mut self) {
+        self.cache.clear();
+    }
 
-#[cfg(not(test))]
-fn get_bytes_host(_ptr: *const u8, _len: usize) -> HostPtr {
-    println!("not test");
-    HostPtr(std::ptr::null_mut())
-}
-
-#[cfg(test)]
-fn get_bytes_host(_ptr: *const u8, _len: usize) -> HostPtr {
-    println!("test!!!");
-    HostPtr(std::ptr::null_mut())
 }
 
 fn get_bytes(key: &[u8]) -> Option<CacheValue> {
-    // #[link(wasm_import_module = "state")]
-    // extern "C" {
-    //     #[link_name = "get"]
-    //     fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
-    // }
+    #[cfg(not(feature = "unit_test"))]
+    #[link(wasm_import_module = "state")]
+    extern "C" {
+        #[link_name = "get"]
+        fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
+    }
+
+    #[cfg(feature = "unit_test")]
+    fn get_bytes(_ptr: *const u8, _len: usize) -> HostPtr {
+        HostPtr(std::ptr::null_mut())
+    }
 
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
@@ -257,7 +255,7 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = unsafe { get_bytes_host(key.as_ptr(), key.len()) };
+    let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
     if ptr.is_null() {
         None
     } else {

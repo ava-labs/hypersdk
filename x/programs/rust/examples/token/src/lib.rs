@@ -203,125 +203,51 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
-    use super::Units;
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche_sdk::Address;
-
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    const MAX_UNITS: u64 = 1000000;
-    #[test]
-    fn create_program() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
-        simulator.create_program(PROGRAM_PATH).unwrap()
-    }
+    use crate::{*};
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
+        let mut context = Context::new_test_context();
+        init(&mut context, "Test".to_string(), "TST".to_string());
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        let name = name(&mut context);
+        assert_eq!(&name, "Test");
 
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
-
-        let supply = simulator
-            .call_program(program_address, "total_supply", (), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
-        assert_eq!(supply, 0);
-
-        let symbol = simulator
-            .call_program(program_address, "symbol", (), MAX_UNITS)
-            .result::<String>()
-            .unwrap();
+        let symbol = symbol(&mut context);
         assert_eq!(symbol, "TST");
 
-        let name = simulator
-            .call_program(program_address, "name", (), MAX_UNITS)
-            .result::<String>()
-            .unwrap();
-        assert_eq!(name, "Test");
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, 0);
     }
 
     #[test]
-    fn mint() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
+    fn mint_tokens() {
+        let mut context = Context::new_test_context();
+        init(&mut context, "Test".to_string(), "TST".to_string());
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        mint(&mut context, alice, alice_initial_balance);
 
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
-
-        simulator
-            .call_program(
-                program_address,
-                "mint",
-                (alice, alice_initial_balance),
-                MAX_UNITS,
-            )
-            .unwrap();
-
-        let balance = simulator
-            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
+        let balance = balance_of(&mut context, alice);
         assert_eq!(balance, alice_initial_balance);
 
-        let total_supply = simulator
-            .call_program(program_address, "total_supply", (), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
+        let total_supply = total_supply(&mut context);
         assert_eq!(total_supply, alice_initial_balance);
     }
 
     #[test]
-    fn burn() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
+    fn burn_tokens() {
+        let mut context = Context::new_test_context();
+        init(&mut context, "Test".to_string(), "TST".to_string());
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
-
-        simulator
-            .call_program(
-                program_address,
-                "mint",
-                (alice, alice_initial_balance),
-                MAX_UNITS,
-            )
-            .unwrap();
-
-        simulator
-            .call_program(
-                program_address,
-                "burn",
-                (alice, alice_burn_amount),
-                MAX_UNITS,
-            )
-            .unwrap();
-
-        let balance = simulator
-            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
+        mint(&mut context, alice, alice_initial_balance);
+        burn(&mut context, alice, alice_burn_amount);
+        let balance = balance_of(&mut context, alice);
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 }

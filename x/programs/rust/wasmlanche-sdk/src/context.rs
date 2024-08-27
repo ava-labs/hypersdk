@@ -161,6 +161,7 @@ impl Context {
     /// Deploy an instance of the specified program and returns the account of the new instance
     /// # Panics
     /// Panics if there was an issue deserializing the account
+    #[cfg(not(feature = "unit_test"))]
     #[must_use]
     pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Program {
         #[link(wasm_import_module = "program")]
@@ -174,6 +175,12 @@ impl Context {
         let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
+    }
+
+    #[cfg(feature = "unit_test")]
+    #[must_use]
+    pub fn deploy(&self, _program_id: ProgramId, _account_creation_data: &[u8]) -> Program {
+        Program::new_test_program()
     }
 }
 

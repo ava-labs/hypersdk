@@ -40,45 +40,17 @@ mod tests {
 
     use crate::{get_value, inc};
     // const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    // #[test]
-    // fn init_program() {
-    //     let mut state = SimpleState::new();
-    //     let mut simulator = Simulator::new(&mut state);
-
-    //     let actor = Address::default();
-    //     simulator.set_actor(actor);
-    //     let error = simulator.create_program(PROGRAM_PATH).has_error();
-    //     assert!(!error, "Create program errored")
-    // }
-
-    // #[test]
-    // fn increment() {
-    //     let mut state = SimpleState::new();
-    //     let simulator = Simulator::new(&mut state);
-    //     let gas = 100000000;
-    //     let bob = Address::new([1; 33]);
-    //     let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-    //     simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
-    //     let value = simulator
-    //         .call_program(counter_address, "get_value", ((bob),), gas)
-    //         .result::<u64>()
-    //         .unwrap();
-
-    //     assert_eq!(value, 10);
-    // }
-
+    // To mock call_program we could add a hashmnap in the program struct?
+    // context.mock_program("program", "method", "result");
     #[test]
-    fn test_unit() {
+    fn increment() {
         let mut context = Context::new_test_context();
         let bob = Address::new([1; 33]);
         let val = get_value(&mut context, bob);
-        println!("Value: {}", val);
         assert_eq!(val, 0);
 
         inc(&mut context, bob, 10);
         let val = get_value(&mut context, bob);
-        println!("Value: {}", val);
         assert_eq!(val, 10);
     }
 }

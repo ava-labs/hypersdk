@@ -11,10 +11,11 @@ wasmlanche-sdk = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
+wasmlanche-sdk = { workspace = true, features = ["build", "unit_test"] }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
 
-[features]
-bindings = []
+# [features]
+# bindings = []
 

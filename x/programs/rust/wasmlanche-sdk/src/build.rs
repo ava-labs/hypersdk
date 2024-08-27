@@ -86,5 +86,6 @@ pub fn build_wasm_on_test() {
         println!(
             r#"cargo:warning=If the simulator fails to find the "{package_name}" program, try running `cargo clean -p {package_name}` followed by `cargo test` again."#
         );
+
     }
 }

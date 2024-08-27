@@ -15,3 +15,4 @@ wasmtime = "14"
 [features]
 build = []
 debug = []
+unit_test = []

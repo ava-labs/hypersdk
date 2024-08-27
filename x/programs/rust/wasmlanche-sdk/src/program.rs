@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{memory::HostPtr, types::Address, Gas};
+use crate::{memory::HostPtr, types::Address, Gas, Id, ID_LEN};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
@@ -55,6 +55,13 @@ impl Program {
 
     pub fn new_test_program() -> Self {
         Self { account: Address::default() }
+    }
+
+    pub fn new_test_program_with_id(id: Id) -> Self {
+        // prefix the id with the program prefix
+        let prefix = [0_u8; 1];
+        let account = [&prefix[..], &id[..]].concat();
+        Self { account: Address::new(account.try_into().unwrap()) }
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method
