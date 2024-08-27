@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
@@ -66,7 +66,7 @@ var _ = ginkgo.Describe("[MorpheusVM]", func() {
 		blockchainID := network.GetSubnet(consts.Name).Chains[0].ChainID
 		nodeURI := fmt.Sprintf("%s/ext/bc/%s", nodeBaseURI, blockchainID)
 
-		morpheusRPCClient := rpc.NewJSONRPCClient(nodeURI, network.NetworkID, blockchainID)
+		morpheusRPCClient := controller.NewJSONRPCClient(nodeURI, network.NetworkID, blockchainID)
 
 		abi, err := morpheusRPCClient.GetABI(context.TODO())
 		require.NoError(err)

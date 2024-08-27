@@ -125,6 +125,12 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	return NewParser(cli.networkID, cli.chainID, g), nil
 }
 
+type GetABIArgs struct{}
+
+type GetABIReply struct {
+	ABIJSON string `json:"abi"`
+}
+
 func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(

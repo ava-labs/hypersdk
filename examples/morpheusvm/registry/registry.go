@@ -10,12 +10,12 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 var (
-	Action *codec.TypeParser[chain.Action]
-	Auth   *codec.TypeParser[chain.Auth]
+	Action    *codec.TypeParser[chain.Action]
+	Auth      *codec.TypeParser[chain.Auth]
+	ABIString []byte
 )
 
 // Setup types
@@ -41,7 +41,7 @@ func init() {
 	}
 
 	var err error
-	consts.ABIString, err = codec.GetVMABIString(actionsForABI)
+	ABIString, err = codec.GetVMABIString(actionsForABI)
 	errs.Add(err)
 
 	if errs.Errored() {

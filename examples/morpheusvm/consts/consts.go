@@ -27,8 +27,6 @@ func init() {
 	ID = vmID
 }
 
-var ABIString []byte
-
 var Version = &version.Semantic{
 	Major: 0,
 	Minor: 0,
