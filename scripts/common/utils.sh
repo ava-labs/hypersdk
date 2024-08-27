@@ -49,12 +49,13 @@ function add_license_headers() {
   fi
 
   local args=("-f" "$license_file")
+  local action="adding"
   if [[ "$1" == "-check" ]]; then
     args+=("-check")
-    echo "checking license headers"
-  else
-    echo "adding license headers"
+    action="checking"
   fi
+
+  echo "${action} license headers"
 
   for ext in "*.go" "*.rs" "*.sh"; do
     find . -type f -name "$ext" -print0 | xargs -0 -n1 addlicense "${args[@]}"
