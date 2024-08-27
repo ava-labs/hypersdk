@@ -4,8 +4,6 @@
 package vm
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
@@ -43,7 +41,7 @@ func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Option {
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) Option {
+func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[interface{}]) Option {
 	return func(vm *VM) error {
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
 		return nil
@@ -57,16 +55,11 @@ func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRem
 	}
 }
 
-func WithCustomGenesisLoader(loadGenesis func(genesisBytes []byte) (Genesis, error)) Option {
+// TODO: this option does not currently work because it must be executed before the genesisAndRuleFactory is used
+// but options are invoked after the genesis has been setup.
+func WithGenesisAndRulesFactory(factory GenesisAndRuleFactory) Option {
 	return func(vm *VM) error {
-		vm.genesisAndRuleHandler.LoadGenesis = loadGenesis
-		return nil
-	}
-}
-
-func WithCustomRuleLoader(loadRules func(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)) Option {
-	return func(vm *VM) error {
-		vm.genesisAndRuleHandler.LoadRules = loadRules
+		vm.genesisAndRuleFactory = factory
 		return nil
 	}
 }

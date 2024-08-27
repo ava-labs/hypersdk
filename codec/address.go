@@ -72,19 +72,36 @@ func MustAddressBech32(hrp string, p Address) string {
 // its [AddressBytes]. If there is an error reading the address or
 // the hrp value is not valid, ParseAddressBech32 returns an error.
 func ParseAddressBech32(hrp, saddr string) (Address, error) {
-	phrp, p, err := address.ParseBech32(saddr)
+	phrp, addr, err := parseAddressBech32(saddr)
 	if err != nil {
 		return EmptyAddress, err
 	}
 	if phrp != hrp {
 		return EmptyAddress, ErrIncorrectHRP
 	}
+	return addr, nil
+}
+
+// ParseAnyHrpAddressBech32 parses a Bech32 encoded address string and extracts
+// its [AddressBytes]. If there is an error reading the address ParseAnyHrpAddressBech32 returns an error.
+func ParseAnyHrpAddressBech32(saddr string) (Address, error) {
+	_, addr, err := parseAddressBech32(saddr)
+	return addr, err
+}
+
+// parseAddressBech32 parses a Bech32 encoded address string and extracts
+// its [AddressBytes]. If there is an error reading the address parseAddressBech32 returns an error.
+func parseAddressBech32(saddr string) (string, Address, error) {
+	phrp, p, err := address.ParseBech32(saddr)
+	if err != nil {
+		return phrp, EmptyAddress, err
+	}
 	// The parsed value may be greater than [minLength] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
 	if len(p) < AddressLen {
-		return EmptyAddress, ErrInsufficientLength
+		return phrp, EmptyAddress, ErrInsufficientLength
 	}
-	return Address(p[:AddressLen]), nil
+	return phrp, Address(p[:AddressLen]), nil
 }

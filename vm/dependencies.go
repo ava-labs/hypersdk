@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -80,8 +79,12 @@ func NewConfig() Config {
 	}
 }
 
+type GenesisAndRuleFactory interface {
+	Load(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
+}
+
 type Genesis interface {
-	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable) error
+	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error
 	GetStateBranchFactor() merkledb.BranchFactor
 }
 
@@ -92,24 +95,6 @@ type RuleFactory interface {
 type AuthEngine interface {
 	GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier
 	Cache(auth chain.Auth)
-}
-
-type ControllerFactory interface {
-	New(
-		inner *VM, // hypersdk VM
-		log logging.Logger,
-		configBytes []byte,
-	) (
-		Controller,
-		error,
-	)
-}
-
-type Controller interface {
-	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Controller is
-	// storing).
-	StateManager() chain.StateManager
 }
 
 type TxRemovedEvent struct {

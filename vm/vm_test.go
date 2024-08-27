@@ -39,7 +39,6 @@ func TestBlockCache(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
-	controller := NewMockController(ctrl)
 	rules := chain.NewMockRules(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
@@ -54,8 +53,7 @@ func TestBlockCache(t *testing.T) {
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
-		c:              controller,
-		ruleFactory:    &UnchangingRuleFactory{UnchangingRules: rules},
+		ruleFactory:    &ImmutableRuleFactory{rules},
 	}
 
 	// Init metrics (called in [Accepted])

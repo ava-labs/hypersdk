@@ -60,18 +60,17 @@ const (
 
 type VM struct {
 	DataDir string
-	factory ControllerFactory
-	c       Controller
 	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
-	config                     Config
+	config Config
+
+	genesisAndRuleFactory      GenesisAndRuleFactory
 	genesis                    Genesis
 	ruleFactory                RuleFactory
-	genesisAndRuleHandler      *genesisAndRuleHandler
 	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
@@ -82,11 +81,12 @@ type VM struct {
 	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
 	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
-	controllerAPIHandlerFactories []api.HandlerFactory[Controller]
+	controllerAPIHandlerFactories []api.HandlerFactory[interface{}] // TODO: remove arg completely
 	rawStateDB                    database.Database
 	stateDB                       merkledb.MerkleDB
 	vmDB                          database.Database
 	handlers                      map[string]http.Handler
+	stateManager                  chain.StateManager
 	actionRegistry                chain.ActionRegistry
 	authRegistry                  chain.AuthRegistry
 	authEngine                    map[uint8]AuthEngine
@@ -143,26 +143,22 @@ type VM struct {
 }
 
 func New(
-	factory ControllerFactory,
 	v *version.Semantic,
+	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	genesisLoader func(b []byte) (Genesis, error),
 	options ...Option,
 ) *VM {
 	return &VM{
-		factory:        factory,
-		v:              v,
-		config:         NewConfig(),
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
-		authEngine:     authEngine,
-		genesisAndRuleHandler: &genesisAndRuleHandler{
-			LoadRules:   LoadRules,
-			LoadGenesis: genesisLoader,
-		},
-		options: options,
+		v:                     v,
+		stateManager:          stateManager,
+		config:                NewConfig(),
+		actionRegistry:        actionRegistry,
+		authRegistry:          authRegistry,
+		authEngine:            authEngine,
+		genesisAndRuleFactory: defaultGenesisAndRuleFactory{},
+		options:               options,
 	}
 }
 
@@ -212,53 +208,15 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleHandler.ParseGenesisAndUpgradeBytes(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	if err != nil {
 		return err
-	}
-
-	// TODO do not expose entire context to the Controller
-	//
-	// Note: does not copy the consensus lock but this is safe because the
-	// consensus lock does not work over rpc anyways
-	controllerContext := &snow.Context{
-		NetworkID:      vm.snowCtx.NetworkID,
-		SubnetID:       vm.snowCtx.SubnetID,
-		ChainID:        vm.snowCtx.ChainID,
-		NodeID:         vm.snowCtx.NodeID,
-		PublicKey:      vm.snowCtx.PublicKey,
-		XChainID:       vm.snowCtx.XChainID,
-		CChainID:       vm.snowCtx.CChainID,
-		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
-		Log:            vm.snowCtx.Log,
-		Keystore:       vm.snowCtx.Keystore,
-		SharedMemory:   vm.snowCtx.SharedMemory,
-		BCLookup:       vm.snowCtx.BCLookup,
-		Metrics:        vm.snowCtx.Metrics,
-		WarpSigner:     vm.snowCtx.WarpSigner,
-		ValidatorState: vm.snowCtx.ValidatorState,
-		ChainDataDir:   vm.DataDir,
 	}
 
 	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
-
-	controllerConfigBytes, err := json.Marshal(vm.config.Config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal controller config: %w", err)
-	}
-
-	// Always initialize implementation first
-	vm.c, err = vm.factory.New(
-		vm,
-		controllerContext.Log,
-		controllerConfigBytes,
-	)
-	if err != nil {
-		return fmt.Errorf("implementation initialization failed: %w", err)
-	}
 
 	// Setup tracer
 	vm.tracer, err = trace.New(&vm.config.TraceConfig)
@@ -374,7 +332,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.stateManager); err != nil {
 			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
@@ -512,7 +470,7 @@ func (vm *VM) Initialize(
 	}
 
 	for _, apiFactory := range vm.controllerAPIHandlerFactories {
-		api, err := apiFactory.New(vm.c)
+		api, err := apiFactory.New(struct{}{})
 		if err != nil {
 			return fmt.Errorf("failed to initialize api: %w", err)
 		}
@@ -950,7 +908,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.c.StateManager())
+		_, err := tx.StateKeys(vm.stateManager)
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -993,7 +951,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.stateManager, r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

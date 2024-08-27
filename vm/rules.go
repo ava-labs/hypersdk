@@ -4,9 +4,6 @@
 package vm
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -47,7 +44,7 @@ type Rules struct {
 	SponsorStateKeysMaxChunks []uint16 `json:"sponsorStateKeysMaxChunks"`
 }
 
-func NewRules() *Rules {
+func NewDefaultRules() *Rules {
 	return &Rules{
 		// Chain Parameters
 		MinBlockGap:      100,
@@ -78,18 +75,6 @@ func NewRules() *Rules {
 		StorageValueWriteUnits:    3,
 		SponsorStateKeysMaxChunks: []uint16{1},
 	}
-}
-
-func LoadRules(b []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error) {
-	r := NewRules()
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, r); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal base genesis %s: %w", string(b), err)
-		}
-	}
-	r.NetworkID = networkID
-	r.ChainID = chainID
-	return &UnchangingRuleFactory{UnchangingRules: r}, nil
 }
 
 func (r *Rules) GetNetworkID() uint32 { return r.NetworkID }
@@ -168,36 +153,10 @@ func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
 
-type UnchangingRuleFactory struct {
-	UnchangingRules chain.Rules
+type ImmutableRuleFactory struct {
+	Rules chain.Rules
 }
 
-func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
-	return r.UnchangingRules
-}
-
-type genesisAndRuleHandler struct {
-	LoadRules   func(b []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)
-	LoadGenesis func(b []byte) (Genesis, error)
-}
-
-type jsonStruct struct {
-	G json.RawMessage `json:"genesis"`
-	R json.RawMessage `json:"rules"`
-}
-
-func (grh *genesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
-	splitData := &jsonStruct{}
-	if err := json.Unmarshal(initialBytes, splitData); err != nil {
-		return nil, nil, err
-	}
-	genesis, err := grh.LoadGenesis(splitData.G)
-	if err != nil {
-		return nil, nil, err
-	}
-	rules, err := grh.LoadRules(splitData.R, upgradeBytes, networkID, chainID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return genesis, rules, nil
+func (i *ImmutableRuleFactory) GetRules(_ int64) chain.Rules {
+	return i.Rules
 }
