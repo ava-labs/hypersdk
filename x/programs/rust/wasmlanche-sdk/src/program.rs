@@ -3,21 +3,21 @@
 
 use crate::{memory::HostPtr, types::Address, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
-use thiserror::Error;
+use displaydoc::Display;
 
 /// An error that is returned from call to public functions.
-#[derive(Error, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Display, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[repr(u8)]
 #[non_exhaustive]
 #[borsh(use_discriminant = true)]
 pub enum ExternalCallError {
-    #[error("an error happened during the execution")]
+    /// an error happened during execution
     ExecutionFailure = 0,
-    #[error("the call panicked")]
+    /// the call panicked
     CallPanicked = 1,
-    #[error("not enough fuel to cover the execution")]
+    /// not enough fuel to cover the execution
     OutOfFuel = 2,
-    #[error("insufficient funds")]
+    /// insufficient funds
     InsufficientFunds = 3,
 }
 

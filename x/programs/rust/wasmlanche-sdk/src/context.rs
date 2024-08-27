@@ -1,11 +1,14 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+extern crate alloc;
+
 use crate::{
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
     Gas, HostPtr, Id, Program,
 };
+use alloc::{boxed::Box, vec::Vec};
 use borsh::BorshDeserialize;
 
 pub type CacheKey = Box<[u8]>;

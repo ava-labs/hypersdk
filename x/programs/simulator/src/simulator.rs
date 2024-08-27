@@ -1,35 +1,16 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use libc::c_char;
-use std::{
-    ffi::{CStr, CString},
-    fmt::Debug,
-    str::Utf8Error,
-};
-use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError, ProgramId};
-
 use crate::{
     bindings::{
         Address as BindingAddress, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
     },
+    error::SimulatorError,
     state::{Mutable, SimpleState},
 };
-
-#[derive(Error, Debug)]
-pub enum SimulatorError {
-    #[error("Error across the FFI boundary: {0}")]
-    Ffi(#[from] Utf8Error),
-    #[error(transparent)]
-    Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
-    #[error(transparent)]
-    ExternalCall(#[from] ExternalCallError),
-    #[error("Error during program creation")]
-    CreateProgram(String),
-    #[error("Error during program execution")]
-    CallProgram(String),
-}
+use libc::c_char;
+use std::ffi::{CStr, CString};
+use wasmlanche_sdk::{Address, ProgramId};
 
 #[link(name = "simulator")]
 extern "C" {

@@ -9,7 +9,10 @@
 
 extern crate alloc;
 
-use alloc::alloc::{alloc as allocate, dealloc as deallocate, handle_alloc_error, Layout};
+use alloc::{
+    alloc::{alloc as allocate, dealloc as deallocate, handle_alloc_error, Layout},
+    vec::Vec,
+};
 use core::{
     cell::{LazyCell, RefCell},
     mem::ManuallyDrop,
@@ -113,14 +116,19 @@ fn remove(ptr: *const u8) -> usize {
 }
 
 #[cfg(test)]
+#[allow(clippy::useless_vec)]
 mod tests {
-    #![allow(clippy::useless_vec)]
     use super::*;
     use std::ptr;
+
+    // memory code is not safe to call from multiple threads
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     #[should_panic(expected = "attempted to deref invalid host pointer")]
     fn deref_untracked_pointer() {
+        let _lock = LOCK.lock();
+
         let ptr = HostPtr(ptr::null());
         let _ = &*ptr;
     }
@@ -128,6 +136,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "attempted to drop invalid host pointer")]
     fn drop_untracked_pointer() {
+        let _lock = LOCK.lock();
+
         let data = vec![0xff, 0xaa];
         let ptr = HostPtr(data.as_ptr());
         drop(ptr);
@@ -135,6 +145,8 @@ mod tests {
 
     #[test]
     fn deref_tracked_pointer() {
+        let _lock = LOCK.lock();
+
         let data = vec![0xff];
         let cloned = data.clone();
         let data = ManuallyDrop::new(data);
@@ -149,6 +161,8 @@ mod tests {
 
     #[test]
     fn deref_is_borrow() {
+        let _lock = LOCK.lock();
+
         let data = vec![0xff];
         let cloned = data.clone();
         let data = ManuallyDrop::new(data);
@@ -166,6 +180,8 @@ mod tests {
 
     #[test]
     fn host_pointer_to_vec_takes_bytes() {
+        let _lock = LOCK.lock();
+
         let data = vec![0xff];
         let cloned = data.clone();
         let data = ManuallyDrop::new(data);
@@ -184,6 +200,8 @@ mod tests {
 
     #[test]
     fn dropping_host_pointer_deallocates() {
+        let _lock = LOCK.lock();
+
         let data = vec![0xff];
         let data = ManuallyDrop::new(data);
         let ptr = data.as_ptr();
@@ -211,6 +229,8 @@ mod tests {
 
     #[test]
     fn allocate_normal_length_data() {
+        let _lock = LOCK.lock();
+
         let len = 1024;
         let data: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
         let ptr = alloc(len);

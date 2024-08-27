@@ -2,7 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 #![deny(clippy::pedantic)]
-// #![cfg_attr(not(any(feature = "build", feature = "debug")), no_std)]
+#![cfg_attr(not(any(feature = "build", feature = "debug", test)), no_std)]
 
 //! Welcome to the wasmlanche-sdk! This SDK provides a set of tools to help you write
 //! your smart-contracts in Rust to be deployed and run on a `HyperVM`.

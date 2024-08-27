@@ -1,6 +1,9 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+extern crate alloc;
+
+use alloc::boxed::Box;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
 use core::{array, mem::size_of};
