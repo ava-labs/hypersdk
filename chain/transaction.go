@@ -376,7 +376,10 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			codec.LinearCodecInstance.MarshalInto(action, p.Packer)
+			err := codec.LinearCodecInstance.MarshalInto(action, p.Packer)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	authID := t.Auth.GetTypeID()
