@@ -28,21 +28,19 @@ var (
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) *vm.VM {
-	opts := []vm.Option{
-		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
-		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
-	}
-
-	opts = append(opts, options...)
+func New(options ...vm.Option) (*vm.VM, error) {
+	opts := append([]vm.Option{
+		indexer.With(),
+		ws.With(),
+		jsonrpc.With(),
+		With(), // Add Controller API
+	}, options...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) *vm.VM {
+func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
 		consts.Version,
@@ -62,7 +60,7 @@ func (*factory) New(
 	chainID ids.ID,
 	genesisBytes []byte,
 	upgradeBytes []byte, // subnets to allow for AWM
-	configBytes []byte,
+	_ []byte,
 ) (
 	vm.Controller,
 	vm.Genesis,
@@ -76,14 +74,6 @@ func (*factory) New(
 	c.stateManager = &storage.StateManager{}
 
 	var err error
-
-	// Load config and genesis
-	c.config, err = newConfig(configBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
@@ -104,7 +94,6 @@ type Controller struct {
 	chainID   ids.ID
 
 	genesis      *genesis.Genesis
-	config       *Config
 	stateManager *storage.StateManager
 }
 

@@ -65,7 +65,7 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 	gen := genesis.Default()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
 	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
 	// a block that exceeds the maximum size allowed by AvalancheGo.
 	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	gen.MinBlockGap = minBlockGap
@@ -138,7 +138,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		indexerCli := indexer.NewClient(uri)
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
@@ -235,7 +235,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	g.balance = expectedBalance
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		indexerCli := indexer.NewClient(uri)
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)

@@ -47,6 +47,9 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	controller := controller.New()
+	controller, err := controller.New()
+	if err != nil {
+		return err
+	}
 	return rpcchainvm.Serve(context.TODO(), controller)
 }

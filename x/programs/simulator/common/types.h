@@ -7,19 +7,18 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct {
     unsigned char address[33];
 } Address;
 
 typedef struct {
-    unsigned char id[32];
-} ID;
-
-typedef struct {
     const uint8_t* data;
-    uint64_t length;
+    size_t length;
 } Bytes;
+
+typedef Bytes ProgramId;
 
 // Bytes with an additional error field
 typedef struct {
@@ -55,7 +54,7 @@ typedef struct {
 // Response from creating a program
 typedef struct {
     Address program_address;
-    ID program_id;
+    ProgramId program_id;
     const char *error;
 } CreateProgramResponse;
 

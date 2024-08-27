@@ -1,10 +1,9 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use std::mem::size_of;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
+use std::mem::size_of;
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
@@ -12,6 +11,16 @@ pub const ID_LEN: usize = 32;
 pub type Id = [u8; ID_LEN];
 /// Gas type alias.
 pub type Gas = u64;
+
+/// The ID bytes of a program.
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct ProgramId(Box<[u8]>);
+
+impl From<Box<[u8]>> for ProgramId {
+    fn from(value: Box<[u8]>) -> Self {
+        Self(value)
+    }
+}
 
 /// A newtype wrapper around address bytes.
 #[cfg_attr(feature = "debug", derive(Debug))]

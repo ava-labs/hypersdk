@@ -8,12 +8,11 @@ use std::{
     str::Utf8Error,
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError, Id};
+use wasmlanche_sdk::{Address, ExternalCallError, ProgramId};
 
 use crate::{
     bindings::{
-        Address as BindingAddress, Bytes, CallProgramResponse, CreateProgramResponse,
-        SimulatorCallContext,
+        Address as BindingAddress, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
     },
     state::{Mutable, SimpleState},
 };
@@ -94,35 +93,12 @@ impl<'a> Simulator<'a> {
     where
         T: wasmlanche_sdk::borsh::BorshSerialize,
     {
-        // serialize the params
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
-        // build the call context
-        let context = self.new_call_context(program, &method, &params, gas);
+        let context = SimulatorCallContext::new(self, program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
         unsafe { call_program(state_addr, &context) }
-    }
-
-    fn new_call_context(
-        &self,
-        program: Address,
-        method: &CString,
-        params: &[u8],
-        gas: u64,
-    ) -> SimulatorCallContext {
-        SimulatorCallContext {
-            program_address: program.into(),
-            actor_address: self.actor.into(),
-            height: self.height,
-            timestamp: self.timestamp,
-            method: method.as_ptr(),
-            params: Bytes {
-                data: params.as_ptr(),
-                length: params.len() as u64,
-            },
-            max_gas: gas,
-        }
     }
 
     /// Returns the actor address for the simulator.
@@ -182,12 +158,18 @@ impl CreateProgramResponse {
     ///
     /// Multiple program addresses can reference the same program ID, similar to
     /// how multiple instances of a smart contract can share the same bytecode.
-    pub fn program_id(&self) -> Result<Id, SimulatorError> {
+    pub fn program_id(&self) -> Result<ProgramId, SimulatorError> {
         if self.has_error() {
             let error = self.error()?;
             return Err(SimulatorError::CreateProgram(error.into()));
-        };
-        Ok(self.program_id.id)
+        }
+
+        // TODO:
+        // This should give back a borrowed ProgramId
+        // we need to differentiate between the two types
+        // we should also explore the ability to deserialize
+        // borrowed types for the public API of programs
+        Ok(Box::<[u8]>::from(self.program_id).into())
     }
 
     /// Returns the error message if the program creation failed.
@@ -287,7 +269,7 @@ mod tests {
             .chain(b"balance".iter().copied())
             .collect();
 
-        state.insert(key, exptected_balance.to_be_bytes().to_vec());
+        state.insert(key, Box::from(exptected_balance.to_be_bytes()));
 
         let simulator = Simulator::new(&mut state);
 
