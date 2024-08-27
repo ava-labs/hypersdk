@@ -7,10 +7,10 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use hashbrown::HashMap;
 use std::{
     alloc::{self, Layout},
     cell::RefCell,
-    collections::HashMap,
     mem::ManuallyDrop,
     ops::Deref,
     slice,
