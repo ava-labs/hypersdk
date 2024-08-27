@@ -138,7 +138,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		indexerCli := indexer.NewClient(uri)
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
@@ -235,7 +235,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	g.balance = expectedBalance
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri, consts.Name, indexer.Endpoint)
+		indexerCli := indexer.NewClient(uri)
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
