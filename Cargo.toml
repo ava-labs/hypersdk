@@ -1,12 +1,12 @@
 [workspace]
 members = [
     "x/programs/sdk-macros",
-    "x/programs/wasmlanche-sdk",
+    "x/programs/wasmlanche",
     "x/programs/examples/token",
     "x/programs/examples/counter",
     "x/programs/examples/counter-external",
     "x/programs/examples/automated-market-maker",
-    "x/programs/wasmlanche-sdk/tests/test-crate",
+    "x/programs/wasmlanche/tests/test-crate",
     "x/programs/test/programs/*",
     "x/programs/simulator",
     "x/programs/examples/tutorial",
@@ -23,6 +23,6 @@ strip = true
 
 [workspace.dependencies]
 sdk-macros = { path = "x/programs/sdk-macros" }
-wasmlanche-sdk = { path = "x/programs/wasmlanche-sdk" }
+wasmlanche = { path = "x/programs/wasmlanche" }
 simulator = { path = "x/programs/simulator"}
 thiserror = "1.0.61"

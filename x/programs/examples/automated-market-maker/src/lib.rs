@@ -3,7 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program, ProgramId};
+use wasmlanche::{public, state_schema, Context, ExternalCallContext, Gas, Program, ProgramId};
 
 #[cfg(test)]
 mod tests;

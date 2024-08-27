@@ -4,7 +4,7 @@
 #![deny(clippy::pedantic)]
 #![cfg_attr(not(any(feature = "build", feature = "debug", test)), no_std)]
 
-//! Welcome to the wasmlanche-sdk! This SDK provides a set of tools to help you write
+//! Welcome to the wasmlanche! This SDK provides a set of tools to help you write
 //! your smart-contracts in Rust to be deployed and run on a `HyperVM`.
 //!
 //! There are three main concepts that you need to understand to write a smart-contract:
@@ -22,10 +22,10 @@
 //! ## Example
 //! ```
 //! # #[cfg(not(feature = "bindings"))]
-//! use wasmlanche_sdk::Context;
-//! use wasmlanche_sdk::Address;
-//! use wasmlanche_sdk::public;
-//! use wasmlanche_sdk::state_schema;
+//! use wasmlanche::Context;
+//! use wasmlanche::Address;
+//! use wasmlanche::public;
+//! use wasmlanche::state_schema;
 //!
 //! type Count = u64;
 //!

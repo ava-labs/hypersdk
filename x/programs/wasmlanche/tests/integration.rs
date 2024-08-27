@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{Address, ID_LEN};
+use wasmlanche::{Address, ID_LEN};
 use wasmtime::{
     Caller, Config, Engine, Extern, Instance, InstanceAllocationStrategy, Linker, Memory, Module,
     PoolingAllocationConfig, Store, TypedFunc,

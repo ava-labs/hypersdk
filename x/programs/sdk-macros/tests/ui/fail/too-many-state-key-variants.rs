@@ -2,7 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use seq_macro::seq;
-use wasmlanche_sdk::state_schema;
+use wasmlanche::state_schema;
 
 seq!(N in 0..=255 {
     state_schema! {

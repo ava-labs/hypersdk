@@ -2,8 +2,8 @@
 // See the file LICENSE for licensing terms.
 
 #[cfg(not(feature = "bindings"))]
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_schema, Address};
+use wasmlanche::Context;
+use wasmlanche::{public, state_schema, Address};
 
 pub type Units = u64;
 
@@ -205,7 +205,7 @@ mod internal {
 mod tests {
     use super::Units;
     use simulator::{SimpleState, Simulator};
-    use wasmlanche_sdk::Address;
+    use wasmlanche::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 

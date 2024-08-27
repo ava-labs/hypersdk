@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche_sdk::{public, state_schema, Context};
+use wasmlanche::{public, state_schema, Context};
 
 state_schema! {
     State => i64,

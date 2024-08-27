@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche-sdk = { workspace = true }
+wasmlanche = { workspace = true }
