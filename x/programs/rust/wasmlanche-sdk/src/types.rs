@@ -1,9 +1,12 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+extern crate alloc;
+
+use alloc::boxed::Box;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use std::mem::size_of;
+use core::{array, mem::size_of};
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
@@ -49,7 +52,7 @@ impl Default for Address {
 
 impl IntoIterator for Address {
     type Item = u8;
-    type IntoIter = std::array::IntoIter<Self::Item, { Address::LEN }>;
+    type IntoIter = array::IntoIter<Self::Item, { Address::LEN }>;
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIterator::into_iter(self.0)

@@ -2,6 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 #![deny(clippy::pedantic)]
+#![cfg_attr(not(any(feature = "build", feature = "debug", test)), no_std)]
 
 //! Welcome to the wasmlanche-sdk! This SDK provides a set of tools to help you write
 //! your smart-contracts in Rust to be deployed and run on a `HyperVM`.
@@ -62,11 +63,18 @@
 pub mod build;
 
 mod context;
-mod logging;
 mod memory;
 mod program;
 mod state;
 mod types;
+
+#[cfg(feature = "debug")]
+mod logging;
+#[cfg(not(feature = "debug"))]
+mod logging {
+    pub fn log(_msg: &str) {}
+    pub fn register_panic() {}
+}
 
 pub use self::{
     context::{Context, ExternalCallContext},

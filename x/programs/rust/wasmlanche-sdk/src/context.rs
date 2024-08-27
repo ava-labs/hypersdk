@@ -1,11 +1,14 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+extern crate alloc;
+
 use crate::{
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
     Gas, HostPtr, Id, Program,
 };
+use alloc::{boxed::Box, vec::Vec};
 use borsh::BorshDeserialize;
 
 pub type CacheKey = Box<[u8]>;
@@ -23,8 +26,8 @@ pub struct Context {
 
 #[cfg(feature = "debug")]
 mod debug {
-
     use super::Context;
+    use std::fmt::{Debug, Formatter, Result};
 
     macro_rules! debug_struct_fields {
         ($f:expr, $struct_name:ty, $($name:expr),* $(,)*) => {
@@ -34,8 +37,8 @@ mod debug {
         };
     }
 
-    impl std::fmt::Debug for Context {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Debug for Context {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
             let Self {
                 program,
                 actor,
@@ -51,7 +54,7 @@ mod debug {
 }
 
 impl BorshDeserialize for Context {
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let program = Program::deserialize_reader(reader)?;
         let actor = Address::deserialize_reader(reader)?;
         let height = u64::deserialize_reader(reader)?;
