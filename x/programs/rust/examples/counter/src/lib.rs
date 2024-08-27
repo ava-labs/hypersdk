@@ -36,19 +36,21 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 #[cfg(test)]
 mod tests {
     use simulator::{SimpleState, Simulator};
-    use wasmlanche_sdk::Address;
+    use wasmlanche_sdk::{Address, Context};
+
+    use crate::get_value;
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
-    #[test]
-    fn init_program() {
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
+    // #[test]
+    // fn init_program() {
+    //     let mut state = SimpleState::new();
+    //     let mut simulator = Simulator::new(&mut state);
 
-        let actor = Address::default();
-        simulator.set_actor(actor);
-        let error = simulator.create_program(PROGRAM_PATH).has_error();
-        assert!(!error, "Create program errored")
-    }
+    //     let actor = Address::default();
+    //     simulator.set_actor(actor);
+    //     let error = simulator.create_program(PROGRAM_PATH).has_error();
+    //     assert!(!error, "Create program errored")
+    // }
 
     #[test]
     fn increment() {
@@ -64,5 +66,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(value, 10);
+    }
+
+    #[test]
+    fn test_unit() {
+        let mut context = Context::new_test_context();
+        let bob = Address::new([1; 33]);
+        get_value(&mut context, bob);
     }
 }

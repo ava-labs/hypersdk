@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
-counter = { path = "../counter", features = ["bindings"] }
+# counter = { path = "../counter", features = ["bindings"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
