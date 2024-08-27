@@ -33,6 +33,7 @@ import (
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
@@ -68,9 +69,9 @@ type VM struct {
 
 	config Config
 
-	genesisAndRuleFactory      GenesisAndRuleFactory
-	genesis                    Genesis
-	ruleFactory                RuleFactory
+	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
+	genesis                    genesis.Genesis
+	ruleFactory                genesis.RuleFactory
 	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
@@ -149,7 +150,15 @@ func New(
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
-) *VM {
+) (*VM, error) {
+	allocatedNamespaces := set.NewSet[string](len(options))
+	for _, option := range options {
+		if allocatedNamespaces.Contains(option.Namespace) {
+			return nil, fmt.Errorf("namespace %s already allocated", option.Namespace)
+		}
+		allocatedNamespaces.Add(option.Namespace)
+	}
+
 	return &VM{
 		v:                     v,
 		stateManager:          stateManager,
@@ -157,9 +166,9 @@ func New(
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
 		authEngine:            authEngine,
-		genesisAndRuleFactory: defaultGenesisAndRuleFactory{},
+		genesisAndRuleFactory: genesis.DefaultGenesisAndRuleFactory{},
 		options:               options,
-	}
+	}, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -213,8 +222,10 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+			return fmt.Errorf("failed to unmarshal config: %w", err)
+		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
@@ -235,8 +246,16 @@ func (vm *VM) Initialize(
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 
-	for _, option := range vm.options {
-		if err := option(vm); err != nil {
+	namespacedConfig := make(map[string]json.RawMessage)
+	if len(vm.config.Config) > 0 {
+		if err := json.Unmarshal(vm.config.Config, &namespacedConfig); err != nil {
+			return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+		}
+	}
+
+	for _, Option := range vm.options {
+		config := namespacedConfig[Option.Namespace]
+		if err := Option.OptionFunc(vm, config); err != nil {
 			return err
 		}
 	}

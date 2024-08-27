@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -22,21 +21,21 @@ var chainCmd = &cobra.Command{
 
 var importChainCmd = &cobra.Command{
 	Use: "import",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().ImportChain()
 	},
 }
 
 var importANRChainCmd = &cobra.Command{
 	Use: "import-anr",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().ImportANR()
 	},
 }
 
 var importAvalancheOpsChainCmd = &cobra.Command{
 	Use: "import-ops [path]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
@@ -56,15 +55,15 @@ var setChainCmd = &cobra.Command{
 
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().PrintChainInfo()
 	},
 }
 
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
-	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().WatchChain(hideTxs, func(uri string, _ uint32, _ ids.ID) (chain.Parser, error) {
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return handler.Root().WatchChain(hideTxs, func(uri string) (chain.Parser, error) {
 			cli := controller.NewJSONRPCClient(uri)
 			return cli.Parser(context.TODO())
 		}, handleTx)

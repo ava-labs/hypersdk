@@ -12,12 +12,9 @@ fi
 # Default version of golangci-lint
 GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.56.1"}
 
-HYPERSDK_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
-)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/scripts/common/utils.sh
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
+source "$SCRIPT_DIR"/common/utils.sh
 
 if [ "$#" -eq 0 ]; then
   # by default, check all source code
@@ -28,23 +25,23 @@ else
   TARGET="${1}"
 fi
 
-add_license_headers -check
+ADD_LICENSE=${ADD_LICENSE:-true}
+if [ "$ADD_LICENSE" = true ]; then
+  add_license_headers -check
+fi
 
 # by default, "./scripts/lint.sh" runs all lint tests
 TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
-
-  # alert the user if they do not have $GOPATH properly configured
-  check_command golangci-lint
+  install_if_not_exists golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
 
   golangci-lint run --config .golangci.yml
 }
 
 function test_gci {
-  go install -v github.com/daixiang0/gci@v0.12.1
+  install_if_not_exists gci github.com/daixiang0/gci@v0.12.1
   FILES=$(gci list --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .)
   if [[ "${FILES}" ]]; then
     echo ""

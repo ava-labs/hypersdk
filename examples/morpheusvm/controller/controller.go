@@ -4,91 +4,36 @@
 package controller
 
 import (
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-var (
-	_ vm.Controller        = (*Controller)(nil)
-	_ vm.ControllerFactory = (*factory)(nil)
-)
-
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) *vm.VM {
-	opts := []vm.Option{
-		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
-		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
-	}
-
-	opts = append(opts, options...)
+func New(options ...vm.Option) (*vm.VM, error) {
+	opts := append([]vm.Option{
+		indexer.With(),
+		ws.With(),
+		jsonrpc.With(),
+		With(), // Add Controller API
+	}, options...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) *vm.VM {
+func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
-		&factory{},
 		consts.Version,
+		&storage.StateManager{},
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
-		func(b []byte) (vm.Genesis, error) {
-			return vm.LoadAllocationGenesis(
-				b,
-				func(addr string) (codec.Address, error) { return codec.ParseAddressBech32(consts.HRP, addr) },
-				storage.SetBalance)
-		},
 		options...,
 	)
-}
-
-type factory struct{}
-
-func (*factory) New(
-	inner *vm.VM,
-	log logging.Logger,
-	configBytes []byte,
-) (
-	vm.Controller,
-	error,
-) {
-	c := &Controller{}
-	c.inner = inner
-	c.log = log
-	c.stateManager = &storage.StateManager{}
-
-	var err error
-	// Load config and genesis
-	c.config, err = newConfig(configBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("initialized config", zap.Any("contents", c.config))
-	return c, nil
-}
-
-type Controller struct {
-	inner        *vm.VM
-	log          logging.Logger
-	config       *Config
-	stateManager *storage.StateManager
-}
-
-func (c *Controller) StateManager() chain.StateManager {
-	return c.stateManager
 }
