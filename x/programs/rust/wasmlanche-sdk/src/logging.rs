@@ -41,8 +41,7 @@ macro_rules! dbg {
 pub fn register_panic() {
     #[cfg(debug_assertions)]
     {
-        use std::panic;
-        use std::sync::Once;
+        use std::{panic, sync::Once};
 
         static START: Once = Once::new();
         START.call_once(|| {
@@ -54,20 +53,17 @@ pub fn register_panic() {
 }
 
 #[doc(hidden)]
-/// Log an arbitrary [&str] on the terminal.
-pub fn log(text: &str) {
-    log_bytes(text.as_bytes());
-}
-
 /// Logging facility for debugging purposes.
 /// # Panics
 /// Panics if there was an issue regarding memory allocation on the host
-pub(super) fn log_bytes(bytes: &[u8]) {
+pub fn log(text: &str) {
     #[link(wasm_import_module = "log")]
     extern "C" {
         #[link_name = "write"]
         fn ffi(ptr: *const u8, len: usize);
     }
+
+    let bytes = text.as_bytes();
 
     unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 }

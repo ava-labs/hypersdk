@@ -7,7 +7,14 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use std::{alloc::Layout, cell::RefCell, collections::HashMap, mem::ManuallyDrop, ops::Deref};
+use std::{
+    alloc::{self, Layout},
+    cell::RefCell,
+    collections::HashMap,
+    mem::ManuallyDrop,
+    ops::Deref,
+    slice,
+};
 
 thread_local! {
     /// Map of pointer to the length of its content on the heap
@@ -28,7 +35,7 @@ impl Deref for HostPtr {
             .with_borrow(|allocations| allocations.get(&self.0).copied())
             .expect("attempted to deref invalid host pointer");
 
-        unsafe { std::slice::from_raw_parts(self.0, len) }
+        unsafe { slice::from_raw_parts(self.0, len) }
     }
 }
 
@@ -41,7 +48,7 @@ impl Drop for HostPtr {
         let len = remove(self.0);
         let layout = Layout::array::<u8>(len).expect("capacity overflow");
 
-        unsafe { std::alloc::dealloc(self.0.cast_mut(), layout) };
+        unsafe { alloc::dealloc(self.0.cast_mut(), layout) };
     }
 }
 
@@ -73,10 +80,10 @@ extern "C" fn alloc(len: usize) -> HostPtr {
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
 
-    let ptr = unsafe { std::alloc::alloc(layout) };
+    let ptr = unsafe { alloc::alloc(layout) };
 
     if ptr.is_null() {
-        std::alloc::handle_alloc_error(layout);
+        alloc::handle_alloc_error(layout);
     }
 
     ALLOCATIONS.with_borrow_mut(|s| s.insert(ptr, len));
@@ -94,11 +101,12 @@ fn remove(ptr: *const u8) -> usize {
 mod tests {
     #![allow(clippy::useless_vec)]
     use super::*;
+    use std::ptr;
 
     #[test]
     #[should_panic(expected = "attempted to deref invalid host pointer")]
     fn deref_untracked_pointer() {
-        let ptr = HostPtr(std::ptr::null());
+        let ptr = HostPtr(ptr::null());
         let _ = &*ptr;
     }
 
@@ -191,7 +199,7 @@ mod tests {
         let len = 1024;
         let data: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
         let ptr = alloc(len);
-        unsafe { std::ptr::copy(data.as_ptr(), ptr.0.cast_mut(), data.len()) }
+        unsafe { ptr::copy(data.as_ptr(), ptr.0.cast_mut(), data.len()) }
 
         assert_eq!(&*ptr, &*data);
     }
