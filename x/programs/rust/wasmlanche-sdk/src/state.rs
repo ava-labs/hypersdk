@@ -251,9 +251,8 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
     }
 }
 
-trait Sealed {}
+pub trait Sealed {}
 
-#[allow(private_bounds)]
 pub trait IntoPairs: Sealed {
     fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>>;
 }
