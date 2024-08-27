@@ -8,9 +8,9 @@ use crate::{
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
+use core::mem::{self, size_of};
 use hashbrown::HashMap;
 use sdk_macros::impl_to_pairs;
-use std::mem::{self, size_of};
 
 // maximum number of chunks that can be stored at the key as big endian u16
 pub const STATE_MAX_CHUNKS: [u8; 2] = 4u16.to_be_bytes();
