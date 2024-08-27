@@ -14,7 +14,7 @@ note: `Context<u8>` is defined in the current crate
 8  | pub struct Context<T>(T);
    | ^^^^^^^^^^^^^^^^^^^^^
 note: `wasmlanche_sdk::Context` is defined in crate `wasmlanche_sdk`
-  --> $WORKSPACE/x/programs/rust/wasmlanche-sdk/src/context.rs
+  --> $WORKSPACE/x/programs/wasmlanche-sdk/src/context.rs
    |
    | pub struct Context {
    | ^^^^^^^^^^^^^^^^^^
