@@ -74,9 +74,11 @@ mod tests {
         let bob = Address::new([1; 33]);
         let val = get_value(&mut context, bob);
         println!("Value: {}", val);
+        assert_eq!(val, 0);
 
         inc(&mut context, bob, 10);
         let val = get_value(&mut context, bob);
         println!("Value: {}", val);
+        assert_eq!(val, 10);
     }
 }

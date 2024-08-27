@@ -18,7 +18,7 @@ thread_local! {
 /// A pointer where data points to the host.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[repr(transparent)]
-pub struct HostPtr(*const u8);
+pub struct HostPtr(pub *const u8);
 
 impl Deref for HostPtr {
     type Target = [u8];

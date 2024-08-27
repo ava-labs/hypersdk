@@ -2,5 +2,5 @@
 // See the file LICENSE for licensing terms.
 
 fn main() {
-    // wasmlanche_sdk::build::build_wasm_on_test();
+    wasmlanche_sdk::build::build_wasm_on_test();
 }

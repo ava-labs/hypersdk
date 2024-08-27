@@ -5,6 +5,7 @@ use crate::{
     context::{CacheKey, CacheValue},
     memory::HostPtr,
     types::Address,
+    dbg
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
@@ -158,8 +159,9 @@ impl Cache {
     where
         V: BorshDeserialize,
     {
-        let cache = &mut self.cache;
+        crate::dbg!("get_with_raw_key");
 
+        let cache = &mut self.cache;
         if let Some(value) = cache.get(key) {
             value
                 .as_deref()
@@ -228,15 +230,25 @@ impl Cache {
     }
 }
 
+
+#[cfg(not(test))]
+fn get_bytes_host(_ptr: *const u8, _len: usize) -> HostPtr {
+    println!("not test");
+    HostPtr(std::ptr::null_mut())
+}
+
+#[cfg(test)]
+fn get_bytes_host(_ptr: *const u8, _len: usize) -> HostPtr {
+    println!("test!!!");
+    HostPtr(std::ptr::null_mut())
+}
+
 fn get_bytes(key: &[u8]) -> Option<CacheValue> {
     // #[link(wasm_import_module = "state")]
     // extern "C" {
     //     #[link_name = "get"]
     //     fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
     // }
-    fn get_bytes(_ptr: *const u8, _len: usize) -> *const u8 {
-        std::ptr::null()
-    }
 
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
@@ -245,13 +257,12 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
-    return None;
-    // if ptr.is_null() {
-    //     None
-    // } else {
-    //     Some(ptr.into())
-    // }
+    let ptr = unsafe { get_bytes_host(key.as_ptr(), key.len()) };
+    if ptr.is_null() {
+        None
+    } else {
+        Some(ptr.into())
+    }
 }
 
 trait Sealed {}
