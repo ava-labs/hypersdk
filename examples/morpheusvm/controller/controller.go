@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	staterpc "github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -21,6 +20,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/vm"
+
+	staterpc "github.com/ava-labs/hypersdk/api/state"
 )
 
 var (
