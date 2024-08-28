@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 set -euo pipefail
 set -exu
@@ -13,12 +15,16 @@ if ! [[ "$0" =~ scripts/tests.shellcheck.sh ]]; then
   exit 255
 fi
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/scripts/common/utils.sh
+source "$SCRIPT_DIR"/common/utils.sh
+
 VERSION="v0.10.0"
 
 function get_version {
   local target_path=$1
   if command -v "${target_path}" > /dev/null; then
-    echo "v$("${target_path}" --version | grep version: | awk '{print $2}')"
+    "${target_path}" --version | grep version: | awk 'v{print $2}'
   fi
 }
 

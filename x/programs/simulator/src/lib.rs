@@ -2,6 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 mod bindings;
+mod error;
 mod simulator;
 mod state;
 

@@ -88,7 +88,7 @@ jobs:
         run: |
           diff=$(git diff --name-only HEAD origin/main)
           printf "diff:\n%s\n" "$diff"
-          output=$(echo "$diff" | grep -v '^x/programs/' || true)
+          output=$(echo "$diff" | grep -v '^x/programs/' | grep -v '^Cargo.toml$' || true)
           if [ -n "$diff" ] && [ -z "$output" ]; then
             echo "only x/programs changed, will skip unafected tests"
             echo "only_programs_changed=true" >> "$GITHUB_OUTPUT"

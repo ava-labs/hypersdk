@@ -1,0 +1,20 @@
+[package]
+name = "token"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+wasmlanche = { workspace = true, features = ["debug"] }
+
+[dev-dependencies]
+simulator = { workspace = true }
+
+[build-dependencies]
+wasmlanche = { workspace = true, features = ["build"] }
+
+[features]
+bindings = []
+
