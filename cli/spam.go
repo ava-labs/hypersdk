@@ -55,12 +55,11 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	ctx := context.Background()
 
 	// Select chain
-	chainID, uris, err := h.PromptChain("select chainID", nil)
+	_, uris, err := h.PromptChain("select chainID", nil)
 	if err != nil {
 		return err
 	}
 	cli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
 	}
@@ -71,7 +70,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	if err := sh.CreateClient(uris[0], networkID, chainID); err != nil {
+	if err := sh.CreateClient(uris[0]); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {

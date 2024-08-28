@@ -10,8 +10,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 )
 
 var genesisCmd = &cobra.Command{
@@ -31,49 +31,48 @@ var genGenesisCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		g := genesis.Default()
+		a, err := os.ReadFile(args[0])
+		if err != nil {
+			return err
+		}
+		var allocs []*genesis.CustomAllocation
+		if err := json.Unmarshal(a, &allocs); err != nil {
+			return err
+		}
+		genesis := genesis.NewDefaultGenesis(allocs)
 		if len(minUnitPrice) > 0 {
 			d, err := fees.ParseDimensions(minUnitPrice)
 			if err != nil {
 				return err
 			}
-			g.MinUnitPrice = d
+			genesis.Rules.MinUnitPrice = d
 		}
 		if len(maxBlockUnits) > 0 {
 			d, err := fees.ParseDimensions(maxBlockUnits)
 			if err != nil {
 				return err
 			}
-			g.MaxBlockUnits = d
+			genesis.Rules.MaxBlockUnits = d
 		}
 		if len(windowTargetUnits) > 0 {
 			d, err := fees.ParseDimensions(windowTargetUnits)
 			if err != nil {
 				return err
 			}
-			g.WindowTargetUnits = d
+			genesis.Rules.WindowTargetUnits = d
 		}
 		if minBlockGap >= 0 {
-			g.MinBlockGap = minBlockGap
+			genesis.Rules.MinBlockGap = minBlockGap
 		}
 
-		a, err := os.ReadFile(args[0])
-		if err != nil {
-			return err
-		}
-		allocs := []*genesis.CustomAllocation{}
-		if err := json.Unmarshal(a, &allocs); err != nil {
-			return err
-		}
-		g.CustomAllocation = allocs
-
-		b, err := json.Marshal(g)
+		b, err := json.Marshal(genesis)
 		if err != nil {
 			return err
 		}
 		if err := os.WriteFile(genesisFile, b, fsModeWrite); err != nil {
 			return err
 		}
+
 		color.Green("created genesis and saved to %s", genesisFile)
 		return nil
 	},
