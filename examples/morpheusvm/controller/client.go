@@ -98,7 +98,7 @@ type Parser struct {
 	genesis *genesis.DefaultGenesis
 }
 
-func (p *Parser) Rules(t int64) chain.Rules {
+func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
