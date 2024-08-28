@@ -27,7 +27,7 @@ pub struct Context {
 #[cfg(feature = "debug")]
 mod debug {
     use super::Context;
-    use std::fmt::{Debug, Formatter, Result};
+    use core::fmt::{Debug, Formatter, Result};
 
     macro_rules! debug_struct_fields {
         ($f:expr, $struct_name:ty, $($name:expr),* $(,)*) => {
