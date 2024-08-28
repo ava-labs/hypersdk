@@ -302,7 +302,7 @@ func TestMarshalEmptySpec(t *testing.T) {
 
 	// This is the output of the combination of above JSONs
 	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(action1Instance, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(action1Instance, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -330,7 +330,7 @@ func TestMarshalSingleNumberSpec(t *testing.T) {
 
 	// This is the output of the combination of above JSONs
 	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(action1Instance, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(action1Instance, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -385,7 +385,7 @@ func TestMarshalAllNumbersSpec(t *testing.T) {
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(action, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -457,7 +457,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 			require.JSONEq(tc.expectedJSON, string(structJSON))
 
 			actionPacker := codec.NewWriter(tc.action.Size(), consts.NetworkSizeLimit)
-			err = codec.LinearCodecInstance.MarshalInto(tc.action, actionPacker.Packer)
+			err = codec.LinearCodec.MarshalInto(tc.action, actionPacker.Packer)
 			require.NoError(err)
 
 			actionDigest := actionPacker.Bytes
@@ -519,7 +519,7 @@ func TestMarshalArraysSpec(t *testing.T) {
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(action, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -546,7 +546,7 @@ func TestMarshalTransferSpec(t *testing.T) {
 	require.Equal(expectedJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(action, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -592,7 +592,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	require.JSONEq(expectedJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(actionWithTransfer.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(actionWithTransfer, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(actionWithTransfer, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes
@@ -610,7 +610,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	require.JSONEq(expectedJSON, string(structJSON))
 
 	actionPacker = codec.NewWriter(actionWithTransferArray.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodecInstance.MarshalInto(actionWithTransferArray, actionPacker.Packer)
+	err = codec.LinearCodec.MarshalInto(actionWithTransferArray, actionPacker.Packer)
 	require.NoError(err)
 
 	actionDigest = actionPacker.Bytes
