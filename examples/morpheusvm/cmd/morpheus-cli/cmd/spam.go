@@ -97,7 +97,7 @@ var spamCmd = &cobra.Command{
 
 var runSpamCmd = &cobra.Command{
 	Use: "run [ed25519/secp256r1/bls]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
