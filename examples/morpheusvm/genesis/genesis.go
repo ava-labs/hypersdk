@@ -120,7 +120,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
-		supply, err = smath.Add64(supply, alloc.Balance)
+		supply, err = smath.Add(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
