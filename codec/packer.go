@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/window"
 )
 
-var LinearCodecInstance = linearcodec.NewDefault()
+var LinearCodec = linearcodec.NewDefault()
 
 // Packer is a wrapper struct for the Packer struct
 // from avalanchego/utils/wrappers/packing.go. A bool [required] parameter is

@@ -128,3 +128,19 @@ func TestTransferAction(t *testing.T) {
 		tt.Run(context.Background(), t)
 	}
 }
+
+func TestTransferSizeFunction(t *testing.T) {
+	require := require.New(t)
+
+	addr, err := codectest.NewRandomAddress()
+	require.NoError(err)
+
+	transfer := Transfer{
+		To:    addr,
+		Value: 123,
+		Memo:  []byte("7 bytes"),
+	}
+	// 33 bytes for address + 8 bytes for uint64 + 4 bytes uint32 length prefix + 7 bytes for the string
+	expectedSize := 33 + 8 + 4 + 7
+	require.Equal(expectedSize, transfer.Size())
+}

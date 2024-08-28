@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
@@ -83,22 +82,28 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+	// If you're hitting the TPS limit, you have to calculate the sizes manually.
+	// For example, for Transfer it would be:
+	// return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+
+	// Unfortunately, we can't process an error here.
+	size, _ := codec.LinearCodec.Size(t)
+	return size
 }
 
-// Optional. Only use if you have to manually marshal the action.
+// Optional: Only use if you need to manually marshal the action to increase TPS limit.
 
 // var _ chain.Marshaler = (*Transfer)(nil)
 
 // func (t *Transfer) Marshal(p *codec.Packer) {
 // 	p.PackAddress(t.To)
-// 	p.PackUint64(t.Value)
+// 	p.PackLong(t.Value)
 // 	p.PackBytes(t.Memo)
 // }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &transfer)
+	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 

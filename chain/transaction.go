@@ -62,7 +62,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			err := codec.LinearCodecInstance.MarshalInto(action, p.Packer)
+			err := codec.LinearCodec.MarshalInto(action, p.Packer)
 			if err != nil {
 				return nil, err
 			}
@@ -376,7 +376,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 		if marshaler, ok := action.(Marshaler); ok {
 			marshaler.Marshal(p)
 		} else {
-			err := codec.LinearCodecInstance.MarshalInto(action, p.Packer)
+			err := codec.LinearCodec.MarshalInto(action, p.Packer)
 			if err != nil {
 				return err
 			}
@@ -491,7 +491,7 @@ func unmarshalActions(
 		}
 		if unmarshalAction == nil {
 			var action Action
-			err := codec.LinearCodecInstance.UnmarshalFrom(p.Packer, &action)
+			err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 			if err != nil {
 				return nil, fmt.Errorf("%w: could not unmarshal action", err)
 			}
