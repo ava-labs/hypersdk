@@ -6,8 +6,6 @@ package cli
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 )
@@ -42,7 +40,7 @@ type SpamHelper interface {
 	//
 	// TODO: consider making these functions part of the required JSONRPC
 	// interface for the HyperSDK.
-	CreateClient(uri string, networkID uint32, chainID ids.ID) error
+	CreateClient(uri string) error
 	GetParser(ctx context.Context) (chain.Parser, error)
 	LookupBalance(choice int, address string) (uint64, error)
 

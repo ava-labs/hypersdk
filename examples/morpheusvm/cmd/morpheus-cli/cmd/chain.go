@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -64,8 +63,8 @@ var chainInfoCmd = &cobra.Command{
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return handler.Root().WatchChain(hideTxs, func(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
-			cli := controller.NewJSONRPCClient(uri, networkID, chainID)
+		return handler.Root().WatchChain(hideTxs, func(uri string) (chain.Parser, error) {
+			cli := controller.NewJSONRPCClient(uri)
 			return cli.Parser(context.TODO())
 		}, handleTx)
 	},

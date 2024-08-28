@@ -4,20 +4,15 @@
 package vm
 
 import (
-	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
-
-	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Config struct {
@@ -47,7 +42,7 @@ type Config struct {
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
 	// Config is defined by the Controller
-	Config map[string]any `json:"config"`
+	Config json.RawMessage `json:"config"`
 }
 
 func NewConfig() Config {
@@ -80,40 +75,9 @@ func NewConfig() Config {
 	}
 }
 
-type Genesis interface {
-	Load(context.Context, avatrace.Tracer, state.Mutable) error
-
-	GetStateBranchFactor() merkledb.BranchFactor
-}
-
 type AuthEngine interface {
 	GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier
 	Cache(auth chain.Auth)
-}
-
-type ControllerFactory interface {
-	New(
-		inner *VM, // hypersdk VM
-		log logging.Logger,
-		networkID uint32,
-		chainID ids.ID,
-		genesisBytes []byte,
-		upgradeBytes []byte,
-		configBytes []byte,
-	) (
-		Controller,
-		Genesis,
-		error,
-	)
-}
-
-type Controller interface {
-	Rules(t int64) chain.Rules // ms
-
-	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Controller is
-	// storing).
-	StateManager() chain.StateManager
 }
 
 type TxRemovedEvent struct {
