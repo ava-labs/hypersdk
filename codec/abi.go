@@ -23,16 +23,17 @@ type SingleActionABI struct {
 	Types map[string][]ABIField `json:"types"`
 }
 
-func GetVMABIString(actions []HasTypeID) ([]byte, error) {
+func GetVMABIString(actions []HasTypeID) (string, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		vmABI = append(vmABI, actionABI)
 	}
-	return json.MarshalIndent(vmABI, "", "  ")
+	resBytes, err := json.MarshalIndent(vmABI, "", "  ")
+	return string(resBytes), err
 }
 
 func getActionABI(action HasTypeID) (SingleActionABI, error) {

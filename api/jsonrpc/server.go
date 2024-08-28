@@ -139,3 +139,14 @@ func (j *JSONRPCServer) UnitPrices(
 	reply.UnitPrices = unitPrices
 	return nil
 }
+
+type GetABIArgs struct{}
+
+type GetABIReply struct {
+	ABIJSON string `json:"abi"`
+}
+
+func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
+	reply.ABIJSON = j.vm.GetABI()
+	return nil
+}

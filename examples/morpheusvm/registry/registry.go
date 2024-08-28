@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	Action    *codec.TypeParser[chain.Action]
-	Auth      *codec.TypeParser[chain.Auth]
-	ABIString []byte
+	Action *codec.TypeParser[chain.Action]
+	Auth   *codec.TypeParser[chain.Auth]
 )
 
 // Setup types
@@ -33,11 +32,6 @@ func init() {
 		Auth.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		Auth.Register(&auth.BLS{}, auth.UnmarshalBLS),
 	)
-
-	var err error
-	ABIString, err = codec.GetVMABIString(Action.GetRegisteredTypes())
-	errs.Add(err)
-
 	if errs.Errored() {
 		panic(errs.Err)
 	}

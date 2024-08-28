@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -67,15 +66,4 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	}
 	reply.Amount = balance
 	return err
-}
-
-type GetABIArgs struct{}
-
-type GetABIReply struct {
-	ABIJSON string `json:"abi"`
-}
-
-func (*JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	reply.ABIJSON = string(registry.ABIString)
-	return nil
 }

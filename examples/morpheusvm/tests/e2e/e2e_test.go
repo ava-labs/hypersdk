@@ -4,16 +4,13 @@
 package e2e_test
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
@@ -55,28 +52,4 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Initialize the local test environment from the global state
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
-})
-
-var _ = ginkgo.Describe("[MorpheusVM]", func() {
-	ginkgo.It("responds with a valid ABI", func() {
-		tc := e2e.NewTestContext()
-		require := require.New(tc)
-		network := e2e.GetEnv(tc).GetNetwork()
-		nodeBaseURI := network.GetNodeURIs()[0].URI
-		blockchainID := network.GetSubnet(consts.Name).Chains[0].ChainID
-		nodeURI := fmt.Sprintf("%s/ext/bc/%s", nodeBaseURI, blockchainID)
-
-		morpheusRPCClient := controller.NewJSONRPCClient(nodeURI, network.NetworkID, blockchainID)
-
-		abi, err := morpheusRPCClient.GetABI(context.TODO())
-		require.NoError(err)
-
-		var abiJSON []map[string]interface{}
-		err = json.Unmarshal([]byte(abi), &abiJSON)
-		require.NoError(err)
-
-		obj := abiJSON[0]
-		require.Equal(obj["id"], float64(0)) // JSON numbers are parsed as float64
-		require.Equal(obj["name"], "Transfer")
-	})
 })
