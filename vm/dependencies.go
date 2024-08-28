@@ -4,19 +4,15 @@
 package vm
 
 import (
-	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
-
-	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Config struct {
@@ -46,7 +42,7 @@ type Config struct {
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
 	// Config is defined by the Controller
-	Config map[string]any `json:"config"`
+	Config json.RawMessage `json:"config"`
 }
 
 func NewConfig() Config {
@@ -77,19 +73,6 @@ func NewConfig() Config {
 		TargetGossipDuration:             20 * time.Millisecond,
 		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks
 	}
-}
-
-type GenesisAndRuleFactory interface {
-	Load(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
-}
-
-type Genesis interface {
-	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error
-	GetStateBranchFactor() merkledb.BranchFactor
-}
-
-type RuleFactory interface {
-	GetRules(t int64) chain.Rules
 }
 
 type AuthEngine interface {

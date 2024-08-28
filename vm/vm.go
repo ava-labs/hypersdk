@@ -166,7 +166,7 @@ func New(
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
 		authEngine:            authEngine,
-		genesisAndRuleFactory: genesis.DefaultGenesisAndRuleFactory{},
+		genesisAndRuleFactory: genesis.DefaultGenesisFactory{},
 		options:               options,
 	}, nil
 }

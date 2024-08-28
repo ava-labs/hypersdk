@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
 )
 
@@ -62,12 +63,6 @@ func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc 
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[interface{}]) RegisterFunc {
-	return func(vm *VM) {
-		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
-	}
-}
-
 func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
 	return func(vm *VM) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
@@ -76,7 +71,7 @@ func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRem
 
 // TODO: this option does not currently work because it must be executed before the genesisAndRuleFactory is used
 // but options are invoked after the genesis has been setup.
-func WithGenesisAndRulesFactory(factory GenesisAndRuleFactory) OptionFunc {
+func WithGenesisAndRulesFactory(factory genesis.GenesisAndRuleFactory) OptionFunc {
 	return func(vm *VM, _ []byte) error {
 		vm.genesisAndRuleFactory = factory
 		return nil

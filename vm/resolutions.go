@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -349,6 +350,10 @@ func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummar
 
 func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
+}
+
+func (vm *VM) Genesis() genesis.Genesis {
+	return vm.genesis
 }
 
 func (vm *VM) StateManager() chain.StateManager {

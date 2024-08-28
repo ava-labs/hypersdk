@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
 )
@@ -53,7 +54,7 @@ func TestBlockCache(t *testing.T) {
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
-		ruleFactory:    &ImmutableRuleFactory{rules},
+		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
 	}
 
 	// Init metrics (called in [Accepted])

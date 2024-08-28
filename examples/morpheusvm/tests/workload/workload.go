@@ -21,10 +21,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 const initialBalance uint64 = 10_000_000_000_000
@@ -62,26 +61,24 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules], workload.TxWorkloadFactory, error) {
-	combined := &vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules]{}
-	combined.InitialRules = vm.NewRules()
-	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	combined.InitialRules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	combined.InitialRules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	combined.InitialRules.MinBlockGap = minBlockGap
-
-	combined.Genesis = vm.NewAllocationGenesis(func(addr string) (codec.Address, error) { return codec.ParseAddressBech32(consts.HRP, addr) }, storage.SetBalance)
-
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519AddrStrs))
 	for _, prefundedAddrStr := range ed25519AddrStrs {
-		combined.Genesis.CustomAllocation = append(combined.Genesis.CustomAllocation, &vm.CustomAllocation{
+		customAllocs = append(customAllocs, &genesis.CustomAllocation{
 			Address: prefundedAddrStr,
 			Balance: initialBalance,
 		})
 	}
 
-	return combined, &workloadFactory{
+	genesis := genesis.NewDefaultGenesis(customAllocs)
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	genesis.Rules.MinBlockGap = minBlockGap
+
+	return genesis, &workloadFactory{
 		factories: ed25519AuthFactories,
 		addrs:     ed25519Addrs,
 	}, nil

@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package genesis
 
 import (
 	"context"
@@ -19,7 +19,23 @@ import (
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var _ Genesis = (*DefaultGenesis)(nil)
+var (
+	_ Genesis               = (*DefaultGenesis)(nil)
+	_ GenesisAndRuleFactory = (*DefaultGenesisFactory)(nil)
+)
+
+type GenesisAndRuleFactory interface {
+	Load(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
+}
+
+type Genesis interface {
+	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error
+	GetStateBranchFactor() merkledb.BranchFactor
+}
+
+type RuleFactory interface {
+	GetRules(t int64) chain.Rules
+}
 
 type CustomAllocation struct {
 	Address string `json:"address"`
@@ -29,12 +45,14 @@ type CustomAllocation struct {
 type DefaultGenesis struct {
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 	CustomAllocation  []*CustomAllocation   `json:"customAllocation"`
+	Rules             *Rules                `json:"initialRules"`
 }
 
 func NewDefaultGenesis(customAllocations []*CustomAllocation) *DefaultGenesis {
 	return &DefaultGenesis{
 		StateBranchFactor: merkledb.BranchFactor16,
 		CustomAllocation:  customAllocations,
+		Rules:             NewDefaultRules(),
 	}
 }
 
@@ -63,21 +81,15 @@ func (g *DefaultGenesis) GetStateBranchFactor() merkledb.BranchFactor {
 	return g.StateBranchFactor
 }
 
-type defaultGenesisAndRuleFactory struct{}
+type DefaultGenesisFactory struct{}
 
-type DefaultGenesisWithRules struct {
-	Genesis      DefaultGenesis `json:"genesis"`
-	GenesisRules Rules          `json:"initialRules"`
-}
-
-func (defaultGenesisAndRuleFactory) Load(genesisBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
-	genesisWithRules := &DefaultGenesisWithRules{}
-	if err := json.Unmarshal(genesisBytes, genesisWithRules); err != nil {
+func (DefaultGenesisFactory) Load(genesisBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
+	genesis := &DefaultGenesis{}
+	if err := json.Unmarshal(genesisBytes, genesis); err != nil {
 		return nil, nil, err
 	}
-	rules := genesisWithRules.GenesisRules
-	rules.NetworkID = networkID
-	rules.ChainID = chainID
+	genesis.Rules.NetworkID = networkID
+	genesis.Rules.ChainID = chainID
 
-	return &genesisWithRules.Genesis, &ImmutableRuleFactory{&rules}, nil
+	return genesis, &ImmutableRuleFactory{genesis.Rules}, nil
 }

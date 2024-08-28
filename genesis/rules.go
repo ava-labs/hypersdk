@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package genesis
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
@@ -12,7 +12,10 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
-var _ chain.Rules = (*Rules)(nil)
+var (
+	_ chain.Rules = (*Rules)(nil)
+	_ RuleFactory = (*ImmutableRuleFactory)(nil)
+)
 
 type Rules struct {
 	NetworkID uint32 `json:"networkID"`

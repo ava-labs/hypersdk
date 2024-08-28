@@ -9,7 +9,7 @@ const Namespace = "controller"
 
 func With() vm.Option {
 	return vm.NewOption(Namespace, func(v *vm.VM, _ []byte) error {
-		vm.WithControllerAPIs(jsonRPCServerFactory{})(v)
+		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
 		return nil
 	})
 }

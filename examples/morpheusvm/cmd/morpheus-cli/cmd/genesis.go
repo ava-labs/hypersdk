@@ -10,11 +10,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/genesis"
 )
 
 var genesisCmd = &cobra.Command{
@@ -34,56 +31,48 @@ var genGenesisCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		combined := &vm.GenesisWithInitialRules[*vm.AllocationGenesis, *vm.Rules]{}
-		combined.Genesis = vm.NewAllocationGenesis(
-			func(saddr string) (codec.Address, error) {
-				return codec.ParseAddressBech32(consts.HRP, saddr)
-			},
-			storage.SetBalance)
-		combined.InitialRules = vm.NewRules()
-
+		a, err := os.ReadFile(args[0])
+		if err != nil {
+			return err
+		}
+		var allocs []*genesis.CustomAllocation
+		if err := json.Unmarshal(a, &allocs); err != nil {
+			return err
+		}
+		genesis := genesis.NewDefaultGenesis(allocs)
 		if len(minUnitPrice) > 0 {
 			d, err := fees.ParseDimensions(minUnitPrice)
 			if err != nil {
 				return err
 			}
-			combined.InitialRules.MinUnitPrice = d
+			genesis.Rules.MinUnitPrice = d
 		}
 		if len(maxBlockUnits) > 0 {
 			d, err := fees.ParseDimensions(maxBlockUnits)
 			if err != nil {
 				return err
 			}
-			combined.InitialRules.MaxBlockUnits = d
+			genesis.Rules.MaxBlockUnits = d
 		}
 		if len(windowTargetUnits) > 0 {
 			d, err := fees.ParseDimensions(windowTargetUnits)
 			if err != nil {
 				return err
 			}
-			combined.InitialRules.WindowTargetUnits = d
+			genesis.Rules.WindowTargetUnits = d
 		}
 		if minBlockGap >= 0 {
-			combined.InitialRules.MinBlockGap = minBlockGap
+			genesis.Rules.MinBlockGap = minBlockGap
 		}
 
-		a, err := os.ReadFile(args[0])
-		if err != nil {
-			return err
-		}
-		var allocs []*vm.CustomAllocation
-		if err := json.Unmarshal(a, &allocs); err != nil {
-			return err
-		}
-		combined.Genesis.CustomAllocation = allocs
-
-		b, err := json.Marshal(combined)
+		b, err := json.Marshal(genesis)
 		if err != nil {
 			return err
 		}
 		if err := os.WriteFile(genesisFile, b, fsModeWrite); err != nil {
 			return err
 		}
+
 		color.Green("created genesis and saved to %s", genesisFile)
 		return nil
 	},
