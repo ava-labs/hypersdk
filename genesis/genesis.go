@@ -66,7 +66,7 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
-		supply, err = safemath.Add[uint64](supply, alloc.Balance)
+		supply, err = safemath.Add(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}

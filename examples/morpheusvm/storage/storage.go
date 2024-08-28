@@ -135,7 +135,7 @@ func AddBalance(
 	if !exists && !create {
 		return nil
 	}
-	nbal, err := smath.Add64(bal, amount)
+	nbal, err := smath.Add(bal, amount)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
