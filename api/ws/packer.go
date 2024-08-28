@@ -30,7 +30,7 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	}
 	p.PackBytes(mresults)
 	p.PackFixedBytes(b.FeeManager().UnitPrices().Bytes())
-	return p.Bytes(), p.Err()
+	return p.Bytes, p.Err
 }
 
 func UnpackBlockMessage(
@@ -50,8 +50,7 @@ func UnpackBlockMessage(
 	if err != nil {
 		return nil, nil, fees.Dimensions{}, err
 	}
-	pricesMsg := make([]byte, fees.DimensionsLen)
-	p.UnpackFixedBytes(fees.DimensionsLen, &pricesMsg)
+	pricesMsg := p.UnpackFixedBytes(fees.DimensionsLen)
 	prices, err := fees.UnpackDimensions(pricesMsg)
 	if err != nil {
 		return nil, nil, fees.Dimensions{}, err
@@ -59,7 +58,7 @@ func UnpackBlockMessage(
 	if !p.Empty() {
 		return nil, nil, fees.Dimensions{}, chain.ErrInvalidObject
 	}
-	return blk, results, prices, p.Err()
+	return blk, results, prices, p.Err
 }
 
 // Could be a better place for these methods
@@ -72,7 +71,7 @@ func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 	if err := result.Marshal(p); err != nil {
 		return nil, err
 	}
-	return p.Bytes(), p.Err()
+	return p.Bytes, p.Err
 }
 
 // Packs a removed block message
@@ -82,8 +81,8 @@ func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(true)
-	p.PackString(errString)
-	return p.Bytes(), p.Err()
+	p.PackStr(errString)
+	return p.Bytes, p.Err
 }
 
 // Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
@@ -95,7 +94,7 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	p.UnpackID(true, &txID)
 	if p.UnpackBool() {
 		err := p.UnpackString(true)
-		return ids.Empty, errors.New(err), nil, p.Err()
+		return ids.Empty, errors.New(err), nil, p.Err
 	}
 	result, err := chain.UnmarshalResult(p)
 	if err != nil {
@@ -104,5 +103,5 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	if !p.Empty() {
 		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
-	return txID, nil, result, p.Err()
+	return txID, nil, result, p.Err
 }

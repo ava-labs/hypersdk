@@ -88,7 +88,7 @@ func (t *Transfer) Size() int {
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
-	p.PackUint64(t.Value)
+	p.PackLong(t.Value)
 	p.PackBytes(t.Memo)
 }
 
@@ -97,7 +97,7 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
-	return &transfer, p.Err()
+	return &transfer, p.Err
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {

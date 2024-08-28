@@ -50,9 +50,9 @@ func (*Base) Size() int {
 }
 
 func (b *Base) Marshal(p *codec.Packer) {
-	p.PackInt64(b.Timestamp)
+	p.PackLong(uint64(b.Timestamp))
 	p.PackID(b.ChainID)
-	p.PackUint64(b.MaxFee)
+	p.PackLong(b.MaxFee)
 }
 
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
@@ -64,5 +64,5 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	}
 	p.UnpackID(true, &base.ChainID)
 	base.MaxFee = p.UnpackUint64(true)
-	return &base, p.Err()
+	return &base, p.Err
 }

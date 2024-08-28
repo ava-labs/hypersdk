@@ -61,7 +61,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 		p.PackByte(action.GetTypeID())
 		action.Marshal(p)
 	}
-	return p.Bytes(), p.Err()
+	return p.Bytes, p.Err
 }
 
 func (t *Transaction) Sign(
@@ -86,10 +86,10 @@ func (t *Transaction) Sign(
 	if err := t.Marshal(p); err != nil {
 		return nil, err
 	}
-	if err := p.Err(); err != nil {
+	if err := p.Err; err != nil {
 		return nil, err
 	}
-	p = codec.NewReader(p.Bytes(), consts.MaxInt)
+	p = codec.NewReader(p.Bytes, consts.MaxInt)
 	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
@@ -354,7 +354,7 @@ func (t *Transaction) Execute(
 func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
-		return p.Err()
+		return p.Err
 	}
 
 	return t.marshalActions(p)
@@ -371,7 +371,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
 	t.Auth.Marshal(p)
-	return p.Err()
+	return p.Err
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -380,13 +380,13 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	}
 	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(len(txs))
+	p.PackInt(uint32(len(txs)))
 	for _, tx := range txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
 	}
-	return p.Bytes(), p.Err()
+	return p.Bytes, p.Err
 }
 
 func UnmarshalTxs(
@@ -399,7 +399,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < txCount; i++ {
+	for i := 0; i < int(txCount); i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
@@ -411,7 +411,7 @@ func UnmarshalTxs(
 		// Ensure no leftover bytes
 		return nil, nil, ErrInvalidObject
 	}
-	return authCounts, txs, p.Err()
+	return authCounts, txs, p.Err
 }
 
 func UnmarshalTx(
@@ -419,7 +419,7 @@ func UnmarshalTx(
 	actionRegistry *codec.TypeParser[Action],
 	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
-	start := p.Offset()
+	start := p.Offset
 	base, err := UnmarshalBase(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
@@ -428,7 +428,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
-	digest := p.Offset()
+	digest := p.Offset
 	authType := p.UnpackByte()
 	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
 	if !ok {
@@ -449,12 +449,12 @@ func UnmarshalTx(
 	tx.Base = base
 	tx.Actions = actions
 	tx.Auth = auth
-	if err := p.Err(); err != nil {
-		return nil, p.Err()
+	if err := p.Err; err != nil {
+		return nil, p.Err
 	}
-	codecBytes := p.Bytes()
+	codecBytes := p.Bytes
 	tx.digest = codecBytes[start:digest]
-	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
+	tx.bytes = codecBytes[start:p.Offset] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return &tx, nil

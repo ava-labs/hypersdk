@@ -133,24 +133,24 @@ func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 		size += codec.BytesLen(msg)
 	}
 	msgBatch := codec.NewWriter(size, maxSize)
-	msgBatch.PackInt(len(msgs))
+	msgBatch.PackInt(uint32(len(msgs)))
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)
 	}
-	return msgBatch.Bytes(), msgBatch.Err()
+	return msgBatch.Bytes, msgBatch.Err
 }
 
 func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 	msgBatch := codec.NewReader(msg, maxSize)
 	msgLen := msgBatch.UnpackInt(true)
 	msgs := [][]byte{}
-	for i := 0; i < msgLen; i++ {
+	for i := 0; i < int(msgLen); i++ {
 		var nextMsg []byte
 		msgBatch.UnpackBytes(-1, true, &nextMsg)
-		if err := msgBatch.Err(); err != nil {
+		if err := msgBatch.Err; err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, nextMsg)
 	}
-	return msgs, msgBatch.Err()
+	return msgs, msgBatch.Err
 }
