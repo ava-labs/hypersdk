@@ -161,7 +161,7 @@ func New(
 
 	abiString, err := codec.GetVMABIString((*actionRegistry).GetRegisteredTypes())
 	if err != nil {
-		return nil, fmt.Errorf("calculating ABI string: %v", err)
+		return nil, fmt.Errorf("calculating ABI string: %w", err)
 	}
 
 	return &VM{

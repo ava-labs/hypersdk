@@ -276,7 +276,7 @@ func TestABISpec(t *testing.T) {
     }
   }
 ]`
-	require.Equal(expectedABI, string(abiString))
+	require.Equal(expectedABI, abiString)
 
 	abiHash := sha256.Sum256([]byte(abiString))
 	require.Equal("0ac2ecd059822e91ff3a400d8e8cdd4adc028bc1409b605dea38d09cf7bc7611", hex.EncodeToString(abiHash[:]))

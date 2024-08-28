@@ -42,7 +42,7 @@ func TestGetABIBasic(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 func TestGetABIBasicPtr(t *testing.T) {
@@ -67,7 +67,7 @@ func TestGetABIBasicPtr(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 type Transfer struct {
@@ -98,7 +98,7 @@ func TestGetABITransfer(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 type AllInts struct {
@@ -139,7 +139,7 @@ func TestGetABIAllInts(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 type InnerStruct struct {
@@ -184,7 +184,7 @@ func TestGetABIOuterStructSingle(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 type OuterStructArray struct {
@@ -224,7 +224,7 @@ func TestGetABIOuterStructArray(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
 
 type CompositionInner struct {
@@ -263,5 +263,5 @@ func TestGetABIComposition(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`, abiString)
 }
