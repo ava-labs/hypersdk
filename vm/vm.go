@@ -144,6 +144,7 @@ type VM struct {
 
 func New(
 	v *version.Semantic,
+	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
@@ -165,7 +166,7 @@ func New(
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
 		authEngine:            authEngine,
-		genesisAndRuleFactory: genesis.DefaultGenesisFactory{},
+		genesisAndRuleFactory: genesisFactory,
 		options:               options,
 	}, nil
 }

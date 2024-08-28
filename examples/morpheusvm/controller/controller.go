@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -30,6 +31,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		consts.Version,
+		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
 		registry.Action,
 		registry.Auth,
