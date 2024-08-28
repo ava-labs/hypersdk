@@ -81,16 +81,15 @@ type VM struct {
 	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
 	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
-	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
-	controllerAPIHandlerFactories []api.HandlerFactory[interface{}] // TODO: remove arg completely
-	rawStateDB                    database.Database
-	stateDB                       merkledb.MerkleDB
-	vmDB                          database.Database
-	handlers                      map[string]http.Handler
-	stateManager                  chain.StateManager
-	actionRegistry                chain.ActionRegistry
-	authRegistry                  chain.AuthRegistry
-	authEngine                    map[uint8]AuthEngine
+	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
+	rawStateDB            database.Database
+	stateDB               merkledb.MerkleDB
+	vmDB                  database.Database
+	handlers              map[string]http.Handler
+	stateManager          chain.StateManager
+	actionRegistry        chain.ActionRegistry
+	authRegistry          chain.AuthRegistry
+	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -477,19 +476,6 @@ func (vm *VM) Initialize(
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
-		if err != nil {
-			return fmt.Errorf("failed to initialize api: %w", err)
-		}
-
-		if _, ok := vm.handlers[api.Path]; ok {
-			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
-		}
-
-		vm.handlers[api.Path] = api.Handler
-	}
-
-	for _, apiFactory := range vm.controllerAPIHandlerFactories {
-		api, err := apiFactory.New(struct{}{})
 		if err != nil {
 			return fmt.Errorf("failed to initialize api: %w", err)
 		}
