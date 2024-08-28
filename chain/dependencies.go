@@ -190,14 +190,10 @@ type Marshaler interface {
 	Marshal(p *codec.Packer)
 }
 
-type HasTypeID interface {
+type Object interface {
 	// GetTypeID uniquely identifies each supported [Action]. We use IDs to avoid
 	// reflection.
 	GetTypeID() uint8
-}
-
-type Object interface {
-	HasTypeID
 
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//

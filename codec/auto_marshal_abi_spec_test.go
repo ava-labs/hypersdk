@@ -74,7 +74,7 @@ func (MockActionTransfer) GetTypeID() uint8 {
 func TestABISpec(t *testing.T) {
 	require := require.New(t)
 
-	vmActions := []codec.HavingTypeID{
+	vmActions := []codec.HasTypeID{
 		MockActionSingleNumber{},
 		MockActionTransfer{},
 		MockActionAllNumbers{},

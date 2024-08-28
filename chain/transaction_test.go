@@ -138,11 +138,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 	actionRegistry := codec.NewTypeParser[chain.Action]()
 	authRegistry := codec.NewTypeParser[chain.Auth]()
 
-	err = authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
+	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
-	err = actionRegistry.Register((&mockTransferAction{}).GetTypeID(), unmarshalTransfer)
+	err = actionRegistry.Register(&mockTransferAction{}, unmarshalTransfer)
 	require.NoError(err)
-	err = actionRegistry.Register((&action2{}).GetTypeID(), unmarshalAction2)
+	err = actionRegistry.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
