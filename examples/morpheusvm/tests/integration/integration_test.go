@@ -73,8 +73,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	testSubscriber := workload.NewWorkloadTestSubscriber()
 	externalsubscriberServer := externalsubscriber.NewExternalSubscriberServer(
 		log,
-		controller.ParserFactory,
-		[]event.Subscription[externalsubscriber.ExternalSubscriberSubscriptionData]{testSubscriber},
+		controller.NewParserFromBytes,
+		[]event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData]{testSubscriber},
 	)
 	grpcHandler, err := externalsubscriber.NewGRPCHandler(externalsubscriberServer, log, ":9001")
 	require.NoError(err)

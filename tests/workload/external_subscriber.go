@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	_ event.Subscription[externalsubscriber.ExternalSubscriberSubscriptionData] = (*WorkloadTestSubscriber)(nil)
+	_ event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData] = (*WorkloadTestSubscriber)(nil)
 
 	_ TestSubscriberServer = (*ExternalSubscriberServer)(nil)
 	_ TestSubscriberServer = (*NoOpSubscriberServer)(nil)
@@ -46,7 +46,7 @@ func (w *WorkloadTestSubscriber) CloseChannels() {
 	w.Unlock()
 }
 
-func (w *WorkloadTestSubscriber) Accept(e externalsubscriber.ExternalSubscriberSubscriptionData) error {
+func (w *WorkloadTestSubscriber) Accept(e *externalsubscriber.ExternalSubscriberSubscriptionData) error {
 	w.Lock()
 	defer w.Unlock()
 

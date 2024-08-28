@@ -19,13 +19,13 @@ import (
 var (
 	logFactory          logging.Factory
 	log                 logging.Logger
-	acceptedSubscribers []event.Subscription[externalsubscriber.ExternalSubscriberSubscriptionData]
+	acceptedSubscribers []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData]
 )
 
 var startExternalSubscriberCommand = &cobra.Command{
 	Use:   "start-external-subscriber",
 	Short: "Start an external subscriber server",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		// Initialize global variables
 		logFactory = logging.NewFactory(logging.Config{
 			DisplayLevel: logging.Debug,
@@ -39,7 +39,7 @@ var startExternalSubscriberCommand = &cobra.Command{
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, controller.ParserFactory, acceptedSubscribers)
+		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, controller.NewParserFromBytes, acceptedSubscribers)
 		grpcHandler, err := externalsubscriber.NewGRPCHandler(externalSubscriberServer, log, externalSubscriberPort)
 		if err != nil {
 			return err
@@ -48,7 +48,7 @@ var startExternalSubscriberCommand = &cobra.Command{
 
 		<-signals
 		grpcHandler.Stop()
-		log.Info("\nShutting down...")
+		log.Info("Shutting down...")
 		return nil
 	},
 }

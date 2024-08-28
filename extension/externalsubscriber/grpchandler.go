@@ -16,23 +16,23 @@ import (
 type GRPCHandler struct {
 	gRPCServer *grpc.Server
 	listener   net.Listener
-	tcpPort    string
+	addr       string
 	log        logging.Logger
 }
 
-func NewGRPCHandler(e *ExternalSubscriberServer, log logging.Logger, tcpPort string) (*GRPCHandler, error) {
-	lis, err := net.Listen("tcp", tcpPort) // #nosec G102
+func NewGRPCHandler(e *ExternalSubscriberServer, log logging.Logger, addr string) (*GRPCHandler, error) {
+	lis, err := net.Listen("tcp", addr) // #nosec G102
 	if err != nil {
 		return nil, err
 	}
-	log.Info("listening to tcp port", zap.String("address", tcpPort))
+	log.Info("listening to tcp port", zap.String("address", addr))
 
 	s := grpc.NewServer()
 	pb.RegisterExternalSubscriberServer(s, e)
 	return &GRPCHandler{
 		gRPCServer: s,
 		listener:   lis,
-		tcpPort:    tcpPort,
+		addr:       addr,
 		log:        log,
 	}, nil
 }
@@ -41,7 +41,7 @@ func (g *GRPCHandler) Start() {
 	go func() {
 		if err := g.gRPCServer.Serve(g.listener); err != nil {
 			g.log.Fatal("failed to serve tcp port",
-				zap.String("address", g.tcpPort),
+				zap.String("address", g.addr),
 				zap.Any("err", err),
 			)
 		}

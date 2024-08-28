@@ -18,7 +18,7 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-type ParserFactory func(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error)
+type CreateParserFromBytes func(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error)
 
 var (
 	ErrParserNotInitialized     = errors.New("parser not initialized")
@@ -45,19 +45,19 @@ func NewExternalSubscriberSubscriptionData(
 type ExternalSubscriberServer struct {
 	pb.ExternalSubscriberServer
 	parser              chain.Parser
-	parserFactory       ParserFactory
-	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData]
+	createParser        CreateParserFromBytes
+	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData]
 	log                 logging.Logger
 }
 
 func NewExternalSubscriberServer(
 	logger logging.Logger,
-	parserFactory ParserFactory,
-	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData],
+	createParser CreateParserFromBytes,
+	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData],
 ) *ExternalSubscriberServer {
 	return &ExternalSubscriberServer{
 		log:                 logger,
-		parserFactory:       parserFactory,
+		createParser:        createParser,
 		acceptedSubscribers: acceptedSubscribers,
 	}
 }
@@ -69,17 +69,19 @@ func (e *ExternalSubscriberServer) Initialize(_ context.Context, initRequest *pb
 	// Unmarshal chainID
 	chainID := ids.ID(initRequest.ChainId)
 	// Create parser and store
-	parser, err := e.parserFactory(initRequest.NetworkId, chainID, initRequest.Genesis)
+	parser, err := e.createParser(initRequest.NetworkId, chainID, initRequest.Genesis)
 	if err != nil {
 		return &emptypb.Empty{}, err
 	}
 	e.parser = parser
-	e.log.Info("external subscriber has initialized the parser associated with morpheusVM")
+	e.log.Info("initialized external subscriber",
+		zap.Uint32("networkID", initRequest.NetworkId),
+		zap.Stringer("chainID", chainID),
+	)
 	return &emptypb.Empty{}, nil
 }
 
 func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockRequest) (*emptypb.Empty, error) {
-	// Continue only if we can parse
 	if e.parser == nil {
 		return &emptypb.Empty{}, ErrParserNotInitialized
 	}
@@ -92,15 +94,14 @@ func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockReq
 	if err != nil {
 		return &emptypb.Empty{}, err
 	}
-
-	e.log.Info("external subscriber server received a block with",
-		zap.Any("height", blk.Hght),
+	e.log.Debug("external subscriber received accepted block",
+		zap.Uint64("height", blk.Hght),
 	)
 
 	// Forward block + results
-	externalSubscriberSubscriptionData := NewExternalSubscriberSubscriptionData(blk, results)
+	forwardedBlockData := NewExternalSubscriberSubscriptionData(blk, results)
 	for _, s := range e.acceptedSubscribers {
-		if err := s.Accept(*externalSubscriberSubscriptionData); err != nil {
+		if err := s.Accept(forwardedBlockData); err != nil {
 			return &emptypb.Empty{}, err
 		}
 	}

@@ -126,8 +126,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	return NewParser(cli.networkID, cli.chainID, g), nil
 }
 
-// Used as a lambda function for creating ExternalSubscriberServer parser
-func ParserFactory(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error) {
+func NewParserFromBytes(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error) {
 	var genesis genesis.Genesis
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
