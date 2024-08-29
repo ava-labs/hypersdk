@@ -30,7 +30,7 @@ func (*TxGossipHandler) Disconnected(context.Context, ids.NodeID) error {
 
 func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	if !t.vm.isReady() {
-		t.vm.SnowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
+		t.vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
 		return nil
 	}
 

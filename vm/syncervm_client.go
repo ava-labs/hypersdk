@@ -72,7 +72,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	sb *chain.SyncableBlock,
 ) (block.StateSyncMode, error) {
 	s.init = true
-	s.vm.SnowCtx.Log.Info("accepted syncable block",
+	s.vm.snowCtx.Log.Info("accepted syncable block",
 		zap.Uint64("height", sb.Height()),
 		zap.Stringer("blockID", sb.ID()),
 	)
@@ -80,11 +80,11 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	// If we did not finish syncing, we must state sync.
 	syncing, err := s.vm.GetDiskIsSyncing()
 	if err != nil {
-		s.vm.SnowCtx.Log.Warn("could not determine if syncing", zap.Error(err))
+		s.vm.snowCtx.Log.Warn("could not determine if syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}
 	if !syncing && (s.vm.lastAccepted.Hght+s.vm.config.StateSyncMinBlocks > sb.Height()) {
-		s.vm.SnowCtx.Log.Info(
+		s.vm.snowCtx.Log.Info(
 			"bypassing state sync",
 			zap.Uint64("lastAccepted", s.vm.lastAccepted.Hght),
 			zap.Uint64("syncableHeight", sb.Height()),
@@ -111,7 +111,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	// MerkleDB will handle clearing any keys on-disk that are no
 	// longer necessary.
 	s.target = sb.StatelessBlock
-	s.vm.SnowCtx.Log.Info(
+	s.vm.snowCtx.Log.Info(
 		"starting state sync",
 		zap.Uint64("height", s.target.Hght),
 		zap.Stringer("summary", sb),
@@ -131,7 +131,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	syncClient, err := avasync.NewClient(&avasync.ClientConfig{
 		BranchFactor:     s.vm.genesis.GetStateBranchFactor(),
 		NetworkClient:    s.vm.stateSyncNetworkClient,
-		Log:              s.vm.SnowCtx.Log,
+		Log:              s.vm.snowCtx.Log,
 		Metrics:          metrics,
 		StateSyncNodeIDs: nil, // pull from all
 	})
@@ -143,7 +143,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		DB:                    s.vm.stateDB,
 		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,
-		Log:                   s.vm.SnowCtx.Log,
+		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,
 	})
 	if err != nil {
@@ -170,7 +170,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 
 	// Kickoff state syncing from [s.target]
 	if err := s.syncManager.Start(context.Background()); err != nil {
-		s.vm.SnowCtx.Log.Warn("not starting state syncing", zap.Error(err))
+		s.vm.snowCtx.Log.Warn("not starting state syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}
 	go func() {
@@ -179,7 +179,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		// [syncManager] guarantees this will always return so it isn't possible to
 		// deadlock.
 		s.stateSyncErr = s.syncManager.Wait(context.Background())
-		s.vm.SnowCtx.Log.Info("state sync done", zap.Error(s.stateSyncErr))
+		s.vm.snowCtx.Log.Info("state sync done", zap.Error(s.stateSyncErr))
 		if s.stateSyncErr == nil {
 			// if the sync was successful, update the last accepted pointers.
 			s.stateSyncErr = s.finishSync()
