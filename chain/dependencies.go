@@ -200,7 +200,7 @@ type Object interface {
 }
 
 type Marshaler interface {
-	// Marshal encodes an [Action] as bytes.
+	// Marshal encodes a type as bytes.
 	Marshal(p *codec.Packer)
 	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
 	// memory during encoding and to charge bandwidth fees.
