@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,6 +29,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/event"
+	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -56,15 +59,17 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM               func(...vm.Option) (*vm.VM, error)
-	genesisBytes           []byte
-	configBytes            [][]byte
-	vmID                   ids.ID
-	parser                 chain.Parser
-	customJSONRPCEndpoint  string
-	txWorkloadFactory      workload.TxWorkloadFactory
-	authFactory            chain.AuthFactory
-	testSubscriberWorkload workload.TestSubscriberServer
+	createVM              func(...vm.Option) (*vm.VM, error)
+	genesisBytes          []byte
+	vmID                  ids.ID
+	createParserFromBytes func(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error)
+	parser                chain.Parser
+	subnetID, chainID     ids.ID
+	customJSONRPCEndpoint string
+	txWorkloadFactory     workload.TxWorkloadFactory
+	authFactory           chain.AuthFactory
+
+	externalSubscriberAcceptedBlocksCh chan ids.ID
 )
 
 type instance struct {
@@ -93,23 +98,27 @@ func init() {
 func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
 	genesis []byte,
-	config [][]byte,
 	id ids.ID,
-	vmParser chain.Parser,
+	createParser func(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error),
 	customEndpoint string,
 	workloadFactory workload.TxWorkloadFactory,
 	authF chain.AuthFactory,
-	e workload.TestSubscriberServer,
 ) {
+	require := require.New(ginkgo.GinkgoT())
 	createVM = newVM
 	genesisBytes = genesis
-	configBytes = config
 	vmID = id
-	parser = vmParser
+	createParserFromBytes = createParser
 	customJSONRPCEndpoint = customEndpoint
 	txWorkloadFactory = workloadFactory
 	authFactory = authF
-	testSubscriberWorkload = e
+
+	networkID = uint32(1)
+	subnetID = ids.GenerateTestID()
+	chainID = ids.GenerateTestID()
+	createdParser, err := createParserFromBytes(networkID, chainID, genesisBytes)
+	require.NoError(err)
+	parser = createdParser
 
 	setInstances()
 }
@@ -121,18 +130,37 @@ func setInstances() {
 
 	// create embedded VMs
 	instances = make([]instance, numVMs)
-	// start external subscriber server
-	testSubscriberWorkload.StartHandler()
 
-	if configBytes != nil {
-		require.Len(configBytes, numVMs, "mismatch between number of VMs and configs provided")
-	} else {
-		configBytes = make([][]byte, 3)
+	externalSubscriberConfig := vm.NewConfig()
+	externalSubscriberConfig.Config = map[string]interface{}{
+		externalsubscriber.Namespace: externalsubscriber.Config{
+			Enabled:       true,
+			ServerAddress: "localhost:9001",
+		},
 	}
 
-	networkID = uint32(1)
-	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
+	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
+	require.NoError(err)
+	configs := make([][]byte, numVMs)
+	configs[0] = externalSubscriberConfigBytes
+
+	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
+	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData]{
+		event.SubscriptionFunc[*externalsubscriber.ExternalSubscriberSubscriptionData]{
+			AcceptF: func(data *externalsubscriber.ExternalSubscriberSubscriptionData) error {
+				blkID, err := data.Blk.ID()
+				require.NoError(err)
+				externalSubscriberAcceptedBlocksCh <- blkID
+				return nil
+			},
+		},
+	})
+	externalSubscriber0Handler, err := externalsubscriber.NewGRPCHandler(externalSubscriber0, log, ":9001")
+	require.NoError(err)
+	externalSubscriber0Handler.Start()
+	ginkgo.DeferCleanup(func() {
+		externalSubscriber0Handler.Stop()
+	})
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
@@ -179,7 +207,7 @@ func setInstances() {
 			db,
 			genesisBytes,
 			nil,
-			configBytes[i],
+			configs[i],
 			toEngine,
 			nil,
 			app,
@@ -233,8 +261,6 @@ var _ = ginkgo.AfterSuite(func() {
 		iv.WebSocketServer.Close()
 		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
-
-	testSubscriberWorkload.StopHandler()
 })
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -369,7 +395,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
-			accept := expectBlk(instances[1])
+			accept := expectBlk(1)
 			results := accept(true)
 			require.Len(results, 1)
 
@@ -391,7 +417,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			latestBlock.(*chain.StatelessBlock).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
-			accept := expectBlk(instances[1])
+			accept := expectBlk(1)
 			results := accept(true)
 
 			// Check results
@@ -413,13 +439,13 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
-			accept = expectBlk(instances[1])
+			accept = expectBlk(1)
 
 			tx, _, err = workload.GenerateTxWithAssertion(ctx)
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
-			accept2 = expectBlk(instances[1])
+			accept2 = expectBlk(1)
 		})
 
 		ginkgo.By("clear processing tip", func() {
@@ -485,7 +511,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
 		// Clear previous txs on instance 0
-		accept := expectBlk(instances[0])
+		accept := expectBlk(0)
 		accept(false) // don't care about results
 
 		// Subscribe to blocks
@@ -504,7 +530,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		accept = expectBlk(instances[0])
+		accept = expectBlk(0)
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -547,7 +573,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			hutils.Outf("{{yellow}}waiting for mempool to return non-zero txs{{/}}\n")
 			time.Sleep(500 * time.Millisecond)
 		}
-		accept := expectBlk(instances[0])
+		accept := expectBlk(0)
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -579,7 +605,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 				require.NoError(err)
 
-				accept := expectBlk(instances[0])
+				accept := expectBlk(0)
 				_ = accept(true)
 				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
@@ -587,57 +613,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			}
 		}
 	})
-
-	ginkgo.It("Communicates with external subscriber", func() {
-		ginkgo.By("sending empty blocks", func() {
-			// Wait to be able to send TXs again
-			time.Sleep(2 * time.Second)
-
-			testSubscriberWorkload.OpenChannels()
-			defer testSubscriberWorkload.CloseChannels()
-
-			blk, err := instances[0].vm.BuildBlock(ctx)
-			require.NoError(err)
-
-			require.NoError(blk.Verify(ctx))
-
-			require.NoError(instances[0].vm.SetPreference(ctx, blk.ID()))
-
-			require.NoError(blk.Accept(ctx))
-			blocks = append(blocks, blk)
-
-			statelessBlk := blk.(*chain.StatelessBlock)
-			testSubscriberWorkload.Get(require, statelessBlk)
-		})
-
-		ginkgo.By("sending non-empty blocks", func() {
-			// Wait to be able to send TXs again
-			time.Sleep(2 * time.Second)
-
-			testSubscriberWorkload.OpenChannels()
-			defer testSubscriberWorkload.CloseChannels()
-
-			workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
-			require.NoError(err)
-
-			tx, _, err := workload.GenerateTxWithAssertion(ctx)
-			require.NoError(err)
-			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
-			require.NoError(err)
-
-			accept := expectBlk(instances[0])
-			_ = accept(true)
-
-			latestBlock := blocks[len(blocks)-1]
-			blk := latestBlock.(*chain.StatelessBlock)
-
-			testSubscriberWorkload.Get(require, blk)
-		})
-	})
 })
 
-func expectBlk(i instance) func(add bool) []*chain.Result {
+func expectBlk(instanceIndex int) func(add bool) []*chain.Result {
 	require := require.New(ginkgo.GinkgoT())
+
+	i := instances[instanceIndex]
 
 	ctx := context.TODO()
 
@@ -656,6 +637,15 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
+		// Special case: verify the accepted block is sent to the external subscriber
+		if instanceIndex == 0 {
+			select {
+			case externalReceivedBlkID := <-externalSubscriberAcceptedBlocksCh:
+				require.Equal(blk.ID(), externalReceivedBlkID)
+			case <-time.After(5 * time.Second):
+				require.Fail("external subscriber did not receive accepted block")
+			}
+		}
 
 		if add {
 			blocks = append(blocks, blk)
