@@ -805,7 +805,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackInt(int32(len(b.Txs))) //FIXME: int32 is too large for this use case
+	p.PackInt(int32(len(b.Txs))) //FIXME: check if int32 is too large for this use case
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
