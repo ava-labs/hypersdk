@@ -29,17 +29,9 @@ type mockTransferAction struct {
 	Memo  []byte        `serialize:"true" json:"memo"`
 }
 
-func (m *mockTransferAction) Marshal(p *codec.Packer) {
-	codec.LinearCodec.MarshalInto(m, p.Packer)
-}
-
 type action2 struct {
 	A uint64 `serialize:"true" json:"a"`
 	B uint64 `serialize:"true" json:"b"`
-}
-
-func (a *action2) Marshal(p *codec.Packer) {
-	codec.LinearCodec.MarshalInto(a, p.Packer)
 }
 
 func (*action2) ComputeUnits(chain.Rules) uint64 {
@@ -52,10 +44,6 @@ func (*action2) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int
 
 func (*action2) GetTypeID() uint8 {
 	return 222
-}
-
-func (*action2) Size() int {
-	return 16
 }
 
 func (*action2) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
@@ -80,10 +68,6 @@ func (*mockTransferAction) Execute(_ context.Context, _ chain.Rules, _ state.Mut
 
 func (*mockTransferAction) GetTypeID() uint8 {
 	return 111
-}
-
-func (*mockTransferAction) Size() int {
-	return 0
 }
 
 func (*mockTransferAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {

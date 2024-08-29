@@ -88,21 +88,22 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 
 // Optional methods to override for performance optimization when hitting TPS limits
 
-func (t *Transfer) Size() int {
-	// For manual calculation:
-	// return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
-	size, _ := codec.LinearCodec.Size(t)
-	return size
-}
+// var _ chain.HasSize = (*Transfer)(nil)
 
-func (t *Transfer) Marshal(p *codec.Packer) {
-	// For manual marshalling:
-	// p.PackAddress(t.To)
-	// p.PackLong(t.Value)
-	// p.PackBytes(t.Memo)
-	codec.LinearCodec.MarshalInto(t, p.Packer)
-}
+// func (t *Transfer) Size() int {
+// 	// For manual calculation:
+// 	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+// }
 
+// var _ chain.HasMarshal = (*Transfer)(nil)
+
+// func (t *Transfer) Marshal(p *codec.Packer) {
+// 	p.PackAddress(t.To)
+// 	p.PackLong(t.Value)
+// 	p.PackBytes(t.Memo)
+// }
+
+// TODO:
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	// For manual unmarshalling:
 	// var transfer Transfer

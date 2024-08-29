@@ -197,10 +197,14 @@ type Object interface {
 	//
 	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
+}
 
+type HasMarshal interface {
 	// Marshal encodes an [Action] as bytes.
 	Marshal(p *codec.Packer)
+}
 
+type HasSize interface {
 	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
 	// memory during encoding and to charge bandwidth fees.
 	Size() int
@@ -247,6 +251,8 @@ type Action interface {
 
 type Auth interface {
 	Object
+	HasSize
+	HasMarshal
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute
