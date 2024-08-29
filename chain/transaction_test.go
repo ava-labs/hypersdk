@@ -29,9 +29,17 @@ type mockTransferAction struct {
 	Memo  []byte        `serialize:"true" json:"memo"`
 }
 
+func (m *mockTransferAction) Marshal(p *codec.Packer) {
+	codec.LinearCodec.MarshalInto(m, p.Packer)
+}
+
 type action2 struct {
 	A uint64 `serialize:"true" json:"a"`
 	B uint64 `serialize:"true" json:"b"`
+}
+
+func (a *action2) Marshal(p *codec.Packer) {
+	codec.LinearCodec.MarshalInto(a, p.Packer)
 }
 
 func (*action2) ComputeUnits(chain.Rules) uint64 {

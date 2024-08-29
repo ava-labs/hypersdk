@@ -81,33 +81,36 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (t *Transfer) Size() int {
-	// If you're hitting the TPS limit, you have to calculate the sizes manually.
-	// For example, for Transfer it would be:
-	// return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
+	// Returning -1, -1 means that the action is always valid.
+	return -1, -1
+}
 
-	// Unfortunately, we can't process an error here.
+// Optional methods to override for performance optimization when hitting TPS limits
+
+func (t *Transfer) Size() int {
+	// For manual calculation:
+	// return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 	size, _ := codec.LinearCodec.Size(t)
 	return size
 }
 
-// Optional: Only use if you need to manually marshal the action to increase TPS limit.
-
-// var _ chain.Marshaler = (*Transfer)(nil)
-
-// func (t *Transfer) Marshal(p *codec.Packer) {
-// 	p.PackAddress(t.To)
-// 	p.PackLong(t.Value)
-// 	p.PackBytes(t.Memo)
-// }
+func (t *Transfer) Marshal(p *codec.Packer) {
+	// For manual marshalling:
+	// p.PackAddress(t.To)
+	// p.PackLong(t.Value)
+	// p.PackBytes(t.Memo)
+	codec.LinearCodec.MarshalInto(t, p.Packer)
+}
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+	// For manual unmarshalling:
+	// var transfer Transfer
+	// p.UnpackAddress(&transfer.To)
+	// transfer.Value = p.UnpackUint64(true)
+	// p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+	// return &transfer, p.Err()
 	var transfer Transfer
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
-}
-
-func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
-	// Returning -1, -1 means that the action is always valid.
-	return -1, -1
 }

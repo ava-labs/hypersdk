@@ -59,14 +59,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
-		} else {
-			err := codec.LinearCodec.MarshalInto(action, p.Packer)
-			if err != nil {
-				return nil, err
-			}
-		}
+		action.Marshal(p)
 	}
 	return p.Bytes(), p.Err()
 }
@@ -373,14 +366,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
-		} else {
-			err := codec.LinearCodec.MarshalInto(action, p.Packer)
-			if err != nil {
-				return err
-			}
-		}
+		action.Marshal(p)
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
