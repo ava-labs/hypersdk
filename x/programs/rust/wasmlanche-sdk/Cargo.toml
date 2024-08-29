@@ -15,3 +15,5 @@ wasmtime = "14"
 [features]
 build = []
 debug = []
+# TODO: can set this based on the compile target, or even remove this flag entirely and cfg(target = wasm32-unknown-unknown) in the code
+unit_tests = []

@@ -344,7 +344,7 @@ fn init_amm(simulator: &mut Simulator) -> (Address, Address, Address, Address) {
         (token_x, token_y, token_program_id),
         MAX_GAS,
     );
-    assert!(!result.has_error(), "Init AMM errored");
+    assert!(!result.has_error(), "Init AMM errored {:?}", result.error());
 
     // Check if the liquidity token was created
     let lt = simulator.call_program(amm_program, "get_liquidity_token", (), MAX_GAS);

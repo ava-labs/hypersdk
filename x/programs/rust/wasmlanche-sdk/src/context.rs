@@ -2,9 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use crate::{
-    state::{Cache, Error, IntoPairs, Schema},
-    types::{Address, ProgramId},
-    Gas, HostPtr, Id, Program,
+    dbg, host::FunctionContext, state::{Cache, Error, IntoPairs, Schema}, types::{Address, ProgramId}, Gas, HostPtr, Id, Program
 };
 use borsh::BorshDeserialize;
 
@@ -19,6 +17,7 @@ pub struct Context {
     timestamp: u64,
     action_id: Id,
     state_cache: Cache,
+    function_context: FunctionContext,
 }
 
 #[cfg(feature = "debug")]
@@ -43,6 +42,7 @@ mod debug {
                 timestamp,
                 action_id,
                 state_cache: _,
+                function_context: _,
             } = self;
 
             debug_struct_fields!(f, Context, program, actor, height, timestamp, action_id)
@@ -65,6 +65,7 @@ impl BorshDeserialize for Context {
             timestamp,
             action_id,
             state_cache: Cache::new(),
+            function_context: FunctionContext::default(),
         })
     }
 }
@@ -148,16 +149,11 @@ impl Context {
     /// Panics if there was an issue deserializing the account
     #[must_use]
     pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Program {
-        #[link(wasm_import_module = "program")]
-        extern "C" {
-            #[link_name = "deploy"]
-            fn deploy(ptr: *const u8, len: usize) -> HostPtr;
-        }
         let ptr =
             borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
 
-        let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
-
+        let bytes = self.function_context.deploy(ptr.as_ptr(), ptr.len());
+        crate::dbg!("completion nice to meation");
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
 }

@@ -67,6 +67,7 @@ mod memory;
 mod program;
 mod state;
 mod types;
+mod host; 
 
 pub use self::{
     context::{Context, ExternalCallContext},
