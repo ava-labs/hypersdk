@@ -118,8 +118,8 @@ type Mempool interface {
 type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
-	NetworkID() uint32
-	ChainID() ids.ID
+	GetNetworkID() uint32
+	GetChainID() ids.ID
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
@@ -158,7 +158,7 @@ type MetadataManager interface {
 	FeeKey() []byte
 }
 
-type FeeHandler interface {
+type BalanceHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
@@ -172,6 +172,9 @@ type FeeHandler interface {
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+
+	// AddBalance adds [amount] to [addr].
+	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state
@@ -181,7 +184,7 @@ type FeeHandler interface {
 // None of these keys should be suffixed with the max amount of chunks they will
 // use. This will be handled by the hypersdk.
 type StateManager interface {
-	FeeHandler
+	BalanceHandler
 	MetadataManager
 }
 

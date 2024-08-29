@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -51,8 +50,8 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	}
 }
 
-func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID) error {
-	sh.cli = controller.NewJSONRPCClient(uri, networkID, chainID)
+func (sh *SpamHelper) CreateClient(uri string) error {
+	sh.cli = controller.NewJSONRPCClient(uri)
 	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err

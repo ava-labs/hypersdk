@@ -160,7 +160,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	rules := parser.Rules(now)
 	base := &chain.Base{
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.ChainID(),
+		ChainID:   rules.GetChainID(),
 		MaxFee:    maxFee,
 	}
 

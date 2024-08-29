@@ -192,7 +192,7 @@ func (h *Handler) PrintChainInfo() error {
 	return nil
 }
 
-func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
+func (h *Handler) WatchChain(hideTxs bool, getParser func(string) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
 	ctx := context.Background()
 	chainID, uris, err := h.PromptChain("select chainID", nil)
 	if err != nil {
@@ -202,12 +202,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		return err
 	}
 	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-	rcli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := rcli.Network(context.TODO())
-	if err != nil {
-		return err
-	}
-	parser, err := getParser(uris[0], networkID, chainID)
+	parser, err := getParser(uris[0])
 	if err != nil {
 		return err
 	}
