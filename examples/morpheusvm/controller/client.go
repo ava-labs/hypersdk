@@ -121,6 +121,5 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
 	}
-	parser := NewParser(&genesis)
-	return parser, nil
+	return NewParser(&genesis), nil
 }
