@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/rpcchainvm/grpcutils"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
+	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -132,19 +134,6 @@ func setInstances() {
 	// create embedded VMs
 	instances = make([]instance, numVMs)
 
-	externalSubscriberConfig := vm.NewConfig()
-	externalSubscriberConfig.Config = map[string]interface{}{
-		externalsubscriber.Namespace: externalsubscriber.Config{
-			Enabled:       true,
-			ServerAddress: "localhost:9001",
-		},
-	}
-
-	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
-	require.NoError(err)
-	configs := make([][]byte, numVMs)
-	configs[0] = externalSubscriberConfigBytes
-
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData]{
 		event.SubscriptionFunc[*externalsubscriber.ExternalSubscriberSubscriptionData]{
@@ -156,12 +145,34 @@ func setInstances() {
 			},
 		},
 	})
-	externalSubscriber0Handler, err := externalsubscriber.NewGRPCHandler(externalSubscriber0, log, ":9001")
+
+	listener, err := grpcutils.NewListener()
 	require.NoError(err)
-	externalSubscriber0Handler.Start()
+	serverCloser := grpcutils.ServerCloser{}
+
+	server := grpcutils.NewServer()
+	pb.RegisterExternalSubscriberServer(server, externalSubscriber0)
+	serverCloser.Add(server)
+
+	go grpcutils.Serve(listener, server)
+
 	ginkgo.DeferCleanup(func() {
-		externalSubscriber0Handler.Stop()
+		serverCloser.Stop()
+		_ = listener.Close()
 	})
+
+	externalSubscriberConfig := vm.NewConfig()
+	externalSubscriberConfig.Config = map[string]interface{}{
+		externalsubscriber.Namespace: externalsubscriber.Config{
+			Enabled:       true,
+			ServerAddress: listener.Addr().String(),
+		},
+	}
+
+	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
+	require.NoError(err)
+	configs := make([][]byte, numVMs)
+	configs[0] = externalSubscriberConfigBytes
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
