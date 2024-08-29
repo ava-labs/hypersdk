@@ -59,11 +59,11 @@ func (*action2) ValidRange(chain.Rules) (start int64, end int64) {
 }
 
 func (*mockTransferAction) ComputeUnits(chain.Rules) uint64 {
-	panic("ComputeUnits unimplemented")
+	panic("unimplemented")
 }
 
 func (*mockTransferAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
-	panic("Execute unimplemented")
+	panic("unimplemented")
 }
 
 func (*mockTransferAction) GetTypeID() uint8 {
@@ -71,15 +71,15 @@ func (*mockTransferAction) GetTypeID() uint8 {
 }
 
 func (*mockTransferAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("StateKeys unimplemented")
+	panic("unimplemented")
 }
 
 func (*mockTransferAction) StateKeysMaxChunks() []uint16 {
-	panic("StateKeysMaxChunks unimplemented")
+	panic("unimplemented")
 }
 
 func (*mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("ValidRange unimplemented")
+	panic("unimplemented")
 }
 
 func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
