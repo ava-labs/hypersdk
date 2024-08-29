@@ -73,8 +73,10 @@ func (b *BLS) Marshal(p *codec.Packer) {
 func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	var b BLS
 
-	signer := p.UnpackFixedBytes(bls.PublicKeyLen)
-	signature := p.UnpackFixedBytes(bls.SignatureLen)
+	signer := make([]byte, bls.PublicKeyLen)
+	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
+	signature := make([]byte, bls.SignatureLen)
+	p.UnpackFixedBytes(bls.SignatureLen, &signature)
 
 	pk, err := bls.PublicKeyFromBytes(signer)
 	if err != nil {
@@ -88,7 +90,7 @@ func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	}
 
 	b.Signature = sig
-	return &b, p.Err
+	return &b, p.Err()
 }
 
 var _ chain.AuthFactory = (*BLSFactory)(nil)

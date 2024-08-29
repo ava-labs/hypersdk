@@ -29,7 +29,7 @@ type Base struct {
 	MaxFee uint64 `json:"maxFee"`
 }
 
-func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
+func (b *Base) Execute(r Rules, timestamp int64) error {
 	switch {
 	case b.Timestamp%consts.MillisecondsPerSecond != 0:
 		// TODO: make this modulus configurable
@@ -38,7 +38,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
 		return ErrTimestampTooEarly
-	case b.ChainID != chainID:
+	case b.ChainID != r.GetChainID():
 		return ErrInvalidChainID
 	default:
 		return nil
@@ -50,9 +50,9 @@ func (*Base) Size() int {
 }
 
 func (b *Base) Marshal(p *codec.Packer) {
-	p.PackLong(uint64(b.Timestamp))
+	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)
-	p.PackLong(b.MaxFee)
+	p.PackUint64(b.MaxFee)
 }
 
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
@@ -64,5 +64,5 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	}
 	p.UnpackID(true, &base.ChainID)
 	base.MaxFee = p.UnpackUint64(true)
-	return &base, p.Err
+	return &base, p.Err()
 }

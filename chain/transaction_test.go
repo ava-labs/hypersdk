@@ -46,10 +46,6 @@ func (*action2) GetTypeID() uint8 {
 	return 222
 }
 
-func (*action2) Size() int {
-	return 16
-}
-
 func (*action2) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	panic("unimplemented")
 }
@@ -72,10 +68,6 @@ func (*mockTransferAction) Execute(_ context.Context, _ chain.Rules, _ state.Mut
 
 func (*mockTransferAction) GetTypeID() uint8 {
 	return 111
-}
-
-func (*mockTransferAction) Size() int {
-	return 0
 }
 
 func (*mockTransferAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {

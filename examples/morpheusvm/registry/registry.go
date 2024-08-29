@@ -25,7 +25,7 @@ func init() {
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
-		Action.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		Action.Register(&actions.Transfer{}, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),

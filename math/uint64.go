@@ -21,7 +21,7 @@ func (o *Uint64Operator) Add(n uint64) {
 		return
 	}
 
-	nv, err := math.Add64(o.v, n)
+	nv, err := math.Add(o.v, n)
 	if err != nil {
 		o.err = err
 		return
@@ -34,7 +34,7 @@ func (o *Uint64Operator) Mul(n uint64) {
 		return
 	}
 
-	nv, err := math.Mul64(o.v, n)
+	nv, err := math.Mul(o.v, n)
 	if err != nil {
 		o.err = err
 		return
@@ -47,12 +47,12 @@ func (o *Uint64Operator) MulAdd(a, b uint64) {
 		return
 	}
 
-	pv, err := math.Mul64(a, b)
+	pv, err := math.Mul(a, b)
 	if err != nil {
 		o.err = err
 		return
 	}
-	nv, err := math.Add64(o.v, pv)
+	nv, err := math.Add(o.v, pv)
 	if err != nil {
 		o.err = err
 		return

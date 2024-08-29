@@ -38,7 +38,6 @@ type withID struct {
 }
 
 func (w *withID) GetTypeID() uint8 { return w.ID }
-
 func TestTypeParser(t *testing.T) {
 	tp := NewTypeParser[Blah]()
 

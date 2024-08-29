@@ -39,8 +39,8 @@ func NewWriter(initial, limit int) *Packer {
 	}
 }
 
-func (p *Packer) PackID(id ids.ID) {
-	p.Packer.PackFixedBytes(id[:])
+func (p *Packer) PackID(src ids.ID) {
+	p.Packer.PackFixedBytes(src[:])
 }
 
 // UnpackID unpacks an avalanchego ID into [dest]. If [required] is true,
@@ -48,11 +48,10 @@ func (p *Packer) PackID(id ids.ID) {
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
 	copy((*dest)[:], p.Packer.UnpackFixedBytes(ids.IDLen))
 	if required && *dest == ids.Empty {
-		p.Packer.Errs.Add(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}
 }
 
-// FIXME: do we need this or UnpackFixedBytes is enough?
 func (p *Packer) PackAddress(a Address) {
 	p.Packer.PackFixedBytes(a[:])
 }
@@ -60,8 +59,12 @@ func (p *Packer) PackAddress(a Address) {
 func (p *Packer) UnpackAddress(dest *Address) {
 	copy((*dest)[:], p.Packer.UnpackFixedBytes(AddressLen))
 	if *dest == EmptyAddress {
-		p.Packer.Errs.Add(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
+}
+
+func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
+	copy((*dest), p.Packer.UnpackFixedBytes(size))
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
@@ -75,22 +78,30 @@ func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 		*dest = p.Packer.UnpackBytes()
 	}
 	if required && len(*dest) == 0 {
-		p.Packer.Errs.Add(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
 	}
+}
+
+func (p *Packer) PackUint64(v uint64) {
+	p.Packer.PackLong(v)
 }
 
 func (p *Packer) UnpackUint64(required bool) uint64 {
 	v := p.Packer.UnpackLong()
 	if required && v == 0 {
-		p.Packer.Errs.Add(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
 	}
 	return v
+}
+
+func (p *Packer) PackInt64(v int64) {
+	p.Packer.PackLong(uint64(v))
 }
 
 func (p *Packer) UnpackInt64(required bool) int64 {
 	v := p.Packer.UnpackLong()
 	if required && v == 0 {
-		p.Packer.Errs.Add(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
 	}
 	return int64(v)
 }
@@ -98,12 +109,11 @@ func (p *Packer) UnpackInt64(required bool) int64 {
 func (p *Packer) UnpackInt(required bool) uint32 {
 	v := p.Packer.UnpackInt()
 	if required && v == 0 {
-		p.Packer.Errs.Add(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return v
 }
 
-// FIXME: do we need this or UnpackFixedBytes is enough?
 func (p *Packer) PackWindow(w window.Window) {
 	p.Packer.PackFixedBytes(w[:])
 }
@@ -112,20 +122,36 @@ func (p *Packer) UnpackWindow(w *window.Window) {
 	copy((*w)[:], p.Packer.UnpackFixedBytes(window.WindowSliceSize))
 }
 
-// Deprecated: Use UnpackBytes for better performance.
+func (p *Packer) PackString(s string) {
+	p.Packer.PackStr(s)
+}
+
 func (p *Packer) UnpackString(required bool) string {
 	str := p.Packer.UnpackStr()
 	if required && len(str) == 0 {
-		p.Packer.Errs.Add(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
 	}
 	return str
 }
 
+// Empty is called after parsing a byte array to ensure there is nothing left
+// to parse.
 func (p *Packer) Empty() bool {
 	return p.Packer.Offset == len(p.Packer.Bytes)
 }
 
-// FIXME: consider removing
-func (p *Packer) UnpackFixedBytesInto(size int, dest *[]byte) {
-	copy((*dest), p.Packer.UnpackFixedBytes(size))
+func (p *Packer) Err() error {
+	return p.Packer.Err
+}
+
+func (p *Packer) Bytes() []byte {
+	return p.Packer.Bytes
+}
+
+func (p *Packer) addErr(err error) {
+	p.Packer.Errs.Add(err)
+}
+
+func (p *Packer) Offset() int {
+	return p.Packer.Offset
 }

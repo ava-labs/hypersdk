@@ -73,10 +73,10 @@ func (d *SECP256R1) Marshal(p *codec.Packer) {
 func UnmarshalSECP256R1(p *codec.Packer) (chain.Auth, error) {
 	var d SECP256R1
 	signer := d.Signer[:] // avoid allocating additional memory
-	p.UnpackFixedBytesInto(secp256r1.PublicKeyLen, &signer)
+	p.UnpackFixedBytes(secp256r1.PublicKeyLen, &signer)
 	signature := d.Signature[:] // avoid allocating additional memory
-	p.UnpackFixedBytesInto(secp256r1.SignatureLen, &signature)
-	return &d, p.Err
+	p.UnpackFixedBytes(secp256r1.SignatureLen, &signature)
+	return &d, p.Err()
 }
 
 var _ chain.AuthFactory = (*SECP256R1Factory)(nil)

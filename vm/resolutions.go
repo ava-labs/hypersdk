@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -66,7 +67,7 @@ func (vm *VM) Logger() logging.Logger {
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.c.Rules(t)
+	return vm.ruleFactory.GetRules(t)
 }
 
 func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
@@ -351,8 +352,12 @@ func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
 }
 
+func (vm *VM) Genesis() genesis.Genesis {
+	return vm.genesis
+}
+
 func (vm *VM) StateManager() chain.StateManager {
-	return vm.c.StateManager()
+	return vm.stateManager
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {

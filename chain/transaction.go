@@ -52,23 +52,23 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		actionSize, err := getActionSize(action)
+		if err != nil {
+			return nil, err
+		}
+		size += consts.ByteLen + actionSize
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
-		} else {
-			err := codec.LinearCodec.MarshalInto(action, p.Packer)
-			if err != nil {
-				return nil, err
-			}
+		err := marshalActionInto(action, p)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return p.Bytes, p.Err
+	return p.Bytes(), p.Err()
 }
 
 func (t *Transaction) Sign(
@@ -93,10 +93,10 @@ func (t *Transaction) Sign(
 	if err := t.Marshal(p); err != nil {
 		return nil, err
 	}
-	if err := p.Err; err != nil {
+	if err := p.Err(); err != nil {
 		return nil, err
 	}
-	p = codec.NewReader(p.Bytes, consts.MaxInt)
+	p = codec.NewReader(p.Bytes(), consts.MaxInt)
 	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
@@ -206,7 +206,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionSize, err := getActionSize(action)
+		if err != nil {
+			return fees.Dimensions{}, err
+		}
+
+		bandwidth += consts.ByteLen + uint64(actionSize)
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
@@ -258,7 +263,7 @@ func (t *Transaction) PreExecute(
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
+	if err := t.Base.Execute(r, timestamp); err != nil {
 		return err
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
@@ -361,7 +366,7 @@ func (t *Transaction) Execute(
 func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
-		return p.Err
+		return p.Err()
 	}
 
 	return t.marshalActions(p)
@@ -373,19 +378,15 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
-		} else {
-			err := codec.LinearCodec.MarshalInto(action, p.Packer)
-			if err != nil {
-				return err
-			}
+		err := marshalActionInto(action, p)
+		if err != nil {
+			return err
 		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
 	t.Auth.Marshal(p)
-	return p.Err
+	return p.Err()
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -400,7 +401,7 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return p.Bytes, p.Err
+	return p.Bytes(), p.Err()
 }
 
 func UnmarshalTxs(
@@ -413,7 +414,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < int(txCount); i++ {
+	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
@@ -425,7 +426,7 @@ func UnmarshalTxs(
 		// Ensure no leftover bytes
 		return nil, nil, ErrInvalidObject
 	}
-	return authCounts, txs, p.Err
+	return authCounts, txs, p.Err()
 }
 
 func UnmarshalTx(
@@ -433,7 +434,7 @@ func UnmarshalTx(
 	actionRegistry *codec.TypeParser[Action],
 	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
-	start := p.Offset
+	start := p.Offset()
 	base, err := UnmarshalBase(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
@@ -442,7 +443,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
-	digest := p.Offset
+	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
 	if !ok {
@@ -463,12 +464,12 @@ func UnmarshalTx(
 	tx.Base = base
 	tx.Actions = actions
 	tx.Auth = auth
-	if err := p.Err; err != nil {
-		return nil, p.Err
+	if err := p.Err(); err != nil {
+		return nil, p.Err()
 	}
-	codecBytes := p.Bytes
+	codecBytes := p.Bytes()
 	tx.digest = codecBytes[start:digest]
-	tx.bytes = codecBytes[start:p.Offset] // ensure errors handled before grabbing memory
+	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return &tx, nil
@@ -489,20 +490,11 @@ func unmarshalActions(
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
-		if unmarshalAction == nil {
-			var action Action
-			err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not unmarshal action", err)
-			}
-			actions = append(actions, action)
-		} else {
-			action, err := unmarshalAction(p)
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not unmarshal action", err)
-			}
-			actions = append(actions, action)
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
 		}
+		actions = append(actions, action)
 	}
 	return actions, nil
 }
