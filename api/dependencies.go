@@ -13,9 +13,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 )
 
 type VM interface {
+	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32
 	SubnetID() ids.ID
@@ -33,4 +35,5 @@ type VM interface {
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
+	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 }

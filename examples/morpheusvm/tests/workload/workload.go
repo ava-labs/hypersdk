@@ -21,8 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -61,22 +61,24 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
-	gen := genesis.Default()
-	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	gen.MinBlockGap = minBlockGap
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519AddrStrs))
 	for _, prefundedAddrStr := range ed25519AddrStrs {
-		gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
+		customAllocs = append(customAllocs, &genesis.CustomAllocation{
 			Address: prefundedAddrStr,
 			Balance: initialBalance,
 		})
 	}
 
-	return gen, &workloadFactory{
+	genesis := genesis.NewDefaultGenesis(customAllocs)
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	genesis.Rules.MinBlockGap = minBlockGap
+
+	return genesis, &workloadFactory{
 		factories: ed25519AuthFactories,
 		addrs:     ed25519Addrs,
 	}, nil
@@ -84,11 +86,7 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
 	cli := jsonrpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := controller.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := controller.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
 		cli:     cli,
@@ -98,13 +96,11 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *jsonrpc.JSONRPCClient
-	lcli      *controller.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
+	factory *auth.ED25519Factory
+	cli     *jsonrpc.JSONRPCClient
+	lcli    *controller.JSONRPCClient
+	count   int
+	size    int
 }
 
 func (g *simpleTxWorkload) Next() bool {
@@ -142,7 +138,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
-		lcli := controller.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		lcli := controller.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, aotherStr)
 		require.NoError(err)
 		require.Equal(uint64(1), balance)
@@ -171,7 +167,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	if err != nil {
 		return nil, err
 	}
-	lcli := controller.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := controller.NewJSONRPCClient(uri)
 
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
@@ -239,7 +235,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
 		require.NoError(err)
 		require.True(success)
-		lcli := controller.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		lcli := controller.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, receiverAddrStr)
 		require.NoError(err)
 		require.Equal(expectedBalance, balance)
