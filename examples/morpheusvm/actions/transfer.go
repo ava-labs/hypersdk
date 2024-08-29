@@ -103,15 +103,11 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 // 	p.PackBytes(t.Memo)
 // }
 
-// TODO:
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-	// For manual unmarshalling:
-	// var transfer Transfer
-	// p.UnpackAddress(&transfer.To)
-	// transfer.Value = p.UnpackUint64(true)
-	// p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
-	// return &transfer, p.Err()
-	var transfer Transfer
-	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
-	return &transfer, err
-}
+// Register this in registry/registry.go as the second argument to Action.Register
+// func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+// 	var transfer Transfer
+// 	p.UnpackAddress(&transfer.To)
+// 	transfer.Value = p.UnpackUint64(true)
+// 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+// 	return &transfer, p.Err()
+// }
