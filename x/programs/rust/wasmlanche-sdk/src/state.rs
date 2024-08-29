@@ -2,9 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use crate::{
-    context::{CacheKey, CacheValue},
-    memory::HostPtr,
-    types::Address,
+    context::{CacheKey, CacheValue}, host::FunctionContext, types::Address
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
@@ -31,19 +29,16 @@ pub enum Error {
 /// Panics if there was an issue deserializing the balance
 #[must_use]
 pub fn get_balance(account: Address) -> u64 {
-    #[link(wasm_import_module = "balance")]
-    extern "C" {
-        #[link_name = "get"]
-        fn get(ptr: *const u8, len: usize) -> HostPtr;
-    }
     let ptr = borsh::to_vec(&account).expect("failed to serialize args");
-    let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
+    let function_context = FunctionContext::default();
+    let bytes = function_context.get_balance(ptr.as_ptr(), ptr.len());
 
     borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
 pub struct Cache {
     cache: HashMap<CacheKey, Option<CacheValue>>,
+    function_context: FunctionContext,
 }
 
 impl Drop for Cache {
@@ -132,6 +127,7 @@ impl Cache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::default(),
+            function_context: FunctionContext::default(),
         }
     }
 
@@ -202,12 +198,6 @@ impl Cache {
 
     /// Apply all pending operations to storage and mark the cache as flushed
     pub(super) fn flush(&mut self) {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "put"]
-            fn put(ptr: *const u8, len: usize);
-        }
-
         #[derive(BorshSerialize)]
         struct PutArgs<Key> {
             key: Key,
@@ -223,18 +213,12 @@ impl Cache {
 
         if !args.is_empty() {
             let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-            unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
+            self.function_context.put(serialized_args.as_ptr(), serialized_args.len());
         }
     }
 }
 
 fn get_bytes(key: &[u8]) -> Option<CacheValue> {
-    #[link(wasm_import_module = "state")]
-    extern "C" {
-        #[link_name = "get"]
-        fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
-    }
-
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
         key: &'a [u8],
@@ -242,7 +226,11 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
+    // TODO: could also pass via function args
+    let function_context = FunctionContext::default();
+    crate::dbg!("getting data in the host");
+    println!("getting data in the host println");
+    let ptr = function_context.get_bytes(key.as_ptr(), key.len());
 
     if ptr.is_null() {
         None

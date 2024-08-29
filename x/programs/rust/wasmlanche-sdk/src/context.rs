@@ -20,6 +20,8 @@ pub struct Context {
     function_context: FunctionContext,
 }
 
+
+
 #[cfg(feature = "debug")]
 mod debug {
 
@@ -98,6 +100,18 @@ impl Context {
     #[must_use]
     pub fn action_id(&self) -> Id {
         self.action_id
+    }
+
+    pub fn new_test_context() -> Self {
+        Self {
+            program: Program::new_test_program(),
+            actor: Address::default(),
+            height: 0,
+            timestamp: 0,
+            action_id: Id::default(),
+            state_cache: Cache::new(),
+            function_context: FunctionContext::default(),
+        }
     }
 
     /// Get a value from state.

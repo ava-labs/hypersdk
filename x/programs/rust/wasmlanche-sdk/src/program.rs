@@ -53,6 +53,11 @@ impl Program {
         &self.account
     }
 
+    pub fn new_test_program() -> Self {
+        let account = Address::default();
+        Self { account }
+    }
+
     /// Attempts to call a function `name` with `args` on the given program. This method
     /// is used to call functions on external programs.
     /// # Errors

@@ -6,11 +6,11 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "lib"]
 
-[features]
-bindings = []
+# [features]
+# bindings = []
 
 [dependencies]
-wasmlanche-sdk = { workspace = true, features = ["debug"] }
+wasmlanche-sdk = { workspace = true, features = ["debug", "unit_tests"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
