@@ -103,16 +103,12 @@ func (p *Packer) UnpackInt64(required bool) int64 {
 	return int64(v)
 }
 
-func (p *Packer) PackInt(v int32) {
-	p.Packer.PackInt(uint32(v))
-}
-
-func (p *Packer) UnpackInt(required bool) int32 {
+func (p *Packer) UnpackInt(required bool) uint32 {
 	v := p.Packer.UnpackInt()
 	if required && v == 0 {
 		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
-	return int32(v)
+	return v
 }
 
 func (p *Packer) PackWindow(w window.Window) {

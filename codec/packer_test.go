@@ -122,7 +122,7 @@ func TestPackerAddress(t *testing.T) {
 
 func TestNewReader(t *testing.T) {
 	require := require.New(t)
-	vInt := int32(900)
+	vInt := uint32(900)
 	wp := NewWriter(5, 5)
 	// Add an int and a bool
 	wp.PackInt(vInt)
