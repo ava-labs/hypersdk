@@ -5,7 +5,6 @@ package chain_test
 
 import (
 	"context"
-	"encoding/hex"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,63 +22,47 @@ var (
 	_ chain.Action = (*action2)(nil)
 )
 
+type abstractMockAction struct{}
+
+func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
+	panic("unimplemented")
+}
+
+func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
+	panic("unimplemented")
+}
+
+func (*abstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	panic("unimplemented")
+}
+
+func (*abstractMockAction) StateKeysMaxChunks() []uint16 {
+	panic("unimplemented")
+}
+
+func (*abstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
+	panic("unimplemented")
+}
+
 type mockTransferAction struct {
+	abstractMockAction
 	To    codec.Address `serialize:"true" json:"to"`
 	Value uint64        `serialize:"true" json:"value"`
 	Memo  []byte        `serialize:"true" json:"memo"`
-}
-
-type action2 struct {
-	A uint64 `serialize:"true" json:"a"`
-	B uint64 `serialize:"true" json:"b"`
-}
-
-func (*action2) ComputeUnits(chain.Rules) uint64 {
-	panic("unimplemented")
-}
-
-func (*action2) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
-	panic("unimplemented")
-}
-
-func (*action2) GetTypeID() uint8 {
-	return 222
-}
-
-func (*action2) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
-}
-
-func (*action2) StateKeysMaxChunks() []uint16 {
-	panic("unimplemented")
-}
-
-func (*action2) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("unimplemented")
-}
-
-func (*mockTransferAction) ComputeUnits(chain.Rules) uint64 {
-	panic("ComputeUnits unimplemented")
-}
-
-func (*mockTransferAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
-	panic("Execute unimplemented")
 }
 
 func (*mockTransferAction) GetTypeID() uint8 {
 	return 111
 }
 
-func (*mockTransferAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("StateKeys unimplemented")
+type action2 struct {
+	abstractMockAction
+	A uint64 `serialize:"true" json:"a"`
+	B uint64 `serialize:"true" json:"b"`
 }
 
-func (*mockTransferAction) StateKeysMaxChunks() []uint16 {
-	panic("StateKeysMaxChunks unimplemented")
-}
-
-func (*mockTransferAction) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("ValidRange unimplemented")
+func (*action2) GetTypeID() uint8 {
+	return 222
 }
 
 func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
@@ -94,6 +77,7 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	return &action, err
 }
 
+// TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
@@ -121,10 +105,8 @@ func TestMarshalUnmarshal(t *testing.T) {
 		},
 	}
 
-	privBytes, err := hex.DecodeString("323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7")
+	priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
-
-	priv := ed25519.PrivateKey(privBytes)
 	factory := auth.NewED25519Factory(priv)
 
 	actionRegistry := codec.NewTypeParser[chain.Action]()
