@@ -802,10 +802,10 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
-	p.PackLong(uint64(b.Tmstmp))
-	p.PackLong(b.Hght)
+	p.PackInt64(b.Tmstmp)
+	p.PackUint64(b.Hght)
 
-	p.PackInt(uint32(len(b.Txs)))
+	p.PackInt(len(b.Txs))
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
@@ -815,8 +815,8 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	}
 
 	p.PackID(b.StateRoot)
-	bytes := p.Bytes
-	if err := p.Err; err != nil {
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
 		return nil, err
 	}
 	b.size = len(bytes)
@@ -839,7 +839,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
-	for i := 0; i < int(txCount); i++ {
+	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
@@ -852,9 +852,9 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset)
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
-	return &b, p.Err
+	return &b, p.Err()
 }
 
 type SyncableBlock struct {

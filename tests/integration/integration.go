@@ -294,10 +294,10 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
 			require.NoError(tx.Marshal(p))
-			require.NoError(p.Err)
+			require.NoError(p.Err())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),
-				p.Bytes,
+				p.Bytes(),
 			)
 			require.ErrorContains(err, chain.ErrMisalignedTime.Error()) //nolint:forbidigo
 		})

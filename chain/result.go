@@ -43,20 +43,20 @@ func (r *Result) Marshal(p *codec.Packer) error {
 		}
 	}
 	p.PackFixedBytes(r.Units.Bytes())
-	p.PackLong(r.Fee)
+	p.PackUint64(r.Fee)
 	return nil
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
 	size := consts.IntLen + codec.CummSize(src)
 	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
-	p.PackInt(uint32(len(src)))
+	p.PackInt(len(src))
 	for _, result := range src {
 		if err := result.Marshal(p); err != nil {
 			return nil, err
 		}
 	}
-	return p.Bytes, p.Err
+	return p.Bytes(), p.Err()
 }
 
 func UnmarshalResult(p *codec.Packer) (*Result, error) {
@@ -77,7 +77,8 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		outputs = append(outputs, actionOutputs)
 	}
 	result.Outputs = outputs
-	consumedRaw := p.UnpackFixedBytes(fees.DimensionsLen)
+	consumedRaw := make([]byte, fees.DimensionsLen)
+	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
 	units, err := fees.UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
@@ -85,14 +86,14 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result.Units = units
 	result.Fee = p.UnpackUint64(false)
 	// Wait to check if empty until after all results are unpacked.
-	return result, p.Err
+	return result, p.Err()
 }
 
 func UnmarshalResults(src []byte) ([]*Result, error) {
 	p := codec.NewReader(src, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	items := p.UnpackInt(false)
 	results := make([]*Result, items)
-	for i := 0; i < int(items); i++ {
+	for i := 0; i < items; i++ {
 		result, err := UnmarshalResult(p)
 		if err != nil {
 			return nil, err
