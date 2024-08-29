@@ -6,7 +6,6 @@ package externalsubscriber
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -30,8 +29,6 @@ func NewExternalSubscriberClient(
 	ctx context.Context,
 	log logging.Logger,
 	serverAddr string,
-	networkID uint32,
-	chainID ids.ID,
 	genesisBytes []byte,
 ) (*ExternalSubscriberClient, error) {
 	// Establish connection to server
@@ -44,9 +41,7 @@ func NewExternalSubscriberClient(
 	_, err = client.Initialize(
 		ctx,
 		&pb.InitializeRequest{
-			NetworkId: networkID,
-			ChainId:   chainID[:],
-			Genesis:   genesisBytes,
+			Genesis: genesisBytes,
 		},
 	)
 	if err != nil {

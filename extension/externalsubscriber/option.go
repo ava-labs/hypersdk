@@ -45,8 +45,6 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 		context.TODO(),
 		v.Logger(),
 		config.ServerAddress,
-		v.SnowCtx.NetworkID,
-		v.SnowCtx.ChainID,
 		v.GenesisBytes,
 	)
 	if err != nil {

@@ -15,9 +15,7 @@ service ExternalSubscriber {
 }
 
 message InitializeRequest {
-  uint32 network_id = 1;
-  bytes chain_id = 2;
-  bytes genesis = 3;
+  bytes genesis = 1;
 }
 
 message BlockRequest {
