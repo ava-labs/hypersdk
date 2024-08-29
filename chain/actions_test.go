@@ -51,37 +51,31 @@ func (*mockAction) ValidRange(Rules) (start int64, end int64) {
 	panic("unimplemented")
 }
 
-var _ HasSize = (*mockActionWithSizeFunc)(nil)
+var _ Marshaler = (*mockActionWithMarshaler)(nil)
 
-type mockActionWithSizeFunc struct {
+type mockActionWithMarshaler struct {
 	mockAction
 }
 
-func (*mockActionWithSizeFunc) Size() int {
+func (*mockActionWithMarshaler) Size() int {
 	return 100000
 }
 
-var _ HasMarshal = (*mockActionWithMarshal)(nil)
-
-type mockActionWithMarshal struct {
-	mockAction
-}
-
-func (*mockActionWithMarshal) Marshal(p *codec.Packer) {
+func (*mockActionWithMarshaler) Marshal(p *codec.Packer) {
 	p.PackFixedBytes([]byte{1, 2, 3, 4, 5})
 }
 
 func TestGetActionSize(t *testing.T) {
 	require := require.New(t)
 
-	actionNoSizeFunc := &mockAction{}
-	actionWithSizeFunc := &mockActionWithSizeFunc{}
+	actionNoMarshaler := &mockAction{}
+	actionWithMarshaler := &mockActionWithMarshaler{}
 
-	size1, err := getActionSize(actionNoSizeFunc)
+	size1, err := getActionSize(actionNoMarshaler)
 	require.NoError(err)
 	require.Equal(2, size1)
 
-	size2, err := getActionSize(actionWithSizeFunc)
+	size2, err := getActionSize(actionWithMarshaler)
 	require.NoError(err)
 	require.Equal(100000, size2)
 }
@@ -89,16 +83,16 @@ func TestGetActionSize(t *testing.T) {
 func TestMarshalActionInto(t *testing.T) {
 	require := require.New(t)
 
-	actionNoMarshal := &mockAction{Value: 7}
-	actionWithMarshal := &mockActionWithMarshal{}
+	actionNoMarshaler := &mockAction{Value: 7}
+	actionWithMarshaler := &mockActionWithMarshaler{}
 
 	p1 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := marshalActionInto(actionNoMarshal, p1)
+	err := marshalActionInto(actionNoMarshaler, p1)
 	require.NoError(err)
 	require.Equal([]byte{0, 7}, p1.Bytes())
 
 	p2 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = marshalActionInto(actionWithMarshal, p2)
+	err = marshalActionInto(actionWithMarshaler, p2)
 	require.NoError(err)
 	require.Equal([]byte{1, 2, 3, 4, 5}, p2.Bytes())
 }
