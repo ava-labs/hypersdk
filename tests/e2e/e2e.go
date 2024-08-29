@@ -61,6 +61,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		require.NoError(err)
 		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
 	})
+
+	ginkgo.It("GetABI", func() {
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
+	})
 })
 
 var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
