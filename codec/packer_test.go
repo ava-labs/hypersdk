@@ -26,11 +26,11 @@ func TestNewWriter(t *testing.T) {
 	// Pack up to the limit
 	bytes := []byte{1, 2}
 	wr.PackFixedBytes(bytes)
-	require.Equal(bytes, wr.Bytes, "Bytes not packed correctly.")
+	require.Equal(bytes, wr.Bytes(), "Bytes not packed correctly.")
 	// Pack past limit
 	wr.PackFixedBytes(bytes)
-	require.Len(wr.Bytes, 2, "Bytes overpacked.")
-	err := wr.Err
+	require.Len(wr.Bytes(), 2, "Bytes overpacked.")
+	err := wr.Err()
 	require.ErrorIs(err, wrappers.ErrInsufficientLength)
 }
 
