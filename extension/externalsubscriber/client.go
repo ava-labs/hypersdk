@@ -21,6 +21,7 @@ import (
 var _ event.Subscription[*chain.StatelessBlock] = (*ExternalSubscriberClient)(nil)
 
 type ExternalSubscriberClient struct {
+	conn   *grpc.ClientConn
 	client pb.ExternalSubscriberClient
 	log    logging.Logger
 }
@@ -53,6 +54,7 @@ func NewExternalSubscriberClient(
 	}
 	log.Debug("connected to external subscriber server", zap.String("address", serverAddr))
 	return &ExternalSubscriberClient{
+		conn:   conn,
 		client: client,
 		log:    log,
 	}, nil
@@ -80,6 +82,6 @@ func (e *ExternalSubscriberClient) Accept(blk *chain.StatelessBlock) error {
 	return err
 }
 
-func (*ExternalSubscriberClient) Close() error {
-	return nil
+func (e *ExternalSubscriberClient) Close() error {
+	return e.conn.Close()
 }

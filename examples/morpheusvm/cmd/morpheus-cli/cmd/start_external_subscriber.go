@@ -39,7 +39,7 @@ var startExternalSubscriberCommand = &cobra.Command{
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, controller.ParserFactory, acceptedSubscribers)
+		externalSubscriberServer := externalsubscriber.NewExternalSubscriberServer(log, controller.CreateParser, acceptedSubscribers)
 		grpcHandler, err := externalsubscriber.NewGRPCHandler(externalSubscriberServer, log, externalSubscriberPort)
 		if err != nil {
 			return err
@@ -48,7 +48,7 @@ var startExternalSubscriberCommand = &cobra.Command{
 
 		<-signals
 		grpcHandler.Stop()
-		log.Info("\nShutting down...")
+		log.Info("Shutting down...")
 		return nil
 	},
 }

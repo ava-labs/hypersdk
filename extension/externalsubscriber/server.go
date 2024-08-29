@@ -17,7 +17,7 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-type ParserFactory func(genesisBytes []byte) (chain.Parser, error)
+type CreateParser func(genesisBytes []byte) (chain.Parser, error)
 
 var (
 	ErrParserNotInitialized     = errors.New("parser not initialized")
@@ -44,19 +44,19 @@ func NewExternalSubscriberSubscriptionData(
 type ExternalSubscriberServer struct {
 	pb.ExternalSubscriberServer
 	parser              chain.Parser
-	parserFactory       ParserFactory
+	createParser        CreateParser
 	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData]
 	log                 logging.Logger
 }
 
 func NewExternalSubscriberServer(
 	logger logging.Logger,
-	parserFactory ParserFactory,
+	createParser CreateParser,
 	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData],
 ) *ExternalSubscriberServer {
 	return &ExternalSubscriberServer{
 		log:                 logger,
-		parserFactory:       parserFactory,
+		createParser:        createParser,
 		acceptedSubscribers: acceptedSubscribers,
 	}
 }
@@ -66,7 +66,7 @@ func (e *ExternalSubscriberServer) Initialize(_ context.Context, initRequest *pb
 		return &emptypb.Empty{}, ErrParserAlreadyInitialized
 	}
 	// Create parser and store
-	parser, err := e.parserFactory(initRequest.Genesis)
+	parser, err := e.createParser(initRequest.Genesis)
 	if err != nil {
 		return &emptypb.Empty{}, err
 	}

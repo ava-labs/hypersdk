@@ -41,7 +41,14 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	if !config.Enabled {
 		return nil
 	}
-	server, err := NewExternalSubscriberClient(context.TODO(), v.Logger(), config.ServerAddress, v.SnowCtx.NetworkID, v.SnowCtx.ChainID, v.GenesisBytes)
+	server, err := NewExternalSubscriberClient(
+		context.TODO(),
+		v.Logger(),
+		config.ServerAddress,
+		v.SnowCtx.NetworkID,
+		v.SnowCtx.ChainID,
+		v.GenesisBytes,
+	)
 	if err != nil {
 		return err
 	}

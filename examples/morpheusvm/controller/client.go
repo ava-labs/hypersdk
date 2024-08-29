@@ -116,7 +116,7 @@ func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
-func ParserFactory(genesisBytes []byte) (chain.Parser, error) {
+func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	var genesis genesis.DefaultGenesis
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
