@@ -82,6 +82,7 @@ type instance struct {
 	ControllerJSONRPCServer *httptest.Server
 	WebSocketServer         *httptest.Server
 	cli                     *jsonrpc.JSONRPCClient // clients for embedded VMs
+	onAccept                func(snowman.Block)
 }
 
 func init() {
@@ -241,6 +242,16 @@ func setInstances() {
 		v.ForceReady()
 	}
 
+	// Expect external subscriber to receive a notification when instance 0 accepts a block
+	instances[0].onAccept = func(blk snowman.Block) {
+		select {
+		case externalReceivedBlkID := <-externalSubscriberAcceptedBlocksCh:
+			require.Equal(blk.ID(), externalReceivedBlkID)
+		case <-time.After(5 * time.Second):
+			require.Fail("external subscriber did not receive accepted block")
+		}
+	}
+
 	uris = make([]string, len(instances))
 	for i, inst := range instances {
 		uris[i] = inst.routerServer.URL
@@ -395,7 +406,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
-			accept := expectBlk(1)
+			accept := instances[1].buildBlock()
 			results := accept(true)
 			require.Len(results, 1)
 
@@ -417,7 +428,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			latestBlock.(*chain.StatelessBlock).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
-			accept := expectBlk(1)
+			accept := instances[1].buildBlock()
 			results := accept(true)
 
 			// Check results
@@ -439,13 +450,13 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
-			accept = expectBlk(1)
+			accept = instances[1].buildBlock()
 
 			tx, _, err = workload.GenerateTxWithAssertion(ctx)
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
-			accept2 = expectBlk(1)
+			accept2 = instances[1].buildBlock()
 		})
 
 		ginkgo.By("clear processing tip", func() {
@@ -511,7 +522,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
 		// Clear previous txs on instance 0
-		accept := expectBlk(0)
+		accept := instances[0].buildBlock()
 		accept(false) // don't care about results
 
 		// Subscribe to blocks
@@ -530,7 +541,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		accept = expectBlk(0)
+		accept = instances[0].buildBlock()
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -573,7 +584,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			hutils.Outf("{{yellow}}waiting for mempool to return non-zero txs{{/}}\n")
 			time.Sleep(500 * time.Millisecond)
 		}
-		accept := expectBlk(0)
+		accept := instances[0].buildBlock()
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -605,7 +616,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 				require.NoError(err)
 
-				accept := expectBlk(0)
+				accept := instances[0].buildBlock()
 				_ = accept(true)
 				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
@@ -615,10 +626,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 })
 
-func expectBlk(instanceIndex int) func(add bool) []*chain.Result {
+func (i *instance) buildBlock() func(add bool) []*chain.Result {
 	require := require.New(ginkgo.GinkgoT())
-
-	i := instances[instanceIndex]
 
 	ctx := context.TODO()
 
@@ -637,14 +646,8 @@ func expectBlk(instanceIndex int) func(add bool) []*chain.Result {
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
-		// Special case: verify the accepted block is sent to the external subscriber
-		if instanceIndex == 0 {
-			select {
-			case externalReceivedBlkID := <-externalSubscriberAcceptedBlocksCh:
-				require.Equal(blk.ID(), externalReceivedBlkID)
-			case <-time.After(5 * time.Second):
-				require.Fail("external subscriber did not receive accepted block")
-			}
+		if i.onAccept != nil {
+			i.onAccept(blk)
 		}
 
 		if add {
