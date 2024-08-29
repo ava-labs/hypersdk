@@ -50,7 +50,7 @@ func (r *Result) Marshal(p *codec.Packer) error {
 func MarshalResults(src []*Result) ([]byte, error) {
 	size := consts.IntLen + codec.CummSize(src)
 	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
-	p.PackInt(len(src))
+	p.PackInt(int32(len(src)))
 	for _, result := range src {
 		if err := result.Marshal(p); err != nil {
 			return nil, err
@@ -93,7 +93,7 @@ func UnmarshalResults(src []byte) ([]*Result, error) {
 	p := codec.NewReader(src, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	items := p.UnpackInt(false)
 	results := make([]*Result, items)
-	for i := 0; i < items; i++ {
+	for i := int32(0); i < items; i++ {
 		result, err := UnmarshalResult(p)
 		if err != nil {
 			return nil, err

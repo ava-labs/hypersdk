@@ -125,13 +125,13 @@ func TestNewReader(t *testing.T) {
 	vInt := 900
 	wp := NewWriter(5, 5)
 	// Add an int and a bool
-	wp.PackInt(vInt)
+	wp.PackInt(int32(vInt))
 	wp.PackBool(true)
 	// Create reader
 	rp := NewReader(wp.Bytes(), 2)
 	require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
 	// Unpack both values
-	require.Equal(vInt, rp.UnpackInt(true), "Reader unpacked correctly.")
+	require.Equal(int32(vInt), rp.UnpackInt(true), "Reader unpacked correctly.")
 	require.True(rp.UnpackBool(), "Reader unpacked correctly.")
 	require.NoError(rp.Err(), "Reader set error during unpack.")
 	// Unpacked not packed with required
