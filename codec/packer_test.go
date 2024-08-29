@@ -60,7 +60,8 @@ func TestPackerID(t *testing.T) {
 		unpackedID = ids.Empty
 		rp.UnpackID(true, &unpackedID)
 		require.Equal(ids.Empty, unpackedID, "UnpackID unpacked incorrectly.")
-		require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
+		err := rp.Err()
+		require.ErrorIs(err, wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -81,7 +82,7 @@ func TestPackerWindow(t *testing.T) {
 		require := require.New(t)
 
 		rp := NewReader(wp.Bytes(), window.WindowSliceSize)
-		require.Equal(wp.Bytes, rp.Bytes, "Reader not initialized correctly.")
+		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
 		var unpackedWindow window.Window
 		rp.UnpackWindow(&unpackedWindow)
 		require.Equal(wind, unpackedWindow, "UnpackWindow unpacked incorrectly.")
@@ -111,7 +112,7 @@ func TestPackerAddress(t *testing.T) {
 		require := require.New(t)
 
 		rp := NewReader(wp.Bytes(), AddressLen)
-		require.Equal(wp.Bytes, rp.Bytes)
+		require.Equal(wp.Bytes(), rp.Bytes())
 		var unpackedAddr Address
 		rp.UnpackAddress(&unpackedAddr)
 		require.Equal(addr[:], unpackedAddr[:])
