@@ -463,7 +463,3 @@ func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
 func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
 }
-
-func (vm *VM) GetABI() string {
-	return vm.abiString
-}

@@ -30,7 +30,6 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
@@ -141,8 +140,6 @@ type VM struct {
 
 	ready chan struct{}
 	stop  chan struct{}
-
-	abiString string
 }
 
 func New(
@@ -162,11 +159,6 @@ func New(
 		allocatedNamespaces.Add(option.Namespace)
 	}
 
-	abiString, err := codec.GetVMABIString((*actionRegistry).GetRegisteredTypes())
-	if err != nil {
-		return nil, fmt.Errorf("calculating ABI string: %w", err)
-	}
-
 	return &VM{
 		v:                     v,
 		stateManager:          stateManager,
@@ -176,7 +168,6 @@ func New(
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
-		abiString:             abiString,
 	}, nil
 }
 

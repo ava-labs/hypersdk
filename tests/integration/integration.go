@@ -233,10 +233,6 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		ginkgo.By("Send GetNetwork request to every node")
 		workload.GetNetwork(ctx, require, uris, instances[0].vm.NetworkID(), instances[0].chainID)
 	})
-	ginkgo.It("GetABI", func() {
-		ginkgo.By("Gets ABI")
-		workload.GetABI(ctx, require, uris)
-	})
 })
 
 var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
