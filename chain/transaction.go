@@ -380,7 +380,7 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	}
 	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(len(txs))
+	p.PackInt(uint32(len(txs)))
 	for _, tx := range txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
@@ -399,7 +399,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < txCount; i++ {
+	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
