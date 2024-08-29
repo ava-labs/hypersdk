@@ -127,7 +127,7 @@ func setInstances() {
 	if configBytes != nil {
 		require.Len(configBytes, numVMs, "mismatch between number of VMs and configs provided")
 	} else {
-		configBytes = make([][]byte, 3)
+		configBytes = make([][]byte, numVMs)
 	}
 
 	networkID = uint32(1)
