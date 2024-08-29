@@ -7,7 +7,7 @@
 #![allow(dead_code)]
 
 use std::{ffi::CString, ops::Deref};
-use wasmlanche_sdk::Address as SdkAddress;
+use wasmlanche::Address as SdkAddress;
 
 // include the generated bindings
 // reference: https://rust-lang.github.io/rust-bindgen/tutorial-3.html

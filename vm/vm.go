@@ -33,6 +33,7 @@ import (
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
@@ -60,16 +61,17 @@ const (
 
 type VM struct {
 	DataDir string
-	factory ControllerFactory
-	c       Controller
 	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
-	config                     Config
-	genesis                    Genesis
+	config Config
+
+	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
+	genesis                    genesis.Genesis
+	ruleFactory                genesis.RuleFactory
 	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
@@ -79,15 +81,15 @@ type VM struct {
 	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
 	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
-	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
-	controllerAPIHandlerFactories []api.HandlerFactory[Controller]
-	rawStateDB                    database.Database
-	stateDB                       merkledb.MerkleDB
-	vmDB                          database.Database
-	handlers                      map[string]http.Handler
-	actionRegistry                chain.ActionRegistry
-	authRegistry                  chain.AuthRegistry
-	authEngine                    map[uint8]AuthEngine
+	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
+	rawStateDB            database.Database
+	stateDB               merkledb.MerkleDB
+	vmDB                  database.Database
+	handlers              map[string]http.Handler
+	stateManager          chain.StateManager
+	actionRegistry        chain.ActionRegistry
+	authRegistry          chain.AuthRegistry
+	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -141,8 +143,9 @@ type VM struct {
 }
 
 func New(
-	factory ControllerFactory,
 	v *version.Semantic,
+	genesisFactory genesis.GenesisAndRuleFactory,
+	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
@@ -157,13 +160,14 @@ func New(
 	}
 
 	return &VM{
-		factory:        factory,
-		v:              v,
-		config:         NewConfig(),
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
-		authEngine:     authEngine,
-		options:        options,
+		v:                     v,
+		stateManager:          stateManager,
+		config:                NewConfig(),
+		actionRegistry:        actionRegistry,
+		authRegistry:          authRegistry,
+		authEngine:            authEngine,
+		genesisAndRuleFactory: genesisFactory,
+		options:               options,
 	}, nil
 }
 
@@ -213,27 +217,9 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// TODO do not expose entire context to the Controller
-	//
-	// Note: does not copy the consensus lock but this is safe because the
-	// consensus lock does not work over rpc anyways
-	controllerContext := &snow.Context{
-		NetworkID:      vm.snowCtx.NetworkID,
-		SubnetID:       vm.snowCtx.SubnetID,
-		ChainID:        vm.snowCtx.ChainID,
-		NodeID:         vm.snowCtx.NodeID,
-		PublicKey:      vm.snowCtx.PublicKey,
-		XChainID:       vm.snowCtx.XChainID,
-		CChainID:       vm.snowCtx.CChainID,
-		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
-		Log:            vm.snowCtx.Log,
-		Keystore:       vm.snowCtx.Keystore,
-		SharedMemory:   vm.snowCtx.SharedMemory,
-		BCLookup:       vm.snowCtx.BCLookup,
-		Metrics:        vm.snowCtx.Metrics,
-		WarpSigner:     vm.snowCtx.WarpSigner,
-		ValidatorState: vm.snowCtx.ValidatorState,
-		ChainDataDir:   vm.DataDir,
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	if err != nil {
+		return err
 	}
 
 	if len(configBytes) > 0 {
@@ -242,25 +228,6 @@ func (vm *VM) Initialize(
 		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
-
-	controllerConfigBytes, err := json.Marshal(vm.config.Config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal controller config: %w", err)
-	}
-
-	// Always initialize implementation first
-	vm.c, vm.genesis, err = vm.factory.New(
-		vm,
-		controllerContext.Log,
-		controllerContext.NetworkID,
-		controllerContext.ChainID,
-		genesisBytes,
-		upgradeBytes,
-		controllerConfigBytes,
-	)
-	if err != nil {
-		return fmt.Errorf("implementation initialization failed: %w", err)
-	}
 
 	// Setup tracer
 	vm.tracer, err = trace.New(&vm.config.TraceConfig)
@@ -280,8 +247,10 @@ func (vm *VM) Initialize(
 	vm.gossiper = txGossiper
 
 	namespacedConfig := make(map[string]json.RawMessage)
-	if err := json.Unmarshal(controllerConfigBytes, &namespacedConfig); err != nil {
-		return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+	if len(vm.config.Config) > 0 {
+		if err := json.Unmarshal(vm.config.Config, &namespacedConfig); err != nil {
+			return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
+		}
 	}
 
 	for _, Option := range vm.options {
@@ -381,10 +350,9 @@ func (vm *VM) Initialize(
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
-		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
-			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.stateManager); err != nil {
+			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
 		if err := sps.Commit(ctx); err != nil {
@@ -418,7 +386,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		genesisRules := vm.c.Rules(0)
+		genesisRules := vm.Rules(0)
 		feeManager := fees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
@@ -509,19 +477,6 @@ func (vm *VM) Initialize(
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
-		if err != nil {
-			return fmt.Errorf("failed to initialize api: %w", err)
-		}
-
-		if _, ok := vm.handlers[api.Path]; ok {
-			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
-		}
-
-		vm.handlers[api.Path] = api.Handler
-	}
-
-	for _, apiFactory := range vm.controllerAPIHandlerFactories {
-		api, err := apiFactory.New(vm.c)
 		if err != nil {
 			return fmt.Errorf("failed to initialize api: %w", err)
 		}
@@ -928,7 +883,7 @@ func (vm *VM) Submit(
 	}
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
-	r := vm.c.Rules(now)
+	r := vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}
@@ -959,7 +914,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.c.StateManager())
+		_, err := tx.StateKeys(vm.stateManager)
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -1002,7 +957,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.stateManager, r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

@@ -4,9 +4,6 @@
 package cli
 
 import (
-	"context"
-
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -20,7 +17,7 @@ func (h *Handler) SetKey() error {
 		utils.Outf("{{red}}no stored keys{{/}}\n")
 		return nil
 	}
-	chainID, uris, err := h.GetDefaultChain(true)
+	_, uris, err := h.GetDefaultChain(true)
 	if err != nil {
 		return err
 	}
@@ -28,15 +25,10 @@ func (h *Handler) SetKey() error {
 		utils.Outf("{{red}}no available chains{{/}}\n")
 		return nil
 	}
-	rcli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := rcli.Network(context.TODO())
-	if err != nil {
-		return err
-	}
 	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 	for i := 0; i < len(keys); i++ {
 		addrStr := h.c.Address(keys[i].Address)
-		balance, err := h.c.LookupBalance(addrStr, uris[0], networkID, chainID)
+		balance, err := h.c.LookupBalance(addrStr, uris[0])
 		if err != nil {
 			return err
 		}
@@ -63,7 +55,7 @@ func (h *Handler) Balance(checkAllChains bool) error {
 	if err != nil {
 		return err
 	}
-	chainID, uris, err := h.GetDefaultChain(true)
+	_, uris, err := h.GetDefaultChain(true)
 	if err != nil {
 		return err
 	}
@@ -74,13 +66,8 @@ func (h *Handler) Balance(checkAllChains bool) error {
 	}
 	for _, uri := range uris[:max] {
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-		rcli := jsonrpc.NewJSONRPCClient(uris[0])
-		networkID, _, _, err := rcli.Network(context.TODO())
-		if err != nil {
-			return err
-		}
 		addrStr := h.c.Address(addr)
-		balance, err := h.c.LookupBalance(addrStr, uris[0], networkID, chainID)
+		balance, err := h.c.LookupBalance(addrStr, uris[0])
 		if err != nil {
 			return err
 		}

@@ -16,7 +16,7 @@ var chainCmd = &cobra.Command{
 
 var importChainCmd = &cobra.Command{
 	Use: "import",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().ImportChain()
 	},
 }
@@ -30,7 +30,7 @@ var setChainCmd = &cobra.Command{
 
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().PrintChainInfo()
 	},
 }

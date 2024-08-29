@@ -5,7 +5,6 @@ package cli
 
 import (
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -18,9 +17,9 @@ type Controller interface {
 	Decimals() uint8
 	Address(codec.Address) string
 	ParseAddress(string) (codec.Address, error)
-	GetParser(string, uint32, ids.ID) (chain.Parser, error)
+	GetParser(string) (chain.Parser, error)
 	HandleTx(*chain.Transaction, *chain.Result)
-	LookupBalance(address string, uri string, networkID uint32, chainID ids.ID) (uint64, error)
+	LookupBalance(address string, uri string) (uint64, error)
 }
 
 type Handler struct {

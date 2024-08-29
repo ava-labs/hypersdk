@@ -42,7 +42,7 @@ The `CreateProgramResponse` provides:
 Call a program with specified method, parameters, and gas limit:
 
 ```rust
-pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
+pub fn call_program<T: wasmlanche::borsh::BorshSerialize>(
     &self,
     program: Address,
     method: &str,

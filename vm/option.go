@@ -62,12 +62,6 @@ func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc 
 	}
 }
 
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) RegisterFunc {
-	return func(vm *VM) {
-		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
-	}
-}
-
 func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
 	return func(vm *VM) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)

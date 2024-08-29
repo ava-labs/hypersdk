@@ -18,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
@@ -75,7 +74,7 @@ type SpamHelper interface {
 	//
 	// TODO: consider making these functions part of the required JSONRPC
 	// interface for the HyperSDK.
-	CreateClient(uri string, networkID uint32, chainID ids.ID) error
+	CreateClient(uri string) error
 	GetParser(ctx context.Context) (chain.Parser, error)
 	LookupBalance(choice int, address string) (uint64, error)
 
@@ -94,12 +93,11 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	chainID, uris, err := prompt.SelectChain("select chainID", chains)
+	_, uris, err := prompt.SelectChain("select chainID", chains)
 	if err != nil {
 		return err
 	}
 	cli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
 	}
@@ -110,7 +108,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	if err := sh.CreateClient(uris[0], networkID, chainID); err != nil {
+	if err := sh.CreateClient(uris[0]); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {

@@ -86,12 +86,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 		return err
 	}
 	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-	rcli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := rcli.Network(context.TODO())
-	if err != nil {
-		return err
-	}
-	parser, err := h.c.GetParser(uris[0], networkID, chainID)
+	parser, err := h.c.GetParser(uris[0])
 	if err != nil {
 		return err
 	}

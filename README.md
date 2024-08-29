@@ -116,7 +116,7 @@ alternative to defining all `Auth` and/or `Actions` that can be invoked in the `
 
 Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
 be compiled to WASM can be used to write `programs`. You can view a collection of
-Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
+Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/examples).
 
 ### Account Abstraction
 The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.

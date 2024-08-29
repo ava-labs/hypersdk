@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
 )
@@ -39,7 +40,7 @@ func TestBlockCache(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
-	controller := NewMockController(ctrl)
+	rules := chain.NewMockRules(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  NewConfig(),
@@ -53,7 +54,7 @@ func TestBlockCache(t *testing.T) {
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
-		c:              controller,
+		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
 	}
 
 	// Init metrics (called in [Accepted])
@@ -65,9 +66,7 @@ func TestBlockCache(t *testing.T) {
 	// put the block into the cache "vm.blocks"
 	// and delete from "vm.verifiedBlocks"
 	ctx := context.TODO()
-	rules := chain.NewMockRules(ctrl)
 	rules.EXPECT().GetValidityWindow().Return(int64(60))
-	controller.EXPECT().Rules(gomock.Any()).Return(rules)
 	vm.Accepted(ctx, blk)
 
 	// we have not set up any persistent db
