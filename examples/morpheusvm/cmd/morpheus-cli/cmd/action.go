@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli/prompt"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
@@ -36,19 +38,23 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select recipient
-		recipient, err := handler.Root().PromptAddress("recipient")
+		receipientStr, err := prompt.String("recipient", 0, 200)
+		if err != nil {
+			return err
+		}
+		recipient, err := codec.ParseAddressBech32(consts.HRP, receipientStr)
 		if err != nil {
 			return err
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", consts.Decimals, balance, nil)
+		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := handler.Root().PromptContinue()
+		cont, err := prompt.Continue()
 		if !cont || err != nil {
 			return err
 		}

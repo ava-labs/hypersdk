@@ -361,6 +361,17 @@ func (d Dimensions) Greater(o Dimensions) bool {
 	return true
 }
 
+func (d Dimensions) String() string {
+	return fmt.Sprintf(
+		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
+		d[Bandwidth],
+		d[Compute],
+		d[StorageRead],
+		d[StorageAllocate],
+		d[StorageWrite],
+	)
+}
+
 func UnpackDimensions(raw []byte) (Dimensions, error) {
 	if len(raw) != DimensionsLen {
 		return Dimensions{}, fmt.Errorf("%w: found=%d wanted=%d", ErrWrongDimensionSize, len(raw), DimensionsLen)
