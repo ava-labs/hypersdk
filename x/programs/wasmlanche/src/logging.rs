@@ -6,11 +6,8 @@
 #[macro_export]
 macro_rules! dbg {
     () => {
-        #[cfg(debug_assertions)]
-        {
-            let as_string = format!("[{}:{}:{}]", file!(), line!(), column!());
-            $crate::log(as_string.as_str());
-        }
+        let as_string = format!("[{}:{}:{}]", file!(), line!(), column!());
+        $crate::log(as_string.as_str());
     };
     ($val:expr $(,)?) => {{
         match $val {
@@ -39,17 +36,15 @@ macro_rules! dbg {
 #[doc(hidden)]
 /// Catch panics by sending their information to the host.
 pub fn register_panic() {
-    #[cfg(debug_assertions)]
-    {
-        use std::{panic, sync::Once};
+    use std::{panic, sync::Once};
 
-        static START: Once = Once::new();
-        START.call_once(|| {
-            panic::set_hook(Box::new(|info| {
-                log(&format!("program {info}"));
-            }));
-        });
-    }
+    static SET_PANIC_HOOK: Once = Once::new();
+
+    SET_PANIC_HOOK.call_once(|| {
+        panic::set_hook(Box::new(|info| {
+            log(&format!("program {info}"));
+        }));
+    });
 }
 
 #[doc(hidden)]
