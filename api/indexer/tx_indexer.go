@@ -47,6 +47,9 @@ func With() vm.Option {
 }
 
 func OptionFunc(v *vm.VM, config Config) error {
+	if !config.Enabled {
+		return nil
+	}
 	dbPath := filepath.Join(v.DataDir, "indexer", "db")
 	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
