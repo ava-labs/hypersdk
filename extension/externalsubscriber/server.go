@@ -45,14 +45,14 @@ type ExternalSubscriberServer struct {
 	pb.ExternalSubscriberServer
 	parser              chain.Parser
 	createParser        CreateParser
-	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData]
+	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData]
 	log                 logging.Logger
 }
 
 func NewExternalSubscriberServer(
 	logger logging.Logger,
 	createParser CreateParser,
-	acceptedSubscribers []event.Subscription[ExternalSubscriberSubscriptionData],
+	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData],
 ) *ExternalSubscriberServer {
 	return &ExternalSubscriberServer{
 		log:                 logger,
@@ -97,7 +97,7 @@ func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockReq
 	// Forward block + results
 	externalSubscriberSubscriptionData := NewExternalSubscriberSubscriptionData(blk, results)
 	for _, s := range e.acceptedSubscribers {
-		if err := s.Accept(*externalSubscriberSubscriptionData); err != nil {
+		if err := s.Accept(externalSubscriberSubscriptionData); err != nil {
 			return &emptypb.Empty{}, err
 		}
 	}

@@ -7,17 +7,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/tests/integration"
-	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/vm"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
@@ -28,38 +23,11 @@ func TestIntegration(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
 }
 
-// TODO: use better var naming here
-func generateConfigs(require *require.Assertions) [][]byte {
-	externalSubscriberConfig := vm.NewConfig()
-
-	morpheusConfig := make(map[string]any)
-	morpheusConfig["externalSubscriber"] = externalsubscriber.Config{
-		Enabled:       true,
-		ServerAddress: "localhost:9001",
-	}
-	cb, err := json.Marshal(morpheusConfig)
-	require.NoError(err)
-	externalSubscriberConfig.Config = cb
-	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
-	require.NoError(err)
-
-	cbDefault, err := json.Marshal(vm.NewConfig())
-	require.NoError(err)
-
-	configBytes := make([][]byte, 3)
-	configBytes[0] = externalSubscriberConfigBytes
-	configBytes[1] = cbDefault
-	configBytes[2] = cbDefault
-
-	return configBytes
-}
-
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 	genesis, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := controller.NewParser(genesis)
 	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 
@@ -68,34 +36,14 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	logFactory := logging.NewFactory(logging.Config{
-		DisplayLevel: logging.Debug,
-	})
-	log, err := logFactory.Make("integrationTest")
-	require.NoError(err)
-
-	testSubscriber := workload.NewWorkloadTestSubscriber()
-	externalsubscriberServer := externalsubscriber.NewExternalSubscriberServer(
-		log,
-		controller.CreateParser,
-		[]event.Subscription[externalsubscriber.ExternalSubscriberSubscriptionData]{testSubscriber},
-	)
-	grpcHandler, err := externalsubscriber.NewGRPCHandler(externalsubscriberServer, log, ":9001")
-	require.NoError(err)
-
-	externalSubscriberWorkload := workload.NewExternalSubscriber(*grpcHandler, testSubscriber)
-	configs := generateConfigs(require)
-
 	// Setup imports the integration test coverage
 	integration.Setup(
 		controller.New,
 		genesisBytes,
-		configs,
 		lconsts.ID,
-		parser,
+		controller.CreateParser,
 		controller.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
-		externalSubscriberWorkload,
 	)
 })

@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-// New returns a VM with the indexer, websocket, and rpc apis enabled.
+// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
 func New(options ...vm.Option) (*vm.VM, error) {
 	opts := append([]vm.Option{
 		indexer.With(),
