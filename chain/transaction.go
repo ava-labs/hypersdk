@@ -52,7 +52,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		actionSize, err := getActionSize(action)
+		actionSize, err := getSize(action)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		err := marshalActionInto(action, p)
+		err := marshalInto(action, p)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +206,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		actionSize, err := getActionSize(action)
+		actionSize, err := getSize(action)
 		if err != nil {
 			return fees.Dimensions{}, err
 		}
@@ -378,7 +378,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		err := marshalActionInto(action, p)
+		err := marshalInto(action, p)
 		if err != nil {
 			return err
 		}

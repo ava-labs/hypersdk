@@ -76,11 +76,11 @@ func TestGetActionSize(t *testing.T) {
 	actionNoMarshaler := &mockAction{}
 	actionWithMarshaler := &mockActionWithMarshaler{}
 
-	size1, err := getActionSize(actionNoMarshaler)
+	size1, err := getSize(actionNoMarshaler)
 	require.NoError(err)
 	require.Equal(2, size1)
 
-	size2, err := getActionSize(actionWithMarshaler)
+	size2, err := getSize(actionWithMarshaler)
 	require.NoError(err)
 	require.Equal(mockManualSize, size2)
 }
@@ -92,12 +92,12 @@ func TestMarshalActionInto(t *testing.T) {
 	actionWithMarshaler := &mockActionWithMarshaler{}
 
 	p1 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := marshalActionInto(actionNoMarshaler, p1)
+	err := marshalInto(actionNoMarshaler, p1)
 	require.NoError(err)
 	require.Equal([]byte{0, 7}, p1.Bytes())
 
 	p2 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = marshalActionInto(actionWithMarshaler, p2)
+	err = marshalInto(actionWithMarshaler, p2)
 	require.NoError(err)
 	require.Equal(mockManualBytes, p2.Bytes())
 }
