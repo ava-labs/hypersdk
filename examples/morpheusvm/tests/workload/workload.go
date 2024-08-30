@@ -29,7 +29,7 @@ import (
 
 const (
 	initialBalance  uint64 = 10_000_000_000_000
-	txCheckInterval        = 10 * time.Millisecond
+	txCheckInterval        = 100 * time.Millisecond
 )
 
 var (
