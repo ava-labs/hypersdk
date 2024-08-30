@@ -28,7 +28,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	genesis, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := controller.NewParser(genesis)
 	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 
@@ -42,7 +41,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		controller.New,
 		genesisBytes,
 		lconsts.ID,
-		parser,
+		controller.CreateParser,
 		controller.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
