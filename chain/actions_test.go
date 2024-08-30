@@ -4,100 +4,63 @@
 package chain
 
 import (
-	"context"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ Action = (*mockAction)(nil)
-
-type mockAction struct {
-	Value uint16 `serialize:"true"`
+type mockObject struct {
+	Value uint8 `serialize:"true"`
 }
 
-// ComputeUnits implements Action.
-func (*mockAction) ComputeUnits(Rules) uint64 {
-	panic("unimplemented")
+type mockObjectMarshaler struct {
+	mockSize  int
+	mockBytes []byte
 }
 
-// Execute implements Action.
-func (*mockAction) Execute(_ context.Context, _ Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
-	panic("unimplemented")
+var _ Marshaler = (*mockObjectMarshaler)(nil)
+
+func (m *mockObjectMarshaler) Size() int {
+	return m.mockSize
 }
 
-// GetTypeID implements Action.
-func (*mockAction) GetTypeID() uint8 {
-	return 1
-}
-
-// StateKeys implements Action.
-func (*mockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
-}
-
-// StateKeysMaxChunks implements Action.
-func (*mockAction) StateKeysMaxChunks() []uint16 {
-	panic("unimplemented")
-}
-
-// ValidRange implements Action.
-func (*mockAction) ValidRange(Rules) (start int64, end int64) {
-	panic("unimplemented")
-}
-
-var _ Marshaler = (*mockActionWithMarshaler)(nil)
-
-type mockActionWithMarshaler struct {
-	mockAction
-}
-
-var (
-	mockManualSize  = 100000
-	mockManualBytes = []byte{1, 2, 3, 4, 5}
-)
-
-func (*mockActionWithMarshaler) Size() int {
-	return mockManualSize
-}
-
-func (*mockActionWithMarshaler) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(mockManualBytes)
+func (m *mockObjectMarshaler) Marshal(p *codec.Packer) {
+	p.PackFixedBytes(m.mockBytes)
 }
 
 func TestGetActionSize(t *testing.T) {
 	require := require.New(t)
 
-	actionNoMarshaler := &mockAction{}
-	actionWithMarshaler := &mockActionWithMarshaler{}
-
-	size1, err := getSize(actionNoMarshaler)
+	obj := &mockObject{Value: 7}
+	size1, err := getSize(obj)
 	require.NoError(err)
-	require.Equal(2, size1)
+	require.Equal(consts.Uint8Len, size1)
 
-	size2, err := getSize(actionWithMarshaler)
+	objMarshaler := &mockObjectMarshaler{
+		mockSize: 100000,
+	}
+	size2, err := getSize(objMarshaler)
 	require.NoError(err)
-	require.Equal(mockManualSize, size2)
+	require.Equal(100000, size2)
 }
 
 func TestMarshalActionInto(t *testing.T) {
 	require := require.New(t)
 
-	actionNoMarshaler := &mockAction{Value: 7}
-	actionWithMarshaler := &mockActionWithMarshaler{}
-
+	obj := &mockObject{Value: 7}
 	p1 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := marshalInto(actionNoMarshaler, p1)
+	err := marshalInto(obj, p1)
 	require.NoError(err)
-	require.Equal([]byte{0, 7}, p1.Bytes())
+	require.Equal([]byte{7}, p1.Bytes())
 
+	objMarshaler := &mockObjectMarshaler{
+		mockBytes: []byte{1, 2, 3, 4, 5},
+	}
 	p2 := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = marshalInto(actionWithMarshaler, p2)
+	err = marshalInto(objMarshaler, p2)
 	require.NoError(err)
-	require.Equal(mockManualBytes, p2.Bytes())
+	require.Equal([]byte{1, 2, 3, 4, 5}, p2.Bytes())
 }
