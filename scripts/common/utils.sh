@@ -12,14 +12,7 @@ function check_command() {
 }
 
 function install_if_not_exists() {
-  if ! command -v "$1" &> /dev/null
-  then
-    echo "$1 not found, installing..."
-    go install -v "$2"
-  fi
-
-  # alert the user if they do not have $GOPATH properly configured
-  check_command "$1"
+  go install -v "$2"
 }
 
 # Function to check if the script is run from the repository root
@@ -57,7 +50,6 @@ function add_license_headers() {
 
   echo "${action} license headers"
 
-  for ext in "*.go" "*.rs" "*.sh"; do
-    find . -type f -name "$ext" -print0 | xargs -0 -n1 addlicense "${args[@]}"
-  done
+  # Find and process files with the specified extensions
+  find . -type f \( -name "*.go" -o -name "*.rs" -o -name "*.sh" \) -print0 | xargs -0 addlicense "${args[@]}"
 }
