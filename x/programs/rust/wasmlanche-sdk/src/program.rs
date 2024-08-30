@@ -1,7 +1,9 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{memory::HostPtr, types::Address, Gas};
+use std::marker::PhantomData;
+
+use crate::{host::FunctionContext, memory::HostPtr, types::Address, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
@@ -45,6 +47,7 @@ pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
 #[derive(Clone, Copy, BorshSerialize, BorshDeserialize)]
 pub struct Program {
     account: Address,
+    state: PhantomData<FunctionContext>,
 }
 
 impl Program {
@@ -55,7 +58,7 @@ impl Program {
 
     pub fn new_test_program() -> Self {
         let account = Address::default();
-        Self { account }
+        Self { account, state: PhantomData }
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method

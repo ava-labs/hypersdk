@@ -24,18 +24,6 @@ pub enum Error {
     Deserialization,
 }
 
-/// Gets the balance for the specified address
-/// # Panics
-/// Panics if there was an issue deserializing the balance
-#[must_use]
-pub fn get_balance(account: Address) -> u64 {
-    let ptr = borsh::to_vec(&account).expect("failed to serialize args");
-    let function_context = FunctionContext::default();
-    let bytes = function_context.get_balance(ptr.as_ptr(), ptr.len());
-
-    borsh::from_slice(&bytes).expect("failed to deserialize the balance")
-}
-
 pub struct Cache {
     cache: HashMap<CacheKey, Option<CacheValue>>,
     function_context: FunctionContext,
@@ -116,18 +104,20 @@ pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
     }
 }
 
-impl Default for Cache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// impl Default for Cache{
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
 
 impl Cache {
     #[must_use]
     pub fn new() -> Self {
         Self {
             cache: HashMap::default(),
-            function_context: FunctionContext::default(),
+            // idealy, this function_context should be inherited from context but this causes some dependency issues
+            // i think it's fine for now to create a new one, since the cache drops when the context drops
+            function_context: FunctionContext::new(),
         }
     }
 
@@ -164,7 +154,7 @@ impl Cache {
                 .map_err(|_| Error::Deserialization)
         } else {
             let key = CacheKey::from(key);
-            let bytes = get_bytes(&key);
+            let bytes = get_bytes(&key, &self.function_context);
             cache
                 .entry(key)
                 .or_insert(bytes)
@@ -183,7 +173,7 @@ impl Cache {
             value
         } else {
             let key = CacheKey::from(key.as_ref());
-            let value_bytes = get_bytes(&key);
+            let value_bytes = get_bytes(&key, &self.function_context);
             cache.entry(key).or_insert(value_bytes)
         };
 
@@ -218,7 +208,7 @@ impl Cache {
     }
 }
 
-fn get_bytes(key: &[u8]) -> Option<CacheValue> {
+fn get_bytes(key: &[u8], function_context: &FunctionContext) -> Option<CacheValue> {
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
         key: &'a [u8],
@@ -226,8 +216,6 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    // TODO: could also pass via function args
-    let function_context = FunctionContext::default();
     crate::dbg!("getting data in the host");
     println!("getting data in the host println");
     let ptr = function_context.get_bytes(key.as_ptr(), key.len());
@@ -236,6 +224,23 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
         None
     } else {
         Some(ptr.into())
+    }
+}
+
+pub struct MockState {
+    state: HashMap<CacheKey, Option<CacheValue>>,
+}
+
+impl MockState {
+    pub fn new() -> Self {
+        println!("new mock state!");
+        Self {
+            state: HashMap::new(),
+        }
+    }
+
+    pub fn get(&self) {
+        println!("get mock state!");
     }
 }
 

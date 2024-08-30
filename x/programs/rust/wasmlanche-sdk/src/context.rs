@@ -1,8 +1,10 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+use std::ptr::null;
+
 use crate::{
-    dbg, host::FunctionContext, state::{Cache, Error, IntoPairs, Schema}, types::{Address, ProgramId}, Gas, HostPtr, Id, Program
+    host::FunctionContext, state::{Cache, Error, IntoPairs, Schema}, types::{Address, ProgramId}, Gas, Id, Program
 };
 use borsh::BorshDeserialize;
 
@@ -20,8 +22,6 @@ pub struct Context {
     function_context: FunctionContext,
 }
 
-
-
 #[cfg(feature = "debug")]
 mod debug {
 
@@ -35,7 +35,7 @@ mod debug {
         };
     }
 
-    impl std::fmt::Debug for Context {
+    impl std::fmt::Debug for Context{
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let Self {
                 program,
@@ -67,7 +67,7 @@ impl BorshDeserialize for Context {
             timestamp,
             action_id,
             state_cache: Cache::new(),
-            function_context: FunctionContext::default(),
+            function_context: FunctionContext::new()
         })
     }
 }
@@ -102,6 +102,7 @@ impl Context {
         self.action_id
     }
 
+    #[cfg(feature = "unit_tests")]
     pub fn new_test_context() -> Self {
         Self {
             program: Program::new_test_program(),
@@ -110,8 +111,19 @@ impl Context {
             timestamp: 0,
             action_id: Id::default(),
             state_cache: Cache::new(),
-            function_context: FunctionContext::default(),
+            function_context: FunctionContext::new(),
         }
+    }
+
+    /// Gets the balance for the specified address
+    /// # Panics
+    /// Panics if there was an issue deserializing the balance
+    #[must_use]
+    pub fn get_balance(&self, account: Address) -> u64 {
+        let ptr = borsh::to_vec(&account).expect("failed to serialize args");
+        let bytes = self.function_context.get_balance(ptr.as_ptr(), ptr.len());
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the balance")
     }
 
     /// Get a value from state.
