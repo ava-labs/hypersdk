@@ -31,9 +31,10 @@ func (m *mockObjectMarshaler) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(m.mockBytes)
 }
 
-const mockObjectSize = 100000
-
-var mockBytes = []byte("hello")
+var (
+	mockObjectSize = 100000
+	mockBytes      = []byte("hello")
+)
 
 func TestGetActionSize(t *testing.T) {
 	require := require.New(t)
