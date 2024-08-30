@@ -21,24 +21,6 @@ pub enum ExternalCallError {
     InsufficientFunds = 3,
 }
 
-/// Transfer currency from the calling program to the passed address
-/// # Panics
-/// Panics if there was an issue deserializing the result
-/// # Errors
-/// Errors if there are insufficient funds
-pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
-    #[link(wasm_import_module = "balance")]
-    extern "C" {
-        #[link_name = "send"]
-        fn send_value(ptr: *const u8, len: usize) -> HostPtr;
-    }
-    let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
-
-    let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
-
-    borsh::from_slice(&bytes).expect("failed to deserialize the result")
-}
-
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
@@ -101,22 +83,6 @@ impl Program {
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
         borsh::from_slice(&bytes).expect("failed to deserialize")
-    }
-
-    /// Gets the remaining fuel available to this program
-    /// # Panics
-    /// Panics if there was an issue deserializing the remaining fuel
-    #[must_use]
-    pub fn remaining_fuel(&self) -> u64 {
-        #[link(wasm_import_module = "program")]
-        extern "C" {
-            #[link_name = "remaining_fuel"]
-            fn get_remaining_fuel() -> HostPtr;
-        }
-
-        let bytes = unsafe { get_remaining_fuel() };
-
-        borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
     }
 }
 
