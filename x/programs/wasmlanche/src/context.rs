@@ -49,7 +49,15 @@ mod debug {
                 state_cache: _,
             } = self;
 
-            debug_struct_fields!(f, Context, contract_address, actor, height, timestamp, action_id)
+            debug_struct_fields!(
+                f,
+                Context,
+                contract_address,
+                actor,
+                height,
+                timestamp,
+                action_id
+            )
         }
     }
 }
@@ -75,8 +83,8 @@ impl BorshDeserialize for Context {
 
 impl Context {
     #[must_use]
-    pub fn contract_address(&self) -> &Address {
-        &self.contract_address
+    pub fn contract_address(&self) -> Address {
+        self.contract_address
     }
 
     /// Returns the address of the actor that is executing the program.
@@ -265,6 +273,7 @@ impl Context {
 
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
+    
 }
 
 /// An error that is returned from call to public functions.
@@ -285,25 +294,49 @@ pub enum ExternalCallError {
 
 /// Special context that is passed to external programs.
 #[allow(clippy::module_name_repetitions)]
-pub struct ExternalCallContext {
-    contract_address: Address,
+pub struct ExternalCallContext<'a> {
+    calling_context: &'a Context,
+    extern_contract_address: Address,
     max_units: Gas,
     value: u64,
 }
 
-impl ExternalCallContext {
+impl<'a> ExternalCallContext<'a> {
     #[must_use]
-    pub fn new(contract_address: Address, max_units: Gas, value: u64) -> Self {
+    pub fn new(
+        calling_context: &'a Context,
+        extern_contract_address: Address,
+        max_units: Gas,
+        value: u64,
+    ) -> Self {
         Self {
-            contract_address,
+            calling_context,
+            extern_contract_address,
             max_units,
             value,
         }
     }
 
-    #[must_use]
-    pub fn program(&self) -> &Address {
-        &self.contract_address
+    pub fn call_function<T: BorshDeserialize>(
+        &self,
+        function_name: &str,
+        args: &[u8],
+    ) -> Result<T, ExternalCallError> {
+        self.calling_context.call_function(
+            self.extern_contract_address,
+            function_name,
+            args,
+            self.max_units,
+            self.value,
+        )
+    }
+
+    pub fn get_context(&self) -> &Context {
+        self.calling_context
+    }
+
+    pub fn address(&self) -> Address {
+        self.extern_contract_address
     }
 
     #[must_use]
@@ -316,7 +349,6 @@ impl ExternalCallContext {
         self.value
     }
 }
-
 
 #[derive(BorshSerialize)]
 struct CallContractArgs<'a> {

@@ -206,7 +206,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let block = Box::new(parse_quote! {{
         let args = wasmlanche::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         ctx
-            .call_function::<#return_type>(ctx.contract_address(), #name, &args, ctx.max_units(), ctx.value())
+            .call_function::<#return_type>(#name, &args)
             .expect("calling the external contract failed")
     }});
 
