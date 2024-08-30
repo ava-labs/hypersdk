@@ -5,7 +5,6 @@ package externalsubscriber
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
@@ -26,16 +25,10 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, OptionFunc)
+	return vm.NewOptionWithConfig(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, configBytes []byte) error {
-	config := NewDefaultConfig()
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &config); err != nil {
-			return err
-		}
-	}
+func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}

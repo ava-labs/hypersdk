@@ -5,7 +5,6 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 
@@ -48,21 +47,15 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, OptionFunc)
+	return vm.NewOptionWithConfig(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, configBytes []byte) error {
-	actionRegistry, authRegistry := v.Registry()
-	config := NewDefaultConfig()
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &config); err != nil {
-			return err
-		}
-	}
+func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
 
+	actionRegistry, authRegistry := v.Registry()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),

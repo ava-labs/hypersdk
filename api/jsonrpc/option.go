@@ -7,8 +7,21 @@ import "github.com/ava-labs/hypersdk/vm"
 
 const Namespace = "core"
 
+type Config struct {
+	Enabled bool `json:"enabled"`
+}
+
+func NewDefaultConfig() Config {
+	return Config{
+		Enabled: true,
+	}
+}
+
 func With() vm.Option {
-	return vm.NewOption(Namespace, func(v *vm.VM, _ []byte) error {
+	return vm.NewOptionWithConfig(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+		if !config.Enabled {
+			return nil
+		}
 		vm.WithVMAPIs(JSONRPCServerFactory{})(v)
 		return nil
 	})
