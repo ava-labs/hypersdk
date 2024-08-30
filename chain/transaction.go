@@ -52,14 +52,21 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		actionSize, err := getSize(action)
+		if err != nil {
+			return nil, err
+		}
+		size += consts.ByteLen + actionSize
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return p.Bytes(), p.Err()
 }
@@ -199,7 +206,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionSize, err := getSize(action)
+		if err != nil {
+			return fees.Dimensions{}, err
+		}
+
+		bandwidth += consts.ByteLen + uint64(actionSize)
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
@@ -366,7 +378,10 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return err
+		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)

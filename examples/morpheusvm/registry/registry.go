@@ -25,12 +25,13 @@ func init() {
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
-		Action.Register((&actions.Transfer{}).GetTypeID(), actions.UnmarshalTransfer),
+		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
+		Action.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		Auth.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519),
-		Auth.Register((&auth.SECP256R1{}).GetTypeID(), auth.UnmarshalSECP256R1),
-		Auth.Register((&auth.BLS{}).GetTypeID(), auth.UnmarshalBLS),
+		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		Auth.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		Auth.Register(&auth.BLS{}, auth.UnmarshalBLS),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
