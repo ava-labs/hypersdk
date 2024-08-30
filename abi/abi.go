@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package codec
+package abi
 
 import (
 	"encoding/json"
@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	reflect "reflect"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type ABIField struct {
@@ -23,7 +25,7 @@ type SingleActionABI struct {
 	Types map[string][]ABIField `json:"types"`
 }
 
-func GetVMABIString(actions []Typed) (string, error) {
+func GetVMABIString(actions []codec.Typed) (string, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
@@ -36,7 +38,7 @@ func GetVMABIString(actions []Typed) (string, error) {
 	return string(resBytes), err
 }
 
-func getActionABI(action Typed) (SingleActionABI, error) {
+func getActionABI(action codec.Typed) (SingleActionABI, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()

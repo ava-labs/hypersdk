@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package codec_test
+package abi
 
 import (
 	"testing"
@@ -23,7 +23,7 @@ func (Struct1) GetTypeID() uint8 {
 func TestGetABIBasic(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{Struct1{}})
+	abiString, err := GetVMABIString([]codec.Typed{Struct1{}})
 	require.NoError(err)
 	require.JSONEq(`[
 		{
@@ -48,7 +48,7 @@ func TestGetABIBasic(t *testing.T) {
 func TestGetABIBasicPtr(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{&Struct1{}})
+	abiString, err := GetVMABIString([]codec.Typed{&Struct1{}})
 	require.NoError(err)
 	require.JSONEq(`[
 		{
@@ -83,7 +83,7 @@ func (Transfer) GetTypeID() uint8 {
 func TestGetABITransfer(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{Transfer{}})
+	abiString, err := GetVMABIString([]codec.Typed{Transfer{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -119,7 +119,7 @@ func (AllInts) GetTypeID() uint8 {
 func TestGetABIAllInts(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{AllInts{}})
+	abiString, err := GetVMABIString([]codec.Typed{AllInts{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -158,7 +158,7 @@ func (OuterStructSingle) GetTypeID() uint8 {
 func TestGetABIOuterStructSingle(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{OuterStructSingle{}})
+	abiString, err := GetVMABIString([]codec.Typed{OuterStructSingle{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -198,7 +198,7 @@ func (OuterStructArray) GetTypeID() uint8 {
 func TestGetABIOuterStructArray(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{OuterStructArray{}})
+	abiString, err := GetVMABIString([]codec.Typed{OuterStructArray{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -248,7 +248,7 @@ func (CompositionOuter) GetTypeID() uint8 {
 func TestGetABIComposition(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVMABIString([]codec.Typed{CompositionOuter{}})
+	abiString, err := GetVMABIString([]codec.Typed{CompositionOuter{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
