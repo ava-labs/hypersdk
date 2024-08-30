@@ -22,7 +22,7 @@ func With() vm.Option {
 		if !config.Enabled {
 			return nil
 		}
-	vm.WithVMAPIs(jsonRPCServerFactory{})(v)
+		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
 		return nil
 	})
 }
