@@ -57,8 +57,10 @@ type mockActionWithMarshaler struct {
 	mockAction
 }
 
-var mockManualSize = 100000
-var mockManualBytes = []byte{1, 2, 3, 4, 5}
+var (
+	mockManualSize  = 100000
+	mockManualBytes = []byte{1, 2, 3, 4, 5}
+)
 
 func (*mockActionWithMarshaler) Size() int {
 	return mockManualSize
