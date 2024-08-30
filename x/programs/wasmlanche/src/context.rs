@@ -231,20 +231,6 @@ impl Context {
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    /// # Examples
-    /// ```no_run
-    /// # use wasmlanche::{Address, Program};
-    /// #
-    /// # let program_id = [0; Address::LEN];
-    /// # let target: Program = borsh::from_slice(&program_id).unwrap();
-    /// let increment = 10;
-    /// let params = borsh::to_vec(&increment).unwrap();
-    /// let max_units = 1000000;
-    /// let value = 0;
-    /// let has_incremented: bool = target.call_function("increment", &params, max_units, value)?;
-    /// assert!(has_incremented);
-    /// # Ok::<(), wasmlanche::ExternalCallError>(())
-    /// ```
     pub fn call_function<T: BorshDeserialize>(
         &self,
         address: Address,
