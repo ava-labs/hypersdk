@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
+	consts "github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
@@ -86,28 +87,23 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-// Optional methods to override for performance optimization when hitting TPS limits
+// Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
+var _ chain.Marshaler = (*Transfer)(nil)
 
-// var _ chain.HasSize = (*Transfer)(nil)
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+}
 
-// func (t *Transfer) Size() int {
-// 	// For manual calculation:
-// 	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
-// }
+func (t *Transfer) Marshal(p *codec.Packer) {
+	p.PackAddress(t.To)
+	p.PackLong(t.Value)
+	p.PackBytes(t.Memo)
+}
 
-// var _ chain.HasMarshal = (*Transfer)(nil)
-
-// func (t *Transfer) Marshal(p *codec.Packer) {
-// 	p.PackAddress(t.To)
-// 	p.PackLong(t.Value)
-// 	p.PackBytes(t.Memo)
-// }
-
-// Register this in registry/registry.go as the second argument to Action.Register
-// func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-// 	var transfer Transfer
-// 	p.UnpackAddress(&transfer.To)
-// 	transfer.Value = p.UnpackUint64(true)
-// 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
-// 	return &transfer, p.Err()
-// }
+func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+	var transfer Transfer
+	p.UnpackAddress(&transfer.To)
+	transfer.Value = p.UnpackUint64(true)
+	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+	return &transfer, p.Err()
+}
