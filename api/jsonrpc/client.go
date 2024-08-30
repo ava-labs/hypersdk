@@ -183,6 +183,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 		return err
 	}, tx, nil
 }
+
 func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
