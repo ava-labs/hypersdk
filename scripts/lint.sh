@@ -35,7 +35,7 @@ TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  install_if_not_exists golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
+  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
 
   golangci-lint run --config .golangci.yml
 }
