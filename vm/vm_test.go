@@ -29,8 +29,8 @@ func TestBlockCache(t *testing.T) {
 	defer ctrl.Finish()
 
 	// create a block with "Unknown" status
-	blk := &chain.StatelessBlock{
-		StatefulBlock: &chain.StatefulBlock{
+	blk := &chain.StatefulBlock{
+		StatelessBlock: &chain.StatelessBlock{
 			Prnt: ids.GenerateTestID(),
 			Hght: 10000,
 		},
@@ -38,7 +38,7 @@ func TestBlockCache(t *testing.T) {
 	blkID := blk.ID()
 
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
+	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatefulBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	rules := chain.NewMockRules(ctrl)
 	vm := VM{
@@ -50,10 +50,10 @@ func TestBlockCache(t *testing.T) {
 		acceptedBlocksByID:     bByID,
 		acceptedBlocksByHeight: bByHeight,
 
-		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
+		verifiedBlocks: make(map[ids.ID]*chain.StatefulBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
-		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
+		acceptedQueue:  make(chan *chain.StatefulBlock, 1024), // don't block on queue
 		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
 	}
 
@@ -71,7 +71,7 @@ func TestBlockCache(t *testing.T) {
 
 	// we have not set up any persistent db
 	// so this must succeed from using cache
-	blk2, err := vm.GetStatelessBlock(ctx, blkID)
+	blk2, err := vm.GetStatefulBlock(ctx, blkID)
 	require.NoError(err)
 	require.Equal(blk, blk2)
 }
