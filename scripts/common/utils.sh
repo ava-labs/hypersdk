@@ -12,7 +12,14 @@ function check_command() {
 }
 
 function install_if_not_exists() {
-  go install -v "$2"
+  if ! command -v "$1" &> /dev/null
+  then
+    echo "$1 not found, installing..."
+    go install -v "$2"
+  fi
+
+  # alert the user if they do not have $GOPATH properly configured
+  check_command "$1"
 }
 
 # Function to check if the script is run from the repository root
