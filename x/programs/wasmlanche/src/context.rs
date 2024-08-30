@@ -6,17 +6,18 @@ extern crate alloc;
 use crate::{
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
-    ExternalCallError, Gas, HostPtr, Id, Program,
+    Gas, HostPtr, Id,
 };
 use alloc::{boxed::Box, vec::Vec};
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
+use displaydoc::Display;
 
 pub type CacheKey = Box<[u8]>;
 pub type CacheValue = Vec<u8>;
 
 /// Representation of the context that is passed to programs at runtime.
 pub struct Context {
-    program: Program,
+    contract_address: Address,
     actor: Address,
     height: u64,
     timestamp: u64,
@@ -40,7 +41,7 @@ mod debug {
     impl Debug for Context {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result {
             let Self {
-                program,
+                contract_address,
                 actor,
                 height,
                 timestamp,
@@ -48,21 +49,21 @@ mod debug {
                 state_cache: _,
             } = self;
 
-            debug_struct_fields!(f, Context, program, actor, height, timestamp, action_id)
+            debug_struct_fields!(f, Context, contract_address, actor, height, timestamp, action_id)
         }
     }
 }
 
 impl BorshDeserialize for Context {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let program = Program::deserialize_reader(reader)?;
+        let contract_address = Address::deserialize_reader(reader)?;
         let actor = Address::deserialize_reader(reader)?;
         let height = u64::deserialize_reader(reader)?;
         let timestamp = u64::deserialize_reader(reader)?;
         let action_id = Id::deserialize_reader(reader)?;
 
         Ok(Self {
-            program,
+            contract_address,
             actor,
             height,
             timestamp,
@@ -74,8 +75,8 @@ impl BorshDeserialize for Context {
 
 impl Context {
     #[must_use]
-    pub fn program(&self) -> &Program {
-        &self.program
+    pub fn contract_address(&self) -> &Address {
+        &self.contract_address
     }
 
     /// Returns the address of the actor that is executing the program.
@@ -150,7 +151,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Program {
+    pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]
@@ -213,29 +214,96 @@ impl Context {
 
         borsh::from_slice(&bytes).expect("failed to deserialize the result")
     }
+
+    /// Attempts to call a function `name` with `args` on the given program. This method
+    /// is used to call functions on external programs.
+    /// # Errors
+    /// Returns a [`ExternalCallError`] if the call fails.
+    /// # Panics
+    /// Will panic if the args cannot be serialized
+    /// # Safety
+    /// The caller must ensure that `function_name` + `args` point to valid memory locations.
+    /// # Examples
+    /// ```no_run
+    /// # use wasmlanche::{Address, Program};
+    /// #
+    /// # let program_id = [0; Address::LEN];
+    /// # let target: Program = borsh::from_slice(&program_id).unwrap();
+    /// let increment = 10;
+    /// let params = borsh::to_vec(&increment).unwrap();
+    /// let max_units = 1000000;
+    /// let value = 0;
+    /// let has_incremented: bool = target.call_function("increment", &params, max_units, value)?;
+    /// assert!(has_incremented);
+    /// # Ok::<(), wasmlanche::ExternalCallError>(())
+    /// ```
+    pub fn call_function<T: BorshDeserialize>(
+        &self,
+        address: Address,
+        function_name: &str,
+        args: &[u8],
+        max_units: Gas,
+        max_value: u64,
+    ) -> Result<T, ExternalCallError> {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "call_program"]
+            fn call_program(ptr: *const u8, len: usize) -> HostPtr;
+        }
+
+        let args = CallContractArgs {
+            target: &address,
+            function: function_name.as_bytes(),
+            args,
+            max_units,
+            max_value,
+        };
+
+        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+
+        let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize")
+    }
+}
+
+/// An error that is returned from call to public functions.
+#[derive(Debug, Display, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[repr(u8)]
+#[non_exhaustive]
+#[borsh(use_discriminant = true)]
+pub enum ExternalCallError {
+    /// an error happened during execution
+    ExecutionFailure = 0,
+    /// the call panicked
+    CallPanicked = 1,
+    /// not enough fuel to cover the execution
+    OutOfFuel = 2,
+    /// insufficient funds
+    InsufficientFunds = 3,
 }
 
 /// Special context that is passed to external programs.
 #[allow(clippy::module_name_repetitions)]
 pub struct ExternalCallContext {
-    program: Program,
+    contract_address: Address,
     max_units: Gas,
     value: u64,
 }
 
 impl ExternalCallContext {
     #[must_use]
-    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
+    pub fn new(contract_address: Address, max_units: Gas, value: u64) -> Self {
         Self {
-            program,
+            contract_address,
             max_units,
             value,
         }
     }
 
     #[must_use]
-    pub fn program(&self) -> &Program {
-        &self.program
+    pub fn program(&self) -> &Address {
+        &self.contract_address
     }
 
     #[must_use]
@@ -247,4 +315,14 @@ impl ExternalCallContext {
     pub fn value(&self) -> u64 {
         self.value
     }
+}
+
+
+#[derive(BorshSerialize)]
+struct CallContractArgs<'a> {
+    target: &'a Address,
+    function: &'a [u8],
+    args: &'a [u8],
+    max_units: Gas,
+    max_value: u64,
 }
