@@ -68,6 +68,70 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 	return utils.ToID(blk), nil
 }
 
+func (b *StatefulBlock) Marshal() ([]byte, error) {
+	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
+		consts.Uint64Len + window.WindowSliceSize +
+		consts.IntLen + codec.CummSize(b.Txs) +
+		ids.IDLen + consts.Uint64Len + consts.Uint64Len
+
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackID(b.Prnt)
+	p.PackInt64(b.Tmstmp)
+	p.PackUint64(b.Hght)
+
+	p.PackInt(uint32(len(b.Txs)))
+	b.authCounts = map[uint8]int{}
+	for _, tx := range b.Txs {
+		if err := tx.Marshal(p); err != nil {
+			return nil, err
+		}
+		b.authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	p.PackID(b.StateRoot)
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	b.size = len(bytes)
+	return bytes, nil
+}
+
+func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
+	var (
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
+		b StatefulBlock
+	)
+	b.size = len(raw)
+
+	p.UnpackID(false, &b.Prnt)
+	b.Tmstmp = p.UnpackInt64(false)
+	b.Hght = p.UnpackUint64(false)
+
+	// Parse transactions
+	txCount := p.UnpackInt(false) // can produce empty blocks
+	actionRegistry, authRegistry := parser.Registry()
+	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.authCounts = map[uint8]int{}
+	for i := uint32(0); i < txCount; i++ {
+		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		b.Txs = append(b.Txs, tx)
+		b.authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	p.UnpackID(false, &b.StateRoot)
+
+	// Ensure no leftover bytes
+	if !p.Empty() {
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	}
+	return &b, p.Err()
+}
+
 func NewGenesisBlock(root ids.ID) *StatefulBlock {
 	return &StatefulBlock{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
@@ -791,70 +855,6 @@ func (b *StatelessBlock) Results() []*Result {
 
 func (b *StatelessBlock) FeeManager() *fees.Manager {
 	return b.feeManager
-}
-
-func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
-		consts.Uint64Len + window.WindowSliceSize +
-		consts.IntLen + codec.CummSize(b.Txs) +
-		ids.IDLen + consts.Uint64Len + consts.Uint64Len
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackID(b.Prnt)
-	p.PackInt64(b.Tmstmp)
-	p.PackUint64(b.Hght)
-
-	p.PackInt(uint32(len(b.Txs)))
-	b.authCounts = map[uint8]int{}
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	p.PackID(b.StateRoot)
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	b.size = len(bytes)
-	return bytes, nil
-}
-
-func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
-	var (
-		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatefulBlock
-	)
-	b.size = len(raw)
-
-	p.UnpackID(false, &b.Prnt)
-	b.Tmstmp = p.UnpackInt64(false)
-	b.Hght = p.UnpackUint64(false)
-
-	// Parse transactions
-	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	b.authCounts = map[uint8]int{}
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
-		}
-		b.Txs = append(b.Txs, tx)
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	p.UnpackID(false, &b.StateRoot)
-
-	// Ensure no leftover bytes
-	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
-	}
-	return &b, p.Err()
 }
 
 type SyncableBlock struct {
