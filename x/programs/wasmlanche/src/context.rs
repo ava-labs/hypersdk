@@ -6,7 +6,7 @@ extern crate alloc;
 use crate::{
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
-    Gas, HostPtr, Id, Program,
+    ExternalCallError, Gas, HostPtr, Id, Program,
 };
 use alloc::{boxed::Box, vec::Vec};
 use borsh::BorshDeserialize;
@@ -162,6 +162,56 @@ impl Context {
         let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
+    }
+
+    /// Gets the remaining fuel available to this program
+    /// # Panics
+    /// Panics if there was an issue deserializing the remaining fuel
+    #[must_use]
+    pub fn remaining_fuel(&self) -> u64 {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "remaining_fuel"]
+            fn get_remaining_fuel() -> HostPtr;
+        }
+
+        let bytes = unsafe { get_remaining_fuel() };
+
+        borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
+    }
+
+    /// Gets the balance for the specified address
+    /// # Panics
+    /// Panics if there was an issue deserializing the balance
+    #[must_use]
+    pub fn get_balance(&self, account: Address) -> u64 {
+        #[link(wasm_import_module = "balance")]
+        extern "C" {
+            #[link_name = "get"]
+            fn get(ptr: *const u8, len: usize) -> HostPtr;
+        }
+        let ptr = borsh::to_vec(&account).expect("failed to serialize args");
+        let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the balance")
+    }
+
+    /// Transfer currency from the calling program to the passed address
+    /// # Panics
+    /// Panics if there was an issue deserializing the result
+    /// # Errors
+    /// Errors if there are insufficient funds
+    pub fn send(&self, to: Address, amount: u64) -> Result<(), ExternalCallError> {
+        #[link(wasm_import_module = "balance")]
+        extern "C" {
+            #[link_name = "send"]
+            fn send_value(ptr: *const u8, len: usize) -> HostPtr;
+        }
+        let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
+
+        let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the result")
     }
 }
 
