@@ -57,12 +57,15 @@ type mockActionWithMarshaler struct {
 	mockAction
 }
 
+var mockManualSize = 100000
+var mockManualBytes = []byte{1, 2, 3, 4, 5}
+
 func (*mockActionWithMarshaler) Size() int {
-	return 100000
+	return mockManualSize
 }
 
 func (*mockActionWithMarshaler) Marshal(p *codec.Packer) {
-	p.PackFixedBytes([]byte{1, 2, 3, 4, 5})
+	p.PackFixedBytes(mockManualBytes)
 }
 
 func TestGetActionSize(t *testing.T) {
@@ -77,7 +80,7 @@ func TestGetActionSize(t *testing.T) {
 
 	size2, err := getActionSize(actionWithMarshaler)
 	require.NoError(err)
-	require.Equal(100000, size2)
+	require.Equal(mockManualSize, size2)
 }
 
 func TestMarshalActionInto(t *testing.T) {
@@ -94,5 +97,5 @@ func TestMarshalActionInto(t *testing.T) {
 	p2 := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = marshalActionInto(actionWithMarshaler, p2)
 	require.NoError(err)
-	require.Equal([]byte{1, 2, 3, 4, 5}, p2.Bytes())
+	require.Equal(mockManualBytes, p2.Bytes())
 }
