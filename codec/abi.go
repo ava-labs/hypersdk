@@ -23,7 +23,7 @@ type SingleActionABI struct {
 	Types map[string][]ABIField `json:"types"`
 }
 
-func GetVMABIString(actions []HasTypeID) (string, error) {
+func GetVMABIString(actions []Typed) (string, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
@@ -36,7 +36,7 @@ func GetVMABIString(actions []HasTypeID) (string, error) {
 	return string(resBytes), err
 }
 
-func getActionABI(action HasTypeID) (SingleActionABI, error) {
+func getActionABI(action Typed) (SingleActionABI, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
