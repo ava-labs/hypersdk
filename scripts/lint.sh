@@ -25,17 +25,14 @@ else
   TARGET="${1}"
 fi
 
-ADD_LICENSE=${ADD_LICENSE:-true}
-if [ "$ADD_LICENSE" = true ]; then
-  add_license_headers -check
-fi
+add_license_headers -check
 
 # by default, "./scripts/lint.sh" runs all lint tests
 TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  install_if_not_exists golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
+  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
 
   golangci-lint run --config .golangci.yml
 }
