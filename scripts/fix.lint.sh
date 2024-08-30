@@ -16,7 +16,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/scripts/common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
-add_license_headers
+add_license_headers ""
 
 echo "gofumpt files"
 install_if_not_exists gofumpt mvdan.cc/gofumpt@latest
