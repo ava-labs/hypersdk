@@ -31,6 +31,10 @@ func (m *mockObjectMarshaler) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(m.mockBytes)
 }
 
+const mockObjectSize = 100000
+
+var mockBytes = []byte("hello")
+
 func TestGetActionSize(t *testing.T) {
 	require := require.New(t)
 
@@ -40,11 +44,11 @@ func TestGetActionSize(t *testing.T) {
 	require.Equal(consts.Uint8Len, size1)
 
 	objMarshaler := &mockObjectMarshaler{
-		mockSize: 100000,
+		mockSize: mockObjectSize,
 	}
 	size2, err := getSize(objMarshaler)
 	require.NoError(err)
-	require.Equal(100000, size2)
+	require.Equal(mockObjectSize, size2)
 }
 
 func TestMarshalActionInto(t *testing.T) {
@@ -57,10 +61,10 @@ func TestMarshalActionInto(t *testing.T) {
 	require.Equal([]byte{7}, p1.Bytes())
 
 	objMarshaler := &mockObjectMarshaler{
-		mockBytes: []byte{1, 2, 3, 4, 5},
+		mockBytes: mockBytes,
 	}
 	p2 := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = marshalInto(objMarshaler, p2)
 	require.NoError(err)
-	require.Equal([]byte{1, 2, 3, 4, 5}, p2.Bytes())
+	require.Equal(mockBytes, p2.Bytes())
 }
