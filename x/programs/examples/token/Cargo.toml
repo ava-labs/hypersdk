@@ -17,4 +17,3 @@ wasmlanche = { workspace = true, features = ["build"] }
 
 [features]
 bindings = []
-

@@ -5,17 +5,17 @@ package chain
 
 import "github.com/ava-labs/hypersdk/codec"
 
-func getActionSize(action Action) (int, error) {
-	if actionWithSize, ok := action.(HasSize); ok {
+func getSize(item interface{}) (int, error) {
+	if actionWithSize, ok := item.(Marshaler); ok {
 		return actionWithSize.Size(), nil
 	}
-	return codec.LinearCodec.Size(action)
+	return codec.LinearCodec.Size(item)
 }
 
-func marshalActionInto(action Action, p *codec.Packer) error {
-	if actionWithMarshal, ok := action.(HasMarshal); ok {
+func marshalInto(item interface{}, p *codec.Packer) error {
+	if actionWithMarshal, ok := item.(Marshaler); ok {
 		actionWithMarshal.Marshal(p)
 		return nil
 	}
-	return codec.LinearCodec.MarshalInto(action, p.Packer)
+	return codec.LinearCodec.MarshalInto(item, p.Packer)
 }
