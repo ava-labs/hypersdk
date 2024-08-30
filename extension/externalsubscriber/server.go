@@ -71,7 +71,7 @@ func (e *ExternalSubscriberServer) Initialize(_ context.Context, initRequest *pb
 		return &emptypb.Empty{}, err
 	}
 	e.parser = parser
-	e.log.Info("external subscriber has initialized the parser associated with morpheusVM")
+	e.log.Info("initialized external subscriber parser")
 	return &emptypb.Empty{}, nil
 }
 
@@ -90,7 +90,7 @@ func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockReq
 		return &emptypb.Empty{}, err
 	}
 
-	e.log.Info("external subscriber server received a block with",
+	e.log.Info("external subscriber received accepted block",
 		zap.Any("height", blk.Hght),
 	)
 

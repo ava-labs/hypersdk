@@ -21,10 +21,8 @@ type Config struct {
 	ServerAddress string `json:"serverAddress"`
 }
 
-func NewConfig() Config {
-	return Config{
-		Enabled: false,
-	}
+func NewDefaultConfig() Config {
+	return Config{}
 }
 
 func With() vm.Option {
@@ -32,7 +30,7 @@ func With() vm.Option {
 }
 
 func OptionFunc(v *vm.VM, configBytes []byte) error {
-	config := NewConfig()
+	config := NewDefaultConfig()
 	if len(configBytes) > 0 {
 		if err := json.Unmarshal(configBytes, &config); err != nil {
 			return err
