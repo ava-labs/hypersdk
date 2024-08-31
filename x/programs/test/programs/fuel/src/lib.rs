@@ -5,7 +5,7 @@ use wasmlanche::{public, Context, ExternalCallError, Program};
 
 #[public]
 pub fn get_fuel(ctx: &mut Context) -> u64 {
-    ctx.program().remaining_fuel()
+    ctx.remaining_fuel()
 }
 
 #[public]

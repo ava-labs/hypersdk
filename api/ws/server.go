@@ -30,9 +30,7 @@ const (
 )
 
 var (
-	_ api.HandlerFactory[api.VM]          = (*WebSocketServerFactory)(nil)
-	_ event.Subscription[struct{}]        = (*subscriptionFunc[struct{}])(nil)
-	_ event.SubscriptionFactory[struct{}] = (*subscriptionFuncFactory[struct{}])(nil)
+	_ api.HandlerFactory[api.VM] = (*WebSocketServerFactory)(nil)
 
 	ErrExpired = errors.New("expired")
 )
@@ -75,13 +73,13 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	)
 
 	webSocketFactory := NewWebSocketServerFactory(handler)
-	txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
+	txRemovedSubscription := event.SubscriptionFuncFactory[vm.TxRemovedEvent]{
 		AcceptF: func(event vm.TxRemovedEvent) error {
 			return server.RemoveTx(event.TxID, event.Err)
 		},
 	}
 
-	blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatelessBlock]{
 		AcceptF: func(event *chain.StatelessBlock) error {
 			return server.AcceptBlock(event)
 		},
@@ -91,26 +89,6 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v)
 	vm.WithVMAPIs(webSocketFactory)(v)
 
-	return nil
-}
-
-type subscriptionFuncFactory[T any] struct {
-	AcceptF func(t T) error
-}
-
-func (s subscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
-	return subscriptionFunc[T](s), nil
-}
-
-type subscriptionFunc[T any] struct {
-	AcceptF func(t T) error
-}
-
-func (s subscriptionFunc[T]) Accept(t T) error {
-	return s.AcceptF(t)
-}
-
-func (subscriptionFunc[_]) Close() error {
 	return nil
 }
 

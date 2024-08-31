@@ -1,16 +1,16 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{get_balance, public, send, Address, Context, Gas, Program};
+use wasmlanche::{public, Address, Context, Gas, Program};
 
 #[public]
 pub fn balance(ctx: &mut Context) -> u64 {
-    get_balance(ctx.actor())
+    ctx.get_balance(ctx.actor())
 }
 
 #[public]
-pub fn send_balance(_: &mut Context, recipient: Address) -> bool {
-    send(recipient, 1).is_ok()
+pub fn send_balance(ctx: &mut Context, recipient: Address) -> bool {
+    ctx.send(recipient, 1).is_ok()
 }
 
 #[public]

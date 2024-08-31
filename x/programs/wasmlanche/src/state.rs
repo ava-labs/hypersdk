@@ -6,7 +6,6 @@ extern crate alloc;
 use crate::{
     context::{CacheKey, CacheValue},
     memory::HostPtr,
-    types::Address,
 };
 use alloc::{boxed::Box, vec::Vec};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
@@ -27,22 +26,6 @@ pub enum Error {
     Serialization,
     /// failed to deserialize bytes
     Deserialization,
-}
-
-/// Gets the balance for the specified address
-/// # Panics
-/// Panics if there was an issue deserializing the balance
-#[must_use]
-pub fn get_balance(account: Address) -> u64 {
-    #[link(wasm_import_module = "balance")]
-    extern "C" {
-        #[link_name = "get"]
-        fn get(ptr: *const u8, len: usize) -> HostPtr;
-    }
-    let ptr = borsh::to_vec(&account).expect("failed to serialize args");
-    let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
-
-    borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
 pub struct Cache {

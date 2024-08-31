@@ -2,7 +2,8 @@
 // See the file LICENSE for licensing terms.
 
 #![deny(clippy::pedantic)]
-#![cfg_attr(not(any(feature = "build", feature = "debug", test)), no_std)]
+// "build" and "debug" features enable std, so does `test`
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 //! Welcome to the wasmlanche! This SDK provides a set of tools to help you write
 //! your smart-contracts in Rust to be deployed and run on a `HyperVM`.
@@ -78,8 +79,8 @@ mod logging {
 
 pub use self::{
     context::{Context, ExternalCallContext},
-    program::{send, ExternalCallError, Program},
-    state::{get_balance, macro_types, Error},
+    program::{ExternalCallError, Program},
+    state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
 #[doc(hidden)]

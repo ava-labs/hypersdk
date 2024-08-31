@@ -11,17 +11,19 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-// New returns a VM with the indexer, websocket, and rpc apis enabled.
+// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
 func New(options ...vm.Option) (*vm.VM, error) {
 	opts := append([]vm.Option{
 		indexer.With(),
 		ws.With(),
 		jsonrpc.With(),
 		With(), // Add Controller API
+		externalsubscriber.With(),
 	}, options...)
 
 	return NewWithOptions(opts...)

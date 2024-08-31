@@ -72,6 +72,7 @@ type VM struct {
 
 	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
 	genesis                    genesis.Genesis
+	GenesisBytes               []byte
 	ruleFactory                genesis.RuleFactory
 	options                    []Option
 	builder                    builder.Builder
@@ -227,6 +228,7 @@ func (vm *VM) Initialize(
 	}
 
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.GenesisBytes = genesisBytes
 	if err != nil {
 		return err
 	}

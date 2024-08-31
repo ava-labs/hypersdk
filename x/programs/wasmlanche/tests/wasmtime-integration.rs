@@ -1,6 +1,8 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
