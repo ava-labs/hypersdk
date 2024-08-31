@@ -276,7 +276,7 @@ func TestABISpec(t *testing.T) {
     }
   }
 ]`
-	require.JSONEq(expectedABI, string(abiString))
+	require.JSONEq(expectedABI, abiString)
 
 	abiHash := sha256.Sum256([]byte(abiString))
 	require.Equal("c892f9c3b1eeed455d20edc878e3e5a24a9becde1a970f09c0de3fbdfe528b2a", hex.EncodeToString(abiHash[:]))

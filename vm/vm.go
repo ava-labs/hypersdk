@@ -26,11 +26,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
@@ -163,7 +163,7 @@ func New(
 		allocatedNamespaces.Add(option.Namespace)
 	}
 
-	abiString, err := codec.GetVMABIString((*actionRegistry).GetRegisteredTypes())
+	abiString, err := abi.GetVMABIString((*actionRegistry).GetRegisteredTypes())
 	if err != nil {
 		return nil, err
 	}

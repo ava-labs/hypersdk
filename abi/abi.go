@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"strings"
 
-	reflect "reflect"
-
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/codec"
+
+	reflect "reflect"
 )
 
 // ABIField represents a field in the ABI (Application Binary Interface).

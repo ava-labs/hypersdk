@@ -10,8 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/codec"
 )
 
 func Ping(ctx context.Context, require *require.Assertions, uris []string) {
@@ -40,7 +40,7 @@ func GetABI(ctx context.Context, require *require.Assertions, uris []string) {
 		require.NoError(err)
 		require.NotEmpty(abiString)
 
-		var abi []codec.SingleActionABI
+		var abi []abi.SingleActionABI
 		err = json.Unmarshal([]byte(abiString), &abi)
 		require.NoError(err)
 
