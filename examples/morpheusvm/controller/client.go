@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
@@ -17,6 +18,8 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
+
+const balanceCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
@@ -68,7 +71,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	addr string,
 	min uint64,
 ) error {
-	return jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr)
 		if err != nil {
 			return false, err

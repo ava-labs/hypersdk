@@ -6,6 +6,7 @@ package workload
 import (
 	"context"
 	"math"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,10 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-const initialBalance uint64 = 10_000_000_000_000
+const (
+	initialBalance  uint64 = 10_000_000_000_000
+	txCheckInterval        = 100 * time.Millisecond
+)
 
 var (
 	_              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
@@ -135,7 +139,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		indexerCli := indexer.NewClient(uri)
-		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
 		require.NoError(err)
 		require.True(success)
 		lcli := controller.NewJSONRPCClient(uri)
@@ -232,7 +236,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		indexerCli := indexer.NewClient(uri)
-		success, _, err := indexerCli.WaitForTransaction(ctx, tx.ID())
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
 		require.NoError(err)
 		require.True(success)
 		lcli := controller.NewJSONRPCClient(uri)
