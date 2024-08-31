@@ -10,6 +10,7 @@ import (
 
 	reflect "reflect"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -69,14 +70,14 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 	}
 
 	typesLeft := []reflect.Type{t}
-	typesAlreadyProcessed := make(map[reflect.Type]bool)
+	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	// Process all types, including nested ones
 	for {
 		var nextType reflect.Type
 		nextTypeFound := false
 		for _, anotherType := range typesLeft {
-			if !typesAlreadyProcessed[anotherType] {
+			if !typesAlreadyProcessed.Contains(anotherType) {
 				nextType = anotherType
 				nextTypeFound = true
 				break
@@ -94,7 +95,7 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 		result.Types[nextType.Name()] = fields
 		typesLeft = append(typesLeft, moreTypes...)
 
-		typesAlreadyProcessed[nextType] = true
+		typesAlreadyProcessed.Add(nextType)
 	}
 
 	return result, nil
