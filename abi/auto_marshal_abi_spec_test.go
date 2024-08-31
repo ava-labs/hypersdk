@@ -276,10 +276,10 @@ func TestABISpec(t *testing.T) {
     }
   }
 ]`
-	require.Equal(expectedABI, string(abiString))
+	require.JSONEq(expectedABI, string(abiString))
 
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("0ac2ecd059822e91ff3a400d8e8cdd4adc028bc1409b605dea38d09cf7bc7611", hex.EncodeToString(abiHash[:]))
+	require.Equal("c892f9c3b1eeed455d20edc878e3e5a24a9becde1a970f09c0de3fbdfe528b2a", hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {

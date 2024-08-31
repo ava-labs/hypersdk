@@ -13,12 +13,19 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+// ABIField represents a field in the ABI (Application Binary Interface).
 type ABIField struct {
+	// Name of the field, overridden by the json tag if present
 	Name string `json:"name"`
+	// Type of the field, either a Go type or struct name (excluding package name)
 	Type string `json:"type"`
+	// Mask is an optional field used to mask the field's value.
+	// Currently, only "byteString" is supported as a mask for []byte values.
+	// In general, it would take any string and pass it to ABI, please refer to the frontend wallet specs for more details
 	Mask string `json:"mask,omitempty"`
 }
 
+// SingleActionABI represents the ABI for an action.
 type SingleActionABI struct {
 	ID    uint8                 `json:"id"`
 	Name  string                `json:"name"`
@@ -26,18 +33,29 @@ type SingleActionABI struct {
 }
 
 func GetVMABIString(actions []codec.Typed) (string, error) {
+	vmABI, err := getVMABI(actions)
+	if err != nil {
+		return "", err
+	}
+	resBytes, err := json.Marshal(vmABI)
+	return string(resBytes), err
+}
+
+func getVMABI(actions []codec.Typed) ([]SingleActionABI, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		vmABI = append(vmABI, actionABI)
 	}
-	resBytes, err := json.MarshalIndent(vmABI, "", "  ")
-	return string(resBytes), err
+	return vmABI, nil
 }
 
+// getActionABI generates the ABI for a single action.
+// It handles both struct and pointer types, and recursively processes nested structs.
+// Does not support maps or interfaces - only standard go types, slices, arrays and structs
 func getActionABI(action codec.Typed) (SingleActionABI, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
@@ -50,13 +68,14 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 		Types: make(map[string][]ABIField),
 	}
 
-	typesleft := []reflect.Type{t}
+	typesLeft := []reflect.Type{t}
 	typesAlreadyProcessed := make(map[reflect.Type]bool)
 
-	for i := 0; i < 1000; i++ { // circuit breakers are always good
+	// Process all types, including nested ones
+	for {
 		var nextType reflect.Type
 		nextTypeFound := false
-		for _, anotherType := range typesleft {
+		for _, anotherType := range typesLeft {
 			if !typesAlreadyProcessed[anotherType] {
 				nextType = anotherType
 				nextTypeFound = true
@@ -73,7 +92,7 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 		}
 
 		result.Types[nextType.Name()] = fields
-		typesleft = append(typesleft, moreTypes...)
+		typesLeft = append(typesLeft, moreTypes...)
 
 		typesAlreadyProcessed[nextType] = true
 	}
@@ -81,6 +100,7 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 	return result, nil
 }
 
+// describeStruct analyzes a struct type and returns its fields and any nested struct types it found
 func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 	kind := t.Kind()
 
@@ -97,12 +117,14 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		fieldName := field.Name
 		mask := ""
 
+		// Handle JSON tag for field name override
 		jsonTag := field.Tag.Get("json")
 		if jsonTag != "" {
 			parts := strings.Split(jsonTag, ",")
 			fieldName = parts[0]
 		}
 
+		// Handle mask tag
 		maskTag := field.Tag.Get("mask")
 		if maskTag != "" {
 			mask = maskTag
@@ -119,6 +141,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		} else {
 			arrayPrefix := ""
 
+			// Handle nested slices (up to 100 levels deep)
 			for i := 0; i < 100; i++ {
 				if fieldType.Kind() != reflect.Slice {
 					break
@@ -129,6 +152,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 
 			typeName := arrayPrefix + fieldType.Name()
 
+			// Add nested structs and pointers to structs to the list for processing
 			if fieldType.Kind() == reflect.Struct {
 				otherStructsSeen = append(otherStructsSeen, fieldType)
 			} else if fieldType.Kind() == reflect.Ptr {
