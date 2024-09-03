@@ -277,6 +277,14 @@ impl ExternalCallContext {
         }
     }
 
+    /// Attempts to call a function `name` with `args` on the given program. This method
+    /// is used to call functions on external programs.
+    /// # Errors
+    /// Returns a [`ExternalCallError`] if the call fails.
+    /// # Panics
+    /// Will panic if the args cannot be serialized
+    /// # Safety
+    /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
@@ -291,6 +299,7 @@ impl ExternalCallContext {
         )
     }
 
+    #[must_use]
     pub fn contract_address(&self) -> Address {
         self.contract_address
     }
