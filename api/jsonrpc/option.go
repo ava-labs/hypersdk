@@ -18,7 +18,7 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOptionWithConfig(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
 		if !config.Enabled {
 			return nil
 		}

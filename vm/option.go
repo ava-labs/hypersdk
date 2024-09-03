@@ -25,16 +25,18 @@ type Option struct {
 	OptionFunc OptionFunc
 }
 
-func NewOptionWithBytes(namespace string, optionFunc OptionFunc) Option {
+func newOptionWithBytes(namespace string, optionFunc OptionFunc) Option {
 	return Option{
 		Namespace:  namespace,
 		OptionFunc: optionFunc,
 	}
 }
 
-// NewOptionWithConfig returns an option function that unmarshals the config bytes into the supplied default
-// config and calls the supplied option function with the config.
-func NewOptionWithConfig[T any](namespace string, defaultConfig T, optionFunc OptionConfigFunc[T]) Option {
+// NewOption returns an option with:
+// 1) A namespace to define the key in the VM's JSON config that should be supplied to this option
+// 2) A default config value the VM will directly unmarshal into
+// 3) An option function that takes the VM and resulting config value as arguments
+func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionConfigFunc[T]) Option {
 	config := defaultConfig
 	configOptionFunc := func(vm *VM, configBytes []byte) error {
 		if len(configBytes) > 0 {
@@ -45,7 +47,7 @@ func NewOptionWithConfig[T any](namespace string, defaultConfig T, optionFunc Op
 
 		return optionFunc(vm, config)
 	}
-	return NewOptionWithBytes(namespace, configOptionFunc)
+	return newOptionWithBytes(namespace, configOptionFunc)
 }
 
 func WithBuilder() RegisterFunc {
@@ -61,7 +63,7 @@ func WithGossiper() RegisterFunc {
 }
 
 func WithManual() Option {
-	return NewOptionWithBytes(
+	return newOptionWithBytes(
 		"manual",
 		func(vm *VM, _ []byte) error {
 			WithBuilder()(vm)

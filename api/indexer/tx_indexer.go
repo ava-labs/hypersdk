@@ -43,7 +43,7 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOptionWithConfig(Namespace, NewDefaultConfig(), OptionFunc)
+	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
 func OptionFunc(v *vm.VM, config Config) error {
