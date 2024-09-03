@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use crate::{
+    host::HostAccessor,
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
     Gas, HostPtr, Id,
@@ -23,6 +24,7 @@ pub struct Context {
     timestamp: u64,
     action_id: Id,
     state_cache: Cache,
+    pub host_accessor: HostAccessor,
 }
 
 #[cfg(feature = "debug")]
@@ -47,6 +49,7 @@ mod debug {
                 timestamp,
                 action_id,
                 state_cache: _,
+                host_accessor: _,
             } = self;
 
             debug_struct_fields!(
@@ -77,11 +80,25 @@ impl BorshDeserialize for Context {
             timestamp,
             action_id,
             state_cache: Cache::new(),
+            host_accessor: HostAccessor::new(),
         })
     }
 }
 
 impl Context {
+    #[cfg(feature = "unit_tests")]
+    pub fn new_test_context() -> Self {
+        Self {
+            contract_address: Address::new([0; 33]),
+            actor: Address::new([1; 33]),
+            height: 0,
+            timestamp: 0,
+            action_id: Id::default(),
+            state_cache: Cache::new(),
+            host_accessor: HostAccessor::new(),
+        }
+    }
+
     #[must_use]
     pub fn contract_address(&self) -> Address {
         self.contract_address
@@ -160,15 +177,10 @@ impl Context {
     /// Panics if there was an issue deserializing the account
     #[must_use]
     pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
-        #[link(wasm_import_module = "program")]
-        extern "C" {
-            #[link_name = "deploy"]
-            fn deploy(ptr: *const u8, len: usize) -> HostPtr;
-        }
         let ptr =
             borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
 
-        let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
+        let bytes = self.host_accessor.deploy(ptr.as_ptr(), ptr.len());
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
@@ -178,13 +190,7 @@ impl Context {
     /// Panics if there was an issue deserializing the remaining fuel
     #[must_use]
     pub fn remaining_fuel(&self) -> u64 {
-        #[link(wasm_import_module = "program")]
-        extern "C" {
-            #[link_name = "remaining_fuel"]
-            fn get_remaining_fuel() -> HostPtr;
-        }
-
-        let bytes = unsafe { get_remaining_fuel() };
+        let bytes = self.host_accessor.get_remaining_fuel();
 
         borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
     }
@@ -194,13 +200,8 @@ impl Context {
     /// Panics if there was an issue deserializing the balance
     #[must_use]
     pub fn get_balance(&self, account: Address) -> u64 {
-        #[link(wasm_import_module = "balance")]
-        extern "C" {
-            #[link_name = "get"]
-            fn get(ptr: *const u8, len: usize) -> HostPtr;
-        }
         let ptr = borsh::to_vec(&account).expect("failed to serialize args");
-        let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
+        let bytes = self.host_accessor.get_balance(ptr.as_ptr(), ptr.len());
 
         borsh::from_slice(&bytes).expect("failed to deserialize the balance")
     }
@@ -211,14 +212,9 @@ impl Context {
     /// # Errors
     /// Errors if there are insufficient funds
     pub fn send(&self, to: Address, amount: u64) -> Result<(), ExternalCallError> {
-        #[link(wasm_import_module = "balance")]
-        extern "C" {
-            #[link_name = "send"]
-            fn send_value(ptr: *const u8, len: usize) -> HostPtr;
-        }
         let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
 
-        let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
+        let bytes = self.host_accessor.send_value(ptr.as_ptr(), ptr.len());
 
         borsh::from_slice(&bytes).expect("failed to deserialize the result")
     }
@@ -239,8 +235,47 @@ impl Context {
         max_units: Gas,
         max_value: u64,
     ) -> Result<T, ExternalCallError> {
-        call_function(address, function_name, args, max_units, max_value)
+        call_function(
+            &self.host_accessor,
+            address,
+            function_name,
+            args,
+            max_units,
+            max_value,
+        )
     }
+
+    pub fn new_external_call_context(
+        &self,
+        address: Address,
+        max_units: Gas,
+        value: u64,
+    ) -> ExternalCallContext {
+        ExternalCallContext::new(self.host_accessor.clone(), address, max_units, value)
+    }
+
+    #[cfg(feature = "unit_tests")]
+    pub fn mock_call_function<'a, T, U>(
+        &mut self,
+        target: Address,
+        function: &str,
+        args: T,
+        max_units: Gas,
+        max_value: u64,
+        result: U,
+    ) where
+        T: BorshSerialize,
+        U: BorshSerialize,
+    {
+        let args = borsh::to_vec(&args).expect("error serializing result");
+
+        let contract_args = CallContractArgs::new(&target, function, &args, max_units, max_value);
+        let contract_args = borsh::to_vec(&contract_args).expect("error serializing result");
+
+        let result = borsh::to_vec(&result).expect("error serializing result");
+        self.host_accessor.state.put(&contract_args, result);
+    }   
+
 }
 
 /// An error that is returned from call to public functions.
@@ -265,15 +300,23 @@ pub struct ExternalCallContext {
     contract_address: Address,
     max_units: Gas,
     value: u64,
+    // TODO: pass this in from context
+    host_accessor: HostAccessor,
 }
 
 impl ExternalCallContext {
     #[must_use]
-    pub fn new(contract_address: Address, max_units: Gas, value: u64) -> Self {
+    pub fn new(
+        host_accessor: HostAccessor,
+        contract_address: Address,
+        max_units: Gas,
+        value: u64,
+    ) -> Self {
         Self {
             contract_address,
             max_units,
             value,
+            host_accessor,
         }
     }
 
@@ -291,6 +334,7 @@ impl ExternalCallContext {
         args: &[u8],
     ) -> Result<T, ExternalCallError> {
         call_function(
+            &self.host_accessor,
             self.contract_address,
             function_name,
             args,
@@ -316,29 +360,18 @@ impl ExternalCallContext {
 }
 
 fn call_function<T: BorshDeserialize>(
+    host_accessor: &HostAccessor,
     address: Address,
     function_name: &str,
     args: &[u8],
     max_units: Gas,
     max_value: u64,
 ) -> Result<T, ExternalCallError> {
-    #[link(wasm_import_module = "program")]
-    extern "C" {
-        #[link_name = "call_program"]
-        fn call_program(ptr: *const u8, len: usize) -> HostPtr;
-    }
-
-    let args = CallContractArgs {
-        target: &address,
-        function: function_name.as_bytes(),
-        args,
-        max_units,
-        max_value,
-    };
+    let args = CallContractArgs::new(&address, function_name, args, max_units, max_value);
 
     let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
 
-    let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+    let bytes = host_accessor.call_program(args_bytes.as_ptr(), args_bytes.len());
 
     borsh::from_slice(&bytes).expect("failed to deserialize")
 }
@@ -350,4 +383,22 @@ struct CallContractArgs<'a> {
     args: &'a [u8],
     max_units: Gas,
     max_value: u64,
+}
+
+impl<'a> CallContractArgs<'a> {
+    pub fn new(
+        target: &'a Address,
+        function: &'a str,
+        args: &'a [u8],
+        max_units: Gas,
+        max_value: u64,
+    ) -> Self {
+        Self {
+            target,
+            function: function.as_bytes(),
+            args,
+            max_units,
+            max_value,
+        }
+    }
 }

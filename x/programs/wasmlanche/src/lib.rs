@@ -64,6 +64,7 @@
 pub mod build;
 
 mod context;
+mod host;
 mod memory;
 mod state;
 mod types;

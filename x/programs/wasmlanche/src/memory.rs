@@ -62,6 +62,14 @@ impl HostPtr {
     pub fn is_null(&self) -> bool {
         self.0.is_null()
     }
+
+    pub fn null() -> Self {
+        Self(core::ptr::null())
+    }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0
+    }
 }
 
 /// Allocate memory into the instance of Program and return the offset to the
@@ -70,6 +78,10 @@ impl HostPtr {
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
 extern "C" fn alloc(len: usize) -> HostPtr {
+    wasmlanche_alloc(len)
+}
+
+pub fn wasmlanche_alloc(len: usize) -> HostPtr {
     assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");

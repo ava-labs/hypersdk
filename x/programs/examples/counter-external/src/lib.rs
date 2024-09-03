@@ -1,51 +1,32 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{public, Address, Context, ExternalCallContext};
+use wasmlanche::{public, Address, Context};
 
 #[public]
-pub fn inc(_: &mut Context, external: Address, of: Address) {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn inc(context: &mut Context, external: Address, of: Address) {
+    let ctx = context.new_external_call_context(external, 1_000_000, 0);
     counter::inc(&ctx, of, 1);
 }
 
 #[public]
-pub fn get_value(_: &mut Context, external: Address, of: Address) -> u64 {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn get_value(context: &mut Context, external: Address, of: Address) -> u64 {
+    let ctx = context.new_external_call_context(external, 1_000_000, 0);
     counter::get_value(&ctx, of)
 }
 
 #[cfg(test)]
 mod tests {
-    use simulator::{SimpleState, Simulator};
-
-    use wasmlanche::Address;
-
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
+    use crate::*;
     #[test]
     fn inc_and_get_value() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
-        let counter_path = PROGRAM_PATH
-            .replace("counter-external", "counter")
-            .replace("counter_external", "counter");
-
         let owner = Address::new([1; 33]);
+        let counter = Address::new([2; 33]);
+        let mut context = Context::new_test_context();
 
-        let counter_external = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        inc(&mut context, counter, owner);
 
-        let counter = simulator.create_program(&counter_path).program().unwrap();
-
-        simulator
-            .call_program(counter_external, "inc", (counter, owner), 100_000_000)
-            .unwrap();
-
-        let response = simulator
-            .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
-            .result::<u64>()
-            .unwrap();
+        let response = get_value(&mut context, counter, owner);
 
         assert_eq!(response, 1);
     }

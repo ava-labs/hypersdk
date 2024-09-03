@@ -24,7 +24,7 @@ const MAX_GAS: Gas = 10000000;
 #[public]
 pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ProgramId) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
-    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
+    let liquidity_context = context.new_external_call_context(lt_program, MAX_GAS, 0);
     token::init(
         &liquidity_context,
         String::from("liquidity token"),
@@ -219,15 +219,15 @@ fn token_programs(context: &mut Context) -> (Address, Address) {
 fn external_token_contracts(context: &mut Context) -> (ExternalCallContext, ExternalCallContext) {
     let (token_x, token_y) = token_programs(context);
     (
-        ExternalCallContext::new(token_x, MAX_GAS, 0),
-        ExternalCallContext::new(token_y, MAX_GAS, 0),
+        context.new_external_call_context(token_x, MAX_GAS, 0),
+        context.new_external_call_context(token_y, MAX_GAS, 0),
     )
 }
 
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &mut Context) -> ExternalCallContext {
     let token = context.get(LiquidityToken).unwrap().unwrap();
-    ExternalCallContext::new(token, MAX_GAS, 0)
+    context.new_external_call_context(token, MAX_GAS, 0)
 }
 
 mod internal {
