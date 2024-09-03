@@ -168,7 +168,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
 				require.NoError(err)
-				workload.GenerateUntilCancel(tc.DefaultContext(), uris, txWorkload)
+				workload.GenerateUntilCancel(tc, tc.DefaultContext(), uris, txWorkload)
 			}()
 
 			// Give time for transactions to start processing

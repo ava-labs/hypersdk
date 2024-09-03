@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
@@ -108,41 +107,50 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 }
 
 func GenerateUntilCancel(
+	t require.TestingT,
 	ctx context.Context,
 	uris []string,
 	generator TxWorkloadIterator,
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
-	// Use backgroundCtx within the loop to avoid erroring due to an expected
-	// context cancellation.
-	backgroundCtx := context.Background()
-	ignoreFailureRequire := require.New(IgnoreFailureTestingT{})
+	ignoreFailureRequire := require.New(IgnoreFailureTestingT{req: t, ctx: ctx})
 	for generator.Next() && ctx.Err() == nil {
-		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
+		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
-		_, err = submitClient.SubmitTx(backgroundCtx, tx.Bytes())
+		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		for _, uri := range uris {
-			confirm(backgroundCtx, ignoreFailureRequire, uri)
+			confirm(ctx, ignoreFailureRequire, uri)
 		}
 	}
 }
 
-// IngoreFailureTestingT is a testing.T implementation that ignores all failures
-// and logs errors through utils.Outf(...)
-type IgnoreFailureTestingT struct{}
-
-func (IgnoreFailureTestingT) Errorf(str string, args ...interface{}) {
-	utils.Outf("DROPPING ERROR: "+str, args...)
+// IngoreFailureTestingT is a testing.T implementation that ignores failures
+// when context has been cancelled
+type IgnoreFailureTestingT struct {
+	req require.TestingT
+	ctx context.Context
 }
 
-func (IgnoreFailureTestingT) FailNow() {}
+func (x IgnoreFailureTestingT) Errorf(str string, args ...interface{}) {
+	if x.ctx.Err() != nil {
+		return
+	}
+	x.req.Errorf(str, args)
+}
+
+func (x IgnoreFailureTestingT) FailNow() {
+	if x.ctx.Err() != nil {
+		return
+	}
+	x.req.FailNow()
+}
