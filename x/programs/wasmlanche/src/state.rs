@@ -268,9 +268,6 @@ impl MockState {
     pub fn len(&self) -> usize {
         self.state.len()
     }
-
-    // set_balance
-    // mock_call_function
 }
 
 pub trait Sealed {}

@@ -27,7 +27,6 @@ impl From<Box<[u8]>> for ProgramId {
 
 #[cfg(feature = "unit_tests")]
 impl ProgramId {
-    /// Constructor function for ProgramId
     #[must_use]
     pub fn new(bytes: Box<[u8]>) -> Self {
         Self(bytes)

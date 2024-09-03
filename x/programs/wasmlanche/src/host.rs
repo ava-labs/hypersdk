@@ -4,6 +4,14 @@ use borsh::BorshSerialize;
 
 use crate::{host, memory::wasmlanche_alloc, state::MockState, Address, Gas, HostPtr};
 
+
+pub const BALANCE_PREFIX: u8 = 0;
+pub const PROGRAM_PREFIX: u8 = 1;
+pub const SEND_PREFIX: u8 = 2;
+pub const CALL_FUNCTION_PREFIX: u8 = 3;
+pub const DEPLOY_PREFIX: u8 = 4;
+
+
 #[cfg(not(feature = "unit_tests"))]
 pub struct StateAccessor;
 
@@ -51,14 +59,12 @@ impl StateAccessor {
     }
 
     pub fn put(&self, _ptr: *const u8, _len: usize) {
-        println!("Test function context");
-        // todo: putting happens on flush, when cache is dropped which happens when context is dropped
-        // this means this function wont do anything
+        // happens on context drop() -> cache drop() -> flush()
+        // this means this function wont do anything 
     }
 
     pub fn get_bytes(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        println!("Test function context");
-        // todo: if its calling get_bytes, it's not in the cache.
+        // if calling get_bytes, not found in cache
         HostPtr::null()
     }
 }
@@ -71,14 +77,10 @@ pub struct HostAccessor;
 #[derive(Clone)]
 pub struct HostAccessor {
     pub state: MockState,
+    
+    // countes the number of deploys to generate a unique address
     pub deploys: u8,
 }
-
-const BALANCE_PREFIX: u8 = 0;
-const PROGRAM_PREFIX: u8 = 1;
-const SEND_PREFIX: u8 = 2;
-pub const CALL_FUNCTION_PREFIX: u8 = 3;
-pub const DEPLOY_PREFIX: u8 = 4;
 
 #[cfg(feature = "unit_tests")]
 impl HostAccessor {

@@ -10,7 +10,7 @@ crate-type = ["cdylib", "lib"]
 bindings = []
 
 [dependencies]
-wasmlanche = { workspace = true, features = ["debug", "unit_tests"] }
+wasmlanche = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 simulator = { workspace = true }

@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-wasmlanche = { workspace = true, features = ["debug", "unit_tests"] }
+wasmlanche = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
