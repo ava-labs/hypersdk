@@ -58,8 +58,7 @@ pub fn always_true(_: &mut Context) -> bool {
 #[public]
 pub fn combine_last_bit_of_each_id_byte(context: &mut Context) -> u32 {
     context
-        .program()
-        .account()
+        .contract_address()
         .into_iter()
         .map(|byte| byte as u32)
         .fold(0, |acc, byte| (acc << 1) + (byte & 1))

@@ -12,7 +12,7 @@ pub struct ComplexReturn {
 
 #[public]
 pub fn get_value(ctx: &mut Context) -> ComplexReturn {
-    let account = *ctx.program().account();
+    let account = ctx.contract_address();
     ComplexReturn {
         account,
         max_units: 1000,

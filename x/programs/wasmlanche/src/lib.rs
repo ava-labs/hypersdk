@@ -65,7 +65,6 @@ pub mod build;
 
 mod context;
 mod memory;
-mod program;
 mod state;
 mod types;
 
@@ -78,8 +77,7 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext},
-    program::{ExternalCallError, Program},
+    context::{Context, ExternalCallContext, ExternalCallError},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
