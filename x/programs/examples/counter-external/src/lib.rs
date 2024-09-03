@@ -17,9 +17,10 @@ pub fn get_value(_: &mut Context, external: Address, of: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{SimpleState, Simulator};
-
-    use wasmlanche::Address;
+    use wasmlanche::{
+        simulator::{SimpleState, Simulator},
+        Address,
+    };
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
