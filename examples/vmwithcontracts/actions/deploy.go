@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -21,6 +20,8 @@ import (
 )
 
 var _ chain.Action = (*Deploy)(nil)
+
+const MAXCREATIONSIZE = units.MiB
 
 type Deploy struct {
 	ProgramID    runtime.ProgramID `json:"programID"`
@@ -32,11 +33,11 @@ func (*Deploy) GetTypeID() uint8 {
 	return mconsts.DeployID
 }
 
-func (t *Deploy) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	if t.address == codec.EmptyAddress {
-		t.address = storage.GetAddressForDeploy(0, t.CreationInfo)
+func (d *Deploy) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	if d.address == codec.EmptyAddress {
+		d.address = storage.GetAddressForDeploy(0, d.CreationInfo)
 	}
-	stateKey, _ := keys.Encode(storage.AccountProgramKey(t.address), 36)
+	stateKey, _ := keys.Encode(storage.AccountProgramKey(d.address), 36)
 	return state.Keys{
 		string(stateKey): state.All,
 	}
@@ -46,7 +47,7 @@ func (*Deploy) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks}
 }
 
-func (t *Deploy) Execute(
+func (d *Deploy) Execute(
 	ctx context.Context,
 	_ chain.Rules,
 	mu state.Mutable,
@@ -54,7 +55,8 @@ func (t *Deploy) Execute(
 	_ codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-	result, err := (&storage.ProgramStateManager{Mutable: mu}).NewAccountWithProgram(ctx, t.ProgramID, t.CreationInfo)
+	result, err := (&storage.ProgramStateManager{Mutable: mu}).
+		NewAccountWithProgram(ctx, d.ProgramID, d.CreationInfo)
 	return [][]byte{result[:]}, err
 }
 
@@ -62,19 +64,19 @@ func (*Deploy) ComputeUnits(chain.Rules) uint64 {
 	return 1
 }
 
-func (*Deploy) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (d *Deploy) Size() int {
+	return len(d.CreationInfo) + len(d.ProgramID)
 }
 
-func (t *Deploy) Marshal(p *codec.Packer) {
-	p.PackBytes(t.ProgramID)
-	p.PackBytes(t.CreationInfo)
+func (d *Deploy) Marshal(p *codec.Packer) {
+	p.PackBytes(d.ProgramID)
+	p.PackBytes(d.CreationInfo)
 }
 
 func UnmarshalDeployProgram(p *codec.Packer) (chain.Action, error) {
 	var deployProgram Deploy
 	p.UnpackBytes(36, true, (*[]byte)(&deployProgram.ProgramID))
-	p.UnpackBytes(10*units.MiB, false, &deployProgram.CreationInfo)
+	p.UnpackBytes(MAXCREATIONSIZE, false, &deployProgram.CreationInfo)
 	deployProgram.address = storage.GetAddressForDeploy(0, deployProgram.CreationInfo)
 	if err := p.Err(); err != nil {
 		return nil, err

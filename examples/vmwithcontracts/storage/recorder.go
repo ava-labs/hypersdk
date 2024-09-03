@@ -5,7 +5,7 @@ package storage
 
 import (
 	"context"
-
+	"errors"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/set"
 
@@ -23,7 +23,7 @@ func NewRecorder(db state.Immutable) *Recorder {
 	return &Recorder{State: db, changedValues: map[string][]byte{}}
 }
 
-func (r *Recorder) Insert(_ context.Context, key []byte, value []byte) error {
+func (r *Recorder) Insert(ctx context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
 	r.WriteState.Add(stringKey)
 	r.changedValues[stringKey] = value
@@ -55,7 +55,15 @@ func (r *Recorder) GetStateKeys() state.Keys {
 		result.Add(key, state.Read)
 	}
 	for key := range r.WriteState {
-		result.Add(key, state.Write|state.Allocate)
+		if _, err := r.State.GetValue(context.Background(), []byte(key)); err != nil && errors.Is(err, database.ErrNotFound) {
+			if r.changedValues[key] == nil {
+				// not a real write since the key was not already present and is being deleted
+				continue
+			}
+			// wasn't found so needs to be allocated
+			result.Add(key, state.Allocate)
+		}
+		result.Add(key, state.Write)
 	}
 	return result
 }

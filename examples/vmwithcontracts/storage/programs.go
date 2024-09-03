@@ -17,14 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-const (
-	accountsPrefix = 0x4
-	programsPrefix = 0x5
-
-	accountProgramPrefix = 0x0
-	accountStatePrefix   = 0x1
-)
-
 // [accountStatePrefix] + [account]
 func accountStateKey(account codec.Address) (k []byte) {
 	k = make([]byte, 2+codec.AddressLen)

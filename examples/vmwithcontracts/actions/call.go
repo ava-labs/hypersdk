@@ -21,6 +21,8 @@ import (
 
 var _ chain.Action = (*Call)(nil)
 
+const MaxCallDataSize = units.MiB
+
 type StateKeyPermission struct {
 	Key        string
 	Permission state.Permissions
@@ -91,8 +93,8 @@ func (t *Call) ComputeUnits(chain.Rules) uint64 {
 	return t.Fuel / 1000
 }
 
-func (*Call) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *Call) Size() int {
+	return codec.AddressLen + 2*consts.Uint64Len + len(t.CallData) + len(t.Function) + len(t.SpecifiedStateKeys)
 }
 
 func (t *Call) Marshal(p *codec.Packer) {
@@ -116,7 +118,7 @@ func UnmarshalCallProgram(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.A
 		callProgram.Fuel = p.UnpackUint64(true)
 		p.UnpackAddress(&callProgram.ContractAddress) // we do not verify the typeID is valid
 		callProgram.Function = p.UnpackString(true)
-		p.UnpackBytes(units.MiB, false, &callProgram.CallData)
+		p.UnpackBytes(MaxCallDataSize, false, &callProgram.CallData)
 		if err := p.Err(); err != nil {
 			return nil, err
 		}

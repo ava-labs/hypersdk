@@ -232,6 +232,9 @@ var deployCmd = &cobra.Command{
 				return err
 			}
 			addressString, err := codec.AddressBech32(consts.HRP, address)
+			if err != nil {
+				return err
+			}
 			utils.Outf(addressString + "\n")
 		}
 		return err

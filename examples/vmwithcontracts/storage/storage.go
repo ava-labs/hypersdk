@@ -29,6 +29,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x1/ (hypersdk-height)
 // 0x2/ (hypersdk-timestamp)
 // 0x3/ (hypersdk-fee)
+// 0x4/ (account-storage)
+// 0x4/address/0x1 (address associated program)
+// 0x4/address/0x1 (address associated state)
+// 0x5/ (programs-storage)
 
 const (
 	// Active state
@@ -36,6 +40,11 @@ const (
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
+	accountsPrefix  = 0x4
+	programsPrefix  = 0x5
+
+	accountProgramPrefix = 0x0
+	accountStatePrefix   = 0x1
 )
 
 const BalanceChunks uint16 = 1

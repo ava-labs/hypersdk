@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"crypto/sha256"
+	"github.com/ava-labs/hypersdk/consts"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -21,6 +22,8 @@ import (
 )
 
 var _ chain.Action = (*Publish)(nil)
+
+const MAXCONTRACTSIZE = 2 * units.MiB
 
 type Publish struct {
 	ContractBytes []byte `json:"contractBytes"`
@@ -44,7 +47,10 @@ func (t *Publish) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 }
 
 func (t *Publish) StateKeysMaxChunks() []uint16 {
-	return []uint16{uint16(len(t.ContractBytes))}
+	if chunks, ok := keys.NumChunks(t.ContractBytes); ok {
+		return []uint16{chunks}
+	}
+	return []uint16{consts.MaxUint16}
 }
 
 func (t *Publish) Execute(
@@ -73,7 +79,7 @@ func (t *Publish) Marshal(p *codec.Packer) {
 
 func UnmarshalPublishProgram(p *codec.Packer) (chain.Action, error) {
 	var publishProgram Publish
-	p.UnpackBytes(10*units.MiB, true, &publishProgram.ContractBytes)
+	p.UnpackBytes(MAXCONTRACTSIZE, true, &publishProgram.ContractBytes)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
