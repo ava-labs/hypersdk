@@ -5,6 +5,7 @@ package defaultvm
 
 import (
 	"github.com/ava-labs/avalanchego/version"
+
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
