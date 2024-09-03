@@ -4,14 +4,14 @@
 use wasmlanche::{public, Address, Context, ExternalCallContext};
 
 #[public]
-pub fn inc(_: &mut Context, external: Address, of: Address) {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn inc(context: &mut Context, external: Address, of: Address) {
+    let ctx = context.new_external_call_context(external, 1_000_000, 0);
     counter::inc(&ctx, of, 1);
 }
 
 #[public]
-pub fn get_value(_: &mut Context, external: Address, of: Address) -> u64 {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn get_value(context: &mut Context, external: Address, of: Address) -> u64 {
+    let ctx = context.new_external_call_context(external, 1_000_000, 0);
     counter::get_value(&ctx, of)
 }
 

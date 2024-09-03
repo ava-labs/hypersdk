@@ -1,7 +1,3 @@
-use core::result;
-
-use borsh::BorshSerialize;
-
 use crate::{host, memory::wasmlanche_alloc, state::MockState, Address, Gas, HostPtr};
 
 pub const BALANCE_PREFIX: u8 = 0;

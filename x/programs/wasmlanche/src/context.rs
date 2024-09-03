@@ -7,7 +7,7 @@ use crate::{
     host::HostAccessor,
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ProgramId},
-    Gas, HostPtr, Id,
+    Gas, Id,
 };
 use alloc::{boxed::Box, vec::Vec};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -245,6 +245,7 @@ impl Context {
         )
     }
 
+    #[must_use]
     pub fn new_external_call_context(
         &self,
         address: Address,
