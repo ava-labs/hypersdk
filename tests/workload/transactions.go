@@ -14,6 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
+
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
 // and a sized sequence of transactions to test on a given environment and reach a particular state
 type TxWorkloadFactory interface {
@@ -94,7 +96,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 
 	for _, uri := range uris {
 		client := jsonrpc.NewJSONRPCClient(uri)
-		err := jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+		err := jsonrpc.Wait(ctx, reachedAcceptedTipSleepInterval, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
 			if err != nil {
 				return false, err
