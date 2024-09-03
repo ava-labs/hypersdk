@@ -1,25 +1,26 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{public, Address, Context, ExternalCallContext, Program};
+use wasmlanche::{public, Address, Context, ExternalCallContext};
 
 #[public]
-pub fn inc(_: &mut Context, external: Program, address: Address) {
+pub fn inc(_: &mut Context, external: Address, of: Address) {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::inc(&ctx, address, 1);
+    counter::inc(&ctx, of, 1);
 }
 
 #[public]
-pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
+pub fn get_value(_: &mut Context, external: Address, of: Address) -> u64 {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::get_value(&ctx, address)
+    counter::get_value(&ctx, of)
 }
 
 #[cfg(test)]
 mod tests {
-    use simulator::{SimpleState, Simulator};
-
-    use wasmlanche::Address;
+    use wasmlanche::{
+        simulator::{SimpleState, Simulator},
+        Address,
+    };
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
