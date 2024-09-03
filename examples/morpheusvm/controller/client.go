@@ -5,37 +5,36 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
-
-	"github.com/ava-labs/avalanchego/ids"
+	"time"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const balanceCheckInterval = 500 * time.Millisecond
+
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
-
-	networkID uint32
-	chainID   ids.ID
-	g         *genesis.Genesis
+	g         *genesis.DefaultGenesis
 }
 
 // NewJSONRPCClient creates a new client object.
-func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClient {
+func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, networkID, chainID, nil}
+	return &JSONRPCClient{req, nil}
 }
 
-func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
+func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis, error) {
 	if cli.g != nil {
 		return cli.g, nil
 	}
@@ -72,7 +71,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	addr string,
 	min uint64,
 ) error {
-	return jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr)
 		if err != nil {
 			return false, err
@@ -89,24 +88,22 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
+func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
+	g, err := cli.Genesis(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return NewParser(g), nil
+}
+
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	networkID uint32
-	chainID   ids.ID
-	genesis   *genesis.Genesis
+	genesis *genesis.DefaultGenesis
 }
 
-func NewParser(networkID uint32, chainID ids.ID, genesis *genesis.Genesis) *Parser {
-	return &Parser{networkID, chainID, genesis}
-}
-
-func (p *Parser) ChainID() ids.ID {
-	return p.chainID
-}
-
-func (p *Parser) Rules(t int64) chain.Rules {
-	return p.genesis.Rules(t, p.networkID, p.chainID)
+func (p *Parser) Rules(_ int64) chain.Rules {
+	return p.genesis.Rules
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
@@ -117,10 +114,15 @@ func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
-	g, err := cli.Genesis(ctx)
-	if err != nil {
+func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
+	return &Parser{genesis: genesis}
+}
+
+// Used as a lambda function for creating ExternalSubscriberServer parser
+func CreateParser(genesisBytes []byte) (chain.Parser, error) {
+	var genesis genesis.DefaultGenesis
+	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
 	}
-	return NewParser(cli.networkID, cli.chainID, g), nil
+	return NewParser(&genesis), nil
 }

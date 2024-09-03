@@ -6,6 +6,7 @@ package indexer
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -13,12 +14,12 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 )
 
-func NewClient(uri string, name string, endpoint string) *Client {
+func NewClient(uri string) *Client {
 	uri = strings.TrimSuffix(uri, "/")
-	uri += endpoint
+	uri += Endpoint
 
 	return &Client{
-		requester: requester.New(uri, name),
+		requester: requester.New(uri, Name),
 	}
 }
 
@@ -46,10 +47,10 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, bool, e
 	return resp, true, nil
 }
 
-func (c *Client) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error) {
+func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Duration, txID ids.ID) (bool, uint64, error) {
 	var success bool
 	var fee uint64
-	if err := jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
 		response, found, err := c.GetTx(ctx, txID)
 		if err != nil {
 			return false, err

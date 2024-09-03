@@ -52,14 +52,21 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		actionSize, err := getSize(action)
+		if err != nil {
+			return nil, err
+		}
+		size += consts.ByteLen + actionSize
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return p.Bytes(), p.Err()
 }
@@ -199,7 +206,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionSize, err := getSize(action)
+		if err != nil {
+			return fees.Dimensions{}, err
+		}
+
+		bandwidth += consts.ByteLen + uint64(actionSize)
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
@@ -251,7 +263,7 @@ func (t *Transaction) PreExecute(
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
+	if err := t.Base.Execute(r, timestamp); err != nil {
 		return err
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
@@ -366,7 +378,10 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return err
+		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
@@ -380,7 +395,7 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	}
 	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(len(txs))
+	p.PackInt(uint32(len(txs)))
 	for _, tx := range txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
@@ -399,7 +414,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < txCount; i++ {
+	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err

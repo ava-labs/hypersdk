@@ -58,7 +58,7 @@ func Sum(w Window) uint64 {
 	for i := 0; i < WindowSize; i++ {
 		// If an overflow occurs while summing the elements of the window, return the maximum
 		// uint64 value immediately.
-		sum, overflow = math.Add64(sum, binary.BigEndian.Uint64(w[consts.Uint64Len*i:]))
+		sum, overflow = math.Add(sum, binary.BigEndian.Uint64(w[consts.Uint64Len*i:]))
 		if overflow != nil {
 			return consts.MaxUint64
 		}
@@ -72,7 +72,7 @@ func Sum(w Window) uint64 {
 func Update(w *Window, start int, unitsConsumed uint64) {
 	prevUnitsConsumed := binary.BigEndian.Uint64(w[start:])
 
-	totalUnitsConsumed, overflow := math.Add64(prevUnitsConsumed, unitsConsumed)
+	totalUnitsConsumed, overflow := math.Add(prevUnitsConsumed, unitsConsumed)
 	if overflow != nil {
 		totalUnitsConsumed = consts.MaxUint64
 	}

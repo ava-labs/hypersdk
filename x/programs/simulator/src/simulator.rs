@@ -1,35 +1,16 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use libc::c_char;
-use std::{
-    ffi::{CStr, CString},
-    fmt::Debug,
-    str::Utf8Error,
-};
-use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError, ProgramId};
-
 use crate::{
     bindings::{
         Address as BindingAddress, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
     },
+    error::SimulatorError,
     state::{Mutable, SimpleState},
 };
-
-#[derive(Error, Debug)]
-pub enum SimulatorError {
-    #[error("Error across the FFI boundary: {0}")]
-    Ffi(#[from] Utf8Error),
-    #[error(transparent)]
-    Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
-    #[error(transparent)]
-    ExternalCall(#[from] ExternalCallError),
-    #[error("Error during program creation")]
-    CreateProgram(String),
-    #[error("Error during program execution")]
-    CallProgram(String),
-}
+use libc::c_char;
+use std::ffi::{CStr, CString};
+use wasmlanche::{Address, ProgramId};
 
 #[link(name = "simulator")]
 extern "C" {
@@ -91,9 +72,9 @@ impl<'a> Simulator<'a> {
         gas: u64,
     ) -> CallProgramResponse
     where
-        T: wasmlanche_sdk::borsh::BorshSerialize,
+        T: wasmlanche::borsh::BorshSerialize,
     {
-        let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
+        let params = wasmlanche::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         let context = SimulatorCallContext::new(self, program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
@@ -205,14 +186,14 @@ impl CallProgramResponse {
     /// `Result<T, SimulatorError>` where T is the expected return type
     pub fn result<T>(&self) -> Result<T, SimulatorError>
     where
-        T: wasmlanche_sdk::borsh::BorshDeserialize,
+        T: wasmlanche::borsh::BorshDeserialize,
     {
         if self.has_error() {
             let error = self.error()?;
             return Err(SimulatorError::CallProgram(error.into()));
         };
 
-        Ok(wasmlanche_sdk::borsh::from_slice(&self.result)?)
+        Ok(wasmlanche::borsh::from_slice(&self.result)?)
     }
 
     /// Returns whether the program call resulted in an error.

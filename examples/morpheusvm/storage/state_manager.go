@@ -57,3 +57,13 @@ func (*StateManager) Deduct(
 ) error {
 	return SubBalance(ctx, mu, addr, amount)
 }
+
+func (*StateManager) AddBalance(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+	createAccount bool,
+) error {
+	return AddBalance(ctx, mu, addr, amount, createAccount)
+}

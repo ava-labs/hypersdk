@@ -4,115 +4,40 @@
 package controller
 
 import (
-	"fmt"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-var (
-	_ vm.Controller        = (*Controller)(nil)
-	_ vm.ControllerFactory = (*factory)(nil)
-)
-
-// New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) *vm.VM {
-	opts := []vm.Option{
-		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(10_000_000),
-		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
-		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
-	}
-
-	opts = append(opts, options...)
+// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
+func New(options ...vm.Option) (*vm.VM, error) {
+	opts := append([]vm.Option{
+		indexer.With(),
+		ws.With(),
+		jsonrpc.With(),
+		With(), // Add Controller API
+		externalsubscriber.With(),
+	}, options...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) *vm.VM {
+func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
-		&factory{},
 		consts.Version,
+		genesis.DefaultGenesisFactory{},
+		&storage.StateManager{},
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
 		options...,
 	)
-}
-
-type factory struct{}
-
-func (*factory) New(
-	inner *vm.VM,
-	log logging.Logger,
-	networkID uint32,
-	chainID ids.ID,
-	genesisBytes []byte,
-	upgradeBytes []byte, // subnets to allow for AWM
-	configBytes []byte,
-) (
-	vm.Controller,
-	vm.Genesis,
-	error,
-) {
-	c := &Controller{}
-	c.inner = inner
-	c.log = log
-	c.networkID = networkID
-	c.chainID = chainID
-	c.stateManager = &storage.StateManager{}
-
-	var err error
-
-	// Load config and genesis
-	c.config, err = newConfig(configBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	log.Info("initialized config", zap.Any("contents", c.config))
-
-	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
-	if err != nil {
-		return nil, nil, fmt.Errorf(
-			"unable to read genesis: %w",
-			err,
-		)
-	}
-	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
-
-	return c, c.genesis, nil
-}
-
-type Controller struct {
-	inner     *vm.VM
-	log       logging.Logger
-	networkID uint32
-	chainID   ids.ID
-
-	genesis      *genesis.Genesis
-	config       *Config
-	stateManager *storage.StateManager
-}
-
-func (c *Controller) Rules(t int64) chain.Rules {
-	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t, c.networkID, c.chainID)
-}
-
-func (c *Controller) StateManager() chain.StateManager {
-	return c.stateManager
 }

@@ -4,10 +4,8 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -17,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -33,19 +30,6 @@ func checkKeyType(k string) error {
 		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidKeyType, k)
-	}
-}
-
-func getKeyType(addr codec.Address) (string, error) {
-	switch addr[0] {
-	case auth.ED25519ID:
-		return ed25519Key, nil
-	case auth.SECP256R1ID:
-		return secp256r1Key, nil
-	case auth.BLSID:
-		return blsKey, nil
-	default:
-		return "", ErrInvalidKeyType
 	}
 }
 
@@ -133,7 +117,7 @@ var keyCmd = &cobra.Command{
 
 var genKeyCmd = &cobra.Command{
 	Use: "generate [ed25519/secp256r1/bls]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
@@ -160,7 +144,7 @@ var genKeyCmd = &cobra.Command{
 
 var importKeyCmd = &cobra.Command{
 	Use: "import [type] [path]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 2 {
 			return ErrInvalidArgs
 		}
@@ -185,47 +169,16 @@ var importKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupSetKeyBalance(choice int, address string, uri string, networkID uint32, chainID ids.ID) error {
-	// TODO: just load once
-	cli := controller.NewJSONRPCClient(uri, networkID, chainID)
-	balance, err := cli.Balance(context.TODO(), address)
-	if err != nil {
-		return err
-	}
-	addr, err := codec.ParseAddressBech32(consts.HRP, address)
-	if err != nil {
-		return err
-	}
-	keyType, err := getKeyType(addr)
-	if err != nil {
-		return err
-	}
-	utils.Outf(
-		"%d) {{cyan}}address (%s):{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-		choice,
-		keyType,
-		address,
-		utils.FormatBalance(balance, consts.Decimals),
-		consts.Symbol,
-	)
-	return nil
-}
-
 var setKeyCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		return handler.Root().SetKey(lookupSetKeyBalance)
+		return handler.Root().SetKey()
 	},
-}
-
-func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
-	_, err := handler.GetBalance(context.TODO(), controller.NewJSONRPCClient(uri, networkID, chainID), addr)
-	return err
 }
 
 var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
-		return handler.Root().Balance(checkAllChains, false, lookupKeyBalance)
+		return handler.Root().Balance(checkAllChains)
 	},
 }

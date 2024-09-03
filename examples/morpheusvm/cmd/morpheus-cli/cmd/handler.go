@@ -65,7 +65,6 @@ func (h *Handler) DefaultActor() (
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	jcli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -80,8 +79,6 @@ func (h *Handler) DefaultActor() (
 		}, factory, jcli,
 		controller.NewJSONRPCClient(
 			uris[0],
-			networkID,
-			chainID,
 		), ws, nil
 }
 
@@ -138,4 +135,19 @@ func (*Controller) Address(addr codec.Address) string {
 
 func (*Controller) ParseAddress(addr string) (codec.Address, error) {
 	return codec.ParseAddressBech32(consts.HRP, addr)
+}
+
+func (*Controller) GetParser(uri string) (chain.Parser, error) {
+	cli := controller.NewJSONRPCClient(uri)
+	return cli.Parser(context.TODO())
+}
+
+func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
+	handleTx(tx, result)
+}
+
+func (*Controller) LookupBalance(address string, uri string) (uint64, error) {
+	cli := controller.NewJSONRPCClient(uri)
+	balance, err := cli.Balance(context.TODO(), address)
+	return balance, err
 }
