@@ -251,9 +251,7 @@ impl MockState {
                 }
                 ptr
             }
-            None => {
-                HostPtr::null()
-            },
+            None => HostPtr::null(),
         }
     }
 

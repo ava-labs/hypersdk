@@ -4,13 +4,11 @@ use borsh::BorshSerialize;
 
 use crate::{host, memory::wasmlanche_alloc, state::MockState, Address, Gas, HostPtr};
 
-
 pub const BALANCE_PREFIX: u8 = 0;
 pub const PROGRAM_PREFIX: u8 = 1;
 pub const SEND_PREFIX: u8 = 2;
 pub const CALL_FUNCTION_PREFIX: u8 = 3;
 pub const DEPLOY_PREFIX: u8 = 4;
-
 
 #[cfg(not(feature = "unit_tests"))]
 pub struct StateAccessor;
@@ -60,7 +58,7 @@ impl StateAccessor {
 
     pub fn put(&self, _ptr: *const u8, _len: usize) {
         // happens on context drop() -> cache drop() -> flush()
-        // this means this function wont do anything 
+        // this means this function wont do anything
     }
 
     pub fn get_bytes(&self, _ptr: *const u8, _len: usize) -> HostPtr {
@@ -77,7 +75,7 @@ pub struct HostAccessor;
 #[derive(Clone)]
 pub struct HostAccessor {
     pub state: MockState,
-    
+
     // countes the number of deploys to generate a unique address
     pub deploys: u8,
 }
@@ -87,13 +85,13 @@ impl HostAccessor {
     pub fn new() -> Self {
         HostAccessor {
             state: MockState::new(),
-            // not sure why this breaks when 0? 
+            // not sure why this breaks when 0?
             deploys: 1,
         }
     }
 
     pub fn new_deploy_address(&mut self) -> Address {
-        let address : [u8; 33] = [self.deploys; 33];
+        let address: [u8; 33] = [self.deploys; 33];
         if self.deploys == 255 {
             panic!("Too many deploys");
         }

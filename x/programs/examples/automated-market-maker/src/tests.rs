@@ -360,3 +360,4 @@ fn init_amm(simulator: &mut Simulator) -> (Address, Address, Address, Address) {
 
     (token_x, token_y, lt, amm_program)
 }
+
