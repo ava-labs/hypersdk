@@ -5,13 +5,13 @@ package integration_test
 
 import (
 	"encoding/json"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"

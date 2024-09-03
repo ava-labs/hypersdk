@@ -22,8 +22,7 @@ const JSONRPCEndpoint = "/vmwithcontractsapi"
 
 var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
 
-type jsonRPCServerFactory struct {
-}
+type jsonRPCServerFactory struct{}
 
 func (j jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v))

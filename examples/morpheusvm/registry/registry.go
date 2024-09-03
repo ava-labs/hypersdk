@@ -15,5 +15,4 @@ var (
 
 // Setup types
 func init() {
-
 }

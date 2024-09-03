@@ -5,6 +5,7 @@ package vm
 
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"

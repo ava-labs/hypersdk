@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -15,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type VM interface {
