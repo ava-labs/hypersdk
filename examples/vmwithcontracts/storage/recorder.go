@@ -23,7 +23,7 @@ func NewRecorder(db state.Immutable) *Recorder {
 	return &Recorder{State: db, changedValues: map[string][]byte{}}
 }
 
-func (r *Recorder) Insert(ctx context.Context, key []byte, value []byte) error {
+func (r *Recorder) Insert(_ context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
 	r.WriteState.Add(stringKey)
 	r.changedValues[stringKey] = value
