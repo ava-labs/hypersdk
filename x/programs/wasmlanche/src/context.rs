@@ -239,27 +239,36 @@ impl Context {
         max_units: Gas,
         max_value: u64,
     ) -> Result<T, ExternalCallError> {
-        #[link(wasm_import_module = "program")]
-        extern "C" {
-            #[link_name = "call_program"]
-            fn call_program(ptr: *const u8, len: usize) -> HostPtr;
-        }
-
-        let args = CallContractArgs {
-            target: &address,
-            function: function_name.as_bytes(),
-            args,
-            max_units,
-            max_value,
-        };
-
-        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
-
-        let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
-
-        borsh::from_slice(&bytes).expect("failed to deserialize")
+        call_function(address, function_name, args, max_units, max_value)
     }
-    
+}
+
+fn call_function<T: BorshDeserialize>(
+    address: Address,
+    function_name: &str,
+    args: &[u8],
+    max_units: Gas,
+    max_value: u64,
+) -> Result<T, ExternalCallError> {
+    #[link(wasm_import_module = "program")]
+    extern "C" {
+        #[link_name = "call_program"]
+        fn call_program(ptr: *const u8, len: usize) -> HostPtr;
+    }
+
+    let args = CallContractArgs {
+        target: &address,
+        function: function_name.as_bytes(),
+        args,
+        max_units,
+        max_value,
+    };
+
+    let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+
+    let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize")
 }
 
 /// An error that is returned from call to public functions.
@@ -280,24 +289,17 @@ pub enum ExternalCallError {
 
 /// Special context that is passed to external programs.
 #[allow(clippy::module_name_repetitions)]
-pub struct ExternalCallContext<'a> {
-    calling_context: &'a Context,
-    extern_contract_address: Address,
+pub struct ExternalCallContext {
+    contract_address: Address,
     max_units: Gas,
     value: u64,
 }
 
-impl<'a> ExternalCallContext<'a> {
+impl ExternalCallContext {
     #[must_use]
-    pub fn new(
-        calling_context: &'a Context,
-        extern_contract_address: Address,
-        max_units: Gas,
-        value: u64,
-    ) -> Self {
+    pub fn new(contract_address: Address, max_units: Gas, value: u64) -> Self {
         Self {
-            calling_context,
-            extern_contract_address,
+            contract_address,
             max_units,
             value,
         }
@@ -308,8 +310,8 @@ impl<'a> ExternalCallContext<'a> {
         function_name: &str,
         args: &[u8],
     ) -> Result<T, ExternalCallError> {
-        self.calling_context.call_function(
-            self.extern_contract_address,
+        call_function(
+            self.contract_address,
             function_name,
             args,
             self.max_units,
@@ -317,12 +319,8 @@ impl<'a> ExternalCallContext<'a> {
         )
     }
 
-    pub fn get_context(&self) -> &Context {
-        self.calling_context
-    }
-
     pub fn address(&self) -> Address {
-        self.extern_contract_address
+        self.contract_address
     }
 
     #[must_use]
