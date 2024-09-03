@@ -37,7 +37,7 @@ func AccountProgramKey(account codec.Address) (k []byte) {
 func ProgramsKey(id []byte) (k []byte) {
 	k = make([]byte, 1+len(id))
 	k[0] = programsPrefix
-	copy(k[1:], id[:])
+	copy(k[1:], id)
 	return
 }
 

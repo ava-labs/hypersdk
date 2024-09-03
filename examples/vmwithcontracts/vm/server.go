@@ -24,7 +24,7 @@ var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
 
 type jsonRPCServerFactory struct{}
 
-func (j jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
+func (jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v))
 	return api.Handler{
 		Path:    JSONRPCEndpoint,

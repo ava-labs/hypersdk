@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/cmd/vmwithcontracts/version"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 )
 
 var rootCmd = &cobra.Command{

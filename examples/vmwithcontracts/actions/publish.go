@@ -38,9 +38,7 @@ func (t *Publish) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.id == nil {
 		hashedID := sha256.Sum256(t.ContractBytes)
 		t.id, _ = keys.Encode(storage.ProgramsKey(hashedID[:]), len(t.ContractBytes))
-
 	}
-
 	return state.Keys{
 		string(t.id): state.Write | state.Allocate,
 	}
@@ -62,7 +60,7 @@ func (t *Publish) Execute(
 	_ ids.ID,
 ) ([][]byte, error) {
 	result, err := storage.StoreProgram(ctx, mu, t.ContractBytes)
-	return [][]byte{result[:]}, err
+	return [][]byte{result}, err
 }
 
 func (*Publish) ComputeUnits(chain.Rules) uint64 {
