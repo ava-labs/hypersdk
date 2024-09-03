@@ -16,14 +16,14 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *controller.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
