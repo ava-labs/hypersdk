@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package vm
 
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
