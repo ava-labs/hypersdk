@@ -243,34 +243,6 @@ impl Context {
     }
 }
 
-fn call_function<T: BorshDeserialize>(
-    address: Address,
-    function_name: &str,
-    args: &[u8],
-    max_units: Gas,
-    max_value: u64,
-) -> Result<T, ExternalCallError> {
-    #[link(wasm_import_module = "program")]
-    extern "C" {
-        #[link_name = "call_program"]
-        fn call_program(ptr: *const u8, len: usize) -> HostPtr;
-    }
-
-    let args = CallContractArgs {
-        target: &address,
-        function: function_name.as_bytes(),
-        args,
-        max_units,
-        max_value,
-    };
-
-    let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
-
-    let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
-
-    borsh::from_slice(&bytes).expect("failed to deserialize")
-}
-
 /// An error that is returned from call to public functions.
 #[derive(Debug, Display, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[repr(u8)]
@@ -319,7 +291,7 @@ impl ExternalCallContext {
         )
     }
 
-    pub fn address(&self) -> Address {
+    pub fn contract_address(&self) -> Address {
         self.contract_address
     }
 
@@ -332,6 +304,34 @@ impl ExternalCallContext {
     pub fn value(&self) -> u64 {
         self.value
     }
+}
+
+fn call_function<T: BorshDeserialize>(
+    address: Address,
+    function_name: &str,
+    args: &[u8],
+    max_units: Gas,
+    max_value: u64,
+) -> Result<T, ExternalCallError> {
+    #[link(wasm_import_module = "program")]
+    extern "C" {
+        #[link_name = "call_program"]
+        fn call_program(ptr: *const u8, len: usize) -> HostPtr;
+    }
+
+    let args = CallContractArgs {
+        target: &address,
+        function: function_name.as_bytes(),
+        args,
+        max_units,
+        max_value,
+    };
+
+    let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+
+    let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize")
 }
 
 #[derive(BorshSerialize)]

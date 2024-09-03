@@ -11,10 +11,10 @@ mod tests;
 mod math;
 
 state_schema! {
-    // Tokens in the Pool as Program type
+    // Tokens in the Pool
     TokenX => Address,
     TokenY => Address,
-    // Liquidity Token as a Program type
+    // Liquidity Token
     LiquidityToken => Address,
 }
 
@@ -51,7 +51,7 @@ pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> 
     let (token_x, token_y) = external_token_contracts(context);
 
     // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in == token_x.address() {
+    let (token_in, token_out) = if token_program_in == token_x.contract_address() {
         (token_x, token_y)
     } else {
         (token_y, token_x)
