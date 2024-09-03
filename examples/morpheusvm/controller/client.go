@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
@@ -107,7 +106,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return registry.Action, registry.Auth
+	return ActionParser, AuthParser
 }
 
 func (*Parser) StateManager() chain.StateManager {
