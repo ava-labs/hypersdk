@@ -52,7 +52,8 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 type ActionTest struct {
 	Name string
 
-	Action chain.Action
+	SetupActions []chain.Action
+	Action       chain.Action
 
 	Rules     chain.Rules
 	State     state.Mutable
@@ -70,6 +71,11 @@ type ActionTest struct {
 func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		require := require.New(t)
+
+		for _, act := range test.SetupActions {
+			_, err := act.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+			require.NoError(err)
+		}
 
 		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
