@@ -35,8 +35,10 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche::Address;
+    use wasmlanche::{
+        simulator::{SimpleState, Simulator},
+        Address,
+    };
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
