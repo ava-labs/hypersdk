@@ -13,7 +13,7 @@ bindings = []
 wasmlanche = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
-simulator = { workspace = true }
+wasmlanche = { workspace = true, features = ["debug", "test"] }
 
 [build-dependencies]
 wasmlanche = { workspace = true, features = ["build"] }

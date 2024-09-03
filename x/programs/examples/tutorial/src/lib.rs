@@ -70,8 +70,10 @@ pub fn inc_me_by_one(context: &mut Context) {
 mod tests {
     // the line below imports everthing from the parent module (code above)
     use super::*;
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche::Address;
+    use wasmlanche::{
+        simulator::{SimpleState, Simulator},
+        Address,
+    };
 
     // This is a constant that is set by the build script. It's the path to the
     // .wasm file that's output when we compile.

@@ -28,8 +28,8 @@ var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 
-	_ event.SubscriptionFactory[*chain.StatelessBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
+	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
+	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
 )
 
 func With() vm.Option {
@@ -67,7 +67,7 @@ type subscriptionFactory struct {
 	indexer *txDBIndexer
 }
 
-func (s *subscriptionFactory) New() (event.Subscription[*chain.StatelessBlock], error) {
+func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
 	return s.indexer, nil
 }
 
@@ -75,7 +75,7 @@ type txDBIndexer struct {
 	db database.Database
 }
 
-func (t *txDBIndexer) Accept(blk *chain.StatelessBlock) error {
+func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 

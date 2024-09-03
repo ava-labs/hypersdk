@@ -62,6 +62,8 @@
 
 #[cfg(feature = "build")]
 pub mod build;
+#[cfg(feature = "simulator")]
+pub mod simulator;
 
 mod context;
 mod host;

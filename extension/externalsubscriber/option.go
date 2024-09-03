@@ -49,8 +49,8 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 		return err
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatelessBlock]{
-		AcceptF: func(blk *chain.StatelessBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
+		AcceptF: func(blk *chain.StatefulBlock) error {
 			return server.Accept(blk)
 		},
 	}
