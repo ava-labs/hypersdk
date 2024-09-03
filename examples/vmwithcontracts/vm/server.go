@@ -1,12 +1,11 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package vm
 
 import (
 	"context"
 	"encoding/hex"
-	"github.com/ava-labs/hypersdk/vm"
 	"net/http"
 
 	"github.com/ava-labs/hypersdk/api"
@@ -27,7 +26,7 @@ type jsonRPCServerFactory struct {
 }
 
 func (j jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
-	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v.(*vm.VM)))
+	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v))
 	return api.Handler{
 		Path:    JSONRPCEndpoint,
 		Handler: handler,
@@ -35,10 +34,10 @@ func (j jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
 }
 
 type JSONRPCServer struct {
-	vm *vm.VM
+	vm api.VM
 }
 
-func NewJSONRPCServer(vm *vm.VM) *JSONRPCServer {
+func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
 	return &JSONRPCServer{vm: vm}
 }
 
@@ -103,7 +102,7 @@ func (j *JSONRPCServer) SimulateCallProgramTx(req *http.Request, args *SimulateC
 }
 
 func (j *JSONRPCServer) simulate(ctx context.Context, t actions.Call, actor codec.Address) (state.Keys, uint64, error) {
-	currentState, err := j.vm.State()
+	currentState, err := j.vm.ImmutableState(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -118,6 +117,6 @@ func (j *JSONRPCServer) simulate(ctx context.Context, t actions.Call, actor code
 		Fuel:         startFuel,
 		Value:        t.Value,
 	}
-	_, err = consts.ProgramRuntime.CallProgram(ctx, callInfo)
+	_, err = wasmRuntime.CallProgram(ctx, callInfo)
 	return recorder.GetStateKeys(), startFuel - callInfo.RemainingFuel(), err
 }

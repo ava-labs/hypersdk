@@ -18,14 +18,13 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/controller"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 type SpamHelper struct {
 	keyType string
-	cli     *controller.JSONRPCClient
+	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
 }
 
@@ -51,7 +50,7 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
-	sh.cli = controller.NewJSONRPCClient(uri)
+	sh.cli = vm.NewJSONRPCClient(uri)
 	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err

@@ -13,13 +13,13 @@ import (
 )
 
 type Recorder struct {
-	State         database.Database
+	State         state.Immutable
 	changedValues map[string][]byte
 	ReadState     set.Set[string]
 	WriteState    set.Set[string]
 }
 
-func NewRecorder(db database.Database) *Recorder {
+func NewRecorder(db state.Immutable) *Recorder {
 	return &Recorder{State: db, changedValues: map[string][]byte{}}
 }
 
@@ -37,7 +37,7 @@ func (r *Recorder) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
-func (r *Recorder) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	stringKey := string(key)
 	r.ReadState.Add(stringKey)
 	if value, ok := r.changedValues[stringKey]; ok {
@@ -46,7 +46,7 @@ func (r *Recorder) GetValue(_ context.Context, key []byte) (value []byte, err er
 		}
 		return value, nil
 	}
-	return r.State.Get(key)
+	return r.State.GetValue(ctx, key)
 }
 
 func (r *Recorder) GetStateKeys() state.Keys {

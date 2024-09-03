@@ -16,14 +16,13 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/controller"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *controller.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (*chain.Result, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {

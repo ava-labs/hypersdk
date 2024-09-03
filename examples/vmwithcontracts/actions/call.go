@@ -42,6 +42,8 @@ type Call struct {
 	SpecifiedStateKeys []StateKeyPermission `json:"statekeys"`
 
 	Fuel uint64 `json:"fuel"`
+
+	r *runtime.WasmRuntime
 }
 
 func (*Call) GetTypeID() uint8 {
@@ -72,7 +74,7 @@ func (t *Call) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-	result, err := mconsts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
+	result, err := t.r.CallProgram(ctx, &runtime.CallInfo{
 		Program:      t.ContractAddress,
 		Actor:        actor,
 		State:        &storage.ProgramStateManager{Mutable: mu},
@@ -107,24 +109,26 @@ func (t *Call) Marshal(p *codec.Packer) {
 	}
 }
 
-func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
-	var callProgram Call
-	callProgram.Value = p.UnpackUint64(false)
-	callProgram.Fuel = p.UnpackUint64(true)
-	p.UnpackAddress(&callProgram.ContractAddress) // we do not verify the typeID is valid
-	callProgram.Function = p.UnpackString(true)
-	p.UnpackBytes(units.MiB, false, &callProgram.CallData)
-	if err := p.Err(); err != nil {
-		return nil, err
+func UnmarshalCallProgram(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action, error) {
+	return func(p *codec.Packer) (chain.Action, error) {
+		callProgram := Call{r: r}
+		callProgram.Value = p.UnpackUint64(false)
+		callProgram.Fuel = p.UnpackUint64(true)
+		p.UnpackAddress(&callProgram.ContractAddress) // we do not verify the typeID is valid
+		callProgram.Function = p.UnpackString(true)
+		p.UnpackBytes(units.MiB, false, &callProgram.CallData)
+		if err := p.Err(); err != nil {
+			return nil, err
+		}
+		count := int(p.UnpackInt(true))
+		callProgram.SpecifiedStateKeys = make([]StateKeyPermission, count)
+		for i := 0; i < count; i++ {
+			key := p.UnpackString(true)
+			value := p.UnpackByte()
+			callProgram.SpecifiedStateKeys[i] = StateKeyPermission{Key: key, Permission: state.Permissions(value)}
+		}
+		return &callProgram, nil
 	}
-	count := int(p.UnpackInt(true))
-	callProgram.SpecifiedStateKeys = make([]StateKeyPermission, count)
-	for i := 0; i < count; i++ {
-		key := p.UnpackString(true)
-		value := p.UnpackByte()
-		callProgram.SpecifiedStateKeys[i] = StateKeyPermission{Key: key, Permission: state.Permissions(value)}
-	}
-	return &callProgram, nil
 }
 
 func (*Call) ValidRange(chain.Rules) (int64, int64) {

@@ -5,6 +5,7 @@ package workload
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"math"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/controller"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -90,7 +90,7 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
 	cli := jsonrpc.NewJSONRPCClient(uri)
-	lcli := controller.NewJSONRPCClient(uri)
+	lcli := vm.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
 		cli:     cli,
@@ -102,7 +102,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 type simpleTxWorkload struct {
 	factory *auth.ED25519Factory
 	cli     *jsonrpc.JSONRPCClient
-	lcli    *controller.JSONRPCClient
+	lcli    *vm.JSONRPCClient
 	count   int
 	size    int
 }
@@ -142,7 +142,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
 		require.NoError(err)
 		require.True(success)
-		lcli := controller.NewJSONRPCClient(uri)
+		lcli := vm.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, aotherStr)
 		require.NoError(err)
 		require.Equal(uint64(1), balance)
@@ -171,7 +171,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	if err != nil {
 		return nil, err
 	}
-	lcli := controller.NewJSONRPCClient(uri)
+	lcli := vm.NewJSONRPCClient(uri)
 
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
@@ -198,7 +198,7 @@ type mixedAuthWorkload struct {
 	addressAndFactories []addressAndFactory
 	balance             uint64
 	cli                 *jsonrpc.JSONRPCClient
-	lcli                *controller.JSONRPCClient
+	lcli                *vm.JSONRPCClient
 	networkID           uint32
 	chainID             ids.ID
 	count               int
@@ -239,7 +239,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
 		require.NoError(err)
 		require.True(success)
-		lcli := controller.NewJSONRPCClient(uri)
+		lcli := vm.NewJSONRPCClient(uri)
 		balance, err := lcli.Balance(ctx, receiverAddrStr)
 		require.NoError(err)
 		require.Equal(expectedBalance, balance)

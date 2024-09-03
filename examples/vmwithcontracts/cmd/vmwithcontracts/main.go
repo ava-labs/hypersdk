@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/cmd/vmwithcontracts/version"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/controller"
 )
 
 var rootCmd = &cobra.Command{
@@ -47,7 +46,7 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	controller, err := controller.New()
+	controller, err := vm.New()
 	if err != nil {
 		return err
 	}

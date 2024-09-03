@@ -6,8 +6,6 @@ package consts
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
-
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 const (
@@ -34,5 +32,3 @@ var Version = &version.Semantic{
 	Minor: 0,
 	Patch: 1,
 }
-
-var ProgramRuntime *runtime.WasmRuntime

@@ -1,10 +1,9 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package vm
 
 import (
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -20,7 +19,7 @@ func With() vm.Option {
 
 func WithRuntime() vm.Option {
 	return vm.NewOption(Namespace+"runtime", func(v *vm.VM, _ []byte) error {
-		consts.ProgramRuntime = runtime.NewRuntime(runtime.NewConfig(), v.Logger())
+		wasmRuntime = runtime.NewRuntime(runtime.NewConfig(), v.Logger())
 		return nil
 	})
 }

@@ -143,6 +143,10 @@ type VM struct {
 	stop  chan struct{}
 }
 
+func (vm *VM) ImmutableState(_ context.Context) (state.Immutable, error) {
+	return vm.State()
+}
+
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
