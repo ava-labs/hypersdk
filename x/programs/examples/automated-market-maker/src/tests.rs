@@ -1,8 +1,10 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use simulator::{SimpleState, Simulator};
-use wasmlanche::Address;
+use wasmlanche::{
+    simulator::{SimpleState, Simulator},
+    Address,
+};
 const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 const MAX_GAS: u64 = 1000000000;
 

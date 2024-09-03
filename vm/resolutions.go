@@ -70,7 +70,7 @@ func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.ruleFactory.GetRules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
+func (vm *VM) LastAcceptedBlock() *chain.StatefulBlock {
 	return vm.lastAccepted
 }
 
@@ -97,7 +97,7 @@ func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set
 	return vm.seen.Contains(txs, marker, stop)
 }
 
-func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
@@ -136,7 +136,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	}
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
@@ -150,7 +150,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -214,7 +214,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -304,8 +304,8 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
-	return vm.GetStatelessBlock(ctx, vm.preferred)
+func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
+	return vm.GetStatefulBlock(ctx, vm.preferred)
 }
 
 func (vm *VM) StopChan() chan struct{} {
@@ -340,7 +340,7 @@ func (vm *VM) StateReady() bool {
 	return vm.stateSyncClient.StateReady()
 }
 
-func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+func (vm *VM) UpdateSyncTarget(b *chain.StatefulBlock) (bool, error) {
 	return vm.stateSyncClient.UpdateSyncTarget(b)
 }
 

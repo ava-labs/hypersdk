@@ -3,7 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche::{public, state_schema, Context, ExternalCallContext, Gas, Program, ProgramId};
+use wasmlanche::{public, state_schema, Address, Context, ExternalCallContext, Gas, ProgramId};
 
 #[cfg(test)]
 mod tests;
@@ -11,18 +11,18 @@ mod tests;
 mod math;
 
 state_schema! {
-    // Tokens in the Pool as Program type
-    TokenX => Program,
-    TokenY => Program,
-    // Liquidity Token as a Program type
-    LiquidityToken => Program,
+    // Tokens in the Pool
+    TokenX => Address,
+    TokenY => Address,
+    // Liquidity Token
+    LiquidityToken => Address,
 }
 
 const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: ProgramId) {
+pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ProgramId) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
     let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
     token::init(
@@ -44,14 +44,14 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
 /// Returns the amount of tokens received from the swap
 /// Requires `amount` of `token_program_in` to be approved by the actor beforehand
 #[public]
-pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> Units {
+pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> Units {
     // ensure the token_program_in is one of the tokens
-    internal::check_token(context, &token_program_in);
+    internal::check_token(context, token_program_in);
 
     let (token_x, token_y) = external_token_contracts(context);
 
     // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in.account() == token_x.program().account() {
+    let (token_in, token_out) = if token_program_in == token_x.contract_address() {
         (token_x, token_y)
     } else {
         (token_y, token_x)
@@ -66,7 +66,7 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     // dy = (y * dx) / (x + dx)
     let amount_out = (reserve_token_out * amount) / (reserve_token_in + amount);
     let actor = context.actor();
-    let account = *context.program().account();
+    let account = context.contract_address();
 
     // transfer tokens fropm actor to the pool
     // this will fail if the actor has not approved the tokens or if the actor does not have enough tokens
@@ -103,7 +103,7 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     );
 
     let actor = context.actor();
-    let account = *context.program().account();
+    let account = context.contract_address();
 
     // transfer tokens from the actor to the pool
     token::transfer_from(&token_x, actor, account, amount_x);
@@ -161,7 +161,7 @@ pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) 
     token::burn(&lp_token, context.actor(), shares);
 
     let actor = context.actor();
-    let account = *context.program().account();
+    let account = context.contract_address();
     // update the reserves
     token::transfer_from(&token_x, account, actor, amount_x);
     token::transfer_from(&token_y, account, actor, amount_y);
@@ -178,7 +178,7 @@ pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
 }
 
 #[public]
-pub fn get_liquidity_token(context: &mut Context) -> Program {
+pub fn get_liquidity_token(context: &mut Context) -> Address {
     context.get(LiquidityToken).unwrap().unwrap()
 }
 
@@ -190,20 +190,20 @@ fn reserves(
 ) -> (Units, Units) {
     let balance_x = token::allowance(
         token_x,
-        *context.program().account(),
-        *context.program().account(),
+        context.contract_address(),
+        context.contract_address(),
     );
     let balance_y = token::allowance(
         token_y,
-        *context.program().account(),
-        *context.program().account(),
+        context.contract_address(),
+        context.contract_address(),
     );
 
     (balance_x, balance_y)
 }
 
 /// Returns the tokens in the pool
-fn token_programs(context: &mut Context) -> (Program, Program) {
+fn token_programs(context: &mut Context) -> (Address, Address) {
     (
         context
             .get(TokenX)
@@ -218,7 +218,6 @@ fn token_programs(context: &mut Context) -> (Program, Program) {
 /// Returns the external call contexts for the tokens in the pool
 fn external_token_contracts(context: &mut Context) -> (ExternalCallContext, ExternalCallContext) {
     let (token_x, token_y) = token_programs(context);
-
     (
         ExternalCallContext::new(token_x, MAX_GAS, 0),
         ExternalCallContext::new(token_y, MAX_GAS, 0),
@@ -235,10 +234,9 @@ mod internal {
     use super::*;
 
     /// Checks if `token_program` is one of the tokens supported by the pool
-    pub fn check_token(context: &mut Context, token_program: &Program) {
+    pub fn check_token(context: &mut Context, token_program: Address) {
         let (token_x, token_y) = token_programs(context);
-        let supported = token_program.account() == token_x.account()
-            || token_program.account() == token_y.account();
+        let supported = token_program == token_x || token_program == token_y;
         assert!(
             supported,
             "token program is not one of the tokens supported by this pool"

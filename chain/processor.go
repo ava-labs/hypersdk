@@ -23,7 +23,7 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (b *StatelessBlock) Execute(
+func (b *StatefulBlock) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,

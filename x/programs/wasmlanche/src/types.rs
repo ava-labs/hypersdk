@@ -25,7 +25,7 @@ impl From<Box<[u8]>> for ProgramId {
     }
 }
 
-/// A newtype wrapper around address bytes.
+/// Represents an address where a smart contract is deployed.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 #[repr(transparent)]

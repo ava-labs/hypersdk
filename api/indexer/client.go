@@ -6,6 +6,7 @@ package indexer
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -46,10 +47,10 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, bool, e
 	return resp, true, nil
 }
 
-func (c *Client) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error) {
+func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Duration, txID ids.ID) (bool, uint64, error) {
 	var success bool
 	var fee uint64
-	if err := jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
 		response, found, err := c.GetTx(ctx, txID)
 		if err != nil {
 			return false, err

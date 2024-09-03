@@ -73,7 +73,7 @@ func WithManual() Option {
 	)
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) RegisterFunc {
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatefulBlock]) RegisterFunc {
 	return func(vm *VM) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
 	}

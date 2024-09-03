@@ -105,8 +105,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		ginkgo.By("Restart the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
 		})
-		ginkgo.By("Generate 1024 blocks", func() {
-			workload.GenerateNBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, txWorkloadFactory, 1024)
+		ginkgo.By("Generate > StateSyncMinBlocks=512", func() {
+			workload.GenerateNBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, txWorkloadFactory, 512)
 		})
 		var (
 			syncNode    *tmpnet.Node

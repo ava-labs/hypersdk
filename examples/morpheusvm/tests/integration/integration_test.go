@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -38,11 +38,11 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Setup imports the integration test coverage
 	integration.Setup(
-		controller.New,
+		vm.New,
 		genesisBytes,
 		lconsts.ID,
-		controller.CreateParser,
-		controller.JSONRPCEndpoint,
+		vm.CreateParser,
+		vm.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
 	)

@@ -72,8 +72,8 @@ func OptionFunc(v *vm.VM, config Config) error {
 		},
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatelessBlock]{
-		AcceptF: func(event *chain.StatelessBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
+		AcceptF: func(event *chain.StatefulBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
@@ -193,7 +193,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := PackBlockMessage(b)
 		if err != nil {

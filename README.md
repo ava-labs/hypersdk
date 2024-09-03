@@ -191,7 +191,7 @@ store revisions for at least as long as it takes to complete a sync, which may
 require significantly more storage).
 
 ```golang
-type StatefulBlock struct {
+type StatelessBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
@@ -574,7 +574,7 @@ type Controller interface {
 
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
+	Accepted(ctx context.Context, blk *chain.StatefulBlock) error
 
 	// Shutdown should be used by the [Controller] to terminate any async
 	// processes it may be running in the background. It is invoked when
