@@ -176,7 +176,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
+    pub fn deploy(&mut self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
         let ptr =
             borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
 
@@ -255,6 +255,21 @@ impl Context {
     }
 
     #[cfg(feature = "unit_tests")]
+    pub fn mock_deploy(&mut self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
+        use crate::host::DEPLOY_PREFIX;
+
+        let key =
+            borsh::to_vec(&(DEPLOY_PREFIX, program_id, account_creation_data)).expect("failed to serialize args");
+
+        let val = self.host_accessor.new_deploy_address();
+
+        self.host_accessor.state.put(&key, val.as_ref().to_vec());
+
+        val
+    }
+
+    /// the user must match the args exactly the same, which is sometimes impossible
+    #[cfg(feature = "unit_tests")]
     pub fn mock_call_function<'a, T, U>(
         &mut self,
         target: Address,
@@ -267,10 +282,12 @@ impl Context {
         T: BorshSerialize,
         U: BorshSerialize,
     {
+        use crate::host::CALL_FUNCTION_PREFIX;
+
         let args = borsh::to_vec(&args).expect("error serializing result");
 
         let contract_args = CallContractArgs::new(&target, function, &args, max_units, max_value);
-        let contract_args = borsh::to_vec(&contract_args).expect("error serializing result");
+        let contract_args = borsh::to_vec(&(CALL_FUNCTION_PREFIX, contract_args)).expect("error serializing result");
 
         let result = borsh::to_vec(&result).expect("error serializing result");
         self.host_accessor.state.put(&contract_args, result);

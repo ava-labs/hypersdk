@@ -52,14 +52,12 @@ impl StateAccessor {
 
     pub fn put(&self, _ptr: *const u8, _len: usize) {
         println!("Test function context");
-        crate::dbg!("putting data in the test(ps: its fake ::::))))");
         // todo: putting happens on flush, when cache is dropped which happens when context is dropped
         // this means this function wont do anything
     }
 
     pub fn get_bytes(&self, _ptr: *const u8, _len: usize) -> HostPtr {
         println!("Test function context");
-        crate::dbg!("getting data in the test(ps: its fake ::::))))");
         // todo: if its calling get_bytes, it's not in the cache.
         HostPtr::null()
     }
@@ -73,41 +71,59 @@ pub struct HostAccessor;
 #[derive(Clone)]
 pub struct HostAccessor {
     pub state: MockState,
+    pub deploys: u8,
 }
 
 const BALANCE_PREFIX: u8 = 0;
 const PROGRAM_PREFIX: u8 = 1;
 const SEND_PREFIX: u8 = 2;
+pub const CALL_FUNCTION_PREFIX: u8 = 3;
+pub const DEPLOY_PREFIX: u8 = 4;
 
 #[cfg(feature = "unit_tests")]
 impl HostAccessor {
     pub fn new() -> Self {
         HostAccessor {
             state: MockState::new(),
+            // not sure why this breaks when 0? 
+            deploys: 1,
         }
     }
 
-    pub fn deploy(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        // creates a host function pointing to an account
-        println!("Test function context");
-        crate::dbg!("deploying program in the test(ps: its fake ::::))))");
-        let address = [1_u8; 33];
-        let host_ptr = wasmlanche_alloc(address.len());
-        unsafe {
-            std::ptr::copy(
-                address.as_ptr(),
-                host_ptr.as_ptr() as *mut u8,
-                address.len(),
-            );
-        };
+    pub fn new_deploy_address(&mut self) -> Address {
+        let address : [u8; 33] = [self.deploys; 33];
+        if self.deploys == 255 {
+            panic!("Too many deploys");
+        }
+        self.deploys += 1;
+        Address::new(address)
+    }
 
-        host_ptr
+    pub fn deploy(&mut self, _ptr: *const u8, _len: usize) -> HostPtr {
+        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+        let key = [DEPLOY_PREFIX]
+            .iter()
+            .chain(key.iter())
+            .copied()
+            .collect::<Vec<u8>>();
+        let val = self.state.get(&key);
+
+        assert!(
+            !val.is_null(),
+            "Deploy function not mocked. Please mock the function call."
+        );
+
+        val
     }
 
     pub fn call_program(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        let slice = unsafe { std::slice::from_raw_parts(_ptr, _len) };
-        println!("from raw parts: {:?}", slice);
-        let val = self.state.get(slice);
+        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+        let key = [CALL_FUNCTION_PREFIX]
+            .iter()
+            .chain(key.iter())
+            .copied()
+            .collect::<Vec<u8>>();
+        let val = self.state.get(&key);
 
         assert!(
             !val.is_null(),

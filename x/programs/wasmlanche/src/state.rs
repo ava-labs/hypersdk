@@ -237,14 +237,12 @@ pub struct MockState {
 
 impl MockState {
     pub fn new() -> Self {
-        println!("new mock state!");
         Self {
             state: HashMap::new(),
         }
     }
 
     pub fn get(&self, key: &[u8]) -> HostPtr {
-        println!("get mock state!");
         match self.state.get(key) {
             Some(val) => {
                 let ptr = wasmlanche_alloc(val.len());
@@ -253,7 +251,9 @@ impl MockState {
                 }
                 ptr
             }
-            None => HostPtr::null(),
+            None => {
+                HostPtr::null()
+            },
         }
     }
 
@@ -263,6 +263,10 @@ impl MockState {
 
     pub fn remove(&mut self, key: &[u8]) {
         self.state.remove(key);
+    }
+
+    pub fn len(&self) -> usize {
+        self.state.len()
     }
 
     // set_balance

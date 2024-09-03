@@ -8,6 +8,7 @@ use crate::*;
 
 type NoReturn = Result<(), ExternalCallError>;
 
+
 #[test]
 fn amm_init() {
     let mut context = Context::new_test_context();
@@ -16,6 +17,7 @@ fn amm_init() {
     let token_y = Address::new([3; 33]);
     let liquidity_id = ProgramId::new(Box::new([4; 32]));
 
+    context.mock_deploy(liquidity_id.clone(), &[0, 1]);
     // mock out the calls to deploy the liquidity token
     context.mock_call_function(
         alice,
