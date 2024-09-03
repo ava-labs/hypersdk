@@ -1,9 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-#[cfg(not(feature = "bindings"))]
-use wasmlanche::Context;
-use wasmlanche::{public, state_schema, Address};
+use wasmlanche::{public, state_schema, Address, Context};
 
 type Count = u64;
 

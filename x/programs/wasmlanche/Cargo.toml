@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 wasmtime = "14"
 
 [features]
+bindings = []
 build = ["std"]
 debug = ["std"]
 std = []
