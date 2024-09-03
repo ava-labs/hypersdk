@@ -6,18 +6,15 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
@@ -46,22 +43,10 @@ func init() {
 	}
 }
 
-// New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
-func New(options ...vm.Option) (*vm.VM, error) {
-	opts := append([]vm.Option{
-		indexer.With(),
-		ws.With(),
-		jsonrpc.With(),
-		externalsubscriber.With(),
-		With(), // Add Controller API
-	}, options...)
-
-	return NewWithOptions(opts...)
-}
-
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
-	return vm.New(
+func New(options ...vm.Option) (*vm.VM, error) {
+	options = append(options, With()) // Add MorpheusVM API
+	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
