@@ -5,7 +5,6 @@ package abi
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
@@ -83,203 +82,110 @@ func TestABISpec(t *testing.T) {
 		MockActionWithTransferArray{},
 		MockActionWithTransfer{},
 	}
-	abiString, err := GetVMABIString(vmActions)
-	require.NoError(err)
-	// This JSON will be input in TypeScript
-	expectedABI := `[
-  {
-    "id": 1,
-    "name": "MockActionSingleNumber",
-    "types": {
-      "MockActionSingleNumber": [
-        {
-          "name": "Field1",
-          "type": "uint16"
-        }
-      ]
-    }
-  },
-  {
-    "id": 2,
-    "name": "MockActionTransfer",
-    "types": {
-      "MockActionTransfer": [
-        {
-          "name": "to",
-          "type": "Address"
-        },
-        {
-          "name": "value",
-          "type": "uint64"
-        },
-        {
-          "name": "memo",
-          "type": "StringAsBytes"
-        }
-      ]
-    }
-  },
-  {
-    "id": 3,
-    "name": "MockActionAllNumbers",
-    "types": {
-      "MockActionAllNumbers": [
-        {
-          "name": "uint8",
-          "type": "uint8"
-        },
-        {
-          "name": "uint16",
-          "type": "uint16"
-        },
-        {
-          "name": "uint32",
-          "type": "uint32"
-        },
-        {
-          "name": "uint64",
-          "type": "uint64"
-        },
-        {
-          "name": "int8",
-          "type": "int8"
-        },
-        {
-          "name": "int16",
-          "type": "int16"
-        },
-        {
-          "name": "int32",
-          "type": "int32"
-        },
-        {
-          "name": "int64",
-          "type": "int64"
-        }
-      ]
-    }
-  },
-  {
-    "id": 4,
-    "name": "MockActionStringAndBytes",
-    "types": {
-      "MockActionStringAndBytes": [
-        {
-          "name": "field1",
-          "type": "string"
-        },
-        {
-          "name": "field2",
-          "type": "[]uint8"
-        }
-      ]
-    }
-  },
-  {
-    "id": 5,
-    "name": "MockActionArrays",
-    "types": {
-      "MockActionArrays": [
-        {
-          "name": "strings",
-          "type": "[]string"
-        },
-        {
-          "name": "bytes",
-          "type": "[][]uint8"
-        },
-        {
-          "name": "uint8s",
-          "type": "[]uint8"
-        },
-        {
-          "name": "uint16s",
-          "type": "[]uint16"
-        },
-        {
-          "name": "uint32s",
-          "type": "[]uint32"
-        },
-        {
-          "name": "uint64s",
-          "type": "[]uint64"
-        },
-        {
-          "name": "int8s",
-          "type": "[]int8"
-        },
-        {
-          "name": "int16s",
-          "type": "[]int16"
-        },
-        {
-          "name": "int32s",
-          "type": "[]int32"
-        },
-        {
-          "name": "int64s",
-          "type": "[]int64"
-        }
-      ]
-    }
-  },
-  {
-    "id": 7,
-    "name": "MockActionWithTransferArray",
-    "types": {
-      "MockActionTransfer": [
-        {
-          "name": "to",
-          "type": "Address"
-        },
-        {
-          "name": "value",
-          "type": "uint64"
-        },
-        {
-          "name": "memo",
-          "type": "StringAsBytes"
-        }
-      ],
-      "MockActionWithTransferArray": [
-        {
-          "name": "transfers",
-          "type": "[]MockActionTransfer"
-        }
-      ]
-    }
-  },
-  {
-    "id": 6,
-    "name": "MockActionWithTransfer",
-    "types": {
-      "MockActionTransfer": [
-        {
-          "name": "to",
-          "type": "Address"
-        },
-        {
-          "name": "value",
-          "type": "uint64"
-        },
-        {
-          "name": "memo",
-          "type": "StringAsBytes"
-        }
-      ],
-      "MockActionWithTransfer": [
-        {
-          "name": "transfer",
-          "type": "MockActionTransfer"
-        }
-      ]
-    }
-  }
-]`
-	require.JSONEq(expectedABI, abiString)
 
-	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("23e09aadd4d8ac984fbfdf9fcc8bd57c479ac5e88ad5ffba64a2a26243a83bce", hex.EncodeToString(abiHash[:]))
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   1,
+				Name: "MockActionSingleNumber",
+				Types: map[string][]ABIField{
+					"MockActionSingleNumber": {{Name: "Field1", Type: "uint16"}},
+				},
+			},
+			{
+				ID:   2,
+				Name: "MockActionTransfer",
+				Types: map[string][]ABIField{
+					"MockActionTransfer": {
+						{Name: "to", Type: "Address"},
+						{Name: "value", Type: "uint64"},
+						{Name: "memo", Type: "StringAsBytes"},
+					},
+				},
+			},
+			{
+				ID:   3,
+				Name: "MockActionAllNumbers",
+				Types: map[string][]ABIField{
+					"MockActionAllNumbers": {
+						{Name: "uint8", Type: "uint8"},
+						{Name: "uint16", Type: "uint16"},
+						{Name: "uint32", Type: "uint32"},
+						{Name: "uint64", Type: "uint64"},
+						{Name: "int8", Type: "int8"},
+						{Name: "int16", Type: "int16"},
+						{Name: "int32", Type: "int32"},
+						{Name: "int64", Type: "int64"},
+					},
+				},
+			},
+			{
+				ID:   4,
+				Name: "MockActionStringAndBytes",
+				Types: map[string][]ABIField{
+					"MockActionStringAndBytes": {
+						{Name: "field1", Type: "string"},
+						{Name: "field2", Type: "[]uint8"},
+					},
+				},
+			},
+			{
+				ID:   5,
+				Name: "MockActionArrays",
+				Types: map[string][]ABIField{
+					"MockActionArrays": {
+						{Name: "strings", Type: "[]string"},
+						{Name: "bytes", Type: "[][]uint8"},
+						{Name: "uint8s", Type: "[]uint8"},
+						{Name: "uint16s", Type: "[]uint16"},
+						{Name: "uint32s", Type: "[]uint32"},
+						{Name: "uint64s", Type: "[]uint64"},
+						{Name: "int8s", Type: "[]int8"},
+						{Name: "int16s", Type: "[]int16"},
+						{Name: "int32s", Type: "[]int32"},
+						{Name: "int64s", Type: "[]int64"},
+					},
+				},
+			},
+			{
+				ID:   7,
+				Name: "MockActionWithTransferArray",
+				Types: map[string][]ABIField{
+					"MockActionTransfer": {
+						{Name: "to", Type: "Address"},
+						{Name: "value", Type: "uint64"},
+						{Name: "memo", Type: "StringAsBytes"},
+					},
+					"MockActionWithTransferArray": {
+						{Name: "transfers", Type: "[]MockActionTransfer"},
+					},
+				},
+			},
+			{
+				ID:   6,
+				Name: "MockActionWithTransfer",
+				Types: map[string][]ABIField{
+					"MockActionTransfer": {
+						{Name: "to", Type: "Address"},
+						{Name: "value", Type: "uint64"},
+						{Name: "memo", Type: "StringAsBytes"},
+					},
+					"MockActionWithTransfer": {
+						{Name: "transfer", Type: "MockActionTransfer"},
+					},
+				},
+			},
+		},
+	}
+
+	actualABI, err := GetVMABI(vmActions)
+	require.NoError(err)
+
+	require.Equal(expectedABI, actualABI)
+
+	//TODO: check hash
+	abiHash := actualABI.Hash()
+	require.Equal("bd394b15a917ecff98df61bba57e565bbd1ecf7d772e4ec3133d2b9a3f9f1c8c", hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {

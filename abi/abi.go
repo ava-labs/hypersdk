@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,25 +12,46 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 
 	reflect "reflect"
 )
 
+type ABI struct {
+	Actions []SingleActionABI `serialize:"true" json:"actions"`
+}
+
+func (a *ABI) Hash() [32]byte {
+	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
+	if err != nil {
+		// should never happen in prod, safe to panic
+		panic(fmt.Errorf("failed to marshal abi: %w", err))
+	}
+	if writer.Err() != nil {
+		// should never happen in prod, safe to panic
+		panic(fmt.Errorf("failed to marshal abi: %w", writer.Err()))
+	}
+	abiHash := sha256.Sum256(writer.Bytes())
+	return abiHash
+}
+
 // ABIField represents a field in the ABI (Application Binary Interface).
 type ABIField struct {
 	// Name of the field, overridden by the json tag if present
-	Name string `json:"name"`
+	Name string `serialize:"true" json:"name"`
 	// Type of the field, either a Go type or struct name (excluding package name)
-	Type string `json:"type"`
+	Type string `serialize:"true" json:"type"`
 }
 
 // SingleActionABI represents the ABI for an action.
 type SingleActionABI struct {
-	ID    uint8                 `json:"id"`
-	Name  string                `json:"name"`
-	Types map[string][]ABIField `json:"types"`
+	ID    uint8                 `serialize:"true" json:"id"`
+	Name  string                `serialize:"true" json:"name"`
+	Types map[string][]ABIField `serialize:"true" json:"types"`
 }
 
+// TODO: remove this
 func GetVMABIString(actions []codec.Typed) (string, error) {
 	vmABI, err := GetVMABI(actions)
 	if err != nil {
@@ -39,16 +61,16 @@ func GetVMABIString(actions []codec.Typed) (string, error) {
 	return string(resBytes), err
 }
 
-func GetVMABI(actions []codec.Typed) ([]SingleActionABI, error) {
+func GetVMABI(actions []codec.Typed) (ABI, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
 		if err != nil {
-			return nil, err
+			return ABI{}, err
 		}
 		vmABI = append(vmABI, actionABI)
 	}
-	return vmABI, nil
+	return ABI{Actions: vmABI}, nil
 }
 
 // getActionABI generates the ABI for a single action.

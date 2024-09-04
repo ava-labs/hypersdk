@@ -23,51 +23,49 @@ func (Struct1) GetTypeID() uint8 {
 func TestGetABIBasic(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{Struct1{}})
+	actualABI, err := GetVMABI([]codec.Typed{Struct1{}})
 	require.NoError(err)
-	require.JSONEq(`[
-		{
-			"id": 1,
-			"name": "Struct1",
-			"types": {
-				"Struct1": [
-					{
-						"name": "Field1",
-						"type": "string"
+
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   1,
+				Name: "Struct1",
+				Types: map[string][]ABIField{
+					"Struct1": {
+						{Name: "Field1", Type: "string"},
+						{Name: "Field2", Type: "int32"},
 					},
-					{
-						"name": "Field2",
-						"type": "int32"
-					}
-				]
-			}
-		}
-	]`, abiString)
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 func TestGetABIBasicPtr(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{&Struct1{}})
+	actualABI, err := GetVMABI([]codec.Typed{&Struct1{}})
 	require.NoError(err)
-	require.JSONEq(`[
-		{
-			"id": 1,
-			"name": "Struct1",
-			"types": {
-				"Struct1": [
-					{
-						"name": "Field1",
-						"type": "string"
+
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   1,
+				Name: "Struct1",
+				Types: map[string][]ABIField{
+					"Struct1": {
+						{Name: "Field1", Type: "string"},
+						{Name: "Field2", Type: "int32"},
 					},
-					{
-						"name": "Field2",
-						"type": "int32"
-					}
-				]
-			}
-		}
-	]`, abiString)
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 type Transfer struct {
@@ -83,22 +81,26 @@ func (Transfer) GetTypeID() uint8 {
 func TestGetABITransfer(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{Transfer{}})
+	actualABI, err := GetVMABI([]codec.Typed{Transfer{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 2,
-			"name": "Transfer",
-			"types": {
-				"Transfer": [
-					{ "name": "to", "type": "Address" },
-					{ "name": "value", "type": "uint64" },
-					{ "name": "memo", "type": "StringAsBytes" }
-				]
-			}
-		}
-	]`, abiString)
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   2,
+				Name: "Transfer",
+				Types: map[string][]ABIField{
+					"Transfer": {
+						{Name: "to", Type: "Address"},
+						{Name: "value", Type: "uint64"},
+						{Name: "memo", Type: "StringAsBytes"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 type AllInts struct {
@@ -119,27 +121,31 @@ func (AllInts) GetTypeID() uint8 {
 func TestGetABIAllInts(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{AllInts{}})
+	actualABI, err := GetVMABI([]codec.Typed{AllInts{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 3,
-			"name": "AllInts",
-			"types": {
-				"AllInts": [
-					{ "name": "Int8", "type": "int8" },
-					{ "name": "Int16", "type": "int16" },
-					{ "name": "Int32", "type": "int32" },
-					{ "name": "Int64", "type": "int64" },
-					{ "name": "Uint8", "type": "uint8" },
-					{ "name": "Uint16", "type": "uint16" },
-					{ "name": "Uint32", "type": "uint32" },
-					{ "name": "Uint64", "type": "uint64" }
-				]
-			}
-		}
-	]`, abiString)
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   3,
+				Name: "AllInts",
+				Types: map[string][]ABIField{
+					"AllInts": {
+						{Name: "Int8", Type: "int8"},
+						{Name: "Int16", Type: "int16"},
+						{Name: "Int32", Type: "int32"},
+						{Name: "Int64", Type: "int64"},
+						{Name: "Uint8", Type: "uint8"},
+						{Name: "Uint16", Type: "uint16"},
+						{Name: "Uint32", Type: "uint32"},
+						{Name: "Uint64", Type: "uint64"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 type InnerStruct struct {
@@ -158,33 +164,28 @@ func (OuterStructSingle) GetTypeID() uint8 {
 func TestGetABIOuterStructSingle(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{OuterStructSingle{}})
+	actualABI, err := GetVMABI([]codec.Typed{OuterStructSingle{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 4,
-			"name": "OuterStructSingle",
-			"types": {
-				"OuterStructSingle": [
-					{
-						"name": "single_item",
-						"type": "InnerStruct"
-					}
-				],
-				"InnerStruct": [
-					{
-						"name": "Field1",
-						"type": "string"
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   4,
+				Name: "OuterStructSingle",
+				Types: map[string][]ABIField{
+					"OuterStructSingle": {
+						{Name: "single_item", Type: "InnerStruct"},
 					},
-					{
-						"name": "Field2",
-						"type": "uint64"
-					}
-				]
-			}
-		}
-	]`, abiString)
+					"InnerStruct": {
+						{Name: "Field1", Type: "string"},
+						{Name: "Field2", Type: "uint64"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 type OuterStructArray struct {
@@ -198,33 +199,28 @@ func (OuterStructArray) GetTypeID() uint8 {
 func TestGetABIOuterStructArray(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{OuterStructArray{}})
+	actualABI, err := GetVMABI([]codec.Typed{OuterStructArray{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 5,
-			"name": "OuterStructArray",
-			"types": {
-				"OuterStructArray": [
-					{
-						"name": "items",
-						"type": "[]InnerStruct"
-					}
-				],
-				"InnerStruct": [
-					{
-						"name": "Field1",
-						"type": "string"
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   5,
+				Name: "OuterStructArray",
+				Types: map[string][]ABIField{
+					"OuterStructArray": {
+						{Name: "items", Type: "[]InnerStruct"},
 					},
-					{
-						"name": "Field2",
-						"type": "uint64"
-					}
-				]
-			}
-		}
-	]`, abiString)
+					"InnerStruct": {
+						{Name: "Field1", Type: "string"},
+						{Name: "Field2", Type: "uint64"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
 type CompositionInner struct {
@@ -248,51 +244,56 @@ func (CompositionOuter) GetTypeID() uint8 {
 func TestGetABIComposition(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{CompositionOuter{}})
+	actualABI, err := GetVMABI([]codec.Typed{CompositionOuter{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 6,
-			"name": "CompositionOuter",
-			"types": {
-				"CompositionOuter": [
-					{ "name": "InnerField1", "type": "uint64" },
-					{ "name": "Field1", "type": "uint64" },
-					{ "name": "Field2", "type": "string" }
-				]
-			}
-		}
-	]`, abiString)
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   6,
+				Name: "CompositionOuter",
+				Types: map[string][]ABIField{
+					"CompositionOuter": {
+						{Name: "InnerField1", Type: "uint64"},
+						{Name: "Field1", Type: "uint64"},
+						{Name: "Field2", Type: "string"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }
 
-type TestSerializeStruct struct {
+type TestSerializeSelectedFieldsStruct struct {
 	Field1 string `serialize:"true"`
 	Field2 int    `serialize:"true"`
 	Field3 bool
 	Field4 float64 `serialize:"false"`
 }
 
-func (TestSerializeStruct) GetTypeID() uint8 {
+func (TestSerializeSelectedFieldsStruct) GetTypeID() uint8 {
 	return 7
 }
 
 func TestSerializeFields(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := GetVMABIString([]codec.Typed{TestSerializeStruct{}})
+	actualABI, err := GetVMABI([]codec.Typed{TestSerializeSelectedFieldsStruct{}})
 	require.NoError(err)
 
-	require.JSONEq(`[
-		{
-			"id": 7,
-			"name": "TestSerializeStruct",
-			"types": {
-				"TestSerializeStruct": [
-					{ "name": "Field1", "type": "string" },
-					{ "name": "Field2", "type": "int" }
-				]
-			}
-		}
-	]`, abiString)
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   7,
+				Name: "TestSerializeSelectedFieldsStruct",
+				Types: map[string][]ABIField{
+					"TestSerializeSelectedFieldsStruct": {{Name: "Field1", Type: "string"}, {Name: "Field2", Type: "int"}},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
 }

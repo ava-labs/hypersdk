@@ -37,5 +37,5 @@ type VM interface {
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
-	GetABI() ([]abi.SingleActionABI, error)
+	GetABI() (abi.ABI, error)
 }
