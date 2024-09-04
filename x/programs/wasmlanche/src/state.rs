@@ -5,7 +5,7 @@ extern crate alloc;
 
 use crate::{
     context::{CacheKey, CacheValue},
-    memory::HostPtr,
+    host::StateAccessor,
 };
 use alloc::{boxed::Box, vec::Vec};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
@@ -188,12 +188,6 @@ impl Cache {
 
     /// Apply all pending operations to storage and mark the cache as flushed
     pub(super) fn flush(&mut self) {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "put"]
-            fn put(ptr: *const u8, len: usize);
-        }
-
         #[derive(BorshSerialize)]
         struct PutArgs<Key> {
             key: Key,
@@ -209,18 +203,12 @@ impl Cache {
 
         if !args.is_empty() {
             let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-            unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
+            StateAccessor::put(serialized_args.as_ptr(), serialized_args.len());
         }
     }
 }
 
 fn get_bytes(key: &[u8]) -> Option<CacheValue> {
-    #[link(wasm_import_module = "state")]
-    extern "C" {
-        #[link_name = "get"]
-        fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
-    }
-
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
         key: &'a [u8],
@@ -228,7 +216,7 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
+    let ptr = StateAccessor::get_bytes(key.as_ptr(), key.len());
 
     if ptr.is_null() {
         None

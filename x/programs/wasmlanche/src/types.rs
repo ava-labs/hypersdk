@@ -16,12 +16,20 @@ pub type Id = [u8; ID_LEN];
 pub type Gas = u64;
 
 /// The ID bytes of a program.
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub struct ProgramId(Box<[u8]>);
 
 impl From<Box<[u8]>> for ProgramId {
     fn from(value: Box<[u8]>) -> Self {
         Self(value)
+    }
+}
+
+#[cfg(feature = "test")]
+impl ProgramId {
+    #[must_use]
+    pub fn new(bytes: Box<[u8]>) -> Self {
+        Self(bytes)
     }
 }
 
