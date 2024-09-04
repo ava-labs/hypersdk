@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,10 +32,13 @@ func TestGetABIBasic(t *testing.T) {
 			{
 				ID:   1,
 				Name: "Struct1",
-				Types: map[string][]ABIField{
-					"Struct1": {
-						{Name: "Field1", Type: "string"},
-						{Name: "Field2", Type: "int32"},
+				Types: []SingleTypeABI{
+					{
+						Name: "Struct1",
+						Fields: []ABIField{
+							{Name: "Field1", Type: "string"},
+							{Name: "Field2", Type: "int32"},
+						},
 					},
 				},
 			},
@@ -55,10 +59,13 @@ func TestGetABIBasicPtr(t *testing.T) {
 			{
 				ID:   1,
 				Name: "Struct1",
-				Types: map[string][]ABIField{
-					"Struct1": {
-						{Name: "Field1", Type: "string"},
-						{Name: "Field2", Type: "int32"},
+				Types: []SingleTypeABI{
+					{
+						Name: "Struct1",
+						Fields: []ABIField{
+							{Name: "Field1", Type: "string"},
+							{Name: "Field2", Type: "int32"},
+						},
 					},
 				},
 			},
@@ -89,11 +96,14 @@ func TestGetABITransfer(t *testing.T) {
 			{
 				ID:   2,
 				Name: "Transfer",
-				Types: map[string][]ABIField{
-					"Transfer": {
-						{Name: "to", Type: "Address"},
-						{Name: "value", Type: "uint64"},
-						{Name: "memo", Type: "StringAsBytes"},
+				Types: []SingleTypeABI{
+					{
+						Name: "Transfer",
+						Fields: []ABIField{
+							{Name: "to", Type: "Address"},
+							{Name: "value", Type: "uint64"},
+							{Name: "memo", Type: "StringAsBytes"},
+						},
 					},
 				},
 			},
@@ -129,16 +139,19 @@ func TestGetABIAllInts(t *testing.T) {
 			{
 				ID:   3,
 				Name: "AllInts",
-				Types: map[string][]ABIField{
-					"AllInts": {
-						{Name: "Int8", Type: "int8"},
-						{Name: "Int16", Type: "int16"},
-						{Name: "Int32", Type: "int32"},
-						{Name: "Int64", Type: "int64"},
-						{Name: "Uint8", Type: "uint8"},
-						{Name: "Uint16", Type: "uint16"},
-						{Name: "Uint32", Type: "uint32"},
-						{Name: "Uint64", Type: "uint64"},
+				Types: []SingleTypeABI{
+					{
+						Name: "AllInts",
+						Fields: []ABIField{
+							{Name: "Int8", Type: "int8"},
+							{Name: "Int16", Type: "int16"},
+							{Name: "Int32", Type: "int32"},
+							{Name: "Int64", Type: "int64"},
+							{Name: "Uint8", Type: "uint8"},
+							{Name: "Uint16", Type: "uint16"},
+							{Name: "Uint32", Type: "uint32"},
+							{Name: "Uint64", Type: "uint64"},
+						},
 					},
 				},
 			},
@@ -172,13 +185,19 @@ func TestGetABIOuterStructSingle(t *testing.T) {
 			{
 				ID:   4,
 				Name: "OuterStructSingle",
-				Types: map[string][]ABIField{
-					"OuterStructSingle": {
-						{Name: "single_item", Type: "InnerStruct"},
+				Types: []SingleTypeABI{
+					{
+						Name: "OuterStructSingle",
+						Fields: []ABIField{
+							{Name: "single_item", Type: "InnerStruct"},
+						},
 					},
-					"InnerStruct": {
-						{Name: "Field1", Type: "string"},
-						{Name: "Field2", Type: "uint64"},
+					{
+						Name: "InnerStruct",
+						Fields: []ABIField{
+							{Name: "Field1", Type: "string"},
+							{Name: "Field2", Type: "uint64"},
+						},
 					},
 				},
 			},
@@ -207,13 +226,19 @@ func TestGetABIOuterStructArray(t *testing.T) {
 			{
 				ID:   5,
 				Name: "OuterStructArray",
-				Types: map[string][]ABIField{
-					"OuterStructArray": {
-						{Name: "items", Type: "[]InnerStruct"},
+				Types: []SingleTypeABI{
+					{
+						Name: "OuterStructArray",
+						Fields: []ABIField{
+							{Name: "items", Type: "[]InnerStruct"},
+						},
 					},
-					"InnerStruct": {
-						{Name: "Field1", Type: "string"},
-						{Name: "Field2", Type: "uint64"},
+					{
+						Name: "InnerStruct",
+						Fields: []ABIField{
+							{Name: "Field1", Type: "string"},
+							{Name: "Field2", Type: "uint64"},
+						},
 					},
 				},
 			},
@@ -252,11 +277,14 @@ func TestGetABIComposition(t *testing.T) {
 			{
 				ID:   6,
 				Name: "CompositionOuter",
-				Types: map[string][]ABIField{
-					"CompositionOuter": {
-						{Name: "InnerField1", Type: "uint64"},
-						{Name: "Field1", Type: "uint64"},
-						{Name: "Field2", Type: "string"},
+				Types: []SingleTypeABI{
+					{
+						Name: "CompositionOuter",
+						Fields: []ABIField{
+							{Name: "InnerField1", Type: "uint64"},
+							{Name: "Field1", Type: "uint64"},
+							{Name: "Field2", Type: "string"},
+						},
 					},
 				},
 			},
@@ -288,12 +316,66 @@ func TestSerializeFields(t *testing.T) {
 			{
 				ID:   7,
 				Name: "TestSerializeSelectedFieldsStruct",
-				Types: map[string][]ABIField{
-					"TestSerializeSelectedFieldsStruct": {{Name: "Field1", Type: "string"}, {Name: "Field2", Type: "int"}},
+				Types: []SingleTypeABI{
+					{
+						Name:   "TestSerializeSelectedFieldsStruct",
+						Fields: []ABIField{{Name: "Field1", Type: "string"}, {Name: "Field2", Type: "int"}},
+					},
 				},
 			},
 		},
 	}
 
 	require.Equal(expectedABI, actualABI)
+}
+func TestABIsABI(t *testing.T) {
+	require := require.New(t)
+
+	actualABI, err := GetVMABI([]codec.Typed{VMABI{}})
+	require.NoError(err)
+
+	expectedABI := VMABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   255,
+				Name: "VMABI",
+				Types: []SingleTypeABI{
+					{
+						Name: "VMABI",
+						Fields: []ABIField{
+							{Name: "actions", Type: "[]SingleActionABI"},
+						},
+					},
+					{
+						Name: "SingleActionABI",
+						Fields: []ABIField{
+							{Name: "id", Type: "uint8"},
+							{Name: "name", Type: "string"},
+							{Name: "types", Type: "[]SingleTypeABI"},
+						},
+					},
+					{
+						Name: "SingleTypeABI",
+						Fields: []ABIField{
+							{Name: "name", Type: "string"},
+							{Name: "fields", Type: "[]ABIField"},
+						},
+					},
+					{
+						Name: "ABIField",
+						Fields: []ABIField{
+							{Name: "name", Type: "string"},
+							{Name: "type", Type: "string"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
+
+	expectedABIHash := "c92d3b95bd5f73a81568f80ba4ce2e4ad0c54f8ef1f5bc79895411c263b87552"
+	actualABIHash := actualABI.Hash()
+	require.Equal(expectedABIHash, hex.EncodeToString(actualABIHash[:]))
 }

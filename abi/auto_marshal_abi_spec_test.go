@@ -88,90 +88,120 @@ func TestABISpec(t *testing.T) {
 			{
 				ID:   1,
 				Name: "MockActionSingleNumber",
-				Types: map[string][]ABIField{
-					"MockActionSingleNumber": {{Name: "Field1", Type: "uint16"}},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionSingleNumber",
+						Fields: []ABIField{
+							{Name: "Field1", Type: "uint16"},
+						},
+					},
 				},
 			},
 			{
 				ID:   2,
 				Name: "MockActionTransfer",
-				Types: map[string][]ABIField{
-					"MockActionTransfer": {
-						{Name: "to", Type: "Address"},
-						{Name: "value", Type: "uint64"},
-						{Name: "memo", Type: "StringAsBytes"},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionTransfer",
+						Fields: []ABIField{
+							{Name: "to", Type: "Address"},
+							{Name: "value", Type: "uint64"},
+							{Name: "memo", Type: "StringAsBytes"},
+						},
 					},
 				},
 			},
 			{
 				ID:   3,
 				Name: "MockActionAllNumbers",
-				Types: map[string][]ABIField{
-					"MockActionAllNumbers": {
-						{Name: "uint8", Type: "uint8"},
-						{Name: "uint16", Type: "uint16"},
-						{Name: "uint32", Type: "uint32"},
-						{Name: "uint64", Type: "uint64"},
-						{Name: "int8", Type: "int8"},
-						{Name: "int16", Type: "int16"},
-						{Name: "int32", Type: "int32"},
-						{Name: "int64", Type: "int64"},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionAllNumbers",
+						Fields: []ABIField{
+							{Name: "uint8", Type: "uint8"},
+							{Name: "uint16", Type: "uint16"},
+							{Name: "uint32", Type: "uint32"},
+							{Name: "uint64", Type: "uint64"},
+							{Name: "int8", Type: "int8"},
+							{Name: "int16", Type: "int16"},
+							{Name: "int32", Type: "int32"},
+							{Name: "int64", Type: "int64"},
+						},
 					},
 				},
 			},
 			{
 				ID:   4,
 				Name: "MockActionStringAndBytes",
-				Types: map[string][]ABIField{
-					"MockActionStringAndBytes": {
-						{Name: "field1", Type: "string"},
-						{Name: "field2", Type: "[]uint8"},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionStringAndBytes",
+						Fields: []ABIField{
+							{Name: "field1", Type: "string"},
+							{Name: "field2", Type: "[]uint8"},
+						},
 					},
 				},
 			},
 			{
 				ID:   5,
 				Name: "MockActionArrays",
-				Types: map[string][]ABIField{
-					"MockActionArrays": {
-						{Name: "strings", Type: "[]string"},
-						{Name: "bytes", Type: "[][]uint8"},
-						{Name: "uint8s", Type: "[]uint8"},
-						{Name: "uint16s", Type: "[]uint16"},
-						{Name: "uint32s", Type: "[]uint32"},
-						{Name: "uint64s", Type: "[]uint64"},
-						{Name: "int8s", Type: "[]int8"},
-						{Name: "int16s", Type: "[]int16"},
-						{Name: "int32s", Type: "[]int32"},
-						{Name: "int64s", Type: "[]int64"},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionArrays",
+						Fields: []ABIField{
+							{Name: "strings", Type: "[]string"},
+							{Name: "bytes", Type: "[][]uint8"},
+							{Name: "uint8s", Type: "[]uint8"},
+							{Name: "uint16s", Type: "[]uint16"},
+							{Name: "uint32s", Type: "[]uint32"},
+							{Name: "uint64s", Type: "[]uint64"},
+							{Name: "int8s", Type: "[]int8"},
+							{Name: "int16s", Type: "[]int16"},
+							{Name: "int32s", Type: "[]int32"},
+							{Name: "int64s", Type: "[]int64"},
+						},
 					},
 				},
 			},
 			{
 				ID:   7,
 				Name: "MockActionWithTransferArray",
-				Types: map[string][]ABIField{
-					"MockActionTransfer": {
-						{Name: "to", Type: "Address"},
-						{Name: "value", Type: "uint64"},
-						{Name: "memo", Type: "StringAsBytes"},
+				Types: []SingleTypeABI{
+
+					{
+						Name: "MockActionWithTransferArray",
+						Fields: []ABIField{
+							{Name: "transfers", Type: "[]MockActionTransfer"},
+						},
 					},
-					"MockActionWithTransferArray": {
-						{Name: "transfers", Type: "[]MockActionTransfer"},
+					{
+						Name: "MockActionTransfer",
+						Fields: []ABIField{
+							{Name: "to", Type: "Address"},
+							{Name: "value", Type: "uint64"},
+							{Name: "memo", Type: "StringAsBytes"},
+						},
 					},
 				},
 			},
 			{
 				ID:   6,
 				Name: "MockActionWithTransfer",
-				Types: map[string][]ABIField{
-					"MockActionTransfer": {
-						{Name: "to", Type: "Address"},
-						{Name: "value", Type: "uint64"},
-						{Name: "memo", Type: "StringAsBytes"},
+				Types: []SingleTypeABI{
+					{
+						Name: "MockActionWithTransfer",
+						Fields: []ABIField{
+							{Name: "transfer", Type: "MockActionTransfer"},
+						},
 					},
-					"MockActionWithTransfer": {
-						{Name: "transfer", Type: "MockActionTransfer"},
+					{
+						Name: "MockActionTransfer",
+						Fields: []ABIField{
+							{Name: "to", Type: "Address"},
+							{Name: "value", Type: "uint64"},
+							{Name: "memo", Type: "StringAsBytes"},
+						},
 					},
 				},
 			},
@@ -185,7 +215,7 @@ func TestABISpec(t *testing.T) {
 
 	//TODO: check hash
 	abiHash := actualABI.Hash()
-	require.Equal("bd394b15a917ecff98df61bba57e565bbd1ecf7d772e4ec3133d2b9a3f9f1c8c", hex.EncodeToString(abiHash[:]))
+	require.Equal("0a56836f4e303da4441e165f388c3213d2836447cd459eb7baf00e44deaf7e6a", hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {

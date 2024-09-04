@@ -18,7 +18,7 @@ import (
 )
 
 type VMABI struct {
-	Actions []SingleActionABI `json:"actions"`
+	Actions []SingleActionABI `serialize:"true" json:"actions"`
 }
 
 var _ codec.Typed = (*VMABI)(nil)
@@ -30,15 +30,16 @@ func (a VMABI) GetTypeID() uint8 {
 }
 
 func (a *VMABI) Hash() [32]byte {
+	fmt.Printf("a: %+v\n", a)
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
 	if err != nil {
 		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: %w", err))
+		panic(fmt.Errorf("failed to marshal abi: MarshalInto: %w", err))
 	}
 	if writer.Err() != nil {
 		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: %w", writer.Err()))
+		panic(fmt.Errorf("failed to marshal abi: writer.Err: %w", writer.Err()))
 	}
 	abiHash := sha256.Sum256(writer.Bytes())
 	return abiHash
@@ -47,16 +48,21 @@ func (a *VMABI) Hash() [32]byte {
 // ABIField represents a field in the VMABI (Application Binary Interface).
 type ABIField struct {
 	// Name of the field, overridden by the json tag if present
-	Name string `json:"name"`
+	Name string `serialize:"true" json:"name"`
 	// Type of the field, either a Go type or struct name (excluding package name)
-	Type string `json:"type"`
+	Type string `serialize:"true" json:"type"`
 }
 
 // SingleActionABI represents the VMABI for an action.
 type SingleActionABI struct {
-	ID    uint8                 `json:"id"`
-	Name  string                `json:"name"`
-	Types map[string][]ABIField `json:"types"`
+	ID    uint8           `serialize:"true" json:"id"`
+	Name  string          `serialize:"true" json:"name"`
+	Types []SingleTypeABI `serialize:"true" json:"types"`
+}
+
+type SingleTypeABI struct {
+	Name   string     `serialize:"true" json:"name"`
+	Fields []ABIField `serialize:"true" json:"fields"`
 }
 
 // TODO: remove this
@@ -93,7 +99,7 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 	result := SingleActionABI{
 		ID:    action.GetTypeID(),
 		Name:  t.Name(),
-		Types: make(map[string][]ABIField),
+		Types: make([]SingleTypeABI, 0),
 	}
 
 	typesLeft := []reflect.Type{t}
@@ -119,7 +125,10 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 			return SingleActionABI{}, err
 		}
 
-		result.Types[nextType.Name()] = fields
+		result.Types = append(result.Types, SingleTypeABI{
+			Name:   nextType.Name(),
+			Fields: fields,
+		})
 		typesLeft = append(typesLeft, moreTypes...)
 
 		typesAlreadyProcessed.Add(nextType)
