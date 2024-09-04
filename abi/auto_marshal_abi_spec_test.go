@@ -4,18 +4,14 @@
 package abi
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/state"
 )
 
 // Combined VMABI and AutoMarshal spec
@@ -23,44 +19,15 @@ import (
 // Tests added as needed by TypeScript
 // Ensures consistency in marshaling, not testing Go struct marshaling itself
 
-type AbstractMockAction struct{}
-
-func (AbstractMockAction) ComputeUnits(chain.Rules) uint64 {
-	panic("ComputeUnits unimplemented")
-}
-
-func (AbstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
-	panic("Execute unimplemented")
-}
-
-func (AbstractMockAction) Size() int {
-	// TODO: This has to be automatic for automatic marshalling
-	return 0
-}
-
-func (AbstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("StateKeys unimplemented")
-}
-
-func (AbstractMockAction) StateKeysMaxChunks() []uint16 {
-	panic("StateKeysMaxChunks unimplemented")
-}
-
-func (AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("ValidRange unimplemented")
-}
-
-type MockActionSingleNumber struct {
-	AbstractMockAction
+type MockObjectSingleNumber struct {
 	Field1 uint16 `serialize:"true"`
 }
 
-func (MockActionSingleNumber) GetTypeID() uint8 {
+func (MockObjectSingleNumber) GetTypeID() uint8 {
 	return 1
 }
 
 type MockActionTransfer struct {
-	AbstractMockAction
 	To    codec.Address       `serialize:"true" json:"to"`
 	Value uint64              `serialize:"true" json:"value"`
 	Memo  codec.StringAsBytes `serialize:"true" json:"memo"`
@@ -73,12 +40,12 @@ func (MockActionTransfer) GetTypeID() uint8 {
 func TestABISpec(t *testing.T) {
 	require := require.New(t)
 
-	vmActions := []codec.Typed{
-		MockActionSingleNumber{},
+	vmObjects := []codec.Typed{
+		MockObjectSingleNumber{},
 		MockActionTransfer{},
-		MockActionAllNumbers{},
-		MockActionStringAndBytes{},
-		MockActionArrays{},
+		MockObjectAllNumbers{},
+		MockObjectStringAndBytes{},
+		MockObjectArrays{},
 		MockActionWithTransferArray{},
 		MockActionWithTransfer{},
 	}
@@ -87,10 +54,10 @@ func TestABISpec(t *testing.T) {
 		Actions: []SingleActionABI{
 			{
 				ID:   1,
-				Name: "MockActionSingleNumber",
+				Name: "MockObjectSingleNumber",
 				Types: []SingleTypeABI{
 					{
-						Name: "MockActionSingleNumber",
+						Name: "MockObjectSingleNumber",
 						Fields: []ABIField{
 							{Name: "Field1", Type: "uint16"},
 						},
@@ -113,10 +80,10 @@ func TestABISpec(t *testing.T) {
 			},
 			{
 				ID:   3,
-				Name: "MockActionAllNumbers",
+				Name: "MockObjectAllNumbers",
 				Types: []SingleTypeABI{
 					{
-						Name: "MockActionAllNumbers",
+						Name: "MockObjectAllNumbers",
 						Fields: []ABIField{
 							{Name: "uint8", Type: "uint8"},
 							{Name: "uint16", Type: "uint16"},
@@ -132,10 +99,10 @@ func TestABISpec(t *testing.T) {
 			},
 			{
 				ID:   4,
-				Name: "MockActionStringAndBytes",
+				Name: "MockObjectStringAndBytes",
 				Types: []SingleTypeABI{
 					{
-						Name: "MockActionStringAndBytes",
+						Name: "MockObjectStringAndBytes",
 						Fields: []ABIField{
 							{Name: "field1", Type: "string"},
 							{Name: "field2", Type: "[]uint8"},
@@ -145,10 +112,10 @@ func TestABISpec(t *testing.T) {
 			},
 			{
 				ID:   5,
-				Name: "MockActionArrays",
+				Name: "MockObjectArrays",
 				Types: []SingleTypeABI{
 					{
-						Name: "MockActionArrays",
+						Name: "MockObjectArrays",
 						Fields: []ABIField{
 							{Name: "strings", Type: "[]string"},
 							{Name: "bytes", Type: "[][]uint8"},
@@ -208,14 +175,14 @@ func TestABISpec(t *testing.T) {
 		},
 	}
 
-	actualABI, err := GetVMABI(vmActions)
+	actualABI, err := GetVMABI(vmObjects)
 	require.NoError(err)
 
 	require.Equal(expectedABI, actualABI)
 
 	//TODO: check hash
 	abiHash := actualABI.Hash()
-	require.Equal("0a56836f4e303da4441e165f388c3213d2836447cd459eb7baf00e44deaf7e6a", hex.EncodeToString(abiHash[:]))
+	require.Equal("ea3368e4d6ba1002a993bf81a0f2f35b14efc15f9e807d562748c6b25fda8b91", hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {
@@ -223,10 +190,10 @@ func TestMarshalEmptySpec(t *testing.T) {
 
 	var err error
 
-	action1Instance := MockActionSingleNumber{
+	object1Instance := MockObjectSingleNumber{
 		Field1: 0,
 	}
-	structJSON, err := json.Marshal(action1Instance)
+	structJSON, err := json.Marshal(object1Instance)
 	require.NoError(err)
 
 	// This JSON will also be an input in TypeScript
@@ -237,13 +204,13 @@ func TestMarshalEmptySpec(t *testing.T) {
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
 	// This is the output of the combination of above JSONs
-	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(action1Instance, actionPacker.Packer)
+	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(object1Instance, objectPacker.Packer)
 	require.NoError(err)
 
-	actionDigest := actionPacker.Bytes()
+	objectDigest := objectPacker.Bytes()
 
-	require.Equal("0000", hex.EncodeToString(actionDigest))
+	require.Equal("0000", hex.EncodeToString(objectDigest))
 }
 
 func TestMarshalSingleNumberSpec(t *testing.T) {
@@ -251,10 +218,10 @@ func TestMarshalSingleNumberSpec(t *testing.T) {
 
 	var err error
 
-	action1Instance := MockActionSingleNumber{
+	object1Instance := MockObjectSingleNumber{
 		Field1: 12333,
 	}
-	structJSON, err := json.Marshal(action1Instance)
+	structJSON, err := json.Marshal(object1Instance)
 	require.NoError(err)
 
 	// This JSON will also be an input in TypeScript
@@ -265,17 +232,16 @@ func TestMarshalSingleNumberSpec(t *testing.T) {
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
 	// This is the output of the combination of above JSONs
-	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(action1Instance, actionPacker.Packer)
+	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(object1Instance, objectPacker.Packer)
 	require.NoError(err)
 
-	actionDigest := actionPacker.Bytes()
+	objectDigest := objectPacker.Bytes()
 
-	require.Equal("302d", hex.EncodeToString(actionDigest))
+	require.Equal("302d", hex.EncodeToString(objectDigest))
 }
 
-type MockActionAllNumbers struct {
-	AbstractMockAction
+type MockObjectAllNumbers struct {
 	Uint8  uint8  `serialize:"true" json:"uint8"`
 	Uint16 uint16 `serialize:"true" json:"uint16"`
 	Uint32 uint32 `serialize:"true" json:"uint32"`
@@ -286,14 +252,14 @@ type MockActionAllNumbers struct {
 	Int64  int64  `serialize:"true" json:"int64"`
 }
 
-func (MockActionAllNumbers) GetTypeID() uint8 {
+func (MockObjectAllNumbers) GetTypeID() uint8 {
 	return 3
 }
 
 func TestMarshalAllNumbersSpec(t *testing.T) {
 	require := require.New(t)
 
-	action := MockActionAllNumbers{
+	object := MockObjectAllNumbers{
 		Uint8:  254,
 		Uint16: 65534,
 		Uint32: 4294967294,
@@ -304,7 +270,7 @@ func TestMarshalAllNumbersSpec(t *testing.T) {
 		Int64:  -9223372036854775807,
 	}
 
-	structJSON, err := json.Marshal(action)
+	structJSON, err := json.Marshal(object)
 	require.NoError(err)
 
 	expectedStructJSON := `
@@ -320,22 +286,21 @@ func TestMarshalAllNumbersSpec(t *testing.T) {
 	}`
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
-	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
+	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
 	require.NoError(err)
 
-	actionDigest := actionPacker.Bytes()
+	objectDigest := objectPacker.Bytes()
 
-	require.Equal("fefffefffffffefffffffffffffffe818001800000018000000000000001", hex.EncodeToString(actionDigest))
+	require.Equal("fefffefffffffefffffffffffffffe818001800000018000000000000001", hex.EncodeToString(objectDigest))
 }
 
-type MockActionStringAndBytes struct {
-	AbstractMockAction
+type MockObjectStringAndBytes struct {
 	Field1 string `serialize:"true" json:"field1"`
 	Field2 []byte `serialize:"true" json:"field2"`
 }
 
-func (MockActionStringAndBytes) GetTypeID() uint8 {
+func (MockObjectStringAndBytes) GetTypeID() uint8 {
 	return 4
 }
 
@@ -344,13 +309,13 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		action         MockActionStringAndBytes
+		object         MockObjectStringAndBytes
 		expectedJSON   string
 		expectedDigest string
 	}{
 		{
 			name: "Non-empty fields",
-			action: MockActionStringAndBytes{
+			object: MockObjectStringAndBytes{
 				Field1: "Hello, World!",
 				Field2: []byte{0x01, 0x02, 0x03, 0x04},
 			},
@@ -359,7 +324,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "Empty fields",
-			action: MockActionStringAndBytes{
+			object: MockObjectStringAndBytes{
 				Field1: "",
 				Field2: []byte{},
 			},
@@ -368,7 +333,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "String 'A' and empty bytes",
-			action: MockActionStringAndBytes{
+			object: MockObjectStringAndBytes{
 				Field1: "A",
 				Field2: []byte{},
 			},
@@ -377,7 +342,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "Byte 0x00 and empty string",
-			action: MockActionStringAndBytes{
+			object: MockObjectStringAndBytes{
 				Field1: "",
 				Field2: []byte{0x00},
 			},
@@ -388,22 +353,21 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(_ *testing.T) {
-			structJSON, err := json.Marshal(tc.action)
+			structJSON, err := json.Marshal(tc.object)
 			require.NoError(err)
 			require.JSONEq(tc.expectedJSON, string(structJSON))
 
-			actionPacker := codec.NewWriter(tc.action.Size(), consts.NetworkSizeLimit)
-			err = codec.LinearCodec.MarshalInto(tc.action, actionPacker.Packer)
+			objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+			err = codec.LinearCodec.MarshalInto(tc.object, objectPacker.Packer)
 			require.NoError(err)
 
-			actionDigest := actionPacker.Bytes()
-			require.Equal(tc.expectedDigest, hex.EncodeToString(actionDigest))
+			objectDigest := objectPacker.Bytes()
+			require.Equal(tc.expectedDigest, hex.EncodeToString(objectDigest))
 		})
 	}
 }
 
-type MockActionArrays struct {
-	AbstractMockAction
+type MockObjectArrays struct {
 	Strings []string `serialize:"true" json:"strings"`
 	Bytes   [][]byte `serialize:"true" json:"bytes"`
 	Uint8s  []uint8  `serialize:"true" json:"uint8s"`
@@ -416,14 +380,14 @@ type MockActionArrays struct {
 	Int64s  []int64  `serialize:"true" json:"int64s"`
 }
 
-func (MockActionArrays) GetTypeID() uint8 {
+func (MockObjectArrays) GetTypeID() uint8 {
 	return 5
 }
 
 func TestMarshalArraysSpec(t *testing.T) {
 	require := require.New(t)
 
-	action := MockActionArrays{
+	object := MockObjectArrays{
 		Strings: []string{"Hello", "World"},
 		Bytes:   [][]byte{{0x01, 0x02}, {0x03, 0x04}},
 		Uint8s:  []uint8{1, 2},
@@ -436,7 +400,7 @@ func TestMarshalArraysSpec(t *testing.T) {
 		Int64s:  []int64{-5000000000, -6000000000},
 	}
 
-	structJSON, err := json.Marshal(action)
+	structJSON, err := json.Marshal(object)
 	require.NoError(err)
 
 	expectedStructJSON := `
@@ -454,44 +418,43 @@ func TestMarshalArraysSpec(t *testing.T) {
 	}`
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
-	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
+	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
 	require.NoError(err)
 
-	actionDigest := actionPacker.Bytes()
+	objectDigest := objectPacker.Bytes()
 
-	require.Equal("00000002000548656c6c6f0005576f726c640000000200000002010200000002030400000002010200000002012c019000000002000111700001388000000002000000012a05f2000000000165a0bc0000000002fffe00000002fed4fe7000000002fffeee90fffec78000000002fffffffed5fa0e00fffffffe9a5f4400", hex.EncodeToString(actionDigest))
+	require.Equal("00000002000548656c6c6f0005576f726c640000000200000002010200000002030400000002010200000002012c019000000002000111700001388000000002000000012a05f2000000000165a0bc0000000002fffe00000002fed4fe7000000002fffeee90fffec78000000002fffffffed5fa0e00fffffffe9a5f4400", hex.EncodeToString(objectDigest))
 }
 
 func TestMarshalTransferSpec(t *testing.T) {
 	require := require.New(t)
 
-	action := MockActionTransfer{
+	object := MockActionTransfer{
 		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
 		Value: 1000,
 		Memo:  []byte("hi"),
 	}
 
-	structJSON, err := json.Marshal(action)
+	structJSON, err := json.Marshal(object)
 	require.NoError(err)
 
-	addrString := codec.MustAddressBech32("morpheus", action.To)
+	addrString := codec.MustAddressBech32("morpheus", object.To)
 	require.Equal("morpheus1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5qqqqqqqqqqqqqqqqqqqqqmqvs7e", addrString)
 
 	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}`
 	require.Equal(expectedJSON, string(structJSON))
 
-	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(action, actionPacker.Packer)
+	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
 	require.NoError(err)
 
-	actionDigest := actionPacker.Bytes()
+	objectDigest := objectPacker.Bytes()
 	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
-	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+	require.Equal(expectedDigest, hex.EncodeToString(objectDigest))
 }
 
 type MockActionWithTransfer struct {
-	AbstractMockAction
 	Transfer MockActionTransfer `serialize:"true" json:"transfer"`
 }
 
@@ -500,7 +463,6 @@ func (MockActionWithTransfer) GetTypeID() uint8 {
 }
 
 type MockActionWithTransferArray struct {
-	AbstractMockAction
 	Transfers []MockActionTransfer `serialize:"true" json:"transfers"`
 }
 
@@ -527,7 +489,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	expectedJSON := `{"transfer":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}}`
 	require.JSONEq(expectedJSON, string(structJSON))
 
-	actionPacker := codec.NewWriter(actionWithTransfer.Size(), consts.NetworkSizeLimit)
+	actionPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = codec.LinearCodec.MarshalInto(actionWithTransfer, actionPacker.Packer)
 	require.NoError(err)
 
@@ -545,7 +507,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	expectedJSON = `{"transfers":[{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"},{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}]}`
 	require.JSONEq(expectedJSON, string(structJSON))
 
-	actionPacker = codec.NewWriter(actionWithTransferArray.Size(), consts.NetworkSizeLimit)
+	actionPacker = codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = codec.LinearCodec.MarshalInto(actionWithTransferArray, actionPacker.Packer)
 	require.NoError(err)
 
