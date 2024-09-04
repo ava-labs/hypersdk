@@ -1,9 +1,8 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+use crate::{Address, HostPtr};
 use cfg_if::cfg_if;
-
-use crate::{memory::alloc, Address, HostPtr};
 
 pub const BALANCE_PREFIX: u8 = 0;
 pub const SEND_PREFIX: u8 = 1;
@@ -61,7 +60,7 @@ use std::collections::HashMap;
 #[cfg(feature = "test")]
 #[derive(Clone, Debug)]
 pub struct MockState {
-    state: HashMap<Vec<u8>, Vec<u8>>,
+    state: hashbrown::HashMap<Vec<u8>, Vec<u8>>,
 }
 
 #[cfg(feature = "test")]
@@ -71,17 +70,18 @@ impl Default for MockState {
     }
 }
 
+#[cfg(feature = "test")]
 impl MockState {
     pub fn new() -> Self {
         Self {
-            state: HashMap::new(),
+            state: hashbrown::HashMap::new(),
         }
     }
 
     pub fn get(&self, key: &[u8]) -> HostPtr {
         match self.state.get(key) {
             Some(val) => {
-                let ptr = alloc(val.len());
+                let ptr = crate::memory::alloc(val.len());
                 unsafe {
                     std::ptr::copy(val.as_ptr(), ptr.as_ptr().cast_mut(), val.len());
                 }
@@ -127,6 +127,7 @@ impl Default for Accessor {
     }
 }
 
+#[cfg(feature = "test")]
 impl Accessor {
     pub fn new() -> Self {
         Accessor {
