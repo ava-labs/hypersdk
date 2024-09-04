@@ -86,7 +86,11 @@ func (t *Call) Execute(
 		Fuel:         t.Fuel,
 		Value:        t.Value,
 	})
-	return [][]byte{result}, err
+	var output [][]byte
+	if result != nil {
+		output = [][]byte{result}
+	}
+	return output, err
 }
 
 func (t *Call) ComputeUnits(chain.Rules) uint64 {
