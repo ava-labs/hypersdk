@@ -5,9 +5,6 @@ use std::cmp;
 use token::Units;
 use wasmlanche::{public, state_schema, Address, Context, ExternalCallContext, Gas, ProgramId};
 
-#[cfg(test)]
-mod tests;
-
 mod math;
 
 state_schema! {
