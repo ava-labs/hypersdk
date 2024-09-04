@@ -137,11 +137,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		} else {
 			arrayPrefix := ""
 
-			// Handle nested slices (up to 100 levels deep)
-			for i := 0; i < 100; i++ {
-				if fieldType.Name() != "" {
-					break
-				}
+			for fieldType.Name() == "" {
 				arrayPrefix += "[]"
 				fieldType = fieldType.Elem()
 			}
