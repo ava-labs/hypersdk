@@ -10,16 +10,29 @@ import (
 
 const Namespace = "controller"
 
+type Config struct {
+	Enabled bool `json:"enabled"`
+}
+
+func NewDefaultConfig() Config {
+	return Config{
+		Enabled: true,
+	}
+}
+
 func With() vm.Option {
-	return vm.NewOption(Namespace, func(v *vm.VM, _ []byte) error {
+	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+		if !config.Enabled {
+			return nil
+		}
 		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
 		return nil
 	})
 }
 
 func WithRuntime() vm.Option {
-	return vm.NewOption(Namespace+"runtime", func(v *vm.VM, _ []byte) error {
-		wasmRuntime = runtime.NewRuntime(runtime.NewConfig(), v.Logger())
+	return vm.NewOption(Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM, cfg runtime.Config) error {
+		wasmRuntime = runtime.NewRuntime(&cfg, v.Logger())
 		return nil
 	})
 }
