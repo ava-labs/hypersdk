@@ -18,7 +18,7 @@ import (
 )
 
 type VMABI struct {
-	Actions []SingleActionABI `serialize:"true" json:"actions"`
+	Actions []SingleActionABI `json:"actions"`
 }
 
 var _ codec.Typed = (*VMABI)(nil)
@@ -47,16 +47,16 @@ func (a *VMABI) Hash() [32]byte {
 // ABIField represents a field in the VMABI (Application Binary Interface).
 type ABIField struct {
 	// Name of the field, overridden by the json tag if present
-	Name string `serialize:"true" json:"name"`
+	Name string `json:"name"`
 	// Type of the field, either a Go type or struct name (excluding package name)
-	Type string `serialize:"true" json:"type"`
+	Type string `json:"type"`
 }
 
 // SingleActionABI represents the VMABI for an action.
 type SingleActionABI struct {
-	ID    uint8                 `serialize:"true" json:"id"`
-	Name  string                `serialize:"true" json:"name"`
-	Types map[string][]ABIField `serialize:"true" json:"types"`
+	ID    uint8                 `json:"id"`
+	Name  string                `json:"name"`
+	Types map[string][]ABIField `json:"types"`
 }
 
 // TODO: remove this
