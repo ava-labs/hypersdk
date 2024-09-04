@@ -57,7 +57,7 @@ type ActionTest struct {
 	// not tested against ExpectedOutputs and ExpectedErr, but they must not return an error.
 	// The last action in this array is tested against ExpectedOutputs and
 	// ExpectedErr
-	Actions       []chain.Action
+	Actions []chain.Action
 
 	Rules     chain.Rules
 	State     state.Mutable
