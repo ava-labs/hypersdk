@@ -114,12 +114,18 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		fieldType := field.Type
 		fieldName := field.Name
 
+		serializeTag := field.Tag.Get("serialize")
+		if serializeTag != "true" {
+			continue
+		}
+
 		// Handle JSON tag for field name override
 		jsonTag := field.Tag.Get("json")
 		if jsonTag != "" {
 			parts := strings.Split(jsonTag, ",")
 			fieldName = parts[0]
 		}
+
 		if field.Anonymous && fieldType.Kind() == reflect.Struct {
 			// Handle embedded struct by flattening its fields
 			embeddedFields, moreTypes, err := describeStruct(fieldType)

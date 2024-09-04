@@ -12,8 +12,8 @@ import (
 )
 
 type Struct1 struct {
-	Field1 string
-	Field2 int32
+	Field1 string `serialize:"true"`
+	Field2 int32  `serialize:"true"`
 }
 
 func (Struct1) GetTypeID() uint8 {
@@ -71,9 +71,9 @@ func TestGetABIBasicPtr(t *testing.T) {
 }
 
 type Transfer struct {
-	To    codec.Address       `json:"to"`
-	Value uint64              `json:"value"`
-	Memo  codec.StringAsBytes `json:"memo,omitempty"`
+	To    codec.Address       `json:"to" serialize:"true"`
+	Value uint64              `json:"value" serialize:"true"`
+	Memo  codec.StringAsBytes `json:"memo,omitempty" serialize:"true"`
 }
 
 func (Transfer) GetTypeID() uint8 {
@@ -102,14 +102,14 @@ func TestGetABITransfer(t *testing.T) {
 }
 
 type AllInts struct {
-	Int8   int8
-	Int16  int16
-	Int32  int32
-	Int64  int64
-	Uint8  uint8
-	Uint16 uint16
-	Uint32 uint32
-	Uint64 uint64
+	Int8   int8   `serialize:"true"`
+	Int16  int16  `serialize:"true"`
+	Int32  int32  `serialize:"true"`
+	Int64  int64  `serialize:"true"`
+	Uint8  uint8  `serialize:"true"`
+	Uint16 uint16 `serialize:"true"`
+	Uint32 uint32 `serialize:"true"`
+	Uint64 uint64 `serialize:"true"`
 }
 
 func (AllInts) GetTypeID() uint8 {
@@ -143,12 +143,12 @@ func TestGetABIAllInts(t *testing.T) {
 }
 
 type InnerStruct struct {
-	Field1 string
-	Field2 uint64
+	Field1 string `serialize:"true"`
+	Field2 uint64 `serialize:"true"`
 }
 
 type OuterStructSingle struct {
-	SingleItem InnerStruct `json:"single_item"`
+	SingleItem InnerStruct `json:"single_item" serialize:"true"`
 }
 
 func (OuterStructSingle) GetTypeID() uint8 {
@@ -188,7 +188,7 @@ func TestGetABIOuterStructSingle(t *testing.T) {
 }
 
 type OuterStructArray struct {
-	Items []InnerStruct `json:"items"`
+	Items []InnerStruct `json:"items" serialize:"true"`
 }
 
 func (OuterStructArray) GetTypeID() uint8 {
@@ -228,7 +228,7 @@ func TestGetABIOuterStructArray(t *testing.T) {
 }
 
 type CompositionInner struct {
-	InnerField1 uint64
+	InnerField1 uint64 `serialize:"true"`
 }
 
 func (CompositionInner) GetTypeID() uint8 {
@@ -236,9 +236,9 @@ func (CompositionInner) GetTypeID() uint8 {
 }
 
 type CompositionOuter struct {
-	CompositionInner
-	Field1 uint64
-	Field2 string
+	CompositionInner `serialize:"true"`
+	Field1           uint64 `serialize:"true"`
+	Field2           string `serialize:"true"`
 }
 
 func (CompositionOuter) GetTypeID() uint8 {
@@ -260,6 +260,37 @@ func TestGetABIComposition(t *testing.T) {
 					{ "name": "InnerField1", "type": "uint64" },
 					{ "name": "Field1", "type": "uint64" },
 					{ "name": "Field2", "type": "string" }
+				]
+			}
+		}
+	]`, abiString)
+}
+
+type TestSerializeStruct struct {
+	Field1 string `serialize:"true"`
+	Field2 int    `serialize:"true"`
+	Field3 bool
+	Field4 float64 `serialize:"false"`
+}
+
+func (TestSerializeStruct) GetTypeID() uint8 {
+	return 7
+}
+
+func TestSerializeFields(t *testing.T) {
+	require := require.New(t)
+
+	abiString, err := GetVMABIString([]codec.Typed{TestSerializeStruct{}})
+	require.NoError(err)
+
+	require.JSONEq(`[
+		{
+			"id": 7,
+			"name": "TestSerializeStruct",
+			"types": {
+				"TestSerializeStruct": [
+					{ "name": "Field1", "type": "string" },
+					{ "name": "Field2", "type": "int" }
 				]
 			}
 		}
