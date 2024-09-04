@@ -64,10 +64,10 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory)
 		return err
 	},
 }
@@ -98,9 +98,9 @@ var publishFileCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, _, err := sendAndWait(ctx, []chain.Action{&actions.Publish{
+		result, err := sendAndWait(ctx, []chain.Action{&actions.Publish{
 			ContractBytes: bytes,
-		}}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
 			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
@@ -166,7 +166,7 @@ var callCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, _, err := sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
+		result, err := sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
 			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
@@ -221,10 +221,10 @@ var deployCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, _, err := sendAndWait(ctx, []chain.Action{&actions.Deploy{
+		result, err := sendAndWait(ctx, []chain.Action{&actions.Deploy{
 			ProgramID:    programID,
 			CreationInfo: creationInfo,
-		}}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
 			address, err := codec.ToAddress(result.Outputs[0][0])

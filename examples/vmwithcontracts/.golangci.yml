@@ -45,13 +45,8 @@ linters:
     - whitespace
     - staticcheck
     - bodyclose
-    - structcheck
-      # - lll
-      # - gomnd
     - goprintffuncname
-    - interfacer
     - typecheck
-      # - goerr113
     - noctx
 
 linters-settings:

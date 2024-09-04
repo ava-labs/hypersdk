@@ -6,6 +6,7 @@ require (
 	github.com/ava-labs/avalanchego v1.11.11-0.20240827034238-fc892827880a
 	github.com/ava-labs/hypersdk v0.0.16
 	github.com/fatih/color v1.13.0
+	github.com/near/borsh-go v0.3.1
 	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/spf13/cobra v1.7.0
 	github.com/status-im/keycard-go v0.2.0
@@ -90,7 +91,6 @@ require (
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d // indirect
-	github.com/near/borsh-go v0.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect

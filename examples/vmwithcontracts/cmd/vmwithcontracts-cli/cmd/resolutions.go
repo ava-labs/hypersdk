@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -23,27 +21,27 @@ import (
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
-) (*chain.Result, ids.ID, error) {
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory,
+) (*chain.Result, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
-		return nil, ids.Empty, err
+		return nil, err
 	}
 	_, tx, _, err := cli.GenerateTransaction(ctx, parser, actions, factory)
 	if err != nil {
-		return nil, ids.Empty, err
+		return nil, err
 	}
 	if err := ws.RegisterTx(tx); err != nil {
-		return nil, ids.Empty, err
+		return nil, err
 	}
 	var result *chain.Result
 	for {
 		txID, txErr, txResult, err := ws.ListenTx(ctx)
 		if err != nil {
-			return nil, ids.Empty, err
+			return nil, err
 		}
 		if txErr != nil {
-			return nil, ids.Empty, txErr
+			return nil, txErr
 		}
 		if txID == tx.ID() {
 			result = txResult
@@ -51,14 +49,13 @@ func sendAndWait(
 		}
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
-	if printStatus {
-		status := "❌"
-		if result.Success {
-			status = "✅"
-		}
-		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
+	status := "❌"
+	if result.Success {
+		status = "✅"
 	}
-	return result, tx.ID(), nil
+	utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
+
+	return result, nil
 }
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {
