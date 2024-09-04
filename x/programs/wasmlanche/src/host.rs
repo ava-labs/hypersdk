@@ -1,22 +1,35 @@
-use crate::{host, memory::wasmlanche_alloc, state::MockState, Address, Gas, HostPtr};
+use std::collections::HashMap;
+
+use crate::{host, memory::wasmlanche_alloc, Address, Gas, HostPtr};
 
 pub const BALANCE_PREFIX: u8 = 0;
-pub const PROGRAM_PREFIX: u8 = 1;
-pub const SEND_PREFIX: u8 = 2;
-pub const CALL_FUNCTION_PREFIX: u8 = 3;
-pub const DEPLOY_PREFIX: u8 = 4;
+pub const SEND_PREFIX: u8 = 1;
+pub const CALL_FUNCTION_PREFIX: u8 = 2;
+pub const DEPLOY_PREFIX: u8 = 3;
 
-#[cfg(not(feature = "unit_tests"))]
 pub struct StateAccessor;
 
-#[cfg(not(feature = "unit_tests"))]
+#[cfg(feature = "test")]
+impl StateAccessor {
+    pub fn put(_ptr: *const u8, _len: usize) {
+        // happens on context drop() -> cache drop() -> flush()
+        // this means this function wont do anything
+        todo!()
+    }
+
+    pub fn get_bytes(_ptr: *const u8, _len: usize) -> HostPtr {
+        // if calling get_bytes, not found in cache
+        HostPtr::null()
+    }
+}
+
+#[cfg(not(feature = "test"))]
 impl StateAccessor {
     pub fn new() -> Self {
         StateAccessor
     }
 
-    pub fn put(&self, ptr: *const u8, len: usize) {
-        println!("Host function context");
+    pub fn put(ptr: *const u8, len: usize) {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
@@ -28,7 +41,7 @@ impl StateAccessor {
         }
     }
 
-    pub fn get_bytes(&self, ptr: *const u8, len: usize) -> HostPtr {
+    pub fn get_bytes(ptr: *const u8, len: usize) -> HostPtr {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "get"]
@@ -39,44 +52,58 @@ impl StateAccessor {
     }
 }
 
-#[cfg(feature = "unit_tests")]
-pub struct StateAccessor {
-    state: MockState,
+#[derive(Clone)]
+pub struct MockState {
+    state: HashMap<Vec<u8>, Vec<u8>>,
 }
 
-#[cfg(feature = "unit_tests")]
-impl StateAccessor {
+#[cfg(feature = "test")]
+impl MockState {
     pub fn new() -> Self {
-        StateAccessor {
-            state: MockState::new(),
+        Self {
+            state: HashMap::new(),
         }
     }
 
-    pub fn put(&self, _ptr: *const u8, _len: usize) {
-        // happens on context drop() -> cache drop() -> flush()
-        // this means this function wont do anything
+    pub fn get(&self, key: &[u8]) -> HostPtr {
+        match self.state.get(key) {
+            Some(val) => {
+                let ptr = wasmlanche_alloc(val.len());
+                unsafe {
+                    std::ptr::copy(val.as_ptr(), ptr.as_ptr().cast_mut(), val.len());
+                }
+                ptr
+            }
+            None => HostPtr::null(),
+        }
     }
 
-    pub fn get_bytes(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        // if calling get_bytes, not found in cache
-        HostPtr::null()
+    pub fn put(&mut self, key: &[u8], value: Vec<u8>) {
+        self.state.insert(key.into(), value);
+    }
+
+    pub fn remove(&mut self, key: &[u8]) {
+        self.state.remove(key);
+    }
+
+    pub fn len(&self) -> usize {
+        self.state.len()
     }
 }
 
-#[cfg(not(feature = "unit_tests"))]
+#[cfg(not(feature = "test"))]
 #[derive(Clone)]
 pub struct HostAccessor;
 
-#[cfg(feature = "unit_tests")]
+#[cfg(feature = "test")]
 #[derive(Clone)]
 pub struct HostAccessor {
     pub state: MockState,
-
     // countes the number of deploys to generate a unique address
     pub deploys: u8,
 }
 
-#[cfg(feature = "unit_tests")]
+#[cfg(feature = "test")]
 impl HostAccessor {
     pub fn new() -> Self {
         HostAccessor {
@@ -95,8 +122,8 @@ impl HostAccessor {
         Address::new(address)
     }
 
-    pub fn deploy(&mut self, _ptr: *const u8, _len: usize) -> HostPtr {
-        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+    pub fn deploy(&mut self, ptr: *const u8, len: usize) -> HostPtr {
+        let key = unsafe { std::slice::from_raw_parts(ptr, len) };
         let key = [DEPLOY_PREFIX]
             .iter()
             .chain(key.iter())
@@ -112,8 +139,8 @@ impl HostAccessor {
         val
     }
 
-    pub fn call_program(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+    pub fn call_program(&self, ptr: *const u8, len: usize) -> HostPtr {
+        let key = unsafe { std::slice::from_raw_parts(ptr, len) };
         let key = [CALL_FUNCTION_PREFIX]
             .iter()
             .chain(key.iter())
@@ -129,8 +156,8 @@ impl HostAccessor {
         val
     }
 
-    pub fn get_balance(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+    pub fn get_balance(&self, ptr: *const u8, len: usize) -> HostPtr {
+        let key = unsafe { std::slice::from_raw_parts(ptr, len) };
         // balance prefix + key
         let key = [BALANCE_PREFIX]
             .iter()
@@ -151,8 +178,8 @@ impl HostAccessor {
         panic!("get_remaining_fuel not implemented in the test context");
     }
 
-    pub fn send_value(&self, _ptr: *const u8, _len: usize) -> HostPtr {
-        let key = unsafe { std::slice::from_raw_parts(_ptr, _len) };
+    pub fn send_value(&self, ptr: *const u8, len: usize) -> HostPtr {
+        let key = unsafe { std::slice::from_raw_parts(ptr, len) };
         // send prefix + key
         let key = [SEND_PREFIX]
             .iter()
@@ -170,12 +197,13 @@ impl HostAccessor {
     }
 }
 
-#[cfg(not(feature = "unit_tests"))]
+#[cfg(not(feature = "test"))]
 impl HostAccessor {
     pub fn new() -> Self {
         HostAccessor
     }
 
+    #[allow(clippy::unused_self)]
     pub fn deploy(&self, ptr: *const u8, len: usize) -> HostPtr {
         use crate::HostPtr;
         #[link(wasm_import_module = "program")]
@@ -187,8 +215,8 @@ impl HostAccessor {
         unsafe { deploy(ptr, len) }
     }
 
+    #[allow(clippy::unused_self)]
     pub fn call_program(&self, ptr: *const u8, len: usize) -> HostPtr {
-        println!("Host function context");
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
@@ -198,6 +226,7 @@ impl HostAccessor {
         unsafe { call_program(ptr, len) }
     }
 
+    #[allow(clippy::unused_self)]
     pub fn get_balance(&self, ptr: *const u8, len: usize) -> HostPtr {
         #[link(wasm_import_module = "balance")]
         extern "C" {
@@ -208,6 +237,7 @@ impl HostAccessor {
         unsafe { get(ptr, len) }
     }
 
+    #[allow(clippy::unused_self)]
     pub fn get_remaining_fuel(&self) -> HostPtr {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -218,6 +248,7 @@ impl HostAccessor {
         unsafe { get_remaining_fuel() }
     }
 
+    #[allow(clippy::unused_self)]
     pub fn send_value(&self, ptr: *const u8, len: usize) -> HostPtr {
         #[link(wasm_import_module = "balance")]
         extern "C" {

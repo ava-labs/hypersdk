@@ -86,7 +86,7 @@ impl BorshDeserialize for Context {
 }
 
 impl Context {
-    #[cfg(feature = "unit_tests")]
+    #[cfg(feature = "test")]
     pub fn new_test_context() -> Self {
         Self {
             contract_address: Address::new([0; 33]),

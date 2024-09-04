@@ -63,10 +63,12 @@ impl HostPtr {
         self.0.is_null()
     }
 
+    #[must_use]
     pub fn null() -> Self {
         Self(core::ptr::null())
     }
 
+    #[must_use]
     pub fn as_ptr(&self) -> *const u8 {
         self.0
     }

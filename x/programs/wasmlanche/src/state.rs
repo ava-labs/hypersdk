@@ -31,8 +31,6 @@ pub enum Error {
 
 pub struct Cache {
     cache: HashMap<CacheKey, Option<CacheValue>>,
-    // access to host function calls
-    state_accessor: StateAccessor,
 }
 
 impl Drop for Cache {
@@ -121,7 +119,6 @@ impl Cache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::default(),
-            state_accessor: StateAccessor::new(),
         }
     }
 
@@ -158,7 +155,7 @@ impl Cache {
                 .map_err(|_| Error::Deserialization)
         } else {
             let key = CacheKey::from(key);
-            let bytes = get_bytes(&self.state_accessor, &key);
+            let bytes = get_bytes(&key);
             cache
                 .entry(key)
                 .or_insert(bytes)
@@ -177,7 +174,7 @@ impl Cache {
             value
         } else {
             let key = CacheKey::from(key.as_ref());
-            let value_bytes = get_bytes(&self.state_accessor, &key);
+            let value_bytes = get_bytes(&key);
             cache.entry(key).or_insert(value_bytes)
         };
 
@@ -207,13 +204,12 @@ impl Cache {
 
         if !args.is_empty() {
             let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-            self.state_accessor
-                .put(serialized_args.as_ptr(), serialized_args.len());
+            StateAccessor::put(serialized_args.as_ptr(), serialized_args.len());
         }
     }
 }
 
-fn get_bytes(state_accessor: &StateAccessor, key: &[u8]) -> Option<CacheValue> {
+fn get_bytes(key: &[u8]) -> Option<CacheValue> {
     #[derive(BorshSerialize)]
     struct GetArgs<'a> {
         key: &'a [u8],
@@ -221,50 +217,12 @@ fn get_bytes(state_accessor: &StateAccessor, key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = state_accessor.get_bytes(key.as_ptr(), key.len());
+    let ptr = StateAccessor::get_bytes(key.as_ptr(), key.len());
 
     if ptr.is_null() {
         None
     } else {
         Some(ptr.into())
-    }
-}
-
-#[derive(Clone)]
-pub struct MockState {
-    state: HashMap<Vec<u8>, Vec<u8>>,
-}
-
-impl MockState {
-    pub fn new() -> Self {
-        Self {
-            state: HashMap::new(),
-        }
-    }
-
-    pub fn get(&self, key: &[u8]) -> HostPtr {
-        match self.state.get(key) {
-            Some(val) => {
-                let ptr = wasmlanche_alloc(val.len());
-                unsafe {
-                    std::ptr::copy(val.as_ptr(), ptr.as_ptr() as *mut u8, val.len());
-                }
-                ptr
-            }
-            None => HostPtr::null(),
-        }
-    }
-
-    pub fn put(&mut self, key: &[u8], value: Vec<u8>) {
-        self.state.insert(key.into(), value);
-    }
-
-    pub fn remove(&mut self, key: &[u8]) {
-        self.state.remove(key);
-    }
-
-    pub fn len(&self) -> usize {
-        self.state.len()
     }
 }
 

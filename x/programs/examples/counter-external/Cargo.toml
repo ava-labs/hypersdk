@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche = { workspace = true, features = ["debug", "unit_tests"] }
+wasmlanche = { workspace = true, features = ["debug"] }
 counter = { path = "../counter", features = ["bindings"] }
 
 [dev-dependencies]
