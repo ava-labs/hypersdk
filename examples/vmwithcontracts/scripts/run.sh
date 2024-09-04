@@ -62,11 +62,11 @@ fi
 echo "building vmwithcontracts"
 
 # delete previous (if exists)
-rm -f "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/uA5JYVkLTUU2JfeCYY685VnVmSziyTsWSdaZCkVz2gTwkgrQn
 
 # rebuild with latest code
 go build \
--o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/uA5JYVkLTUU2JfeCYY685VnVmSziyTsWSdaZCkVz2gTwkgrQn \
 ./cmd/vmwithcontracts
 
 ############################

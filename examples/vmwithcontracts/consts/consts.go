@@ -10,7 +10,7 @@ import (
 
 const (
 	HRP      = "contracts"
-	Name     = "vmWithContracts"
+	Name     = "vmwithcontracts"
 	Symbol   = "RED"
 	Decimals = 9
 )
