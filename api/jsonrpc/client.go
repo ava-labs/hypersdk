@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
@@ -181,7 +182,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}, tx, nil
 }
 
-func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
+func (cli *JSONRPCClient) GetABI(ctx context.Context) ([]abi.SingleActionABI, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -189,7 +190,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
 		nil,
 		resp,
 	)
-	return resp.ABIJSON, err
+	return resp.ABI, err
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

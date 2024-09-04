@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -36,5 +37,5 @@ type VM interface {
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
-	GetABI() (string, error)
+	GetABI() ([]abi.SingleActionABI, error)
 }

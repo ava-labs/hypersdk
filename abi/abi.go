@@ -31,7 +31,7 @@ type SingleActionABI struct {
 }
 
 func GetVMABIString(actions []codec.Typed) (string, error) {
-	vmABI, err := getVMABI(actions)
+	vmABI, err := GetVMABI(actions)
 	if err != nil {
 		return "", err
 	}
@@ -39,7 +39,7 @@ func GetVMABIString(actions []codec.Typed) (string, error) {
 	return string(resBytes), err
 }
 
-func getVMABI(actions []codec.Typed) ([]SingleActionABI, error) {
+func GetVMABI(actions []codec.Typed) ([]SingleActionABI, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)

@@ -5,12 +5,10 @@ package workload
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
@@ -36,12 +34,7 @@ func GetNetwork(ctx context.Context, require *require.Assertions, uris []string,
 func GetABI(ctx context.Context, require *require.Assertions, uris []string) {
 	for _, uri := range uris {
 		client := jsonrpc.NewJSONRPCClient(uri)
-		abiString, err := client.GetABI(ctx)
-		require.NoError(err)
-		require.NotEmpty(abiString)
-
-		var abi []abi.SingleActionABI
-		err = json.Unmarshal([]byte(abiString), &abi)
+		abi, err := client.GetABI(ctx)
 		require.NoError(err)
 
 		require.NotEmpty(abi)
