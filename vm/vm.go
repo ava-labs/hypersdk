@@ -142,8 +142,6 @@ type VM struct {
 
 	ready chan struct{}
 	stop  chan struct{}
-
-	abiString string
 }
 
 func New(
@@ -163,11 +161,6 @@ func New(
 		allocatedNamespaces.Add(option.Namespace)
 	}
 
-	abiString, err := abi.GetVMABIString((*actionRegistry).GetRegisteredTypes())
-	if err != nil {
-		return nil, err
-	}
-
 	return &VM{
 		v:                     v,
 		stateManager:          stateManager,
@@ -177,7 +170,6 @@ func New(
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
-		abiString:             abiString,
 	}, nil
 }
 
@@ -1262,6 +1254,6 @@ func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 // GetABI returns the ABI (Application Binary Interface) string for the VM.
 // This ABI string represents the interface of the VM,
 // containing all actions.
-func (vm *VM) GetABI() string {
-	return vm.abiString
+func (vm *VM) GetABI() (string, error) {
+	return abi.GetVMABIString((*vm.actionRegistry).GetRegisteredTypes())
 }

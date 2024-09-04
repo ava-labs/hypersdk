@@ -147,6 +147,10 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	reply.ABIJSON = j.vm.GetABI()
+	abiJSON, err := j.vm.GetABI()
+	if err != nil {
+		return err
+	}
+	reply.ABIJSON = abiJSON
 	return nil
 }
