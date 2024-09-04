@@ -1254,6 +1254,6 @@ func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 // GetABI returns the ABI (Application Binary Interface) string for the VM.
 // This ABI string represents the interface of the VM,
 // containing all actions.
-func (vm *VM) GetABI() (abi.ABI, error) {
+func (vm *VM) GetABI() (abi.VMABI, error) {
 	return abi.GetVMABI((*vm.actionRegistry).GetRegisteredTypes())
 }

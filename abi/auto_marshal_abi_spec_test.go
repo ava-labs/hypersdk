@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-// Combined ABI and AutoMarshal spec
+// Combined VMABI and AutoMarshal spec
 // Used to verify TypeScript implementation
 // Tests added as needed by TypeScript
 // Ensures consistency in marshaling, not testing Go struct marshaling itself
@@ -83,7 +83,7 @@ func TestABISpec(t *testing.T) {
 		MockActionWithTransfer{},
 	}
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   1,

@@ -182,7 +182,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}, tx, nil
 }
 
-func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
+func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.VMABI, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -190,7 +190,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 		nil,
 		resp,
 	)
-	return resp.ABI, err
+	return resp.VMABI, err
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

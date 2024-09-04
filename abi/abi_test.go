@@ -27,7 +27,7 @@ func TestGetABIBasic(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{Struct1{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   1,
@@ -51,7 +51,7 @@ func TestGetABIBasicPtr(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{&Struct1{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   1,
@@ -85,7 +85,7 @@ func TestGetABITransfer(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{Transfer{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   2,
@@ -125,7 +125,7 @@ func TestGetABIAllInts(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{AllInts{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   3,
@@ -168,7 +168,7 @@ func TestGetABIOuterStructSingle(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{OuterStructSingle{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   4,
@@ -203,7 +203,7 @@ func TestGetABIOuterStructArray(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{OuterStructArray{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   5,
@@ -248,7 +248,7 @@ func TestGetABIComposition(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{CompositionOuter{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   6,
@@ -284,7 +284,7 @@ func TestSerializeFields(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{TestSerializeSelectedFieldsStruct{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   7,
@@ -302,16 +302,16 @@ func TestSerializeFields(t *testing.T) {
 func TestABIsABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := GetVMABI([]codec.Typed{ABI{}})
+	actualABI, err := GetVMABI([]codec.Typed{VMABI{}})
 	require.NoError(err)
 
-	expectedABI := ABI{
+	expectedABI := VMABI{
 		Actions: []SingleActionABI{
 			{
 				ID:   255,
-				Name: "ABI",
+				Name: "VMABI",
 				Types: map[string][]ABIField{
-					"ABI": {
+					"VMABI": {
 						{Name: "actions", Type: "[]SingleActionABI"},
 					},
 					"ABIField": {
@@ -330,7 +330,7 @@ func TestABIsABI(t *testing.T) {
 
 	require.Equal(expectedABI, actualABI)
 
-	expectedABIsABIHash := "bc3015915a9f3bdf757e71ca06040828753a76ba28bf73a5be875cac56ee0ec2"
+	expectedABIsABIHash := "fc9a58761f498efaaf5a79de5a440c6c84a20fdc472a50305530665312ed8bae"
 	actualABIsABIHash := actualABI.Hash()
 	require.Equal(expectedABIsABIHash, hex.EncodeToString(actualABIsABIHash[:]))
 }

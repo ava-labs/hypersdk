@@ -17,19 +17,19 @@ import (
 	reflect "reflect"
 )
 
-type ABI struct {
+type VMABI struct {
 	Actions []SingleActionABI `serialize:"true" json:"actions"`
 }
 
-var _ codec.Typed = (*ABI)(nil)
+var _ codec.Typed = (*VMABI)(nil)
 
 const ABI_TYPE_ID = consts.MaxUint8
 
-func (a ABI) GetTypeID() uint8 {
+func (a VMABI) GetTypeID() uint8 {
 	return ABI_TYPE_ID
 }
 
-func (a *ABI) Hash() [32]byte {
+func (a *VMABI) Hash() [32]byte {
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
 	if err != nil {
@@ -44,7 +44,7 @@ func (a *ABI) Hash() [32]byte {
 	return abiHash
 }
 
-// ABIField represents a field in the ABI (Application Binary Interface).
+// ABIField represents a field in the VMABI (Application Binary Interface).
 type ABIField struct {
 	// Name of the field, overridden by the json tag if present
 	Name string `serialize:"true" json:"name"`
@@ -52,7 +52,7 @@ type ABIField struct {
 	Type string `serialize:"true" json:"type"`
 }
 
-// SingleActionABI represents the ABI for an action.
+// SingleActionABI represents the VMABI for an action.
 type SingleActionABI struct {
 	ID    uint8                 `serialize:"true" json:"id"`
 	Name  string                `serialize:"true" json:"name"`
@@ -69,19 +69,19 @@ func GetVMABIString(actions []codec.Typed) (string, error) {
 	return string(resBytes), err
 }
 
-func GetVMABI(actions []codec.Typed) (ABI, error) {
+func GetVMABI(actions []codec.Typed) (VMABI, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
 		if err != nil {
-			return ABI{}, err
+			return VMABI{}, err
 		}
 		vmABI = append(vmABI, actionABI)
 	}
-	return ABI{Actions: vmABI}, nil
+	return VMABI{Actions: vmABI}, nil
 }
 
-// getActionABI generates the ABI for a single action.
+// getActionABI generates the VMABI for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
 func getActionABI(action codec.Typed) (SingleActionABI, error) {

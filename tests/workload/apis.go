@@ -38,6 +38,6 @@ func GetABI(ctx context.Context, require *require.Assertions, uris []string) {
 		require.NoError(err)
 
 		require.NotEmpty(abi)
-		require.NotEmpty(abi[0].Name)
+		require.NotEmpty(abi.Actions[0].Name)
 	}
 }
