@@ -106,30 +106,37 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateUntilCancel(
-	t require.TestingT,
-	ctx context.Context,
+func GenerateUntilStop(
+	require *require.Assertions,
 	uris []string,
 	generator TxWorkloadIterator,
+	stopChannel <-chan struct{},
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+	ctx := context.Background()
+	for {
+		select {
+		case <-stopChannel:
+			return
+		default:
+			if !generator.Next() {
+				return
+			}
+			tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-	ignoreFailureRequire := require.New(IgnoreFailureTestingT{req: t, ctx: ctx})
-	for generator.Next() && ctx.Err() == nil {
-		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
+			_, err = submitClient.SubmitTx(ctx, tx.Bytes())
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		for _, uri := range uris {
-			confirm(ctx, ignoreFailureRequire, uri)
+			for _, uri := range uris {
+				confirm(ctx, require, uri)
+			}
 		}
 	}
 }
