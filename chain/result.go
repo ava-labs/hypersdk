@@ -6,7 +6,7 @@ package chain
 import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type Result struct {

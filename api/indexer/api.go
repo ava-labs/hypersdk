@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/api"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/fees"
 )
 
 const Endpoint = "/indexer"

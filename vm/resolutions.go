@@ -19,10 +19,10 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/workers"
 )
 

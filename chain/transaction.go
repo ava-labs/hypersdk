@@ -11,13 +11,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/math"
-	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/keys"
+	"github.com/ava-labs/hypersdk/internal/math"
+	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 

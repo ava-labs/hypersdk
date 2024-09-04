@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/window"
+	"github.com/ava-labs/hypersdk/internal/window"
 )
 
 var (
