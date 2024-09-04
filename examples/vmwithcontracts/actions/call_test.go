@@ -5,12 +5,13 @@ package actions
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/state"
 	"testing"
+
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
