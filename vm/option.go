@@ -16,19 +16,19 @@ import (
 
 type RegisterFunc func(*VM)
 
-type OptionFunc func(vm *VM, configBytes []byte) error
+type optionFunc func(vm *VM, configBytes []byte) error
 
-type OptionConfigFunc[T any] func(vm *VM, config T) error
+type OptionFunc[T any] func(vm *VM, config T) error
 
 type Option struct {
 	Namespace  string
-	OptionFunc OptionFunc
+	optionFunc optionFunc
 }
 
-func newOptionWithBytes(namespace string, optionFunc OptionFunc) Option {
+func newOptionWithBytes(namespace string, optionFunc optionFunc) Option {
 	return Option{
 		Namespace:  namespace,
-		OptionFunc: optionFunc,
+		optionFunc: optionFunc,
 	}
 }
 
@@ -36,7 +36,7 @@ func newOptionWithBytes(namespace string, optionFunc OptionFunc) Option {
 // 1) A namespace to define the key in the VM's JSON config that should be supplied to this option
 // 2) A default config value the VM will directly unmarshal into
 // 3) An option function that takes the VM and resulting config value as arguments
-func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionConfigFunc[T]) Option {
+func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T]) Option {
 	config := defaultConfig
 	configOptionFunc := func(vm *VM, configBytes []byte) error {
 		if len(configBytes) > 0 {
@@ -63,13 +63,14 @@ func WithGossiper() RegisterFunc {
 }
 
 func WithManual() Option {
-	return newOptionWithBytes(
+	return NewOption[struct{}](
 		"manual",
-		func(vm *VM, _ []byte) error {
+		struct{}{},
+		OptionFunc[struct{}](func(vm *VM, cfg struct{}) error {
 			WithBuilder()(vm)
 			WithGossiper()(vm)
 			return nil
-		},
+		}),
 	)
 }
 
