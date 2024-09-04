@@ -66,11 +66,11 @@ func WithManual() Option {
 	return NewOption[struct{}](
 		"manual",
 		struct{}{},
-		OptionFunc[struct{}](func(vm *VM, cfg struct{}) error {
+		func(vm *VM, _ struct{}) error {
 			WithBuilder()(vm)
 			WithGossiper()(vm)
 			return nil
-		}),
+		},
 	)
 }
 
