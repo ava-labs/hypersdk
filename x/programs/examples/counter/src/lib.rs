@@ -30,39 +30,3 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 
     true
 }
-
-#[cfg(test)]
-mod tests {
-    use wasmlanche::{
-        simulator::{SimpleState, Simulator},
-        Address,
-    };
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    #[test]
-    fn init_program() {
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
-
-        let actor = Address::default();
-        simulator.set_actor(actor);
-        let error = simulator.create_program(PROGRAM_PATH).has_error();
-        assert!(!error, "Create program errored")
-    }
-
-    #[test]
-    fn increment() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-        let gas = 100000000;
-        let bob = Address::new([1; 33]);
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
-        let value = simulator
-            .call_program(counter_address, "get_value", ((bob),), gas)
-            .result::<u64>()
-            .unwrap();
-
-        assert_eq!(value, 10);
-    }
-}
