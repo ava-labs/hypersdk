@@ -21,6 +21,14 @@ type ABI struct {
 	Actions []SingleActionABI `serialize:"true" json:"actions"`
 }
 
+var _ codec.Typed = (*ABI)(nil)
+
+const ABI_TYPE_ID = consts.MaxUint8
+
+func (a ABI) GetTypeID() uint8 {
+	return ABI_TYPE_ID
+}
+
 func (a *ABI) Hash() [32]byte {
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)

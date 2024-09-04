@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -296,4 +297,40 @@ func TestSerializeFields(t *testing.T) {
 	}
 
 	require.Equal(expectedABI, actualABI)
+}
+
+func TestABIsABI(t *testing.T) {
+	require := require.New(t)
+
+	actualABI, err := GetVMABI([]codec.Typed{ABI{}})
+	require.NoError(err)
+
+	expectedABI := ABI{
+		Actions: []SingleActionABI{
+			{
+				ID:   255,
+				Name: "ABI",
+				Types: map[string][]ABIField{
+					"ABI": {
+						{Name: "actions", Type: "[]SingleActionABI"},
+					},
+					"ABIField": {
+						{Name: "name", Type: "string"},
+						{Name: "type", Type: "string"},
+					},
+					"SingleActionABI": {
+						{Name: "id", Type: "uint8"},
+						{Name: "name", Type: "string"},
+						{Name: "types", Type: "[][]ABIField"},
+					},
+				},
+			},
+		},
+	}
+
+	require.Equal(expectedABI, actualABI)
+
+	expectedABIsABIHash := "bc3015915a9f3bdf757e71ca06040828753a76ba28bf73a5be875cac56ee0ec2"
+	actualABIsABIHash := actualABI.Hash()
+	require.Equal(expectedABIsABIHash, hex.EncodeToString(actualABIsABIHash[:]))
 }
