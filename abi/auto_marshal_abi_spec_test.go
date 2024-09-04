@@ -62,9 +62,9 @@ func (MockActionSingleNumber) GetTypeID() uint8 {
 
 type MockActionTransfer struct {
 	AbstractMockAction
-	To    codec.Address `serialize:"true" json:"to"`
-	Value uint64        `serialize:"true" json:"value"`
-	Memo  []byte        `serialize:"true" json:"memo"`
+	To    codec.Address       `serialize:"true" json:"to"`
+	Value uint64              `serialize:"true" json:"value"`
+	Memo  codec.StringAsBytes `serialize:"true" json:"memo"`
 }
 
 func (MockActionTransfer) GetTypeID() uint8 {
@@ -114,7 +114,7 @@ func TestABISpec(t *testing.T) {
         },
         {
           "name": "memo",
-          "type": "[]uint8"
+          "type": "StringAsBytes"
         }
       ]
     }
@@ -238,7 +238,7 @@ func TestABISpec(t *testing.T) {
         },
         {
           "name": "memo",
-          "type": "[]uint8"
+          "type": "StringAsBytes"
         }
       ],
       "MockActionWithTransferArray": [
@@ -264,7 +264,7 @@ func TestABISpec(t *testing.T) {
         },
         {
           "name": "memo",
-          "type": "[]uint8"
+          "type": "StringAsBytes"
         }
       ],
       "MockActionWithTransfer": [
@@ -279,7 +279,7 @@ func TestABISpec(t *testing.T) {
 	require.JSONEq(expectedABI, abiString)
 
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("c892f9c3b1eeed455d20edc878e3e5a24a9becde1a970f09c0de3fbdfe528b2a", hex.EncodeToString(abiHash[:]))
+	require.Equal("23e09aadd4d8ac984fbfdf9fcc8bd57c479ac5e88ad5ffba64a2a26243a83bce", hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {
@@ -533,7 +533,7 @@ func TestMarshalTransferSpec(t *testing.T) {
 	action := MockActionTransfer{
 		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
 		Value: 1000,
-		Memo:  []byte{0x01, 0x02, 0x03},
+		Memo:  []byte("hi"),
 	}
 
 	structJSON, err := json.Marshal(action)
@@ -542,7 +542,7 @@ func TestMarshalTransferSpec(t *testing.T) {
 	addrString := codec.MustAddressBech32("morpheus", action.To)
 	require.Equal("morpheus1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5qqqqqqqqqqqqqqqqqqqqqmqvs7e", addrString)
 
-	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}`
+	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}`
 	require.Equal(expectedJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
@@ -550,7 +550,7 @@ func TestMarshalTransferSpec(t *testing.T) {
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes()
-	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 }
 
@@ -578,7 +578,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	transfer := MockActionTransfer{
 		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
 		Value: 1000,
-		Memo:  []byte{0x01, 0x02, 0x03},
+		Memo:  []byte("hi"),
 	}
 
 	// Struct with a single transfer
@@ -588,7 +588,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	structJSON, err := json.Marshal(actionWithTransfer)
 	require.NoError(err)
 
-	expectedJSON := `{"transfer":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}}`
+	expectedJSON := `{"transfer":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}}`
 	require.JSONEq(expectedJSON, string(structJSON))
 
 	actionPacker := codec.NewWriter(actionWithTransfer.Size(), consts.NetworkSizeLimit)
@@ -596,7 +596,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	require.NoError(err)
 
 	actionDigest := actionPacker.Bytes()
-	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 
 	// Struct with an array of transfers
@@ -606,7 +606,7 @@ func TestMarshalComplexStructs(t *testing.T) {
 	structJSON, err = json.Marshal(actionWithTransferArray)
 	require.NoError(err)
 
-	expectedJSON = `{"transfers":[{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"},{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}]}`
+	expectedJSON = `{"transfers":[{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"},{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}]}`
 	require.JSONEq(expectedJSON, string(structJSON))
 
 	actionPacker = codec.NewWriter(actionWithTransferArray.Size(), consts.NetworkSizeLimit)
@@ -614,6 +614,6 @@ func TestMarshalComplexStructs(t *testing.T) {
 	require.NoError(err)
 
 	actionDigest = actionPacker.Bytes()
-	expectedDigest = "000000020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000030102030102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	expectedDigest = "000000020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e80000000268690102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 }

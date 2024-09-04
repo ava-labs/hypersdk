@@ -21,10 +21,6 @@ type ABIField struct {
 	Name string `json:"name"`
 	// Type of the field, either a Go type or struct name (excluding package name)
 	Type string `json:"type"`
-	// Mask is an optional field used to mask the field's value.
-	// Currently, only "byteString" is supported as a mask for []byte values.
-	// In general, it would take any string and pass it to ABI, please refer to the frontend wallet specs for more details
-	Mask string `json:"mask,omitempty"`
 }
 
 // SingleActionABI represents the ABI for an action.
@@ -117,7 +113,6 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		field := t.Field(i)
 		fieldType := field.Type
 		fieldName := field.Name
-		mask := ""
 
 		// Handle JSON tag for field name override
 		jsonTag := field.Tag.Get("json")
@@ -125,13 +120,6 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 			parts := strings.Split(jsonTag, ",")
 			fieldName = parts[0]
 		}
-
-		// Handle mask tag
-		maskTag := field.Tag.Get("mask")
-		if maskTag != "" {
-			mask = maskTag
-		}
-
 		if field.Anonymous && fieldType.Kind() == reflect.Struct {
 			// Handle embedded struct by flattening its fields
 			embeddedFields, moreTypes, err := describeStruct(fieldType)
@@ -145,7 +133,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 
 			// Handle nested slices (up to 100 levels deep)
 			for i := 0; i < 100; i++ {
-				if fieldType.Kind() != reflect.Slice {
+				if fieldType.Name() != "" {
 					break
 				}
 				arrayPrefix += "[]"
@@ -164,7 +152,6 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 			fields = append(fields, ABIField{
 				Name: fieldName,
 				Type: typeName,
-				Mask: mask,
 			})
 		}
 	}
