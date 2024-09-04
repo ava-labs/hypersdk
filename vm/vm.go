@@ -257,7 +257,7 @@ func (vm *VM) Initialize(
 
 	for _, Option := range vm.options {
 		config := namespacedConfig[Option.Namespace]
-		if err := Option.OptionFunc(vm, config); err != nil {
+		if err := Option.optionFunc(vm, config); err != nil {
 			return err
 		}
 	}
