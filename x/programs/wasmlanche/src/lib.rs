@@ -22,11 +22,7 @@
 //!    <br><br>
 //! ## Example
 //! ```
-//! # #[cfg(not(feature = "bindings"))]
-//! use wasmlanche::Context;
-//! use wasmlanche::Address;
-//! use wasmlanche::public;
-//! use wasmlanche::state_schema;
+//! use wasmlanche::{public, state_schema, Address, Context};
 //!
 //! type Count = u64;
 //!
@@ -79,10 +75,11 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext, ExternalCallError},
+    context::{Context, ExternalCallContext, ExternalCallError, Injected},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
+
 #[doc(hidden)]
 pub use self::{
     logging::{log, register_panic},

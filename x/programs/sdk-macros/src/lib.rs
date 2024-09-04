@@ -38,7 +38,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let (input, context_type, first_arg_err) = {
+    let (input, user_defined_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
@@ -50,6 +50,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     context_type.lifetime = ty.lifetime.clone();
                 }
 
+                // swap the fully qualified `Context` with the user-defined `Context`
                 std::mem::swap(&mut context_type, ty);
                 None
             }
@@ -152,7 +153,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let args_names_2 = args_names.clone();
 
     let name = &input.sig.ident;
-    let context_type = type_from_reference(&context_type);
+    let context_type = type_from_reference(&user_defined_context_type);
 
     let external_call = quote! {
         mod private {
@@ -188,10 +189,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> =
-        std::iter::once(parse_str("ctx: &wasmlanche::ExternalCallContext").unwrap())
-            .chain(binding_args_props)
-            .collect();
+    let inputs: Punctuated<FnArg, Token![,]> = std::iter::once(parse_quote!(ctx: &#context_type))
+        .chain(binding_args_props)
+        .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),

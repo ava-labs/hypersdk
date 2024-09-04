@@ -1,9 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-#[cfg(not(feature = "bindings"))]
-use wasmlanche::Context;
-use wasmlanche::{public, state_schema, Address};
+use wasmlanche::{public, state_schema, Address, Context};
 
 pub type Units = u64;
 
@@ -50,7 +48,7 @@ pub fn total_supply(context: &mut Context) -> Units {
 pub fn mint(context: &mut Context, recipient: Address, amount: Units) {
     let actor = context.actor();
 
-    check_owner(context, actor);
+    internal::check_owner(context, actor);
 
     let balance = balance_of(context, recipient);
     let total_supply = total_supply(context);
@@ -68,7 +66,7 @@ pub fn mint(context: &mut Context, recipient: Address, amount: Units) {
 pub fn burn(context: &mut Context, recipient: Address, value: Units) -> Units {
     let actor = context.actor();
 
-    check_owner(context, actor);
+    internal::check_owner(context, actor);
 
     let total = balance_of(context, recipient);
 
@@ -139,7 +137,7 @@ pub fn transfer_from(context: &mut Context, sender: Address, recipient: Address,
 
 #[public]
 pub fn transfer_ownership(context: &mut Context, new_owner: Address) {
-    check_owner(context, context.actor());
+    internal::check_owner(context, context.actor());
 
     context
         .store_by_key(Owner, new_owner)
@@ -164,25 +162,23 @@ pub fn name(context: &mut Context) -> String {
         .expect("name not initialized")
 }
 
-// Checks if the caller is the owner of the token
-// If the caller is not the owner, the program will panic
-#[cfg(not(feature = "bindings"))]
-fn check_owner(context: &mut Context, actor: Address) {
-    assert_eq!(get_owner(context), actor, "caller is required to be owner")
-}
-
-// Returns the owner of the token
-#[cfg(not(feature = "bindings"))]
-fn get_owner(context: &mut Context) -> Address {
-    context
-        .get(Owner)
-        .expect("failed to get owner")
-        .expect("owner not initialized")
-}
-
 #[cfg(not(feature = "bindings"))]
 mod internal {
     use super::*;
+
+    // Returns the owner of the token
+    pub fn get_owner(context: &mut Context) -> Address {
+        context
+            .get(Owner)
+            .expect("failed to get owner")
+            .expect("owner not initialized")
+    }
+
+    // Checks if the caller is the owner of the token
+    // If the caller is not the owner, the program will panic
+    pub fn check_owner(context: &mut Context, actor: Address) {
+        assert_eq!(get_owner(context), actor, "caller is required to be owner")
+    }
 
     pub fn transfer(context: &mut Context, sender: Address, recipient: Address, amount: Units) {
         // ensure the sender has adequate balance

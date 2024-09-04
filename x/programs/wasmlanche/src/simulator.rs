@@ -289,6 +289,7 @@ impl CreateProgramResponse {
     }
 }
 
+#[derive(Debug)]
 pub struct CallProgramResponse(simulator::bindings::CallProgramResponse);
 
 impl From<simulator::bindings::CallProgramResponse> for CallProgramResponse {
