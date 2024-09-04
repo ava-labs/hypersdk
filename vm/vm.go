@@ -143,6 +143,9 @@ type VM struct {
 	stop  chan struct{}
 }
 
+// TODO: update VM ImmutableState to return an isolated trie view instead of
+// reading directly from the on-disk view, which may change mid operation.
+// ref. https://github.com/ava-labs/avalanchego/pull/3358/files
 func (vm *VM) ImmutableState(_ context.Context) (state.Immutable, error) {
 	return vm.State()
 }
