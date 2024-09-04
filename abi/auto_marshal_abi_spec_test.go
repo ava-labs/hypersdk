@@ -39,18 +39,18 @@ func (MockActionTransfer) GetTypeID() uint8 {
 	return 2
 }
 
-//go:embed test_data/abiFull.json
-var abiFullJson []byte
+//go:embed test_data/full.json
+var testDataFullJson []byte
 
-//go:embed test_data/abiFullHash.hex
-var abiFullHash string
+//go:embed test_data/full.hex
+var testDataFullHash string
 
 func TestABISpec(t *testing.T) {
 	require := require.New(t)
 
 	//get spec from file
 	var expectedABI VMABI
-	err := json.Unmarshal(abiFullJson, &expectedABI)
+	err := json.Unmarshal(testDataFullJson, &expectedABI)
 	require.NoError(err)
 
 	//generate go abi from structs and compare to file
@@ -70,7 +70,7 @@ func TestABISpec(t *testing.T) {
 
 	//check hash and compare it to expected
 	abiHash := actualABI.Hash()
-	require.Equal(abiFullHash, hex.EncodeToString(abiHash[:]))
+	require.Equal(testDataFullHash, hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {
