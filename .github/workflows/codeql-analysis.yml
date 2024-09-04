@@ -22,6 +22,8 @@ on:
     branches: ['main']
   schedule:
     - cron: '41 18 * * 3'
+  merge_group:
+    types: [checks_requested]
 
 jobs:
   analyze:
