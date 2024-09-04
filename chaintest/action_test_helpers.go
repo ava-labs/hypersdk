@@ -47,13 +47,17 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
-// ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
+// ActionTest is a single parameterized test. It calls Execute on the last
+// action in Actions with the passed parameters
 // and checks that all assertions pass.
 type ActionTest struct {
 	Name string
 
-	SetupActions []chain.Action
-	Action       chain.Action
+	// The first n-1 actions are treated as "setup" actions; these n-1 actions are
+	// not tested against ExpectedOutputs and ExpectedErr, but they must not return an error.
+	// The last action in this array is tested against ExpectedOutputs and
+	// ExpectedErr
+	Actions       []chain.Action
 
 	Rules     chain.Rules
 	State     state.Mutable
@@ -72,12 +76,15 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		require := require.New(t)
 
-		for _, act := range test.SetupActions {
+		n := len(test.Actions)
+
+		// Executing setup actions
+		for _, act := range test.Actions[:n-1] {
 			_, err := act.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 			require.NoError(err)
 		}
 
-		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+		output, err := test.Actions[n-1].Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
 		require.ErrorIs(err, test.ExpectedErr)
 		require.Equal(output, test.ExpectedOutputs)

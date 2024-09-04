@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codectest"
@@ -29,18 +30,22 @@ func TestTransferAction(t *testing.T) {
 		{
 			Name:  "ZeroTransfer",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: 0,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    codec.EmptyAddress,
+					Value: 0,
+				},
 			},
 			ExpectedErr: ErrOutputValueZero,
 		},
 		{
 			Name:  "InvalidStateKey",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: 1,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    codec.EmptyAddress,
+					Value: 1,
+				},
 			},
 			State:       ts.NewView(make(state.Keys), map[string][]byte{}),
 			ExpectedErr: tstate.ErrInvalidKeyOrPermission,
@@ -48,9 +53,11 @@ func TestTransferAction(t *testing.T) {
 		{
 			Name:  "NotEnoughBalance",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: 1,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    codec.EmptyAddress,
+					Value: 1,
+				},
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
@@ -63,9 +70,11 @@ func TestTransferAction(t *testing.T) {
 		{
 			Name:  "SelfTransfer",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: 1,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    codec.EmptyAddress,
+					Value: 1,
+				},
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
@@ -84,9 +93,11 @@ func TestTransferAction(t *testing.T) {
 		{
 			Name:  "OverflowBalance",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: math.MaxUint64,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    codec.EmptyAddress,
+					Value: math.MaxUint64,
+				},
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
@@ -100,9 +111,11 @@ func TestTransferAction(t *testing.T) {
 		{
 			Name:  "SimpleTransfer",
 			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    addr,
-				Value: 1,
+			Actions: []chain.Action{
+				&Transfer{
+					To:    addr,
+					Value: 1,
+				},
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
