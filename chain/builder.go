@@ -63,8 +63,8 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
-	parent *StatelessBlock,
-) (*StatelessBlock, error) {
+	parent *StatefulBlock,
+) (*StatefulBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()

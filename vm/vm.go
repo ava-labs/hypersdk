@@ -77,8 +77,8 @@ type VM struct {
 	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
-	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
-	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatefulBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatefulBlock]
 	// TODO remove by returning an verification error from the submit tx api
 	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
 	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
@@ -103,20 +103,20 @@ type VM struct {
 	seenValidityWindow     chan struct{}
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *chain.StatelessBlock]
+	parsedBlocks *avacache.LRU[ids.ID, *chain.StatefulBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*chain.StatelessBlock
+	verifiedBlocks map[ids.ID]*chain.StatefulBlock
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatelessBlock]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatelessBlock
+	acceptedQueue chan *chain.StatefulBlock
 	acceptorDone  chan struct{}
 
 	// authVerifiers are used to verify signatures in parallel
@@ -124,9 +124,9 @@ type VM struct {
 	authVerifiers workers.Workers
 
 	bootstrapped avautils.Atomic[bool]
-	genesisBlk   *chain.StatelessBlock
+	genesisBlk   *chain.StatefulBlock
 	preferred    ids.ID
-	lastAccepted *chain.StatelessBlock
+	lastAccepted *chain.StatefulBlock
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
@@ -309,9 +309,9 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.ParsedBlockCacheSize}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.AcceptedBlockWindowCache)
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
+	vm.verifiedBlocks = make(map[ids.ID]*chain.StatefulBlock)
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatefulBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,7 @@ func (vm *VM) Initialize(
 	if acceptedBlockWindow < MinAcceptedBlockWindow {
 		return fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
 	}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
+	vm.acceptedQueue = make(chan *chain.StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
@@ -377,7 +377,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatefulBlock(
+		genesisBlk, err := chain.ParseStatelessBlock(
 			ctx,
 			chain.NewGenesisBlock(root),
 			nil,
@@ -724,11 +724,11 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	defer span.End()
 
 	// We purposely don't return parsed but unverified blocks from here
-	return vm.GetStatelessBlock(ctx, id)
+	return vm.GetStatefulBlock(ctx, id)
 }
 
-func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
+func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.StatefulBlock, error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
 	defer span.End()
 
 	// Check if verified block
@@ -783,7 +783,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 
 	// If we have seen this block before, return it with the most
 	// up-to-date info
-	if oldBlk, err := vm.GetStatelessBlock(ctx, id); err == nil {
+	if oldBlk, err := vm.GetStatefulBlock(ctx, id); err == nil {
 		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
@@ -846,7 +846,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 
 	// Build block and store as parsed
-	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
@@ -879,7 +879,7 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
@@ -1170,7 +1170,7 @@ func (vm *VM) backfillSeenTransactions() {
 		}
 
 		// Set next blk in lookback
-		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		tblk, err := vm.GetStatefulBlock(context.Background(), blk.Prnt)
 		if err != nil {
 			vm.snowCtx.Log.Info("could not load block, exiting backfill",
 				zap.Uint64("height", blk.Height()-1),
@@ -1237,7 +1237,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
 		}
 
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		blk, err := vm.GetStatefulBlock(ctx, blkID)
 		if err != nil {
 			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}

@@ -204,8 +204,10 @@ mod internal {
 #[cfg(test)]
 mod tests {
     use super::Units;
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche::Address;
+    use wasmlanche::{
+        simulator::{SimpleState, Simulator},
+        Address,
+    };
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 

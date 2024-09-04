@@ -18,10 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const (
-	unitPricesCacheRefresh = 10 * time.Second
-	waitSleep              = 500 * time.Millisecond
-)
+const unitPricesCacheRefresh = 10 * time.Second
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
@@ -195,7 +192,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
 	return resp.ABIJSON, err
 }
 
-func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) error {
+func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {
 	for ctx.Err() == nil {
 		exit, err := check(ctx)
 		if err != nil {
@@ -204,7 +201,7 @@ func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) er
 		if exit {
 			return nil
 		}
-		time.Sleep(waitSleep)
+		time.Sleep(interval)
 	}
 	return ctx.Err()
 }
