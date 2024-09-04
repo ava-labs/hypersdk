@@ -16,8 +16,8 @@ note: `Context<u8>` is defined in the current crate
 note: `wasmlanche::Context` is defined in crate `wasmlanche`
   --> $WORKSPACE/x/programs/wasmlanche/src/context.rs
    |
-   | pub struct Context {
-   | ^^^^^^^^^^^^^^^^^^
+   | pub enum Context {
+   | ^^^^^^^^^^^^^^^^
 note: function defined here
   --> tests/ui/fail/generic-context-args.rs:11:8
    |

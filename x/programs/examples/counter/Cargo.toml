@@ -7,7 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [features]
-bindings = []
+bindings = ["wasmlanche/bindings"]
+test = ["wasmlanche/test"]
 
 [dependencies]
 wasmlanche = { workspace = true, features = ["debug"] }

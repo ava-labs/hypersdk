@@ -10,7 +10,7 @@ pub fn simple_call(_: &mut Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(ctx: &mut Context, target: Address, max_units: Gas) -> i64 {
-    ctx.call_function(target, "simple_call", &[], max_units, 0)
+    ctx.call_program(target, "simple_call", &[], max_units, 0)
         .unwrap()
 }
 
@@ -21,7 +21,7 @@ pub fn actor_check(context: &mut Context) -> Address {
 
 #[public]
 pub fn actor_check_external(ctx: &mut Context, target: Address, max_units: Gas) -> Address {
-    ctx.call_function(target, "actor_check", &[], max_units, 0)
+    ctx.call_program(target, "actor_check", &[], max_units, 0)
         .expect("failure")
 }
 
@@ -37,7 +37,7 @@ pub fn call_with_param_external(
     max_units: Gas,
     value: i64,
 ) -> i64 {
-    ctx.call_function(
+    ctx.call_program(
         target,
         "call_with_param",
         &value.to_le_bytes(),
@@ -65,6 +65,6 @@ pub fn call_with_two_params_external(
         .into_iter()
         .chain(value2.to_le_bytes())
         .collect();
-    ctx.call_function(target, "call_with_two_params", &args, max_units, 0)
+    ctx.call_program(target, "call_with_two_params", &args, max_units, 0)
         .unwrap()
 }
