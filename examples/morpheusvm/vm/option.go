@@ -1,11 +1,11 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package jsonrpc
+package vm
 
 import "github.com/ava-labs/hypersdk/vm"
 
-const Namespace = "core"
+const Namespace = "controller"
 
 type Config struct {
 	Enabled bool `json:"enabled"`
@@ -22,7 +22,7 @@ func With() vm.Option {
 		if !config.Enabled {
 			return nil
 		}
-		vm.WithVMAPIs(JSONRPCServerFactory{})(v)
+		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
 		return nil
 	})
 }

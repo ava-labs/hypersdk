@@ -28,7 +28,7 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 	// If the parent block is not yet accepted, we should return the block's processing parent (it may
 	// or may not be verified yet).
 	if blockHeight-1 > vm.lastAccepted.Hght {
-		blk, err := vm.GetStatelessBlock(ctx, parent)
+		blk, err := vm.GetStatefulBlock(ctx, parent)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 }
 
 type PendingVerifyContext struct {
-	blk *chain.StatelessBlock
+	blk *chain.StatefulBlock
 }
 
 func (p *PendingVerifyContext) View(ctx context.Context, verify bool) (state.View, error) {

@@ -105,7 +105,7 @@ func (p *ProposerMonitor) Proposers(
 	if err := p.refresh(ctx); err != nil {
 		return nil, err
 	}
-	preferredBlk, err := p.vm.GetStatelessBlock(ctx, p.vm.preferred)
+	preferredBlk, err := p.vm.GetStatefulBlock(ctx, p.vm.preferred)
 	if err != nil {
 		return nil, err
 	}
