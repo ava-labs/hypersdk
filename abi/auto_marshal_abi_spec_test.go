@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	_ "embed"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -37,9 +39,21 @@ func (MockActionTransfer) GetTypeID() uint8 {
 	return 2
 }
 
+//go:embed test_data/abiFull.json
+var abiFullJson []byte
+
+//go:embed test_data/abiFullHash.hex
+var abiFullHash string
+
 func TestABISpec(t *testing.T) {
 	require := require.New(t)
 
+	//get spec from file
+	var expectedABI VMABI
+	err := json.Unmarshal(abiFullJson, &expectedABI)
+	require.NoError(err)
+
+	//generate go abi from structs and compare to file
 	vmObjects := []codec.Typed{
 		MockObjectSingleNumber{},
 		MockActionTransfer{},
@@ -49,140 +63,14 @@ func TestABISpec(t *testing.T) {
 		MockActionWithTransferArray{},
 		MockActionWithTransfer{},
 	}
-
-	expectedABI := VMABI{
-		Actions: []SingleActionABI{
-			{
-				ID:   1,
-				Name: "MockObjectSingleNumber",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockObjectSingleNumber",
-						Fields: []ABIField{
-							{Name: "Field1", Type: "uint16"},
-						},
-					},
-				},
-			},
-			{
-				ID:   2,
-				Name: "MockActionTransfer",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockActionTransfer",
-						Fields: []ABIField{
-							{Name: "to", Type: "Address"},
-							{Name: "value", Type: "uint64"},
-							{Name: "memo", Type: "StringAsBytes"},
-						},
-					},
-				},
-			},
-			{
-				ID:   3,
-				Name: "MockObjectAllNumbers",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockObjectAllNumbers",
-						Fields: []ABIField{
-							{Name: "uint8", Type: "uint8"},
-							{Name: "uint16", Type: "uint16"},
-							{Name: "uint32", Type: "uint32"},
-							{Name: "uint64", Type: "uint64"},
-							{Name: "int8", Type: "int8"},
-							{Name: "int16", Type: "int16"},
-							{Name: "int32", Type: "int32"},
-							{Name: "int64", Type: "int64"},
-						},
-					},
-				},
-			},
-			{
-				ID:   4,
-				Name: "MockObjectStringAndBytes",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockObjectStringAndBytes",
-						Fields: []ABIField{
-							{Name: "field1", Type: "string"},
-							{Name: "field2", Type: "[]uint8"},
-						},
-					},
-				},
-			},
-			{
-				ID:   5,
-				Name: "MockObjectArrays",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockObjectArrays",
-						Fields: []ABIField{
-							{Name: "strings", Type: "[]string"},
-							{Name: "bytes", Type: "[][]uint8"},
-							{Name: "uint8s", Type: "[]uint8"},
-							{Name: "uint16s", Type: "[]uint16"},
-							{Name: "uint32s", Type: "[]uint32"},
-							{Name: "uint64s", Type: "[]uint64"},
-							{Name: "int8s", Type: "[]int8"},
-							{Name: "int16s", Type: "[]int16"},
-							{Name: "int32s", Type: "[]int32"},
-							{Name: "int64s", Type: "[]int64"},
-						},
-					},
-				},
-			},
-			{
-				ID:   7,
-				Name: "MockActionWithTransferArray",
-				Types: []SingleTypeABI{
-
-					{
-						Name: "MockActionWithTransferArray",
-						Fields: []ABIField{
-							{Name: "transfers", Type: "[]MockActionTransfer"},
-						},
-					},
-					{
-						Name: "MockActionTransfer",
-						Fields: []ABIField{
-							{Name: "to", Type: "Address"},
-							{Name: "value", Type: "uint64"},
-							{Name: "memo", Type: "StringAsBytes"},
-						},
-					},
-				},
-			},
-			{
-				ID:   6,
-				Name: "MockActionWithTransfer",
-				Types: []SingleTypeABI{
-					{
-						Name: "MockActionWithTransfer",
-						Fields: []ABIField{
-							{Name: "transfer", Type: "MockActionTransfer"},
-						},
-					},
-					{
-						Name: "MockActionTransfer",
-						Fields: []ABIField{
-							{Name: "to", Type: "Address"},
-							{Name: "value", Type: "uint64"},
-							{Name: "memo", Type: "StringAsBytes"},
-						},
-					},
-				},
-			},
-		},
-	}
-
 	actualABI, err := GetVMABI(vmObjects)
 	require.NoError(err)
 
 	require.Equal(expectedABI, actualABI)
 
-	//TODO: check hash
+	//check hash and compare it to expected
 	abiHash := actualABI.Hash()
-	require.Equal("ea3368e4d6ba1002a993bf81a0f2f35b14efc15f9e807d562748c6b25fda8b91", hex.EncodeToString(abiHash[:]))
+	require.Equal(abiFullHash, hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {
