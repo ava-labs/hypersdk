@@ -1,8 +1,6 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use std::collections::HashMap;
-
 use crate::{host, memory::wasmlanche_alloc, Address, Gas, HostPtr};
 
 pub const BALANCE_PREFIX: u8 = 0;
@@ -55,6 +53,10 @@ impl StateAccessor {
     }
 }
 
+#[cfg(feature = "test")]
+use std::collections::HashMap;
+
+#[cfg(feature = "test")]
 #[derive(Clone)]
 pub struct MockState {
     state: HashMap<Vec<u8>, Vec<u8>>,
