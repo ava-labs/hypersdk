@@ -172,7 +172,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #name(args: wasmlanche::HostPtr) {
+            unsafe extern "C-unwind" fn #name(args: wasmlanche::HostPtr) {
                 wasmlanche::register_panic();
 
                 let result = {
