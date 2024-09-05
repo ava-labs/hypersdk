@@ -19,13 +19,13 @@ mod test_wrappers {
     }
 
     impl StateAccessor {
-        pub fn put(_ptr: *const u8, _len: usize) {
+        pub fn put(_args: &[u8]) {
             // happens on context drop() -> cache drop() -> flush()
             // this means this function wont do anything
             todo!()
         }
 
-        pub fn get_bytes(_ptr: *const u8, _len: usize) -> HostPtr {
+        pub fn get_bytes(_args: &[u8]) -> HostPtr {
             // if calling get_bytes, not found in cache
             HostPtr::null()
         }
@@ -156,7 +156,7 @@ mod external_wrappers {
     use crate::HostPtr;
 
     impl StateAccessor {
-        pub fn put(ptr: *const u8, len: usize) {
+        pub fn put(args: &[u8]) {
             #[link(wasm_import_module = "state")]
             extern "C" {
                 #[link_name = "put"]
@@ -164,18 +164,18 @@ mod external_wrappers {
             }
 
             unsafe {
-                put(ptr, len);
+                put(args.as_ptr(), args.len());
             }
         }
 
-        pub fn get_bytes(ptr: *const u8, len: usize) -> HostPtr {
+        pub fn get_bytes(args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "state")]
             extern "C" {
                 #[link_name = "get"]
                 fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { get_bytes(ptr, len) }
+            unsafe { get_bytes(args.as_ptr(), args.len()) }
         }
     }
 

@@ -203,7 +203,7 @@ impl Cache {
 
         if !args.is_empty() {
             let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-            StateAccessor::put(serialized_args.as_ptr(), serialized_args.len());
+            StateAccessor::put(&serialized_args);
         }
     }
 }
@@ -216,7 +216,7 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
 
     let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
-    let ptr = StateAccessor::get_bytes(key.as_ptr(), key.len());
+    let ptr = StateAccessor::get_bytes(&key);
 
     if ptr.is_null() {
         None
