@@ -8,10 +8,10 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/hypersdk/api"
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/internal/builder"
+	"github.com/ava-labs/hypersdk/internal/gossiper"
 )
 
 type RegisterFunc func(*VM)
