@@ -4,16 +4,25 @@ import (
 	"fmt"
 	"go/format"
 	"strings"
+
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
-func GenerateGoStructs(abi VMABI) (string, error) {
+func GenerateGoStructs(abi VMABI, packageName string) (string, error) {
 	var sb strings.Builder
 
-	sb.WriteString("package generated\n\n")
+	sb.WriteString(fmt.Sprintf("package %s\n\n", packageName))
 	sb.WriteString("import (\n\t\"github.com/ava-labs/hypersdk/codec\"\n)\n\n")
+
+	processed := set.Set[string]{}
 
 	for _, action := range abi.Actions {
 		for _, typ := range action.Types {
+			if processed.Contains(typ.Name) {
+				continue
+			}
+			processed.Add(typ.Name)
+
 			sb.WriteString(fmt.Sprintf("type %s struct {\n", typ.Name))
 			for _, field := range typ.Fields {
 				fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
@@ -33,7 +42,6 @@ func GenerateGoStructs(abi VMABI) (string, error) {
 		}
 	}
 
-	fmt.Println(sb.String())
 	formatted, err := format.Source([]byte(sb.String()))
 	if err != nil {
 		return "", fmt.Errorf("failed to format generated code: %w", err)

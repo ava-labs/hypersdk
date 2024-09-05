@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/ava-labs/hypersdk/abi"
 )
@@ -19,7 +19,7 @@ func main() {
 	outputFile := os.Args[2]
 
 	// Read the input ABI JSON file
-	abiData, err := ioutil.ReadFile(inputFile)
+	abiData, err := os.ReadFile(inputFile)
 	if err != nil {
 		fmt.Printf("Error reading input file: %v\n", err)
 		os.Exit(1)
@@ -33,15 +33,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	packageName := filepath.Base(filepath.Dir(outputFile))
+
 	// Generate Go structs
-	generatedCode, err := abi.GenerateGoStructs(vmABI)
+	generatedCode, err := abi.GenerateGoStructs(vmABI, packageName)
 	if err != nil {
 		fmt.Printf("Error generating Go structs: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Create the directory for the output file if it doesn't exist
+	outputDir := filepath.Dir(outputFile)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Printf("Error creating output directory: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Write the generated code to the output file
-	err = ioutil.WriteFile(outputFile, []byte(generatedCode), 0644)
+	err = os.WriteFile(outputFile, []byte(generatedCode), 0644)
 	if err != nil {
 		fmt.Printf("Error writing output file: %v\n", err)
 		os.Exit(1)

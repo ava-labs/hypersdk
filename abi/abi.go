@@ -5,7 +5,6 @@ package abi
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -63,16 +62,6 @@ type SingleActionABI struct {
 type SingleTypeABI struct {
 	Name   string     `serialize:"true" json:"name"`
 	Fields []ABIField `serialize:"true" json:"fields"`
-}
-
-// TODO: remove this
-func GetVMABIString(actions []codec.Typed) (string, error) {
-	vmABI, err := GetVMABI(actions)
-	if err != nil {
-		return "", err
-	}
-	resBytes, err := json.Marshal(vmABI)
-	return string(resBytes), err
 }
 
 func GetVMABI(actions []codec.Typed) (VMABI, error) {

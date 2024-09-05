@@ -3,8 +3,6 @@
 
 package abi
 
-//go:generate go run ../cmd/hypersdk-abi-codegen/main.go ./test_data/abi.json test_data/generated/generated.go
-
 import (
 	"encoding/hex"
 	"encoding/json"
@@ -390,14 +388,4 @@ func mustReadFile(t *testing.T, path string) []byte {
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return content
-}
-
-// TODO: remove me
-func dumpABI(t *testing.T, types []codec.Typed, name string) {
-	abi, err := GetVMABI(types)
-	require.NoError(t, err)
-	abiJSON, err := json.MarshalIndent(abi, "", "  ")
-	require.NoError(t, err)
-	err = os.WriteFile("test_data/"+name+".abi.json", abiJSON, 0644)
-	require.NoError(t, err)
 }

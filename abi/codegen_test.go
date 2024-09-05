@@ -8,60 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateSimpleStruct(t *testing.T) {
+func TestGenerateAllStructs(t *testing.T) {
 	require := require.New(t)
 
-	abi := mustJSONParse[VMABI](t, `
-{
-    "actions": [
-        {
-            "id": 1,
-            "name": "SampleObj",
-            "types": [
-                {
-                    "name": "SampleObj",
-                    "fields": [
-                        {
-                            "name": "Field1",
-                            "type": "uint16"
-                        },
-                        {
-                            "name": "lowercaseField",
-                            "type": "string"
-                        },
-                        {
-                            "name": "a",
-                            "type": "string"
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
-}`)
+	abi := mustJSONParse[VMABI](t, string(mustReadFile(t, "test_data/abi.json")))
 
-	code, err := GenerateGoStructs(abi)
+	code, err := GenerateGoStructs(abi, "test_data")
 	require.NoError(err)
 
-	expected := `
-package generated
+	expected := mustReadFile(t, "test_data/abi.go")
 
-import (
-	"github.com/ava-labs/hypersdk/codec"
-)
-
-type SampleObj struct {
-	Field1 uint16 ` + "`serialize:\"true\"`" + `
-	LowercaseField string ` + "`serialize:\"true\" json:\"lowercaseField\"`" + `
-	A string ` + "`serialize:\"true\" json:\"a\"`" + `
-}
-
-func (SampleObj) GetTypeID() uint8 {
-	return 1
-}
-`
-
-	require.Equal(mustFormat(t, expected), code)
+	require.Equal(mustFormat(t, string(expected)), code)
 }
 
 func mustFormat(t *testing.T, code string) string {
