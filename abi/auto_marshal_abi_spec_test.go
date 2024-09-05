@@ -3,6 +3,8 @@
 
 package abi
 
+//go:generate go run ../cmd/hypersdk-abi-codegen/main.go ./test_data/abi.json test_data/generated/generated.go
+
 import (
 	"encoding/hex"
 	"encoding/json"
