@@ -6,6 +6,7 @@ package abi
 import (
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,57 +40,36 @@ func (MockActionTransfer) GetTypeID() uint8 {
 	return 2
 }
 
-//go:embed test_data/full.json
-var testDataFullJson []byte
-
-//go:embed test_data/full.hex
-var testDataFullHash string
-
-func TestABISpec(t *testing.T) {
+func TestABIHash(t *testing.T) {
 	require := require.New(t)
 
 	//get spec from file
-	var expectedABI VMABI
-	err := json.Unmarshal(testDataFullJson, &expectedABI)
+	abiJSON := mustReadFile(t, "test_data/abi.json")
+	var abiFromFile VMABI
+	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 
-	//generate go abi from structs and compare to file
-	vmObjects := []codec.Typed{
-		MockObjectSingleNumber{},
-		MockActionTransfer{},
-		MockObjectAllNumbers{},
-		MockObjectStringAndBytes{},
-		MockObjectArrays{},
-		MockActionWithTransferArray{},
-		MockActionWithTransfer{},
-	}
-	actualABI, err := GetVMABI(vmObjects)
-	require.NoError(err)
-
-	require.Equal(expectedABI, actualABI)
+	//TODO: maybe check file generation?
 
 	//check hash and compare it to expected
-	abiHash := actualABI.Hash()
-	require.Equal(testDataFullHash, hex.EncodeToString(abiHash[:]))
+	abiHash := abiFromFile.Hash()
+	expectedHashHex := string(mustReadFile(t, "test_data/abi.hash.hex"))
+	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
 
 func TestMarshalEmptySpec(t *testing.T) {
 	require := require.New(t)
 
-	var err error
-
-	object1Instance := MockObjectSingleNumber{
-		Field1: 0,
-	}
-	structJSON, err := json.Marshal(object1Instance)
+	//get object from file
+	var object1Instance MockObjectSingleNumber
+	err := json.Unmarshal(mustReadFile(t, "test_data/empty.data.json"), &object1Instance)
 	require.NoError(err)
 
-	// This JSON will also be an input in TypeScript
-	expectedStructJSON := `
-	{
-		"Field1": 0
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
+	//get spec from file
+	abiJSON := mustReadFile(t, "test_data/abi.json")
+	var abiFromFile VMABI
+	err = json.Unmarshal(abiJSON, &abiFromFile)
+	require.NoError(err)
 
 	// This is the output of the combination of above JSONs
 	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -98,26 +78,23 @@ func TestMarshalEmptySpec(t *testing.T) {
 
 	objectDigest := objectPacker.Bytes()
 
-	require.Equal("0000", hex.EncodeToString(objectDigest))
+	expectedHex := string(mustReadFile(t, "test_data/empty.data.hex"))
+	require.Equal(expectedHex, hex.EncodeToString(objectDigest))
 }
 
 func TestMarshalSingleNumberSpec(t *testing.T) {
 	require := require.New(t)
 
-	var err error
-
-	object1Instance := MockObjectSingleNumber{
-		Field1: 12333,
-	}
-	structJSON, err := json.Marshal(object1Instance)
+	//get object from file
+	var object1Instance MockObjectSingleNumber
+	err := json.Unmarshal(mustReadFile(t, "test_data/uint16.data.json"), &object1Instance)
 	require.NoError(err)
 
-	// This JSON will also be an input in TypeScript
-	expectedStructJSON := `
-	{
-		"Field1": 12333
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
+	//get spec from file
+	abiJSON := mustReadFile(t, "test_data/abi.json")
+	var abiFromFile VMABI
+	err = json.Unmarshal(abiJSON, &abiFromFile)
+	require.NoError(err)
 
 	// This is the output of the combination of above JSONs
 	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -126,7 +103,8 @@ func TestMarshalSingleNumberSpec(t *testing.T) {
 
 	objectDigest := objectPacker.Bytes()
 
-	require.Equal("302d", hex.EncodeToString(objectDigest))
+	expectedHex := string(mustReadFile(t, "test_data/uint16.data.hex"))
+	require.Equal(expectedHex, hex.EncodeToString(objectDigest))
 }
 
 type MockObjectAllNumbers struct {
@@ -402,4 +380,22 @@ func TestMarshalComplexStructs(t *testing.T) {
 	actionDigest = actionPacker.Bytes()
 	expectedDigest = "000000020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e80000000268690102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	return content
+}
+
+// TODO: remove me
+func dumpABI(t *testing.T, types []codec.Typed, name string) {
+	abi, err := GetVMABI(types)
+	require.NoError(t, err)
+	abiJSON, err := json.MarshalIndent(abi, "", "  ")
+	require.NoError(t, err)
+	err = os.WriteFile("test_data/"+name+".abi.json", abiJSON, 0644)
+	require.NoError(t, err)
 }
