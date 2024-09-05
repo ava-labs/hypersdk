@@ -341,9 +341,15 @@ impl Context {
         }
     }
 
+    #[cfg(feature = "bindings")]
     #[must_use]
     pub fn new_external_call_context(&self, address: Address, max_units: Gas, value: u64) -> Self {
-        Self::External(ExternalCallContext::new(self.host_accessor().clone(), address, max_units, value))
+        Self::External(ExternalCallContext::new(
+            self.host_accessor().clone(),
+            address,
+            max_units,
+            value,
+        ))
     }
 }
 
@@ -366,6 +372,7 @@ pub enum ExternalCallError {
 /// Special context that is passed to external programs.
 #[allow(clippy::module_name_repetitions)]
 #[cfg_attr(feature = "debug", derive(Debug))]
+#[cfg(feature = "bindings")]
 pub struct ExternalCallContext {
     contract_address: Address,
     max_units: Gas,
@@ -373,14 +380,10 @@ pub struct ExternalCallContext {
     host_accessor: Accessor,
 }
 
+#[cfg(feature = "bindings")]
 impl ExternalCallContext {
     #[must_use]
-    fn new(
-        host_accessor: Accessor,
-        contract_address: Address,
-        max_units: Gas,
-        value: u64,
-    ) -> Self {
+    fn new(host_accessor: Accessor, contract_address: Address, max_units: Gas, value: u64) -> Self {
         Self {
             contract_address,
             max_units,

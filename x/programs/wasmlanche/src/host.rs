@@ -4,9 +4,13 @@
 use crate::HostPtr;
 use cfg_if::cfg_if;
 
+#[cfg(feature = "test")]
 pub const BALANCE_PREFIX: u8 = 0;
+#[cfg(feature = "test")]
 pub const SEND_PREFIX: u8 = 1;
+#[cfg(feature = "test")]
 pub const CALL_FUNCTION_PREFIX: u8 = 2;
+#[cfg(feature = "test")]
 pub const DEPLOY_PREFIX: u8 = 3;
 
 pub struct StateAccessor;
@@ -27,10 +31,6 @@ impl StateAccessor {
 
 #[cfg(not(feature = "test"))]
 impl StateAccessor {
-    pub fn new() -> Self {
-        StateAccessor
-    }
-
     pub fn put(ptr: *const u8, len: usize) {
         #[link(wasm_import_module = "state")]
         extern "C" {
