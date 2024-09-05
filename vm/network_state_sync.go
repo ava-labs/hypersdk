@@ -64,3 +64,21 @@ func (s *StateSyncHandler) AppResponse(
 ) error {
 	return s.vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
 }
+
+func (*StateSyncHandler) CrossChainAppRequest(
+	context.Context,
+	ids.ID,
+	uint32,
+	time.Time,
+	[]byte,
+) error {
+	return nil
+}
+
+func (*StateSyncHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+	return nil
+}
+
+func (*StateSyncHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+	return nil
+}
