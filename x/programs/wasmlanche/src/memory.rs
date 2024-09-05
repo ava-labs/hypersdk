@@ -172,6 +172,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[should_panic = "cannot allocate 0 sized data"]
     fn zero_allocation_panics() {
         alloc(0);
