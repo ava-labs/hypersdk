@@ -184,11 +184,12 @@ mod external_wrappers {
     pub struct Accessor;
 
     impl Accessor {
+        #![allow(clippy::unused_self)]
+
         pub fn new() -> Self {
             Accessor
         }
 
-        #[allow(clippy::unused_self)]
         pub fn deploy(&self, args: &[u8]) -> HostPtr {
             use crate::HostPtr;
             #[link(wasm_import_module = "program")]
@@ -200,7 +201,6 @@ mod external_wrappers {
             unsafe { deploy(args.as_ptr(), args.len()) }
         }
 
-        #[allow(clippy::unused_self)]
         pub fn call_program(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -211,7 +211,6 @@ mod external_wrappers {
             unsafe { call_program(args.as_ptr(), args.len()) }
         }
 
-        #[allow(clippy::unused_self)]
         pub fn get_balance(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
@@ -222,7 +221,6 @@ mod external_wrappers {
             unsafe { get(args.as_ptr(), args.len()) }
         }
 
-        #[allow(clippy::unused_self)]
         pub fn get_remaining_fuel(&self) -> HostPtr {
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -233,7 +231,6 @@ mod external_wrappers {
             unsafe { get_remaining_fuel() }
         }
 
-        #[allow(clippy::unused_self)]
         pub fn send_value(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
