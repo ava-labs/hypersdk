@@ -70,10 +70,6 @@ type Handler interface {
 		requestID uint32,
 		response []byte,
 	) error
-
-	CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error
-	CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error
-	CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error
 }
 
 func (n *Manager) Register() (uint8, common.AppSender) {
@@ -273,60 +269,6 @@ func (n *Manager) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	return nil
 }
 
-func (n *Manager) CrossChainAppRequest(
-	ctx context.Context,
-	chainID ids.ID,
-	requestID uint32,
-	deadline time.Time,
-	msg []byte,
-) error {
-	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
-	if !ok {
-		n.log.Debug(
-			"could not route incoming CrossChainAppRequest",
-			zap.Stringer("chainID", chainID),
-			zap.Uint32("requestID", requestID),
-		)
-		return nil
-	}
-	return handler.CrossChainAppRequest(ctx, chainID, requestID, deadline, parsedMsg)
-}
-
-func (n *Manager) CrossChainAppRequestFailed(
-	ctx context.Context,
-	chainID ids.ID,
-	requestID uint32,
-) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(n.nodeID, requestID)
-	if !ok {
-		n.log.Debug(
-			"could not handle incoming CrossChainAppRequestFailed",
-			zap.Stringer("chainID", chainID),
-			zap.Uint32("requestID", requestID),
-		)
-		return nil
-	}
-	return handler.CrossChainAppRequestFailed(ctx, chainID, cRequestID)
-}
-
-func (n *Manager) CrossChainAppResponse(
-	ctx context.Context,
-	chainID ids.ID,
-	requestID uint32,
-	response []byte,
-) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(n.nodeID, requestID)
-	if !ok {
-		n.log.Debug(
-			"could not handle incoming CrossChainAppResponse",
-			zap.Stringer("chainID", chainID),
-			zap.Uint32("requestID", requestID),
-		)
-		return nil
-	}
-	return handler.CrossChainAppResponse(ctx, chainID, cRequestID, response)
-}
-
 // WrappedAppSender is used to get a shared requestID and to prepend messages
 // with the handler identifier.
 type WrappedAppSender struct {
@@ -401,57 +343,6 @@ func (w *WrappedAppSender) SendAppGossip(ctx context.Context, cfg common.SendCon
 		cfg,
 		w.createMessageBytes(appGossipBytes),
 	)
-}
-
-// SendCrossChainAppRequest sends an application-level request to a
-// specific chain.
-//
-// A nil return value guarantees that the VM corresponding to this
-// CrossChainAppSender eventually receives either:
-// * A CrossChainAppResponse from [chainID] with ID [requestID]
-// * A CrossChainAppRequestFailed from [chainID] with ID [requestID]
-// Exactly one of the above messages will eventually be received from
-// [chainID].
-// A non-nil error should be considered fatal.
-func (w *WrappedAppSender) SendCrossChainAppRequest(
-	ctx context.Context,
-	chainID ids.ID,
-	requestID uint32,
-	appRequestBytes []byte,
-) error {
-	newRequestID := w.n.getSharedRequestID(w.handler, w.n.nodeID, requestID)
-	return w.n.sender.SendCrossChainAppRequest(
-		ctx,
-		chainID,
-		newRequestID,
-		w.createMessageBytes(appRequestBytes),
-	)
-}
-
-// SendCrossChainAppResponse sends an application-level response to a
-// specific chain
-//
-// This response must be in response to a CrossChainAppRequest that the VM
-// corresponding to this CrossChainAppSender received from [chainID] with ID
-// [requestID].
-// A non-nil error should be considered fatal.
-func (w *WrappedAppSender) SendCrossChainAppResponse(
-	ctx context.Context,
-	chainID ids.ID,
-	requestID uint32,
-	appResponseBytes []byte,
-) error {
-	// We don't need to wrap this response because the sender should know what
-	// requestID is associated with which handler.
-	return w.n.sender.SendCrossChainAppResponse(ctx, chainID, requestID, appResponseBytes)
-}
-
-// SendCrossChainAppError sends an application-level error to a CrossChainAppRequest
-func (w *WrappedAppSender) SendCrossChainAppError(
-	ctx context.Context, chainID ids.ID, requestID uint32, errorCode int32,
-	errorMessage string,
-) error {
-	return w.n.sender.SendCrossChainAppError(ctx, chainID, requestID, errorCode, errorMessage)
 }
 
 func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {
