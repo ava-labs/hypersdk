@@ -11,7 +11,7 @@ const RELEASE_PROFILE: &str = "release";
 /// Put this in your build.rs file. It currently relies on `/build` directory to be in your crate root.
 /// # Panics
 /// Will panic when attempting to buld the wasm file fails.
-pub fn build_wasm_on_test() {
+pub fn build_wasm() {
     let target = std::env::var("TARGET").unwrap();
     let profile = std::env::var("PROFILE").unwrap();
 
@@ -27,14 +27,21 @@ pub fn build_wasm_on_test() {
 
         let target_dir = format!("{manifest_dir}/{BUILD_DIR_NAME}");
 
-        let cargo_build_output = Command::new("cargo")
-            .arg("build")
+        let mut command = Command::new("cargo");
+        command
+            .arg("rustc")
             .arg("--target")
             .arg(WASM_TARGET)
-            .arg("--profile")
-            .arg(profile)
             .arg("--target-dir")
-            .arg(&target_dir)
+            .arg(&target_dir);
+
+        if profile == RELEASE_PROFILE {
+            command.arg("--release");
+        }
+
+        command.arg("--crate-type").arg("cdylib");
+
+        let cargo_build_output = command
             .output()
             .expect("command should execute even if it fails");
 
@@ -43,6 +50,27 @@ pub fn build_wasm_on_test() {
         } else {
             "debug"
         };
+
+        if !cargo_build_output.status.success() {
+            let stdout = String::from_utf8_lossy(&cargo_build_output.stdout);
+            let stderr = String::from_utf8_lossy(&cargo_build_output.stderr);
+
+            println!("cargo:warning=stdout:");
+
+            for line in stdout.lines() {
+                println!("cargo:warning={line}");
+            }
+
+            println!("cargo:warning=stderr:");
+
+            for line in stderr.lines() {
+                println!("cargo:warning={line}");
+            }
+
+            println!("cargo:warning=exit-status={}", cargo_build_output.status);
+
+            panic!("failed to build wasm file");
+        }
 
         let target_dir = Path::new(&target_dir)
             .join(WASM_TARGET)
@@ -63,25 +91,6 @@ pub fn build_wasm_on_test() {
             .to_str()
             .expect("crate name must not contain any non-utf8 characters");
         println!("cargo:rustc-env=PROGRAM_PATH={target_dir}");
-
-        if !cargo_build_output.status.success() {
-            let stdout = String::from_utf8_lossy(&cargo_build_output.stdout);
-            let stderr = String::from_utf8_lossy(&cargo_build_output.stderr);
-
-            println!("cargo:warning=stdout:");
-
-            for line in stdout.lines() {
-                println!("cargo:warning={line}");
-            }
-
-            println!("cargo:warning=stderr:");
-
-            for line in stderr.lines() {
-                println!("cargo:warning={line}");
-            }
-
-            println!("cargo:warning=exit-status={}", cargo_build_output.status);
-        }
 
         println!(
             r#"cargo:warning=If the simulator fails to find the "{package_name}" program, try running `cargo clean -p {package_name}` followed by `cargo test` again."#

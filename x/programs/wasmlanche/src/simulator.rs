@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{borsh, Address, ProgramId};
+use crate::{borsh, Address};
 use core::{marker::PhantomData, ops::Deref};
 use simulator::{
     bindings::{Address as BindingAddress, Bytes, SimulatorCallContext},
@@ -138,9 +138,23 @@ impl<'a> Simulator<'a> {
     }
 
     /// Creates a new program from the given WASM binary path.
-    #[must_use]
-    pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
-        simulator::create_program(&self.state, program_path).into()
+    /// # Errors
+    /// Returns an error if the program creation fails.
+    pub fn create_program(&self, program_path: &str) -> Result<CreateProgramResult, Error> {
+        let result = simulator::create_program(&self.state, program_path);
+
+        if !result.error.is_null() {
+            let error = {
+                let c_str = unsafe { CStr::from_ptr(result.error) };
+                c_str.to_str().map_err(Error::Ffi)?
+            };
+
+            return Err(Error::CreateProgram(error.into()));
+        }
+        let address = Address::new(result.program_address.address);
+        let id = result.program_id.to_vec().into_boxed_slice();
+
+        Ok(CreateProgramResult { id, address })
     }
 
     /// Calls a program with specified method, parameters, and gas limit.
@@ -150,22 +164,21 @@ impl<'a> Simulator<'a> {
     ///   For single values, use `(param,)`. Specify types if not explicit.
     ///   Example: `(param1 as u64, param2 as u64)`
     ///
-    /// # Returns
-    /// `CallProgramResponse` with:
-    /// - `result<R>()`: Call result (specify type `R`)
-    /// - `error()` or `has_error()`: Error information
+    /// # Errors
+    /// returns an error if the either the call or deserialization fails.
     ///
     /// # Panics
     /// Panics if the params fail to serialize.
-    pub fn call_program<T>(
+    pub fn call_program<T, U>(
         &self,
         program: Address,
         method: &str,
-        params: T,
+        params: U,
         gas: u64,
-    ) -> CallProgramResponse
+    ) -> Result<T, Error>
     where
-        T: borsh::BorshSerialize,
+        T: borsh::BorshDeserialize,
+        U: borsh::BorshSerialize,
     {
         let method = CString::new(method).expect("error converting method to CString");
         let params = borsh::to_vec(&params).expect("error serializing result");
@@ -173,7 +186,18 @@ impl<'a> Simulator<'a> {
         let context = CallContext::new(self, program, method, params, gas);
         let context = BorrowedCallContext::from(&context);
 
-        simulator::call_program(&self.state, &context).into()
+        let result = simulator::call_program(&self.state, &context);
+
+        if !result.error.is_null() {
+            let error = {
+                let c_str = unsafe { CStr::from_ptr(result.error) };
+                c_str.to_str().map_err(Error::Ffi)?
+            };
+
+            return Err(Error::CallProgram(error.into()));
+        };
+
+        Ok(borsh::from_slice(&result.result)?)
     }
 
     /// Returns the actor address for the simulator.
@@ -221,127 +245,9 @@ impl<'a> Simulator<'a> {
     }
 }
 
-pub struct CreateProgramResponse(simulator::bindings::CreateProgramResponse);
-
-impl From<simulator::bindings::CreateProgramResponse> for CreateProgramResponse {
-    fn from(value: simulator::bindings::CreateProgramResponse) -> Self {
-        Self(value)
-    }
-}
-
-impl CreateProgramResponse {
-    /// Returns the program address, which uniquely identifies an instance of the program.
-    /// # Errors
-    /// Returns an error if the program creation failed.
-    pub fn program(&self) -> Result<Address, Error> {
-        if self.has_error() {
-            let error = self.error()?;
-            return Err(Error::CreateProgram(error.into()));
-        }
-
-        Ok(Address::new(self.0.program_address.address))
-    }
-
-    /// Returns the program ID, which uniquely identifies the program's bytecode.
-    ///
-    /// Multiple program addresses can reference the same program ID, similar to
-    /// how multiple instances of a smart contract can share the same bytecode.
-    /// # Errors
-    /// Returns an error if the program creation failed.
-    pub fn program_id(&self) -> Result<ProgramId, Error> {
-        if self.has_error() {
-            let error = self.error()?;
-            return Err(Error::CreateProgram(error.into()));
-        }
-
-        // TODO:
-        // This should give back a borrowed ProgramId
-        // we need to differentiate between the two types
-        // we should also explore the ability to deserialize
-        // borrowed types for the public API of programs
-        Ok(Box::<[u8]>::from(self.0.program_id).into())
-    }
-
-    /// Returns the error message if the program creation failed.
-    #[must_use]
-    pub fn has_error(&self) -> bool {
-        !self.0.error.is_null()
-    }
-
-    /// Returns the error message if the program creation failed.
-    /// # Errors
-    /// Returns an error if the error message is not valid UTF-8.
-    pub fn error(&self) -> Result<&str, Error> {
-        if !self.has_error() {
-            return Ok("");
-        }
-        let c_str = unsafe { CStr::from_ptr(self.0.error) };
-        return c_str.to_str().map_err(Error::Ffi);
-    }
-
-    /// This function panics if the response contains an error.
-    /// This is useful for testing.
-    ///
-    /// # Panics
-    /// Panics if the response contains an error.
-    pub fn unwrap(&self) {
-        assert!(!self.has_error(), "CreateProgramResponse errored");
-    }
-}
-
-#[derive(Debug)]
-pub struct CallProgramResponse(simulator::bindings::CallProgramResponse);
-
-impl From<simulator::bindings::CallProgramResponse> for CallProgramResponse {
-    fn from(value: simulator::bindings::CallProgramResponse) -> Self {
-        Self(value)
-    }
-}
-
-impl CallProgramResponse {
-    /// Returns the deserialized result of the program call.
-    ///
-    /// # Returns
-    /// `Result<T, SimulatorError>` where T is the expected return type
-    /// # Errors
-    /// Returns an error if the program call failed or if the result could not be deserialized.
-    pub fn result<T>(&self) -> Result<T, Error>
-    where
-        T: borsh::BorshDeserialize,
-    {
-        if self.has_error() {
-            let error = self.error()?;
-            return Err(Error::CallProgram(error.into()));
-        };
-
-        Ok(borsh::from_slice(&self.0.result)?)
-    }
-
-    /// Returns whether the program call resulted in an error.
-    #[must_use]
-    pub fn has_error(&self) -> bool {
-        !self.0.error.is_null()
-    }
-
-    /// Returns the error message if there was one.
-    /// # Errors
-    /// Returns an error if calling the program failed
-    /// or if the error message is not valid UTF-8.
-    pub fn error(&self) -> Result<&str, Error> {
-        if !self.has_error() {
-            return Ok("");
-        }
-        let c_str = unsafe { CStr::from_ptr(self.0.error) };
-        return c_str.to_str().map_err(Error::Ffi);
-    }
-
-    /// This function panics if the response contains an error.
-    ///
-    /// # Panics
-    /// Panics if the response contains an error.
-    pub fn unwrap(&self) {
-        assert!(!self.has_error(), "CallProgramResponse errored");
-    }
+pub struct CreateProgramResult {
+    pub id: Box<[u8]>,
+    pub address: Address,
 }
 
 #[cfg(test)]
