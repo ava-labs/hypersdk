@@ -13,7 +13,7 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
-	fees "github.com/ava-labs/hypersdk/fees"
+	fees "github.com/ava-labs/hypersdk/internal/fees"
 	gomock "go.uber.org/mock/gomock"
 )
 

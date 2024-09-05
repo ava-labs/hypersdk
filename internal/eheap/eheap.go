@@ -6,7 +6,7 @@ package eheap
 import (
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/heap"
+	"github.com/ava-labs/hypersdk/internal/heap"
 )
 
 // Item is the interface that any item put in the heap must adheare to.

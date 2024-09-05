@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
 type Config struct {
