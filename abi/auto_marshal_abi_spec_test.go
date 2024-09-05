@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,12 +48,15 @@ func TestMarshalSpecs(t *testing.T) {
 	}{
 		{"empty", &testdata.MockObjectSingleNumber{}},
 		{"uint16", &testdata.MockObjectSingleNumber{}},
+		{"numbers", &testdata.MockObjectAllNumbers{}},
+		{"arrays", &testdata.MockObjectArrays{}},
+		{"transfer", &testdata.MockActionTransfer{}},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Get object from file
-			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".data.json"), tc.object)
+			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".json"), tc.object)
 			require.NoError(err)
 
 			// Get spec from file
@@ -69,49 +73,11 @@ func TestMarshalSpecs(t *testing.T) {
 			objectDigest := objectPacker.Bytes()
 
 			// Compare with expected hex
-			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".data.hex"))
+			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".hex"))
+			expectedHex = strings.TrimSpace(expectedHex)
 			require.Equal(expectedHex, hex.EncodeToString(objectDigest))
 		})
 	}
-}
-
-func TestMarshalAllNumbersSpec(t *testing.T) {
-	require := require.New(t)
-
-	object := testdata.MockObjectAllNumbers{
-		Uint8:  254,
-		Uint16: 65534,
-		Uint32: 4294967294,
-		Uint64: 18446744073709551614,
-		Int8:   -127,
-		Int16:  -32767,
-		Int32:  -2147483647,
-		Int64:  -9223372036854775807,
-	}
-
-	structJSON, err := json.Marshal(object)
-	require.NoError(err)
-
-	expectedStructJSON := `
-	{
-		"uint8": 254,
-		"uint16": 65534,
-		"uint32": 4294967294,
-		"uint64": 18446744073709551614,
-		"int8": -127,
-		"int16": -32767,
-		"int32": -2147483647,
-		"int64": -9223372036854775807
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
-
-	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
-	require.NoError(err)
-
-	objectDigest := objectPacker.Bytes()
-
-	require.Equal("fefffefffffffefffffffffffffffe818001800000018000000000000001", hex.EncodeToString(objectDigest))
 }
 
 func TestMarshalStringAndBytesSpec(t *testing.T) {
@@ -175,76 +141,6 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 			require.Equal(tc.expectedDigest, hex.EncodeToString(objectDigest))
 		})
 	}
-}
-
-func TestMarshalArraysSpec(t *testing.T) {
-	require := require.New(t)
-
-	object := testdata.MockObjectArrays{
-		Strings: []string{"Hello", "World"},
-		Bytes:   [][]byte{{0x01, 0x02}, {0x03, 0x04}},
-		Uint8s:  []uint8{1, 2},
-		Uint16s: []uint16{300, 400},
-		Uint32s: []uint32{70000, 80000},
-		Uint64s: []uint64{5000000000, 6000000000},
-		Int8s:   []int8{-1, -2},
-		Int16s:  []int16{-300, -400},
-		Int32s:  []int32{-70000, -80000},
-		Int64s:  []int64{-5000000000, -6000000000},
-	}
-
-	structJSON, err := json.Marshal(object)
-	require.NoError(err)
-
-	expectedStructJSON := `
-	{
-		"strings": ["Hello", "World"],
-		"bytes": ["AQI=", "AwQ="],
-		"uint8s": "AQI=",
-		"uint16s": [300, 400],
-		"uint32s": [70000, 80000],
-		"uint64s": [5000000000, 6000000000],
-		"int8s": [-1, -2],
-		"int16s": [-300, -400],
-		"int32s": [-70000, -80000],
-		"int64s": [-5000000000, -6000000000]
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
-
-	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
-	require.NoError(err)
-
-	objectDigest := objectPacker.Bytes()
-
-	require.Equal("00000002000548656c6c6f0005576f726c640000000200000002010200000002030400000002010200000002012c019000000002000111700001388000000002000000012a05f2000000000165a0bc0000000002fffe00000002fed4fe7000000002fffeee90fffec78000000002fffffffed5fa0e00fffffffe9a5f4400", hex.EncodeToString(objectDigest))
-}
-
-func TestMarshalTransferSpec(t *testing.T) {
-	require := require.New(t)
-
-	object := testdata.MockActionTransfer{
-		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
-		Value: 1000,
-		Memo:  []byte("hi"),
-	}
-
-	structJSON, err := json.Marshal(object)
-	require.NoError(err)
-
-	addrString := codec.MustAddressBech32("morpheus", object.To)
-	require.Equal("morpheus1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5qqqqqqqqqqqqqqqqqqqqqmqvs7e", addrString)
-
-	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}`
-	require.Equal(expectedJSON, string(structJSON))
-
-	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(object, objectPacker.Packer)
-	require.NoError(err)
-
-	objectDigest := objectPacker.Bytes()
-	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
-	require.Equal(expectedDigest, hex.EncodeToString(objectDigest))
 }
 
 func TestMarshalComplexStructs(t *testing.T) {

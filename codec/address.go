@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -110,4 +111,27 @@ func parseAddressBech32(saddr string) (string, Address, error) {
 // It marshals the Address as a base64-encoded string.
 func (a Address) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
+}
+
+// It unmarshals the Address from a base64-encoded string.
+func (a *Address) UnmarshalJSON(data []byte) error {
+	// Remove quotes from the string
+	s := string(data)
+	s = strings.Trim(s, "\"")
+
+	// Decode base64 string
+	decoded, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
+
+	// Check if the decoded data has the correct length
+	if len(decoded) != AddressLen {
+		return ErrInsufficientLength
+	}
+
+	// Copy decoded data to the Address
+	copy(a[:], decoded)
+
+	return nil
 }
