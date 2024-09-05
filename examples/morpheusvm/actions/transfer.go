@@ -8,13 +8,12 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 
+	"github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
@@ -44,16 +43,17 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address) state.Keys {
+func (t *Transfer) StateKeys(stateLayout state.Layout, actor codec.Address) state.Keys {
 	return state.Keys{
-		string(storage.BalanceKey(actor)): state.Read | state.Write,
-		string(storage.BalanceKey(t.To)):  state.All,
+		string(stateLayout.NewBalanceKey(actor)): state.Read | state.Write,
+		string(stateLayout.NewBalanceKey(t.To)):  state.All,
 	}
 }
 
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
+	_ state.Layout,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,

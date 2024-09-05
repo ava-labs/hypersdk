@@ -11,35 +11,24 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ (chain.StateManager) = (*StateManager)(nil)
+var _ (chain.BalanceHandler) = (*BalanceHandler)(nil)
 
-type StateManager struct{}
+type BalanceHandler struct{}
 
-func (*StateManager) HeightKey() []byte {
-	return HeightKey()
-}
-
-func (*StateManager) TimestampKey() []byte {
-	return TimestampKey()
-}
-
-func (*StateManager) FeeKey() []byte {
-	return FeeKey()
-}
-
-func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+func (*BalanceHandler) SponsorStateKeys(stateLayout state.Layout, addr codec.Address) state.Keys {
 	return state.Keys{
-		string(BalanceKey(addr)): state.Read | state.Write,
+		string(BalanceKey(stateLayout, addr)): state.Read | state.Write,
 	}
 }
 
-func (*StateManager) CanDeduct(
+func (*BalanceHandler) CanDeduct(
 	ctx context.Context,
+	stateLayout state.Layout,
 	addr codec.Address,
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := GetBalance(ctx, im, addr)
+	bal, err := GetBalance(ctx, stateLayout, im, addr)
 	if err != nil {
 		return err
 	}
@@ -49,23 +38,25 @@ func (*StateManager) CanDeduct(
 	return nil
 }
 
-func (*StateManager) Deduct(
+func (*BalanceHandler) Deduct(
 	ctx context.Context,
+	stateLayout state.Layout,
 	addr codec.Address,
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	_, err := SubBalance(ctx, mu, addr, amount)
+	_, err := SubBalance(ctx, stateLayout, mu, addr, amount)
 	return err
 }
 
-func (*StateManager) AddBalance(
+func (*BalanceHandler) AddBalance(
 	ctx context.Context,
+	stateLayout state.Layout,
 	addr codec.Address,
 	mu state.Mutable,
 	amount uint64,
 	createAccount bool,
 ) error {
-	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
+	_, err := AddBalance(ctx, stateLayout, mu, addr, amount, createAccount)
 	return err
 }

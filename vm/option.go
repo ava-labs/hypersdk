@@ -91,3 +91,36 @@ func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRem
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
 	}
 }
+
+type StateLayout struct {
+	HeightKey        []byte
+	TimestampKey     []byte
+	FeeKey           []byte
+	BalanceKeyPrefix []byte
+}
+
+type StateLayoutOption func(stateLayout *StateLayout)
+
+func WithHeightStateKey(key []byte) StateLayoutOption {
+	return func(stateLayout *StateLayout) {
+		stateLayout.HeightKey = key
+	}
+}
+
+func WithTimestampStateKey(key []byte) StateLayoutOption {
+	return func(stateLayout *StateLayout) {
+		stateLayout.TimestampKey = key
+	}
+}
+
+func WithFeeStateKey(key []byte) StateLayoutOption {
+	return func(stateLayout *StateLayout) {
+		stateLayout.FeeKey = key
+	}
+}
+
+func WithBalanceStateKeyPrefix(prefix []byte) StateLayoutOption {
+	return func(stateLayout *StateLayout) {
+		stateLayout.BalanceKeyPrefix = prefix
+	}
+}

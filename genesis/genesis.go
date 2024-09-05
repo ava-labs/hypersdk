@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -29,7 +28,13 @@ type GenesisAndRuleFactory interface {
 }
 
 type Genesis interface {
-	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error
+	InitializeState(
+		ctx context.Context,
+		tracer trace.Tracer,
+		stateLayout state.Layout,
+		bh chain.BalanceHandler,
+		mu state.Mutable,
+	) error
 	GetStateBranchFactor() merkledb.BranchFactor
 }
 
@@ -56,7 +61,13 @@ func NewDefaultGenesis(customAllocations []*CustomAllocation) *DefaultGenesis {
 	}
 }
 
-func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error {
+func (g *DefaultGenesis) InitializeState(
+	ctx context.Context,
+	tracer trace.Tracer,
+	stateLayout state.Layout,
+	balanceHandler chain.BalanceHandler,
+	mu state.Mutable,
+) error {
 	_, span := tracer.Start(ctx, "Genesis.InitializeState")
 	defer span.End()
 
@@ -69,7 +80,7 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 		if err != nil {
 			return err
 		}
-		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance, true); err != nil {
+		if err := balanceHandler.AddBalance(ctx, stateLayout, alloc.Address, mu, alloc.Balance, true); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

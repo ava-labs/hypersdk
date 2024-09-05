@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -15,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
@@ -381,8 +382,12 @@ func (vm *VM) Genesis() genesis.Genesis {
 	return vm.genesis
 }
 
-func (vm *VM) StateManager() chain.StateManager {
-	return vm.stateManager
+func (vm *VM) BalanceHandler() chain.BalanceHandler {
+	return vm.balanceHandler
+}
+
+func (vm *VM) StateLayout() state.Layout {
+	return vm.stateLayout
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
@@ -466,7 +471,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
+	v, err := vm.stateDB.Get(vm.stateLayout.FeeKey())
 	if err != nil {
 		return fees.Dimensions{}, err
 	}

@@ -112,7 +112,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
+func (t *Transaction) StateKeys(stateLayout state.Layout, bh BalanceHandler) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -120,13 +120,13 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 
 	// Verify the formatting of state keys passed by the controller
 	for _, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor()) {
+		for k, v := range action.StateKeys(stateLayout, t.Auth.Actor()) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
 		}
 	}
-	for k, v := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+	for k, v := range bh.SponsorStateKeys(stateLayout, t.Auth.Sponsor()) {
 		if !stateKeys.Add(k, v) {
 			return nil, ErrInvalidKeyValue
 		}
@@ -141,7 +141,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
+func (t *Transaction) Units(sm state.Layout, bh BalanceHandler, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
@@ -154,7 +154,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 	}
 
 	// Calculate storage usage
-	stateKeys, err := t.StateKeys(sm)
+	stateKeys, err := t.StateKeys(sm, bh)
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
@@ -195,7 +195,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, stateLayout state.Layout, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -214,7 +214,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 		}
 
 		actor := authFactory.Address()
-		stateKeys := action.StateKeys(actor)
+		stateKeys := action.StateKeys(stateLayout, actor)
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
@@ -265,7 +265,8 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	s StateManager,
+	stateLayout state.Layout,
+	bh BalanceHandler,
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
@@ -292,7 +293,7 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
 	}
-	units, err := t.Units(s, r)
+	units, err := t.Units(stateLayout, bh, r)
 	if err != nil {
 		return err
 	}
@@ -300,7 +301,7 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
+	return bh.CanDeduct(ctx, stateLayout, t.Auth.Sponsor(), im, fee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
@@ -310,13 +311,14 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	s StateManager,
+	stateLayout state.Layout,
+	bh BalanceHandler,
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
 	// Always charge fee first
-	units, err := t.Units(s, r)
+	units, err := t.Units(stateLayout, bh, r)
 	if err != nil {
 		// Should never happen
 		return nil, err
@@ -326,7 +328,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
+	if err := bh.Deduct(ctx, stateLayout, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -341,7 +343,7 @@ func (t *Transaction) Execute(
 		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, r, stateLayout, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil

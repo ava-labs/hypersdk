@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/executor"
@@ -71,7 +70,8 @@ type VM interface {
 	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
 	State() (merkledb.MerkleDB, error)
-	StateManager() StateManager
+	BalanceHandler() BalanceHandler
+	StateLayout() state.Layout
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
@@ -154,12 +154,6 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
-type MetadataManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
-}
-
 type BalanceHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
@@ -167,27 +161,16 @@ type BalanceHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	SponsorStateKeys(addr codec.Address) state.Keys
+	SponsorStateKeys(stateLayout state.Layout, addr codec.Address) state.Keys
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
-	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
+	CanDeduct(ctx context.Context, stateLayout state.Layout, addr codec.Address, im state.Immutable, amount uint64) error
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
-	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	Deduct(ctx context.Context, stateLayout state.Layout, addr codec.Address, mu state.Mutable, amount uint64) error
 
 	// AddBalance adds [amount] to [addr].
-	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
-}
-
-// StateManager allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateManager], we may overwrite
-// state written by actions or auth.
-//
-// None of these keys should be suffixed with the max amount of chunks they will
-// use. This will be handled by the hypersdk.
-type StateManager interface {
-	BalanceHandler
-	MetadataManager
+	AddBalance(ctx context.Context, stateLayout state.Layout, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
 }
 
 type Object interface {
@@ -224,18 +207,19 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address) state.Keys
+	StateKeys(stateLayout state.Layout, actor codec.Address) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//
-	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
+	// If any keys are touched during [Execute] that are not specified in [KeySpace], the transaction
 	// will revert and the max fee will be charged.
 	//
 	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
 		r Rules,
+		stateLayout state.Layout,
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type Immutable interface {
@@ -26,4 +27,12 @@ type View interface {
 
 	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.View, error)
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
+}
+
+// VM state are state keys managed by hypersdk exposed to actions
+// TODO naming
+type VM interface {
+	GetBalance(ctx context.Context, address codec.Address) (uint64, bool, error)
+	PutBalance(ctx context.Context, address codec.Address, amount uint64) (uint64, bool, error)
+	RemoveBalance(ctx context.Context, address codec.Address) (uint64, error)
 }

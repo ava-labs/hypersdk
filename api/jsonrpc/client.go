@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -132,7 +133,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), state.Layout{}, actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}

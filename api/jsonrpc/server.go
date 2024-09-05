@@ -188,7 +188,7 @@ func (j *JSONRPCServer) Execute(
 	now := time.Now().UnixMilli()
 
 	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(args.Actor)
+	stateKeysWithPermissions := action.StateKeys(j.vm.StateLayout(), args.Actor)
 
 	// flatten the map to a slice of keys
 	storageKeysToRead := make([][]byte, 0)
@@ -216,6 +216,7 @@ func (j *JSONRPCServer) Execute(
 	output, err := action.Execute(
 		ctx,
 		j.vm.Rules(now),
+		j.vm.StateLayout(),
 		tsv,
 		now,
 		args.Actor,
