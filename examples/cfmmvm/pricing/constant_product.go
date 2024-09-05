@@ -15,7 +15,7 @@ type ConstantProduct struct {
 	reserveX uint64
 	reserveY uint64
 	fee      uint64
-	kLast uint64
+	kLast    uint64
 }
 
 func NewConstantProduct(
@@ -28,7 +28,7 @@ func NewConstantProduct(
 		reserveX: reserveX,
 		reserveY: reserveY,
 		fee:      fee,
-		kLast: kLast,
+		kLast:    kLast,
 	}
 }
 

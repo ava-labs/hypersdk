@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chaintest"
-	"github.com/ava-labs/hypersdk/codectest"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
 )
 
 func TestMintToken(t *testing.T) {

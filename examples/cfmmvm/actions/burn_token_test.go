@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chaintest"
-	"github.com/ava-labs/hypersdk/codectest"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
 )
 
 func TestBurnToken(t *testing.T) {
@@ -27,7 +27,11 @@ func TestBurnToken(t *testing.T) {
 	req.NoError(err)
 
 	parentState := ts.NewView(
-		state.Keys{},
+		state.Keys{
+			string(storage.TokenInfoKey(tokenOneAddress)):                    state.All,
+			string(storage.TokenAccountBalanceKey(tokenOneAddress, addr)):    state.All,
+			string(storage.TokenAccountBalanceKey(tokenOneAddress, addrTwo)): state.All,
+		},
 		chaintest.NewInMemoryStore().Storage,
 	)
 
@@ -57,15 +61,6 @@ func TestBurnToken(t *testing.T) {
 	for _, tt := range tests {
 		tt.Run(context.Background(), t)
 	}
-
-	parentState = ts.NewView(
-		state.Keys{
-			string(storage.TokenInfoKey(tokenOneAddress)):                    state.All,
-			string(storage.TokenAccountBalanceKey(tokenOneAddress, addr)):    state.All,
-			string(storage.TokenAccountBalanceKey(tokenOneAddress, addrTwo)): state.All,
-		},
-		chaintest.NewInMemoryStore().Storage,
-	)
 
 	req.NoError(storage.SetTokenInfo(context.Background(), parentState, tokenOneAddress, []byte(TokenOneName), []byte(TokenOneSymbol), []byte(TokenOneMetadata), InitialTokenMintValue, addr))
 	req.NoError(storage.SetTokenAccountBalance(context.Background(), parentState, tokenOneAddress, addr, InitialTokenMintValue))

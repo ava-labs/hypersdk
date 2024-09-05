@@ -28,7 +28,7 @@ const (
 const (
 	TokenInfoChunks           uint16 = 2
 	TokenAccountBalanceChunks uint16 = 1
-	LiquidityPoolChunks       uint16 = 1
+	LiquidityPoolChunks       uint16 = 3
 )
 
 // Related to action invariants

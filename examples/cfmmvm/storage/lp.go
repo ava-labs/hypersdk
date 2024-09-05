@@ -71,7 +71,7 @@ func SetLiquidityPool(
 	kLast uint64,
 ) error {
 	k := LiquidityPoolKey(liquidityPoolAddress)
-	v := make([]byte, hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len)
+	v := make([]byte, hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len)
 	// Inserting functionID
 	v[0] = functionID
 	// Inserting tokenX
@@ -110,14 +110,14 @@ func innerGetLiquidityPool(
 	v []byte,
 ) (uint8, codec.Address, codec.Address, uint64, codec.Address, uint64, uint64, codec.Address, uint64, error) {
 	functionID := v[0]
-	tokenX := codec.Address(v[hconsts.Uint64Len : hconsts.Uint64Len+codec.AddressLen])
-	tokenY := codec.Address(v[hconsts.Uint64Len+codec.AddressLen : hconsts.Uint64Len+codec.AddressLen+codec.AddressLen])
-	fee := binary.BigEndian.Uint64(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen:])
-	feeTo := codec.Address(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len:])
-	reserveX := binary.BigEndian.Uint64(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen:])
-	reserveY := binary.BigEndian.Uint64(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len:])
-	lpTokenAddress := codec.Address(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len:])
-	kLast := binary.BigEndian.Uint64(v[hconsts.Uint64Len+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len+codec.AddressLen:])
+	tokenX := codec.Address(v[hconsts.ByteLen : hconsts.ByteLen+codec.AddressLen])
+	tokenY := codec.Address(v[hconsts.ByteLen+codec.AddressLen : hconsts.ByteLen+codec.AddressLen+codec.AddressLen])
+	fee := binary.BigEndian.Uint64(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen:])
+	feeTo := codec.Address(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len:])
+	reserveX := binary.BigEndian.Uint64(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen:])
+	reserveY := binary.BigEndian.Uint64(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len:])
+	lpTokenAddress := codec.Address(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len:])
+	kLast := binary.BigEndian.Uint64(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len+codec.AddressLen:])
 	return functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, nil
 }
 

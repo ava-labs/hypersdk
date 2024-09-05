@@ -2,3 +2,9 @@
 // See the file LICENSE for licensing terms.
 
 package actions
+
+import "testing"
+
+func TestAddLiquidity(t *testing.T) {
+	
+}
