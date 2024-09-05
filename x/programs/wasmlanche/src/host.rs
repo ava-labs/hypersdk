@@ -201,7 +201,7 @@ mod external_wrappers {
         }
 
         #[allow(clippy::unused_self)]
-        pub fn call_program(&self, args: &[u8] ) -> HostPtr {
+        pub fn call_program(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "program")]
             extern "C" {
                 #[link_name = "call_program"]
