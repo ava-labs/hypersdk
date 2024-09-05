@@ -11,12 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"go.opentelemetry.io/otel/attribute"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
@@ -92,7 +93,7 @@ func BuildBlock(
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(vm.StateManager().FeeKey())
+	feeKey := vm.StateLayout().FeeKey()
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -128,7 +129,7 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		sm = vm.StateManager()
+		bh = vm.BalanceHandler()
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
@@ -173,7 +174,7 @@ func BuildBlock(
 				continue
 			}
 
-			stateKeys, err := tx.StateKeys(sm)
+			stateKeys, err := tx.StateKeys(vm.StateLayout(), bh)
 			if err != nil {
 				// Drop bad transaction and continue
 				//
@@ -265,7 +266,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, vm.StateLayout(), bh, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -276,7 +277,8 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					sm,
+					vm.StateLayout(),
+					bh,
 					r,
 					tsv,
 					nextTime,
@@ -372,9 +374,9 @@ func BuildBlock(
 	}
 
 	// Update chain metadata
-	heightKey := HeightKey(sm.HeightKey())
+	heightKey := vm.StateLayout().HeightKey()
 	heightKeyStr := string(heightKey)
-	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKey := vm.StateLayout().TimestampKey()
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 

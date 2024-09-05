@@ -7,8 +7,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -28,11 +29,15 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Layout, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) StateKeys(_ codec.Address) state.Keys {
+func (*abstractMockAction) StateKeys(_ state.Layout, _ codec.Address) state.Keys {
+	panic("unimplemented")
+}
+
+func (*abstractMockAction) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 

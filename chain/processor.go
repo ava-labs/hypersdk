@@ -34,9 +34,9 @@ func (b *StatefulBlock) Execute(
 	defer span.End()
 
 	var (
-		sm     = b.vm.StateManager()
-		numTxs = len(b.Txs)
-		t      = b.GetTimestamp()
+		stateLayout = b.vm.StateLayout()
+		numTxs      = len(b.Txs)
+		t           = b.GetTimestamp()
 
 		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
@@ -49,7 +49,7 @@ func (b *StatefulBlock) Execute(
 		i := li
 		tx := ltx
 
-		stateKeys, err := tx.StateKeys(sm)
+		stateKeys, err := tx.StateKeys(stateLayout, b.vm.BalanceHandler())
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -57,7 +57,7 @@ func (b *StatefulBlock) Execute(
 		}
 
 		// Ensure we don't consume too many units
-		units, err := tx.Units(sm, r)
+		units, err := tx.Units(stateLayout, b.vm.BalanceHandler(), r)
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -88,11 +88,11 @@ func (b *StatefulBlock) Execute(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, stateLayout, b.vm.BalanceHandler(), r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, stateLayout, b.vm.BalanceHandler(), r, tsv, t)
 			if err != nil {
 				return err
 			}

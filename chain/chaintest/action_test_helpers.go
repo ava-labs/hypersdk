@@ -7,9 +7,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -54,11 +55,12 @@ type ActionTest struct {
 
 	Action chain.Action
 
-	Rules     chain.Rules
-	State     state.Mutable
-	Timestamp int64
-	Actor     codec.Address
-	ActionID  ids.ID
+	Rules       chain.Rules
+	StateLayout state.Layout
+	State       state.Mutable
+	Timestamp   int64
+	Actor       codec.Address
+	ActionID    ids.ID
 
 	ExpectedOutputs codec.Typed
 	ExpectedErr     error
@@ -71,7 +73,7 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		require := require.New(t)
 
-		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+		output, err := test.Action.Execute(ctx, test.Rules, test.StateLayout, test.State, test.Timestamp, test.Actor, test.ActionID)
 
 		require.ErrorIs(err, test.ExpectedErr)
 		require.Equal(output, test.ExpectedOutputs)
@@ -90,6 +92,7 @@ type ActionBenchmark struct {
 	Action chain.Action
 
 	Rules       chain.Rules
+	StateLayout state.Layout
 	CreateState func() state.Mutable
 	Timestamp   int64
 	Actor       codec.Address
@@ -113,7 +116,7 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
+		output, err := test.Action.Execute(ctx, test.Rules, test.StateLayout, states[i], test.Timestamp, test.Actor, test.ActionID)
 		require.NoError(err)
 		require.Equal(test.ExpectedOutput, output)
 	}
