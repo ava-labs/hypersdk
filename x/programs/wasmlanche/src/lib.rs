@@ -62,6 +62,7 @@ pub mod build;
 pub mod simulator;
 
 mod context;
+mod host;
 mod memory;
 mod state;
 mod types;
@@ -75,11 +76,10 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext, ExternalCallError, Injected},
+    context::{Context, ExternalCallError, Injected},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
-
 #[doc(hidden)]
 pub use self::{
     logging::{log, register_panic},
