@@ -50,8 +50,7 @@ mod test_wrappers {
             }
         }
 
-        pub fn deploy(&self, ptr: *const u8, len: usize) -> HostPtr {
-            let key = unsafe { std::slice::from_raw_parts(ptr, len) };
+        pub fn deploy(&self, key: &[u8]) -> HostPtr {
             let key = [DEPLOY_PREFIX]
                 .iter()
                 .chain(key.iter())
@@ -67,11 +66,10 @@ mod test_wrappers {
             val
         }
 
-        pub fn call_program(&self, ptr: *const u8, len: usize) -> HostPtr {
-            let key = unsafe { std::slice::from_raw_parts(ptr, len) };
+        pub fn call_program(&self, args: &[u8]) -> HostPtr {
             let key = [CALL_FUNCTION_PREFIX]
                 .iter()
-                .chain(key.iter())
+                .chain(args.iter())
                 .copied()
                 .collect::<Vec<u8>>();
             let val = self.state.get(&key);
@@ -84,12 +82,11 @@ mod test_wrappers {
             val
         }
 
-        pub fn get_balance(&self, ptr: *const u8, len: usize) -> HostPtr {
-            let key = unsafe { std::slice::from_raw_parts(ptr, len) };
+        pub fn get_balance(&self, args: &[u8]) -> HostPtr {
             // balance prefix + key
             let key = [BALANCE_PREFIX]
                 .iter()
-                .chain(key.iter())
+                .chain(args.iter())
                 .copied()
                 .collect::<Vec<u8>>();
 
@@ -107,12 +104,11 @@ mod test_wrappers {
             panic!("get_remaining_fuel not implemented in the test context");
         }
 
-        pub fn send_value(&self, ptr: *const u8, len: usize) -> HostPtr {
-            let key = unsafe { std::slice::from_raw_parts(ptr, len) };
+        pub fn send_value(&self, args: &[u8]) -> HostPtr {
             // send prefix + key
             let key = [SEND_PREFIX]
                 .iter()
-                .chain(key.iter())
+                .chain(args.iter())
                 .copied()
                 .collect::<Vec<u8>>();
 
@@ -193,7 +189,7 @@ mod external_wrappers {
         }
 
         #[allow(clippy::unused_self)]
-        pub fn deploy(&self, ptr: *const u8, len: usize) -> HostPtr {
+        pub fn deploy(&self, args: &[u8]) -> HostPtr {
             use crate::HostPtr;
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -201,29 +197,29 @@ mod external_wrappers {
                 fn deploy(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { deploy(ptr, len) }
+            unsafe { deploy(args.as_ptr(), args.len()) }
         }
 
         #[allow(clippy::unused_self)]
-        pub fn call_program(&self, ptr: *const u8, len: usize) -> HostPtr {
+        pub fn call_program(&self, args: &[u8] ) -> HostPtr {
             #[link(wasm_import_module = "program")]
             extern "C" {
                 #[link_name = "call_program"]
                 fn call_program(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { call_program(ptr, len) }
+            unsafe { call_program(args.as_ptr(), args.len()) }
         }
 
         #[allow(clippy::unused_self)]
-        pub fn get_balance(&self, ptr: *const u8, len: usize) -> HostPtr {
+        pub fn get_balance(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
                 #[link_name = "get"]
                 fn get(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { get(ptr, len) }
+            unsafe { get(args.as_ptr(), args.len()) }
         }
 
         #[allow(clippy::unused_self)]
@@ -238,14 +234,14 @@ mod external_wrappers {
         }
 
         #[allow(clippy::unused_self)]
-        pub fn send_value(&self, ptr: *const u8, len: usize) -> HostPtr {
+        pub fn send_value(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
                 #[link_name = "send"]
                 fn send_value(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { send_value(ptr, len) }
+            unsafe { send_value(args.as_ptr(), args.len()) }
         }
     }
 }

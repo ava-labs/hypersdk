@@ -225,7 +225,7 @@ impl Context {
         let ptr =
             borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
 
-        let bytes = self.host_accessor().deploy(ptr.as_ptr(), ptr.len());
+        let bytes = self.host_accessor().deploy(&ptr);
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
@@ -246,7 +246,7 @@ impl Context {
     #[must_use]
     pub fn get_balance(&mut self, account: Address) -> u64 {
         let ptr = borsh::to_vec(&account).expect("failed to serialize args");
-        let bytes = self.host_accessor().get_balance(ptr.as_ptr(), ptr.len());
+        let bytes = self.host_accessor().get_balance(&ptr);
 
         borsh::from_slice(&bytes).expect("failed to deserialize the balance")
     }
@@ -259,7 +259,7 @@ impl Context {
     pub fn send(&self, to: Address, amount: u64) -> Result<(), ExternalCallError> {
         let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
 
-        let bytes = self.host_accessor().send_value(ptr.as_ptr(), ptr.len());
+        let bytes = self.host_accessor().send_value(&ptr);
 
         borsh::from_slice(&bytes).expect("failed to deserialize the result")
     }
@@ -419,7 +419,7 @@ fn call_function<T: BorshDeserialize>(
 
     let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
 
-    let bytes = host_accessor.call_program(args_bytes.as_ptr(), args_bytes.len());
+    let bytes = host_accessor.call_program(&args_bytes);
 
     borsh::from_slice(&bytes).expect("failed to deserialize")
 }
