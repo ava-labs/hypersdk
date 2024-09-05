@@ -1,87 +1,79 @@
 package abi
 
 import (
-	"fmt"
-	"strings"
+	"encoding/json"
+	"go/format"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/stretchr/testify/require"
 )
-
-func GenerateGoStructs(abi VMABI) string {
-	var sb strings.Builder
-
-	sb.WriteString("package generated\n\n")
-	sb.WriteString("import (\n\t\"github.com/ava-labs/hypersdk/codec\"\n)\n\n")
-
-	for _, action := range abi.Actions {
-		for _, typ := range action.Types {
-			sb.WriteString(fmt.Sprintf("type %s struct {\n", typ.Name))
-			for _, field := range typ.Fields {
-				goType := convertToGoType(field.Type)
-				sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", field.Name, goType))
-			}
-			sb.WriteString("}\n\n")
-
-			sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", typ.Name))
-			sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
-			sb.WriteString("}\n")
-		}
-	}
-
-	return sb.String()
-}
-
-func convertToGoType(abiType string) string {
-	switch abiType {
-	case "string":
-		return "string"
-	case "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64":
-		return abiType
-	case "Address":
-		return "codec.Address"
-	case "StringAsBytes":
-		return "codec.StringAsBytes"
-	default:
-		if strings.HasPrefix(abiType, "[]") {
-			return "[]" + convertToGoType(strings.TrimPrefix(abiType, "[]"))
-		}
-		return abiType // For custom types, we'll use the type name as-is
-	}
-}
-
-type SimpleStruct struct {
-	Field1 string `serialize:"true"`
-	Field2 int32  `serialize:"true"`
-}
-
-func (SimpleStruct) GetTypeID() uint8 {
-	return 1
-}
 
 func TestGenerateSimpleStruct(t *testing.T) {
 	require := require.New(t)
 
-	abi, err := GetVMABI([]codec.Typed{SimpleStruct{}})
+	abi := mustJSONParse[VMABI](t, `
+{
+    "actions": [
+        {
+            "id": 1,
+            "name": "SampleObj",
+            "types": [
+                {
+                    "name": "SampleObj",
+                    "fields": [
+                        {
+                            "name": "Field1",
+                            "type": "uint16"
+                        },
+                        {
+                            "name": "lowercaseField",
+                            "type": "string"
+                        },
+                        {
+                            "name": "a",
+                            "type": "string"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}`)
+
+	code, err := GenerateGoStructs(abi)
 	require.NoError(err)
 
-	code := GenerateGoStructs(abi)
-	fmt.Println(code)
-	expected := `package generated
+	expected := `
+package generated
 
 import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-type SimpleStruct struct {
-	Field1 string ` + "`serialize:\"true\"`" + `
-	Field2 int32 ` + "`serialize:\"true\"`" + `
+type SampleObj struct {
+	Field1 uint16 ` + "`serialize:\"true\"`" + `
+	LowercaseField string ` + "`serialize:\"true\" json:\"lowercaseField\"`" + `
+	A string ` + "`serialize:\"true\" json:\"a\"`" + `
 }
 
-func (SimpleStruct) GetTypeID() uint8 {
+func (SampleObj) GetTypeID() uint8 {
 	return 1
 }
 `
-	require.Equal(expected, code)
+
+	require.Equal(mustFormat(t, expected), code)
+}
+
+func mustFormat(t *testing.T, code string) string {
+	formatted, err := format.Source([]byte(code))
+	require.NoError(t, err)
+
+	return string(formatted)
+}
+
+func mustJSONParse[T any](t *testing.T, jsonStr string) T {
+	var parsed T
+	err := json.Unmarshal([]byte(jsonStr), &parsed)
+	require.NoError(t, err, jsonStr)
+	return parsed
 }
