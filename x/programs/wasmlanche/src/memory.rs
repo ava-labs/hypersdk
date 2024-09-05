@@ -82,7 +82,7 @@ impl HostPtr {
 /// # Panics
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
-pub extern "C" fn alloc(len: usize) -> HostPtr {
+pub(crate) extern "C" fn alloc(len: usize) -> HostPtr {
     assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");

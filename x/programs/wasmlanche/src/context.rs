@@ -98,22 +98,6 @@ impl BorshDeserialize for Context {
 }
 
 impl Context {
-    #[cfg(feature = "test")]
-    #[must_use]
-    pub fn new_test_context() -> Self {
-        let ctx = Injected {
-            contract_address: Address::new([0; 33]),
-            actor: Address::new([1; 33]),
-            height: 0,
-            timestamp: 0,
-            action_id: Id::default(),
-            state_cache: Cache::new(),
-            host_accessor: Accessor::new(),
-        };
-
-        Self::Injected(ctx)
-    }
-
     #[must_use]
     pub fn contract_address(&self) -> Address {
         match self {
@@ -189,14 +173,6 @@ impl Context {
         }
     }
 
-    fn host_accessor_mut(&mut self) -> &mut Accessor {
-        match self {
-            Context::Injected(ctx) => &mut ctx.host_accessor,
-            #[cfg(feature = "bindings")]
-            Context::External(ctx) => &mut ctx.host_accessor,
-        }
-    }
-
     /// Get a value from state.
     ///
     /// # Errors
@@ -249,7 +225,7 @@ impl Context {
         let ptr =
             borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
 
-        let bytes = self.host_accessor_mut().deploy(ptr.as_ptr(), ptr.len());
+        let bytes = self.host_accessor().deploy(ptr.as_ptr(), ptr.len());
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
@@ -343,7 +319,7 @@ impl Context {
 
     #[cfg(feature = "bindings")]
     #[must_use]
-    pub fn new_external_call_context(&self, address: Address, max_units: Gas, value: u64) -> Self {
+    pub fn to_extern(&self, address: Address, max_units: Gas, value: u64) -> Self {
         Self::External(ExternalCallContext::new(
             self.host_accessor().clone(),
             address,
