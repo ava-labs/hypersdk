@@ -116,7 +116,7 @@ alternative to defining all `Auth` and/or `Actions` that can be invoked in the `
 
 Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
 be compiled to WASM can be used to write `programs`. You can view a collection of
-Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
+Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/examples).
 
 ### Account Abstraction
 The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.
@@ -191,7 +191,7 @@ store revisions for at least as long as it takes to complete a sync, which may
 require significantly more storage).
 
 ```golang
-type StatefulBlock struct {
+type StatelessBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
@@ -574,7 +574,7 @@ type Controller interface {
 
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
+	Accepted(ctx context.Context, blk *chain.StatefulBlock) error
 
 	// Shutdown should be used by the [Controller] to terminate any async
 	// processes it may be running in the background. It is invoked when

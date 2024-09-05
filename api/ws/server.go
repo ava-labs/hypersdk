@@ -5,7 +5,6 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 
@@ -30,9 +29,7 @@ const (
 )
 
 var (
-	_ api.HandlerFactory[api.VM]          = (*WebSocketServerFactory)(nil)
-	_ event.Subscription[struct{}]        = (*subscriptionFunc[struct{}])(nil)
-	_ event.SubscriptionFactory[struct{}] = (*subscriptionFuncFactory[struct{}])(nil)
+	_ api.HandlerFactory[api.VM] = (*WebSocketServerFactory)(nil)
 
 	ErrExpired = errors.New("expired")
 )
@@ -50,21 +47,15 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, OptionFunc)
+	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, configBytes []byte) error {
-	actionRegistry, authRegistry := v.Registry()
-	config := NewDefaultConfig()
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &config); err != nil {
-			return err
-		}
-	}
+func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
 
+	actionRegistry, authRegistry := v.Registry()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
@@ -75,14 +66,14 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	)
 
 	webSocketFactory := NewWebSocketServerFactory(handler)
-	txRemovedSubscription := subscriptionFuncFactory[vm.TxRemovedEvent]{
+	txRemovedSubscription := event.SubscriptionFuncFactory[vm.TxRemovedEvent]{
 		AcceptF: func(event vm.TxRemovedEvent) error {
 			return server.RemoveTx(event.TxID, event.Err)
 		},
 	}
 
-	blockSubscription := subscriptionFuncFactory[*chain.StatelessBlock]{
-		AcceptF: func(event *chain.StatelessBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
+		AcceptF: func(event *chain.StatefulBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
@@ -91,26 +82,6 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 	vm.WithTxRemovedSubscriptions(txRemovedSubscription)(v)
 	vm.WithVMAPIs(webSocketFactory)(v)
 
-	return nil
-}
-
-type subscriptionFuncFactory[T any] struct {
-	AcceptF func(t T) error
-}
-
-func (s subscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
-	return subscriptionFunc[T](s), nil
-}
-
-type subscriptionFunc[T any] struct {
-	AcceptF func(t T) error
-}
-
-func (s subscriptionFunc[T]) Accept(t T) error {
-	return s.AcceptF(t)
-}
-
-func (subscriptionFunc[_]) Close() error {
 	return nil
 }
 
@@ -222,7 +193,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := PackBlockMessage(b)
 		if err != nil {

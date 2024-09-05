@@ -3,8 +3,7 @@ module github.com/ava-labs/hypersdk
 go 1.21.12
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.11-0.20240813002618-d729e5c7ef9f
+	github.com/ava-labs/avalanchego v1.11.11-0.20240827034238-fc892827880a
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
@@ -29,6 +28,8 @@ require (
 	golang.org/x/crypto v0.21.0
 	golang.org/x/exp v0.0.0-20231127185646-65229373498e
 	golang.org/x/sync v0.6.0
+	google.golang.org/grpc v1.62.0
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -145,11 +146,8 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
-	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/grpc v1.62.0 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

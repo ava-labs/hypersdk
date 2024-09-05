@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -19,14 +18,14 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 type SpamHelper struct {
 	keyType string
-	cli     *controller.JSONRPCClient
+	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
 }
 
@@ -51,8 +50,8 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	}
 }
 
-func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID) error {
-	sh.cli = controller.NewJSONRPCClient(uri, networkID, chainID)
+func (sh *SpamHelper) CreateClient(uri string) error {
+	sh.cli = vm.NewJSONRPCClient(uri)
 	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err
@@ -97,7 +96,7 @@ var spamCmd = &cobra.Command{
 
 var runSpamCmd = &cobra.Command{
 	Use: "run [ed25519/secp256r1/bls]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}

@@ -152,7 +152,7 @@ func (f *Manager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
 
 	// Ensure we can consume (don't want partial update of values)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.lastConsumed(i), d[i])
+		consumed, err := math.Add(f.lastConsumed(i), d[i])
 		if err != nil {
 			return false, i
 		}
@@ -163,7 +163,7 @@ func (f *Manager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
 
 	// Commit to consumption
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.lastConsumed(i), d[i])
+		consumed, err := math.Add(f.lastConsumed(i), d[i])
 		if err != nil {
 			return false, i
 		}
@@ -185,11 +185,11 @@ func (f *Manager) Fee(d Dimensions) (uint64, error) {
 
 	fee := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		contribution, err := math.Mul64(f.unitPrice(i), d[i])
+		contribution, err := math.Mul(f.unitPrice(i), d[i])
 		if err != nil {
 			return 0, err
 		}
-		newFee, err := math.Add64(contribution, fee)
+		newFee, err := math.Add(contribution, fee)
 		if err != nil {
 			return 0, err
 		}
@@ -253,7 +253,7 @@ func computeNextPriceWindow(
 		if baseDelta < 1 {
 			baseDelta = 1
 		}
-		n, over := math.Add64(nextPrice, baseDelta)
+		n, over := math.Add(nextPrice, baseDelta)
 		if over != nil {
 			nextPrice = consts.MaxUint64
 		} else {
@@ -293,7 +293,7 @@ func computeNextPriceWindow(
 func Add(a, b Dimensions) (Dimensions, error) {
 	d := Dimensions{}
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		v, err := math.Add64(a[i], b[i])
+		v, err := math.Add(a[i], b[i])
 		if err != nil {
 			return Dimensions{}, err
 		}
@@ -305,11 +305,11 @@ func Add(a, b Dimensions) (Dimensions, error) {
 func MulSum(a, b Dimensions) (uint64, error) {
 	val := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		v, err := math.Mul64(a[i], b[i])
+		v, err := math.Mul(a[i], b[i])
 		if err != nil {
 			return 0, err
 		}
-		newVal, err := math.Add64(val, v)
+		newVal, err := math.Add(val, v)
 		if err != nil {
 			return 0, err
 		}
@@ -319,7 +319,7 @@ func MulSum(a, b Dimensions) (uint64, error) {
 }
 
 func (d Dimensions) Add(i Dimension, v uint64) error {
-	newValue, err := math.Add64(d[i], v)
+	newValue, err := math.Add(d[i], v)
 	if err != nil {
 		return err
 	}
@@ -329,7 +329,7 @@ func (d Dimensions) Add(i Dimension, v uint64) error {
 
 func (d Dimensions) CanAdd(a Dimensions, l Dimensions) bool {
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(d[i], a[i])
+		consumed, err := math.Add(d[i], a[i])
 		if err != nil {
 			return false
 		}
@@ -359,6 +359,17 @@ func (d Dimensions) Greater(o Dimensions) bool {
 		}
 	}
 	return true
+}
+
+func (d Dimensions) String() string {
+	return fmt.Sprintf(
+		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
+		d[Bandwidth],
+		d[Compute],
+		d[StorageRead],
+		d[StorageAllocate],
+		d[StorageWrite],
+	)
 }
 
 func UnpackDimensions(raw []byte) (Dimensions, error) {

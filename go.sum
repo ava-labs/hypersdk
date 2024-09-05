@@ -58,10 +58,8 @@ github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah4HI848JfFxHt+iPb26b4zyfspmqY0/8=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
-github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0 h1:xNbCMNqenaDr0bb35j27sqwa+C8t8BgRz51vXd6q0QM=
-github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0/go.mod h1:B7Ynk/avkCk49CCIWbM4j1UrPlqIi0IHCPAB2MZNvLw=
-github.com/ava-labs/avalanchego v1.11.11-0.20240813002618-d729e5c7ef9f h1:h6gLvc8hHY+Ca0EhIq9Olqo4EHtOxF88NYv0EVSdfYI=
-github.com/ava-labs/avalanchego v1.11.11-0.20240813002618-d729e5c7ef9f/go.mod h1:9e0UPXJboybmgFjeTj+SFbK4ugbrdG4t68VdiUW5oQ8=
+github.com/ava-labs/avalanchego v1.11.11-0.20240827034238-fc892827880a h1:TMhT+mI6R1szbDPJFJXVquDnpZX3RJ+HH127K4Fdo3Q=
+github.com/ava-labs/avalanchego v1.11.11-0.20240827034238-fc892827880a/go.mod h1:9e0UPXJboybmgFjeTj+SFbK4ugbrdG4t68VdiUW5oQ8=
 github.com/ava-labs/coreth v0.13.8-0.20240802110637-b3e5088d062d h1:klPTcKVvqfA2KSKaRvQAO56Pd4XAqGhwgMTQ6/W+w7w=
 github.com/ava-labs/coreth v0.13.8-0.20240802110637-b3e5088d062d/go.mod h1:tXDujonxXFOF6oK5HS2EmgtSXJK3Gy6RpZxb5WzR9rM=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=

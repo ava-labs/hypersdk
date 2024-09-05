@@ -28,7 +28,7 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 	if err != nil {
 		return nil, err
 	}
-	block, err := vm.GetStatelessBlock(ctx, id)
+	block, err := vm.GetStatefulBlock(ctx, id)
 	if err != nil {
 		return nil, err
 	}

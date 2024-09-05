@@ -33,6 +33,11 @@ func (*Blah3) Bark() string { return "blah3" }
 
 func (*Blah3) GetTypeID() uint8 { return 2 }
 
+type withID struct {
+	ID uint8
+}
+
+func (w *withID) GetTypeID() uint8 { return w.ID }
 func TestTypeParser(t *testing.T) {
 	tp := NewTypeParser[Blah]()
 
@@ -51,10 +56,10 @@ func TestTypeParser(t *testing.T) {
 		errBlah1 := errors.New("blah1")
 		errBlah2 := errors.New("blah2")
 		require.NoError(
-			tp.Register(blah1.GetTypeID(), func(*Packer) (Blah, error) { return nil, errBlah1 }),
+			tp.Register(blah1, func(*Packer) (Blah, error) { return nil, errBlah1 }),
 		)
 		require.NoError(
-			tp.Register(blah2.GetTypeID(), func(*Packer) (Blah, error) { return nil, errBlah2 }),
+			tp.Register(blah2, func(*Packer) (Blah, error) { return nil, errBlah2 }),
 		)
 
 		f, ok := tp.LookupIndex(blah1.GetTypeID())
@@ -72,7 +77,7 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("duplicate item", func(t *testing.T) {
 		require := require.New(t)
-		err := tp.Register((&Blah1{}).GetTypeID(), nil)
+		err := tp.Register(&Blah1{}, nil)
 		require.ErrorIs(err, ErrDuplicateItem)
 	})
 
@@ -81,10 +86,10 @@ func TestTypeParser(t *testing.T) {
 		arrayLength := int(consts.MaxUint8) + 1 - len(tp.indexToDecoder)
 		for index := range make([]struct{}, arrayLength) {
 			// 0 and 1 are already existing -> we use index + 2
-			require.NoError(tp.Register(uint8(index+2), nil))
+			require.NoError(tp.Register(&withID{ID: uint8(index + 2)}, nil))
 		}
 		// all possible uint8 value should already be stored, using any return ErrTooManyItems
-		err := tp.Register(uint8(4), nil)
+		err := tp.Register(&withID{ID: uint8(4)}, nil)
 		require.ErrorIs(err, ErrTooManyItems)
 	})
 }

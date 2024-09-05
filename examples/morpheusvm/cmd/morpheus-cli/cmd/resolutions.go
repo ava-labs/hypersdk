@@ -13,18 +13,17 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *controller.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
@@ -53,7 +52,11 @@ func sendAndWait(
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), result.Success)
+		status := "❌"
+		if result.Success {
+			status = "✅"
+		}
+		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
 	}
 	return result.Success, tx.ID(), nil
 }
@@ -70,7 +73,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 		return
 	}
@@ -91,7 +94,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 	}
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -39,7 +39,7 @@ func (h *Handler) Root() *cli.Handler {
 
 func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*jsonrpc.JSONRPCClient, *controller.JSONRPCClient, *ws.WebSocketClient, error,
+	*jsonrpc.JSONRPCClient, *vm.JSONRPCClient, *ws.WebSocketClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
@@ -65,7 +65,6 @@ func (h *Handler) DefaultActor() (
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	jcli := jsonrpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -78,16 +77,14 @@ func (h *Handler) DefaultActor() (
 			Address: addr,
 			Bytes:   priv,
 		}, factory, jcli,
-		controller.NewJSONRPCClient(
+		vm.NewJSONRPCClient(
 			uris[0],
-			networkID,
-			chainID,
 		), ws, nil
 }
 
 func (*Handler) GetBalance(
 	ctx context.Context,
-	cli *controller.JSONRPCClient,
+	cli *vm.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
 	saddr, err := codec.AddressBech32(consts.HRP, addr)
@@ -138,4 +135,19 @@ func (*Controller) Address(addr codec.Address) string {
 
 func (*Controller) ParseAddress(addr string) (codec.Address, error) {
 	return codec.ParseAddressBech32(consts.HRP, addr)
+}
+
+func (*Controller) GetParser(uri string) (chain.Parser, error) {
+	cli := vm.NewJSONRPCClient(uri)
+	return cli.Parser(context.TODO())
+}
+
+func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
+	handleTx(tx, result)
+}
+
+func (*Controller) LookupBalance(address string, uri string) (uint64, error) {
+	cli := vm.NewJSONRPCClient(uri)
+	balance, err := cli.Balance(context.TODO(), address)
+	return balance, err
 }

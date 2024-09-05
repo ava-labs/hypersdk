@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/cmd/morpheusvm/version"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 )
 
 var rootCmd = &cobra.Command{
@@ -47,7 +47,7 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	controller, err := controller.New()
+	controller, err := vm.New()
 	if err != nil {
 		return err
 	}

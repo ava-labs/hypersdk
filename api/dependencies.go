@@ -13,9 +13,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
 )
 
 type VM interface {
+	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32
 	SubnetID() ids.ID
@@ -27,7 +29,7 @@ type VM interface {
 		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastAcceptedBlock() *chain.StatelessBlock
+	LastAcceptedBlock() *chain.StatefulBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,

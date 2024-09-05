@@ -11,6 +11,17 @@ function check_command() {
   fi
 }
 
+function install_if_not_exists() {
+  if ! command -v "$1" &> /dev/null
+  then
+    echo "$1 not found, installing..."
+    go install -v "$2"
+  fi
+
+  # alert the user if they do not have $GOPATH properly configured
+  check_command "$1"
+}
+
 # Function to check if the script is run from the repository root
 function check_repository_root() {
   if ! [[ "$0" =~ $1 ]]; then
@@ -22,40 +33,30 @@ function check_repository_root() {
 function prepare_ginkgo() {
   set -e
 
-  # to install the ginkgo binary (required for test build and run)
-  go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1 || true
-
-  # alert the user if they do not have $GOPATH properly configured
-  check_command ginkgo
+  install_if_not_exists ginkgo github.com/onsi/ginkgo/v2/ginkgo@v2.13.1
 }
 
 function rm_previous_cov_reports() {
     rm -f integration.coverage.out
     rm -f integration.coverage.html
 }
-function add_license_headers() {
 
-  go install -v github.com/google/addlicense@latest
-  check_command addlicense
+function add_license_headers() {
+  install_if_not_exists addlicense github.com/google/addlicense@latest
   local license_file="license-header.txt"
   if [[ ! -f "$license_file" ]]; then
     license_file="../../license-header.txt"
   fi
 
-  local check_flag=""
+  local args=("-f" "$license_file")
   local action="adding"
   if [[ "$1" == "-check" ]]; then
-    check_flag="-check"
+    args+=("-check")
     action="checking"
   fi
 
   echo "${action} license headers"
 
-  # run for all go files
-  find . -type f -name '*.go' -print0 | xargs -0 -n1 addlicense -f "$license_file" ${check_flag:+"$check_flag"}
-
-  # Check for .rs files and only run if they exist
-  if find . -type f -name '*.rs' | read -r; then
-    find . -type f -name '*.rs' -print0 | xargs -0 -n1 addlicense -f "$license_file" ${check_flag:+"$check_flag"}
-  fi
+  # Find and process files with the specified extensions
+  find . -type f \( -name "*.go" -o -name "*.rs" -o -name "*.sh" \) -print0 | xargs -0 addlicense "${args[@]}"
 }

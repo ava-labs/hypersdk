@@ -4,6 +4,9 @@
 package vm
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
@@ -13,18 +16,38 @@ import (
 
 type RegisterFunc func(*VM)
 
-type OptionFunc func(*VM, []byte) error
+type optionFunc func(vm *VM, configBytes []byte) error
+
+type OptionFunc[T any] func(vm *VM, config T) error
 
 type Option struct {
 	Namespace  string
-	OptionFunc OptionFunc
+	optionFunc optionFunc
 }
 
-func NewOption(namespace string, optionFunc OptionFunc) Option {
+func newOptionWithBytes(namespace string, optionFunc optionFunc) Option {
 	return Option{
 		Namespace:  namespace,
-		OptionFunc: optionFunc,
+		optionFunc: optionFunc,
 	}
+}
+
+// NewOption returns an option with:
+// 1) A namespace to define the key in the VM's JSON config that should be supplied to this option
+// 2) A default config value the VM will directly unmarshal into
+// 3) An option function that takes the VM and resulting config value as arguments
+func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T]) Option {
+	config := defaultConfig
+	configOptionFunc := func(vm *VM, configBytes []byte) error {
+		if len(configBytes) > 0 {
+			if err := json.Unmarshal(configBytes, &config); err != nil {
+				return fmt.Errorf("failed to unmarshal %q config %q: %w", namespace, string(configBytes), err)
+			}
+		}
+
+		return optionFunc(vm, config)
+	}
+	return newOptionWithBytes(namespace, configOptionFunc)
 }
 
 func WithBuilder() RegisterFunc {
@@ -40,9 +63,10 @@ func WithGossiper() RegisterFunc {
 }
 
 func WithManual() Option {
-	return NewOption(
+	return NewOption[struct{}](
 		"manual",
-		func(vm *VM, _ []byte) error {
+		struct{}{},
+		func(vm *VM, _ struct{}) error {
 			WithBuilder()(vm)
 			WithGossiper()(vm)
 			return nil
@@ -50,7 +74,7 @@ func WithManual() Option {
 	)
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) RegisterFunc {
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatefulBlock]) RegisterFunc {
 	return func(vm *VM) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
 	}
@@ -59,12 +83,6 @@ func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.St
 func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc {
 	return func(vm *VM) {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
-	}
-}
-
-func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) RegisterFunc {
-	return func(vm *VM) {
-		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
 	}
 }
 

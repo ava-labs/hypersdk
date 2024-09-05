@@ -65,7 +65,7 @@ func (vm *VM) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatelessBlock, error) {
+func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatefulBlock, error) {
 	return vm.GetDiskBlock(ctx, 0)
 }
 
@@ -118,7 +118,7 @@ func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 //
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
-func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+func (vm *VM) UpdateLastAccepted(blk *chain.StatefulBlock) error {
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
@@ -174,7 +174,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
-func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
+func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatefulBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockKey(height))
 	if err != nil {
 		return nil, err
