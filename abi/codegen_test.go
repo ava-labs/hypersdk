@@ -11,12 +11,12 @@ import (
 func TestGenerateAllStructs(t *testing.T) {
 	require := require.New(t)
 
-	abi := mustJSONParse[VMABI](t, string(mustReadFile(t, "test_data/abi.json")))
+	abi := mustJSONParse[VMABI](t, string(mustReadFile(t, "testdata/abi.json")))
 
-	code, err := GenerateGoStructs(abi, "test_data")
+	code, err := GenerateGoStructs(abi, "testdata")
 	require.NoError(err)
 
-	expected := mustReadFile(t, "test_data/abi.go")
+	expected := mustReadFile(t, "testdata/abi.go")
 
 	require.Equal(mustFormat(t, string(expected)), code)
 }

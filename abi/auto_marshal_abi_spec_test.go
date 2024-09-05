@@ -13,6 +13,7 @@ import (
 
 	_ "embed"
 
+	"github.com/ava-labs/hypersdk/abi/testdata"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -22,110 +23,62 @@ import (
 // Tests added as needed by TypeScript
 // Ensures consistency in marshaling, not testing Go struct marshaling itself
 
-type MockObjectSingleNumber struct {
-	Field1 uint16 `serialize:"true"`
-}
-
-func (MockObjectSingleNumber) GetTypeID() uint8 {
-	return 1
-}
-
-type MockActionTransfer struct {
-	To    codec.Address       `serialize:"true" json:"to"`
-	Value uint64              `serialize:"true" json:"value"`
-	Memo  codec.StringAsBytes `serialize:"true" json:"memo"`
-}
-
-func (MockActionTransfer) GetTypeID() uint8 {
-	return 2
-}
-
 func TestABIHash(t *testing.T) {
 	require := require.New(t)
 
 	//get spec from file
-	abiJSON := mustReadFile(t, "test_data/abi.json")
+	abiJSON := mustReadFile(t, "testdata/abi.json")
 	var abiFromFile VMABI
 	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 
-	//TODO: maybe check file generation?
-
 	//check hash and compare it to expected
 	abiHash := abiFromFile.Hash()
-	expectedHashHex := string(mustReadFile(t, "test_data/abi.hash.hex"))
+	expectedHashHex := string(mustReadFile(t, "testdata/abi.hash.hex"))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
 
-func TestMarshalEmptySpec(t *testing.T) {
+func TestMarshalSpecs(t *testing.T) {
 	require := require.New(t)
 
-	//get object from file
-	var object1Instance MockObjectSingleNumber
-	err := json.Unmarshal(mustReadFile(t, "test_data/empty.data.json"), &object1Instance)
-	require.NoError(err)
+	testCases := []struct {
+		name   string
+		object codec.Typed
+	}{
+		{"empty", &testdata.MockObjectSingleNumber{}},
+		{"uint16", &testdata.MockObjectSingleNumber{}},
+	}
 
-	//get spec from file
-	abiJSON := mustReadFile(t, "test_data/abi.json")
-	var abiFromFile VMABI
-	err = json.Unmarshal(abiJSON, &abiFromFile)
-	require.NoError(err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Get object from file
+			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".data.json"), tc.object)
+			require.NoError(err)
 
-	// This is the output of the combination of above JSONs
-	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(object1Instance, objectPacker.Packer)
-	require.NoError(err)
+			// Get spec from file
+			abiJSON := mustReadFile(t, "testdata/abi.json")
+			var abiFromFile VMABI
+			err = json.Unmarshal(abiJSON, &abiFromFile)
+			require.NoError(err)
 
-	objectDigest := objectPacker.Bytes()
+			// Marshal the object
+			objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+			err = codec.LinearCodec.MarshalInto(tc.object, objectPacker.Packer)
+			require.NoError(err)
 
-	expectedHex := string(mustReadFile(t, "test_data/empty.data.hex"))
-	require.Equal(expectedHex, hex.EncodeToString(objectDigest))
-}
+			objectDigest := objectPacker.Bytes()
 
-func TestMarshalSingleNumberSpec(t *testing.T) {
-	require := require.New(t)
-
-	//get object from file
-	var object1Instance MockObjectSingleNumber
-	err := json.Unmarshal(mustReadFile(t, "test_data/uint16.data.json"), &object1Instance)
-	require.NoError(err)
-
-	//get spec from file
-	abiJSON := mustReadFile(t, "test_data/abi.json")
-	var abiFromFile VMABI
-	err = json.Unmarshal(abiJSON, &abiFromFile)
-	require.NoError(err)
-
-	// This is the output of the combination of above JSONs
-	objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(object1Instance, objectPacker.Packer)
-	require.NoError(err)
-
-	objectDigest := objectPacker.Bytes()
-
-	expectedHex := string(mustReadFile(t, "test_data/uint16.data.hex"))
-	require.Equal(expectedHex, hex.EncodeToString(objectDigest))
-}
-
-type MockObjectAllNumbers struct {
-	Uint8  uint8  `serialize:"true" json:"uint8"`
-	Uint16 uint16 `serialize:"true" json:"uint16"`
-	Uint32 uint32 `serialize:"true" json:"uint32"`
-	Uint64 uint64 `serialize:"true" json:"uint64"`
-	Int8   int8   `serialize:"true" json:"int8"`
-	Int16  int16  `serialize:"true" json:"int16"`
-	Int32  int32  `serialize:"true" json:"int32"`
-	Int64  int64  `serialize:"true" json:"int64"`
-}
-
-func (MockObjectAllNumbers) GetTypeID() uint8 {
-	return 3
+			// Compare with expected hex
+			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".data.hex"))
+			require.Equal(expectedHex, hex.EncodeToString(objectDigest))
+		})
+	}
 }
 
 func TestMarshalAllNumbersSpec(t *testing.T) {
 	require := require.New(t)
 
-	object := MockObjectAllNumbers{
+	object := testdata.MockObjectAllNumbers{
 		Uint8:  254,
 		Uint16: 65534,
 		Uint32: 4294967294,
@@ -161,27 +114,18 @@ func TestMarshalAllNumbersSpec(t *testing.T) {
 	require.Equal("fefffefffffffefffffffffffffffe818001800000018000000000000001", hex.EncodeToString(objectDigest))
 }
 
-type MockObjectStringAndBytes struct {
-	Field1 string `serialize:"true" json:"field1"`
-	Field2 []byte `serialize:"true" json:"field2"`
-}
-
-func (MockObjectStringAndBytes) GetTypeID() uint8 {
-	return 4
-}
-
 func TestMarshalStringAndBytesSpec(t *testing.T) {
 	require := require.New(t)
 
 	testCases := []struct {
 		name           string
-		object         MockObjectStringAndBytes
+		object         testdata.MockObjectStringAndBytes
 		expectedJSON   string
 		expectedDigest string
 	}{
 		{
 			name: "Non-empty fields",
-			object: MockObjectStringAndBytes{
+			object: testdata.MockObjectStringAndBytes{
 				Field1: "Hello, World!",
 				Field2: []byte{0x01, 0x02, 0x03, 0x04},
 			},
@@ -190,7 +134,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "Empty fields",
-			object: MockObjectStringAndBytes{
+			object: testdata.MockObjectStringAndBytes{
 				Field1: "",
 				Field2: []byte{},
 			},
@@ -199,7 +143,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "String 'A' and empty bytes",
-			object: MockObjectStringAndBytes{
+			object: testdata.MockObjectStringAndBytes{
 				Field1: "A",
 				Field2: []byte{},
 			},
@@ -208,7 +152,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 		},
 		{
 			name: "Byte 0x00 and empty string",
-			object: MockObjectStringAndBytes{
+			object: testdata.MockObjectStringAndBytes{
 				Field1: "",
 				Field2: []byte{0x00},
 			},
@@ -233,27 +177,10 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 	}
 }
 
-type MockObjectArrays struct {
-	Strings []string `serialize:"true" json:"strings"`
-	Bytes   [][]byte `serialize:"true" json:"bytes"`
-	Uint8s  []uint8  `serialize:"true" json:"uint8s"`
-	Uint16s []uint16 `serialize:"true" json:"uint16s"`
-	Uint32s []uint32 `serialize:"true" json:"uint32s"`
-	Uint64s []uint64 `serialize:"true" json:"uint64s"`
-	Int8s   []int8   `serialize:"true" json:"int8s"`
-	Int16s  []int16  `serialize:"true" json:"int16s"`
-	Int32s  []int32  `serialize:"true" json:"int32s"`
-	Int64s  []int64  `serialize:"true" json:"int64s"`
-}
-
-func (MockObjectArrays) GetTypeID() uint8 {
-	return 5
-}
-
 func TestMarshalArraysSpec(t *testing.T) {
 	require := require.New(t)
 
-	object := MockObjectArrays{
+	object := testdata.MockObjectArrays{
 		Strings: []string{"Hello", "World"},
 		Bytes:   [][]byte{{0x01, 0x02}, {0x03, 0x04}},
 		Uint8s:  []uint8{1, 2},
@@ -296,7 +223,7 @@ func TestMarshalArraysSpec(t *testing.T) {
 func TestMarshalTransferSpec(t *testing.T) {
 	require := require.New(t)
 
-	object := MockActionTransfer{
+	object := testdata.MockActionTransfer{
 		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
 		Value: 1000,
 		Memo:  []byte("hi"),
@@ -320,33 +247,17 @@ func TestMarshalTransferSpec(t *testing.T) {
 	require.Equal(expectedDigest, hex.EncodeToString(objectDigest))
 }
 
-type MockActionWithTransfer struct {
-	Transfer MockActionTransfer `serialize:"true" json:"transfer"`
-}
-
-func (MockActionWithTransfer) GetTypeID() uint8 {
-	return 6
-}
-
-type MockActionWithTransferArray struct {
-	Transfers []MockActionTransfer `serialize:"true" json:"transfers"`
-}
-
-func (MockActionWithTransferArray) GetTypeID() uint8 {
-	return 7
-}
-
 func TestMarshalComplexStructs(t *testing.T) {
 	require := require.New(t)
 
-	transfer := MockActionTransfer{
+	transfer := testdata.MockActionTransfer{
 		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
 		Value: 1000,
 		Memo:  []byte("hi"),
 	}
 
 	// Struct with a single transfer
-	actionWithTransfer := MockActionWithTransfer{
+	actionWithTransfer := testdata.MockActionWithTransfer{
 		Transfer: transfer,
 	}
 	structJSON, err := json.Marshal(actionWithTransfer)
@@ -364,8 +275,8 @@ func TestMarshalComplexStructs(t *testing.T) {
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 
 	// Struct with an array of transfers
-	actionWithTransferArray := MockActionWithTransferArray{
-		Transfers: []MockActionTransfer{transfer, transfer},
+	actionWithTransferArray := testdata.MockActionWithTransferArray{
+		Transfers: []testdata.MockActionTransfer{transfer, transfer},
 	}
 	structJSON, err = json.Marshal(actionWithTransferArray)
 	require.NoError(err)

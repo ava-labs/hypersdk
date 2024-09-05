@@ -1,4 +1,4 @@
-package test_data
+package testdata
 
 import (
 	"github.com/ava-labs/hypersdk/codec"
