@@ -18,14 +18,10 @@ func TestGenerateAllStructs(t *testing.T) {
 
 	expected := mustReadFile(t, "testdata/abi.go")
 
-	require.Equal(mustFormat(t, string(expected)), code)
-}
+	formatted, err := format.Source([]byte(string(expected)))
+	require.NoError(err)
 
-func mustFormat(t *testing.T, code string) string {
-	formatted, err := format.Source([]byte(code))
-	require.NoError(t, err)
-
-	return string(formatted)
+	require.Equal(string(formatted), code)
 }
 
 func mustJSONParse[T any](t *testing.T, jsonStr string) T {

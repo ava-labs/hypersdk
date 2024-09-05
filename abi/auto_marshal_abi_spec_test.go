@@ -51,6 +51,12 @@ func TestMarshalSpecs(t *testing.T) {
 		{"numbers", &testdata.MockObjectAllNumbers{}},
 		{"arrays", &testdata.MockObjectArrays{}},
 		{"transfer", &testdata.MockActionTransfer{}},
+		{"transferField", &testdata.MockActionWithTransfer{}},
+		{"transfersArray", &testdata.MockActionWithTransferArray{}},
+		{"strBytes", &testdata.MockObjectStringAndBytes{}},
+		{"strByteZero", &testdata.MockObjectStringAndBytes{}},
+		{"strBytesEmpty", &testdata.MockObjectStringAndBytes{}},
+		{"strOnly", &testdata.MockObjectStringAndBytes{}},
 	}
 
 	for _, tc := range testCases {
@@ -75,118 +81,9 @@ func TestMarshalSpecs(t *testing.T) {
 			// Compare with expected hex
 			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".hex"))
 			expectedHex = strings.TrimSpace(expectedHex)
-			require.Equal(expectedHex, hex.EncodeToString(objectDigest))
+			require.Equal(expectedHex, hex.EncodeToString(objectDigest), tc.name)
 		})
 	}
-}
-
-func TestMarshalStringAndBytesSpec(t *testing.T) {
-	require := require.New(t)
-
-	testCases := []struct {
-		name           string
-		object         testdata.MockObjectStringAndBytes
-		expectedJSON   string
-		expectedDigest string
-	}{
-		{
-			name: "Non-empty fields",
-			object: testdata.MockObjectStringAndBytes{
-				Field1: "Hello, World!",
-				Field2: []byte{0x01, 0x02, 0x03, 0x04},
-			},
-			expectedJSON:   `{"field1": "Hello, World!","field2": "AQIDBA=="}`,
-			expectedDigest: "000d48656c6c6f2c20576f726c64210000000401020304",
-		},
-		{
-			name: "Empty fields",
-			object: testdata.MockObjectStringAndBytes{
-				Field1: "",
-				Field2: []byte{},
-			},
-			expectedJSON:   `{"field1": "","field2": ""}`,
-			expectedDigest: "000000000000",
-		},
-		{
-			name: "String 'A' and empty bytes",
-			object: testdata.MockObjectStringAndBytes{
-				Field1: "A",
-				Field2: []byte{},
-			},
-			expectedJSON:   `{"field1": "A","field2": ""}`,
-			expectedDigest: "00014100000000",
-		},
-		{
-			name: "Byte 0x00 and empty string",
-			object: testdata.MockObjectStringAndBytes{
-				Field1: "",
-				Field2: []byte{0x00},
-			},
-			expectedJSON:   `{"field1": "","field2": "AA=="}`,
-			expectedDigest: "00000000000100",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(_ *testing.T) {
-			structJSON, err := json.Marshal(tc.object)
-			require.NoError(err)
-			require.JSONEq(tc.expectedJSON, string(structJSON))
-
-			objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-			err = codec.LinearCodec.MarshalInto(tc.object, objectPacker.Packer)
-			require.NoError(err)
-
-			objectDigest := objectPacker.Bytes()
-			require.Equal(tc.expectedDigest, hex.EncodeToString(objectDigest))
-		})
-	}
-}
-
-func TestMarshalComplexStructs(t *testing.T) {
-	require := require.New(t)
-
-	transfer := testdata.MockActionTransfer{
-		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
-		Value: 1000,
-		Memo:  []byte("hi"),
-	}
-
-	// Struct with a single transfer
-	actionWithTransfer := testdata.MockActionWithTransfer{
-		Transfer: transfer,
-	}
-	structJSON, err := json.Marshal(actionWithTransfer)
-	require.NoError(err)
-
-	expectedJSON := `{"transfer":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}}`
-	require.JSONEq(expectedJSON, string(structJSON))
-
-	actionPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(actionWithTransfer, actionPacker.Packer)
-	require.NoError(err)
-
-	actionDigest := actionPacker.Bytes()
-	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
-	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
-
-	// Struct with an array of transfers
-	actionWithTransferArray := testdata.MockActionWithTransferArray{
-		Transfers: []testdata.MockActionTransfer{transfer, transfer},
-	}
-	structJSON, err = json.Marshal(actionWithTransferArray)
-	require.NoError(err)
-
-	expectedJSON = `{"transfers":[{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"},{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"hi"}]}`
-	require.JSONEq(expectedJSON, string(structJSON))
-
-	actionPacker = codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(actionWithTransferArray, actionPacker.Packer)
-	require.NoError(err)
-
-	actionDigest = actionPacker.Bytes()
-	expectedDigest = "000000020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e80000000268690102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000026869"
-	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 }
 
 func mustReadFile(t *testing.T, path string) []byte {
