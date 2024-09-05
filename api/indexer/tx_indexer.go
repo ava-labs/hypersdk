@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 )
 

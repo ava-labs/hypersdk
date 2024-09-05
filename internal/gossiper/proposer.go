@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
 var _ Gossiper = (*Proposer)(nil)

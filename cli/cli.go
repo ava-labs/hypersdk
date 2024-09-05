@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
 type Controller interface {

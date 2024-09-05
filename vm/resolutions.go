@@ -17,13 +17,13 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
-	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
 var (
