@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{Address, HostPtr};
+use crate::HostPtr;
 use cfg_if::cfg_if;
 
 pub const BALANCE_PREFIX: u8 = 0;
@@ -55,9 +55,6 @@ impl StateAccessor {
 }
 
 #[cfg(feature = "test")]
-use std::collections::HashMap;
-
-#[cfg(feature = "test")]
 #[derive(Clone, Debug)]
 pub struct MockState {
     state: hashbrown::HashMap<Vec<u8>, Vec<u8>>,
@@ -90,18 +87,6 @@ impl MockState {
             None => HostPtr::null(),
         }
     }
-
-    pub fn put(&mut self, key: &[u8], value: Vec<u8>) {
-        self.state.insert(key.into(), value);
-    }
-
-    pub fn remove(&mut self, key: &[u8]) {
-        self.state.remove(key);
-    }
-
-    pub fn len(&self) -> usize {
-        self.state.len()
-    }
 }
 
 cfg_if! {
@@ -110,8 +95,6 @@ cfg_if! {
         #[cfg_attr(feature = "debug", derive(Debug))]
         pub struct Accessor {
             pub state: MockState,
-            // countes the number of deploys to generate a unique address
-            pub deploys: u8,
         }
     } else {
         #[derive(Clone)]
@@ -132,16 +115,7 @@ impl Accessor {
     pub fn new() -> Self {
         Accessor {
             state: MockState::new(),
-            // not sure why this breaks when 0?
-            deploys: 1,
         }
-    }
-
-    pub fn new_deploy_address(&mut self) -> Address {
-        let address: [u8; 33] = [self.deploys; 33];
-        assert!(self.deploys != 255, "Too many deploys");
-        self.deploys += 1;
-        Address::new(address)
     }
 
     pub fn deploy(&mut self, ptr: *const u8, len: usize) -> HostPtr {

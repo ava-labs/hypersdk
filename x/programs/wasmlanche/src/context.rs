@@ -340,6 +340,11 @@ impl Context {
             Context::External(ctx) => ctx.call_function(function_name, args),
         }
     }
+
+    #[must_use]
+    pub fn new_external_call_context(&self, address: Address, max_units: Gas, value: u64) -> Self {
+        Self::External(ExternalCallContext::new(self.host_accessor().clone(), address, max_units, value))
+    }
 }
 
 /// An error that is returned from call to public functions.
@@ -370,7 +375,7 @@ pub struct ExternalCallContext {
 
 impl ExternalCallContext {
     #[must_use]
-    pub fn new(
+    fn new(
         host_accessor: Accessor,
         contract_address: Address,
         max_units: Gas,
@@ -402,8 +407,8 @@ impl ExternalCallContext {
             self.contract_address,
             function_name,
             args,
-            self.max_units,
-            self.value,
+            self.max_units(),
+            self.value(),
         )
     }
 

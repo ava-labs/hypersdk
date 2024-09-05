@@ -76,7 +76,7 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext, ExternalCallError, Injected},
+    context::{Context, ExternalCallError, Injected},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
