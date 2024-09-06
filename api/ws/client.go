@@ -16,8 +16,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -148,7 +148,7 @@ func (c *WebSocketClient) RegisterBlocks() error {
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, fees.Dimensions, error) {
+) (*chain.StatelessBlock, []*chain.Result, fees.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)

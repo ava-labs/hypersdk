@@ -5,7 +5,6 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 
@@ -18,9 +17,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/pubsub"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -48,21 +47,15 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, OptionFunc)
+	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, configBytes []byte) error {
-	actionRegistry, authRegistry := v.Registry()
-	config := NewDefaultConfig()
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &config); err != nil {
-			return err
-		}
-	}
+func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
 
+	actionRegistry, authRegistry := v.Registry()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
@@ -79,8 +72,8 @@ func OptionFunc(v *vm.VM, configBytes []byte) error {
 		},
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatelessBlock]{
-		AcceptF: func(event *chain.StatelessBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
+		AcceptF: func(event *chain.StatefulBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
@@ -200,7 +193,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := PackBlockMessage(b)
 		if err != nil {

@@ -8,7 +8,7 @@ use wasmlanche::{public, state_schema, Address, Context};
 // Count is a type alias. It makes it easy to change the type of the counter
 // without having to update multiple places. For instance, if you wanted to
 // be more space-efficient, you could use a u32 instead of a u64.
-type Count = u64;
+pub type Count = u64;
 
 // We use the `state_schema` macro to define the state-keys and value types.
 // The macro will create types such as `struct Counter(Address);`. The type
@@ -62,72 +62,4 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) {
 pub fn inc_me_by_one(context: &mut Context) {
     let caller = context.actor();
     inc(context, caller, 1);
-}
-
-// If you aren't familiar with Rust, we write our unit tests in the same files as the
-// code we're testing.
-#[cfg(test)]
-mod tests {
-    // the line below imports everthing from the parent module (code above)
-    use super::*;
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche::Address;
-
-    // This is a constant that is set by the build script. It's the path to the
-    // .wasm file that's output when we compile.
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    // Let's not worry about how much gas things cost for now.
-    const LARGE_AMOUNT_OF_GAS: u64 = 100_000_000;
-
-    #[test]
-    fn create_program() {
-        let mut state = SimpleState::new();
-        // The simulator needs mutable access to state.
-        let simulator = Simulator::new(&mut state);
-
-        let error = simulator.create_program(PROGRAM_PATH).has_error();
-        assert!(!error, "Create program errored")
-    }
-
-    #[test]
-    fn increment() {
-        let bob = Address::new([1; 33]); // 1 repeated 33 times
-
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-
-        simulator.call_program(counter_address, "inc", (bob, 10u64), LARGE_AMOUNT_OF_GAS);
-
-        let value: Count = simulator
-            .call_program(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
-            .result()
-            .unwrap();
-
-        assert_eq!(value, 10);
-    }
-
-    #[test]
-    fn inc_by_one() {
-        let bob = Address::new([1; 33]);
-
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
-
-        // the default actor is the 0-address instead of bob
-        simulator.set_actor(bob);
-
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-
-        simulator.call_program(counter_address, "inc_me_by_one", (), LARGE_AMOUNT_OF_GAS);
-
-        let value: Count = simulator
-            .call_program(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
-            .result()
-            .unwrap();
-
-        assert_eq!(value, 1);
-    }
 }

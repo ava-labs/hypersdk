@@ -32,8 +32,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/pubsub"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -398,7 +398,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(err)
 			require.Equal(lastAccepted, blk.ID())
 
-			results := blk.(*chain.StatelessBlock).Results()
+			results := blk.(*chain.StatefulBlock).Results()
 			require.Len(results, 1)
 			require.True(results[0].Success)
 			require.Empty(results[0].Outputs[0])
@@ -440,7 +440,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 			// Ensure we can handle case where accepted block is not processed
 			latestBlock := blocks[len(blocks)-1]
-			latestBlock.(*chain.StatelessBlock).MarkUnprocessed()
+			latestBlock.(*chain.StatefulBlock).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
 			accept := expectBlk(instances[1])
@@ -672,6 +672,6 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 		lastAccepted, err := i.vm.LastAccepted(ctx)
 		require.NoError(err)
 		require.Equal(lastAccepted, blk.ID())
-		return blk.(*chain.StatelessBlock).Results()
+		return blk.(*chain.StatefulBlock).Results()
 	}
 }

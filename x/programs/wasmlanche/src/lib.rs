@@ -22,11 +22,7 @@
 //!    <br><br>
 //! ## Example
 //! ```
-//! # #[cfg(not(feature = "bindings"))]
-//! use wasmlanche::Context;
-//! use wasmlanche::Address;
-//! use wasmlanche::public;
-//! use wasmlanche::state_schema;
+//! use wasmlanche::{public, state_schema, Address, Context};
 //!
 //! type Count = u64;
 //!
@@ -62,10 +58,12 @@
 
 #[cfg(feature = "build")]
 pub mod build;
+#[cfg(feature = "simulator")]
+pub mod simulator;
 
 mod context;
+mod host;
 mod memory;
-mod program;
 mod state;
 mod types;
 
@@ -78,8 +76,7 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext},
-    program::{ExternalCallError, Program},
+    context::{Context, ExternalCallError, Injected},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };

@@ -38,7 +38,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let (input, context_type, first_arg_err) = {
+    let (input, user_defined_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
@@ -50,6 +50,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     context_type.lifetime = ty.lifetime.clone();
                 }
 
+                // swap the fully qualified `Context` with the user-defined `Context`
                 std::mem::swap(&mut context_type, ty);
                 None
             }
@@ -152,7 +153,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let args_names_2 = args_names.clone();
 
     let name = &input.sig.ident;
-    let context_type = type_from_reference(&context_type);
+    let context_type = type_from_reference(&user_defined_context_type);
 
     let external_call = quote! {
         mod private {
@@ -171,7 +172,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #name(args: wasmlanche::HostPtr) {
+            unsafe extern "C-unwind" fn #name(args: wasmlanche::HostPtr) {
                 wasmlanche::register_panic();
 
                 let result = {
@@ -188,10 +189,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> =
-        std::iter::once(parse_str("ctx: &wasmlanche::ExternalCallContext").unwrap())
-            .chain(binding_args_props)
-            .collect();
+    let inputs: Punctuated<FnArg, Token![,]> = std::iter::once(parse_quote!(ctx: &#context_type))
+        .chain(binding_args_props)
+        .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
@@ -206,9 +206,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let block = Box::new(parse_quote! {{
         let args = wasmlanche::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         ctx
-            .program()
-            .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
-            .expect("calling the external program failed")
+            .call_function::<#return_type>(#name, &args)
+            .expect("calling the external contract failed")
     }});
 
     let sig = Signature {
@@ -288,7 +287,7 @@ impl Parse for KeyPair {
     }
 }
 
-/// A procedural macro that generates a state schema for a program.
+/// A procedural macro that generates a state schema for a smart contract.
 /// ```
 /// # use wasmlanche::{state_schema, Address};
 /// #
@@ -320,7 +319,7 @@ impl Parse for KeyPair {
 ///
 /// Each pair is used to automatically generate a `Schema` implementation for the key type with the value-type ass the associated `Schema::Value`.
 /// For now, the keys are prefixed with `u8` to prevent collisions. This will likely change in the future, but that means you
-/// absolutely should not use [state_schema!] more than one for a particular program.
+/// absolutely should not use [state_schema!] more than one for a particular smart contract.
 #[proc_macro]
 pub fn state_schema(input: TokenStream) -> TokenStream {
     let key_pairs =
@@ -471,7 +470,7 @@ pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Returns whether the type_path represents a Program type.
+/// Returns whether the type_path represents a mutable context ref type.
 fn is_mutable_context_ref(type_path: &Type) -> bool {
     let Type::Reference(TypeReference {
         mutability: Some(mutability),

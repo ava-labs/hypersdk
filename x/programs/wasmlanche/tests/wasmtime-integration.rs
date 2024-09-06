@@ -31,7 +31,8 @@ fn public_functions() {
 }
 
 #[test]
-#[should_panic]
+// the failure message is from the `expect` in this file
+#[should_panic = "failed to allocate memory"]
 fn allocate_zero() {
     let mut test_crate = build_test_crate();
     let result = test_crate.allocate(Vec::new());

@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/fees"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	TxMode    byte = 1
 )
 
-func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
+func PackBlockMessage(b *chain.StatefulBlock) ([]byte, error) {
 	results := b.Results()
 	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + fees.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
@@ -36,7 +36,7 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, fees.Dimensions, error) {
+) (*chain.StatelessBlock, []*chain.Result, fees.Dimensions, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)

@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type VM interface {
@@ -29,7 +29,7 @@ type VM interface {
 		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastAcceptedBlock() *chain.StatelessBlock
+	LastAcceptedBlock() *chain.StatefulBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,

@@ -1,9 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-#[cfg(not(feature = "bindings"))]
-use wasmlanche::Context;
-use wasmlanche::{public, state_schema, Address};
+use wasmlanche::{public, state_schema, Address, Context};
 
 type Count = u64;
 
@@ -31,38 +29,4 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
         .expect("serialization failed");
 
     true
-}
-
-#[cfg(test)]
-mod tests {
-    use simulator::{SimpleState, Simulator};
-    use wasmlanche::Address;
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    #[test]
-    fn init_program() {
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
-
-        let actor = Address::default();
-        simulator.set_actor(actor);
-        let error = simulator.create_program(PROGRAM_PATH).has_error();
-        assert!(!error, "Create program errored")
-    }
-
-    #[test]
-    fn increment() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-        let gas = 100000000;
-        let bob = Address::new([1; 33]);
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
-        let value = simulator
-            .call_program(counter_address, "get_value", ((bob),), gas)
-            .result::<u64>()
-            .unwrap();
-
-        assert_eq!(value, 10);
-    }
 }

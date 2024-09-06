@@ -18,11 +18,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/keys"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
 )
 
 const (
@@ -63,8 +63,8 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
-	parent *StatelessBlock,
-) (*StatelessBlock, error) {
+	parent *StatefulBlock,
+) (*StatefulBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()

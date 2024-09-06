@@ -16,10 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
@@ -65,8 +65,8 @@ type VM interface {
 	GetVerifyAuth() bool
 
 	IsBootstrapped() bool
-	LastAcceptedBlock() *StatelessBlock
-	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
+	LastAcceptedBlock() *StatefulBlock
+	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
 	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
 
@@ -80,15 +80,15 @@ type VM interface {
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
 
-	Verified(context.Context, *StatelessBlock)
-	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock)
+	Verified(context.Context, *StatefulBlock)
+	Rejected(context.Context, *StatefulBlock)
+	Accepted(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
+	UpdateSyncTarget(*StatefulBlock) (bool, error)
 	StateReady() bool
 }
 
