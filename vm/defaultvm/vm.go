@@ -8,12 +8,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	staterpc "github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
+
+	staterpc "github.com/ava-labs/hypersdk/api/state"
 )
 
 // DefaultOptions provides the default set of options to include
