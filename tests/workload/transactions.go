@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
@@ -107,42 +106,37 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateUntilCancel(
+func GenerateUntilStop(
 	ctx context.Context,
+	require *require.Assertions,
 	uris []string,
 	generator TxWorkloadIterator,
+	stopChannel <-chan struct{},
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+	for {
+		select {
+		case <-stopChannel:
+			return
+		default:
+			if !generator.Next() {
+				return
+			}
+			tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-	// Use backgroundCtx within the loop to avoid erroring due to an expected
-	// context cancellation.
-	backgroundCtx := context.Background()
-	ignoreFailureRequire := require.New(IgnoreFailureTestingT{})
-	for generator.Next() && ctx.Err() == nil {
-		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
+			_, err = submitClient.SubmitTx(ctx, tx.Bytes())
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-		_, err = submitClient.SubmitTx(backgroundCtx, tx.Bytes())
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		for _, uri := range uris {
-			confirm(backgroundCtx, ignoreFailureRequire, uri)
+			for _, uri := range uris {
+				confirm(ctx, require, uri)
+			}
 		}
 	}
 }
-
-// IngoreFailureTestingT is a testing.T implementation that ignores all failures
-// and logs errors through utils.Outf(...)
-type IgnoreFailureTestingT struct{}
-
-func (IgnoreFailureTestingT) Errorf(str string, args ...interface{}) {
-	utils.Outf("DROPPING ERROR: "+str, args...)
-}
-
-func (IgnoreFailureTestingT) FailNow() {}
