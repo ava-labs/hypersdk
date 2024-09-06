@@ -277,11 +277,9 @@ impl PublicFn {
                 .expect("calling the external contract failed")
         }});
 
-        let mut ty = sig.user_defined_context_type.clone();
+        let ty = type_from_reference(&sig.user_defined_context_type);
 
-        if let Type::Reference(ty) = &mut *ty {
-            ty.mutability = None;
-        }
+        let ty = parse_quote!(wasmlanche::ExternalCallContext<'_, #ty>);
 
         let context_input = ContextArg {
             pat: parse_quote! { ctx },

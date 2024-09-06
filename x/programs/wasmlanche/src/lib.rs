@@ -69,19 +69,20 @@ mod types;
 
 #[cfg(feature = "debug")]
 mod logging;
-#[cfg(feature = "test")]
-mod mock;
 #[cfg(not(feature = "debug"))]
 mod logging {
     pub fn log(_msg: &str) {}
     pub fn register_panic() {}
 }
 
+#[cfg(feature = "bindings")]
+pub use self::context::ExternalCallContext;
 pub use self::{
-    context::{Context, ExternalCallError, Injected},
+    context::{Context, ExternalCallArgs, ExternalCallError},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
+
 #[doc(hidden)]
 pub use self::{
     logging::{log, register_panic},

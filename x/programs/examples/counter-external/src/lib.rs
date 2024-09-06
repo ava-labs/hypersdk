@@ -1,18 +1,32 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{public, Address, Context};
+use wasmlanche::{public, Address, Context, ExternalCallArgs};
 
 #[public]
-pub fn inc(ctx: &mut Context, external: Address, of: Address) {
-    let ctx = ctx.to_extern(external, 1_000_000, 0);
-    counter::inc(&ctx, of, 1);
+pub fn inc(ctx: &mut Context, contract_address: Address, of: Address) {
+    let args = ExternalCallArgs {
+        contract_address,
+        max_units: 1_000_000,
+        value: 0,
+    };
+
+    let ctx = ctx.to_extern(args);
+
+    counter::inc(ctx, of, 1);
 }
 
 #[public]
-pub fn get_value(ctx: &mut Context, external: Address, of: Address) -> u64 {
-    let ctx = ctx.to_extern(external, 1_000_000, 0);
-    counter::get_value(&ctx, of)
+pub fn get_value(ctx: &mut Context, contract_address: Address, of: Address) -> u64 {
+    let args = ExternalCallArgs {
+        contract_address,
+        max_units: 1_000_000,
+        value: 0,
+    };
+
+    let ctx = ctx.to_extern(args);
+
+    counter::get_value(ctx, of)
 }
 
 #[cfg(test)]
