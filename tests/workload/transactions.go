@@ -107,13 +107,13 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 }
 
 func GenerateUntilStop(
+	ctx context.Context,
 	require *require.Assertions,
 	uris []string,
 	generator TxWorkloadIterator,
 	stopChannel <-chan struct{},
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
-	ctx := context.Background()
 	for {
 		select {
 		case <-stopChannel:
@@ -139,25 +139,4 @@ func GenerateUntilStop(
 			}
 		}
 	}
-}
-
-// IngoreFailureTestingT is a testing.T implementation that ignores failures
-// when context has been cancelled
-type IgnoreFailureTestingT struct {
-	req require.TestingT
-	ctx context.Context
-}
-
-func (x IgnoreFailureTestingT) Errorf(str string, args ...interface{}) {
-	if x.ctx.Err() != nil {
-		return
-	}
-	x.req.Errorf(str, args)
-}
-
-func (x IgnoreFailureTestingT) FailNow() {
-	if x.ctx.Err() != nil {
-		return
-	}
-	x.req.FailNow()
 }
