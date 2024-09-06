@@ -5,4 +5,7 @@ package storage
 
 import "errors"
 
-var ErrInvalidBalance = errors.New("invalid balance")
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrInvalidBalance = errors.New("invalid balance")
+)

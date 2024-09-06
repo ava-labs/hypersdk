@@ -154,7 +154,10 @@ func SubBalance(
 	addr codec.Address,
 	amount uint64,
 ) error {
-	key, bal, _, err := getBalance(ctx, mu, addr)
+	key, bal, ok, err := getBalance(ctx, mu, addr)
+	if !ok {
+		return ErrInvalidAddress
+	}
 	if err != nil {
 		return err
 	}

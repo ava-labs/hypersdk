@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/internal/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 

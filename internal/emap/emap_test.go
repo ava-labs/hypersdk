@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/heap"
+	"github.com/ava-labs/hypersdk/internal/heap"
 )
 
 type TestTx struct {

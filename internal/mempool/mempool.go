@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/eheap"
-	"github.com/ava-labs/hypersdk/list"
+	"github.com/ava-labs/hypersdk/internal/eheap"
+	"github.com/ava-labs/hypersdk/internal/list"
 )
 
 const maxPrealloc = 4_096
