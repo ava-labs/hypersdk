@@ -173,5 +173,5 @@ a running instance of a MorpheusVM network.
 
 In this guide, we’ve gone over the key components of MorpheusVM - actions,
 storage, VM, and the CLI. Now that you have a high level understanding of what
-goes into building a VM with the HyperSDK, check out the MorpheusVM tutorial
-[here](link).
+goes into building a VM with the HyperSDK, be on the lookout for the MorpheusVM
+tutorial, which is coming soon.
