@@ -4,6 +4,8 @@
 package pricing
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
@@ -44,11 +46,13 @@ func (c *ConstantProduct) AddLiquidity(amountX uint64, amountY uint64, lpTokenSu
 		return 0, 0, 0, err
 	}
 	if lpTokenSupply == 0 {
+		fmt.Println("token supply is 0")
 		newK, err := smath.Mul(amountX, amountY)
 		if err != nil {
 			return 0, 0, 0, err
 		}
 		liquidity = sqrt(newK)
+		fmt.Println("computing:", liquidity, " - ", storage.MinimumLiquidity)
 		liquidity, err = smath.Sub(liquidity, storage.MinimumLiquidity)
 		if err != nil {
 			return 0, 0, 0, err

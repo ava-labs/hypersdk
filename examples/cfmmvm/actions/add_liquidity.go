@@ -37,6 +37,7 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 		return nil, ErrOutputLiquidityPoolDoesNotExist
 	}
 
+	// LP token must exist
 	_, _, _, tSupply, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
 	if err != nil {
 		return nil, ErrOutputTokenDoesNotExist
