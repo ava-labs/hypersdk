@@ -214,8 +214,11 @@ mod tests {
 
         init(&mut context, name.clone(), symbol.clone());
 
-        assert_eq!(crate::name(&mut context), name);
-        assert_eq!(crate::symbol(&mut context), symbol);
+        let init_name = crate::name(&mut context);
+        assert_eq!(init_name, name);
+
+        let init_symbol = crate::symbol(&mut context);
+        assert_eq!(init_symbol, symbol);
 
         let total_supply = total_supply(&mut context);
         assert_eq!(total_supply, 0);
