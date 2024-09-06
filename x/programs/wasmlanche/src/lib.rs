@@ -64,6 +64,7 @@ pub mod simulator;
 mod context;
 mod host;
 mod memory;
+mod mock;
 mod state;
 mod types;
 

@@ -30,3 +30,31 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 
     true
 }
+
+#[cfg(test)]
+#[cfg(not(feature = "bindings"))]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn initialized_value_is_zero() {
+        let mut context = Context::new();
+        let address = Address::default();
+
+        let value = get_value(&mut context, address);
+        assert_eq!(value, 0);
+    }
+
+    #[test]
+    fn test_inc() {
+        let mut context = Context::new();
+        let address = Address::default();
+        let amount = 5;
+
+        let inc = inc(&mut context, address, amount);
+        assert!(inc);
+
+        let value = get_value(&mut context, address);
+        assert_eq!(value, amount);
+    }
+}

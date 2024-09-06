@@ -73,9 +73,13 @@ pub fn burn(context: &mut Context, recipient: Address, value: Units) -> Units {
     assert!(value <= total, "address doesn't have enough tokens to burn");
 
     let new_amount = total - value;
+    let new_total_supply = total_supply(context) - value;
 
     context
-        .store_by_key(Balance(recipient), new_amount)
+        .store((
+            (Balance(recipient), new_amount),
+            (TotalSupply, new_total_supply),
+        ))
         .expect("failed to burn recipient tokens");
 
     new_amount
@@ -194,5 +198,127 @@ mod internal {
                 (Balance(recipient), (recipient_balance + amount)),
             ))
             .expect("failed to update balances");
+    }
+}
+
+#[cfg(test)]
+#[cfg(not(feature = "bindings"))]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn init_token() {
+        let mut context = Context::new();
+        let name = "Test Token".to_string();
+        let symbol = "TST".to_string();
+
+        init(&mut context, name.clone(), symbol.clone());
+
+        assert_eq!(crate::name(&mut context), name);
+        assert_eq!(crate::symbol(&mut context), symbol);
+
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, 0);
+    }
+
+    #[test]
+    fn mint() {
+        let mut context = Context::new();
+        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+
+        let recipient = Address::new([1; 33]);
+        let amount = 100;
+
+        crate::mint(&mut context, recipient, amount);
+
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, amount);
+
+        let balance = balance_of(&mut context, recipient);
+        assert_eq!(balance, amount);
+    }
+
+    #[test]
+    #[should_panic = "caller is required to be owner"]
+    fn mint_not_owner() {
+        let mut context = Context::new();
+        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+
+        let actor = Address::new([2; 33]);
+        context.set_actor(actor);
+
+        crate::mint(&mut context, actor, 100);
+    }
+
+    #[test]
+    fn transfer_ownership() {
+        let mut context = Context::new();
+        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+
+        let new_owner = Address::new([2; 33]);
+
+        crate::transfer_ownership(&mut context, new_owner);
+
+        context.set_actor(new_owner);
+        crate::mint(&mut context, new_owner, 100);
+
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, 100);
+    }
+
+    #[test]
+    fn burn() {
+        let mut context = Context::new();
+        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+
+        let recipient = Address::new([1; 33]);
+        let amount = 100;
+        let burn = 30;
+        crate::mint(&mut context, recipient, amount);
+        crate::burn(&mut context, recipient, burn);
+
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, amount - burn);
+    }
+
+    #[test]
+    fn approve() {
+        // TODO
+    }
+
+    #[test]
+    fn transfer() {
+        let mut context = Context::new();
+        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+
+        let amount = 100;
+        let sender = context.actor();
+        crate::mint(&mut context, sender, amount);
+
+        let recipient = Address::new([2; 33]);
+
+        let transfer_amount = 30;
+        crate::transfer(&mut context, recipient, transfer_amount);
+
+        let recipient_balance = balance_of(&mut context, recipient);
+        assert_eq!(recipient_balance, transfer_amount);
+
+        let sender_balance = balance_of(&mut context, sender);
+        assert_eq!(sender_balance, amount - transfer_amount);
+    }
+
+    #[test]
+    fn transfer_insufficient_balance() {
+        // TODO
+    }
+
+    #[test]
+    fn transfer_from() {
+        // TODO
+    }
+
+    #[test]
+    fn transfer_from_insufficient_allowance() {
+        // TODO
     }
 }
