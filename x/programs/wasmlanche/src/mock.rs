@@ -36,7 +36,7 @@ mod functions {
             self.host_accessor().state().put(&contract_args, result);
         }
 
-        /// Mocks a deploy call. 
+        /// Mocks a deploy call.
         /// # Panics
         /// Panics if serialization fails.
         pub fn mock_deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
