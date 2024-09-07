@@ -240,6 +240,7 @@ impl Context {
     ) -> Result<T, ExternalCallError> {
         let args = CallContractArgs::new(&address, function_name, args, max_units, value);
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+        self.state_cache.flush();
         let bytes = self.host_accessor.call_program(&args_bytes);
 
         borsh::from_slice(&bytes).expect("failed to deserialize")
