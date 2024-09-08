@@ -1,0 +1,62 @@
+{
+    "actions": [
+        {
+            "id": 255,
+            "name": "VMABI",
+            "types": [
+                {
+                    "name": "VMABI",
+                    "fields": [
+                        {
+                            "name": "actions",
+                            "type": "[]SingleActionABI"
+                        }
+                    ]
+                },
+                {
+                    "name": "SingleActionABI",
+                    "fields": [
+                        {
+                            "name": "id",
+                            "type": "uint8"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "types",
+                            "type": "[]SingleTypeABI"
+                        }
+                    ]
+                },
+                {
+                    "name": "SingleTypeABI",
+                    "fields": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "fields",
+                            "type": "[]ABIField"
+                        }
+                    ]
+                },
+                {
+                    "name": "ABIField",
+                    "fields": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "type",
+                            "type": "string"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

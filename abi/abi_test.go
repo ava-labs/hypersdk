@@ -4,7 +4,6 @@
 package abi
 
 import (
-	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,48 +38,8 @@ func TestABIsABI(t *testing.T) {
 	actualABI, err := GetVMABI([]codec.Typed{VMABI{}})
 	require.NoError(err)
 
-	expectedABI := VMABI{
-		Actions: []SingleActionABI{
-			{
-				ID:   255,
-				Name: "VMABI",
-				Types: []SingleTypeABI{
-					{
-						Name: "VMABI",
-						Fields: []ABIField{
-							{Name: "actions", Type: "[]SingleActionABI"},
-						},
-					},
-					{
-						Name: "SingleActionABI",
-						Fields: []ABIField{
-							{Name: "id", Type: "uint8"},
-							{Name: "name", Type: "string"},
-							{Name: "types", Type: "[]SingleTypeABI"},
-						},
-					},
-					{
-						Name: "SingleTypeABI",
-						Fields: []ABIField{
-							{Name: "name", Type: "string"},
-							{Name: "fields", Type: "[]ABIField"},
-						},
-					},
-					{
-						Name: "ABIField",
-						Fields: []ABIField{
-							{Name: "name", Type: "string"},
-							{Name: "type", Type: "string"},
-						},
-					},
-				},
-			},
-		},
-	}
+	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")
+	expectedAbi := mustJSONParse[VMABI](t, string(expectedAbiJSON))
 
-	require.Equal(expectedABI, actualABI)
-
-	expectedABIHash := "c92d3b95bd5f73a81568f80ba4ce2e4ad0c54f8ef1f5bc79895411c263b87552"
-	actualABIHash := actualABI.Hash()
-	require.Equal(expectedABIHash, hex.EncodeToString(actualABIHash[:]))
+	require.Equal(expectedAbi, actualABI)
 }
