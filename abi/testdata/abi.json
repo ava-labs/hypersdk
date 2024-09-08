@@ -214,6 +214,34 @@
                     ]
                 }
             ]
+        },
+        {
+            "id": 8,
+            "name": "Outer",
+            "types": [
+                {
+                    "name": "Outer",
+                    "fields": [
+                        {
+                            "name": "inner",
+                            "type": "Inner"
+                        },
+                        {
+                            "name": "innerArr",
+                            "type": "[]Inner"
+                        }
+                    ]
+                },
+                {
+                    "name": "Inner",
+                    "fields": [
+                        {
+                            "name": "field1",
+                            "type": "uint8"
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

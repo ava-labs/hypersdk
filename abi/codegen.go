@@ -36,9 +36,11 @@ func GenerateGoStructs(abi VMABI, packageName string) (string, error) {
 			}
 			sb.WriteString("}\n\n")
 
-			sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", typ.Name))
-			sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
-			sb.WriteString("}\n")
+			if action.Name == typ.Name {
+				sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Name))
+				sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
+				sb.WriteString("}\n")
+			}
 		}
 	}
 

@@ -23,6 +23,7 @@ func TestABI(t *testing.T) {
 		testdata.MockObjectArrays{},
 		testdata.MockActionWithTransferArray{},
 		testdata.MockActionWithTransfer{},
+		testdata.Outer{},
 	})
 	require.NoError(err)
 

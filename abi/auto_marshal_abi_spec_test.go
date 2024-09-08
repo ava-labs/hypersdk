@@ -35,7 +35,7 @@ func TestABIHash(t *testing.T) {
 
 	//check hash and compare it to expected
 	abiHash := abiFromFile.Hash()
-	expectedHashHex := string(mustReadFile(t, "testdata/abi.hash.hex"))
+	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
 
@@ -57,6 +57,7 @@ func TestMarshalSpecs(t *testing.T) {
 		{"strByteZero", &testdata.MockObjectStringAndBytes{}},
 		{"strBytesEmpty", &testdata.MockObjectStringAndBytes{}},
 		{"strOnly", &testdata.MockObjectStringAndBytes{}},
+		{"outer", &testdata.Outer{}},
 	}
 
 	for _, tc := range testCases {

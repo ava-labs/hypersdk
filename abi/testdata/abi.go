@@ -78,3 +78,16 @@ type MockActionWithTransfer struct {
 func (MockActionWithTransfer) GetTypeID() uint8 {
 	return 6
 }
+
+type Outer struct {
+	Inner    Inner   `serialize:"true" json:"inner"`
+	InnerArr []Inner `serialize:"true" json:"innerArr"`
+}
+
+func (Outer) GetTypeID() uint8 {
+	return 8
+}
+
+type Inner struct {
+	Field1 uint8 `serialize:"true" json:"field1"`
+}
