@@ -15,6 +15,6 @@ pub fn send_balance(ctx: &mut Context, recipient: Address) -> bool {
 
 #[public]
 pub fn send_via_call(ctx: &mut Context, target: Address, max_units: Gas, value: u64) -> u64 {
-    ctx.call_function(target, "balance", &[], max_units, value)
+    ctx.call_program(target, "balance", &[], max_units, value)
         .unwrap()
 }

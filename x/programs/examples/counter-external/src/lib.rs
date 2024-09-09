@@ -1,53 +1,35 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{public, Address, Context, ExternalCallContext};
+use wasmlanche::{public, Address, Context};
 
 #[public]
-pub fn inc(_: &mut Context, external: Address, of: Address) {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn inc(ctx: &mut Context, external: Address, of: Address) {
+    let ctx = ctx.to_extern(external, 1_000_000, 0);
     counter::inc(&ctx, of, 1);
 }
 
 #[public]
-pub fn get_value(_: &mut Context, external: Address, of: Address) -> u64 {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+pub fn get_value(ctx: &mut Context, external: Address, of: Address) -> u64 {
+    let ctx = ctx.to_extern(external, 1_000_000, 0);
     counter::get_value(&ctx, of)
 }
 
 #[cfg(test)]
 mod tests {
-    use wasmlanche::{
-        simulator::{SimpleState, Simulator},
-        Address,
-    };
-
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+    use super::*;
 
     #[test]
-    fn inc_and_get_value() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
+    fn get_value_exists() {
+        let mut ctx = Context::new();
+        let external = Address::new([0; 33]);
+        let of = Address::new([1; 33]);
 
-        let counter_path = PROGRAM_PATH
-            .replace("counter-external", "counter")
-            .replace("counter_external", "counter");
+        // mock `get_value` external contract call to return `value`
+        let value = 5_u64;
+        ctx.mock_function_call(external, "get_value", of, 1_000_000, 0, value);
 
-        let owner = Address::new([1; 33]);
-
-        let counter_external = simulator.create_program(PROGRAM_PATH).program().unwrap();
-
-        let counter = simulator.create_program(&counter_path).program().unwrap();
-
-        simulator
-            .call_program(counter_external, "inc", (counter, owner), 100_000_000)
-            .unwrap();
-
-        let response = simulator
-            .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
-            .result::<u64>()
-            .unwrap();
-
-        assert_eq!(response, 1);
+        let value = get_value(&mut ctx, external, of);
+        assert_eq!(value, 5);
     }
 }

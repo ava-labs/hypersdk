@@ -19,6 +19,7 @@ pub type Gas = u64;
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct ProgramId(Box<[u8]>);
 
+#[cfg(feature = "test")]
 impl From<Box<[u8]>> for ProgramId {
     fn from(value: Box<[u8]>) -> Self {
         Self(value)

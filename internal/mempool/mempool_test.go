@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
 var testSponsor = codec.CreateAddress(1, ids.GenerateTestID())

@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/window"
+	"github.com/ava-labs/hypersdk/internal/window"
 )
 
 var LinearCodec = linearcodec.NewDefault()

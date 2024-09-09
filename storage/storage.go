@@ -8,7 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/corruptabledb"
 
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/utils"
 )
 

@@ -14,8 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -32,11 +32,24 @@ var (
 	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
 )
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, OptionFunc)
+type Config struct {
+	Enabled bool `json:"enabled"`
 }
 
-func OptionFunc(v *vm.VM, _ []byte) error {
+func NewDefaultConfig() Config {
+	return Config{
+		Enabled: true,
+	}
+}
+
+func With() vm.Option {
+	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
+}
+
+func OptionFunc(v *vm.VM, config Config) error {
+	if !config.Enabled {
+		return nil
+	}
 	dbPath := filepath.Join(v.DataDir, "indexer", "db")
 	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {

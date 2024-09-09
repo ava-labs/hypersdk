@@ -5,7 +5,7 @@ package cli
 
 import (
 	"github.com/ava-labs/hypersdk/cli/prompt"
-	"github.com/ava-labs/hypersdk/prometheus"
+	"github.com/ava-labs/hypersdk/internal/prometheus"
 )
 
 func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startPrometheus bool, prometheusFile string, prometheusData string) error {

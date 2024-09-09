@@ -13,8 +13,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type VM interface {
