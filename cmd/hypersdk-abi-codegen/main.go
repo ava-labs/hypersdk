@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -44,13 +47,13 @@ func main() {
 
 	// Create the directory for the output file if it doesn't exist
 	outputDir := filepath.Dir(outputFile)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		fmt.Printf("Error creating output directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Write the generated code to the output file
-	err = os.WriteFile(outputFile, []byte(generatedCode), 0644)
+	err = os.WriteFile(outputFile, []byte(generatedCode), 0o600)
 	if err != nil {
 		fmt.Printf("Error writing output file: %v\n", err)
 		os.Exit(1)

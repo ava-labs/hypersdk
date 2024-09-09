@@ -22,10 +22,10 @@ type VMABI struct {
 
 var _ codec.Typed = (*VMABI)(nil)
 
-const ABI_TYPE_ID = consts.MaxUint8
+const AbiTypeID = consts.MaxUint8
 
-func (a VMABI) GetTypeID() uint8 {
-	return ABI_TYPE_ID
+func (VMABI) GetTypeID() uint8 {
+	return AbiTypeID
 }
 
 func (a *VMABI) Hash() [32]byte {

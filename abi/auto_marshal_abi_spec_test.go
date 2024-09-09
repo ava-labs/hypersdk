@@ -27,13 +27,13 @@ import (
 func TestABIHash(t *testing.T) {
 	require := require.New(t)
 
-	//get spec from file
+	// get spec from file
 	abiJSON := mustReadFile(t, "testdata/abi.json")
 	var abiFromFile VMABI
 	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 
-	//check hash and compare it to expected
+	// check hash and compare it to expected
 	abiHash := abiFromFile.Hash()
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
