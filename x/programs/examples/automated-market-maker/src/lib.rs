@@ -236,3 +236,67 @@ mod internal {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[ignore]
+    #[test]
+    fn init() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn add_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_liquidity_insufficient_shares() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_all_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_no_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_invalid_token() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_not_approved() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_insufficient_balance() {
+        // TODO
+    }
+}

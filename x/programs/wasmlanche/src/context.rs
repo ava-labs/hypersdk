@@ -98,6 +98,20 @@ impl BorshDeserialize for Context {
 }
 
 impl Context {
+    #[cfg(feature = "test")]
+    #[must_use]
+    pub fn new() -> Self {
+        Self::Injected(Injected {
+            contract_address: Address::default(),
+            actor: Address::default(),
+            height: 0,
+            timestamp: 0,
+            action_id: Id::default(),
+            state_cache: Cache::new(),
+            host_accessor: Accessor::new(),
+        })
+    }
+
     #[must_use]
     pub fn contract_address(&self) -> Address {
         match self {
@@ -114,6 +128,18 @@ impl Context {
     pub fn actor(&self) -> Address {
         match self {
             Context::Injected(ctx) => ctx.actor,
+            #[cfg(feature = "bindings")]
+            Context::External(_) => panic!("not supported"),
+        }
+    }
+
+    #[cfg(feature = "test")]
+    /// Sets the actor of the context
+    /// # Panics
+    /// Panics if the context was not injected
+    pub fn set_actor(&mut self, actor: Address) {
+        match self {
+            Context::Injected(ctx) => ctx.actor = actor,
             #[cfg(feature = "bindings")]
             Context::External(_) => panic!("not supported"),
         }
@@ -165,7 +191,7 @@ impl Context {
         }
     }
 
-    fn host_accessor(&self) -> &Accessor {
+    pub(crate) fn host_accessor(&self) -> &Accessor {
         match self {
             Context::Injected(ctx) => &ctx.host_accessor,
             #[cfg(feature = "bindings")]
@@ -407,6 +433,13 @@ impl ExternalCallContext {
     }
 }
 
+#[cfg(feature = "test")]
+impl Default for Context {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn call_function<T: BorshDeserialize>(
     host_accessor: &Accessor,
     address: Address,
@@ -425,7 +458,7 @@ fn call_function<T: BorshDeserialize>(
 }
 
 #[derive(BorshSerialize)]
-struct CallContractArgs<'a> {
+pub struct CallContractArgs<'a> {
     target: &'a Address,
     function: &'a [u8],
     args: &'a [u8],

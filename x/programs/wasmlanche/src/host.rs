@@ -6,23 +6,18 @@ pub struct StateAccessor;
 #[cfg(feature = "test")]
 mod test_wrappers {
     use crate::host::StateAccessor;
-    use crate::HostPtr;
+    use crate::{Address, Gas, HostPtr};
+    use core::cell::{Cell, RefCell};
 
     pub const BALANCE_PREFIX: u8 = 0;
     pub const SEND_PREFIX: u8 = 1;
     pub const CALL_FUNCTION_PREFIX: u8 = 2;
     pub const DEPLOY_PREFIX: u8 = 3;
 
-    #[derive(Clone, Debug)]
-    pub struct MockState {
-        state: hashbrown::HashMap<Vec<u8>, Vec<u8>>,
-    }
-
     impl StateAccessor {
         pub fn put(_args: &[u8]) {
             // happens on context drop() -> cache drop() -> flush()
             // this means this function wont do anything
-            todo!()
         }
 
         pub fn get_bytes(_args: &[u8]) -> HostPtr {
@@ -48,6 +43,15 @@ mod test_wrappers {
             Accessor {
                 state: MockState::new(),
             }
+        }
+
+        pub fn state(&self) -> &MockState {
+            &self.state
+        }
+
+        pub fn new_deploy_address(&self) -> Address {
+            let address: [u8; 33] = [self.state().deploy(); 33];
+            Address::new(address)
         }
 
         pub fn deploy(&self, key: &[u8]) -> HostPtr {
@@ -99,9 +103,8 @@ mod test_wrappers {
             host_ptr
         }
 
-        #[allow(clippy::unused_self)]
         pub fn get_remaining_fuel(&self) -> HostPtr {
-            panic!("get_remaining_fuel not implemented in the test context");
+            self.state().get_fuel()
         }
 
         pub fn send_value(&self, args: &[u8]) -> HostPtr {
@@ -128,15 +131,24 @@ mod test_wrappers {
         }
     }
 
+    #[derive(Clone, Debug)]
+    pub struct MockState {
+        state: RefCell<hashbrown::HashMap<Vec<u8>, Vec<u8>>>,
+        deploys: Cell<u8>,
+        fuel: Gas,
+    }
+
     impl MockState {
         pub fn new() -> Self {
             Self {
-                state: hashbrown::HashMap::new(),
+                state: RefCell::new(hashbrown::HashMap::new()),
+                deploys: Cell::new(0),
+                fuel: u64::MAX,
             }
         }
 
         pub fn get(&self, key: &[u8]) -> HostPtr {
-            match self.state.get(key) {
+            match self.state.borrow().get(key) {
                 Some(val) => {
                     let ptr = crate::memory::alloc(val.len());
                     unsafe {
@@ -146,6 +158,28 @@ mod test_wrappers {
                 }
                 None => HostPtr::null(),
             }
+        }
+
+        pub fn put(&self, key: &[u8], value: Vec<u8>) {
+            self.state.borrow_mut().insert(key.into(), value);
+        }
+
+        pub fn deploy(&self) -> u8 {
+            self.deploys.set(self.deploys.get() + 1);
+            self.deploys.get()
+        }
+
+        pub fn get_fuel(&self) -> HostPtr {
+            let fuel_bytes = borsh::to_vec(&self.fuel).expect("failed to serialize");
+            let ptr = crate::memory::alloc(fuel_bytes.len());
+            unsafe {
+                std::ptr::copy(
+                    fuel_bytes.as_ptr(),
+                    ptr.as_ptr().cast_mut(),
+                    fuel_bytes.len(),
+                );
+            }
+            ptr
         }
     }
 }
