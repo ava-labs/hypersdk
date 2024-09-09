@@ -209,28 +209,28 @@ mod tests {
     #[test]
     fn init_token() {
         let mut context = Context::new();
-        let name = "Test Token".to_string();
-        let symbol = "TST".to_string();
+        let token_name = "Test Token".to_string();
+        let token_symbol = "TST".to_string();
 
-        init(&mut context, name.clone(), symbol.clone());
+        init(&mut context, token_name.clone(), token_symbol.clone());
 
-        let init_name = crate::name(&mut context);
-        assert_eq!(init_name, name);
+        let init_name = name(&mut context);
+        assert_eq!(init_name, token_name);
 
-        let init_symbol = crate::symbol(&mut context);
-        assert_eq!(init_symbol, symbol);
+        let init_symbol = symbol(&mut context);
+        assert_eq!(init_symbol, token_symbol);
 
         let total_supply = total_supply(&mut context);
         assert_eq!(total_supply, 0);
     }
 
     #[test]
-    fn mint() {
+    fn mint_tokens() {
         let mut context = init_test_token();
         let recipient = Address::new([1; 33]);
         let amount = 100;
 
-        crate::mint(&mut context, recipient, amount);
+        mint(&mut context, recipient, amount);
 
         let total_supply = total_supply(&mut context);
         assert_eq!(total_supply, amount);
@@ -246,55 +246,56 @@ mod tests {
         let actor = Address::new([2; 33]);
         context.set_actor(actor);
 
-        crate::mint(&mut context, actor, 100);
+        mint(&mut context, actor, 100);
     }
 
     #[test]
-    fn transfer_ownership() {
+    fn transfer_ownership_of_token() {
         let mut context = init_test_token();
 
         let new_owner = Address::new([2; 33]);
-        crate::transfer_ownership(&mut context, new_owner);
+        transfer_ownership(&mut context, new_owner);
 
         let mint_amount = 100;
         context.set_actor(new_owner);
-        crate::mint(&mut context, new_owner, mint_amount);
+        mint(&mut context, new_owner, mint_amount);
 
         let total_supply = total_supply(&mut context);
         assert_eq!(total_supply, mint_amount);
     }
 
     #[test]
-    fn burn() {
+    fn burn_tokens() {
         let mut context = init_test_token();
 
         let recipient = Address::new([1; 33]);
         let amount = 100;
-        let burn = 30;
-        crate::mint(&mut context, recipient, amount);
-        crate::burn(&mut context, recipient, burn);
+        let burn_amount = 30;
+        mint(&mut context, recipient, amount);
+        burn(&mut context, recipient, burn_amount);
 
         let total_supply = total_supply(&mut context);
-        assert_eq!(total_supply, amount - burn);
+        assert_eq!(total_supply, amount - burn_amount);
     }
 
     #[test]
+    #[ignore]
     fn approve() {
         // TODO
     }
 
     #[test]
-    fn transfer() {
+    fn transfer_tokens() {
         let mut context = init_test_token();
 
         let amount = 100;
         let sender = context.actor();
-        crate::mint(&mut context, sender, amount);
+        mint(&mut context, sender, amount);
 
         let recipient = Address::new([2; 33]);
 
         let transfer_amount = 30;
-        crate::transfer(&mut context, recipient, transfer_amount);
+        transfer(&mut context, recipient, transfer_amount);
 
         let recipient_balance = balance_of(&mut context, recipient);
         assert_eq!(recipient_balance, transfer_amount);
@@ -304,16 +305,19 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn transfer_insufficient_balance() {
         // TODO
     }
 
     #[test]
+    #[ignore]
     fn transfer_from() {
         // TODO
     }
 
     #[test]
+    #[ignore]
     fn transfer_from_insufficient_allowance() {
         // TODO
     }
