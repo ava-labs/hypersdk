@@ -245,7 +245,7 @@ mod tests {
     fn init() {
         // TODO
     }
-    
+
     #[ignore]
     #[test]
     fn add_liquidity() {
