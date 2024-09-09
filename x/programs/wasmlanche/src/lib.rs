@@ -64,12 +64,13 @@ pub mod simulator;
 mod context;
 mod host;
 mod memory;
-mod mock;
 mod state;
 mod types;
 
 #[cfg(feature = "debug")]
 mod logging;
+#[cfg(feature = "test")]
+mod mock;
 #[cfg(not(feature = "debug"))]
 mod logging {
     pub fn log(_msg: &str) {}

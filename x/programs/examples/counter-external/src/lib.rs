@@ -17,7 +17,7 @@ pub fn get_value(ctx: &mut Context, external: Address, of: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use super::*;
 
     #[test]
     fn get_value_exists() {
@@ -25,9 +25,9 @@ mod tests {
         let external = Address::new([0; 33]);
         let of = Address::new([1; 33]);
 
-        // value `of` has in the external contract
+        // mock `get_value` external contract call to return `value`
         let value = 5_u64;
-        ctx.mock_call_function(external, "get_value", of, 1_000_000, 0, value);
+        ctx.mock_function_call(external, "get_value", of, 1_000_000, 0, value);
 
         let value = get_value(&mut ctx, external, of);
         assert_eq!(value, 5);

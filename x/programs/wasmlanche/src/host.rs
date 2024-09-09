@@ -5,10 +5,9 @@ pub struct StateAccessor;
 
 #[cfg(feature = "test")]
 mod test_wrappers {
-    use core::cell::RefCell;
-
     use crate::host::StateAccessor;
-    use crate::{Address, HostPtr};
+    use crate::{Address, Gas, HostPtr};
+    use core::cell::{Cell, RefCell};
 
     pub const BALANCE_PREFIX: u8 = 0;
     pub const SEND_PREFIX: u8 = 1;
@@ -135,16 +134,16 @@ mod test_wrappers {
     #[derive(Clone, Debug)]
     pub struct MockState {
         state: RefCell<hashbrown::HashMap<Vec<u8>, Vec<u8>>>,
-        deploys: RefCell<u8>,
-        fuel: Vec<u8>,
+        deploys: Cell<u8>,
+        fuel: Gas,
     }
 
     impl MockState {
         pub fn new() -> Self {
             Self {
                 state: RefCell::new(hashbrown::HashMap::new()),
-                deploys: RefCell::new(0),
-                fuel: borsh::to_vec(&u64::MAX).expect("failed to serialize args"),
+                deploys: Cell::new(0),
+                fuel: u64::MAX,
             }
         }
 
@@ -166,18 +165,19 @@ mod test_wrappers {
         }
 
         pub fn deploy(&self) -> u8 {
-            assert!(
-                *self.deploys.borrow() < u8::MAX,
-                "Too many deploys, max is 255"
-            );
-            *self.deploys.borrow_mut() += 1;
-            *self.deploys.borrow()
+            self.deploys.set(self.deploys.get() + 1);
+            self.deploys.get()
         }
 
         pub fn get_fuel(&self) -> HostPtr {
-            let ptr = crate::memory::alloc(self.fuel.len());
+            let fuel_bytes = borsh::to_vec(&self.fuel).expect("failed to serialize");
+            let ptr = crate::memory::alloc(fuel_bytes.len());
             unsafe {
-                std::ptr::copy(self.fuel.as_ptr(), ptr.as_ptr().cast_mut(), self.fuel.len());
+                std::ptr::copy(
+                    fuel_bytes.as_ptr(),
+                    ptr.as_ptr().cast_mut(),
+                    fuel_bytes.len(),
+                );
             }
             ptr
         }

@@ -34,7 +34,7 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 #[cfg(test)]
 #[cfg(not(feature = "bindings"))]
 mod tests {
-    use crate::*;
+    use super::*;
 
     #[test]
     fn initialized_value_is_zero() {

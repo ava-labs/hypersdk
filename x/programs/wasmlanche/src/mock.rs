@@ -1,7 +1,6 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-#[cfg(feature = "test")]
 mod functions {
     use crate::context::CallContractArgs;
     use crate::{types::Gas, Id};
@@ -12,7 +11,7 @@ mod functions {
         /// Mocks an external function call.
         /// # Panics
         /// Panics if serialization fails.
-        pub fn mock_call_function<T, U>(
+        pub fn mock_function_call<T, U>(
             &self,
             target: Address,
             function: &str,
@@ -33,7 +32,7 @@ mod functions {
             let contract_args = borsh::to_vec(&(CALL_FUNCTION_PREFIX, contract_args))
                 .expect("error serializing result");
 
-            // serialize the result as Ok(result)
+            // serialize the result as Ok(result) to mimic host spec
             let result: Result<U, ExternalCallError> = Ok(result);
             let result = borsh::to_vec(&result).expect("error serializing result");
             self.host_accessor().state().put(&contract_args, result);

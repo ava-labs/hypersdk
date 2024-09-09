@@ -204,7 +204,7 @@ mod internal {
 #[cfg(test)]
 #[cfg(not(feature = "bindings"))]
 mod tests {
-    use crate::*;
+    use super::*;
 
     #[test]
     fn init_token() {
@@ -226,9 +226,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let mut context = Context::new();
-        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
-
+        let mut context = init_test_token();
         let recipient = Address::new([1; 33]);
         let amount = 100;
 
@@ -244,9 +242,7 @@ mod tests {
     #[test]
     #[should_panic = "caller is required to be owner"]
     fn mint_not_owner() {
-        let mut context = Context::new();
-        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
-
+        let mut context = init_test_token();
         let actor = Address::new([2; 33]);
         context.set_actor(actor);
 
@@ -255,24 +251,22 @@ mod tests {
 
     #[test]
     fn transfer_ownership() {
-        let mut context = Context::new();
-        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+        let mut context = init_test_token();
 
         let new_owner = Address::new([2; 33]);
-
         crate::transfer_ownership(&mut context, new_owner);
 
+        let mint_amount = 100;
         context.set_actor(new_owner);
-        crate::mint(&mut context, new_owner, 100);
+        crate::mint(&mut context, new_owner, mint_amount);
 
         let total_supply = total_supply(&mut context);
-        assert_eq!(total_supply, 100);
+        assert_eq!(total_supply, mint_amount);
     }
 
     #[test]
     fn burn() {
-        let mut context = Context::new();
-        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+        let mut context = init_test_token();
 
         let recipient = Address::new([1; 33]);
         let amount = 100;
@@ -291,8 +285,7 @@ mod tests {
 
     #[test]
     fn transfer() {
-        let mut context = Context::new();
-        crate::init(&mut context, "TEST".to_string(), "TST".to_string());
+        let mut context = init_test_token();
 
         let amount = 100;
         let sender = context.actor();
@@ -323,5 +316,11 @@ mod tests {
     #[test]
     fn transfer_from_insufficient_allowance() {
         // TODO
+    }
+
+    fn init_test_token() -> Context {
+        let mut context = Context::new();
+        init(&mut context, "TEST".to_string(), "TST".to_string());
+        context
     }
 }
