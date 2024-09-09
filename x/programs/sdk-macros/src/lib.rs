@@ -4,13 +4,13 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, punctuated::Punctuated, Expr, ItemFn, Token};
+use syn::{parse_macro_input, punctuated::Punctuated, Expr, Token};
 
 mod public;
 mod state_schema;
 mod to_pairs;
 
-use public::impl_public;
+use public::{impl_public, PublicFn};
 use state_schema::{impl_state_schema, KeyPair};
 use to_pairs::to_pairs;
 
@@ -20,7 +20,7 @@ use to_pairs::to_pairs;
 /// The return type must also implement `BorshSerialize` + `BorshDeserialize`.
 #[proc_macro_attribute]
 pub fn public(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
+    let input = parse_macro_input!(item as PublicFn);
 
     match impl_public(input) {
         Ok(token_stream) => token_stream,
