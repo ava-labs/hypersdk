@@ -83,10 +83,33 @@ func (c *ConstantProduct) AddLiquidity(amountX uint64, amountY uint64, lpTokenSu
 	return liquidity, tokensToOwner, tokensToBurn, nil
 }
 
-// TODO: add feeTo logic
-// RemoveLiquidity implements PricingModel.
-func (*ConstantProduct) RemoveLiquidity(_ uint64) (uint64, uint64, error) {
-	panic("unimplemented")
+// Inputs: tokensToBurn, lpTotalSupply
+// Returns: owner fees, output X, output Y, error
+func (c *ConstantProduct) RemoveLiquidity(tokensToBurn uint64, lpTotalSupply uint64) (uint64, uint64, uint64, error) {
+	// Compute owner fees
+	// Note: lpTotalSupply ~= liquidity
+	tokensToOwner, err := c.computeOwnerFees(lpTotalSupply)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	outputX, err := smath.Mul(c.reserveX, tokensToBurn)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	outputX /= lpTotalSupply
+	outputY, err := smath.Mul(c.reserveY, tokensToBurn)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	outputY /= lpTotalSupply
+
+	c.reserveX -= outputX
+	c.reserveY -= outputY
+	c.kLast, err = smath.Mul(c.reserveX, c.reserveY)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return outputX, outputY, tokensToOwner, nil
 }
 
 // Returns: outputX, outputY, error

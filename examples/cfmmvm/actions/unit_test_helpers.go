@@ -36,7 +36,7 @@ const (
 	InitialTokenMintValue uint64 = 1
 	InitialTokenBurnValue uint64 = 1
 	TokenTransferValue    uint64 = 1
-	InitialSwapValue uint64 = 100
+	InitialSwapValue      uint64 = 100
 
 	InitialFee uint64 = 97
 )

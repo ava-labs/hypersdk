@@ -5,7 +5,6 @@ package actions
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -52,11 +51,6 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 		return nil, err
 	}
 
-	balX, _ := storage.GetTokenAccountBalanceNoController(ctx, mu, s.TokenX, s.LPAddress)
-	balY, _ := storage.GetTokenAccountBalanceNoController(ctx, mu, s.TokenY, s.LPAddress)
-
-	fmt.Println("balX: ", balX, " balY: ", balY)
-
 	newReserveX, newReserveY, k := pricingModel.GetState()
 
 	// Update LP
@@ -67,11 +61,9 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 	// Swap tokens
 	if deltaX == s.AmountXIn {
 		// Take X, return Y
-		fmt.Println("taking " , deltaX,  " of token X")
 		if err := storage.TransferToken(ctx, mu, tokenX, actor, s.LPAddress, deltaX); err != nil {
 			return nil, err
 		}
-		fmt.Println("giving ", deltaY, " of token Y")
 		if err := storage.TransferToken(ctx, mu, tokenY, s.LPAddress, actor, deltaY); err != nil {
 			return nil, err
 		}
@@ -97,9 +89,9 @@ func (*Swap) GetTypeID() uint8 {
 func (s *Swap) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	lpAddress := storage.LiquidityPoolAddress(s.TokenX, s.TokenY)
 	return state.Keys{
-		string(storage.LiquidityPoolKey(lpAddress)):             state.All,
-		string(storage.TokenAccountBalanceKey(s.TokenX, actor)): state.All,
-		string(storage.TokenAccountBalanceKey(s.TokenY, actor)): state.All,
+		string(storage.LiquidityPoolKey(lpAddress)):                 state.All,
+		string(storage.TokenAccountBalanceKey(s.TokenX, actor)):     state.All,
+		string(storage.TokenAccountBalanceKey(s.TokenY, actor)):     state.All,
 		string(storage.TokenAccountBalanceKey(s.TokenX, lpAddress)): state.All,
 		string(storage.TokenAccountBalanceKey(s.TokenY, lpAddress)): state.All,
 	}

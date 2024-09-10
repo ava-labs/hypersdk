@@ -36,6 +36,12 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, ErrOutputLiquidityPoolDoesNotExist
 	}
 
+	// Get LP token supply
+	_, _, _, lpTokenAmount, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	initModel, ok := pricing.Models[functionID]
 	if !ok {
 		return nil, ErrOutputFunctionDoesNotExist
@@ -43,7 +49,7 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 
 	pricingModel := initModel(reserveX, reserveY, fee, kLast)
 
-	amountX, amountY, err := pricingModel.RemoveLiquidity(l.BurnAmount)
+	tokensToOwner, amountX, amountY, err := pricingModel.RemoveLiquidity(l.BurnAmount, lpTokenAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +66,16 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, err
 	}
 	if err = storage.TransferToken(ctx, mu, tokenY, l.LiquidityPool, actor, amountY); err != nil {
+		return nil, err
+	}
+
+	// Mint LP tokens to owner
+	if err = storage.MintToken(ctx, mu, lpTokenAddress, feeTo, tokensToOwner); err != nil {
+		return nil, err
+	}
+
+	// Burn LP tokens from actor
+	if err = storage.BurnToken(ctx, mu, lpTokenAddress, actor, l.BurnAmount); err != nil {
 		return nil, err
 	}
 

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSwap(t *testing.T) {
@@ -72,12 +73,12 @@ func TestSwap(t *testing.T) {
 
 	test := chaintest.ActionTest{
 		Name: "LP must exist",
-			Action: &Swap{
-				LPAddress: lpAddress,
-			},
-			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
-			State: parentState,
+		Action: &Swap{
+			LPAddress: lpAddress,
+		},
+		ExpectedOutputs: [][]byte(nil),
+		ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
+		State:           parentState,
 	}
 
 	test.Run(context.Background(), t)
@@ -90,8 +91,8 @@ func TestSwap(t *testing.T) {
 			Fee:        InitialFee,
 		},
 		&AddLiquidity{
-			AmountX: 10_000,
-			AmountY: 10_000,
+			AmountX:       10_000,
+			AmountY:       10_000,
 			LiquidityPool: lpAddress,
 		},
 	}
@@ -100,8 +101,32 @@ func TestSwap(t *testing.T) {
 		_, err := action.Execute(context.Background(), nil, parentState, 0, addr, ids.Empty)
 		req.NoError(err)
 	}
-	
+
 	tests := []chaintest.ActionTest{
+		{
+			Name: "Both deltas cannot be zero",
+			Action: &Swap{
+				AmountXIn: 0,
+				AmountYIn: 0,
+				LPAddress: lpAddress,
+			},
+			ExpectedOutputs: [][]byte(nil),
+			ExpectedErr:     pricing.ErrBothDeltasZero,
+			State:           parentState,
+			Actor:           addr,
+		},
+		{
+			Name: "Both deltas cannot be nonzero",
+			Action: &Swap{
+				AmountXIn: 1,
+				AmountYIn: 1,
+				LPAddress: lpAddress,
+			},
+			ExpectedOutputs: [][]byte(nil),
+			ExpectedErr:     pricing.ErrNoClearDeltaToCompute,
+			State:           parentState,
+			Actor:           addr,
+		},
 		{
 			Name: "Correct swap should work",
 			Action: &Swap{
@@ -111,7 +136,7 @@ func TestSwap(t *testing.T) {
 			},
 			ExpectedOutputs: [][]byte(nil),
 			ExpectedErr:     nil,
-			State: parentState,
+			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				balance, err := storage.GetTokenAccountBalanceNoController(ctx, m, tokenTwoAddress, addr)
