@@ -103,6 +103,19 @@ mod test_wrappers {
             host_ptr
         }
 
+        pub fn set_balance(&self, account: Address, balance: u64) {
+            let address_bytes = borsh::to_vec(&account).expect("failed to serialize");
+            let key = [BALANCE_PREFIX]
+                .iter()
+                .chain(address_bytes.iter())
+                .copied()
+                .collect::<Vec<u8>>();
+
+            let balance_bytes = borsh::to_vec(&balance).expect("failed to serialize");
+
+            self.state.put(&key, balance_bytes);
+        }
+
         pub fn get_remaining_fuel(&self) -> HostPtr {
             self.state().get_fuel()
         }
