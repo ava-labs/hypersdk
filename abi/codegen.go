@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/format"
 	"strings"
+	"unicode"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 )
@@ -31,7 +32,7 @@ func GenerateGoStructs(abi VM, packageName string) (string, error) {
 				fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
 
 				goType := convertToGoType(field.Type)
-				if unicode.IsUpper(field.Name[0]) {
+				if unicode.IsUpper(rune(field.Name[0])) {
 					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", fieldNameUpperCase, goType))
 				} else {
 					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\" json:\"%s\"`\n", fieldNameUpperCase, goType, field.Name))
