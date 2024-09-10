@@ -37,9 +37,10 @@ func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID
 		return nil, errors.New("couldn't find program")
 	}
 
-	return []byte(programBytes), nil
+	return programBytes, nil
 }
 
+// SetProgramBytes compiles [programName] and sets the bytes in the state manager
 func (t TestStateManager) SetProgramBytes(programID ProgramID, programName string) error {
 	if err := test.CompileTest(programName); err != nil {
 		return err
@@ -192,7 +193,7 @@ func (t *testRuntime) CallProgram(program codec.Address, function string, params
 		})
 }
 
-func newTestProgram(ctx context.Context, program string) *testProgram {
+func newTestProgram(ctx context.Context, program string) (*testProgram, error) {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
@@ -211,10 +212,13 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 		},
 		Address: account,
 	}
-	testProgram.Runtime.AddProgram(ProgramID(stringedID), program)
+	err := testProgram.Runtime.AddProgram(ProgramID(stringedID), program)
+	if err != nil {
+		return nil, err
+	}
 
-	return testProgram
-}	
+	return testProgram, nil
+}
 
 type testProgram struct {
 	Runtime *testRuntime

@@ -17,7 +17,8 @@ func TestImportStatePutGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	program, err := newTestProgram(ctx, "state_access")
+	require.NoError(err)
 
 	result, err := program.Call("put", int64(10))
 	require.NoError(err)
@@ -36,7 +37,8 @@ func TestImportStateRemove(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	program, err := newTestProgram(ctx, "state_access")
+	require.NoError(err)
 
 	valueBytes, err := borsh.Serialize(int64(10))
 	require.NoError(err)
@@ -60,7 +62,8 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	program, err := newTestProgram(ctx, "state_access")
+	require.NoError(err)
 
 	result, err := program.Call("delete")
 	require.NoError(err)
@@ -73,7 +76,8 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	program, err := newTestProgram(ctx, "state_access")
+	require.NoError(err)
 
 	result, err := program.Call("get")
 	require.NoError(err)

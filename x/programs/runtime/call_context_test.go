@@ -25,7 +25,7 @@ func TestCallContext(t *testing.T) {
 	stringedID := string(programID[:])
 	testStateManager := &TestStateManager{
 		ProgramsMap: map[string][]byte{},
-		AccountMap: map[codec.Address]string{programAccount: stringedID},
+		AccountMap:  map[codec.Address]string{programAccount: stringedID},
 	}
 	err := testStateManager.SetProgramBytes(ProgramID(stringedID), "call_program")
 	require.NoError(err)
@@ -98,7 +98,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	stringedID1 := string(program1ID[:])
 	testStateManager1 := &TestStateManager{
 		ProgramsMap: map[string][]byte{},
-		AccountMap: map[codec.Address]string{program1Address: stringedID1},
+		AccountMap:  map[codec.Address]string{program1Address: stringedID1},
 	}
 	err = testStateManager1.SetProgramBytes(ProgramID(stringedID1), "call_program")
 	require.NoError(err)
