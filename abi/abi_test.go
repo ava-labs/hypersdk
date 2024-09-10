@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/abi/testdata"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -16,14 +15,14 @@ func TestABI(t *testing.T) {
 	require := require.New(t)
 
 	actualABI, err := GetVMABI([]codec.Typed{
-		testdata.MockObjectSingleNumber{},
-		testdata.MockActionTransfer{},
-		testdata.MockObjectAllNumbers{},
-		testdata.MockObjectStringAndBytes{},
-		testdata.MockObjectArrays{},
-		testdata.MockActionWithTransferArray{},
-		testdata.MockActionWithTransfer{},
-		testdata.Outer{},
+		MockObjectSingleNumber{},
+		MockActionTransfer{},
+		MockObjectAllNumbers{},
+		MockObjectStringAndBytes{},
+		MockObjectArrays{},
+		MockActionWithTransferArray{},
+		MockActionWithTransfer{},
+		Outer{},
 	})
 	require.NoError(err)
 

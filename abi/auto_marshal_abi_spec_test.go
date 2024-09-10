@@ -14,7 +14,6 @@ import (
 
 	_ "embed"
 
-	"github.com/ava-labs/hypersdk/abi/testdata"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -46,18 +45,18 @@ func TestMarshalSpecs(t *testing.T) {
 		name   string
 		object codec.Typed
 	}{
-		{"empty", &testdata.MockObjectSingleNumber{}},
-		{"uint16", &testdata.MockObjectSingleNumber{}},
-		{"numbers", &testdata.MockObjectAllNumbers{}},
-		{"arrays", &testdata.MockObjectArrays{}},
-		{"transfer", &testdata.MockActionTransfer{}},
-		{"transferField", &testdata.MockActionWithTransfer{}},
-		{"transfersArray", &testdata.MockActionWithTransferArray{}},
-		{"strBytes", &testdata.MockObjectStringAndBytes{}},
-		{"strByteZero", &testdata.MockObjectStringAndBytes{}},
-		{"strBytesEmpty", &testdata.MockObjectStringAndBytes{}},
-		{"strOnly", &testdata.MockObjectStringAndBytes{}},
-		{"outer", &testdata.Outer{}},
+		{"empty", &MockObjectSingleNumber{}},
+		{"uint16", &MockObjectSingleNumber{}},
+		{"numbers", &MockObjectAllNumbers{}},
+		{"arrays", &MockObjectArrays{}},
+		{"transfer", &MockActionTransfer{}},
+		{"transferField", &MockActionWithTransfer{}},
+		{"transfersArray", &MockActionWithTransferArray{}},
+		{"strBytes", &MockObjectStringAndBytes{}},
+		{"strByteZero", &MockObjectStringAndBytes{}},
+		{"strBytesEmpty", &MockObjectStringAndBytes{}},
+		{"strOnly", &MockObjectStringAndBytes{}},
+		{"outer", &Outer{}},
 	}
 
 	for _, tc := range testCases {

@@ -17,10 +17,10 @@ func TestGenerateAllStructs(t *testing.T) {
 
 	abi := mustJSONParse[VMABI](t, string(mustReadFile(t, "testdata/abi.json")))
 
-	code, err := GenerateGoStructs(abi, "testdata")
+	code, err := GenerateGoStructs(abi, "abi")
 	require.NoError(err)
 
-	expected := mustReadFile(t, "testdata/abi.go")
+	expected := mustReadFile(t, "mockabi.test.go")
 
 	formatted, err := format.Source(removeCommentLines(expected))
 	require.NoError(err)
