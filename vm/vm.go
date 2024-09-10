@@ -30,11 +30,11 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/emap"
-	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/network"
@@ -49,6 +49,7 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 const (
@@ -390,7 +391,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		genesisRules := vm.Rules(0)
-		feeManager := fees.NewManager(nil)
+		feeManager := internalfees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
@@ -884,7 +885,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	feeManager := fees.NewManager(feeRaw)
+	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
