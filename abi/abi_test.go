@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-func TestABI(t *testing.T) {
+func TestDescribeVM(t *testing.T) {
 	require := require.New(t)
 
 	actualABI, err := DescribeVM([]codec.Typed{
@@ -32,7 +32,7 @@ func TestABI(t *testing.T) {
 	require.Equal(expectedAbi, actualABI)
 }
 
-func TestABIsABI(t *testing.T) {
+func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
 	actualABI, err := DescribeVM([]codec.Typed{VM{}})
