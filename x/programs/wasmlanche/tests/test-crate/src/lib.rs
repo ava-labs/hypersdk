@@ -63,3 +63,21 @@ pub fn combine_last_bit_of_each_id_byte(context: &mut Context) -> u32 {
         .map(|byte| byte as u32)
         .fold(0, |acc, byte| (acc << 1) + (byte & 1))
 }
+
+#[cfg(test)]
+mod tests {
+    use wasmlanche::{Address, Context};
+
+    #[test]
+    fn test_balance() {
+        let mut context = Context::new();
+        let address = Address::default();
+        let amount: u64 = 100;
+
+        // set the balance
+        context.mock_set_balance(address, amount);
+
+        let balance = context.get_balance(address);
+        assert_eq!(balance, amount);
+    }
+}

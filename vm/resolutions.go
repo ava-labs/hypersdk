@@ -18,12 +18,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
-	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/workers"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -445,7 +447,7 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.NewManager(v).UnitPrices(), nil
+	return internalfees.NewManager(v).UnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {
