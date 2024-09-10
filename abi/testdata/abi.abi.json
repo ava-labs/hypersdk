@@ -26,12 +26,12 @@
                         },
                         {
                             "name": "types",
-                            "type": "[]SingleTypeABI"
+                            "type": "[]Type"
                         }
                     ]
                 },
                 {
-                    "name": "SingleTypeABI",
+                    "name": "Type",
                     "fields": [
                         {
                             "name": "name",
@@ -39,12 +39,12 @@
                         },
                         {
                             "name": "fields",
-                            "type": "[]ABIField"
+                            "type": "[]Field"
                         }
                     ]
                 },
                 {
-                    "name": "ABIField",
+                    "name": "Field",
                     "fields": [
                         {
                             "name": "name",
