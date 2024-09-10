@@ -19,15 +19,57 @@ We now implement each section of the JSON-RPC tutorial:
 
 ## Server
 
+The server will act to handle JSON-RPC requests from clients. To start, let's
+define the logic of the JSON-RPC server:
+
 ```golang
-import (
-   "net/http"
+type JSONRPCServer struct {
+ vm api.VM
+}
 
-   "github.com/ava-labs/hypersdk/api"
-   "github.com/ava-labs/hypersdk/codec"
-   "github.com/ava-labs/hypersdk/genesis"
-)
+func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
+ return &JSONRPCServer{vm: vm}
+}
 
+type GenesisReply struct {
+ Genesis *genesis.DefaultGenesis `json:"genesis"`
+}
+
+func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
+ reply.Genesis = j.vm.Genesis().(*genesis.DefaultGenesis)
+ return nil
+}
+
+type BalanceArgs struct {
+ Address string `json:"address"`
+}
+
+type BalanceReply struct {
+ Amount uint64 `json:"amount"`
+}
+
+func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
+ ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
+ defer span.End()
+
+ addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
+ if err != nil {
+  return err
+ }
+ balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, addr)
+ if err != nil {
+  return err
+ }
+ reply.Amount = balance
+ return err
+}
+```
+
+While we've implemented a JSON-RPC server, we have one step left. The HyperSDK
+requires us to wrap this JSON-RPC server into a factory so that the VM can
+create the server. This requires us to implement the following:
+
+```golang
 const (
    Name          = "tutorial"
    JSONRPCEndpoint = "/tutorial"
@@ -44,67 +86,21 @@ func (jsonRPCServerFactory) New(vm api.VM) (api.Handler, error) {
        Handler: handler,
    }, err
 }
-
-type JSONRPCServer struct {
-   vm api.VM
-}
-
-func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
-   return &JSONRPCServer{vm: vm}
-}
-
-type GenesisReply struct {
-   Genesis *genesis.DefaultGenesis `json:"genesis"`
-}
-
-func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-   reply.Genesis = j.vm.Genesis().(*genesis.DefaultGenesis)
-   return nil
-}
-
-type BalanceArgs struct {
-   Address string `json:"address"`
-}
-
-type BalanceReply struct {
-   Amount uint64 `json:"amount"`
-}
-
-func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-   ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
-   defer span.End()
-
-   addr, err := codec.ParseAddressBech32(HRP, args.Address)
-   if err != nil {
-       return err
-   }
-   balance, err := GetBalanceFromState(ctx, j.vm.ReadState, addr)
-   if err != nil {
-       return err
-   }
-   reply.Amount = balance
-   return err
-}
 ```
+
+With the JSON-RPC server defined, we can move towards implementing the client.
 
 ## Client
 
+Within the client, we do not need to conform to any HyperSDK-specific interface.
+Instead, we need to implement the following:
+
+- A CLI for calling the MorpheusVM JSON-RPC Server
+- A parser which can be used to marshal/unmarshal data for our VM
+
+Focusing on the CLI, we have the following:
+
 ```golang
-package tutorial
-
-import (
-   "context"
-   "encoding/json"
-   "strings"
-   "time"
-
-   "github.com/ava-labs/hypersdk/api/jsonrpc"
-   "github.com/ava-labs/hypersdk/chain"
-   "github.com/ava-labs/hypersdk/genesis"
-   "github.com/ava-labs/hypersdk/requester"
-   "github.com/ava-labs/hypersdk/utils"
-)
-
 const balanceCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
@@ -173,7 +169,11 @@ func (cli *JSONRPCClient) WaitForBalance(
        return shouldExit, nil
    })
 }
+```
 
+Having implemented the CLI, we now implement the parser:
+
+```golang
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
    g, err := cli.Genesis(ctx)
    if err != nil {
@@ -216,6 +216,9 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 
 ## Option
 
+We can now bring everything we've built together by implementing the option
+which will allow MorpheusVM to have a JSON-RPC server. 
+
 ```golang
 import "github.com/ava-labs/hypersdk/vm"
 
@@ -241,3 +244,18 @@ func With() vm.Option {
    })
 }
 ```
+
+## Updating `New()`
+
+To enable the JSON-RPC optio, we can add the following at the beginning of the
+`New()` function:
+
+```golang
+options = append(options, With())
+```
+
+We've created both the fundamental components of MorpheusVM along with adding a
+JSON-RPC server. We now can move onto the final component of this tutorial -
+adding workload tests. By adding workload tests, we can see whether if what
+we've built is correct (i.e. our implementation of MorpheusVM works just like
+the canonical implementation of MorpheusVM).
