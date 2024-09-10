@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -115,9 +114,13 @@ func (a Address) MarshalJSON() ([]byte, error) {
 
 // It unmarshals the Address from a base64-encoded string.
 func (a *Address) UnmarshalJSON(data []byte) error {
+	// Check if the data starts and ends with quotes
+	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {
+		return fmt.Errorf("invalid JSON format: string must be enclosed in quotes")
+	}
+
 	// Remove quotes from the string
-	s := string(data)
-	s = strings.Trim(s, "\"")
+	s := string(data[1 : len(data)-1])
 
 	// Decode base64 string
 	decoded, err := base64.StdEncoding.DecodeString(s)
