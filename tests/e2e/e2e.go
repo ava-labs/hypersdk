@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -60,6 +61,20 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
 		require.NoError(err)
 		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
+	})
+
+	ginkgo.It("ReadState", func() {
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		ctx := tc.DefaultContext()
+		for _, uri := range getE2EURIs(tc, blockchainID) {
+			client := state.NewJSONRPCStateClient(uri)
+			values, readerrs, err := client.ReadState(ctx, [][]byte{
+				[]byte(`my-unknown-key`),
+			})
+			require.NoError(err)
+			require.Len(values, 1)
+			require.Len(readerrs, 1)
+		}
 	})
 })
 

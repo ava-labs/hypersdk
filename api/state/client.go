@@ -5,6 +5,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/ava-labs/hypersdk/api"
@@ -13,7 +14,7 @@ import (
 
 func NewJSONRPCStateClient(uri string) *JSONRPCStateClient {
 	uri = strings.TrimSuffix(uri, "/")
-	uri += JSONRPCStateEndpoint
+	uri += Endpoint
 	req := requester.New(uri, api.Name)
 	return &JSONRPCStateClient{requester: req}
 }
@@ -28,5 +29,14 @@ func (c *JSONRPCStateClient) ReadState(ctx context.Context, keys [][]byte) ([][]
 	if err != nil {
 		return nil, nil, err
 	}
-	return res.Values, res.Errors, nil
+
+	errs := make([]error, 0, len(res.Errors))
+	for _, err := range res.Errors {
+		var newerr error
+		if err != "" {
+			newerr = errors.New(err)
+		}
+		errs = append(errs, newerr)
+	}
+	return res.Values, errs, nil
 }
