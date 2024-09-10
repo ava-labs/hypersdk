@@ -108,7 +108,7 @@ func parseAddressBech32(saddr string) (string, Address, error) {
 	return phrp, Address(p[:AddressLen]), nil
 }
 
-// It marshals the Address as a base64-encoded string.
+// MarshalJSON marshals the address as a base64  encoded string
 func (a Address) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
 }
