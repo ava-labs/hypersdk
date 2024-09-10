@@ -129,6 +129,7 @@ func TestAddLiquidity(t *testing.T) {
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
+				// Check LP-state
 				functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddressFromChain, kLast, err := storage.GetLiquidityPoolNoController(context.TODO(), m, lpAddress)
 				require.NoError(err)
 				_, _, _, tSupply, _, err := storage.GetTokenInfoNoController(context.Background(), m, lpTokenAddressFromChain)
@@ -149,6 +150,13 @@ func TestAddLiquidity(t *testing.T) {
 				require.Equal(uint64(10_000), tSupply)
 				require.Equal(uint64(9_000), addrBalance)
 				require.Equal(uint64(1_000), zeroAddressBalance)
+				// Check LP balances of tokens
+				tokenOneBalance, err := storage.GetTokenAccountBalanceNoController(ctx, m, tokenOneAddress, lpAddress)
+				require.NoError(err)
+				tokenTwoBalance, err := storage.GetTokenAccountBalanceNoController(ctx, m, tokenTwoAddress, lpAddress)
+				require.NoError(err)
+				require.Equal(uint64(10_000), tokenOneBalance)
+				require.Equal(uint64(10_000), tokenTwoBalance)
 			},
 			Actor: addr,
 		},
@@ -175,12 +183,12 @@ func TestAddLiquidity(t *testing.T) {
 			Actor:           addr,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
+				// Check LP provider state
 				addrLPTokenBalance, err := storage.GetTokenAccountBalanceNoController(context.TODO(), m, lpTokenAddress, addr)
 				require.NoError(err)
 				require.Equal(uint64(14_000), addrLPTokenBalance)
 			},
 		},
-		// TODO: add tests to account for feeTo
 	}
 
 	for _, tt := range tests {

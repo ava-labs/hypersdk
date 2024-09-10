@@ -6,6 +6,7 @@ package storage
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 
@@ -227,6 +228,7 @@ func TransferToken(
 	if err != nil {
 		return err
 	}
+	fmt.Println("from balance:", fromBalance, "to balance:", toBalance)
 	newFromBalance, err := smath.Sub(fromBalance, value)
 	if err != nil {
 		return err

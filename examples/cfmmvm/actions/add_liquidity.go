@@ -81,6 +81,14 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 		}
 	}
 
+	// Transfer tokens from user
+	if err := storage.TransferToken(ctx, mu, tokenX, actor, a.LiquidityPool, a.AmountX); err != nil {
+		return nil, err
+	}
+	if err := storage.TransferToken(ctx, mu, tokenY, actor, a.LiquidityPool, a.AmountY); err != nil {
+		return nil, err
+	}
+
 	reserveX, reserveY, k := pricingModel.GetState()
 
 	// Update LP reserves via pricingModel
