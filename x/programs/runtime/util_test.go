@@ -18,7 +18,7 @@ import (
 )
 
 type TestStateManager struct {
-	ProgramsMap map[string]string
+	ProgramsMap map[string][]byte
 	AccountMap  map[codec.Address]string
 	Balances    map[codec.Address]uint64
 	Mu          state.Mutable
@@ -32,10 +32,15 @@ func (t TestStateManager) GetAccountProgram(_ context.Context, account codec.Add
 }
 
 func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID) ([]byte, error) {
-	programName, ok := t.ProgramsMap[string(programID)]
+	programBytes, ok := t.ProgramsMap[string(programID)]
 	if !ok {
 		return nil, errors.New("couldn't find program")
 	}
+
+	return programBytes, nil
+}
+
+func compileProgram(programName string) ([]byte, error) {
 	if err := test.CompileTest(programName); err != nil {
 		return nil, err
 	}
@@ -43,7 +48,26 @@ func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
+
+	programBytes, err := os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
+	if err != nil {
+		return nil, err
+	}
+
+	return programBytes, nil
+}
+
+func (t TestStateManager) SetProgramBytes(programID ProgramID, programBytes []byte) {
+	t.ProgramsMap[string(programID)] = programBytes
+}
+
+func (t TestStateManager) CompileAndSetProgram(programID ProgramID, programName string) error {
+	programBytes, err := compileProgram(programName)
+	if err != nil {
+		return err
+	}
+	t.SetProgramBytes(programID, programBytes)
+	return nil
 }
 
 func (t TestStateManager) NewAccountWithProgram(_ context.Context, programID ProgramID, _ []byte) (codec.Address, error) {
@@ -165,8 +189,9 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-func (t *testRuntime) AddProgram(programID ProgramID, programName string) {
-	t.StateManager.(TestStateManager).ProgramsMap[string(programID)] = programName
+// AddProgram compiles [programName] and sets the bytes in the state manager
+func (t *testRuntime) AddProgram(programID ProgramID, programName string) error {
+	return t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -180,18 +205,18 @@ func (t *testRuntime) CallProgram(program codec.Address, function string, params
 		})
 }
 
-func newTestProgram(ctx context.Context, program string) *testProgram {
+func newTestProgram(ctx context.Context, program string) (*testProgram, error) {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
-	return &testProgram{
+	testProgram := &testProgram{
 		Runtime: &testRuntime{
 			Context: ctx,
 			callContext: NewRuntime(
 				NewConfig(),
 				logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
 			StateManager: TestStateManager{
-				ProgramsMap: map[string]string{stringedID: program},
+				ProgramsMap: map[string][]byte{},
 				AccountMap:  map[codec.Address]string{account: stringedID},
 				Balances:    map[codec.Address]uint64{},
 				Mu:          test.NewTestDB(),
@@ -199,6 +224,12 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 		},
 		Address: account,
 	}
+	err := testProgram.Runtime.AddProgram(ProgramID(stringedID), program)
+	if err != nil {
+		return nil, err
+	}
+
+	return testProgram, nil
 }
 
 type testProgram struct {
