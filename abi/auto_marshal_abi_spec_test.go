@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	reflect "reflect"
 	"strings"
 	"testing"
 
@@ -61,19 +62,17 @@ func TestMarshalSpecs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Get object from file
-			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".json"), tc.object)
-			require.NoError(err)
+			// Create a copy of the original object
+			unmarshaledFromJSON := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(codec.Typed)
+			unmarshaledFromBytes := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(codec.Typed)
 
-			// Get spec from file
-			abiJSON := mustReadFile(t, "testdata/abi.json")
-			var abiFromFile VM
-			err = json.Unmarshal(abiJSON, &abiFromFile)
+			// Get object from file
+			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".json"), unmarshaledFromJSON)
 			require.NoError(err)
 
 			// Marshal the object
 			objectPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-			err = codec.LinearCodec.MarshalInto(tc.object, objectPacker.Packer)
+			err = codec.LinearCodec.MarshalInto(unmarshaledFromJSON, objectPacker.Packer)
 			require.NoError(err)
 
 			objectDigest := objectPacker.Bytes()
@@ -82,6 +81,13 @@ func TestMarshalSpecs(t *testing.T) {
 			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".hex"))
 			expectedHex = strings.TrimSpace(expectedHex)
 			require.Equal(expectedHex, hex.EncodeToString(objectDigest), tc.name)
+
+			// Unmarshal the object
+			err = codec.LinearCodec.Unmarshal(objectDigest, unmarshaledFromBytes)
+			require.NoError(err)
+
+			// Compare unmarshaled object with the original
+			require.Equal(unmarshaledFromJSON, unmarshaledFromBytes)
 		})
 	}
 }
