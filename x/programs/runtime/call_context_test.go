@@ -27,7 +27,7 @@ func TestCallContext(t *testing.T) {
 		ProgramsMap: map[string][]byte{},
 		AccountMap:  map[codec.Address]string{programAccount: stringedID},
 	}
-	err := testStateManager.SetProgramBytes(ProgramID(stringedID), "call_program")
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID), "call_program")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -82,7 +82,8 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		ProgramsMap: map[string][]byte{},
 		AccountMap:  map[codec.Address]string{program0Address: stringedID0},
 	}
-	err := testStateManager.SetProgramBytes(ProgramID(stringedID0), "call_program")
+
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID0), "call_program")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -100,7 +101,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		ProgramsMap: map[string][]byte{},
 		AccountMap:  map[codec.Address]string{program1Address: stringedID1},
 	}
-	err = testStateManager1.SetProgramBytes(ProgramID(stringedID1), "call_program")
+	err = testStateManager1.CompileAndSetProgram(ProgramID(stringedID1), "call_program")
 	require.NoError(err)
 
 	// try to use a context that has a default program with a different program

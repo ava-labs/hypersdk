@@ -40,22 +40,33 @@ func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID
 	return programBytes, nil
 }
 
-// SetProgramBytes compiles [programName] and sets the bytes in the state manager
-func (t TestStateManager) SetProgramBytes(programID ProgramID, programName string) error {
+func (t TestStateManager) CompileProgram(programID ProgramID, programName string) ([]byte, error) {
 	if err := test.CompileTest(programName); err != nil {
-		return err
+		return nil, err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	programBytes, err := os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	return programBytes, nil
+}
+
+func (t TestStateManager) SetProgramBytes(programID ProgramID, programBytes []byte) {
 	t.ProgramsMap[string(programID)] = programBytes
+}
+
+func (t TestStateManager) CompileAndSetProgram(programID ProgramID, programName string) error {
+	programBytes, err := t.CompileProgram(programID, programName)
+	if err != nil {
+		return err
+	}
+	t.SetProgramBytes(programID, programBytes)
 	return nil
 }
 
@@ -178,8 +189,9 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
+// AddProgram compiles [programName] and sets the bytes in the state manager
 func (t *testRuntime) AddProgram(programID ProgramID, programName string) error {
-	return t.StateManager.(TestStateManager).SetProgramBytes(programID, programName)
+	return t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
