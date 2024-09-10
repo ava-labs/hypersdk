@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
@@ -25,11 +26,13 @@ import (
 var (
 	vmName            string
 	txWorkloadFactory workload.TxWorkloadFactory
+	expectedABI       abi.VMABI
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.VMABI) {
 	vmName = name
 	txWorkloadFactory = factory
+	expectedABI = abi
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -64,7 +67,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 
 	ginkgo.It("GetABI", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
+		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
 	})
 })
 

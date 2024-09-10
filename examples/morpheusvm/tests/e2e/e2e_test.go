@@ -10,8 +10,10 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
@@ -40,9 +42,12 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
+	expectedABI, err := abi.GetVMABI(vm.ActionParser.GetRegisteredTypes())
+	require.NoError(err)
+
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
-	he2e.SetWorkload(consts.Name, workloadFactory)
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI)
 
 	tc := e2e.NewTestContext()
 

@@ -303,7 +303,10 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
-		workload.GetABI(ctx, require, uris)
+		abi, err := instances[0].vm.GetABI()
+		require.NoError(err)
+
+		workload.GetABI(ctx, require, uris, abi)
 	})
 })
 
