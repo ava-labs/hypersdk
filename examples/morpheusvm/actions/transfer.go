@@ -37,7 +37,7 @@ type Transfer struct {
 	Value uint64 `serialize:"true" json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo codec.StringAsBytes `serialize:"true" json:"memo"`
+	Memo codec.Bytes `serialize:"true" json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {

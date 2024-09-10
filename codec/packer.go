@@ -4,7 +4,6 @@
 package codec
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
@@ -157,17 +156,4 @@ func (p *Packer) Offset() int {
 	return p.Packer.Offset
 }
 
-type StringAsBytes []byte
-
-func (s StringAsBytes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(s))
-}
-
-func (s *StringAsBytes) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-	*s = StringAsBytes(str)
-	return nil
-}
+type Bytes []byte

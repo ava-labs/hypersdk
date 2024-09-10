@@ -63,8 +63,8 @@ func convertToGoType(abiType string) string {
 		return abiType
 	case "Address":
 		return "codec.Address"
-	case "StringAsBytes":
-		return "codec.StringAsBytes"
+	case "Bytes":
+		return "codec.Bytes"
 	default:
 		if strings.HasPrefix(abiType, "[]") {
 			return "[]" + convertToGoType(strings.TrimPrefix(abiType, "[]"))

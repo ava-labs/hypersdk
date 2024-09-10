@@ -16,9 +16,9 @@ func (MockObjectSingleNumber) GetTypeID() uint8 {
 }
 
 type MockActionTransfer struct {
-	To    codec.Address       `serialize:"true" json:"to"`
-	Value uint64              `serialize:"true" json:"value"`
-	Memo  codec.StringAsBytes `serialize:"true" json:"memo"`
+	To    codec.Address `serialize:"true" json:"to"`
+	Value uint64        `serialize:"true" json:"value"`
+	Memo  codec.Bytes   `serialize:"true" json:"memo"`
 }
 
 func (MockActionTransfer) GetTypeID() uint8 {

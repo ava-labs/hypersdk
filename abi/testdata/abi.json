@@ -32,7 +32,7 @@
                         },
                         {
                             "name": "memo",
-                            "type": "StringAsBytes"
+                            "type": "Bytes"
                         }
                     ]
                 }
@@ -177,7 +177,7 @@
                         },
                         {
                             "name": "memo",
-                            "type": "StringAsBytes"
+                            "type": "Bytes"
                         }
                     ]
                 }
@@ -209,7 +209,7 @@
                         },
                         {
                             "name": "memo",
-                            "type": "StringAsBytes"
+                            "type": "Bytes"
                         }
                     ]
                 }
