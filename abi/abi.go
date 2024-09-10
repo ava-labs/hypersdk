@@ -29,7 +29,6 @@ func (VMABI) GetTypeID() uint8 {
 }
 
 func (a *VMABI) Hash() [32]byte {
-	fmt.Printf("a: %+v\n", a)
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
 	if err != nil {
