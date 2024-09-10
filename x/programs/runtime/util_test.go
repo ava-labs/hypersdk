@@ -40,7 +40,7 @@ func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID
 	return programBytes, nil
 }
 
-func (t TestStateManager) CompileProgram(programID ProgramID, programName string) ([]byte, error) {
+func compileProgram(programName string) ([]byte, error) {
 	if err := test.CompileTest(programName); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (t TestStateManager) SetProgramBytes(programID ProgramID, programBytes []by
 }
 
 func (t TestStateManager) CompileAndSetProgram(programID ProgramID, programName string) error {
-	programBytes, err := t.CompileProgram(programID, programName)
+	programBytes, err := compileProgram(programName)
 	if err != nil {
 		return err
 	}
