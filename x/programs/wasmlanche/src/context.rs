@@ -315,6 +315,12 @@ impl Context {
 
         val
     }
+
+    /// Sets the balance for the specified address
+    #[cfg(feature = "test")]
+    pub fn mock_set_balance(&self, account: Address, balance: u64) {
+        self.host_accessor.set_balance(account, balance);
+    }
 }
 
 /// An error that is returned from call to public functions.
