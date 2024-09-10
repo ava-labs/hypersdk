@@ -13,6 +13,8 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
+
+	staterpc "github.com/ava-labs/hypersdk/api/state"
 )
 
 // DefaultOptions provides the default set of options to include
@@ -24,6 +26,7 @@ func NewDefaultOptions() []vm.Option {
 		ws.With(),
 		jsonrpc.With(),
 		externalsubscriber.With(),
+		staterpc.With(),
 	}
 }
 
