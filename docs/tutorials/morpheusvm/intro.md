@@ -33,7 +33,7 @@ We now create the files necessary for the rest of the tutorial. To start, create
  `tutorial/`. Run `go mod init github.com/ava-labs/hypersdk/examples/tutorial`
  to create the go.mod file for your project.
 
-We want to use our local instance of HyperSDK as a dependency. 
+We want to use our local instance of HyperSDK as a dependency.
 Therefore, specify the following in `go.mod`:
 
 ```golang
@@ -99,7 +99,7 @@ type Transfer struct {
 ```
 
 `Transfer` includes all of the arguments needed to execute (you can think of its
- fields like the arguments to a function). Let’s start by stubbing out the 
+ fields like the arguments to a function). Let’s start by stubbing out the
  implementation of `chain.Action`. You can copy-paste the code below:
 
 ```golang
@@ -353,7 +353,7 @@ package storage
 type StateManager struct {}
 ```
 
-`StateManager` can be thought of as a proxy between HyperSDK and the state of 
+`StateManager` can be thought of as a proxy between HyperSDK and the state of
 MorpheusVM. Therefore, we need to implement the `chain.StateManager` interface:
 
 ```golang
@@ -430,7 +430,7 @@ With our state implementation complete, we can now finish implementing the
 
 ### `StateKeys()`
 
-For `Transfer`, we need to access the balances of `actor` and `To`. Furthermore, we 
+For `Transfer`, we need to access the balances of `actor` and `To`. Furthermore, we
 need both read/write access. Therefore, we have the following:
 
 ```golang
