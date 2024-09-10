@@ -31,7 +31,7 @@ func GenerateGoStructs(abi VM, packageName string) (string, error) {
 				fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
 
 				goType := convertToGoType(field.Type)
-				if field.Name[0] >= 'A' && field.Name[0] <= 'Z' {
+				if unicode.IsUpper(field.Name[0]) {
 					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", fieldNameUpperCase, goType))
 				} else {
 					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\" json:\"%s\"`\n", fieldNameUpperCase, goType, field.Name))
