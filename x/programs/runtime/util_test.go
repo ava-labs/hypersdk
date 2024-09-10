@@ -189,16 +189,14 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-// AddProgram compiles [programName] and sets the bytes and account in the state manager
-func (t *testRuntime) AddProgram(programID ProgramID, account codec.Address, programName string) error {
-	err := t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
-	if err != nil {
-		return err
-	}
+// AddProgram compiles [programName] and sets the bytes in the state manager
+func (t *testRuntime) AddProgram(programID ProgramID, programName string) error {
+	return t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
+}
 
+// AddProgramInstance sets creates a new account with the program [programID]
+func (t *testRuntime) AddProgramInstance(programID ProgramID, account codec.Address) {
 	t.StateManager.(TestStateManager).AccountMap[account] = string(programID)
-
-	return nil
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -236,10 +234,11 @@ func (t *testRuntime) newTestProgram(program string) (*testProgram, error) {
 		Runtime: t,
 	}
 
-	err := t.AddProgram(ProgramID(stringedID),account, program)
+	err := t.AddProgram(ProgramID(stringedID), program)
 	if err != nil {
 		return nil, err
 	}
+	t.AddProgramInstance(ProgramID(stringedID), account)
 
 	return testProgram, nil
 }

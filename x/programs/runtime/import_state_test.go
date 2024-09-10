@@ -80,7 +80,7 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram( "state_access")
+	program, err := rt.newTestProgram("state_access")
 	require.NoError(err)
 
 	result, err := program.Call("get")
