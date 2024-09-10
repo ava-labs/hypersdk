@@ -14,7 +14,7 @@ import (
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Println("Usage: hypersdk-abi-codegen <input_abi.json> <output_file.go>")
+		fmt.Println("Usage: abigen <input_abi.json> <output_file.go>")
 		os.Exit(1)
 	}
 
