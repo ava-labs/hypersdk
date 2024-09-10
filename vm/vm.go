@@ -34,6 +34,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/emap"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/network"
@@ -389,7 +390,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		genesisRules := vm.Rules(0)
-		feeManager := fees.NewManager(nil)
+		feeManager := internalfees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
@@ -883,7 +884,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	feeManager := fees.NewManager(feeRaw)
+	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
