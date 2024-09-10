@@ -14,7 +14,7 @@ import (
 func TestABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := GetVMABI([]codec.Typed{
+	actualABI, err := DescribeVM([]codec.Typed{
 		MockObjectSingleNumber{},
 		MockActionTransfer{},
 		MockObjectAllNumbers{},
@@ -27,7 +27,7 @@ func TestABI(t *testing.T) {
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
-	expectedAbi := mustJSONParse[VMABI](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
 
 	require.Equal(expectedAbi, actualABI)
 }
@@ -35,11 +35,11 @@ func TestABI(t *testing.T) {
 func TestABIsABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := GetVMABI([]codec.Typed{VMABI{}})
+	actualABI, err := DescribeVM([]codec.Typed{VM{}})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")
-	expectedAbi := mustJSONParse[VMABI](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
 
 	require.Equal(expectedAbi, actualABI)
 }

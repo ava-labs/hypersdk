@@ -2,19 +2,19 @@
     "actions": [
         {
             "id": 255,
-            "name": "VMABI",
+            "name": "VM",
             "types": [
                 {
-                    "name": "VMABI",
+                    "name": "VM",
                     "fields": [
                         {
                             "name": "actions",
-                            "type": "[]SingleActionABI"
+                            "type": "[]Action"
                         }
                     ]
                 },
                 {
-                    "name": "SingleActionABI",
+                    "name": "Action",
                     "fields": [
                         {
                             "name": "id",

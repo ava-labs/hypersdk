@@ -144,7 +144,7 @@ func (j *JSONRPCServer) UnitPrices(
 type GetABIArgs struct{}
 
 type GetABIReply struct {
-	VMABI abi.VMABI `json:"vmabi"`
+	VM abi.VM `json:"vmabi"`
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
@@ -152,6 +152,6 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 	if err != nil {
 		return err
 	}
-	reply.VMABI = abi
+	reply.VM = abi
 	return nil
 }

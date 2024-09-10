@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
-func GenerateGoStructs(abi VMABI, packageName string) (string, error) {
+func GenerateGoStructs(abi VM, packageName string) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("package %s\n\n", packageName))

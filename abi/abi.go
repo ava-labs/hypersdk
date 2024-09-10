@@ -16,19 +16,19 @@ import (
 	reflect "reflect"
 )
 
-type VMABI struct {
-	Actions []SingleActionABI `serialize:"true" json:"actions"`
+type VM struct {
+	Actions []Action `serialize:"true" json:"actions"`
 }
 
-var _ codec.Typed = (*VMABI)(nil)
+var _ codec.Typed = (*VM)(nil)
 
-const AbiTypeID = consts.MaxUint8
+const ABITypeID = consts.MaxUint8
 
-func (VMABI) GetTypeID() uint8 {
-	return AbiTypeID
+func (VM) GetTypeID() uint8 {
+	return ABITypeID
 }
 
-func (a *VMABI) Hash() [32]byte {
+func (a *VM) Hash() [32]byte {
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
 	if err != nil {
@@ -43,51 +43,51 @@ func (a *VMABI) Hash() [32]byte {
 	return abiHash
 }
 
-// ABIField represents a field in the VMABI (Application Binary Interface).
-type ABIField struct {
+// Field represents a field in the VM (Application Binary Interface).
+type Field struct {
 	// Name of the field, overridden by the json tag if present
 	Name string `serialize:"true" json:"name"`
 	// Type of the field, either a Go type or struct name (excluding package name)
 	Type string `serialize:"true" json:"type"`
 }
 
-// SingleActionABI represents the VMABI for an action.
-type SingleActionABI struct {
-	ID    uint8           `serialize:"true" json:"id"`
-	Name  string          `serialize:"true" json:"name"`
-	Types []SingleTypeABI `serialize:"true" json:"types"`
+// Action represents the VM for an action.
+type Action struct {
+	ID    uint8  `serialize:"true" json:"id"`
+	Name  string `serialize:"true" json:"name"`
+	Types []Type `serialize:"true" json:"types"`
 }
 
-type SingleTypeABI struct {
-	Name   string     `serialize:"true" json:"name"`
-	Fields []ABIField `serialize:"true" json:"fields"`
+type Type struct {
+	Name   string  `serialize:"true" json:"name"`
+	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func GetVMABI(actions []codec.Typed) (VMABI, error) {
-	vmABI := make([]SingleActionABI, 0)
+func DescribeVM(actions []codec.Typed) (VM, error) {
+	vmABI := make([]Action, 0)
 	for _, action := range actions {
-		actionABI, err := getActionABI(action)
+		actionABI, err := describeAction(action)
 		if err != nil {
-			return VMABI{}, err
+			return VM{}, err
 		}
 		vmABI = append(vmABI, actionABI)
 	}
-	return VMABI{Actions: vmABI}, nil
+	return VM{Actions: vmABI}, nil
 }
 
-// getActionABI generates the VMABI for a single action.
+// describeAction generates the VM for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func getActionABI(action codec.Typed) (SingleActionABI, error) {
+func describeAction(action codec.Typed) (Action, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	result := SingleActionABI{
+	result := Action{
 		ID:    action.GetTypeID(),
 		Name:  t.Name(),
-		Types: make([]SingleTypeABI, 0),
+		Types: make([]Type, 0),
 	}
 
 	typesLeft := []reflect.Type{t}
@@ -110,10 +110,10 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 
 		fields, moreTypes, err := describeStruct(nextType)
 		if err != nil {
-			return SingleActionABI{}, err
+			return Action{}, err
 		}
 
-		result.Types = append(result.Types, SingleTypeABI{
+		result.Types = append(result.Types, Type{
 			Name:   nextType.Name(),
 			Fields: fields,
 		})
@@ -126,14 +126,14 @@ func getActionABI(action codec.Typed) (SingleActionABI, error) {
 }
 
 // describeStruct analyzes a struct type and returns its fields and any nested struct types it found
-func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
+func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 	kind := t.Kind()
 
 	if kind != reflect.Struct {
 		return nil, nil, fmt.Errorf("type %s is not a struct", t.String())
 	}
 
-	fields := make([]ABIField, 0)
+	fields := make([]Field, 0)
 	otherStructsSeen := make([]reflect.Type, 0)
 
 	for i := 0; i < t.NumField(); i++ {
@@ -178,7 +178,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 				otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
 			}
 
-			fields = append(fields, ABIField{
+			fields = append(fields, Field{
 				Name: fieldName,
 				Type: typeName,
 			})

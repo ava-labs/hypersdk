@@ -32,7 +32,7 @@ func GetNetwork(ctx context.Context, require *require.Assertions, uris []string,
 	}
 }
 
-func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.VMABI) {
+func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.VM) {
 	for _, uri := range uris {
 		client := jsonrpc.NewJSONRPCClient(uri)
 		actualABI, err := client.GetABI(ctx)

@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-// Combined VMABI and AutoMarshal spec
+// Combined VM and AutoMarshal spec
 // Used to verify TypeScript implementation
 // Tests added as needed by TypeScript
 // Ensures consistency in marshaling, not testing Go struct marshaling itself
@@ -28,7 +28,7 @@ func TestABIHash(t *testing.T) {
 
 	// get spec from file
 	abiJSON := mustReadFile(t, "testdata/abi.json")
-	var abiFromFile VMABI
+	var abiFromFile VM
 	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 
@@ -67,7 +67,7 @@ func TestMarshalSpecs(t *testing.T) {
 
 			// Get spec from file
 			abiJSON := mustReadFile(t, "testdata/abi.json")
-			var abiFromFile VMABI
+			var abiFromFile VM
 			err = json.Unmarshal(abiJSON, &abiFromFile)
 			require.NoError(err)
 
