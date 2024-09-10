@@ -10,16 +10,26 @@ import (
 	"path/filepath"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: abigen <input_abi.json> <output_file.go>")
-		os.Exit(1)
+var (
+	packageName string
+	rootCmd     = &cobra.Command{
+		Use:   "abigen <input_abi.json> <output_file.go>",
+		Short: "Generate Go structs from ABI JSON",
+		Args:  cobra.ExactArgs(2),
+		Run:   run,
 	}
+)
 
-	inputFile := os.Args[1]
-	outputFile := os.Args[2]
+func init() {
+	rootCmd.Flags().StringVarP(&packageName, "package", "p", "", "Package name for generated code (overrides default)")
+}
+
+func run(cmd *cobra.Command, args []string) {
+	inputFile := args[0]
+	outputFile := args[1]
 
 	// Read the input ABI JSON file
 	abiData, err := os.ReadFile(inputFile)
@@ -36,7 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	packageName := filepath.Base(filepath.Dir(outputFile))
+	if packageName == "" {
+		packageName = filepath.Base(filepath.Dir(outputFile))
+	}
 
 	// Generate Go structs
 	generatedCode, err := abi.GenerateGoStructs(vmABI, packageName)
@@ -60,4 +72,11 @@ func main() {
 	}
 
 	fmt.Printf("Successfully generated Go structs in %s\n", outputFile)
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
