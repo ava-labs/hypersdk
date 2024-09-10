@@ -6,6 +6,7 @@ package abi
 import (
 	"encoding/json"
 	"go/format"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,10 +22,21 @@ func TestGenerateAllStructs(t *testing.T) {
 
 	expected := mustReadFile(t, "testdata/abi.go")
 
-	formatted, err := format.Source([]byte(string(expected)))
+	formatted, err := format.Source(removeCommentLines(expected))
 	require.NoError(err)
 
 	require.Equal(string(formatted), code)
+}
+
+func removeCommentLines(input []byte) []byte {
+	lines := strings.Split(string(input), "\n")
+	var result []string
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "//") {
+			result = append(result, line)
+		}
+	}
+	return []byte(strings.Join(result, "\n"))
 }
 
 func mustJSONParse[T any](t *testing.T, jsonStr string) T {
