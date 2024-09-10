@@ -10,12 +10,11 @@
 package chain
 
 import (
-	"reflect"
+	reflect "reflect"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/fees"
-
-	"go.uber.org/mock/gomock"
+	ids "github.com/ava-labs/avalanchego/ids"
+	fees "github.com/ava-labs/hypersdk/fees"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRules is a mock of Rules interface.
