@@ -3,7 +3,9 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche::{public, state_schema, Address, Context, Gas, ProgramId};
+use wasmlanche::{
+    public, state_schema, Address, Context, ExternalCallArgs, ExternalCallContext, Gas, ProgramId,
+};
 
 mod math;
 
@@ -15,15 +17,27 @@ state_schema! {
     LiquidityToken => Address,
 }
 
-const MAX_GAS: Gas = 10000000;
+const MAX_GAS: Gas = 10_000_000;
+const ZERO: u64 = 0;
+
+fn call_args_from_address(address: Address) -> ExternalCallArgs {
+    ExternalCallArgs {
+        contract_address: address,
+        max_units: MAX_GAS,
+        value: ZERO,
+    }
+}
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
 pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ProgramId) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
-    let liquidity_context = context.to_extern(lt_program, MAX_GAS, 0);
+
+    let args = call_args_from_address(lt_program);
+    let liquidity_context = context.to_extern(args);
+
     token::init(
-        &liquidity_context,
+        liquidity_context,
         String::from("liquidity token"),
         String::from("LT"),
     );
@@ -48,14 +62,14 @@ pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> 
     let (token_x, token_y) = external_token_contracts(context);
 
     // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in == token_x.contract_address() {
+    let (token_in, token_out) = if token_program_in == token_x.contract_address {
         (token_x, token_y)
     } else {
         (token_y, token_x)
     };
 
     // calculate the amount of tokens in the pool
-    let (reserve_token_in, reserve_token_out) = reserves(context, &token_in, &token_out);
+    let (reserve_token_in, reserve_token_out) = reserves(context, token_in, token_out);
     assert!(reserve_token_out > 0, "insufficient liquidity");
 
     // x * y = k
@@ -67,14 +81,18 @@ pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> 
 
     // transfer tokens fropm actor to the pool
     // this will fail if the actor has not approved the tokens or if the actor does not have enough tokens
-    token::transfer_from(&token_in, actor, account, amount);
+    token::transfer_from(context.to_extern(token_in), actor, account, amount);
 
     // transfer the amount_out to the actor
     // we use transfer_from to update the allowance automatically
-    token::transfer_from(&token_out, account, actor, amount_out);
+    token::transfer_from(context.to_extern(token_out), account, actor, amount_out);
 
     // update the allowance for token_in
-    token::approve(&token_in, account, reserve_token_in + amount);
+    token::approve(
+        context.to_extern(token_in),
+        account,
+        reserve_token_in + amount,
+    );
 
     amount_out
 }
@@ -87,10 +105,9 @@ pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> 
 #[public]
 pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) -> Units {
     let (token_x, token_y) = external_token_contracts(context);
-    let lp_token = external_liquidity_token(context);
 
     // calculate the amount of tokens in the pool
-    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, token_x, token_y);
 
     // ensure the proper ratio
     assert_eq!(
@@ -103,11 +120,11 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     let account = context.contract_address();
 
     // transfer tokens from the actor to the pool
-    token::transfer_from(&token_x, actor, account, amount_x);
-    token::transfer_from(&token_y, actor, account, amount_y);
+    token::transfer_from(context.to_extern(token_x), actor, account, amount_x);
+    token::transfer_from(context.to_extern(token_y), actor, account, amount_y);
 
     // calculate the amount of shares to mint
-    let total_shares = token::total_supply(&lp_token);
+    let total_shares = token::total_supply(lp_token(context));
 
     let shares = if total_shares == 0 {
         // if the pool is empty, mint the shares
@@ -123,11 +140,11 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     assert!(shares > 0, "number of shares minted must be greater than 0");
 
     // mint the shares
-    token::mint(&lp_token, actor, shares);
+    token::mint(lp_token(context), actor, shares);
 
     // update the amm's allowances
-    token::approve(&token_x, account, reserve_x + amount_x);
-    token::approve(&token_y, account, reserve_y + amount_y);
+    token::approve(context.to_extern(token_x), account, reserve_x + amount_x);
+    token::approve(context.to_extern(token_y), account, reserve_y + amount_y);
 
     shares
 }
@@ -136,15 +153,14 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
 /// The actor must have enough LP shares before calling this function.
 #[public]
 pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) {
-    let lp_token = external_liquidity_token(context);
-
+    let actor = context.actor();
     // assert that the actor has enough shares
-    let actor_total_shares = token::balance_of(&lp_token, context.actor());
+    let actor_total_shares = token::balance_of(lp_token(context), actor);
     assert!(actor_total_shares >= shares, "insufficient shares");
 
-    let total_shares = token::total_supply(&lp_token);
+    let total_shares = token::total_supply(lp_token(context));
     let (token_x, token_y) = external_token_contracts(context);
-    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, token_x, token_y);
 
     let amount_x = (shares * reserve_x) / total_shares;
     let amount_y = (shares * reserve_y) / total_shares;
@@ -154,14 +170,16 @@ pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) 
         "amounts must be greater than 0"
     );
 
+    let actor = context.actor();
     // burn the shares
-    token::burn(&lp_token, context.actor(), shares);
+    token::burn(lp_token(context), actor, shares);
 
     let actor = context.actor();
     let account = context.contract_address();
+
     // update the reserves
-    token::transfer_from(&token_x, account, actor, amount_x);
-    token::transfer_from(&token_y, account, actor, amount_y);
+    token::transfer_from(context.to_extern(token_x), account, actor, amount_x);
+    token::transfer_from(context.to_extern(token_y), account, actor, amount_y);
 
     (amount_x, amount_y)
 }
@@ -169,8 +187,8 @@ pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) 
 /// Removes all LP shares from the pool and returns the amount of token_x and token_y received.
 #[public]
 pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
-    let lp_token = external_liquidity_token(context);
-    let lp_balance = token::balance_of(&lp_token, context.actor());
+    let actor = context.actor();
+    let lp_balance = token::balance_of(lp_token(context), actor);
     remove_liquidity(context, lp_balance)
 }
 
@@ -180,16 +198,21 @@ pub fn get_liquidity_token(context: &mut Context) -> Address {
 }
 
 /// Returns the token reserves in the pool
-fn reserves(context: &Context, token_x: &Context, token_y: &Context) -> (Units, Units) {
+fn reserves(
+    context: &mut Context,
+    token_x: ExternalCallArgs,
+    token_y: ExternalCallArgs,
+) -> (Units, Units) {
+    let contract_address = context.contract_address();
     let balance_x = token::allowance(
-        token_x,
-        context.contract_address(),
-        context.contract_address(),
+        context.to_extern(token_x),
+        contract_address,
+        contract_address,
     );
     let balance_y = token::allowance(
-        token_y,
-        context.contract_address(),
-        context.contract_address(),
+        context.to_extern(token_y),
+        contract_address,
+        contract_address,
     );
 
     (balance_x, balance_y)
@@ -209,18 +232,19 @@ fn token_programs(context: &mut Context) -> (Address, Address) {
     )
 }
 /// Returns the external call contexts for the tokens in the pool
-fn external_token_contracts(context: &mut Context) -> (Context, Context) {
+fn external_token_contracts(context: &mut Context) -> (ExternalCallArgs, ExternalCallArgs) {
     let (token_x, token_y) = token_programs(context);
     (
-        context.to_extern(token_x, MAX_GAS, 0),
-        context.to_extern(token_y, MAX_GAS, 0),
+        call_args_from_address(token_x),
+        call_args_from_address(token_y),
     )
 }
 
 /// Returns the external call context for the liquidity token
-fn external_liquidity_token(context: &mut Context) -> Context {
+fn lp_token(context: &mut Context) -> ExternalCallContext {
     let token = context.get(LiquidityToken).unwrap().unwrap();
-    context.to_extern(token, MAX_GAS, 0)
+    let args = call_args_from_address(token);
+    context.to_extern(args)
 }
 
 mod internal {
