@@ -19,10 +19,10 @@ import (
 var _ chain.Action = (*RemoveLiquidity)(nil)
 
 type RemoveLiquidity struct {
-	BurnAmount    uint64        `json:"burnAmount"`
-	LiquidityPool codec.Address `json:"liquidityPool"`
-	TokenX codec.Address `json:"tokenX"`
-	TokenY codec.Address `json:"tokenY"`
+	BurnAmount    uint64        `serialize:"true" json:"burnAmount"`
+	LiquidityPool codec.Address `serialize:"true" json:"liquidityPool"`
+	TokenX        codec.Address `serialize:"true" json:"tokenX"`
+	TokenY        codec.Address `serialize:"true" json:"tokenY"`
 }
 
 func (*RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
@@ -90,13 +90,13 @@ func (*RemoveLiquidity) GetTypeID() uint8 {
 func (l *RemoveLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	lpTokenAddress := storage.LiqudityPoolTokenAddress(l.LiquidityPool)
 	return state.Keys{
-		string(storage.LiquidityPoolKey(l.LiquidityPool)): state.All,
-		string(storage.TokenInfoKey(lpTokenAddress)): 	 state.All,
-		string(storage.TokenAccountBalanceKey(lpTokenAddress, actor)): state.All,
+		string(storage.LiquidityPoolKey(l.LiquidityPool)):                 state.All,
+		string(storage.TokenInfoKey(lpTokenAddress)):                      state.All,
+		string(storage.TokenAccountBalanceKey(lpTokenAddress, actor)):     state.All,
 		string(storage.TokenAccountBalanceKey(lpTokenAddress, lpAddress)): state.All,
 
-		string(storage.TokenAccountBalanceKey(l.TokenX, actor)): state.All,
-		string(storage.TokenAccountBalanceKey(l.TokenY, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(l.TokenX, actor)):     state.All,
+		string(storage.TokenAccountBalanceKey(l.TokenY, actor)):     state.All,
 		string(storage.TokenAccountBalanceKey(l.TokenX, lpAddress)): state.All,
 		string(storage.TokenAccountBalanceKey(l.TokenY, lpAddress)): state.All,
 	}

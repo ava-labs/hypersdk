@@ -18,9 +18,9 @@ import (
 var _ chain.Action = (*TransferToken)(nil)
 
 type TransferToken struct {
-	To           codec.Address `json:"to"`
-	TokenAddress codec.Address `json:"tokenAddress"`
-	Value        uint64        `json:"value"`
+	To           codec.Address `serialize:"true" json:"to"`
+	TokenAddress codec.Address `serialize:"true" json:"tokenAddress"`
+	Value        uint64        `serialize:"true" json:"value"`
 }
 
 // ComputeUnits implements chain.Action.

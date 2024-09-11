@@ -19,11 +19,11 @@ import (
 var _ chain.Action = (*AddLiquidity)(nil)
 
 type AddLiquidity struct {
-	AmountX       uint64        `json:"amountX"`
-	AmountY       uint64        `json:"amountY"`
-	TokenX codec.Address `json:"tokenX"`
-	TokenY codec.Address `json:"tokenY"`
-	LiquidityPool codec.Address `json:"liquidityPool"`
+	AmountX       uint64        `serialize:"true" json:"amountX"`
+	AmountY       uint64        `serialize:"true" json:"amountY"`
+	TokenX        codec.Address `serialize:"true" json:"tokenX"`
+	TokenY        codec.Address `serialize:"true" json:"tokenY"`
+	LiquidityPool codec.Address `serialize:"true" json:"liquidityPool"`
 }
 
 func (*AddLiquidity) ComputeUnits(chain.Rules) uint64 {
@@ -102,13 +102,13 @@ func (*AddLiquidity) GetTypeID() uint8 {
 func (a *AddLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	lpToken := storage.LiqudityPoolTokenAddress(a.LiquidityPool)
 	return state.Keys{
-		string(storage.LiquidityPoolKey(a.LiquidityPool)):      state.All,
-		string(storage.TokenInfoKey(lpToken)):                  state.All,
-		string(storage.TokenAccountBalanceKey(lpToken, actor)): state.All,
+		string(storage.LiquidityPoolKey(a.LiquidityPool)):                state.All,
+		string(storage.TokenInfoKey(lpToken)):                            state.All,
+		string(storage.TokenAccountBalanceKey(lpToken, actor)):           state.All,
 		string(storage.TokenAccountBalanceKey(lpToken, a.LiquidityPool)): state.All,
-		
-		string(storage.TokenAccountBalanceKey(a.TokenX, actor)): state.All,
-		string(storage.TokenAccountBalanceKey(a.TokenY, actor)): state.All,
+
+		string(storage.TokenAccountBalanceKey(a.TokenX, actor)):           state.All,
+		string(storage.TokenAccountBalanceKey(a.TokenY, actor)):           state.All,
 		string(storage.TokenAccountBalanceKey(a.TokenX, a.LiquidityPool)): state.All,
 		string(storage.TokenAccountBalanceKey(a.TokenY, a.LiquidityPool)): state.All,
 	}
@@ -125,7 +125,7 @@ func (*AddLiquidity) StateKeysMaxChunks() []uint16 {
 		storage.TokenAccountBalanceChunks,
 		storage.TokenAccountBalanceChunks,
 		storage.TokenAccountBalanceChunks,
-	}	
+	}
 }
 
 func (*AddLiquidity) ValidRange(chain.Rules) (int64, int64) {

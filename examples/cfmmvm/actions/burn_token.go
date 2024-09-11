@@ -18,8 +18,8 @@ import (
 var _ chain.Action = (*BurnToken)(nil)
 
 type BurnToken struct {
-	TokenAddress codec.Address `json:"tokenAddress"`
-	Value        uint64        `json:"value"`
+	TokenAddress codec.Address `serialize:"true" json:"tokenAddress"`
+	Value        uint64        `serialize:"true" json:"value"`
 }
 
 // ComputeUnits implements chain.Action.

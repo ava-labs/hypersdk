@@ -19,12 +19,12 @@ var _ chain.Action = (*MintToken)(nil)
 
 type MintToken struct {
 	// To is the recipient of the [Value].
-	To codec.Address `json:"to"`
+	To codec.Address `serialize:"true" json:"to"`
 
 	// Number of assets to mint to [To].
-	Value uint64 `json:"value"`
+	Value uint64 `serialize:"true" json:"value"`
 
-	Token codec.Address `json:"token"`
+	Token codec.Address `serialize:"true" json:"token"`
 }
 
 // ComputeUnits implements chain.Action.

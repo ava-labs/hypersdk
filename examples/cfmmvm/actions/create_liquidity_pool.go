@@ -19,10 +19,10 @@ import (
 var _ chain.Action = (*CreateLiquidityPool)(nil)
 
 type CreateLiquidityPool struct {
-	FunctionID uint8         `json:"functionID"`
-	TokenX     codec.Address `json:"tokenX"`
-	TokenY     codec.Address `json:"tokenY"`
-	Fee uint64 `json:"fee"`
+	FunctionID uint8         `serialize:"true" json:"functionID"`
+	TokenX     codec.Address `serialize:"true" json:"tokenX"`
+	TokenY     codec.Address `serialize:"true" json:"tokenY"`
+	Fee        uint64        `serialize:"true" json:"fee"`
 }
 
 // ComputeUnits implements chain.Action.

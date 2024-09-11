@@ -19,11 +19,11 @@ import (
 var _ chain.Action = (*Swap)(nil)
 
 type Swap struct {
-	TokenX    codec.Address `json:"tokenX"`
-	TokenY    codec.Address `json:"tokenY"`
-	AmountXIn uint64        `json:"amountXIn"`
-	AmountYIn uint64        `json:"amountYIn"`
-	LPAddress codec.Address `json:"lpAddress"`
+	TokenX    codec.Address `serialize:"true" json:"tokenX"`
+	TokenY    codec.Address `serialize:"true" json:"tokenY"`
+	AmountXIn uint64        `serialize:"true" json:"amountXIn"`
+	AmountYIn uint64        `serialize:"true" json:"amountYIn"`
+	LPAddress codec.Address `serialize:"true" json:"lpAddress"`
 }
 
 // ComputeUnits implements chain.Action.

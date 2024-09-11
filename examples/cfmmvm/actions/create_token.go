@@ -18,9 +18,9 @@ import (
 var _ chain.Action = (*CreateToken)(nil)
 
 type CreateToken struct {
-	Name     []byte `json:"name"`
-	Symbol   []byte `json:"symbol"`
-	Metadata []byte `json:"metadata"`
+	Name     []byte `serialize:"true" json:"name"`
+	Symbol   []byte `serialize:"true" json:"symbol"`
+	Metadata []byte `serialize:"true" json:"metadata"`
 }
 
 // ComputeUnits implements chain.Action.
