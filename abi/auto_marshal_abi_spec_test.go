@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
-	reflect "reflect"
 	"strings"
 	"testing"
 
@@ -17,6 +16,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+
+	reflect "reflect"
 )
 
 // Combined VM and AutoMarshal spec

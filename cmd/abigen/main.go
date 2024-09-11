@@ -9,8 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ava-labs/hypersdk/abi"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/abi"
 )
 
 var (
@@ -27,7 +28,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&packageName, "package", "p", "", "Package name for generated code (overrides default)")
 }
 
-func run(cmd *cobra.Command, args []string) {
+func run(_ *cobra.Command, args []string) {
 	inputFile := args[0]
 	outputFile := args[1]
 

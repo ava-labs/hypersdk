@@ -116,7 +116,7 @@ func (a Address) MarshalJSON() ([]byte, error) {
 func (a *Address) UnmarshalJSON(data []byte) error {
 	// Check if the data starts and ends with quotes
 	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {
-		return fmt.Errorf("invalid JSON format: string must be enclosed in quotes")
+		return errors.New("invalid JSON format: string must be enclosed in quotes")
 	}
 
 	// Remove quotes from the string
