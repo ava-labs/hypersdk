@@ -94,3 +94,16 @@ func (Outer) GetTypeID() uint8 {
 type Inner struct {
 	Field1 uint8 `serialize:"true" json:"field1"`
 }
+
+type ActionWithOutput struct {
+	Field1 uint8 `serialize:"true" json:"field1"`
+}
+
+func (ActionWithOutput) GetTypeID() uint8 {
+	return 9
+}
+
+// write action output type into the outputTypeField
+type ActionOutput struct {
+	Field1 uint16 `serialize:"true" json:"field1"`
+}

@@ -2,7 +2,7 @@
     "actions": [
         {
             "id": 1,
-            "name": "MockObjectSingleNumber",
+            "action": "MockObjectSingleNumber",
             "types": [
                 {
                     "name": "MockObjectSingleNumber",
@@ -17,7 +17,7 @@
         },
         {
             "id": 2,
-            "name": "MockActionTransfer",
+            "action": "MockActionTransfer",
             "types": [
                 {
                     "name": "MockActionTransfer",
@@ -40,7 +40,7 @@
         },
         {
             "id": 3,
-            "name": "MockObjectAllNumbers",
+            "action": "MockObjectAllNumbers",
             "types": [
                 {
                     "name": "MockObjectAllNumbers",
@@ -83,7 +83,7 @@
         },
         {
             "id": 4,
-            "name": "MockObjectStringAndBytes",
+            "action": "MockObjectStringAndBytes",
             "types": [
                 {
                     "name": "MockObjectStringAndBytes",
@@ -102,7 +102,7 @@
         },
         {
             "id": 5,
-            "name": "MockObjectArrays",
+            "action": "MockObjectArrays",
             "types": [
                 {
                     "name": "MockObjectArrays",
@@ -153,7 +153,7 @@
         },
         {
             "id": 7,
-            "name": "MockActionWithTransferArray",
+            "action": "MockActionWithTransferArray",
             "types": [
                 {
                     "name": "MockActionWithTransferArray",
@@ -185,7 +185,7 @@
         },
         {
             "id": 6,
-            "name": "MockActionWithTransfer",
+            "action": "MockActionWithTransfer",
             "types": [
                 {
                     "name": "MockActionWithTransfer",
@@ -217,7 +217,7 @@
         },
         {
             "id": 8,
-            "name": "Outer",
+            "action": "Outer",
             "types": [
                 {
                     "name": "Outer",
@@ -238,6 +238,31 @@
                         {
                             "name": "field1",
                             "type": "uint8"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": 9,
+            "action": "ActionWithOutput",
+            "output": "ActionOutput",
+            "types": [
+                {
+                    "name": "ActionWithOutput",
+                    "fields": [
+                        {
+                            "name": "field1",
+                            "type": "uint8"
+                        }
+                    ]
+                },
+                {
+                    "name": "ActionOutput",
+                    "fields": [
+                        {
+                            "name": "field1",
+                            "type": "uint16"
                         }
                     ]
                 }

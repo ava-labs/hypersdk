@@ -2,7 +2,8 @@
     "actions": [
         {
             "id": 255,
-            "name": "VM",
+            "action": "VM",
+            "output": "",
             "types": [
                 {
                     "name": "VM",
@@ -21,7 +22,11 @@
                             "type": "uint8"
                         },
                         {
-                            "name": "name",
+                            "name": "action",
+                            "type": "string"
+                        },
+                        {
+                            "name": "output",
                             "type": "string"
                         },
                         {

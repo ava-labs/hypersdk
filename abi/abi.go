@@ -54,9 +54,10 @@ type Field struct {
 
 // Action represents the VM for an action.
 type Action struct {
-	ID    uint8  `serialize:"true" json:"id"`
-	Name  string `serialize:"true" json:"name"`
-	Types []Type `serialize:"true" json:"types"`
+	ID     uint8  `serialize:"true" json:"id"`
+	Action string `serialize:"true" json:"action"`
+	Output string `serialize:"true" json:"output"`
+	Types  []Type `serialize:"true" json:"types"`
 }
 
 type Type struct {
@@ -86,9 +87,9 @@ func describeAction(action chain.Typed) (Action, error) {
 	}
 
 	result := Action{
-		ID:    action.GetTypeID(),
-		Name:  t.Name(),
-		Types: make([]Type, 0),
+		ID:     action.GetTypeID(),
+		Action: t.Name(),
+		Types:  make([]Type, 0),
 	}
 
 	typesLeft := []reflect.Type{t}

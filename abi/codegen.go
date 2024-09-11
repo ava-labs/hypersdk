@@ -40,8 +40,8 @@ func GenerateGoStructs(abi VM, packageName string) (string, error) {
 			}
 			sb.WriteString("}\n\n")
 
-			if action.Name == typ.Name {
-				sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Name))
+			if action.Action == typ.Name {
+				sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Action))
 				sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
 				sb.WriteString("}\n")
 			}
