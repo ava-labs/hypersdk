@@ -4,14 +4,12 @@
 package abi
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 
 	reflect "reflect"
 )
@@ -25,21 +23,6 @@ var _ codec.Typed = (*VM)(nil)
 
 func (VM) GetTypeID() uint8 {
 	return 0
-}
-
-func (a VM) Hash() [32]byte {
-	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
-	if err != nil {
-		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: MarshalInto: %w", err))
-	}
-	if writer.Err() != nil {
-		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: writer.Err: %w", writer.Err()))
-	}
-	abiHash := sha256.Sum256(writer.Bytes())
-	return abiHash
 }
 
 // Field represents a field in the VM (Application Binary Interface).

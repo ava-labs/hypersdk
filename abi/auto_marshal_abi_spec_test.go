@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -35,7 +36,12 @@ func TestABIHash(t *testing.T) {
 	require.NoError(err)
 
 	// check hash and compare it to expected
-	abiHash := abiFromFile.Hash()
+	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(abiFromFile, writer.Packer)
+	require.NoError(err)
+	require.NoError(writer.Err())
+
+	abiHash := sha256.Sum256(writer.Bytes())
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
