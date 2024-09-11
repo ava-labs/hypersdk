@@ -12,10 +12,10 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-func TestDescribeVM(t *testing.T) {
+func TestNewABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]codec.Typed{
+	actualABI, err := NewABI([]codec.Typed{
 		MockObjectSingleNumber{},
 		MockActionTransfer{},
 		MockObjectAllNumbers{},
@@ -47,7 +47,7 @@ func mustPrintOrderedJSON(t *testing.T, v any) string {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]codec.Typed{ABI{}})
+	actualABI, err := NewABI([]codec.Typed{ABI{}})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")

@@ -44,7 +44,7 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func DescribeVM(actions []codec.Typed) (ABI, error) {
+func NewABI(actions []codec.Typed) (ABI, error) {
 	vmActions := make([]Action, 0)
 	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
