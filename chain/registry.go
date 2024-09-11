@@ -37,14 +37,16 @@ func (a *AuthRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Auth, err
 }
 
 type ActionRegistry struct {
-	actions     map[uint8]Typed
-	actionFuncs map[uint8]func(*codec.Packer) (Action, error)
+	actions         map[uint8]Typed
+	actionFuncs     map[uint8]func(*codec.Packer) (Action, error)
+	outputInstances map[uint8]interface{}
 }
 
 func NewActionRegistry() *ActionRegistry {
 	return &ActionRegistry{
-		actions:     make(map[uint8]Typed),
-		actionFuncs: make(map[uint8]func(*codec.Packer) (Action, error)),
+		actions:         make(map[uint8]Typed),
+		actionFuncs:     make(map[uint8]func(*codec.Packer) (Action, error)),
+		outputInstances: make(map[uint8]interface{}),
 	}
 }
 
@@ -53,6 +55,7 @@ func (a *ActionRegistry) Register(instance Typed, outputInstance interface{}, f 
 
 	a.actions[typeID] = instance
 	a.actionFuncs[typeID] = f
+	a.outputInstances[typeID] = outputInstance
 	return nil
 }
 
@@ -63,8 +66,8 @@ func (a *ActionRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Action,
 
 func (a *ActionRegistry) GetRegisteredTypes() []ActionPair {
 	types := make([]ActionPair, 0, len(a.actions))
-	for _, action := range a.actions {
-		types = append(types, ActionPair{Input: action})
+	for typeID, action := range a.actions {
+		types = append(types, ActionPair{Input: action, Output: a.outputInstances[typeID]})
 	}
 	return types
 }
