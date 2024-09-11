@@ -190,8 +190,14 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 }
 
 // AddProgram compiles [programName] and sets the bytes in the state manager
-func (t *testRuntime) AddProgram(programID ProgramID, programName string) error {
-	return t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
+func (t *testRuntime) AddProgram(programID ProgramID, account codec.Address, programName string) error {
+	err := t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
+	if err != nil {
+		return err
+	}
+
+	t.StateManager.(TestStateManager).AccountMap[account] = string(programID)
+	return nil
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -205,26 +211,31 @@ func (t *testRuntime) CallProgram(program codec.Address, function string, params
 		})
 }
 
-func newTestProgram(ctx context.Context, program string) (*testProgram, error) {
+func newTestRuntime(ctx context.Context) *testRuntime {
+	return &testRuntime{
+		Context: ctx,
+		callContext: NewRuntime(
+			NewConfig(),
+			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
+		StateManager: TestStateManager{
+			ProgramsMap: map[string][]byte{},
+			AccountMap:  map[codec.Address]string{},
+			Balances:    map[codec.Address]uint64{},
+			Mu:          test.NewTestDB(),
+		},
+	}
+}
+
+func (t *testRuntime) newTestProgram(program string) (*testProgram, error) {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
 	testProgram := &testProgram{
-		Runtime: &testRuntime{
-			Context: ctx,
-			callContext: NewRuntime(
-				NewConfig(),
-				logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
-			StateManager: TestStateManager{
-				ProgramsMap: map[string][]byte{},
-				AccountMap:  map[codec.Address]string{account: stringedID},
-				Balances:    map[codec.Address]uint64{},
-				Mu:          test.NewTestDB(),
-			},
-		},
 		Address: account,
+		Runtime: t,
 	}
-	err := testProgram.Runtime.AddProgram(ProgramID(stringedID), program)
+
+	err := t.AddProgram(ProgramID(stringedID), account, program)
 	if err != nil {
 		return nil, err
 	}
@@ -233,8 +244,8 @@ func newTestProgram(ctx context.Context, program string) (*testProgram, error) {
 }
 
 type testProgram struct {
-	Runtime *testRuntime
 	Address codec.Address
+	Runtime *testRuntime
 }
 
 func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {

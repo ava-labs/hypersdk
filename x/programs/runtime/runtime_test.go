@@ -19,7 +19,8 @@ func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "simple")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
 	for i := 0; i < b.N; i++ {
@@ -35,7 +36,8 @@ func TestRuntimeCallProgramBasicAttachValue(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "simple")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
@@ -65,7 +67,8 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "simple")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
 	result, err := program.Call("get_value")
@@ -84,7 +87,8 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "return_complex_type")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("return_complex_type")
 	require.NoError(err)
 
 	result, err := program.Call("get_value")
