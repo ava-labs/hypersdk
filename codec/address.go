@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -104,4 +105,36 @@ func parseAddressBech32(saddr string) (string, Address, error) {
 		return phrp, EmptyAddress, ErrInsufficientLength
 	}
 	return phrp, Address(p[:AddressLen]), nil
+}
+
+// MarshalJSON marshals the address as a base64  encoded string
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
+}
+
+// It unmarshals the Address from a base64-encoded string.
+func (a *Address) UnmarshalJSON(data []byte) error {
+	// Check if the data starts and ends with quotes
+	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {
+		return errors.New("invalid JSON format: string must be enclosed in quotes")
+	}
+
+	// Remove quotes from the string
+	s := string(data[1 : len(data)-1])
+
+	// Decode base64 string
+	decoded, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
+
+	// Check if the decoded data has the correct length
+	if len(decoded) != AddressLen {
+		return ErrInsufficientLength
+	}
+
+	// Copy decoded data to the Address
+	copy(a[:], decoded)
+
+	return nil
 }

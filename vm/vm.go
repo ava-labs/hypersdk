@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
@@ -1249,4 +1250,11 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 	vm.snowCtx.Log.Fatal(msg, fields...)
 	panic("fatal error")
+}
+
+// GetABI returns the ABI (Application Binary Interface) string for the VM.
+// This ABI string represents the interface of the VM,
+// containing all actions.
+func (vm *VM) GetABI() (abi.VM, error) {
+	return abi.DescribeVM((*vm.actionRegistry).GetRegisteredTypes())
 }

@@ -179,3 +179,5 @@ func MustMarshal(v interface{}) []byte {
 	}
 	return b
 }
+
+type Bytes []byte
