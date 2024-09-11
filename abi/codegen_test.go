@@ -15,7 +15,7 @@ import (
 func TestGenerateAllStructs(t *testing.T) {
 	require := require.New(t)
 
-	abi := mustJSONParse[VM](t, string(mustReadFile(t, "testdata/abi.json")))
+	abi := mustJSONParse[ABI](t, string(mustReadFile(t, "testdata/abi.json")))
 
 	code, err := GenerateGoStructs(abi, "abi")
 	require.NoError(err)

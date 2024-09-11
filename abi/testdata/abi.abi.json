@@ -2,12 +2,12 @@
     "actions": [
         {
             "id": 0,
-            "action": "VM"
+            "action": "ABI"
         }
     ],
     "types": [
         {
-            "name": "VM",
+            "name": "ABI",
             "fields": [
                 {
                     "name": "actions",

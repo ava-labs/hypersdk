@@ -31,7 +31,7 @@ func TestABIHash(t *testing.T) {
 
 	// get spec from file
 	abiJSON := mustReadFile(t, "testdata/abi.json")
-	var abiFromFile VM
+	var abiFromFile ABI
 	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 

@@ -28,7 +28,7 @@ func TestDescribeVM(t *testing.T) {
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
-	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
 
 	require.Equal(mustPrintOrderedJSON(t, expectedAbi), mustPrintOrderedJSON(t, actualABI))
 }
@@ -47,11 +47,11 @@ func mustPrintOrderedJSON(t *testing.T, v any) string {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]codec.Typed{VM{}})
+	actualABI, err := DescribeVM([]codec.Typed{ABI{}})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")
-	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
 
 	require.Equal(expectedAbi, actualABI)
 }

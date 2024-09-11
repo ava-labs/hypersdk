@@ -14,14 +14,14 @@ import (
 	reflect "reflect"
 )
 
-type VM struct {
+type ABI struct {
 	Actions []Action `serialize:"true" json:"actions"`
 	Types   []Type   `serialize:"true" json:"types"`
 }
 
-var _ codec.Typed = (*VM)(nil)
+var _ codec.Typed = (*ABI)(nil)
 
-func (VM) GetTypeID() uint8 {
+func (ABI) GetTypeID() uint8 {
 	return 0
 }
 
@@ -44,7 +44,7 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func DescribeVM(actions []codec.Typed) (VM, error) {
+func DescribeVM(actions []codec.Typed) (ABI, error) {
 	vmActions := make([]Action, 0)
 	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
@@ -52,7 +52,7 @@ func DescribeVM(actions []codec.Typed) (VM, error) {
 	for _, action := range actions {
 		actionABI, typeABI, err := describeAction(action)
 		if err != nil {
-			return VM{}, err
+			return ABI{}, err
 		}
 		vmActions = append(vmActions, actionABI)
 		for _, t := range typeABI {
@@ -62,7 +62,7 @@ func DescribeVM(actions []codec.Typed) (VM, error) {
 			}
 		}
 	}
-	return VM{Actions: vmActions, Types: vmTypes}, nil
+	return ABI{Actions: vmActions, Types: vmTypes}, nil
 }
 
 // describeAction generates the Action and Types for a single action.
