@@ -25,7 +25,7 @@ func TestImportProgramDeployProgram(t *testing.T) {
 
 	runtime := program.Runtime
 	otherProgramID := ids.GenerateTestID()
-	err = runtime.AddProgram(otherProgramID[:], "call_program")
+	err = runtime.AddProgram(otherProgramID[:], codec.CreateAddress(0, otherProgramID), "call_program")
 	require.NoError(err)
 
 	result, err := program.Call(
