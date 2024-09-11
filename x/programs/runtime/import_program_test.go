@@ -19,12 +19,13 @@ func TestImportProgramDeployProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "deploy_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("deploy_program")
 	require.NoError(err)
 
 	runtime := program.Runtime
 	otherProgramID := ids.GenerateTestID()
-	err = runtime.AddProgram(otherProgramID[:], "call_program")
+	err = runtime.AddProgram(otherProgramID[:], codec.CreateAddress(0, otherProgramID), "call_program")
 	require.NoError(err)
 
 	result, err := program.Call(
@@ -45,7 +46,8 @@ func TestImportProgramCallProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "call_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("call_program")
 	require.NoError(err)
 
 	expected, err := Serialize(0)
@@ -68,7 +70,8 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "call_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("call_program")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
@@ -85,7 +88,8 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "call_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("call_program")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
@@ -104,7 +108,8 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "call_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("call_program")
 	require.NoError(err)
 
 	expected, err := Serialize(uint64(1))
@@ -129,7 +134,8 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "call_program")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("call_program")
 	require.NoError(err)
 
 	expected, err := Serialize(int64(3))
@@ -155,7 +161,8 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "fuel")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("fuel")
 	require.NoError(err)
 
 	result, err := program.Call("get_fuel")
@@ -169,7 +176,8 @@ func TestImportOutOfFuel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program, err := newTestProgram(ctx, "fuel")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("fuel")
 	require.NoError(err)
 
 	result, err := program.Call("out_of_fuel", program.Address)
