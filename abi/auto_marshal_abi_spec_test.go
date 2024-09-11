@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 
-	reflect "reflect"
+	"reflect"
 )
 
 // Combined VM and AutoMarshal spec

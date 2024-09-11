@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 
-	reflect "reflect"
+	"reflect"
 )
 
 type ABI struct {
