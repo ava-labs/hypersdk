@@ -23,12 +23,19 @@ func TestCallContext(t *testing.T) {
 	programID := ids.GenerateTestID()
 	programAccount := codec.CreateAddress(0, programID)
 	stringedID := string(programID[:])
+	testStateManager := &TestStateManager{
+		ProgramsMap: map[string][]byte{},
+		AccountMap:  map[codec.Address]string{programAccount: stringedID},
+	}
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID), "call_program")
+	require.NoError(err)
+
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
 		CallInfo{
-			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID: "call_program"}, AccountMap: map[codec.Address]string{programAccount: stringedID}},
+			State:   testStateManager,
 			Program: programAccount,
 			Fuel:    1000000,
 		})
@@ -71,23 +78,38 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	program1Address := codec.CreateAddress(1, program1ID)
 	stringedID0 := string(program0ID[:])
 
+	testStateManager := &TestStateManager{
+		ProgramsMap: map[string][]byte{},
+		AccountMap:  map[codec.Address]string{program0Address: stringedID0},
+	}
+
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID0), "call_program")
+	require.NoError(err)
+
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
 		CallInfo{
 			Program: program0Address,
-			State:   &TestStateManager{ProgramsMap: map[string]string{stringedID0: "call_program"}, AccountMap: map[codec.Address]string{program0Address: stringedID0}},
+			State:   testStateManager,
 			Fuel:    1000000,
 		})
 
 	stringedID1 := string(program1ID[:])
+	testStateManager1 := &TestStateManager{
+		ProgramsMap: map[string][]byte{},
+		AccountMap:  map[codec.Address]string{program1Address: stringedID1},
+	}
+	err = testStateManager1.CompileAndSetProgram(ProgramID(stringedID1), "call_program")
+	require.NoError(err)
+
 	// try to use a context that has a default program with a different program
 	result, err := r.CallProgram(
 		ctx,
 		&CallInfo{
 			Program:      program1Address,
-			State:        &TestStateManager{ProgramsMap: map[string]string{stringedID1: "call_program"}, AccountMap: map[codec.Address]string{program1Address: stringedID1}},
+			State:        testStateManager1,
 			FunctionName: "actor_check",
 		})
 	require.ErrorIs(err, errCannotOverwrite)

@@ -11,14 +11,16 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/emap"
-	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/keys"
 	"github.com/ava-labs/hypersdk/internal/math"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -257,7 +259,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 	s StateManager,
 	r Rules,
 	im state.Immutable,
@@ -302,7 +304,7 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
