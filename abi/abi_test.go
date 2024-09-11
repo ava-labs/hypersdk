@@ -23,7 +23,7 @@ func TestDescribeVM(t *testing.T) {
 		{Input: MockActionWithTransferArray{}},
 		{Input: MockActionWithTransfer{}},
 		{Input: Outer{}},
-		{Input: ActionWithOutput{}},
+		{Input: ActionWithOutput{}, Output: ActionOutput{}},
 	})
 	require.NoError(err)
 

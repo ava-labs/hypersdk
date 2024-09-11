@@ -103,7 +103,6 @@ func (ActionWithOutput) GetTypeID() uint8 {
 	return 9
 }
 
-// write action output type into the outputTypeField
 type ActionOutput struct {
 	Field1 uint16 `serialize:"true" json:"field1"`
 }

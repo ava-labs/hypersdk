@@ -68,7 +68,7 @@ type Type struct {
 func DescribeVM(actions []chain.ActionPair) (VM, error) {
 	vmABI := make([]Action, 0)
 	for _, action := range actions {
-		actionABI, err := describeAction(action.Input)
+		actionABI, err := describeAction(action.Input, action.Output)
 		if err != nil {
 			return VM{}, err
 		}
@@ -80,20 +80,29 @@ func DescribeVM(actions []chain.ActionPair) (VM, error) {
 // describeAction generates the VM for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func describeAction(action chain.Typed) (Action, error) {
-	t := reflect.TypeOf(action)
+func describeAction(input chain.Typed, output interface{}) (Action, error) {
+	t := reflect.TypeOf(input)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
 	result := Action{
-		ID:     action.GetTypeID(),
+		ID:     input.GetTypeID(),
 		Action: t.Name(),
 		Types:  make([]Type, 0),
 	}
 
 	typesLeft := []reflect.Type{t}
 	typesAlreadyProcessed := set.Set[reflect.Type]{}
+
+	if output != nil {
+		outputType := reflect.TypeOf(output)
+		if outputType.Kind() == reflect.Ptr {
+			outputType = outputType.Elem()
+		}
+		result.Output = outputType.Name()
+		typesLeft = append(typesLeft, outputType)
+	}
 
 	// Process all types, including nested ones
 	for {
