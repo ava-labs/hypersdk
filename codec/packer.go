@@ -155,3 +155,27 @@ func (p *Packer) addErr(err error) {
 func (p *Packer) Offset() int {
 	return p.Packer.Offset
 }
+
+func QuickMarshal(v interface{}) ([]byte, error) {
+	size, err := LinearCodec.Size(v)
+	if err != nil {
+		return nil, err
+	}
+	p := wrappers.Packer{
+		Bytes:   make([]byte, 0, size),
+		MaxSize: size,
+	}
+	err = LinearCodec.MarshalInto(v, &p)
+	if err != nil {
+		return nil, err
+	}
+	return p.Bytes, nil
+}
+
+func MustMarshal(v interface{}) []byte {
+	b, err := QuickMarshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}

@@ -79,6 +79,12 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
+			ExpectedOutputs: [][]byte{
+				codec.MustMarshal(TransferResult{
+					SenderBalance:   1,
+					ReceiverBalance: 1,
+				}),
+			},
 		},
 		{
 			Name:  "OverflowBalance",
@@ -116,6 +122,12 @@ func TestTransferAction(t *testing.T) {
 				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
+			},
+			ExpectedOutputs: [][]byte{
+				codec.MustMarshal(TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				}),
 			},
 		},
 	}

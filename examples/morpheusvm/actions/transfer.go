@@ -40,6 +40,11 @@ type Transfer struct {
 	Memo []byte `serialize:"true" json:"memo"`
 }
 
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
+}
+
 func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
@@ -75,7 +80,22 @@ func (t *Transfer) Execute(
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	senderBalance, err := storage.GetBalance(ctx, mu, actor)
+	if err != nil {
+		return nil, err
+	}
+	receiverBalance, err := storage.GetBalance(ctx, mu, t.To)
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err := codec.QuickMarshal(TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	})
+
+	return [][]byte{bytes}, err
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {

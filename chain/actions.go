@@ -3,7 +3,9 @@
 
 package chain
 
-import "github.com/ava-labs/hypersdk/codec"
+import (
+	"github.com/ava-labs/hypersdk/codec"
+)
 
 func getSize(item interface{}) (int, error) {
 	if actionWithSize, ok := item.(Marshaler); ok {
