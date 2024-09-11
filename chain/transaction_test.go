@@ -109,14 +109,14 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
-	actionRegistry := &chain.ActionRegistry{}
-	authRegistry := &chain.AuthRegistry{}
+	actionRegistry := chain.NewActionRegistry()
+	authRegistry := chain.NewAuthRegistry()
 
 	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
-	err = actionRegistry.Register(&mockTransferAction{}, unmarshalTransfer)
+	err = actionRegistry.Register(&mockTransferAction{}, nil, unmarshalTransfer)
 	require.NoError(err)
-	err = actionRegistry.Register(&action2{}, unmarshalAction2)
+	err = actionRegistry.Register(&action2{}, nil, unmarshalAction2)
 	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
