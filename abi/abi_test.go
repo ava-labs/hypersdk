@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,8 +21,8 @@ func TestDescribeVM(t *testing.T) {
 		MockObjectAllNumbers{},
 		MockObjectStringAndBytes{},
 		MockObjectArrays{},
-		MockActionWithTransferArray{},
 		MockActionWithTransfer{},
+		MockActionWithTransferArray{},
 		Outer{},
 	})
 	require.NoError(err)
@@ -29,9 +30,20 @@ func TestDescribeVM(t *testing.T) {
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
 	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
 
-	require.Equal(expectedAbi, actualABI)
+	require.Equal(mustPrintOrderedJSON(t, expectedAbi), mustPrintOrderedJSON(t, actualABI))
 }
 
+func mustPrintOrderedJSON(t *testing.T, v any) string {
+	bytes, err := json.Marshal(v)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(bytes, &parsed))
+
+	ordered, err := json.Marshal(parsed)
+	require.NoError(t, err)
+	return string(ordered)
+}
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
