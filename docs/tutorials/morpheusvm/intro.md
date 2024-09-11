@@ -21,47 +21,55 @@ This introduction will go over everything up to and including the section
 
 ## Prerequisites
 
-We assume the following for this tutorial:
-
 - You are using Go 1.21.12
-- You have the HyperSDK repository on your local machine
+
+To confirm, you can run:
+
+```sh
+go version
+```
+
+And you should see the ouptut (slightly different depending on your machine):
+
+```
+go version go1.21.12 darwin/arm64
+```
+
+## Cloning HyperSDK
+
+To get started, clone the HyperSDK:
+
+```sh
+git clone git@github.com:ava-labs/hypersdk.git
+cd hypersdk
+```
 
 ## Initializing MorpheusVM
 
-We now create the files necessary for the rest of the tutorial. To start, create
- a new folder in the `/examples` directory of the HyperSDK. We’ll call it
- `tutorial/`. Run `go mod init github.com/ava-labs/hypersdk/examples/tutorial`
- to create the go.mod file for your project.
+To start, we'll create a new directory in examples and initialize the go mod:
 
-We want to use our local instance of HyperSDK as a dependency.
-Therefore, specify the following in `go.mod`:
+```sh
+mkdir examples/tutorial
+cd examples/tutorial
+go mod init
+```
+
+We'll start with the HyperSDK as the only dependency, so we can update the go.mod
+file to the contents:
 
 ```golang
+module github.com/ava-labs/hypersdk/examples/tutorial
+
+go 1.21.12
+
 require (
    github.com/ava-labs/hypersdk v0.0.1
 )
 
 replace github.com/ava-labs/hypersdk => ../../
 ```
-
-Finally, create the following files so that your tutorial directory looks like
-the following:
-
-```bash
-.
-├── consts.go
-├── go.mod
-├── state_manager.go
-├── storage.go
-├── transfer.go
-└── vm.go
-```
-
-> [!TIP]
-> If at any point of the tutorial, if you are running into dependency issues,
-> running `go mod tidy` should fix any issues
-
-Finally, we’ll define the following consts.go file:
+First, we'll create a `consts.go` file to declare the name, HRP for Bech32 addresses,
+and the initial version of our VM:
 
 ```golang
 package tutorial
@@ -95,15 +103,26 @@ var Version = &version.Semantic{
 
 ## Creating `Transfer` Pt. 1
 
-Let’s start by declaring the `Transfer` action itself. Your `transfer.go` file
-should look like the following:
+We'll implement a single `Transfer` action to handle payments in a native token.
+Actions are wrapped into HyperSDK transactions and executed on-chain, so the struct
+itself will include all of the fields needed to verify and execute onchain.
+
+You can think of each field in the `Transfer` type as if it's a parameter to the function
+you want to execute onchain.
+
+To start, your `transfer.go` file will declare the struct and add a type assertion that it
+implements the `chain.Action` interface:
+
 
 ```golang
 package tutorial
 
 import (
+   "github.com/ava-labs/hypersdk/chain"
    "github.com/ava-labs/hypersdk/codec"
 )
+
+var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
    To codec.Address `serialize:"true" json:"to"`
@@ -112,9 +131,16 @@ type Transfer struct {
 }
 ```
 
-`Transfer` includes all of the arguments needed to execute (you can think of its
- fields like the arguments to a function). Let’s start by stubbing out the
- implementation of `chain.Action`. You can copy-paste the code below:
+Note: we include JSON and `serialize` tags in the struct to provide instructions on how
+the `Transfer` action should be marshalled to JSON or a binary representation. The JSON tags
+provide the key in the resulting JSON and `serialize:"true"` indicates that the codec should
+include each field when it marshals the struct to its binary representation.
+
+Right now, the `chain.Action` type assertion should fail because we haven't implemented the
+interface yet. To fix that for now, we'll include stubs for each of the required functions that
+call `panic("unimplemented")`, so we can come back to fill these in later in the tutorial.
+
+You can copy-paste the code below:
 
 ```golang
 func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -142,33 +168,24 @@ func (t *Transfer) ValidRange(chain.Rules) (start int64, end int64) {
 }
 ```
 
-Implementing each method individually:
-
-- `ComputeUnits()`: since our main goal isn’t to focus on multi-dimensional
-pricing, we can return 1 here
-- `GetTypeID()`: normally, we’d want to keep assign action IDs in an organized
-manner. However, Transfer is the only action we’re implementing and so we can
-return 1 here as well
-- `ValidRange()`: we want our function to work at any time. therefore, make this
-return `-1, -1`
-
-This leaves us with `StateKeys`, `StateKeysMaxChunks`, and `Execute`. However,
-we are blocked until we implement our storage functions.
+Now that we've defined our action, we'll move on to implementing the state layout for
+our VM, so that we can use state helpers to update the state instead of handling
+constructing and writing key-value pairs directly from our action.
 
 ## Implementing Storage
 
-Let’s first go over what each subsubsection should accomplish:
+We'll break storage down into two components:
 
-- Read/Write Helper Functions: these will be used by our actions rather than
-actions writing directly to the key-value store
-- StateManager: this will allow for HyperSDK to read/write to our state in a
-safe manner (i.e. charging a user for gas)
+- Read/Write Helper Functions for our VM's actions
+- StateManager - an interface required by HyperSDK to dictate where to store
+required fields in the state (fees, height, timestamp, etc.)
 
-### Read/Write Functions
+### Separating the State into Partitions
 
-To start, we want to define a partitioning of our state. We want to declare
-three partitions for the StateManager and one partition for storing the balances
-of users:
+To start off, we'll add single byte prefixes to separate out the state into
+metadata required by the HyperSDK and an address -> balance mapping.
+
+Let's create a `storage.go` file with prefixes for balance, height, timestamp, and fees:
 
 ```golang
 package tutorial
@@ -192,8 +209,14 @@ var (
 )
 ```
 
-With these values defined, we write getter functions for the latter three
-variables:
+### Implementing HyperSDK Metadata Handlers
+
+Now, we'll implement functions that return the key where the HyperSDK should
+store the chain height, timestamp, and fee dimensions. This is currently defined by
+the VM, so that it has full control of its own state layout, but could be abstracted
+away and moved into the HyperSDK in the future.
+
+Let's add the following functions to `storage.go`:
 
 ```golang
 func HeightKey() (k []byte) {
@@ -209,23 +232,30 @@ func FeeKey() (k []byte) {
 }
 ```
 
-We'll now want to define our own storage-related errors:
+Next, we'll define the `BalanceKey` function. `BalanceKey` will return the
+state key that stores the provided address' balance.
 
-```golang
-var (
- ErrInvalidAddress = errors.New("invalid address")
- ErrInvalidBalance = errors.New("invalid balance")
-)
-```
+The HyperSDK requires that keys include a "chunk suffix", which specifies
+the maximum size of the value that will ever be stored at that key. This also
+means that trying to change the suffix will change the key itself, so a write
+to the same key with a different suffix will write to a different location
+instead of overwriting. This means that the suffix must provide an upper bound
+for the value size forever or the VM would need to explicitly handle migrating
+from the key from size A to size B.
 
-Let’s now define balance keys. Keys start with their prefix and have a suffix
-representing how large the value they hold is (denominated in 64-byte chunks).
-With the address of the user being the main differentiator, we implement the
-following:
+Chunks are denominated in 64 bytes, so a chunk size of 1 means the value at that
+key will never exceed 64 bytes (2 -> max of 128 bytes, 3 -> max of 192, etc).
+
+With that in mind, we'll add `BalanceChunks` as a constant to the top of the file:
 
 ```golang
 const BalanceChunks uint16 = 1
-// [balancePrefix] + [address]
+```
+
+Now, we can implement `BalanceKey` using the constant:
+
+```golang
+// [balancePrefix] + [address] + [BalanceChunks suffix]
 func BalanceKey(addr codec.Address) (k []byte) {
    k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
    k[0] = balancePrefix
@@ -235,13 +265,11 @@ func BalanceKey(addr codec.Address) (k []byte) {
 }
 ```
 
-Finally, let’s implement all the necessary read/write functions for our VM.
-We’ll break this up by implementing write functions followed by read functions:
+### Balance Helper Functions
 
-#### Write Functions
+Next, we'll implement balance getter and setter functions.
 
-To start, let’s write the base function that’ll allow us to write a user’s
-balance to state:
+Let's start by adding `setBalance` to set the balance for a pre-computed key:
 
 ```golang
 func setBalance(
@@ -254,8 +282,57 @@ func setBalance(
 }
 ```
 
-With this base function, let’s now utilize it by writing functions that will
-add/subtract a user’s balance:
+Note: we use `key` instead of a `codec.Address` type, so that the higher level
+helpers only need to compute balance keys once if they call `setBalance` more
+than once.
+
+Now, let's add `getBalance`. To re-use later, we'll start by implementing
+an `innerGetBalance` function that will interpret a raw value and error:
+
+```golang
+func innerGetBalance(
+   v []byte,
+   err error,
+) (uint64, bool, error) {
+   if errors.Is(err, database.ErrNotFound) {
+       return 0, false, nil
+   }
+   if err != nil {
+       return 0, false, err
+   }
+   return binary.BigEndian.Uint64(v), true, nil
+}
+```
+
+Having defined the function to interpret the balance value, we'll implement an
+exported `GetBalance` and a private version that returns additional details:
+
+```golang
+func getBalance(
+   ctx context.Context,
+   im state.Immutable,
+   addr codec.Address,
+) ([]byte, uint64, bool, error) {
+   k := BalanceKey(addr)
+   bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
+   return k, bal, exists, err
+}
+
+func GetBalance(
+   ctx context.Context,
+   im state.Immutable,
+   addr codec.Address,
+) (uint64, error) {
+   _, bal, _, err := getBalance(ctx, im, addr)
+   return bal, err
+}
+```
+
+### Higher Level Balance Functions
+
+Now that we've implemented the base level storage helpers for balances,
+we'll implement `AddBalance` and `SubBalance` utilizing the functions we
+just wrote:
 
 ```golang
 func AddBalance(
@@ -265,7 +342,7 @@ func AddBalance(
    amount uint64,
    create bool,
 ) error {
-//   key, bal, exists, err := getBalance(ctx, mu, addr)
+  key, bal, exists, err := getBalance(ctx, mu, addr)
    if err != nil {
        return err
    }
@@ -293,7 +370,7 @@ func SubBalance(
    addr codec.Address,
    amount uint64,
 ) error {
-//   key, bal, ok, err := getBalance(ctx, mu, addr)
+   key, bal, ok, err := getBalance(ctx, mu, addr)
    if !ok {
        return ErrInvalidAddress
    }
@@ -319,70 +396,13 @@ func SubBalance(
 }
 ```
 
-You might have noticed that both `AddBalance()` and `SubBalance()` have a line
-of code commented out - let’s now focus on implementing the read functions so
-that we can uncomment those lines out.
-
-#### Read Function
-
-Just like with the write functions, let’s start by defining a base function.
-Instead of reading from state, however, this function will serve to interpret
-whatever value is passed to it. That is, a parent function will get a user’s
-balance from state and then pass on the responsibility of parsing any
-values/errors to the inner function. Therefore, we have:
-
-```golang
-func innerGetBalance(
-   v []byte,
-   err error,
-) (uint64, bool, error) {
-   if errors.Is(err, database.ErrNotFound) {
-       return 0, false, nil
-   }
-   if err != nil {
-       return 0, false, err
-   }
-   return binary.BigEndian.Uint64(v), true, nil
-}
-```
-
-Having defined our base function, we can now define the read functions necessary
-for this tutorial:
-
-```golang
-func GetBalance(
-   ctx context.Context,
-   im state.Immutable,
-   addr codec.Address,
-) (uint64, error) {
-   _, bal, _, err := getBalance(ctx, im, addr)
-   return bal, err
-}
-
-func getBalance(
-   ctx context.Context,
-   im state.Immutable,
-   addr codec.Address,
-) ([]byte, uint64, bool, error) {
-   k := BalanceKey(addr)
-   bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
-   return k, bal, exists, err
-}
-```
-
-With read/write functionality now implemented, we can move onto StateManager.
-Remember to uncomment the lines from both `AddBalance()` and `SubBalance()`!
-
 ### State Manager
 
-We start off by defining an empty struct for `StateManager`:
+Now we'll implement the `chain.StateManager` interface to tell the HyperSDK
+how to modify our VM's state when it needs to store metadata or charge fees.
 
-```golang
-type StateManager struct {}
-```
-
-`StateManager` can be thought of as a proxy between HyperSDK and the state of
-MorpheusVM. Therefore, we need to implement the `chain.StateManager` interface:
+Let's start off by creating a new `state_manager.go` file and adding a new
+`StateManager` type with function stubs for each of the required functions:
 
 ```golang
 package tutorial
@@ -399,15 +419,15 @@ var _ chain.StateManager = (*StateManager)(nil)
 type StateManager struct{}
 
 func (s *StateManager) FeeKey() []byte {
- panic("unimplemented")
+   panic("unimplemented")
 }
 
 func (s *StateManager) HeightKey() []byte {
- panic("unimplemented")
+   panic("unimplemented")
 }
 
 func (s *StateManager) TimestampKey() []byte {
- panic("unimplemented")
+   panic("unimplemented")
 }
 
 func (s *StateManager) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error {
@@ -421,73 +441,159 @@ func (s *StateManager) CanDeduct(ctx context.Context, addr codec.Address, im sta
 func (s *StateManager) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
    panic("unimplemented")
 }
+
+func (s *StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+   panic("unimplemented")
+}
 ```
 
-Focusing on each method:
+The type assertion should pass, so now we can go through and implement
+each function correctly.
 
-- `FeeKey()`: defer to the function in storage
-- `HeightKey()`: defer to the function in storage
-- `TimestampKey()`: defer to the function in storage
-- `SponsorStateKeys()`: this should return the balance key of addr along with
-read/write permissions. We should have the following:
+For each of the metadata functions, we'll simply return the state keys
+we already defined when partitioning our state:
 
 ```golang
-return state.Keys{
-       string(BalanceKey(addr)): state.Read | state.Write,
-   }
+func (*StateManager) HeightKey() []byte {
+	return HeightKey()
+}
+
+func (*StateManager) TimestampKey() []byte {
+	return TimestampKey()
+}
+
+func (*StateManager) FeeKey() []byte {
+	return FeeKey()
+}
 ```
 
-- `Deduct()`: defer to `SubBalance()` function in storage
-- `AddBalance()`: defer to `AddBalance()` in storage
-- `CanDeduct()`: this function should do the following
-  - Get the user’s balance from state
-  - Check if the user has enough funds
-  - Return nil if the above holds, err otherwise
-
-The implementation of `CanDeduct()` should be as follows:
+Now, we'll implement the balance handler functions re-using the helpers
+we've already implemented:
 
 ```golang
-func (s *StateManager) CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error {
-   bal, err := GetBalance(ctx, im, addr)
-   if err != nil {
-       return err
-   }
-   if bal < amount {
-       return ErrInvalidBalance
-   }
-   return nil
+func (*StateManager) CanDeduct(
+	ctx context.Context,
+	addr codec.Address,
+	im state.Immutable,
+	amount uint64,
+) error {
+	bal, err := GetBalance(ctx, im, addr)
+	if err != nil {
+		return err
+	}
+	if bal < amount {
+		return ErrInvalidBalance
+	}
+	return nil
+}
+
+func (*StateManager) Deduct(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+) error {
+	return SubBalance(ctx, mu, addr, amount)
+}
+
+func (*StateManager) AddBalance(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+	createAccount bool,
+) error {
+	return AddBalance(ctx, mu, addr, amount, createAccount)
+}
+```
+
+Finally, we need to implement `SponsorStateKeys`. This function may be confusing,
+but it's actually incredibly simple. HyperSDK uses the `chain.Auth` type to handle
+signatures and treats account abstraction as a first class citizen. This means that
+`chain.Auth` returns both an `Actor`, the subject performing an action like a
+`Transfer`, and `Sponsor`, which returns the address responsible for paying fees
+of a transction.
+
+We'll re-use our `BalanceKey` function and specify that both read and write
+permissions, since the HyperSDK may need to both read/write this balance when
+it handles fees:
+
+```golang
+func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+	return state.Keys{
+		string(BalanceKey(addr)): state.Read | state.Write,
+	}
 }
 ```
 
 ## Creating `Transfer`, Pt. 2
 
-With our state implementation complete, we can now finish implementing the
-`Transfer` action. Focusing on each method individually:
+Whew! We've completed our storage layout and helper functions!
+
+It's time to put them into action. Going back to `transfer.go` we'll update
+the stubbed out functions implementing the `chain.Action` interface with a real
+implementation.
+
+### GetTypeID
+
+We need to include a `typeID` for our codec, so we'll implement `GetTypeID` to return
+a constant `typeID`.
+
+First, we'll add `TransferID` as a constant at the top of the file:
+
+```golang
+const (
+	// Action TypeIDs
+	TransferID uint8 = 0
+)
+```
+
+Now we'll update our `GetTypeID` function stub to return the constant:
+
+```golang
+func (*Transfer) GetTypeID() uint8 {
+	return TransferID
+}
+```
 
 ### `StateKeys()`
 
-For `Transfer`, we need to access the balances of `actor` and `To`. Furthermore, we
-need both read/write access. Therefore, we have the following:
+For `Transfer`, we need read/write access to both the `actor` address and the
+`to` address (sender and receiver). Additionally, if we're transferring to
+a new address, we may allocate a new account, which means we need to include
+permission to allocate a new state. So we'll use `state.Read | state.Write`
+for the actor and `state.All` for the `to` address:
 
 ```golang
-return state.Keys{
-       string(BalanceKey(actor)): state.All,
-       string(BalanceKey(t.To)):  state.All,
-   }
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.BalanceKey(actor)): state.Read | state.Write,
+		string(storage.BalanceKey(t.To)):  state.All,
+	}
+}
 ```
 
 ### `StateKeysMaxChunks()`
 
-For each state key, we have to specify how many chunks it’ll take up in storage.
-Since we’ve previously defined this value, we can implement the following:
+Remember handling "chunk size" for the `BalanceKey` implementation?
+
+We implement `StateKeysMaxChunks()` to provide the exact same idea to HyperSDK:
+
+This function returns a slice of `uint16` values (one for each state key) and they
+both update a single balance key-value pair, so we'll use `BalanceChunks` as before.
+
+Let's update the function like so:
 
 ```golang
-return []uint16{BalanceChunks, BalanceChunks}
+func (*Transfer) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+}
 ```
 
 ## `Execute()`
 
-We start off by first defining the values necessary for this function:
+We start off by first defining the values necessary for this function at the
+top of the file:
 
 ```golang
 const MaxMemoSize = 256
@@ -495,7 +601,6 @@ const MaxMemoSize = 256
 var (
    ErrOutputValueZero                 = errors.New("value is zero")
    ErrOutputMemoTooLarge              = errors.New("memo is too large")
-   _                     chain.Action = (*Transfer)(nil)
 )
 ```
 
@@ -503,19 +608,66 @@ We can now define `Execute()`. Recall that we should first check any invariants
 and then execute the necessary state changes. Therefore, we have the following:
 
 ```golang
-if t.Value == 0 {
-    return nil, ErrOutputValueZero
+func (t *Transfer) Execute(
+	ctx context.Context,
+	_ chain.Rules,
+	mu state.Mutable,
+	_ int64,
+	actor codec.Address,
+	_ ids.ID,
+) ([][]byte, error) {
+	if t.Value == 0 {
+		return nil, ErrOutputValueZero
+	}
+	if len(t.Memo) > MaxMemoSize {
+		return nil, ErrOutputMemoTooLarge
+	}
+	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+		return nil, err
+	}
+	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
-if len(t.Memo) > MaxMemoSize {
-    return nil, ErrOutputMemoTooLarge
+```
+
+### ComputeUnits
+
+The `ComputeUnits` function specifies how many units of computation are consumed
+by this action. The HyperSDK uses dynamic, multi-dimensional fees and specifies its
+own resource limits ie. units of compute, storage, and bandwidth. This means it's 
+more important that `ComputeUnits` of different actions is proportional to the maximum,
+target, and the cost of other actions than it is to be exact. So, we'll simply return 1
+for `Transfer`.
+
+Let's define a constant, `TransferComputeUnits`, at the top of the file.
+
+```golang
+const TransferComputeUnits = 1
+```
+
+Now we can implement our function:
+
+```golang
+func (*Transfer) ComputeUnits(chain.Rules) uint64 {
+	return TransferComputeUnits
 }
-if err := SubBalance(ctx, mu, actor, t.Value); err != nil {
-    return nil, err
+```
+
+### ValidRange
+
+Finally, we need to specify the range of timestamps where this action will be considered
+valid. We'll use `-1` to denote that there's no bound ie. `-1, -1` indicates that the action
+is valid forever.
+
+Now, we'll update our function stub:
+
+```golang
+func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
+	// Returning -1, -1 means that the action is always valid.
+	return -1, -1
 }
-if err := AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-    return nil, err
-}
-return nil, nil
 ```
 
 ## Bringing Everything Together
@@ -532,14 +684,14 @@ In `vm.go`, we first define the “registry” of MorpheusVM:
 package tutorial
 
 import (
- "github.com/ava-labs/avalanchego/utils/wrappers"
+   "github.com/ava-labs/avalanchego/utils/wrappers"
 
    "github.com/ava-labs/hypersdk/auth"
- "github.com/ava-labs/hypersdk/chain"
- "github.com/ava-labs/hypersdk/codec"
- "github.com/ava-labs/hypersdk/genesis"
- "github.com/ava-labs/hypersdk/vm"
- "github.com/ava-labs/hypersdk/vm/defaultvm"
+   "github.com/ava-labs/hypersdk/chain"
+   "github.com/ava-labs/hypersdk/codec"
+   "github.com/ava-labs/hypersdk/genesis"
+   "github.com/ava-labs/hypersdk/vm"
+   "github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
