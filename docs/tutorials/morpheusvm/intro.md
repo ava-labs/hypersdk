@@ -66,11 +66,25 @@ Finally, we’ll define the following consts.go file:
 ```golang
 package tutorial
 
+import "github.com/ava-labs/avalanchego/ids"
 import "github.com/ava-labs/avalanchego/version"
 
 const (
-   HRP      = "tutorial"
+ HRP      = "tutorial"
+ Name     = "tutorialvm"
 )
+
+var ID ids.ID
+
+func init() {
+ b := make([]byte, ids.IDLen)
+ copy(b, []byte(Name))
+ vmID, err := ids.ToID(b)
+ if err != nil {
+  panic(err)
+ }
+ ID = vmID
+}
 
 var Version = &version.Semantic{
    Major: 0,
@@ -92,9 +106,9 @@ import (
 )
 
 type Transfer struct {
-   To codec.Address `json:"to"`
-   Value uint64 `json:"value"`
-   Memo []byte `json:"memo"`
+   To codec.Address `serialize:"true" json:"to"`
+   Value uint64 `serialize:"true" json:"value"`
+   Memo []byte `serialize:"true" json:"memo"`
 }
 ```
 
@@ -157,6 +171,12 @@ three partitions for the StateManager and one partition for storing the balances
 of users:
 
 ```golang
+package tutorial
+
+import (
+   smath "github.com/ava-labs/avalanchego/utils/math"
+)
+
 const (
    // Active state
    balancePrefix   = 0x0
@@ -187,6 +207,15 @@ func TimestampKey() (k []byte) {
 func FeeKey() (k []byte) {
    return feeKey
 }
+```
+
+We'll now want to define our own storage-related errors:
+
+```golang
+var (
+ ErrInvalidAddress = errors.New("invalid address")
+ ErrInvalidBalance = errors.New("invalid balance")
+)
 ```
 
 Let’s now define balance keys. Keys start with their prefix and have a suffix
@@ -342,14 +371,13 @@ func getBalance(
 ```
 
 With read/write functionality now implemented, we can move onto StateManager.
+Remember to uncomment the lines from both `AddBalance()` and `SubBalance()`!
 
 ### State Manager
 
 We start off by defining an empty struct for `StateManager`:
 
 ```golang
-package storage
-
 type StateManager struct {}
 ```
 
@@ -370,6 +398,18 @@ var _ chain.StateManager = (*StateManager)(nil)
 
 type StateManager struct{}
 
+func (s *StateManager) FeeKey() []byte {
+ panic("unimplemented")
+}
+
+func (s *StateManager) HeightKey() []byte {
+ panic("unimplemented")
+}
+
+func (s *StateManager) TimestampKey() []byte {
+ panic("unimplemented")
+}
+
 func (s *StateManager) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error {
    panic("unimplemented")
 }
@@ -379,10 +419,6 @@ func (s *StateManager) CanDeduct(ctx context.Context, addr codec.Address, im sta
 }
 
 func (s *StateManager) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
-   panic("unimplemented")
-}
-
-func (s *StateManager) FeeKey() []byte {
    panic("unimplemented")
 }
 ```
@@ -493,20 +529,17 @@ We can now finish this MorpheusVM tutorial by implementing the vm interface.
 In `vm.go`, we first define the “registry” of MorpheusVM:
 
 ```golang
-package vm
+package tutorial
 
 import (
-   "github.com/ava-labs/avalanchego/utils/wrappers"
+ "github.com/ava-labs/avalanchego/utils/wrappers"
 
    "github.com/ava-labs/hypersdk/auth"
-   "github.com/ava-labs/hypersdk/chain"
-   "github.com/ava-labs/hypersdk/codec"
-   "github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-   "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-   "github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-   "github.com/ava-labs/hypersdk/genesis"
-   "github.com/ava-labs/hypersdk/vm"
-   "github.com/ava-labs/hypersdk/vm/defaultvm"
+ "github.com/ava-labs/hypersdk/chain"
+ "github.com/ava-labs/hypersdk/codec"
+ "github.com/ava-labs/hypersdk/genesis"
+ "github.com/ava-labs/hypersdk/vm"
+ "github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
@@ -521,7 +554,7 @@ func init() {
 
    errs := &wrappers.Errs{}
    errs.Add(
-       ActionParser.Register(&actions.Transfer{}, nil),
+       ActionParser.Register(&Transfer{}, nil),
 
        AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
        AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
