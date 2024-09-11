@@ -528,9 +528,7 @@ func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 
 ## Creating `Transfer`, Pt. 2
 
-Whew! We've completed our storage layout and helper functions!
-
-It's time to put them into action. Going back to `transfer.go` we'll update
+Now it's time to put them into action. Going back to `transfer.go` we'll update
 the stubbed out functions implementing the `chain.Action` interface with a real
 implementation.
 
