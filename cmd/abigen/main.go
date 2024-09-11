@@ -40,7 +40,7 @@ func run(_ *cobra.Command, args []string) {
 	}
 
 	// Parse the ABI JSON
-	var vmABI abi.VM
+	var vmABI abi.ABI
 	err = json.Unmarshal(abiData, &vmABI)
 	if err != nil {
 		fmt.Printf("Error parsing ABI JSON: %v\n", err)
