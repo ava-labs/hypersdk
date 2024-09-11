@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -303,10 +304,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
-		abi, err := instances[0].vm.GetABI()
+
+		actionRegistry, _ := instances[0].vm.Registry()
+		expectedABI, err := abi.DescribeVM((*actionRegistry).GetRegisteredTypes())
 		require.NoError(err)
 
-		workload.GetABI(ctx, require, uris, abi)
+		workload.GetABI(ctx, require, uris, expectedABI)
 	})
 })
 

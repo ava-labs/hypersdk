@@ -190,7 +190,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 		nil,
 		resp,
 	)
-	return resp.VM, err
+	return resp.ABI, err
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

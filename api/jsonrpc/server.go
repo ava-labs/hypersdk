@@ -148,10 +148,11 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	abi, err := j.vm.GetABI()
+	actionRegistry, _ := j.vm.Registry()
+	vmABI, err := abi.DescribeVM((*actionRegistry).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
-	reply.ABI = abi
+	reply.ABI = vmABI
 	return nil
 }
