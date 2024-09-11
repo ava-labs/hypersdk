@@ -21,15 +21,15 @@ var _ chain.Action = (*AddLiquidity)(nil)
 type AddLiquidity struct {
 	AmountX       uint64        `json:"amountX"`
 	AmountY       uint64        `json:"amountY"`
+	TokenX codec.Address `json:"tokenX"`
+	TokenY codec.Address `json:"tokenY"`
 	LiquidityPool codec.Address `json:"liquidityPool"`
 }
 
-// ComputeUnits implements chain.Action.
 func (*AddLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return AddLiquidityUnits
 }
 
-// Execute implements chain.Action.
 func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, a.LiquidityPool)
@@ -95,31 +95,39 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 	return nil, storage.SetLiquidityPool(ctx, mu, a.LiquidityPool, functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, k)
 }
 
-// GetTypeID implements chain.Action.
 func (*AddLiquidity) GetTypeID() uint8 {
 	return consts.AddLiquidityID
 }
 
-// StateKeys implements chain.Action.
 func (a *AddLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	lpToken := storage.LiqudityPoolTokenAddress(a.LiquidityPool)
 	return state.Keys{
 		string(storage.LiquidityPoolKey(a.LiquidityPool)):      state.All,
 		string(storage.TokenInfoKey(lpToken)):                  state.All,
 		string(storage.TokenAccountBalanceKey(lpToken, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(lpToken, a.LiquidityPool)): state.All,
+		
+		string(storage.TokenAccountBalanceKey(a.TokenX, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(a.TokenY, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(a.TokenX, a.LiquidityPool)): state.All,
+		string(storage.TokenAccountBalanceKey(a.TokenY, a.LiquidityPool)): state.All,
 	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*AddLiquidity) StateKeysMaxChunks() []uint16 {
 	return []uint16{
 		storage.LiquidityPoolChunks,
 		storage.TokenInfoChunks,
 		storage.TokenAccountBalanceChunks,
-	}
+		storage.TokenAccountBalanceChunks,
+
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+	}	
 }
 
-// ValidRange implements chain.Action.
 func (*AddLiquidity) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

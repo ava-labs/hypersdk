@@ -22,7 +22,6 @@ type CreateLiquidityPool struct {
 	FunctionID uint8         `json:"functionID"`
 	TokenX     codec.Address `json:"tokenX"`
 	TokenY     codec.Address `json:"tokenY"`
-	// Must be positive
 	Fee uint64 `json:"fee"`
 }
 

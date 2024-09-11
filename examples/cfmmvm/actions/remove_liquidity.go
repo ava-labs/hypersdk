@@ -21,13 +21,14 @@ var _ chain.Action = (*RemoveLiquidity)(nil)
 type RemoveLiquidity struct {
 	BurnAmount    uint64        `json:"burnAmount"`
 	LiquidityPool codec.Address `json:"liquidityPool"`
+	TokenX codec.Address `json:"tokenX"`
+	TokenY codec.Address `json:"tokenY"`
 }
 
 func (*RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return RemoveLiquidityUnits
 }
 
-// TODO: implement fees for
 // Execute implements chain.Action.
 func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
@@ -82,22 +83,39 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 	return nil, nil
 }
 
-// GetTypeID implements chain.Action.
 func (*RemoveLiquidity) GetTypeID() uint8 {
 	return consts.RemoveLiquidityID
 }
 
-// StateKeys implements chain.Action.
-func (*RemoveLiquidity) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
+func (l *RemoveLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	lpTokenAddress := storage.LiqudityPoolTokenAddress(l.LiquidityPool)
+	return state.Keys{
+		string(storage.LiquidityPoolKey(l.LiquidityPool)): state.All,
+		string(storage.TokenInfoKey(lpTokenAddress)): 	 state.All,
+		string(storage.TokenAccountBalanceKey(lpTokenAddress, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(lpTokenAddress, lpAddress)): state.All,
+
+		string(storage.TokenAccountBalanceKey(l.TokenX, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(l.TokenY, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(l.TokenX, lpAddress)): state.All,
+		string(storage.TokenAccountBalanceKey(l.TokenY, lpAddress)): state.All,
+	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*RemoveLiquidity) StateKeysMaxChunks() []uint16 {
-	panic("unimplemented")
+	return []uint16{
+		storage.LiquidityPoolChunks,
+		storage.TokenInfoChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+	}
 }
 
-// ValidRange implements chain.Action.
 func (*RemoveLiquidity) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

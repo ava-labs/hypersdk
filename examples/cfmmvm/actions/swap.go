@@ -80,12 +80,10 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 	return nil, nil
 }
 
-// GetTypeID implements chain.Action.
 func (*Swap) GetTypeID() uint8 {
 	return consts.SwapID
 }
 
-// StateKeys implements chain.Action.
 func (s *Swap) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	lpAddress := storage.LiquidityPoolAddress(s.TokenX, s.TokenY)
 	return state.Keys{
@@ -97,16 +95,16 @@ func (s *Swap) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*Swap) StateKeysMaxChunks() []uint16 {
 	return []uint16{
 		storage.LiquidityPoolChunks,
 		storage.TokenAccountBalanceChunks,
 		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
+		storage.TokenAccountBalanceChunks,
 	}
 }
 
-// ValidRange implements chain.Action.
 func (*Swap) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
