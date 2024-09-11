@@ -32,37 +32,29 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "bindings"))]
 mod tests {
-    use wasmlanche::{
-        simulator::{SimpleState, Simulator},
-        Address,
-    };
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+    use super::*;
 
     #[test]
-    fn init_program() {
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
+    fn initialized_value_is_zero() {
+        let mut context = Context::new();
+        let address = Address::default();
 
-        let actor = Address::default();
-        simulator.set_actor(actor);
-        let error = simulator.create_program(PROGRAM_PATH).has_error();
-        assert!(!error, "Create program errored")
+        let value = get_value(&mut context, address);
+        assert_eq!(value, 0);
     }
 
     #[test]
-    fn increment() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-        let gas = 100000000;
-        let bob = Address::new([1; 33]);
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
-        let value = simulator
-            .call_program(counter_address, "get_value", ((bob),), gas)
-            .result::<u64>()
-            .unwrap();
+    fn test_inc() {
+        let mut context = Context::new();
+        let address = Address::default();
+        let amount = 5;
 
-        assert_eq!(value, 10);
+        let inc = inc(&mut context, address, amount);
+        assert!(inc);
+
+        let value = get_value(&mut context, address);
+        assert_eq!(value, amount);
     }
 }

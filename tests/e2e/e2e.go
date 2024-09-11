@@ -4,8 +4,8 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/info"
@@ -160,15 +160,20 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
 		})
 		ginkgo.By("State sync while broadcasting txs", func() {
-			ctx, cancel := context.WithCancel(tc.DefaultContext())
-			defer cancel()
+			stopChannel := make(chan struct{})
+			wg := &sync.WaitGroup{}
+			defer wg.Wait()
+			defer close(stopChannel)
+
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				// Recover failure if exits
 				defer ginkgo.GinkgoRecover()
 
 				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
 				require.NoError(err)
-				workload.GenerateUntilCancel(tc.DefaultContext(), uris, txWorkload)
+				workload.GenerateUntilStop(tc.DefaultContext(), require, uris, txWorkload, stopChannel)
 			}()
 
 			// Give time for transactions to start processing
@@ -178,7 +183,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
 			uris = append(uris, syncConcurrentNodeURI)
 			c := jsonrpc.NewJSONRPCClient(syncConcurrentNodeURI)
-			_, _, _, err := c.Network(ctx)
+			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after syncing", func() {

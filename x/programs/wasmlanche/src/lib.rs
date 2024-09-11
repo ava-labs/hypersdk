@@ -62,12 +62,15 @@ pub mod build;
 pub mod simulator;
 
 mod context;
+mod host;
 mod memory;
 mod state;
 mod types;
 
 #[cfg(feature = "debug")]
 mod logging;
+#[cfg(feature = "test")]
+mod mock;
 #[cfg(not(feature = "debug"))]
 mod logging {
     pub fn log(_msg: &str) {}
@@ -75,11 +78,10 @@ mod logging {
 }
 
 pub use self::{
-    context::{Context, ExternalCallContext, ExternalCallError, Injected},
+    context::{Context, ExternalCallError, Injected},
     state::{macro_types, Error},
     types::{Address, Gas, Id, ProgramId, ID_LEN},
 };
-
 #[doc(hidden)]
 pub use self::{
     logging::{log, register_panic},

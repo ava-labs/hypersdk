@@ -3,10 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche::{public, state_schema, Address, Context, ExternalCallContext, Gas, ProgramId};
-
-#[cfg(test)]
-mod tests;
+use wasmlanche::{public, state_schema, Address, Context, Gas, ProgramId};
 
 mod math;
 
@@ -24,7 +21,7 @@ const MAX_GAS: Gas = 10000000;
 #[public]
 pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ProgramId) {
     let lt_program = context.deploy(liquidity_token, &[0, 1]);
-    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0).into();
+    let liquidity_context = context.to_extern(lt_program, MAX_GAS, 0);
     token::init(
         &liquidity_context,
         String::from("liquidity token"),
@@ -215,15 +212,15 @@ fn token_programs(context: &mut Context) -> (Address, Address) {
 fn external_token_contracts(context: &mut Context) -> (Context, Context) {
     let (token_x, token_y) = token_programs(context);
     (
-        ExternalCallContext::new(token_x, MAX_GAS, 0).into(),
-        ExternalCallContext::new(token_y, MAX_GAS, 0).into(),
+        context.to_extern(token_x, MAX_GAS, 0),
+        context.to_extern(token_y, MAX_GAS, 0),
     )
 }
 
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &mut Context) -> Context {
     let token = context.get(LiquidityToken).unwrap().unwrap();
-    ExternalCallContext::new(token, MAX_GAS, 0).into()
+    context.to_extern(token, MAX_GAS, 0)
 }
 
 mod internal {
@@ -237,5 +234,69 @@ mod internal {
             supported,
             "token program is not one of the tokens supported by this pool"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[ignore]
+    #[test]
+    fn init() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn add_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_liquidity_insufficient_shares() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn remove_all_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_no_liquidity() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_invalid_token() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_not_approved() {
+        // TODO
+    }
+
+    #[ignore]
+    #[test]
+    fn swap_insufficient_balance() {
+        // TODO
     }
 }

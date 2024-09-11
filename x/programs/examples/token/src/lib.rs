@@ -73,9 +73,13 @@ pub fn burn(context: &mut Context, recipient: Address, value: Units) -> Units {
     assert!(value <= total, "address doesn't have enough tokens to burn");
 
     let new_amount = total - value;
+    let new_total_supply = total_supply(context) - value;
 
     context
-        .store_by_key(Balance(recipient), new_amount)
+        .store((
+            (Balance(recipient), new_amount),
+            (TotalSupply, new_total_supply),
+        ))
         .expect("failed to burn recipient tokens");
 
     new_amount
@@ -198,128 +202,129 @@ mod internal {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "bindings"))]
 mod tests {
-    use super::Units;
-    use wasmlanche::{
-        simulator::{SimpleState, Simulator},
-        Address,
-    };
-
-    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
-
-    const MAX_UNITS: u64 = 1000000;
-    #[test]
-    fn create_program() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-
-        simulator.create_program(PROGRAM_PATH).unwrap()
-    }
+    use super::*;
 
     #[test]
-    // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
+        let mut context = Context::new();
+        let token_name = "Test Token".to_string();
+        let token_symbol = "TST".to_string();
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        init(&mut context, token_name.clone(), token_symbol.clone());
 
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
+        let init_name = name(&mut context);
+        assert_eq!(init_name, token_name);
 
-        let supply = simulator
-            .call_program(program_address, "total_supply", (), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
-        assert_eq!(supply, 0);
+        let init_symbol = symbol(&mut context);
+        assert_eq!(init_symbol, token_symbol);
 
-        let symbol = simulator
-            .call_program(program_address, "symbol", (), MAX_UNITS)
-            .result::<String>()
-            .unwrap();
-        assert_eq!(symbol, "TST");
-
-        let name = simulator
-            .call_program(program_address, "name", (), MAX_UNITS)
-            .result::<String>()
-            .unwrap();
-        assert_eq!(name, "Test");
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, 0);
     }
 
     #[test]
-    fn mint() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
+    fn mint_tokens() {
+        let mut context = init_test_token();
+        let recipient = Address::new([1; 33]);
+        let amount = 100;
 
-        let alice = Address::new([1; 33]);
-        let alice_initial_balance = 1000;
+        mint(&mut context, recipient, amount);
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, amount);
 
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
-
-        simulator
-            .call_program(
-                program_address,
-                "mint",
-                (alice, alice_initial_balance),
-                MAX_UNITS,
-            )
-            .unwrap();
-
-        let balance = simulator
-            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
-        assert_eq!(balance, alice_initial_balance);
-
-        let total_supply = simulator
-            .call_program(program_address, "total_supply", (), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
-        assert_eq!(total_supply, alice_initial_balance);
+        let balance = balance_of(&mut context, recipient);
+        assert_eq!(balance, amount);
     }
 
     #[test]
-    fn burn() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
+    #[should_panic = "caller is required to be owner"]
+    fn mint_not_owner() {
+        let mut context = init_test_token();
+        let actor = Address::new([2; 33]);
+        context.set_actor(actor);
 
-        let alice = Address::new([1; 33]);
-        let alice_initial_balance = 1000;
-        let alice_burn_amount = 100;
+        mint(&mut context, actor, 100);
+    }
 
-        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+    #[test]
+    fn transfer_ownership_of_token() {
+        let mut context = init_test_token();
 
-        simulator
-            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
-            .unwrap();
+        let new_owner = Address::new([2; 33]);
+        transfer_ownership(&mut context, new_owner);
 
-        simulator
-            .call_program(
-                program_address,
-                "mint",
-                (alice, alice_initial_balance),
-                MAX_UNITS,
-            )
-            .unwrap();
+        let mint_amount = 100;
+        context.set_actor(new_owner);
+        mint(&mut context, new_owner, mint_amount);
 
-        simulator
-            .call_program(
-                program_address,
-                "burn",
-                (alice, alice_burn_amount),
-                MAX_UNITS,
-            )
-            .unwrap();
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, mint_amount);
+    }
 
-        let balance = simulator
-            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
-            .result::<Units>()
-            .unwrap();
-        assert_eq!(balance, alice_initial_balance - alice_burn_amount);
+    #[test]
+    fn burn_tokens() {
+        let mut context = init_test_token();
+
+        let recipient = Address::new([1; 33]);
+        let amount = 100;
+        let burn_amount = 30;
+        mint(&mut context, recipient, amount);
+        burn(&mut context, recipient, burn_amount);
+
+        let total_supply = total_supply(&mut context);
+        assert_eq!(total_supply, amount - burn_amount);
+    }
+
+    #[test]
+    #[ignore]
+    fn approve() {
+        // TODO
+    }
+
+    #[test]
+    fn transfer_tokens() {
+        let mut context = init_test_token();
+
+        let amount = 100;
+        let sender = context.actor();
+        mint(&mut context, sender, amount);
+
+        let recipient = Address::new([2; 33]);
+
+        let transfer_amount = 30;
+        transfer(&mut context, recipient, transfer_amount);
+
+        let recipient_balance = balance_of(&mut context, recipient);
+        assert_eq!(recipient_balance, transfer_amount);
+
+        let sender_balance = balance_of(&mut context, sender);
+        assert_eq!(sender_balance, amount - transfer_amount);
+    }
+
+    #[test]
+    #[ignore]
+    fn transfer_insufficient_balance() {
+        // TODO
+    }
+
+    #[test]
+    #[ignore]
+    fn transfer_from() {
+        // TODO
+    }
+
+    #[test]
+    #[ignore]
+    fn transfer_from_insufficient_allowance() {
+        // TODO
+    }
+
+    fn init_test_token() -> Context {
+        let mut context = Context::new();
+        init(&mut context, "TEST".to_string(), "TST".to_string());
+        context
     }
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/internal/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
 
