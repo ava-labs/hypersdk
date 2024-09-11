@@ -44,6 +44,7 @@ func mustPrintOrderedJSON(t *testing.T, v any) string {
 	require.NoError(t, err)
 	return string(ordered)
 }
+
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
