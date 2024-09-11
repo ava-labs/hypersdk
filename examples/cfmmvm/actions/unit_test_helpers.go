@@ -38,7 +38,7 @@ const (
 	TokenTransferValue    uint64 = 1
 	InitialSwapValue      uint64 = 100
 
-	InitialFee uint64 = 97
+	InitialFee uint64 = 997
 )
 
 func GenerateEmptyState() state.Mutable {

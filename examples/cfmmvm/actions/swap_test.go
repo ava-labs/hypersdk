@@ -141,7 +141,7 @@ func TestSwap(t *testing.T) {
 				require := require.New(t)
 				balance, err := storage.GetTokenAccountBalanceNoController(ctx, m, tokenTwoAddress, addr)
 				require.NoError(err)
-				require.Equal(uint64(97), balance)
+				require.Equal(uint64(99), balance)
 			},
 			Actor: addr,
 		},

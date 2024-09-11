@@ -127,13 +127,13 @@ func (c *ConstantProduct) Swap(amountX uint64, amountY uint64) (uint64, uint64, 
 	var output uint64
 	if amountX == 0 {
 		// Swapping Y for X
-		output = c.reserveX - (k / (c.reserveY + ((amountY * c.fee) / 100)))
+		output = c.reserveX - ((1000 * k) / ((1000 * c.reserveY) + (amountY * c.fee)))
 		c.reserveX -= output
 		c.reserveY += amountY
 		return output, amountY, nil
 	} else {
 		// Swapping X for Y
-		output = c.reserveY - (k / (c.reserveX + ((amountX * c.fee) / 100)))
+		output = c.reserveY - ((1000 * k) / ((1000 * c.reserveX) + (amountX * c.fee)))
 		c.reserveX += amountX
 		c.reserveY -= output
 		return amountX, output, nil
