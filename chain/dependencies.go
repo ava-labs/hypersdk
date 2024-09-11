@@ -241,6 +241,11 @@ type Action interface {
 	) (outputs [][]byte, err error)
 }
 
+type ActionPair struct {
+	Input  Typed
+	Output interface{}
+}
+
 type Auth interface {
 	Object
 	Marshaler

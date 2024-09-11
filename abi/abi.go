@@ -64,10 +64,10 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func DescribeVM(actions []chain.Typed) (VM, error) {
+func DescribeVM(actions []chain.ActionPair) (VM, error) {
 	vmABI := make([]Action, 0)
 	for _, action := range actions {
-		actionABI, err := describeAction(action)
+		actionABI, err := describeAction(action.Input)
 		if err != nil {
 			return VM{}, err
 		}
