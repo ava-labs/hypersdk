@@ -409,7 +409,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.Len(results, 1)
 			require.True(results[0].Success)
 
-			//FIXME: this expects the output to be empty, which depends on the VM implementation and not generic to the SDK
+			// FIXME: this expects the output to be empty, which depends on the VM implementation and not generic to the SDK
 			// require.Empty(results[0].Outputs[0])
 		})
 

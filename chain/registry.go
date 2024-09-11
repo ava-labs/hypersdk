@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package chain
 
 import (
@@ -21,15 +24,15 @@ func NewAuthRegistry() *AuthRegistry {
 }
 
 func (a *AuthRegistry) Register(instance Typed, f func(*codec.Packer) (Auth, error)) error {
-	typeId := instance.GetTypeID()
+	typeID := instance.GetTypeID()
 
-	a.auths[typeId] = instance
-	a.authFuncs[typeId] = f
+	a.auths[typeID] = instance
+	a.authFuncs[typeID] = f
 	return nil
 }
 
-func (p *AuthRegistry) LookupIndex(typeId uint8) (func(*codec.Packer) (Auth, error), bool) {
-	f, found := p.authFuncs[typeId]
+func (a *AuthRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Auth, error), bool) {
+	f, found := a.authFuncs[typeID]
 	return f, found
 }
 
@@ -46,21 +49,21 @@ func NewActionRegistry() *ActionRegistry {
 }
 
 func (a *ActionRegistry) Register(instance Typed, outputInstance interface{}, f func(*codec.Packer) (Action, error)) error {
-	typeId := instance.GetTypeID()
+	typeID := instance.GetTypeID()
 
-	a.actions[typeId] = instance
-	a.actionFuncs[typeId] = f
+	a.actions[typeID] = instance
+	a.actionFuncs[typeID] = f
 	return nil
 }
 
-func (p *ActionRegistry) LookupIndex(typeId uint8) (func(*codec.Packer) (Action, error), bool) {
-	f, found := p.actionFuncs[typeId]
+func (a *ActionRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Action, error), bool) {
+	f, found := a.actionFuncs[typeID]
 	return f, found
 }
 
-func (p *ActionRegistry) GetRegisteredTypes() []Typed {
-	types := make([]Typed, 0, len(p.actions))
-	for _, action := range p.actions {
+func (a *ActionRegistry) GetRegisteredTypes() []Typed {
+	types := make([]Typed, 0, len(a.actions))
+	for _, action := range a.actions {
 		types = append(types, action)
 	}
 	return types
