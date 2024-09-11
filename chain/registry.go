@@ -57,3 +57,11 @@ func (p *ActionRegistry) LookupIndex(typeId uint8) (func(*codec.Packer) (Action,
 	f, found := p.actionFuncs[typeId]
 	return f, found
 }
+
+func (p *ActionRegistry) GetRegisteredTypes() []Typed {
+	types := make([]Typed, 0, len(p.actions))
+	for _, action := range p.actions {
+		types = append(types, action)
+	}
+	return types
+}

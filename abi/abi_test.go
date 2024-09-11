@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 func TestDescribeVM(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]codec.Typed{
+	actualABI, err := DescribeVM([]chain.Typed{
 		MockObjectSingleNumber{},
 		MockActionTransfer{},
 		MockObjectAllNumbers{},
@@ -35,7 +35,7 @@ func TestDescribeVM(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]codec.Typed{VM{}})
+	actualABI, err := DescribeVM([]chain.Typed{VM{}})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")

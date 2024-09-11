@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 
@@ -20,7 +21,7 @@ type VM struct {
 	Actions []Action `serialize:"true" json:"actions"`
 }
 
-var _ codec.Typed = (*VM)(nil)
+var _ chain.Typed = (*VM)(nil)
 
 const ABITypeID = consts.MaxUint8
 
@@ -63,7 +64,7 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func DescribeVM(actions []codec.Typed) (VM, error) {
+func DescribeVM(actions []chain.Typed) (VM, error) {
 	vmABI := make([]Action, 0)
 	for _, action := range actions {
 		actionABI, err := describeAction(action)
@@ -78,7 +79,7 @@ func DescribeVM(actions []codec.Typed) (VM, error) {
 // describeAction generates the VM for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func describeAction(action codec.Typed) (Action, error) {
+func describeAction(action chain.Typed) (Action, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
