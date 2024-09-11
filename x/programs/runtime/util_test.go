@@ -194,7 +194,7 @@ func (t *testRuntime) AddProgram(programID ProgramID, programName string) error 
 	return t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
 }
 
-// AddProgramInstance sets creates a new account with the program [programID]
+// AddProgramInstance creates a new account with the program [programID]
 func (t *testRuntime) AddProgramInstance(programID ProgramID, account codec.Address) {
 	t.StateManager.(TestStateManager).AccountMap[account] = string(programID)
 }
