@@ -18,7 +18,11 @@ func TestImportBalanceSendBalanceToAnotherProgram(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	program := newTestProgram(ctx, "balance")
+
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("balance")
+	require.NoError(err)
+
 	r := program.Runtime
 	stateManager := r.StateManager.(TestStateManager)
 	stateManager.Balances[program.Address] = 3
@@ -52,7 +56,9 @@ func TestImportBalanceGetBalance(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
-	program := newTestProgram(ctx, "balance")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("balance")
+	require.NoError(err)
 	program.Runtime.StateManager.(TestStateManager).Balances[actor] = 3
 	result, err := program.WithActor(actor).Call("balance")
 	require.NoError(err)
@@ -65,7 +71,10 @@ func TestImportBalanceSend(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
-	program := newTestProgram(ctx, "balance")
+	rt := newTestRuntime(ctx)
+	program, err := rt.newTestProgram("balance")
+	require.NoError(err)
+
 	program.Runtime.StateManager.(TestStateManager).Balances[program.Address] = 3
 	result, err := program.Call("send_balance", actor)
 	require.NoError(err)
