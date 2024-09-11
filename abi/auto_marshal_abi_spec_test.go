@@ -13,8 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	_ "embed"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 
