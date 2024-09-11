@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
-	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/internal/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
