@@ -27,7 +27,7 @@ func (VM) GetTypeID() uint8 {
 	return 0
 }
 
-func (a *VM) Hash() [32]byte {
+func (a VM) Hash() [32]byte {
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
 	if err != nil {
