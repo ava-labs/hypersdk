@@ -31,7 +31,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/pubsub"
@@ -402,10 +401,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results := blk.(*chain.StatefulBlock).Results()
 			require.Len(results, 1)
 			require.True(results[0].Success)
-			require.Equal([][]byte{codec.MustMarshal(actions.TransferResult{
-				SenderBalance:   9999999971099,
-				ReceiverBalance: 1,
-			})}, results[0].Outputs[0])
+
+			//FIXME: this expects the output to be empty, which depends on the VM implementation and not generic to the SDK
+			// require.Empty(results[0].Outputs[0])
 		})
 
 		ginkgo.By("ensure balance is updated", func() {

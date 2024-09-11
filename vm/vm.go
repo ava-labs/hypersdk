@@ -89,8 +89,8 @@ type VM struct {
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
 	stateManager          chain.StateManager
-	actionRegistry        chain.ActionRegistry
-	authRegistry          chain.AuthRegistry
+	actionRegistry        *chain.ActionRegistry
+	authRegistry          *chain.AuthRegistry
 	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
@@ -148,8 +148,8 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
+	actionRegistry *chain.ActionRegistry,
+	authRegistry *chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {

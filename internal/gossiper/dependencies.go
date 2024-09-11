@@ -26,7 +26,7 @@ type VM interface {
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
 	PreferredBlock(context.Context) (*chain.StatefulBlock, error)
-	Registry() (chain.ActionRegistry, chain.AuthRegistry)
+	Registry() (*chain.ActionRegistry, *chain.AuthRegistry)
 	NodeID() ids.NodeID
 	Rules(int64) chain.Rules
 	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error

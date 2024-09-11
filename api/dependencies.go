@@ -23,7 +23,7 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	Registry() (chain.ActionRegistry, chain.AuthRegistry)
+	Registry() (*chain.ActionRegistry, *chain.AuthRegistry)
 	Submit(
 		ctx context.Context,
 		verifySig bool,

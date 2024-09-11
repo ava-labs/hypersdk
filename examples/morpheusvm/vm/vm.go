@@ -8,7 +8,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -18,14 +17,14 @@ import (
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
+	ActionParser *chain.ActionRegistry
+	AuthParser   *chain.AuthRegistry
 )
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
+	ActionParser = &chain.ActionRegistry{}
+	AuthParser = &chain.AuthRegistry{}
 
 	errs := &wrappers.Errs{}
 	errs.Add(
