@@ -64,6 +64,7 @@ type ActionTest struct {
 	ExpectedErr     error
 
 	Assertion func(context.Context, *testing.T, state.Mutable)
+	AssertionBench func(context.Context, *testing.B, state.Mutable)
 }
 
 // Run executes the [ActionTest] and make sure all assertions pass.
@@ -78,6 +79,22 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 
 		if test.Assertion != nil {
 			test.Assertion(ctx, t, test.State)
+		}
+	})
+}
+
+func (t *ActionTest) RunBench(ctx context.Context, b *testing.B) {
+	b.Run(t.Name, func(b *testing.B) {
+		require := require.New(b)
+
+		for i := 0; i < b.N; i++ {
+			output, err := t.Action.Execute(ctx, t.Rules, t.State, t.Timestamp, t.Actor, t.ActionID)
+			require.NoError(err)
+			require.Equal(output, t.ExpectedOutputs)
+
+			if t.AssertionBench != nil {
+				t.AssertionBench(ctx, b, t.State)
+			}
 		}
 	})
 }

@@ -10,9 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -123,4 +125,39 @@ func TestTransferAction(t *testing.T) {
 	for _, tt := range tests {
 		tt.Run(context.Background(), t)
 	}
+}
+
+func BenchmarkSimpleTransfer(b *testing.B) {
+	require := require.New(b)
+	to := codec.CreateAddress(0, ids.GenerateTestID())
+	from := codec.CreateAddress(0, ids.GenerateTestID())
+	toBalanceKey := storage.BalanceKey(to)
+	fromBalanceKey := storage.BalanceKey(from)
+
+	transferActionTest := &chaintest.ActionTest{
+		Name:  "SimpleTransferBenchmark",
+		Actor: from,
+		Action: &Transfer{
+			To:    to,
+			Value: 1,
+		},
+		State: func() state.Mutable {
+			keys := make(state.Keys)
+			store := chaintest.NewInMemoryStore()
+			err := storage.SetBalance(context.Background(), store, from, consts.MaxUint64)
+			require.NoError(err)
+			keys.Add(string(toBalanceKey), state.All)
+			keys.Add(string(fromBalanceKey), state.All)
+			return store
+		}(),
+		AssertionBench: func(ctx context.Context, b *testing.B, store state.Mutable) {
+			_, err := storage.GetBalance(ctx, store, to)
+			require.NoError(err)
+			_, err = storage.GetBalance(ctx, store, from)
+			require.NoError(err)
+		},
+	}
+
+	ctx := context.Background()
+	transferActionTest.RunBench(ctx, b)
 }
