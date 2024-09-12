@@ -106,8 +106,8 @@ type WebSocketServer struct {
 	vm             api.VM
 	logger         logging.Logger
 	tracer         trace.Tracer
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
+	actionRegistry *codec.TypeParser[chain.Action]
+	authRegistry   *codec.TypeParser[chain.Auth]
 
 	s *pubsub.Server
 
@@ -122,8 +122,8 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
+	actionRegistry *codec.TypeParser[chain.Action],
+	authRegistry *codec.TypeParser[chain.Auth],
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{

@@ -75,8 +75,8 @@ func (t *Transaction) Digest() ([]byte, error) {
 
 func (t *Transaction) Sign(
 	factory AuthFactory,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	msg, err := t.Digest()
 	if err != nil {
@@ -416,8 +416,8 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 func UnmarshalTxs(
 	raw []byte,
 	initialCapacity int,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
 ) (map[uint8]int, []*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)

@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type VM interface {
@@ -26,8 +27,8 @@ type VM interface {
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
 	PreferredBlock(context.Context) (*chain.StatefulBlock, error)
-	ActionRegistry() chain.ActionRegistry
-	AuthRegistry() chain.AuthRegistry
+	ActionRegistry() *codec.TypeParser[chain.Action]
+	AuthRegistry() *codec.TypeParser[chain.Auth]
 	NodeID() ids.NodeID
 	Rules(int64) chain.Rules
 	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error

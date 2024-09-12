@@ -109,15 +109,15 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() chain.ActionRegistry {
+func (*Parser) ActionRegistry() *codec.TypeParser[chain.Action] {
 	return ActionParser
 }
 
-func (*Parser) OutputRegistry() chain.OutputRegistry {
+func (*Parser) OutputRegistry() *codec.TypeParser[codec.Typed] {
 	return OutputParser
 }
 
-func (*Parser) AuthRegistry() chain.AuthRegistry {
+func (*Parser) AuthRegistry() *codec.TypeParser[chain.Auth] {
 	return AuthParser
 }
 

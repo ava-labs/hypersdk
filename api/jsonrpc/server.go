@@ -152,8 +152,7 @@ type GetABIReply struct {
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
 	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
-	// Must dereference aliased type to call GetRegisteredTypes
-	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
+	vmABI, err := abi.NewABI(actionRegistry.GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
@@ -180,7 +179,7 @@ func (j *JSONRPCServer) Execute(
 	defer span.End()
 
 	actionRegistry := j.vm.ActionRegistry()
-	action, err := (*actionRegistry).Unmarshal(codec.NewReader(args.Action, len(args.Action)))
+	action, err := actionRegistry.Unmarshal(codec.NewReader(args.Action, len(args.Action)))
 	if err != nil {
 		return fmt.Errorf("failed to unmashal action: %w", err)
 	}

@@ -28,6 +28,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -90,9 +91,9 @@ type VM struct {
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
 	stateManager          chain.StateManager
-	actionRegistry        chain.ActionRegistry
-	authRegistry          chain.AuthRegistry
-	outputRegistry        chain.OutputRegistry
+	actionRegistry        *codec.TypeParser[chain.Action]
+	authRegistry          *codec.TypeParser[chain.Auth]
+	outputRegistry        *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
@@ -150,9 +151,9 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
-	outputRegistry chain.OutputRegistry,
+	actionRegistry *codec.TypeParser[chain.Action],
+	authRegistry *codec.TypeParser[chain.Auth],
+	outputRegistry *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {

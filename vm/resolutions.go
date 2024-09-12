@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
@@ -50,15 +51,15 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionRegistry() chain.ActionRegistry {
+func (vm *VM) ActionRegistry() *codec.TypeParser[chain.Action]{
 	return vm.actionRegistry
 }
 
-func (vm *VM) OutputRegistry() chain.OutputRegistry {
+func (vm *VM) OutputRegistry() *codec.TypeParser[codec.Typed]{
 	return vm.outputRegistry
 }
 
-func (vm *VM) AuthRegistry() chain.AuthRegistry {
+func (vm *VM) AuthRegistry() *codec.TypeParser[chain.Auth]{
 	return vm.authRegistry
 }
 
