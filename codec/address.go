@@ -109,10 +109,11 @@ func parseAddressBech32(saddr string) (string, Address, error) {
 
 // MarshalJSON marshals the address as a base64  encoded string
 func (a Address) MarshalJSON() ([]byte, error) {
+	// TODO: use hex https://github.com/ava-labs/hypersdk/issues/1527
 	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
 }
 
-// It unmarshals the Address from a base64-encoded string.
+// UnmarshalJSON unmarshals the Address from a base64-encoded string.
 func (a *Address) UnmarshalJSON(data []byte) error {
 	// Check if the data starts and ends with quotes
 	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {

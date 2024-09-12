@@ -24,15 +24,11 @@ func (ABI) GetTypeID() uint8 {
 	return 0
 }
 
-// Field represents a field in the VM (Application Binary Interface).
 type Field struct {
-	// Name of the field, overridden by the json tag if present
 	Name string `serialize:"true" json:"name"`
-	// Type of the field, either a Go type or struct name (excluding package name)
 	Type string `serialize:"true" json:"type"`
 }
 
-// Action represents an action in the VM.
 type Action struct {
 	ID     uint8  `serialize:"true" json:"id"`
 	Action string `serialize:"true" json:"action"`
@@ -48,9 +44,10 @@ func NewABI(actions []chain.ActionPair) (ABI, error) {
 	vmActions := make([]Action, 0)
 	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
+	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	for _, action := range actions {
-		actionABI, typeABI, err := describeAction(action)
+		actionABI, typeABI, err := describeAction(action, typesAlreadyProcessed)
 		if err != nil {
 			return ABI{}, err
 		}
@@ -68,7 +65,8 @@ func NewABI(actions []chain.ActionPair) (ABI, error) {
 // describeAction generates the Action and Types for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func describeAction(action chain.ActionPair) (Action, []Type, error) {
+
+func describeAction(action chain.ActionPair, typesAlreadyProcessed set.Set[reflect.Type]) (Action, []Type, error) {
 	t := reflect.TypeOf(action.Input)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -81,7 +79,6 @@ func describeAction(action chain.ActionPair) (Action, []Type, error) {
 
 	typesABI := make([]Type, 0)
 	typesLeft := []reflect.Type{t}
-	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	if action.Output != nil {
 		outputType := reflect.TypeOf(action.Output)
@@ -129,7 +126,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 	kind := t.Kind()
 
 	if kind != reflect.Struct {
-		return nil, nil, fmt.Errorf("type %s is not a struct", t.String())
+		return nil, nil, fmt.Errorf("type %s is not a struct", t)
 	}
 
 	fields := make([]Field, 0)
@@ -140,6 +137,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 		fieldType := field.Type
 		fieldName := field.Name
 
+		// Skip any field that will not be serialized by the codec
 		serializeTag := field.Tag.Get("serialize")
 		if serializeTag != "true" {
 			continue
@@ -163,6 +161,10 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 		} else {
 			arrayPrefix := ""
 
+			// Here we assume that all types without a name are slices.
+			// We completely ignore the fact that maps exist as we don't support them.
+			// Types like `type Bytes = []byte` are slices technically, but they have a name
+			// and we need them to be named types instead of slices.
 			for fieldType.Name() == "" {
 				arrayPrefix += "[]"
 				fieldType = fieldType.Elem()

@@ -19,11 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-// Combined VM and AutoMarshal spec
-// Used to verify TypeScript implementation
-// Tests added as needed by TypeScript
-// Ensures consistency in marshaling, not testing Go struct marshaling itself
-
+// Sets the expected ABI hash for the testdata/abi.json file
+// Used to verify implementation in other languages
 func TestABIHash(t *testing.T) {
 	require := require.New(t)
 
@@ -44,6 +41,7 @@ func TestABIHash(t *testing.T) {
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
 
+// Used to verify implementation in other languages, relies on testdata dir
 func TestMarshalSpecs(t *testing.T) {
 	require := require.New(t)
 
@@ -80,15 +78,15 @@ func TestMarshalSpecs(t *testing.T) {
 			err = codec.LinearCodec.MarshalInto(unmarshaledFromJSON, objectPacker.Packer)
 			require.NoError(err)
 
-			objectDigest := objectPacker.Bytes()
+			objectBytes := objectPacker.Bytes()
 
 			// Compare with expected hex
 			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".hex"))
 			expectedHex = strings.TrimSpace(expectedHex)
-			require.Equal(expectedHex, hex.EncodeToString(objectDigest), tc.name)
+			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
 			// Unmarshal the object
-			err = codec.LinearCodec.Unmarshal(objectDigest, unmarshaledFromBytes)
+			err = codec.LinearCodec.Unmarshal(objectBytes, unmarshaledFromBytes)
 			require.NoError(err)
 
 			// Compare unmarshaled object with the original
