@@ -380,7 +380,7 @@ func AddBalance(
            "%w: could not add balance (bal=%d, addr=%v, amount=%d)",
            ErrInvalidBalance,
            bal,
-           codec.MustAddressBech32(tconsts.HRP, addr),
+           codec.MustAddressBech32(mconsts.HRP, addr),
            amount,
        )
    }
@@ -406,7 +406,7 @@ func SubBalance(
            "%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
            ErrInvalidBalance,
            bal,
-           codec.MustAddressBech32(tconsts.HRP, addr),
+           codec.MustAddressBech32(mconsts.HRP, addr),
            amount,
        )
    }
@@ -419,7 +419,7 @@ func SubBalance(
 }
 ```
 
-This will give us a few warnings for `smath`, `tconsts`, and two errors that we have
+This will give us a few warnings for `smath`, `mconsts`, and two errors that we have
 not defined yet. Let's go ahead and import the AvalancheGo safe math package
 and define those two errors in another file.
 
@@ -432,7 +432,7 @@ First, let's add the math package from AvalancheGo to our imports:
 Next, we'll add the `consts` package we defined earlier:
 
 ```golang
-	tconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 We now define the two errors from earlier. In `storage/`, create a file called
