@@ -58,7 +58,5 @@ function add_license_headers() {
   echo "${action} license headers"
 
   # Find and process files with the specified extensions
-  file_args="$(find . -type f \( -name "*.go" -o -name "*.rs" -o -name "*.sh" \) | grep -v "^./target/" | xargs)"
-
-  addlicense "${file_args}"
+  find . -type f \( -name "*.go" -o -name "*.rs" -o -name "*.sh" \) -not -path "./target/*" -print0 | xargs -0 addlicense "${args[@]}"
 }
