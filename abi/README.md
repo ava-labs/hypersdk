@@ -38,7 +38,7 @@ To create an implementation of this package in any other langauge:
 - JSON files should align with their corresponding .hex files.
 
 ## Hash verification
-Wallets use ABI to display proper action names and field names. To verify ABI implementation in other languages, marshal the ABI into binary, hash it, and compare with the known hash.
+Wallets use ABI to display proper action names and field names. To verify ABI implementation in other languages, marshal the ABI into binary, hash it, and compare it with the known hash. We do this to avoid a situation where a bad actor could provide a different ABI, tricking users into signing the wrong action.
 
 ## Constraints
 - Actions must have an ID; other structs do not require one.
