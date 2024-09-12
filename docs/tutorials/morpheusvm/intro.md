@@ -54,51 +54,47 @@ cd examples/tutorial
 go mod init
 ```
 
-We'll start with the HyperSDK as the only dependency, so we can update the go.mod
-file to the contents:
-
-```golang
-module github.com/ava-labs/hypersdk/examples/tutorial
-
-go 1.21.12
-
-require (
-   github.com/ava-labs/hypersdk v0.0.1
-)
-
-replace github.com/ava-labs/hypersdk => ../../
-```
-First, we'll create a `consts.go` file to declare the name, HRP for Bech32 addresses,
+Now that we've , we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
 and the initial version of our VM:
 
 ```golang
 package tutorial
 
-import "github.com/ava-labs/avalanchego/ids"
-import "github.com/ava-labs/avalanchego/version"
+import (
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/version"
+)
 
 const (
- HRP      = "tutorial"
- Name     = "tutorialvm"
+	HRP  = "tutorial"
+	Name = "tutorialvm"
 )
 
 var ID ids.ID
 
 func init() {
- b := make([]byte, ids.IDLen)
- copy(b, []byte(Name))
- vmID, err := ids.ToID(b)
- if err != nil {
-  panic(err)
- }
- ID = vmID
+	b := make([]byte, ids.IDLen)
+	copy(b, []byte(Name))
+	vmID, err := ids.ToID(b)
+	if err != nil {
+		panic(err)
+	}
+	ID = vmID
 }
 
 var Version = &version.Semantic{
-   Major: 0,
-   Minor: 0,
-   Patch: 1,
+	Major: 0,
+	Minor: 0,
+	Patch: 1,
 }
+
+```
+
+This will create a warning because we have not imported AvalancheGo into this workspace yet.
+To fix that, let's add AvalancheGo as a dependency:
+
+```sh
+go get github.com/ava-labs/avalanchego && go mod tidy
 ```
 
 ## Creating `Transfer` Pt. 1
@@ -125,10 +121,24 @@ import (
 var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
-   To codec.Address `serialize:"true" json:"to"`
-   Value uint64 `serialize:"true" json:"value"`
-   Memo []byte `serialize:"true" json:"memo"`
+	// To is the recipient of the [Value].
+	To codec.Address `serialize:"true" json:"to"`
+
+	// Amount are transferred to [To].
+	Value uint64 `serialize:"true" json:"value"`
+
+	// Optional message to accompany transaction.
+	Memo []byte `serialize:"true" json:"memo"`
 }
+```
+
+This imports the HyperSDK, so we'll import it and redirect it to our local version of the
+HyperSDK:
+
+```sh
+go get github.com/ava-labs/hypersdk
+go mod edit -replace github.com/ava-labs/hypersdk=../../
+go mod tidy
 ```
 
 Note: we include JSON and `serialize` tags in the struct to provide instructions on how
@@ -143,14 +153,6 @@ call `panic("unimplemented")`, so we can come back to fill these in later in the
 You can copy-paste the code below:
 
 ```golang
-func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
-   panic("unimplemented")
-}
-
-func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
-   panic("unimplemented")
-}
-
 func (t *Transfer) GetTypeID() uint8 {
    panic("unimplemented")
 }
@@ -160,6 +162,14 @@ func (t *Transfer) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 }
 
 func (t *Transfer) StateKeysMaxChunks() []uint16 {
+   panic("unimplemented")
+}
+
+func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+   panic("unimplemented")
+}
+
+func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
    panic("unimplemented")
 }
 
@@ -189,10 +199,6 @@ Let's create a `storage.go` file with prefixes for balance, height, timestamp, a
 
 ```golang
 package tutorial
-
-import (
-   smath "github.com/ava-labs/avalanchego/utils/math"
-)
 
 const (
    // Active state
@@ -396,6 +402,25 @@ func SubBalance(
 }
 ```
 
+This will give us a few warnings for `smath` and two errors that we have
+not defined yet. Let's go ahead and import the AvalancheGo safe math package
+and define those two errors at the top of the file.
+
+First, let's add the math pacakge from AvalancheGo to our imports:
+
+```golang
+   smath "github.com/ava-labs/avalanchego/utils/math"
+```
+
+Then, we'll define the two error values at the top of the file:
+
+```golang
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrInvalidBalance = errors.New("invalid balance")
+)
+```
+
 ### State Manager
 
 Now we'll implement the `chain.StateManager` interface to tell the HyperSDK
@@ -565,8 +590,8 @@ for the actor and `state.All` for the `to` address:
 ```golang
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.BalanceKey(actor)): state.Read | state.Write,
-		string(storage.BalanceKey(t.To)):  state.All,
+		string(BalanceKey(actor)): state.Read | state.Write,
+		string(BalanceKey(t.To)):  state.All,
 	}
 }
 ```
@@ -584,11 +609,11 @@ Let's update the function like so:
 
 ```golang
 func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+	return []uint16{BalanceChunks, BalanceChunks}
 }
 ```
 
-## `Execute()`
+### `Execute()`
 
 We start off by first defining the values necessary for this function at the
 top of the file:
@@ -597,8 +622,8 @@ top of the file:
 const MaxMemoSize = 256
 
 var (
-   ErrOutputValueZero                 = errors.New("value is zero")
-   ErrOutputMemoTooLarge              = errors.New("memo is too large")
+	ErrOutputValueZero    = errors.New("value is zero")
+	ErrOutputMemoTooLarge = errors.New("memo is too large")
 )
 ```
 
@@ -620,10 +645,10 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	if err := SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	if err := AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -663,7 +688,6 @@ Now, we'll update our function stub:
 
 ```golang
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
-	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
 ```
@@ -676,7 +700,7 @@ So far, we’ve implemented the following:
 - Storage
 
 We can now finish this MorpheusVM tutorial by implementing the vm interface.
-In `vm.go`, we first define the “registry” of MorpheusVM:
+Let's create the file `vm.go`. Here, we first define the “registry” of MorpheusVM:
 
 ```golang
 package tutorial
