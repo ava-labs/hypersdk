@@ -18,11 +18,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-// Combined VM and AutoMarshal spec
-// Used to verify TypeScript implementation
-// Tests added as needed by TypeScript
-// Ensures consistency in marshaling, not testing Go struct marshaling itself
-
+// Sets the expected ABI hash for the testdata/abi.json file
+// Used to verify implementation in other languages
 func TestABIHash(t *testing.T) {
 	require := require.New(t)
 
@@ -43,6 +40,7 @@ func TestABIHash(t *testing.T) {
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
 
+// Used to verify implementation in other languages, relies on testdata dir
 func TestMarshalSpecs(t *testing.T) {
 	require := require.New(t)
 
