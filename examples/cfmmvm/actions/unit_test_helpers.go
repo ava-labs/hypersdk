@@ -12,14 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var (
-	ts              *tstate.TState
-	tokenOneAddress = storage.TokenAddress([]byte(TokenOneName), []byte(TokenOneSymbol), []byte(TokenOneMetadata))
-	tokenTwoAddress = storage.TokenAddress([]byte(TokenTwoName), []byte(TokenTwoSymbol), []byte(TokenTwoMetadata))
-	lpAddress       = storage.LiquidityPoolAddress(tokenOneAddress, tokenTwoAddress)
-	lpTokenAddress  = storage.LiqudityPoolTokenAddress(lpAddress)
-)
-
 const (
 	TokenOneName     = "HyperSDKCoin" // #nosec G101
 	TokenOneSymbol   = "HC"
@@ -39,6 +31,14 @@ const (
 	InitialSwapValue      uint64 = 100
 
 	InitialFee uint64 = 997
+)
+
+var (
+	ts              *tstate.TState
+	tokenOneAddress = storage.TokenAddress([]byte(TokenOneName), []byte(TokenOneSymbol), []byte(TokenOneMetadata))
+	tokenTwoAddress = storage.TokenAddress([]byte(TokenTwoName), []byte(TokenTwoSymbol), []byte(TokenTwoMetadata))
+	lpAddress       = storage.LiquidityPoolAddress(tokenOneAddress, tokenTwoAddress)
+	lpTokenAddress  = storage.LiqudityPoolTokenAddress(lpAddress)
 )
 
 func GenerateEmptyState() state.Mutable {
