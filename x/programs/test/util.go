@@ -11,8 +11,8 @@ import (
 	"github.com/near/borsh-go"
 )
 
-func CompileTest(programName string) error {
-	cmd := exec.Command("cargo", "build", "-p", programName, "--release", "--target=wasm32-unknown-unknown", "--target-dir=./target")
+func CompileTest(contractName string) error {
+	cmd := exec.Command("cargo", "build", "-p", contractName, "--release", "--target=wasm32-unknown-unknown", "--target-dir=./target")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out

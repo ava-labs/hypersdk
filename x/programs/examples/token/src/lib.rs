@@ -20,7 +20,7 @@ state_schema! {
     Owner => Address,
 }
 
-/// Initializes the program with a name, symbol, and total supply.
+/// Initializes the contract with a name, symbol, and total supply.
 #[public]
 pub fn init(context: &mut Context, name: String, symbol: String) {
     let actor = context.actor();
@@ -179,7 +179,7 @@ mod internal {
     }
 
     // Checks if the caller is the owner of the token
-    // If the caller is not the owner, the program will panic
+    // If the caller is not the owner, the contract will panic
     pub fn check_owner(context: &mut Context, actor: Address) {
         assert_eq!(get_owner(context), actor, "caller is required to be owner")
     }

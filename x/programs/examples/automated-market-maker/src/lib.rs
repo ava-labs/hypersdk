@@ -261,7 +261,7 @@ mod internal {
         let supported = token_contract == token_x || token_contract == token_y;
         assert!(
             supported,
-            "token program is not one of the tokens supported by this pool"
+            "token contract is not one of the tokens supported by this pool"
         );
     }
 }

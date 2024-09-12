@@ -385,7 +385,7 @@ fn token_path() -> &'static str {
                 .arg(build_dir)
                 .arg("--target=wasm32-unknown-unknown")
                 .output()
-                .expect("Failed to build token program")
+                .expect("Failed to build token contract")
                 .status
                 .success();
 

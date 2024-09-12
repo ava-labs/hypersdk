@@ -7,7 +7,7 @@ state_schema! {
     State => i64,
 }
 
-/// Initializes the program with a name, symbol, and total supply.
+/// Initializes the contract with a name, symbol, and total supply.
 #[public]
 pub fn put(context: &mut Context, value: i64) {
     context

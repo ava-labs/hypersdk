@@ -4,6 +4,6 @@
 use wasmlanche::{public, Address, Context, ContractId};
 
 #[public]
-pub fn deploy(ctx: &mut Context, program_id: ContractId) -> Address {
-    ctx.deploy(program_id, &[])
+pub fn deploy(ctx: &mut Context, contract_id: ContractId) -> Address {
+    ctx.deploy(contract_id, &[])
 }
