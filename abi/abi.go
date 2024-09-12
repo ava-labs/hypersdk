@@ -24,15 +24,11 @@ func (ABI) GetTypeID() uint8 {
 	return 0
 }
 
-// Field represents a field in the VM (Application Binary Interface).
 type Field struct {
-	// Name of the field, overridden by the json tag if present
 	Name string `serialize:"true" json:"name"`
-	// Type of the field, either a Go type or struct name (excluding package name)
 	Type string `serialize:"true" json:"type"`
 }
 
-// Action represents an action in the VM.
 type Action struct {
 	ID     uint8  `serialize:"true" json:"id"`
 	Action string `serialize:"true" json:"action"`
@@ -47,9 +43,10 @@ func NewABI(actions []codec.Typed) (ABI, error) {
 	vmActions := make([]Action, 0)
 	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
+	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	for _, action := range actions {
-		actionABI, typeABI, err := describeAction(action)
+		actionABI, typeABI, err := describeAction(action, typesAlreadyProcessed)
 		if err != nil {
 			return ABI{}, err
 		}
@@ -67,7 +64,7 @@ func NewABI(actions []codec.Typed) (ABI, error) {
 // describeAction generates the Action and Types for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func describeAction(action codec.Typed) (Action, []Type, error) {
+func describeAction(action codec.Typed, typesAlreadyProcessed set.Set[reflect.Type]) (Action, []Type, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -80,7 +77,6 @@ func describeAction(action codec.Typed) (Action, []Type, error) {
 
 	typesABI := make([]Type, 0)
 	typesLeft := []reflect.Type{t}
-	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	// Process all types, including nested ones
 	for {
@@ -119,7 +115,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 	kind := t.Kind()
 
 	if kind != reflect.Struct {
-		return nil, nil, fmt.Errorf("type %s is not a struct", t.String())
+		return nil, nil, fmt.Errorf("type %s is not a struct", t.Name())
 	}
 
 	fields := make([]Field, 0)
