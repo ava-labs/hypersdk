@@ -35,7 +35,23 @@ The ABI consists of two main sections:
 To create an implementation of this package in any other langauge:
 - Copy the testdata folder.
 - Ensure all marshaling is identical to the Go implementation.
-- JSON files should align with their corresponding .hex files.
+- JSON files should align with their corresponding .hex files. 
+
+Testing algorithm in pseudocode:
+```
+abi = abi.json
+
+for filename in testdata/*.hex:
+    if filename.endswith(".hash.hex"):
+        continue
+    expectedHex = readFile(filename)
+    json = readFile(filename.replace(".hex", ".json"))
+
+    actualHex = Marshal(abi, json)
+    if actualHex != expectedHex:
+        raise "Hex values do not match"
+
+```
 
 ## Hash verification
 Wallets use ABI to display proper action names and field names. To verify ABI implementation in other languages, marshal the ABI into binary, hash it, and compare it with the known hash. We do this to avoid a situation where a bad actor could provide a different ABI, tricking users into signing the wrong action.
