@@ -26,7 +26,7 @@ func TestNewABI(t *testing.T) {
 	})
 	require.NoError(err)
 
-	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
+	expectedABIJSON := mustReadFile(t, "testdata/abi.json")
 	expectedABI := mustJSONParse[ABI](t, string(expectedABIJSON))
 
 	require.Equal(expectedABI, actualABI)
