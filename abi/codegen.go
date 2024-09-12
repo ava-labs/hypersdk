@@ -30,6 +30,8 @@ func GenerateGoStructs(abi ABI, packageName string) (string, error) {
 		for _, field := range typ.Fields {
 			fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
 
+			// If the first character is uppercase, use the default JSON tag.
+			// Otherwise, specify the exported field (upper case) and the lowercase version as the JSON key.
 			goType := convertToGoType(field.Type)
 			if unicode.IsUpper(rune(field.Name[0])) {
 				sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", fieldNameUpperCase, goType))
