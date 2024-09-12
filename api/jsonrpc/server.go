@@ -180,6 +180,7 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	actionRegistry, _ := j.vm.Registry()
 
+	//FIXME: is re-marshalling necessary to cast to a particular Action?
 	reMarshalledActionJSON, err := json.Marshal(args.Action)
 	if err != nil {
 		return fmt.Errorf("failed to re-marshal action: %w", err)
@@ -191,16 +192,16 @@ func (j *JSONRPCServer) ExecuteAction(
 	}
 	now := time.Now().UnixMilli()
 
-	//get expected state keys
-	//FIXME: state.Keys representing actually a mapping of key to permissions is a bit of a misnomer
+	// Get expected state keys
 	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
 
-	//convert to plain array of keys
-	stateKeys := make([][]byte, len(stateKeysWithPermissions))
-	for key, _ := range stateKeysWithPermissions {
+	// Convert to plain array of keys
+	stateKeys := make([][]byte, 0, len(stateKeysWithPermissions))
+	for key := range stateKeysWithPermissions {
 		stateKeys = append(stateKeys, []byte(key))
 	}
-	//fetch state
+
+	// Fetch state
 	stateValues, errs := j.vm.ReadState(ctx, stateKeys)
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to read state: %w", errs[0])
