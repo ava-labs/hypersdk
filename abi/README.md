@@ -12,7 +12,6 @@ The ABI is defined in JSON format, as shown in the `abi.json` file:
             "id": 1,
             "action": "MockObjectSingleNumber"
         },
-        //...
     ],
     "types": [
         {
@@ -24,7 +23,7 @@ The ABI is defined in JSON format, as shown in the `abi.json` file:
                 }
             ]
         },
-        //...
+    ]
 }
 ```
 
@@ -46,6 +45,7 @@ Wallets use ABI to display proper action names and field names. To verify ABI im
 - Multiple structs with the same name from different packages are not supported.
 - Maps are not supported; use slices (arrays) instead.
 - Built-in types include Address and Bytes.
+- Action names are also a type. So to serialize an action, refer to its type and any types it refers to recursively
 
 ## Code Generation
-Use cmd/abigen to automatically generate Go structs from JSON.
+Use cmd/abigen to automatically generate Go structs from JSON. For example: `go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage`
