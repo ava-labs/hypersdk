@@ -42,13 +42,13 @@ func NewStateAccessModule() *ImportModule {
 			"put": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				programState := callInfo.State.GetProgramState(callInfo.Program)
+				contractState := callInfo.State.GetProgramState(callInfo.Program)
 				for _, entry := range input {
 					if len(entry.Value) == 0 {
-						if err := programState.Remove(ctx, entry.Key); err != nil {
+						if err := contractState.Remove(ctx, entry.Key); err != nil {
 							return err
 						}
-					} else if err := programState.Insert(ctx, entry.Key, entry.Value); err != nil {
+					} else if err := contractState.Insert(ctx, entry.Key, entry.Value); err != nil {
 						return err
 					}
 				}

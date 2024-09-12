@@ -20,11 +20,11 @@ func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("simple")
+	contract, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
 	for i := 0; i < b.N; i++ {
-		result, err := program.Call("get_value")
+		result, err := contract.Call("get_value")
 		require.NoError(err)
 		require.Equal(uint64(0), into[uint64](result))
 	}
@@ -37,28 +37,28 @@ func TestRuntimeCallProgramBasicAttachValue(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("simple")
+	contract, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
-	program.Runtime.StateManager.(TestStateManager).Balances[actor] = 10
+	contract.Runtime.StateManager.(TestStateManager).Balances[actor] = 10
 
-	actorBalance, err := program.Runtime.StateManager.GetBalance(context.Background(), actor)
+	actorBalance, err := contract.Runtime.StateManager.GetBalance(context.Background(), actor)
 	require.NoError(err)
 	require.Equal(uint64(10), actorBalance)
 
-	// calling a program with a value transfers that amount from the caller to the program
-	result, err := program.WithActor(actor).WithValue(4).Call("get_value")
+	// calling a contract with a value transfers that amount from the caller to the contract
+	result, err := contract.WithActor(actor).WithValue(4).Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 
-	actorBalance, err = program.Runtime.StateManager.GetBalance(context.Background(), actor)
+	actorBalance, err = contract.Runtime.StateManager.GetBalance(context.Background(), actor)
 	require.NoError(err)
 	require.Equal(uint64(6), actorBalance)
 
-	programBalance, err := program.Runtime.StateManager.GetBalance(context.Background(), program.Address)
+	contractBalance, err := contract.Runtime.StateManager.GetBalance(context.Background(), contract.Address)
 	require.NoError(err)
-	require.Equal(uint64(4), programBalance)
+	require.Equal(uint64(4), contractBalance)
 }
 
 func TestRuntimeCallProgramBasic(t *testing.T) {
@@ -68,10 +68,10 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("simple")
+	contract, err := rt.newTestProgram("simple")
 	require.NoError(err)
 
-	result, err := program.Call("get_value")
+	result, err := contract.Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 }
@@ -88,10 +88,10 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("return_complex_type")
+	contract, err := rt.newTestProgram("return_complex_type")
 	require.NoError(err)
 
-	result, err := program.Call("get_value")
+	result, err := contract.Call("get_value")
 	require.NoError(err)
-	require.Equal(ComplexReturn{Program: program.Address, MaxUnits: 1000}, into[ComplexReturn](result))
+	require.Equal(ComplexReturn{Program: contract.Address, MaxUnits: 1000}, into[ComplexReturn](result))
 }
