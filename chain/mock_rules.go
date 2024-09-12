@@ -10,7 +10,7 @@
 package chain
 
 import (
-	"reflect"
+	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
 	fees "github.com/ava-labs/hypersdk/fees"
