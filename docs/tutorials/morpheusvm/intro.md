@@ -613,7 +613,7 @@ func (*Transfer) StateKeysMaxChunks() []uint16 {
 }
 ```
 
-## `Execute()`
+### `Execute()`
 
 We start off by first defining the values necessary for this function at the
 top of the file:
@@ -688,7 +688,6 @@ Now, we'll update our function stub:
 
 ```golang
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
-	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
 ```
@@ -701,7 +700,7 @@ So far, we’ve implemented the following:
 - Storage
 
 We can now finish this MorpheusVM tutorial by implementing the vm interface.
-In `vm.go`, we first define the “registry” of MorpheusVM:
+Let's create the file `vm.go`. Here, we first define the “registry” of MorpheusVM:
 
 ```golang
 package tutorial
