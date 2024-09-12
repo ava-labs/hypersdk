@@ -20,7 +20,7 @@ func TestGenerateAllStructs(t *testing.T) {
 	code, err := GenerateGoStructs(abi, "abi")
 	require.NoError(err)
 
-	expected := mustReadFile(t, "mockabi.test.go")
+	expected := mustReadFile(t, "mockabi_test.go")
 
 	formatted, err := format.Source(removeCommentLines(expected))
 	require.NoError(err)
