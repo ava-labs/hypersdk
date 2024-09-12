@@ -109,7 +109,7 @@ func parseAddressBech32(saddr string) (string, Address, error) {
 
 // MarshalJSON marshals the address as a base64  encoded string
 func (a Address) MarshalJSON() ([]byte, error) {
-	//TODO: use hex https://github.com/ava-labs/hypersdk/issues/1527
+	// TODO: use hex https://github.com/ava-labs/hypersdk/issues/1527
 	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
 }
 
