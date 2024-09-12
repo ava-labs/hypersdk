@@ -1,7 +1,7 @@
 # ABI Package
 
 ## Overview
-The ABI package provides functionality for marshaling and unmarshaling actions without importing the codec package. It is designed to work across different language implementations.
+The ABI package provides functionality for marshaling and unmarshaling actions. It is designed to work across different language implementations.
 
 ## ABI Format
 The ABI is defined in JSON format, as shown in the `abi.json` file:
@@ -12,7 +12,6 @@ The ABI is defined in JSON format, as shown in the `abi.json` file:
             "id": 1,
             "action": "MockObjectSingleNumber"
         },
-        //...
     ],
     "types": [
         {
@@ -24,7 +23,7 @@ The ABI is defined in JSON format, as shown in the `abi.json` file:
                 }
             ]
         },
-        //...
+    ]
 }
 ```
 
@@ -45,7 +44,13 @@ Wallets use ABI to display proper action names and field names. To verify ABI im
 - Actions must have an ID; other structs do not require one.
 - Multiple structs with the same name from different packages are not supported.
 - Maps are not supported; use slices (arrays) instead.
-- Built-in types include Address and Bytes.
+- Built-in types include `codec.Address` and `codec.Bytes`.
+- In order to decode an action, find a type with the same name and all the other types mentioned in this type as field recursively. 
 
 ## Code Generation
-Use cmd/abigen to automatically generate Go structs from JSON.
+Use cmd/abigen to automatically generate Go structs from JSON. For example: `go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage`
+
+## Type list
+TODO:
+
+## 

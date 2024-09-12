@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type VM interface {
@@ -37,4 +38,5 @@ type VM interface {
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
+	ImmutableState(ctx context.Context) (state.Immutable, error)
 }
