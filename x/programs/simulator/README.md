@@ -23,21 +23,21 @@ let state = SimpleState::new();
 
 The `Simulator` serves as the primary interface for interacting with the simulated VM environment. It offers the following core functionalities:
 
-#### 1. Program Creation
+#### 1. Contract Creation
 
 Create a new contract from a WASM binary:
 
 ```rust
-pub fn create_contract(&self, contract_path: &str) -> CreateProgramResponse
+pub fn create_contract(&self, contract_path: &str) -> CreateContractResponse
 ```
 
-The `CreateProgramResponse` provides:
+The `CreateContractResponse` provides:
 
 - `contract()`: Returns the contract's address
 - `contract_id()`: Returns a unique identifier for the contract's bytecode storage
 - `error()` or `has_error()`: Indicates potential errors during creation
 
-#### 2. Program Execution
+#### 2. Contract Execution
 
 Call a contract with specified method, parameters, and gas limit:
 
@@ -48,10 +48,10 @@ pub fn call_contract<T: wasmlanche::borsh::BorshSerialize>(
     method: &str,
     params: T,
     gas: u64,
-) -> CallProgramResponse
+) -> CallContractResponse
 ```
 
-The `CallProgramResponse` offers:
+The `CallContractResponse` offers:
 
 - `result<R>()`: Returns the call result (specify expected return type `R`)
 - `error()` or `has_error()`: Provides error information if applicable

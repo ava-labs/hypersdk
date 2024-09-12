@@ -13,14 +13,14 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-func TestImportBalanceSendBalanceToAnotherProgram(t *testing.T) {
+func TestImportBalanceSendBalanceToAnotherContract(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("balance")
+	contract, err := rt.newTestContract("balance")
 	require.NoError(err)
 
 	r := contract.Runtime
@@ -29,13 +29,13 @@ func TestImportBalanceSendBalanceToAnotherProgram(t *testing.T) {
 
 	// create a new instance of the balance contract
 	newInstanceAddress := codec.CreateAddress(0, ids.GenerateTestID())
-	contractID, err := stateManager.GetAccountProgram(ctx, contract.Address)
+	contractID, err := stateManager.GetAccountContract(ctx, contract.Address)
 	require.NoError(err)
-	require.NoError(r.StateManager.SetAccountProgram(ctx, newInstanceAddress, contractID))
+	require.NoError(r.StateManager.SetAccountContract(ctx, newInstanceAddress, contractID))
 	stateManager.Balances[newInstanceAddress] = 0
 
 	// contract 2 starts with 0 balance
-	result, err := r.CallProgram(newInstanceAddress, "balance")
+	result, err := r.CallContract(newInstanceAddress, "balance")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 
@@ -57,7 +57,7 @@ func TestImportBalanceGetBalance(t *testing.T) {
 	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("balance")
+	contract, err := rt.newTestContract("balance")
 	require.NoError(err)
 	contract.Runtime.StateManager.(TestStateManager).Balances[actor] = 3
 	result, err := contract.WithActor(actor).Call("balance")
@@ -72,7 +72,7 @@ func TestImportBalanceSend(t *testing.T) {
 	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("balance")
+	contract, err := rt.newTestContract("balance")
 	require.NoError(err)
 
 	contract.Runtime.StateManager.(TestStateManager).Balances[contract.Address] = 3

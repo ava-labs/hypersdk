@@ -42,12 +42,12 @@ func (c CallContext) createCallInfo(callInfo *CallInfo) (*CallInfo, error) {
 	return &newCallInfo, nil
 }
 
-func (c CallContext) CallProgram(ctx context.Context, info *CallInfo) ([]byte, error) {
+func (c CallContext) CallContract(ctx context.Context, info *CallInfo) ([]byte, error) {
 	newInfo, err := c.createCallInfo(info)
 	if err != nil {
 		return nil, err
 	}
-	return c.r.CallProgram(ctx, newInfo)
+	return c.r.CallContract(ctx, newInfo)
 }
 
 func (c CallContext) WithStateManager(manager StateManager) CallContext {
@@ -65,8 +65,8 @@ func (c CallContext) WithFunction(s string) CallContext {
 	return c
 }
 
-func (c CallContext) WithProgram(address codec.Address) CallContext {
-	c.defaultCallInfo.Program = address
+func (c CallContext) WithContract(address codec.Address) CallContext {
+	c.defaultCallInfo.Contract = address
 	return c
 }
 

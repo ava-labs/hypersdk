@@ -8,17 +8,17 @@ pub mod state;
 
 mod ffi {
     use super::bindings::{
-        Address, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
+        Address, CallContractResponse, CreateContractResponse, SimulatorCallContext,
     };
     use libc::c_char;
 
     #[link(name = "simulator")]
     extern "C" {
-        #[link_name = "CreateProgram"]
-        pub fn create_contract(db: usize, path: *const c_char) -> CreateProgramResponse;
+        #[link_name = "CreateContract"]
+        pub fn create_contract(db: usize, path: *const c_char) -> CreateContractResponse;
 
-        #[link_name = "CallProgram"]
-        pub fn call_contract(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+        #[link_name = "CallContract"]
+        pub fn call_contract(db: usize, ctx: *const SimulatorCallContext) -> CallContractResponse;
 
         #[link_name = "GetBalance"]
         pub fn get_balance(db: usize, account: Address) -> u64;
@@ -31,7 +31,7 @@ mod ffi {
 pub fn create_contract(
     state: &state::Mutable<'_>,
     contract_path: &str,
-) -> bindings::CreateProgramResponse {
+) -> bindings::CreateContractResponse {
     let contract_path = CString::new(contract_path).unwrap();
     let state_addr = state as *const _ as usize;
     // Call FFI function to create contract
@@ -41,7 +41,7 @@ pub fn create_contract(
 pub fn call_contract(
     state: &state::Mutable<'_>,
     context: &bindings::SimulatorCallContext,
-) -> bindings::CallProgramResponse {
+) -> bindings::CallContractResponse {
     let state_addr = state as *const _ as usize;
 
     unsafe { ffi::call_contract(state_addr, context) }

@@ -28,17 +28,17 @@ func NewBalanceModule() *ImportModule {
 				defer cancel()
 				return callInfo.State.GetBalance(ctx, address)
 			})},
-			"send": {FuelCost: sendBalanceCost, Function: Function[transferBalanceInput, Result[Unit, ProgramCallErrorCode]](func(callInfo *CallInfo, input transferBalanceInput) (Result[Unit, ProgramCallErrorCode], error) {
+			"send": {FuelCost: sendBalanceCost, Function: Function[transferBalanceInput, Result[Unit, ContractCallErrorCode]](func(callInfo *CallInfo, input transferBalanceInput) (Result[Unit, ContractCallErrorCode], error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				err := callInfo.State.TransferBalance(ctx, callInfo.Program, input.To, input.Amount)
+				err := callInfo.State.TransferBalance(ctx, callInfo.Contract, input.To, input.Amount)
 				if err != nil {
-					if extractedError, ok := ExtractProgramCallErrorCode(err); ok {
-						return Err[Unit, ProgramCallErrorCode](extractedError), nil
+					if extractedError, ok := ExtractContractCallErrorCode(err); ok {
+						return Err[Unit, ContractCallErrorCode](extractedError), nil
 					}
-					return Err[Unit, ProgramCallErrorCode](ExecutionFailure), err
+					return Err[Unit, ContractCallErrorCode](ExecutionFailure), err
 				}
-				return Ok[Unit, ProgramCallErrorCode](Unit{}), nil
+				return Ok[Unit, ContractCallErrorCode](Unit{}), nil
 			})},
 		},
 	}

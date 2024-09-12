@@ -20,10 +20,10 @@ const (
 	MemoryName = "memory"
 )
 
-type ProgramID []byte
+type ContractID []byte
 
 type Context struct {
-	Program   codec.Address
+	Contract  codec.Address
 	Actor     codec.Address
 	Height    uint64
 	Timestamp uint64
@@ -40,7 +40,7 @@ type CallInfo struct {
 	// the name of the function within the contract that is being called
 	FunctionName string
 
-	Program codec.Address
+	Contract codec.Address
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -59,7 +59,7 @@ type CallInfo struct {
 
 	Value uint64
 
-	inst *ProgramInstance
+	inst *ContractInstance
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {
@@ -81,26 +81,26 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 	return err
 }
 
-type ProgramInstance struct {
+type ContractInstance struct {
 	inst   *wasmtime.Instance
 	store  *wasmtime.Store
 	result []byte
 }
 
-func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
+func (p *ContractInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
 		return nil, err
 	}
 
 	if callInfo.Value > 0 {
-		if err := callInfo.State.TransferBalance(ctx, callInfo.Actor, callInfo.Program, callInfo.Value); err != nil {
+		if err := callInfo.State.TransferBalance(ctx, callInfo.Actor, callInfo.Contract, callInfo.Value); err != nil {
 			return nil, errors.New("insufficient balance")
 		}
 	}
 
 	// create the contract context
 	contractCtx := Context{
-		Program:   callInfo.Program,
+		Contract:  callInfo.Contract,
 		Actor:     callInfo.Actor,
 		Height:    callInfo.Height,
 		Timestamp: callInfo.Timestamp,
@@ -127,7 +127,7 @@ func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte,
 	return p.result, err
 }
 
-func (p *ProgramInstance) writeToMemory(data []byte) (int32, error) {
+func (p *ContractInstance) writeToMemory(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	contractMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))

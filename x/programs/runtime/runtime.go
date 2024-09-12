@@ -30,7 +30,7 @@ type WasmRuntime struct {
 
 type StateManager interface {
 	BalanceManager
-	ProgramManager
+	ContractManager
 }
 
 type BalanceManager interface {
@@ -38,18 +38,18 @@ type BalanceManager interface {
 	TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error
 }
 
-type ProgramManager interface {
-	// GetProgramState returns the state of the contract at the given address.
-	GetProgramState(address codec.Address) state.Mutable
-	// GetAccountProgram returns the contract ID associated with the given account.
+type ContractManager interface {
+	// GetContractState returns the state of the contract at the given address.
+	GetContractState(address codec.Address) state.Mutable
+	// GetAccountContract returns the contract ID associated with the given account.
 	// An account represents a specific instance of a contract.
-	GetAccountProgram(ctx context.Context, account codec.Address) (ProgramID, error)
-	// GetProgramBytes returns the compiled WASM bytes of the contract with the given ID.
-	GetProgramBytes(ctx context.Context, contractID ProgramID) ([]byte, error)
-	// NewAccountWithProgram creates a new account that represents a specific instance of a contract.
-	NewAccountWithProgram(ctx context.Context, contractID ProgramID, accountCreationData []byte) (codec.Address, error)
-	// SetAccountProgram associates the given contract ID with the given account.
-	SetAccountProgram(ctx context.Context, account codec.Address, contractID ProgramID) error
+	GetAccountContract(ctx context.Context, account codec.Address) (ContractID, error)
+	// GetContractBytes returns the compiled WASM bytes of the contract with the given ID.
+	GetContractBytes(ctx context.Context, contractID ContractID) ([]byte, error)
+	// NewAccountWithContract creates a new account that represents a specific instance of a contract.
+	NewAccountWithContract(ctx context.Context, contractID ContractID, accountCreationData []byte) (codec.Address, error)
+	// SetAccountContract associates the given contract ID with the given account.
+	SetAccountContract(ctx context.Context, account codec.Address, contractID ContractID) error
 }
 
 func NewRuntime(
@@ -63,7 +63,7 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
-		contractCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id string, mod *wasmtime.Module) int {
+		contractCache: cache.NewSizedLRU(cfg.ContractCacheSize, func(id string, mod *wasmtime.Module) int {
 			bytes, err := mod.Serialize()
 			if err != nil {
 				panic(err)
@@ -75,7 +75,7 @@ func NewRuntime(
 	runtime.AddImportModule(NewLogModule())
 	runtime.AddImportModule(NewBalanceModule())
 	runtime.AddImportModule(NewStateAccessModule())
-	runtime.AddImportModule(NewProgramModule(runtime))
+	runtime.AddImportModule(NewContractModule(runtime))
 
 	return runtime
 }
@@ -93,7 +93,7 @@ func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id []by
 	if mod, ok := r.contractCache.Get(string(id)); ok {
 		return mod, nil
 	}
-	contractBytes, err := callInfo.State.GetProgramBytes(ctx, id)
+	contractBytes, err := callInfo.State.GetContractBytes(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +105,8 @@ func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id []by
 	return mod, nil
 }
 
-func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
-	contractID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
+func (r *WasmRuntime) CallContract(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
+	contractID, err := callInfo.State.GetAccountContract(ctx, callInfo.Contract)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (resu
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module, imports *Imports) (*ProgramInstance, error) {
+func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module, imports *Imports) (*ContractInstance, error) {
 	if r.linkerNeedsInitialization {
 		linker, err := imports.createLinker(r)
 		if err != nil {
@@ -142,7 +142,7 @@ func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module, imports *Impo
 	if err != nil {
 		return nil, err
 	}
-	return &ProgramInstance{inst: inst, store: store}, nil
+	return &ContractInstance{inst: inst, store: store}, nil
 }
 
 func toMapKey(storeLike wasmtime.Storelike) uintptr {

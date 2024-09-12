@@ -18,21 +18,21 @@ import (
 )
 
 type TestStateManager struct {
-	ProgramsMap map[string][]byte
-	AccountMap  map[codec.Address]string
-	Balances    map[codec.Address]uint64
-	Mu          state.Mutable
+	ContractsMap map[string][]byte
+	AccountMap   map[codec.Address]string
+	Balances     map[codec.Address]uint64
+	Mu           state.Mutable
 }
 
-func (t TestStateManager) GetAccountProgram(_ context.Context, account codec.Address) (ProgramID, error) {
+func (t TestStateManager) GetAccountContract(_ context.Context, account codec.Address) (ContractID, error) {
 	if contractID, ok := t.AccountMap[account]; ok {
-		return ProgramID(contractID), nil
+		return ContractID(contractID), nil
 	}
 	return ids.Empty[:], nil
 }
 
-func (t TestStateManager) GetProgramBytes(_ context.Context, contractID ProgramID) ([]byte, error) {
-	contractBytes, ok := t.ProgramsMap[string(contractID)]
+func (t TestStateManager) GetContractBytes(_ context.Context, contractID ContractID) ([]byte, error) {
+	contractBytes, ok := t.ContractsMap[string(contractID)]
 	if !ok {
 		return nil, errors.New("couldn't find contract")
 	}
@@ -40,7 +40,7 @@ func (t TestStateManager) GetProgramBytes(_ context.Context, contractID ProgramI
 	return contractBytes, nil
 }
 
-func compileProgram(contractName string) ([]byte, error) {
+func compileContract(contractName string) ([]byte, error) {
 	if err := test.CompileTest(contractName); err != nil {
 		return nil, err
 	}
@@ -57,26 +57,26 @@ func compileProgram(contractName string) ([]byte, error) {
 	return contractBytes, nil
 }
 
-func (t TestStateManager) SetProgramBytes(contractID ProgramID, contractBytes []byte) {
-	t.ProgramsMap[string(contractID)] = contractBytes
+func (t TestStateManager) SetContractBytes(contractID ContractID, contractBytes []byte) {
+	t.ContractsMap[string(contractID)] = contractBytes
 }
 
-func (t TestStateManager) CompileAndSetProgram(contractID ProgramID, contractName string) error {
-	contractBytes, err := compileProgram(contractName)
+func (t TestStateManager) CompileAndSetContract(contractID ContractID, contractName string) error {
+	contractBytes, err := compileContract(contractName)
 	if err != nil {
 		return err
 	}
-	t.SetProgramBytes(contractID, contractBytes)
+	t.SetContractBytes(contractID, contractBytes)
 	return nil
 }
 
-func (t TestStateManager) NewAccountWithProgram(_ context.Context, contractID ProgramID, _ []byte) (codec.Address, error) {
+func (t TestStateManager) NewAccountWithContract(_ context.Context, contractID ContractID, _ []byte) (codec.Address, error) {
 	account := codec.CreateAddress(0, ids.GenerateTestID())
 	t.AccountMap[account] = string(contractID)
 	return account, nil
 }
 
-func (t TestStateManager) SetAccountProgram(_ context.Context, account codec.Address, contractID ProgramID) error {
+func (t TestStateManager) SetAccountContract(_ context.Context, account codec.Address, contractID ContractID) error {
 	t.AccountMap[account] = string(contractID)
 	return nil
 }
@@ -101,7 +101,7 @@ func (t TestStateManager) TransferBalance(ctx context.Context, from codec.Addres
 	return nil
 }
 
-func (t TestStateManager) GetProgramState(address codec.Address) state.Mutable {
+func (t TestStateManager) GetContractState(address codec.Address) state.Mutable {
 	return &prefixedState{address: address, inner: t.Mu}
 }
 
@@ -154,8 +154,8 @@ func (t *testRuntime) WithFunction(s string) *testRuntime {
 	return t
 }
 
-func (t *testRuntime) WithProgram(address codec.Address) *testRuntime {
-	t.callContext = t.callContext.WithProgram(address)
+func (t *testRuntime) WithContract(address codec.Address) *testRuntime {
+	t.callContext = t.callContext.WithContract(address)
 	return t
 }
 
@@ -189,9 +189,9 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-// AddProgram compiles [contractName] and sets the bytes in the state manager
-func (t *testRuntime) AddProgram(contractID ProgramID, account codec.Address, contractName string) error {
-	err := t.StateManager.(TestStateManager).CompileAndSetProgram(contractID, contractName)
+// AddContract compiles [contractName] and sets the bytes in the state manager
+func (t *testRuntime) AddContract(contractID ContractID, account codec.Address, contractName string) error {
+	err := t.StateManager.(TestStateManager).CompileAndSetContract(contractID, contractName)
 	if err != nil {
 		return err
 	}
@@ -200,11 +200,11 @@ func (t *testRuntime) AddProgram(contractID ProgramID, account codec.Address, co
 	return nil
 }
 
-func (t *testRuntime) CallProgram(contract codec.Address, function string, params ...interface{}) ([]byte, error) {
-	return t.callContext.CallProgram(
+func (t *testRuntime) CallContract(contract codec.Address, function string, params ...interface{}) ([]byte, error) {
+	return t.callContext.CallContract(
 		t.Context,
 		&CallInfo{
-			Program:      contract,
+			Contract:     contract,
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
@@ -218,89 +218,89 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 			NewConfig(),
 			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
 		StateManager: TestStateManager{
-			ProgramsMap: map[string][]byte{},
-			AccountMap:  map[codec.Address]string{},
-			Balances:    map[codec.Address]uint64{},
-			Mu:          test.NewTestDB(),
+			ContractsMap: map[string][]byte{},
+			AccountMap:   map[codec.Address]string{},
+			Balances:     map[codec.Address]uint64{},
+			Mu:           test.NewTestDB(),
 		},
 	}
 }
 
-func (t *testRuntime) newTestProgram(contract string) (*testProgram, error) {
+func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
-	testProgram := &testProgram{
+	testContract := &testContract{
 		Address: account,
 		Runtime: t,
 	}
 
-	err := t.AddProgram(ProgramID(stringedID), account, contract)
+	err := t.AddContract(ContractID(stringedID), account, contract)
 	if err != nil {
 		return nil, err
 	}
 
-	return testProgram, nil
+	return testContract, nil
 }
 
-type testProgram struct {
+type testContract struct {
 	Address codec.Address
 	Runtime *testRuntime
 }
 
-func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {
-	return t.Runtime.CallProgram(
+func (t *testContract) Call(function string, params ...interface{}) ([]byte, error) {
+	return t.Runtime.CallContract(
 		t.Address,
 		function,
 		params...)
 }
 
-func (t *testProgram) WithStateManager(manager StateManager) *testProgram {
+func (t *testContract) WithStateManager(manager StateManager) *testContract {
 	t.Runtime = t.Runtime.WithStateManager(manager)
 	return t
 }
 
-func (t *testProgram) WithActor(address codec.Address) *testProgram {
+func (t *testContract) WithActor(address codec.Address) *testContract {
 	t.Runtime = t.Runtime.WithActor(address)
 	return t
 }
 
-func (t *testProgram) WithFunction(s string) *testProgram {
+func (t *testContract) WithFunction(s string) *testContract {
 	t.Runtime = t.Runtime.WithFunction(s)
 	return t
 }
 
-func (t *testProgram) WithProgram(address codec.Address) *testProgram {
-	t.Runtime = t.Runtime.WithProgram(address)
+func (t *testContract) WithContract(address codec.Address) *testContract {
+	t.Runtime = t.Runtime.WithContract(address)
 	return t
 }
 
-func (t *testProgram) WithFuel(u uint64) *testProgram {
+func (t *testContract) WithFuel(u uint64) *testContract {
 	t.Runtime = t.Runtime.WithFuel(u)
 	return t
 }
 
-func (t *testProgram) WithParams(bytes []byte) *testProgram {
+func (t *testContract) WithParams(bytes []byte) *testContract {
 	t.Runtime = t.Runtime.WithParams(bytes)
 	return t
 }
 
-func (t *testProgram) WithHeight(height uint64) *testProgram {
+func (t *testContract) WithHeight(height uint64) *testContract {
 	t.Runtime = t.Runtime.WithHeight(height)
 	return t
 }
 
-func (t *testProgram) WithActionID(actionID ids.ID) *testProgram {
+func (t *testContract) WithActionID(actionID ids.ID) *testContract {
 	t.Runtime = t.Runtime.WithActionID(actionID)
 	return t
 }
 
-func (t *testProgram) WithTimestamp(ts uint64) *testProgram {
+func (t *testContract) WithTimestamp(ts uint64) *testContract {
 	t.Runtime = t.Runtime.WithTimestamp(ts)
 	return t
 }
 
-func (t *testProgram) WithValue(value uint64) *testProgram {
+func (t *testContract) WithValue(value uint64) *testContract {
 	t.Runtime = t.Runtime.WithValue(value)
 	return t
 }

@@ -18,7 +18,7 @@ typedef struct {
     size_t length;
 } Bytes;
 
-typedef Bytes ProgramId;
+typedef Bytes ContractId;
 
 // Bytes with an additional error field
 typedef struct {
@@ -49,14 +49,14 @@ typedef struct {
     char* error;
     Bytes result;
     uint64_t fuel;
-} CallProgramResponse;
+} CallContractResponse;
 
 // Response from creating a contract
 typedef struct {
     Address contract_address;
-    ProgramId contract_id;
+    ContractId contract_id;
     const char *error;
-} CreateProgramResponse;
+} CreateContractResponse;
 
 // Callback functions for the mutable interface
 typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);

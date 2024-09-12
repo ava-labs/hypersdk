@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-var _ runtime.StateManager = &ProgramStateManager{}
+var _ runtime.StateManager = &ContractStateManager{}
 
 var (
 	ErrUnknownAccount = errors.New("unknown account")
@@ -36,25 +36,25 @@ const (
 	addressStoragePrefix = 0x3
 )
 
-type ProgramStateManager struct {
+type ContractStateManager struct {
 	db state.Mutable
 }
 
-func NewProgramStateManager(db state.Mutable) *ProgramStateManager {
-	return &ProgramStateManager{db}
+func NewContractStateManager(db state.Mutable) *ContractStateManager {
+	return &ContractStateManager{db}
 }
 
 // GetBalance gets the balance associated [account].
 // Returns 0 if no balance was found or errors if another error is present
-func (p *ProgramStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
+func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	return p.getAccountBalance(ctx, address)
 }
 
-func (p *ProgramStateManager) SetBalance(ctx context.Context, address codec.Address, amount uint64) error {
+func (p *ContractStateManager) SetBalance(ctx context.Context, address codec.Address, amount uint64) error {
 	return p.setAccountBalance(ctx, address, amount)
 }
 
-func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+func (p *ContractStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
 	fromBalance, err := p.getAccountBalance(ctx, from)
 	if err != nil {
 		return err
@@ -75,14 +75,14 @@ func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Ad
 	return p.setAccountBalance(ctx, from, fromBalance-amount)
 }
 
-func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutable {
+func (p *ContractStateManager) GetContractState(account codec.Address) state.Mutable {
 	return newAccountPrefixedMutable(account, p.db)
 }
 
-// GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the contractbytes
+// GetAccountContract grabs the associated id with [account]. The ID is the key mapping to the contractbytes
 // Errors if there is no found account or an error fetching
-func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (runtime.ProgramID, error) {
-	contractID, exists, err := p.getAccountProgram(ctx, account)
+func (p *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
+	contractID, exists, err := p.getAccountContract(ctx, account)
 	if err != nil {
 		return ids.Empty[:], err
 	}
@@ -92,9 +92,9 @@ func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account cod
 	return contractID[:], nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, contractID runtime.ProgramID) ([]byte, error) {
+func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
 	// TODO: take fee out of balance?
-	contractBytes, exists, err := p.getProgram(ctx, contractID)
+	contractBytes, exists, err := p.getContract(ctx, contractID)
 	if err != nil {
 		return []byte{}, ErrUnknownAccount
 	}
@@ -104,21 +104,21 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, contractID ru
 	return contractBytes, nil
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, contractID runtime.ProgramID, accountCreationData []byte) (codec.Address, error) {
+func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
 	newID := sha256.Sum256(append(contractID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
-	return newAccount, p.setAccountProgram(ctx, newAccount, contractID)
+	return newAccount, p.setAccountContract(ctx, newAccount, contractID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, contractID runtime.ProgramID) error {
-	return p.setAccountProgram(ctx, account, contractID)
+func (p *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
+	return p.setAccountContract(ctx, account, contractID)
 }
 
-func (p *ProgramStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
+func (p *ContractStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
 	return p.db.Insert(ctx, accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
 }
 
-func (p *ProgramStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
+func (p *ContractStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
 	v, err := p.db.GetValue(ctx, accountBalanceKey(account[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return 0, nil
@@ -135,7 +135,7 @@ func accountBalanceKey(account []byte) []byte {
 	return accountDataKey(account, balanceKeyBytes)
 }
 
-func accountProgramKey(account []byte) []byte {
+func accountContractKey(account []byte) []byte {
 	return accountDataKey(account, contractKeyBytes)
 }
 
@@ -157,8 +157,8 @@ func contractKey(key []byte) (k []byte) {
 	return
 }
 
-func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account codec.Address) (ids.ID, bool, error) {
-	v, err := p.db.GetValue(ctx, accountProgramKey(account[:]))
+func (p *ContractStateManager) getAccountContract(ctx context.Context, account codec.Address) (ids.ID, bool, error) {
+	v, err := p.db.GetValue(ctx, accountContractKey(account[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return ids.Empty, false, nil
 	}
@@ -168,7 +168,7 @@ func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account cod
 	return ids.ID(v[:ids.IDLen]), true, nil
 }
 
-func (p *ProgramStateManager) setAccountProgram(
+func (p *ContractStateManager) setAccountContract(
 	ctx context.Context,
 	account codec.Address,
 	contractID []byte,
@@ -177,7 +177,7 @@ func (p *ProgramStateManager) setAccountProgram(
 }
 
 // [contractID] -> [contractBytes]
-func (p *ProgramStateManager) getProgram(ctx context.Context, contractID runtime.ProgramID) ([]byte, bool, error) {
+func (p *ContractStateManager) getContract(ctx context.Context, contractID runtime.ContractID) ([]byte, bool, error) {
 	v, err := p.db.GetValue(ctx, contractKey(contractID))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
@@ -188,8 +188,8 @@ func (p *ProgramStateManager) getProgram(ctx context.Context, contractID runtime
 	return v, true, nil
 }
 
-// setProgram stores [contract] at [contractID]
-func (p *ProgramStateManager) SetProgram(
+// setContract stores [contract] at [contractID]
+func (p *ContractStateManager) SetContract(
 	ctx context.Context,
 	contractID ids.ID,
 	contract []byte,

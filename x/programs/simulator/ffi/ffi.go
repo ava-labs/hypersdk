@@ -33,10 +33,10 @@ var (
 	SimContext      = context.TODO()
 )
 
-//export CallProgram
-func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramResponse {
+//export CallContract
+func CallContract(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallContractResponse {
 	if db == nil || ctx == nil {
-		return newCallProgramResponse(nil, 0, ErrInvalidParam)
+		return newCallContractResponse(nil, 0, ErrInvalidParam)
 	}
 
 	// build the db
@@ -47,13 +47,13 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	config.SetDebugInfo(true)
 
 	rt := runtime.NewRuntime(config, SimLogger)
-	result, err := rt.CallProgram(SimContext, callInfo)
+	result, err := rt.CallContract(SimContext, callInfo)
 	if err != nil {
-		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
+		return newCallContractResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
 	}
 
 	fuel := callInfo.RemainingFuel()
-	return newCallProgramResponse(result, fuel, nil)
+	return newCallContractResponse(result, fuel, nil)
 }
 
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
@@ -63,10 +63,10 @@ func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runti
 	contractBytes := C.GoBytes(unsafe.Pointer(&ctx.contract_address), codec.AddressLen) //nolint:all
 
 	return &runtime.CallInfo{
-		State:        simState.NewProgramStateManager(db),
+		State:        simState.NewContractStateManager(db),
 		Actor:        codec.Address(actorBytes),
 		FunctionName: methodName,
-		Program:      codec.Address(contractBytes),
+		Contract:     codec.Address(contractBytes),
 		Params:       paramBytes,
 		Fuel:         uint64(ctx.max_gas),
 		Height:       uint64(ctx.height),
@@ -74,44 +74,44 @@ func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runti
 	}
 }
 
-//export CreateProgram
-func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
+//export CreateContract
+func CreateContract(db *C.Mutable, path *C.char) C.CreateContractResponse {
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
-	contractManager := simState.NewProgramStateManager(state)
+	contractManager := simState.NewContractStateManager(state)
 
 	contractPath := C.GoString(path)
 	contractBytes, err := os.ReadFile(contractPath)
 	if err != nil {
-		return C.CreateProgramResponse{
+		return C.CreateContractResponse{
 			error: C.CString(err.Error()),
 		}
 	}
 
 	contractID, err := generateRandomID()
 	if err != nil {
-		return C.CreateProgramResponse{
+		return C.CreateContractResponse{
 			error: C.CString(err.Error()),
 		}
 	}
 
-	err = contractManager.SetProgram(context.TODO(), contractID, contractBytes)
+	err = contractManager.SetContract(context.TODO(), contractID, contractBytes)
 	if err != nil {
 		errmsg := "contract creation failed: " + err.Error()
-		return C.CreateProgramResponse{
+		return C.CreateContractResponse{
 			error: C.CString(errmsg),
 		}
 	}
 
-	account, err := contractManager.NewAccountWithProgram(context.TODO(), contractID[:], []byte{})
+	account, err := contractManager.NewAccountWithContract(context.TODO(), contractID[:], []byte{})
 	if err != nil {
 		errmsg := "contract deployment failed: " + err.Error()
-		return C.CreateProgramResponse{
+		return C.CreateContractResponse{
 			error: C.CString(errmsg),
 		}
 	}
-	return C.CreateProgramResponse{
+	return C.CreateContractResponse{
 		error: nil,
-		contract_id: C.ProgramId{
+		contract_id: C.ContractId{
 			data:   (*C.uint8_t)(C.CBytes(contractID[:])), //nolint:all
 			length: (C.size_t)(len(contractID[:])),
 		},
@@ -138,7 +138,7 @@ func generateRandomID() (ids.ID, error) {
 	return id, nil
 }
 
-func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgramResponse {
+func newCallContractResponse(result []byte, fuel uint64, err error) C.CallContractResponse {
 	var errPtr *C.char
 	if err == nil {
 		errPtr = nil
@@ -146,7 +146,7 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 		errPtr = C.CString(err.Error())
 	}
 
-	return C.CallProgramResponse{
+	return C.CallContractResponse{
 		error: errPtr,
 		result: C.Bytes{
 			data:   (*C.uint8_t)(C.CBytes(result)),
@@ -166,7 +166,7 @@ func GetBalance(db *C.Mutable, address C.Address) C.uint64_t {
 	}
 
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
-	pState := simState.NewProgramStateManager(state)
+	pState := simState.NewContractStateManager(state)
 	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen) //nolint:all
 
 	balance, err := pState.GetBalance(SimContext, codec.Address(account))
@@ -187,7 +187,7 @@ func SetBalance(db *C.Mutable, address C.Address, balance C.uint64_t) {
 	}
 
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
-	pState := simState.NewProgramStateManager(state)
+	pState := simState.NewContractStateManager(state)
 	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen) //nolint:all
 
 	err := pState.SetBalance(SimContext, codec.Address(account), uint64(balance))

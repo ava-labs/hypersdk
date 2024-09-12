@@ -30,7 +30,7 @@ func NewStateAccessModule() *ImportModule {
 			"get": {FuelCost: getCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, input)
+				val, err := callInfo.State.GetContractState(callInfo.Contract).GetValue(ctx, input)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -42,7 +42,7 @@ func NewStateAccessModule() *ImportModule {
 			"put": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				contractState := callInfo.State.GetProgramState(callInfo.Program)
+				contractState := callInfo.State.GetContractState(callInfo.Contract)
 				for _, entry := range input {
 					if len(entry.Value) == 0 {
 						if err := contractState.Remove(ctx, entry.Key); err != nil {

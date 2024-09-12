@@ -13,41 +13,41 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-func TestImportProgramDeployProgram(t *testing.T) {
+func TestImportContractDeployContract(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("deploy_contract")
+	contract, err := rt.newTestContract("deploy_contract")
 	require.NoError(err)
 
 	runtime := contract.Runtime
-	otherProgramID := ids.GenerateTestID()
-	err = runtime.AddProgram(otherProgramID[:], codec.CreateAddress(0, otherProgramID), "call_contract")
+	otherContractID := ids.GenerateTestID()
+	err = runtime.AddContract(otherContractID[:], codec.CreateAddress(0, otherContractID), "call_contract")
 	require.NoError(err)
 
 	result, err := contract.Call(
 		"deploy",
-		otherProgramID[:])
+		otherContractID[:])
 	require.NoError(err)
 
 	newAccount := into[codec.Address](result)
 
-	result, err = runtime.CallProgram(newAccount, "simple_call")
+	result, err = runtime.CallContract(newAccount, "simple_call")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 }
 
-func TestImportProgramCallProgram(t *testing.T) {
+func TestImportContractCallContract(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("call_contract")
+	contract, err := rt.newTestContract("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(0)
@@ -64,14 +64,14 @@ func TestImportProgramCallProgram(t *testing.T) {
 	require.Equal(expected, result)
 }
 
-func TestImportProgramCallProgramActor(t *testing.T) {
+func TestImportContractCallContractActor(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("call_contract")
+	contract, err := rt.newTestContract("call_contract")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
@@ -82,14 +82,14 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	require.Equal(expected, result)
 }
 
-func TestImportProgramCallProgramActorChange(t *testing.T) {
+func TestImportContractCallContractActorChange(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("call_contract")
+	contract, err := rt.newTestContract("call_contract")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
@@ -102,14 +102,14 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	require.Equal(expected, result)
 }
 
-func TestImportProgramCallProgramWithParam(t *testing.T) {
+func TestImportContractCallContractWithParam(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("call_contract")
+	contract, err := rt.newTestContract("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(uint64(1))
@@ -128,14 +128,14 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	require.Equal(expected, result)
 }
 
-func TestImportProgramCallProgramWithParams(t *testing.T) {
+func TestImportContractCallContractWithParams(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("call_contract")
+	contract, err := rt.newTestContract("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(int64(3))
@@ -162,7 +162,7 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("fuel")
+	contract, err := rt.newTestContract("fuel")
 	require.NoError(err)
 
 	result, err := contract.Call("get_fuel")
@@ -177,7 +177,7 @@ func TestImportOutOfFuel(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	contract, err := rt.newTestProgram("fuel")
+	contract, err := rt.newTestContract("fuel")
 	require.NoError(err)
 
 	result, err := contract.Call("out_of_fuel", contract.Address)
