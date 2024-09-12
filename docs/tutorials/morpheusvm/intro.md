@@ -54,51 +54,47 @@ cd examples/tutorial
 go mod init
 ```
 
-We'll start with the HyperSDK as the only dependency, so we can update the go.mod
-file to the contents:
-
-```golang
-module github.com/ava-labs/hypersdk/examples/tutorial
-
-go 1.21.12
-
-require (
-   github.com/ava-labs/hypersdk v0.0.1
-)
-
-replace github.com/ava-labs/hypersdk => ../../
-```
-First, we'll create a `consts.go` file to declare the name, HRP for Bech32 addresses,
+Now that we've , we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
 and the initial version of our VM:
 
 ```golang
 package tutorial
 
-import "github.com/ava-labs/avalanchego/ids"
-import "github.com/ava-labs/avalanchego/version"
+import (
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/version"
+)
 
 const (
- HRP      = "tutorial"
- Name     = "tutorialvm"
+	HRP  = "tutorial"
+	Name = "tutorialvm"
 )
 
 var ID ids.ID
 
 func init() {
- b := make([]byte, ids.IDLen)
- copy(b, []byte(Name))
- vmID, err := ids.ToID(b)
- if err != nil {
-  panic(err)
- }
- ID = vmID
+	b := make([]byte, ids.IDLen)
+	copy(b, []byte(Name))
+	vmID, err := ids.ToID(b)
+	if err != nil {
+		panic(err)
+	}
+	ID = vmID
 }
 
 var Version = &version.Semantic{
-   Major: 0,
-   Minor: 0,
-   Patch: 1,
+	Major: 0,
+	Minor: 0,
+	Patch: 1,
 }
+
+```
+
+This will create a warning because we have not imported AvalancheGo into this workspace yet.
+To fix that, let's add AvalancheGo as a dependency:
+
+```sh
+go get github.com/ava-labs/avalanchego && go mod tidy
 ```
 
 ## Creating `Transfer` Pt. 1
@@ -125,10 +121,24 @@ import (
 var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
-   To codec.Address `serialize:"true" json:"to"`
-   Value uint64 `serialize:"true" json:"value"`
-   Memo []byte `serialize:"true" json:"memo"`
+	// To is the recipient of the [Value].
+	To codec.Address `serialize:"true" json:"to"`
+
+	// Amount are transferred to [To].
+	Value uint64 `serialize:"true" json:"value"`
+
+	// Optional message to accompany transaction.
+	Memo []byte `serialize:"true" json:"memo"`
 }
+```
+
+This imports the HyperSDK, so we'll import it and redirect it to our local version of the
+HyperSDK:
+
+```sh
+go get github.com/ava-labs/hypersdk
+go mod edit -replace github.com/ava-labs/hypersdk=../../
+go mod tidy
 ```
 
 Note: we include JSON and `serialize` tags in the struct to provide instructions on how
