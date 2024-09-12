@@ -24,6 +24,7 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 	Registry() (*chain.ActionRegistry, *chain.AuthRegistry)
+	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,
 		verifySig bool,

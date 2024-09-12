@@ -54,7 +54,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		actionSize, err := getSize(action)
+		actionSize, err := GetSize(action)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		actionSize, err := getSize(action)
+		actionSize, err := GetSize(action)
 		if err != nil {
 			return fees.Dimensions{}, err
 		}
@@ -447,7 +447,7 @@ func UnmarshalTx(
 	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
-	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
+	unmarshalAuth, ok := authRegistry.LookupUnmarshalFunc(authType)
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
 	}
@@ -488,7 +488,7 @@ func unmarshalActions(
 	actions := []Action{}
 	for i := uint8(0); i < actionCount; i++ {
 		actionType := p.UnpackByte()
-		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+		unmarshalAction, ok := actionRegistry.LookupUnmarshalFunc(actionType)
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}

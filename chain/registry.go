@@ -4,6 +4,10 @@
 package chain
 
 import (
+	"encoding/json"
+	"fmt"
+	reflect "reflect"
+
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -31,7 +35,7 @@ func (a *AuthRegistry) Register(instance Typed, f func(*codec.Packer) (Auth, err
 	return nil
 }
 
-func (a *AuthRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Auth, error), bool) {
+func (a *AuthRegistry) LookupUnmarshalFunc(typeID uint8) (func(*codec.Packer) (Auth, error), bool) {
 	f, found := a.authFuncs[typeID]
 	return f, found
 }
@@ -59,9 +63,42 @@ func (a *ActionRegistry) Register(instance Typed, outputInstance interface{}, f 
 	return nil
 }
 
-func (a *ActionRegistry) LookupIndex(typeID uint8) (func(*codec.Packer) (Action, error), bool) {
+func (a *ActionRegistry) LookupUnmarshalFunc(typeID uint8) (func(*codec.Packer) (Action, error), bool) {
 	f, found := a.actionFuncs[typeID]
 	return f, found
+}
+
+func (a *ActionRegistry) UnmarshalJSON(typeID uint8, data []byte) (Action, error) {
+	actionInstance, ok := a.actions[typeID]
+	if !ok {
+		return nil, fmt.Errorf("action type %d not found", typeID)
+	}
+
+	actionType := reflect.TypeOf(actionInstance).Elem()
+	action := reflect.New(actionType).Interface().(Action)
+	if err := json.Unmarshal(data, action); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal action: %w", err)
+	}
+	return action, nil
+}
+
+func (a *ActionRegistry) UnmarshalOutputs(typeID uint8, outputs [][]byte) ([]interface{}, error) {
+	outputInstance, ok := a.outputInstances[typeID]
+	if !ok {
+		return nil, fmt.Errorf("output type %d not found", typeID)
+	}
+
+	outputType := reflect.TypeOf(outputInstance).Elem()
+	result := make([]interface{}, len(outputs))
+	for i, outputBytes := range outputs {
+		output := reflect.New(outputType).Interface()
+		err := codec.LinearCodec.Unmarshal(outputBytes, output)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal output: %w", err)
+		}
+		result[i] = output
+	}
+	return result, nil
 }
 
 func (a *ActionRegistry) GetRegisteredTypes() []ActionPair {

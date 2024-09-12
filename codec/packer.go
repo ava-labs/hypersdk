@@ -156,7 +156,7 @@ func (p *Packer) Offset() int {
 	return p.Packer.Offset
 }
 
-func QuickMarshal(v interface{}) ([]byte, error) {
+func Marshal(v interface{}) ([]byte, error) {
 	size, err := LinearCodec.Size(v)
 	if err != nil {
 		return nil, err
@@ -169,11 +169,16 @@ func QuickMarshal(v interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if p.Err != nil {
+		return nil, fmt.Errorf("failed to marshal value: %w", p.Err)
+	}
+
 	return p.Bytes, nil
 }
 
 func MustMarshal(v interface{}) []byte {
-	b, err := QuickMarshal(v)
+	b, err := Marshal(v)
 	if err != nil {
 		panic(err)
 	}

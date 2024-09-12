@@ -4,9 +4,11 @@
 package jsonrpc
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 )
 
 const (
@@ -154,5 +157,83 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 		return err
 	}
 	reply.ABI = vmABI
+	return nil
+}
+
+type ExecuteActionArgs struct {
+	Action       map[string]interface{} `json:"action"`
+	ActionTypeID uint8                  `json:"actionId"`
+	Actor        codec.Address          `json:"actor"`
+}
+
+type ExecuteActionReply struct {
+	Output []interface{} `json:"output"`
+}
+
+func (j *JSONRPCServer) ExecuteAction(
+	req *http.Request,
+	args *ExecuteActionArgs,
+	reply *ExecuteActionReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
+	defer span.End()
+
+	actionRegistry, _ := j.vm.Registry()
+
+	reMarshalledActionJSON, err := json.Marshal(args.Action)
+	if err != nil {
+		return fmt.Errorf("failed to re-marshal action: %w", err)
+	}
+
+	action, err := actionRegistry.UnmarshalJSON(args.ActionTypeID, reMarshalledActionJSON)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal action: %w", err)
+	}
+	now := time.Now().UnixMilli()
+
+	//get expected state keys
+	//FIXME: state.Keys representing actually a mapping of key to permissions is a bit of a misnomer
+	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
+
+	//convert to plain array of keys
+	stateKeys := make([][]byte, len(stateKeysWithPermissions))
+	for key, _ := range stateKeysWithPermissions {
+		stateKeys = append(stateKeys, []byte(key))
+	}
+	//fetch state
+	stateValues, errs := j.vm.ReadState(ctx, stateKeys)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to read state: %w", errs[0])
+	}
+
+	storage := make(map[string][]byte, len(stateValues))
+	for i, stateValue := range stateValues {
+		storage[string(stateKeys[i])] = stateValue
+	}
+
+	actionSize, err := chain.GetSize(action)
+	if err != nil {
+		return fmt.Errorf("failed to get action size: %w", err)
+	}
+
+	ts := tstate.New(actionSize)
+	tsv := ts.NewView(stateKeysWithPermissions, storage)
+
+	outputs, err := action.Execute(
+		ctx,
+		j.vm.Rules(now),
+		tsv,
+		now,
+		args.Actor,
+		ids.Empty,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to execute action: %w", err)
+	}
+
+	reply.Output, err = actionRegistry.UnmarshalOutputs(args.ActionTypeID, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal outputs: %w", err)
+	}
 	return nil
 }

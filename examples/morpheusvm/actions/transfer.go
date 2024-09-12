@@ -90,7 +90,7 @@ func (t *Transfer) Execute(
 		return nil, err
 	}
 
-	bytes, err := codec.QuickMarshal(TransferResult{
+	bytes, err := codec.Marshal(TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
 	})
