@@ -48,7 +48,8 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, ErrOutputFunctionDoesNotExist
 	}
 
-	pricingModel := initModel(reserveX, reserveY, fee, kLast)
+	pricingModel := initModel()
+	pricingModel.Initialize(reserveX, reserveY, fee, kLast)
 
 	tokensToOwner, amountX, amountY, err := pricingModel.RemoveLiquidity(l.BurnAmount, lpTokenAmount)
 	if err != nil {

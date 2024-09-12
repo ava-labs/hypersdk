@@ -10,13 +10,14 @@ const (
 )
 
 type Model interface {
+	Initialize(reserveX uint64, reserveY uint64, fee uint64, kLast uint64)
 	AddLiquidity(amountX uint64, amountY uint64, lpTokenSupply uint64) (uint64, uint64, uint64, error)
 	RemoveLiquidity(uint64, uint64) (uint64, uint64, uint64, error)
 	Swap(amountX uint64, amountY uint64) (uint64, uint64, error)
 	GetState() (uint64, uint64, uint64)
 }
 
-type NewModel func(uint64, uint64, uint64, uint64) Model
+type NewModel func() Model
 
 var Models map[uint8]NewModel
 

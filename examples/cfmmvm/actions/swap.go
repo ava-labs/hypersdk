@@ -44,7 +44,8 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 		return nil, ErrOutputFunctionDoesNotExist
 	}
 
-	pricingModel := initModel(reserveX, reserveY, fee, kLast)
+	pricingModel := initModel()
+	pricingModel.Initialize(reserveX, reserveY, fee, kLast)
 
 	deltaX, deltaY, err := pricingModel.Swap(s.AmountXIn, s.AmountYIn)
 	if err != nil {

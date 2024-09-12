@@ -49,12 +49,8 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 		return nil, ErrOutputFunctionDoesNotExist
 	}
 
-	pricingModel := initModel(
-		reserveX,
-		reserveY,
-		fee,
-		kLast,
-	)
+	pricingModel := initModel()
+	pricingModel.Initialize(reserveX, reserveY, fee, kLast)
 
 	// TODO: add feeOwner state to liquidity pools
 	tokensToActor, tokensToOwner, tokensToBurn, err := pricingModel.AddLiquidity(a.AmountX, a.AmountY, tSupply)
