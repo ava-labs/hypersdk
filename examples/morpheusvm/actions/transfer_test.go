@@ -150,7 +150,7 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			keys.Add(string(fromBalanceKey), state.All)
 			return store
 		}(),
-		AssertionBench: func(ctx context.Context, b *testing.B, store state.Mutable) {
+		AssertBenchmark: func(ctx context.Context, b *testing.B, store state.Mutable) {
 			_, err := storage.GetBalance(ctx, store, to)
 			require.NoError(err)
 			_, err = storage.GetBalance(ctx, store, from)
@@ -159,5 +159,5 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	transferActionTest.RunBench(ctx, b)
+	transferActionTest.RunBenchmark(ctx, b)
 }

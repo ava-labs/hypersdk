@@ -63,8 +63,8 @@ type ActionTest struct {
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
 
-	Assertion func(context.Context, *testing.T, state.Mutable)
-	AssertionBench func(context.Context, *testing.B, state.Mutable)
+	Assertion       func(context.Context, *testing.T, state.Mutable)
+	AssertBenchmark func(context.Context, *testing.B, state.Mutable)
 }
 
 // Run executes the [ActionTest] and make sure all assertions pass.
@@ -83,17 +83,18 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	})
 }
 
-func (t *ActionTest) RunBench(ctx context.Context, b *testing.B) {
-	b.Run(t.Name, func(b *testing.B) {
+// RunBenchmark executes the [ActionTest] and make sure all the benchmark assertions pass.
+func (test *ActionTest) RunBenchmark(ctx context.Context, b *testing.B) {
+	b.Run(test.Name, func(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			output, err := t.Action.Execute(ctx, t.Rules, t.State, t.Timestamp, t.Actor, t.ActionID)
+			output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 			require.NoError(err)
-			require.Equal(output, t.ExpectedOutputs)
+			require.Equal(output, test.ExpectedOutputs)
 
-			if t.AssertionBench != nil {
-				t.AssertionBench(ctx, b, t.State)
+			if test.AssertBenchmark != nil {
+				test.AssertBenchmark(ctx, b, test.State)
 			}
 		}
 	})
