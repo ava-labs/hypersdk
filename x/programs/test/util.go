@@ -12,7 +12,7 @@ import (
 )
 
 func CompileTest(programName string) error {
-	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", "./")
+	cmd := exec.Command("cargo", "build", "-p", programName, "--release", "--target=wasm32-unknown-unknown", "--target-dir=./target")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
