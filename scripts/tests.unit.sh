@@ -16,6 +16,6 @@ source "${SCRIPT_DIR}"/constants.sh
 file_args=()
 while IFS= read -r line; do
     file_args+=("$line")
-done < <(find . -type f -name "*.go" | grep -v "./x/programs/cmd" | grep -v "./examples/morpheusvm" | xargs -n1 dirname | sort -u)
+done < <(find . -type f -name "*.go" | grep -v "./x/programs/cmd"  | grep -v "./examples" | xargs -n1 dirname | sort -u)
 
 go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" "${file_args[@]}"
