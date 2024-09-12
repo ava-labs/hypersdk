@@ -44,7 +44,7 @@ Wallets use ABI to display proper action names and field names. To verify ABI im
 - Actions must have an ID; other structs do not require one.
 - Multiple structs with the same name from different packages are not supported.
 - Maps are not supported; use slices (arrays) instead.
-- Built-in types include Address and Bytes.
+- Built-in types include `codec.Address` and `codec.Bytes`.
 - Action names are also a type. So to serialize an action, refer to its type and any types it refers to recursively
 
 ## Code Generation
