@@ -26,10 +26,10 @@ func TestNewABI(t *testing.T) {
 	})
 	require.NoError(err)
 
-	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
-	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
+	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
+	expectedABI := mustJSONParse[ABI](t, string(expectedABIJSON))
 
-	require.Equal(expectedAbi, actualABI)
+	require.Equal(expectedABI, actualABI)
 }
 
 func TestGetABIofABI(t *testing.T) {
@@ -38,8 +38,8 @@ func TestGetABIofABI(t *testing.T) {
 	actualABI, err := NewABI([]codec.Typed{ABI{}})
 	require.NoError(err)
 
-	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")
-	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
+	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
+	expectedABI := mustJSONParse[ABI](t, string(expectedABIJSON))
 
-	require.Equal(expectedAbi, actualABI)
+	require.Equal(expectedABI, actualABI)
 }
