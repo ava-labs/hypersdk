@@ -65,12 +65,13 @@ func (t *TransferToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(t.TokenAddress)):                  state.All,
 		string(storage.TokenAccountBalanceKey(t.TokenAddress, actor)): state.All,
+		string(storage.TokenAccountBalanceKey(t.TokenAddress, t.To)):  state.All,
 	}
 }
 
 // StateKeysMaxChunks implements chain.Action.
 func (*TransferToken) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks}
+	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks, storage.TokenAccountBalanceChunks}
 }
 
 // ValidRange implements chain.Action.

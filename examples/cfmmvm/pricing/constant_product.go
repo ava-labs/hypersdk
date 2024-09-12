@@ -72,13 +72,18 @@ func (c *ConstantProduct) AddLiquidity(amountX uint64, amountY uint64, lpTokenSu
 		return 0, 0, 0, ErrOutputInsufficientLiquidityMinted
 	}
 
-	c.reserveX += amountX
-	c.reserveY += amountY
-	kLast, err := smath.Mul(c.reserveX, c.reserveY)
+	c.reserveX, err = smath.Add(c.reserveX, amountX)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	c.kLast = kLast
+	c.reserveY, err = smath.Add(c.reserveY, amountY)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	c.kLast, err = smath.Mul(c.reserveX, c.reserveY)
+	if err != nil {
+		return 0, 0, 0, err
+	}
 
 	return liquidity, tokensToOwner, tokensToBurn, nil
 }
@@ -103,8 +108,14 @@ func (c *ConstantProduct) RemoveLiquidity(tokensToBurn uint64, lpTotalSupply uin
 	}
 	outputY /= lpTotalSupply
 
-	c.reserveX -= outputX
-	c.reserveY -= outputY
+	c.reserveX, err = smath.Sub(c.reserveX, outputX)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	c.reserveY, err = smath.Sub(c.reserveY, outputY)
+	if err != nil {
+		return 0, 0, 0, err
+	}
 	c.kLast, err = smath.Mul(c.reserveX, c.reserveY)
 	if err != nil {
 		return 0, 0, 0, err
@@ -112,6 +123,7 @@ func (c *ConstantProduct) RemoveLiquidity(tokensToBurn uint64, lpTotalSupply uin
 	return outputX, outputY, tokensToOwner, nil
 }
 
+// TODO: utilize avalancheGo math utils
 // Returns: outputX, outputY, error
 func (c *ConstantProduct) Swap(amountX uint64, amountY uint64) (uint64, uint64, error) {
 	if c.reserveX == 0 || c.reserveY == 0 {
@@ -123,19 +135,79 @@ func (c *ConstantProduct) Swap(amountX uint64, amountY uint64) (uint64, uint64, 
 	if amountX != 0 && amountY != 0 {
 		return 0, 0, ErrNoClearDeltaToCompute
 	}
-	k := c.reserveX * c.reserveY
+	k, err := smath.Mul(c.reserveX, c.reserveY)
+	if err != nil {
+		return 0, 0, nil
+	}
 	var output uint64
 	if amountX == 0 {
 		// Swapping Y for X
-		output = c.reserveX - ((1000 * k) / ((1000 * c.reserveY) + (amountY * c.fee)))
-		c.reserveX -= output
-		c.reserveY += amountY
+		num, err := smath.Mul(1000, k)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		denomLeft, err := smath.Mul(1000, c.reserveY)
+		if err != nil {
+			return 0, 0, err
+		}
+		denomRight, err := smath.Mul(amountY, c.fee)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		denom, err := smath.Add(denomLeft, denomRight)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		output, err = smath.Sub(c.reserveX, num/denom)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		c.reserveX, err = smath.Sub(c.reserveX, output)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		c.reserveY, err = smath.Add(c.reserveY, amountY)
+		if err != nil {
+			return 0, 0, err
+		}
 		return output, amountY, nil
 	} else {
 		// Swapping X for Y
-		output = c.reserveY - ((1000 * k) / ((1000 * c.reserveX) + (amountX * c.fee)))
-		c.reserveX += amountX
-		c.reserveY -= output
+		num, err := smath.Mul(1000, k)
+		if err != nil {
+			return 0, 0, err
+		}
+		denomLeft, err := smath.Mul(1000, c.reserveX)
+		if err != nil {
+			return 0, 0, err
+		}
+		denomRight, err := smath.Mul(amountX, c.fee)
+		if err != nil {
+			return 0, 0, err
+		}
+		denom, err := smath.Add(denomLeft, denomRight)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		output, err = smath.Sub(c.reserveY, num/denom)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		c.reserveX, err = smath.Add(c.reserveX, amountX)
+		if err != nil {
+			return 0, 0, err
+		}
+		c.reserveY, err = smath.Sub(c.reserveY, output)
+		if err != nil {
+			return 0, 0, err
+		}
 		return amountX, output, nil
 	}
 }
