@@ -1,7 +1,7 @@
 # ABI Package
 
 ## Overview
-The ABI package provides functionality for marshaling and unmarshaling actions without importing the codec package. It is designed to work across different language implementations.
+The ABI package provides functionality for marshaling and unmarshaling actions. It is designed to work across different language implementations.
 
 ## ABI Format
 The ABI is defined in JSON format, as shown in the `abi.json` file:
