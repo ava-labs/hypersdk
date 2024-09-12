@@ -421,7 +421,7 @@ func SubBalance(
 
 This will give us a few warnings for `smath`, `tconsts`, and two errors that we have
 not defined yet. Let's go ahead and import the AvalancheGo safe math package
-and define those two errors at the top of the file.
+and define those two errors in another file.
 
 First, let's add the math package from AvalancheGo to our imports:
 
@@ -435,14 +435,21 @@ Next, we'll add the `consts` package we defined earlier:
 	tconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
-Then, we'll define the two error values at the top of the file:
+We now define the two errors from earlier. In `storage/`, create a file called
+`errors.go` and paste the following:
 
 ```golang
+package storage
+
+import "errors"
+
 var (
 	ErrInvalidAddress = errors.New("invalid address")
 	ErrInvalidBalance = errors.New("invalid balance")
 )
 ```
+
+Going back to `storage.go`, you should see that the errors from behind are now gone.
 
 ### State Manager
 
@@ -585,21 +592,30 @@ implementation.
 We need to include a `typeID` for our codec, so we'll implement `GetTypeID` to return
 a constant `typeID`.
 
-First, we'll add `TransferID` as a constant at the top of the file:
+In `consts/`, create a new file named `types.go` and paste the following:
 
 ```golang
+package consts
+
 const (
 	// Action TypeIDs
 	TransferID uint8 = 0
 )
+
 ```
 
-Now we'll update our `GetTypeID` function stub to return the constant:
+Next, go to `actions/transfer.go` where we'll update our `GetTypeID` function stub to return the constant:
 
 ```golang
 func (*Transfer) GetTypeID() uint8 {
-	return TransferID
+	return mconsts.TransferID
 }
+```
+
+We import the following into `transfer.go`:
+
+```golang
+   mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 ### `StateKeys()`
