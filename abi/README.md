@@ -49,8 +49,21 @@ Wallets use ABI to display proper action names and field names. To verify ABI im
 
 ## Code Generation
 Use cmd/abigen to automatically generate Go structs from JSON. For example: `go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage`
-
 ## Type list
-TODO:
 
-## 
+| Type     | Range/Description                                        | JSON Serialization | Binary Serialization                  |
+|----------|----------------------------------------------------------|--------------------|---------------------------------------|
+| `bool`   | true or false                                            | boolean            | 1 byte                                |
+| `uint8`  | numbers from 0 to 255                                    | number             | 1 byte                                |
+| `uint16` | numbers from 0 to 65535                                  | number             | 2 bytes                               |
+| `uint32` | numbers from 0 to 4294967295                             | number             | 4 bytes                               |
+| `uint64` | numbers from 0 to 18446744073709551615                   | number             | 8 bytes                               |
+| `int8`   | numbers from -128 to 127                                 | number             | 1 byte                                |
+| `int16`  | numbers from -32768 to 32767                             | number             | 2 bytes                               |
+| `int32`  | numbers from -2147483648 to 2147483647                   | number             | 4 bytes                               |
+| `int64`  | numbers from -9223372036854775808 to 9223372036854775807 | number             | 8 bytes                               |
+| `Address`| 33 byte array                                            | base64             | 33 bytes                              |
+| `Bytes`  | byte array                                               | base64             | uint32 length + bytes                 |
+| `string` | string                                                   | string             | uint16 length + bytes                 |
+| `[]T`    | for any `T` in the above list, serialized as an array    | array              | uint32 length + elements              |
+
