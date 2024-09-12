@@ -153,14 +153,6 @@ call `panic("unimplemented")`, so we can come back to fill these in later in the
 You can copy-paste the code below:
 
 ```golang
-func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
-   panic("unimplemented")
-}
-
-func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
-   panic("unimplemented")
-}
-
 func (t *Transfer) GetTypeID() uint8 {
    panic("unimplemented")
 }
@@ -170,6 +162,14 @@ func (t *Transfer) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 }
 
 func (t *Transfer) StateKeysMaxChunks() []uint16 {
+   panic("unimplemented")
+}
+
+func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+   panic("unimplemented")
+}
+
+func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
    panic("unimplemented")
 }
 
@@ -199,10 +199,6 @@ Let's create a `storage.go` file with prefixes for balance, height, timestamp, a
 
 ```golang
 package tutorial
-
-import (
-   smath "github.com/ava-labs/avalanchego/utils/math"
-)
 
 const (
    // Active state
@@ -406,6 +402,25 @@ func SubBalance(
 }
 ```
 
+This will give us a few warnings for `smath` and two errors that we have
+not defined yet. Let's go ahead and import the AvalancheGo safe math package
+and define those two errors at the top of the file.
+
+First, let's add the math pacakge from AvalancheGo to our imports:
+
+```golang
+   smath "github.com/ava-labs/avalanchego/utils/math"
+```
+
+Then, we'll define the two error values at the top of the file:
+
+```golang
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrInvalidBalance = errors.New("invalid balance")
+)
+```
+
 ### State Manager
 
 Now we'll implement the `chain.StateManager` interface to tell the HyperSDK
@@ -575,8 +590,8 @@ for the actor and `state.All` for the `to` address:
 ```golang
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.BalanceKey(actor)): state.Read | state.Write,
-		string(storage.BalanceKey(t.To)):  state.All,
+		string(BalanceKey(actor)): state.Read | state.Write,
+		string(BalanceKey(t.To)):  state.All,
 	}
 }
 ```
@@ -594,7 +609,7 @@ Let's update the function like so:
 
 ```golang
 func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+	return []uint16{BalanceChunks, BalanceChunks}
 }
 ```
 
@@ -607,8 +622,8 @@ top of the file:
 const MaxMemoSize = 256
 
 var (
-   ErrOutputValueZero                 = errors.New("value is zero")
-   ErrOutputMemoTooLarge              = errors.New("memo is too large")
+	ErrOutputValueZero    = errors.New("value is zero")
+	ErrOutputMemoTooLarge = errors.New("memo is too large")
 )
 ```
 
@@ -630,10 +645,10 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	if err := SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	if err := AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return nil, err
 	}
 	return nil, nil
