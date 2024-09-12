@@ -88,7 +88,11 @@ func (a *ActionRegistry) UnmarshalOutputs(typeID uint8, outputs [][]byte) ([]int
 		return nil, fmt.Errorf("output type %d not found", typeID)
 	}
 
-	outputType := reflect.TypeOf(outputInstance).Elem()
+	outputType := reflect.TypeOf(outputInstance)
+	if outputType.Kind() == reflect.Ptr {
+		outputType = outputType.Elem()
+	}
+
 	result := make([]interface{}, len(outputs))
 	for i, outputBytes := range outputs {
 		output := reflect.New(outputType).Interface()

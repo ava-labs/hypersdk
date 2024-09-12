@@ -167,7 +167,8 @@ type ExecuteActionArgs struct {
 }
 
 type ExecuteActionReply struct {
-	Output []interface{} `json:"output"`
+	Outputs []interface{} `json:"outputs"`
+	Error   string        `json:"error"`
 }
 
 func (j *JSONRPCServer) ExecuteAction(
@@ -203,8 +204,10 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	// Fetch state
 	stateValues, errs := j.vm.ReadState(ctx, stateKeys)
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to read state: %w", errs[0])
+	for _, err := range errs {
+		if err != nil {
+			return fmt.Errorf("failed to read state: %w", err)
+		}
 	}
 
 	storage := make(map[string][]byte, len(stateValues))
@@ -229,10 +232,11 @@ func (j *JSONRPCServer) ExecuteAction(
 		ids.Empty,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to execute action: %w", err)
+		reply.Error = fmt.Sprintf("failed to execute action: %s", err)
+		return nil
 	}
 
-	reply.Output, err = actionRegistry.UnmarshalOutputs(args.ActionTypeID, outputs)
+	reply.Outputs, err = actionRegistry.UnmarshalOutputs(args.ActionTypeID, outputs)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal outputs: %w", err)
 	}
