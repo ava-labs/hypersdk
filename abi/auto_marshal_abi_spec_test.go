@@ -4,21 +4,19 @@
 package abi
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	_ "embed"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-
-	reflect "reflect"
 )
 
 // Combined VM and AutoMarshal spec
@@ -31,12 +29,17 @@ func TestABIHash(t *testing.T) {
 
 	// get spec from file
 	abiJSON := mustReadFile(t, "testdata/abi.json")
-	var abiFromFile VM
+	var abiFromFile ABI
 	err := json.Unmarshal(abiJSON, &abiFromFile)
 	require.NoError(err)
 
 	// check hash and compare it to expected
-	abiHash := abiFromFile.Hash()
+	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = codec.LinearCodec.MarshalInto(abiFromFile, writer.Packer)
+	require.NoError(err)
+	require.NoError(writer.Err())
+
+	abiHash := sha256.Sum256(writer.Bytes())
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }

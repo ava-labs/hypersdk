@@ -11,24 +11,24 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-func TestDescribeVM(t *testing.T) {
+func TestNewABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]chain.ActionPair{
+	actualABI, err := NewABI([]chain.ActionPair{
 		{Input: MockObjectSingleNumber{}},
 		{Input: MockActionTransfer{}},
 		{Input: MockObjectAllNumbers{}},
 		{Input: MockObjectStringAndBytes{}},
 		{Input: MockObjectArrays{}},
-		{Input: MockActionWithTransferArray{}},
 		{Input: MockActionWithTransfer{}},
+		{Input: MockActionWithTransferArray{}},
 		{Input: Outer{}},
 		{Input: ActionWithOutput{}, Output: ActionOutput{}},
 	})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
-	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
 
 	require.Equal(expectedAbi, actualABI)
 }
@@ -36,13 +36,13 @@ func TestDescribeVM(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := DescribeVM([]chain.ActionPair{
-		{Input: VM{}},
+	actualABI, err := NewABI([]chain.ActionPair{
+		{Input: ABI{}},
 	})
 	require.NoError(err)
 
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.abi.json")
-	expectedAbi := mustJSONParse[VM](t, string(expectedAbiJSON))
+	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
 
 	require.Equal(expectedAbi, actualABI)
 }

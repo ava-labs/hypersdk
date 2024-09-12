@@ -11,18 +11,10 @@ type MockObjectSingleNumber struct {
 	Field1 uint16 `serialize:"true"`
 }
 
-func (MockObjectSingleNumber) GetTypeID() uint8 {
-	return 1
-}
-
 type MockActionTransfer struct {
 	To    codec.Address `serialize:"true" json:"to"`
 	Value uint64        `serialize:"true" json:"value"`
 	Memo  codec.Bytes   `serialize:"true" json:"memo"`
-}
-
-func (MockActionTransfer) GetTypeID() uint8 {
-	return 2
 }
 
 type MockObjectAllNumbers struct {
@@ -36,17 +28,9 @@ type MockObjectAllNumbers struct {
 	Int64  int64  `serialize:"true" json:"int64"`
 }
 
-func (MockObjectAllNumbers) GetTypeID() uint8 {
-	return 3
-}
-
 type MockObjectStringAndBytes struct {
 	Field1 string  `serialize:"true" json:"field1"`
 	Field2 []uint8 `serialize:"true" json:"field2"`
-}
-
-func (MockObjectStringAndBytes) GetTypeID() uint8 {
-	return 4
 }
 
 type MockObjectArrays struct {
@@ -62,33 +46,17 @@ type MockObjectArrays struct {
 	Int64s  []int64   `serialize:"true" json:"int64s"`
 }
 
-func (MockObjectArrays) GetTypeID() uint8 {
-	return 5
+type MockActionWithTransfer struct {
+	Transfer MockActionTransfer `serialize:"true" json:"transfer"`
 }
 
 type MockActionWithTransferArray struct {
 	Transfers []MockActionTransfer `serialize:"true" json:"transfers"`
 }
 
-func (MockActionWithTransferArray) GetTypeID() uint8 {
-	return 7
-}
-
-type MockActionWithTransfer struct {
-	Transfer MockActionTransfer `serialize:"true" json:"transfer"`
-}
-
-func (MockActionWithTransfer) GetTypeID() uint8 {
-	return 6
-}
-
 type Outer struct {
 	Inner    Inner   `serialize:"true" json:"inner"`
 	InnerArr []Inner `serialize:"true" json:"innerArr"`
-}
-
-func (Outer) GetTypeID() uint8 {
-	return 8
 }
 
 type Inner struct {
@@ -99,10 +67,42 @@ type ActionWithOutput struct {
 	Field1 uint8 `serialize:"true" json:"field1"`
 }
 
-func (ActionWithOutput) GetTypeID() uint8 {
-	return 9
-}
-
 type ActionOutput struct {
 	Field1 uint16 `serialize:"true" json:"field1"`
+}
+
+func (MockObjectSingleNumber) GetTypeID() uint8 {
+	return 1
+}
+
+func (MockActionTransfer) GetTypeID() uint8 {
+	return 2
+}
+
+func (MockObjectAllNumbers) GetTypeID() uint8 {
+	return 3
+}
+
+func (MockObjectStringAndBytes) GetTypeID() uint8 {
+	return 4
+}
+
+func (MockObjectArrays) GetTypeID() uint8 {
+	return 5
+}
+
+func (MockActionWithTransfer) GetTypeID() uint8 {
+	return 7
+}
+
+func (MockActionWithTransferArray) GetTypeID() uint8 {
+	return 6
+}
+
+func (Outer) GetTypeID() uint8 {
+	return 8
+}
+
+func (ActionWithOutput) GetTypeID() uint8 {
+	return 9
 }

@@ -1,65 +1,64 @@
 {
     "actions": [
         {
-            "id": 255,
-            "action": "VM",
-            "output": "",
-            "types": [
+            "id": 0,
+            "action": "ABI"
+        }
+    ],
+    "types": [
+        {
+            "name": "ABI",
+            "fields": [
                 {
-                    "name": "VM",
-                    "fields": [
-                        {
-                            "name": "actions",
-                            "type": "[]Action"
-                        }
-                    ]
+                    "name": "actions",
+                    "type": "[]Action"
                 },
                 {
-                    "name": "Action",
-                    "fields": [
-                        {
-                            "name": "id",
-                            "type": "uint8"
-                        },
-                        {
-                            "name": "action",
-                            "type": "string"
-                        },
-                        {
-                            "name": "output",
-                            "type": "string"
-                        },
-                        {
-                            "name": "types",
-                            "type": "[]Type"
-                        }
-                    ]
+                    "name": "types",
+                    "type": "[]Type"
+                }
+            ]
+        },
+        {
+            "name": "Action",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint8"
                 },
                 {
-                    "name": "Type",
-                    "fields": [
-                        {
-                            "name": "name",
-                            "type": "string"
-                        },
-                        {
-                            "name": "fields",
-                            "type": "[]Field"
-                        }
-                    ]
+                    "name": "action",
+                    "type": "string"
                 },
                 {
-                    "name": "Field",
-                    "fields": [
-                        {
-                            "name": "name",
-                            "type": "string"
-                        },
-                        {
-                            "name": "type",
-                            "type": "string"
-                        }
-                    ]
+                    "name": "output",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "Type",
+            "fields": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "fields",
+                    "type": "[]Field"
+                }
+            ]
+        },
+        {
+            "name": "Field",
+            "fields": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "type",
+                    "type": "string"
                 }
             ]
         }

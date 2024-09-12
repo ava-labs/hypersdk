@@ -27,10 +27,10 @@ import (
 var (
 	vmName            string
 	txWorkloadFactory workload.TxWorkloadFactory
-	expectedABI       abi.VM
+	expectedABI       abi.ABI
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.VM) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI) {
 	vmName = name
 	txWorkloadFactory = factory
 	expectedABI = abi

@@ -4,44 +4,24 @@
 package abi
 
 import (
-	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-
-	reflect "reflect"
 )
 
-type VM struct {
+type ABI struct {
 	Actions []Action `serialize:"true" json:"actions"`
+	Types   []Type   `serialize:"true" json:"types"`
 }
 
-var _ chain.Typed = (*VM)(nil)
+var _ chain.Typed = (*ABI)(nil)
 
-const ABITypeID = consts.MaxUint8
-
-func (VM) GetTypeID() uint8 {
-	return ABITypeID
-}
-
-func (a *VM) Hash() [32]byte {
-	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := codec.LinearCodec.MarshalInto(a, writer.Packer)
-	if err != nil {
-		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: MarshalInto: %w", err))
-	}
-	if writer.Err() != nil {
-		// should never happen in prod, safe to panic
-		panic(fmt.Errorf("failed to marshal abi: writer.Err: %w", writer.Err()))
-	}
-	abiHash := sha256.Sum256(writer.Bytes())
-	return abiHash
+func (ABI) GetTypeID() uint8 {
+	return 0
 }
 
 // Field represents a field in the VM (Application Binary Interface).
@@ -52,12 +32,11 @@ type Field struct {
 	Type string `serialize:"true" json:"type"`
 }
 
-// Action represents the VM for an action.
+// Action represents an action in the VM.
 type Action struct {
 	ID     uint8  `serialize:"true" json:"id"`
 	Action string `serialize:"true" json:"action"`
 	Output string `serialize:"true" json:"output"`
-	Types  []Type `serialize:"true" json:"types"`
 }
 
 type Type struct {
@@ -65,42 +44,51 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func DescribeVM(actions []chain.ActionPair) (VM, error) {
-	vmABI := make([]Action, 0)
+func NewABI(actions []chain.ActionPair) (ABI, error) {
+	vmActions := make([]Action, 0)
+	vmTypes := make([]Type, 0)
+	typesSet := set.Set[string]{}
+
 	for _, action := range actions {
-		actionABI, err := describeAction(action.Input, action.Output)
+		actionABI, typeABI, err := describeAction(action)
 		if err != nil {
-			return VM{}, err
+			return ABI{}, err
 		}
-		vmABI = append(vmABI, actionABI)
+		vmActions = append(vmActions, actionABI)
+		for _, t := range typeABI {
+			if !typesSet.Contains(t.Name) {
+				vmTypes = append(vmTypes, t)
+				typesSet.Add(t.Name)
+			}
+		}
 	}
-	return VM{Actions: vmABI}, nil
+	return ABI{Actions: vmActions, Types: vmTypes}, nil
 }
 
-// describeAction generates the VM for a single action.
+// describeAction generates the Action and Types for a single action.
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
-func describeAction(input chain.Typed, output interface{}) (Action, error) {
-	t := reflect.TypeOf(input)
+func describeAction(action chain.ActionPair) (Action, []Type, error) {
+	t := reflect.TypeOf(action.Input)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	result := Action{
-		ID:     input.GetTypeID(),
+	actionABI := Action{
+		ID:     action.Input.GetTypeID(),
 		Action: t.Name(),
-		Types:  make([]Type, 0),
 	}
 
+	typesABI := make([]Type, 0)
 	typesLeft := []reflect.Type{t}
 	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
-	if output != nil {
-		outputType := reflect.TypeOf(output)
+	if action.Output != nil {
+		outputType := reflect.TypeOf(action.Output)
 		if outputType.Kind() == reflect.Ptr {
 			outputType = outputType.Elem()
 		}
-		result.Output = outputType.Name()
+		actionABI.Output = outputType.Name()
 		typesLeft = append(typesLeft, outputType)
 	}
 
@@ -121,10 +109,10 @@ func describeAction(input chain.Typed, output interface{}) (Action, error) {
 
 		fields, moreTypes, err := describeStruct(nextType)
 		if err != nil {
-			return Action{}, err
+			return Action{}, nil, err
 		}
 
-		result.Types = append(result.Types, Type{
+		typesABI = append(typesABI, Type{
 			Name:   nextType.Name(),
 			Fields: fields,
 		})
@@ -133,7 +121,7 @@ func describeAction(input chain.Typed, output interface{}) (Action, error) {
 		typesAlreadyProcessed.Add(nextType)
 	}
 
-	return result, nil
+	return actionABI, typesABI, nil
 }
 
 // describeStruct analyzes a struct type and returns its fields and any nested struct types it found

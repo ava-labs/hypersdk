@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
-func GenerateGoStructs(abi VM, packageName string) (string, error) {
+func GenerateGoStructs(abi ABI, packageName string) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("package %s\n\n", packageName))
@@ -20,32 +20,30 @@ func GenerateGoStructs(abi VM, packageName string) (string, error) {
 
 	processed := set.Set[string]{}
 
-	for _, action := range abi.Actions {
-		for _, typ := range action.Types {
-			if processed.Contains(typ.Name) {
-				continue
-			}
-			processed.Add(typ.Name)
+	for _, typ := range abi.Types {
+		if processed.Contains(typ.Name) {
+			continue
+		}
+		processed.Add(typ.Name)
 
-			sb.WriteString(fmt.Sprintf("type %s struct {\n", typ.Name))
-			for _, field := range typ.Fields {
-				fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
+		sb.WriteString(fmt.Sprintf("type %s struct {\n", typ.Name))
+		for _, field := range typ.Fields {
+			fieldNameUpperCase := strings.ToUpper(field.Name[0:1]) + field.Name[1:]
 
-				goType := convertToGoType(field.Type)
-				if unicode.IsUpper(rune(field.Name[0])) {
-					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", fieldNameUpperCase, goType))
-				} else {
-					sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\" json:\"%s\"`\n", fieldNameUpperCase, goType, field.Name))
-				}
-			}
-			sb.WriteString("}\n\n")
-
-			if action.Action == typ.Name {
-				sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Action))
-				sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
-				sb.WriteString("}\n")
+			goType := convertToGoType(field.Type)
+			if unicode.IsUpper(rune(field.Name[0])) {
+				sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\"`\n", fieldNameUpperCase, goType))
+			} else {
+				sb.WriteString(fmt.Sprintf("\t%s %s `serialize:\"true\" json:\"%s\"`\n", fieldNameUpperCase, goType, field.Name))
 			}
 		}
+		sb.WriteString("}\n\n")
+	}
+
+	for _, action := range abi.Actions {
+		sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Action))
+		sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
+		sb.WriteString("}\n\n")
 	}
 
 	formatted, err := format.Source([]byte(sb.String()))
