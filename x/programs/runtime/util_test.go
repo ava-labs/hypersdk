@@ -49,7 +49,7 @@ func compileProgram(programName string) ([]byte, error) {
 		return nil, err
 	}
 
-	programBytes, err := os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
+	programBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+programName+".wasm"))
 	if err != nil {
 		return nil, err
 	}
