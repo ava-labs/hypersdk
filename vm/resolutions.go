@@ -23,7 +23,9 @@ import (
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -86,6 +88,15 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 		return nil, ErrStateMissing
 	}
 	return vm.stateDB, nil
+}
+
+func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
+	ts := tstate.New(0)
+	state, err := vm.State()
+	if err != nil {
+		return nil, err
+	}
+	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
 }
 
 func (vm *VM) Mempool() chain.Mempool {
