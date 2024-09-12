@@ -59,9 +59,9 @@ func ExtractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
-		Name: "program",
+		Name: "contract",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
+			"call_contract": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
 				newInfo := *callInfo
 
 				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
@@ -85,7 +85,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return Err[RawBytes, ProgramCallErrorCode](ExecutionFailure), err
 				}
 
-				// return any remaining fuel to the calling program
+				// return any remaining fuel to the calling contract
 				callInfo.AddFuel(newInfo.RemainingFuel())
 
 				return Ok[RawBytes, ProgramCallErrorCode](result), nil

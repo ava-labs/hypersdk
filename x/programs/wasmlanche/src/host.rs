@@ -239,7 +239,7 @@ mod external_wrappers {
 
         pub fn deploy(&self, args: &[u8]) -> HostPtr {
             use crate::HostPtr;
-            #[link(wasm_import_module = "program")]
+            #[link(wasm_import_module = "contract")]
             extern "C" {
                 #[link_name = "deploy"]
                 fn deploy(ptr: *const u8, len: usize) -> HostPtr;
@@ -249,9 +249,9 @@ mod external_wrappers {
         }
 
         pub fn call_program(&self, args: &[u8]) -> HostPtr {
-            #[link(wasm_import_module = "program")]
+            #[link(wasm_import_module = "contract")]
             extern "C" {
-                #[link_name = "call_program"]
+                #[link_name = "call_contract"]
                 fn call_program(ptr: *const u8, len: usize) -> HostPtr;
             }
 
@@ -269,7 +269,7 @@ mod external_wrappers {
         }
 
         pub fn get_remaining_fuel(&self) -> HostPtr {
-            #[link(wasm_import_module = "program")]
+            #[link(wasm_import_module = "contract")]
             extern "C" {
                 #[link_name = "remaining_fuel"]
                 fn get_remaining_fuel() -> HostPtr;

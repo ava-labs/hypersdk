@@ -21,7 +21,7 @@ type WasmRuntime struct {
 	hostImports *Imports
 	cfg         *Config
 
-	programCache cache.Cacher[string, *wasmtime.Module]
+	contractCache cache.Cacher[string, *wasmtime.Module]
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -39,17 +39,17 @@ type BalanceManager interface {
 }
 
 type ProgramManager interface {
-	// GetProgramState returns the state of the program at the given address.
+	// GetProgramState returns the state of the contract at the given address.
 	GetProgramState(address codec.Address) state.Mutable
-	// GetAccountProgram returns the program ID associated with the given account.
-	// An account represents a specific instance of a program.
+	// GetAccountProgram returns the contract ID associated with the given account.
+	// An account represents a specific instance of a contract.
 	GetAccountProgram(ctx context.Context, account codec.Address) (ProgramID, error)
-	// GetProgramBytes returns the compiled WASM bytes of the program with the given ID.
-	GetProgramBytes(ctx context.Context, programID ProgramID) ([]byte, error)
-	// NewAccountWithProgram creates a new account that represents a specific instance of a program.
-	NewAccountWithProgram(ctx context.Context, programID ProgramID, accountCreationData []byte) (codec.Address, error)
-	// SetAccountProgram associates the given program ID with the given account.
-	SetAccountProgram(ctx context.Context, account codec.Address, programID ProgramID) error
+	// GetProgramBytes returns the compiled WASM bytes of the contract with the given ID.
+	GetProgramBytes(ctx context.Context, contractID ProgramID) ([]byte, error)
+	// NewAccountWithProgram creates a new account that represents a specific instance of a contract.
+	NewAccountWithProgram(ctx context.Context, contractID ProgramID, accountCreationData []byte) (codec.Address, error)
+	// SetAccountProgram associates the given contract ID with the given account.
+	SetAccountProgram(ctx context.Context, account codec.Address, contractID ProgramID) error
 }
 
 func NewRuntime(
@@ -63,7 +63,7 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
-		programCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id string, mod *wasmtime.Module) int {
+		contractCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id string, mod *wasmtime.Module) int {
 			bytes, err := mod.Serialize()
 			if err != nil {
 				panic(err)
@@ -90,31 +90,31 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 }
 
 func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id []byte) (*wasmtime.Module, error) {
-	if mod, ok := r.programCache.Get(string(id)); ok {
+	if mod, ok := r.contractCache.Get(string(id)); ok {
 		return mod, nil
 	}
-	programBytes, err := callInfo.State.GetProgramBytes(ctx, id)
+	contractBytes, err := callInfo.State.GetProgramBytes(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	mod, err := wasmtime.NewModule(r.engine, programBytes)
+	mod, err := wasmtime.NewModule(r.engine, contractBytes)
 	if err != nil {
 		return nil, err
 	}
-	r.programCache.Put(string(id), mod)
+	r.contractCache.Put(string(id), mod)
 	return mod, nil
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
-	programID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
+	contractID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
 	if err != nil {
 		return nil, err
 	}
-	programModule, err := r.getModule(ctx, callInfo, programID)
+	contractModule, err := r.getModule(ctx, callInfo, contractID)
 	if err != nil {
 		return nil, err
 	}
-	inst, err := r.getInstance(programModule, r.hostImports)
+	inst, err := r.getInstance(contractModule, r.hostImports)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (resu
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(programModule *wasmtime.Module, imports *Imports) (*ProgramInstance, error) {
+func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module, imports *Imports) (*ProgramInstance, error) {
 	if r.linkerNeedsInitialization {
 		linker, err := imports.createLinker(r)
 		if err != nil {
@@ -138,7 +138,7 @@ func (r *WasmRuntime) getInstance(programModule *wasmtime.Module, imports *Impor
 
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
-	inst, err := r.linker.Instantiate(store, programModule)
+	inst, err := r.linker.Instantiate(store, contractModule)
 	if err != nil {
 		return nil, err
 	}

@@ -20,15 +20,15 @@ func TestImportProgramDeployProgram(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("deploy_program")
+	contract, err := rt.newTestProgram("deploy_contract")
 	require.NoError(err)
 
-	runtime := program.Runtime
+	runtime := contract.Runtime
 	otherProgramID := ids.GenerateTestID()
-	err = runtime.AddProgram(otherProgramID[:], codec.CreateAddress(0, otherProgramID), "call_program")
+	err = runtime.AddProgram(otherProgramID[:], codec.CreateAddress(0, otherProgramID), "call_contract")
 	require.NoError(err)
 
-	result, err := program.Call(
+	result, err := contract.Call(
 		"deploy",
 		otherProgramID[:])
 	require.NoError(err)
@@ -47,19 +47,19 @@ func TestImportProgramCallProgram(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("call_program")
+	contract, err := rt.newTestProgram("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(0)
 	require.NoError(err)
 
-	result, err := program.Call("simple_call")
+	result, err := contract.Call("simple_call")
 	require.NoError(err)
 	require.Equal(expected, result)
 
-	result, err = program.Call(
+	result, err = contract.Call(
 		"simple_call_external",
-		program.Address, uint64(1000000))
+		contract.Address, uint64(1000000))
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -71,11 +71,11 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("call_program")
+	contract, err := rt.newTestProgram("call_contract")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
-	result, err := program.WithActor(actor).Call("actor_check")
+	result, err := contract.WithActor(actor).Call("actor_check")
 	require.NoError(err)
 	expected, err := Serialize(actor)
 	require.NoError(err)
@@ -89,15 +89,15 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("call_program")
+	contract, err := rt.newTestProgram("call_contract")
 	require.NoError(err)
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
-	result, err := program.WithActor(actor).Call(
+	result, err := contract.WithActor(actor).Call(
 		"actor_check_external",
-		program.Address, uint64(100000))
+		contract.Address, uint64(100000))
 	require.NoError(err)
-	expected, err := Serialize(program.Address)
+	expected, err := Serialize(contract.Address)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -109,21 +109,21 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("call_program")
+	contract, err := rt.newTestProgram("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(uint64(1))
 	require.NoError(err)
 
-	result, err := program.Call(
+	result, err := contract.Call(
 		"call_with_param",
 		uint64(1))
 	require.NoError(err)
 	require.Equal(expected, result)
 
-	result, err = program.Call(
+	result, err = contract.Call(
 		"call_with_param_external",
-		program.Address, uint64(100000), uint64(1))
+		contract.Address, uint64(100000), uint64(1))
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -135,22 +135,22 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("call_program")
+	contract, err := rt.newTestProgram("call_contract")
 	require.NoError(err)
 
 	expected, err := Serialize(int64(3))
 	require.NoError(err)
 
-	result, err := program.Call(
+	result, err := contract.Call(
 		"call_with_two_params",
 		uint64(1),
 		uint64(2))
 	require.NoError(err)
 	require.Equal(expected, result)
 
-	result, err = program.Call(
+	result, err = contract.Call(
 		"call_with_two_params_external",
-		program.Address, uint64(100000), uint64(1), uint64(2))
+		contract.Address, uint64(100000), uint64(1), uint64(2))
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -162,12 +162,12 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("fuel")
+	contract, err := rt.newTestProgram("fuel")
 	require.NoError(err)
 
-	result, err := program.Call("get_fuel")
+	result, err := contract.Call("get_fuel")
 	require.NoError(err)
-	require.LessOrEqual(into[uint64](result), program.Runtime.callContext.defaultCallInfo.Fuel)
+	require.LessOrEqual(into[uint64](result), contract.Runtime.callContext.defaultCallInfo.Fuel)
 }
 
 func TestImportOutOfFuel(t *testing.T) {
@@ -177,10 +177,10 @@ func TestImportOutOfFuel(t *testing.T) {
 	defer cancel()
 
 	rt := newTestRuntime(ctx)
-	program, err := rt.newTestProgram("fuel")
+	contract, err := rt.newTestProgram("fuel")
 	require.NoError(err)
 
-	result, err := program.Call("out_of_fuel", program.Address)
+	result, err := contract.Call("out_of_fuel", contract.Address)
 	require.NoError(err)
 	require.Equal([]byte{byte(OutOfFuel)}, result)
 }

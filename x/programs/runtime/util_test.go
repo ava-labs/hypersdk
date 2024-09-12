@@ -25,23 +25,23 @@ type TestStateManager struct {
 }
 
 func (t TestStateManager) GetAccountProgram(_ context.Context, account codec.Address) (ProgramID, error) {
-	if programID, ok := t.AccountMap[account]; ok {
-		return ProgramID(programID), nil
+	if contractID, ok := t.AccountMap[account]; ok {
+		return ProgramID(contractID), nil
 	}
 	return ids.Empty[:], nil
 }
 
-func (t TestStateManager) GetProgramBytes(_ context.Context, programID ProgramID) ([]byte, error) {
-	programBytes, ok := t.ProgramsMap[string(programID)]
+func (t TestStateManager) GetProgramBytes(_ context.Context, contractID ProgramID) ([]byte, error) {
+	contractBytes, ok := t.ProgramsMap[string(contractID)]
 	if !ok {
-		return nil, errors.New("couldn't find program")
+		return nil, errors.New("couldn't find contract")
 	}
 
-	return programBytes, nil
+	return contractBytes, nil
 }
 
-func compileProgram(programName string) ([]byte, error) {
-	if err := test.CompileTest(programName); err != nil {
+func compileProgram(contractName string) ([]byte, error) {
+	if err := test.CompileTest(contractName); err != nil {
 		return nil, err
 	}
 	dir, err := os.Getwd()
@@ -49,35 +49,35 @@ func compileProgram(programName string) ([]byte, error) {
 		return nil, err
 	}
 
-	programBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+programName+".wasm"))
+	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
 	if err != nil {
 		return nil, err
 	}
 
-	return programBytes, nil
+	return contractBytes, nil
 }
 
-func (t TestStateManager) SetProgramBytes(programID ProgramID, programBytes []byte) {
-	t.ProgramsMap[string(programID)] = programBytes
+func (t TestStateManager) SetProgramBytes(contractID ProgramID, contractBytes []byte) {
+	t.ProgramsMap[string(contractID)] = contractBytes
 }
 
-func (t TestStateManager) CompileAndSetProgram(programID ProgramID, programName string) error {
-	programBytes, err := compileProgram(programName)
+func (t TestStateManager) CompileAndSetProgram(contractID ProgramID, contractName string) error {
+	contractBytes, err := compileProgram(contractName)
 	if err != nil {
 		return err
 	}
-	t.SetProgramBytes(programID, programBytes)
+	t.SetProgramBytes(contractID, contractBytes)
 	return nil
 }
 
-func (t TestStateManager) NewAccountWithProgram(_ context.Context, programID ProgramID, _ []byte) (codec.Address, error) {
+func (t TestStateManager) NewAccountWithProgram(_ context.Context, contractID ProgramID, _ []byte) (codec.Address, error) {
 	account := codec.CreateAddress(0, ids.GenerateTestID())
-	t.AccountMap[account] = string(programID)
+	t.AccountMap[account] = string(contractID)
 	return account, nil
 }
 
-func (t TestStateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ProgramID) error {
-	t.AccountMap[account] = string(programID)
+func (t TestStateManager) SetAccountProgram(_ context.Context, account codec.Address, contractID ProgramID) error {
+	t.AccountMap[account] = string(contractID)
 	return nil
 }
 
@@ -189,22 +189,22 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-// AddProgram compiles [programName] and sets the bytes in the state manager
-func (t *testRuntime) AddProgram(programID ProgramID, account codec.Address, programName string) error {
-	err := t.StateManager.(TestStateManager).CompileAndSetProgram(programID, programName)
+// AddProgram compiles [contractName] and sets the bytes in the state manager
+func (t *testRuntime) AddProgram(contractID ProgramID, account codec.Address, contractName string) error {
+	err := t.StateManager.(TestStateManager).CompileAndSetProgram(contractID, contractName)
 	if err != nil {
 		return err
 	}
 
-	t.StateManager.(TestStateManager).AccountMap[account] = string(programID)
+	t.StateManager.(TestStateManager).AccountMap[account] = string(contractID)
 	return nil
 }
 
-func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallProgram(contract codec.Address, function string, params ...interface{}) ([]byte, error) {
 	return t.callContext.CallProgram(
 		t.Context,
 		&CallInfo{
-			Program:      program,
+			Program:      contract,
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
@@ -226,7 +226,7 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 	}
 }
 
-func (t *testRuntime) newTestProgram(program string) (*testProgram, error) {
+func (t *testRuntime) newTestProgram(contract string) (*testProgram, error) {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
@@ -235,7 +235,7 @@ func (t *testRuntime) newTestProgram(program string) (*testProgram, error) {
 		Runtime: t,
 	}
 
-	err := t.AddProgram(ProgramID(stringedID), account, program)
+	err := t.AddProgram(ProgramID(stringedID), account, contract)
 	if err != nil {
 		return nil, err
 	}

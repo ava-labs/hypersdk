@@ -31,13 +31,13 @@ type Context struct {
 }
 
 type CallInfo struct {
-	// the state that the program will run against
+	// the state that the contract will run against
 	State StateManager
 
-	// the address that originated the initial program call
+	// the address that originated the initial contract call
 	Actor codec.Address
 
-	// the name of the function within the program that is being called
+	// the name of the function within the contract that is being called
 	FunctionName string
 
 	Program codec.Address
@@ -98,15 +98,15 @@ func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte,
 		}
 	}
 
-	// create the program context
-	programCtx := Context{
+	// create the contract context
+	contractCtx := Context{
 		Program:   callInfo.Program,
 		Actor:     callInfo.Actor,
 		Height:    callInfo.Height,
 		Timestamp: callInfo.Timestamp,
 		ActionID:  callInfo.ActionID,
 	}
-	paramsBytes, err := Serialize(programCtx)
+	paramsBytes, err := Serialize(contractCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +129,13 @@ func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte,
 
 func (p *ProgramInstance) writeToMemory(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
-	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
+	contractMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))
 	if err != nil {
 		return 0, err
 	}
 	dataOffset := dataOffsetIntf.(int32)
-	linearMem := programMemory.UnsafeData(p.store)
+	linearMem := contractMemory.UnsafeData(p.store)
 	copy(linearMem[dataOffset:], data)
 	return dataOffset, nil
 }

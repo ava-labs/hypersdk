@@ -20,14 +20,14 @@ func TestCallContext(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	programID := ids.GenerateTestID()
-	programAccount := codec.CreateAddress(0, programID)
-	stringedID := string(programID[:])
+	contractID := ids.GenerateTestID()
+	contractAccount := codec.CreateAddress(0, contractID)
+	stringedID := string(contractID[:])
 	testStateManager := &TestStateManager{
 		ProgramsMap: map[string][]byte{},
-		AccountMap:  map[codec.Address]string{programAccount: stringedID},
+		AccountMap:  map[codec.Address]string{contractAccount: stringedID},
 	}
-	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID), "call_program")
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID), "call_contract")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -36,7 +36,7 @@ func TestCallContext(t *testing.T) {
 	).WithDefaults(
 		CallInfo{
 			State:   testStateManager,
-			Program: programAccount,
+			Program: contractAccount,
 			Fuel:    1000000,
 		})
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
@@ -72,18 +72,18 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program0ID := ids.GenerateTestID()
-	program0Address := codec.CreateAddress(0, program0ID)
-	program1ID := ids.GenerateTestID()
-	program1Address := codec.CreateAddress(1, program1ID)
-	stringedID0 := string(program0ID[:])
+	contract0ID := ids.GenerateTestID()
+	contract0Address := codec.CreateAddress(0, contract0ID)
+	contract1ID := ids.GenerateTestID()
+	contract1Address := codec.CreateAddress(1, contract1ID)
+	stringedID0 := string(contract0ID[:])
 
 	testStateManager := &TestStateManager{
 		ProgramsMap: map[string][]byte{},
-		AccountMap:  map[codec.Address]string{program0Address: stringedID0},
+		AccountMap:  map[codec.Address]string{contract0Address: stringedID0},
 	}
 
-	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID0), "call_program")
+	err := testStateManager.CompileAndSetProgram(ProgramID(stringedID0), "call_contract")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -91,24 +91,24 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		logging.NoLog{},
 	).WithDefaults(
 		CallInfo{
-			Program: program0Address,
+			Program: contract0Address,
 			State:   testStateManager,
 			Fuel:    1000000,
 		})
 
-	stringedID1 := string(program1ID[:])
+	stringedID1 := string(contract1ID[:])
 	testStateManager1 := &TestStateManager{
 		ProgramsMap: map[string][]byte{},
-		AccountMap:  map[codec.Address]string{program1Address: stringedID1},
+		AccountMap:  map[codec.Address]string{contract1Address: stringedID1},
 	}
-	err = testStateManager1.CompileAndSetProgram(ProgramID(stringedID1), "call_program")
+	err = testStateManager1.CompileAndSetProgram(ProgramID(stringedID1), "call_contract")
 	require.NoError(err)
 
-	// try to use a context that has a default program with a different program
+	// try to use a context that has a default contract with a different contract
 	result, err := r.CallProgram(
 		ctx,
 		&CallInfo{
-			Program:      program1Address,
+			Program:      contract1Address,
 			State:        testStateManager1,
 			FunctionName: "actor_check",
 		})

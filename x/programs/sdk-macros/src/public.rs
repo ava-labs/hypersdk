@@ -39,7 +39,7 @@ pub fn impl_public(public_fn: PublicFn) -> Result<TokenStream, Error> {
                 #(#other_inputs),*
             }
 
-            #[link(wasm_import_module = "program")]
+            #[link(wasm_import_module = "contract")]
             extern "C" {
                 #[link_name = "set_call_result"]
                 fn set_call_result(ptr: *const u8, len: usize);
