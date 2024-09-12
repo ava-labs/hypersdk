@@ -82,7 +82,7 @@ func TestMarshalSpecs(t *testing.T) {
 			// Compare with expected hex
 			expectedHex := string(mustReadFile(t, "testdata/"+tc.name+".hex"))
 			expectedHex = strings.TrimSpace(expectedHex)
-			require.Equal(expectedHex, hex.EncodeToString(objectBytes), tc.name)
+			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
 			// Unmarshal the object
 			err = codec.LinearCodec.Unmarshal(objectBytes, unmarshaledFromBytes)
