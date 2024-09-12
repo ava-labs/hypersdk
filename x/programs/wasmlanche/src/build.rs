@@ -93,7 +93,7 @@ pub fn build_wasm() {
         println!("cargo:rustc-env=PROGRAM_PATH={target_dir}");
 
         println!(
-            r#"cargo:warning=If the simulator fails to find the "{package_name}" program, try running `cargo clean -p {package_name}` followed by `cargo test` again."#
+            r#"cargo:warning=If the simulator fails to find the "{package_name}" contract, try running `cargo clean -p {package_name}` followed by `cargo test` again."#
         );
     }
 }

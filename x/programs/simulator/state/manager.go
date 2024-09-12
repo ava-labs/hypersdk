@@ -23,11 +23,11 @@ var _ runtime.StateManager = &ProgramStateManager{}
 var (
 	ErrUnknownAccount = errors.New("unknown account")
 	balanceKeyBytes   = []byte("balance")
-	programKeyBytes   = []byte("program")
+	contractKeyBytes  = []byte("contract")
 )
 
 const (
-	programPrefix = 0x0
+	contractPrefix = 0x0
 
 	accountPrefix      = 0x1
 	accountDataPrefix  = 0x0
@@ -79,39 +79,39 @@ func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutab
 	return newAccountPrefixedMutable(account, p.db)
 }
 
-// GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the programbytes
+// GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the contractbytes
 // Errors if there is no found account or an error fetching
 func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (runtime.ProgramID, error) {
-	programID, exists, err := p.getAccountProgram(ctx, account)
+	contractID, exists, err := p.getAccountProgram(ctx, account)
 	if err != nil {
 		return ids.Empty[:], err
 	}
 	if !exists {
 		return ids.Empty[:], ErrUnknownAccount
 	}
-	return programID[:], nil
+	return contractID[:], nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID runtime.ProgramID) ([]byte, error) {
+func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, contractID runtime.ProgramID) ([]byte, error) {
 	// TODO: take fee out of balance?
-	programBytes, exists, err := p.getProgram(ctx, programID)
+	contractBytes, exists, err := p.getProgram(ctx, contractID)
 	if err != nil {
 		return []byte{}, ErrUnknownAccount
 	}
 	if !exists {
 		return []byte{}, ErrUnknownAccount
 	}
-	return programBytes, nil
+	return contractBytes, nil
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID runtime.ProgramID, accountCreationData []byte) (codec.Address, error) {
-	newID := sha256.Sum256(append(programID, accountCreationData...))
+func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, contractID runtime.ProgramID, accountCreationData []byte) (codec.Address, error) {
+	newID := sha256.Sum256(append(contractID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
-	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
+	return newAccount, p.setAccountProgram(ctx, newAccount, contractID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID runtime.ProgramID) error {
-	return p.setAccountProgram(ctx, account, programID)
+func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, contractID runtime.ProgramID) error {
+	return p.setAccountProgram(ctx, account, contractID)
 }
 
 func (p *ProgramStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
@@ -136,7 +136,7 @@ func accountBalanceKey(account []byte) []byte {
 }
 
 func accountProgramKey(account []byte) []byte {
-	return accountDataKey(account, programKeyBytes)
+	return accountDataKey(account, contractKeyBytes)
 }
 
 // Creates a key an account balance key
@@ -150,9 +150,9 @@ func accountDataKey(account []byte, key []byte) (k []byte) {
 	return
 }
 
-func programKey(key []byte) (k []byte) {
+func contractKey(key []byte) (k []byte) {
 	k = make([]byte, 0, 1+len(key))
-	k = append(k, programPrefix)
+	k = append(k, contractPrefix)
 	k = append(k, key...)
 	return
 }
@@ -171,14 +171,14 @@ func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account cod
 func (p *ProgramStateManager) setAccountProgram(
 	ctx context.Context,
 	account codec.Address,
-	programID []byte,
+	contractID []byte,
 ) error {
-	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID)
+	return p.db.Insert(ctx, accountDataKey(account[:], contractKeyBytes), contractID)
 }
 
-// [programID] -> [programBytes]
-func (p *ProgramStateManager) getProgram(ctx context.Context, programID runtime.ProgramID) ([]byte, bool, error) {
-	v, err := p.db.GetValue(ctx, programKey(programID))
+// [contractID] -> [contractBytes]
+func (p *ProgramStateManager) getProgram(ctx context.Context, contractID runtime.ProgramID) ([]byte, bool, error) {
+	v, err := p.db.GetValue(ctx, contractKey(contractID))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
@@ -188,13 +188,13 @@ func (p *ProgramStateManager) getProgram(ctx context.Context, programID runtime.
 	return v, true, nil
 }
 
-// setProgram stores [program] at [programID]
+// setProgram stores [contract] at [contractID]
 func (p *ProgramStateManager) SetProgram(
 	ctx context.Context,
-	programID ids.ID,
-	program []byte,
+	contractID ids.ID,
+	contract []byte,
 ) error {
-	return p.db.Insert(ctx, programKey(programID[:]), program)
+	return p.db.Insert(ctx, contractKey(contractID[:]), contract)
 }
 
 // gets the public key mapped to the given name.

@@ -4,7 +4,7 @@
 use std::cmp;
 use token::Units;
 use wasmlanche::{
-    public, state_schema, Address, Context, ExternalCallArgs, ExternalCallContext, Gas, ProgramId,
+    public, state_schema, Address, Context, ExternalCallArgs, ExternalCallContext, Gas, ContractId,
 };
 
 mod math;
@@ -30,10 +30,10 @@ fn call_args_from_address(address: Address) -> ExternalCallArgs {
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ProgramId) {
-    let lt_program = context.deploy(liquidity_token, &[0, 1]);
+pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity_token: ContractId) {
+    let lt_contract = context.deploy(liquidity_token, &[0, 1]);
 
-    let args = call_args_from_address(lt_program);
+    let args = call_args_from_address(lt_contract);
     let liquidity_context = context.to_extern(args);
 
     token::init(
@@ -46,23 +46,23 @@ pub fn init(context: &mut Context, token_x: Address, token_y: Address, liquidity
         .store((
             (TokenX, token_x),
             (TokenY, token_y),
-            (LiquidityToken, lt_program),
+            (LiquidityToken, lt_contract),
         ))
         .expect("failed to set state");
 }
 
-/// Swaps 'amount' of `token_program_in` with the other token in the pool
+/// Swaps 'amount' of `token_contract_in` with the other token in the pool
 /// Returns the amount of tokens received from the swap
-/// Requires `amount` of `token_program_in` to be approved by the actor beforehand
+/// Requires `amount` of `token_contract_in` to be approved by the actor beforehand
 #[public]
-pub fn swap(context: &mut Context, token_program_in: Address, amount: Units) -> Units {
-    // ensure the token_program_in is one of the tokens
-    internal::check_token(context, token_program_in);
+pub fn swap(context: &mut Context, token_contract_in: Address, amount: Units) -> Units {
+    // ensure the token_contract_in is one of the tokens
+    internal::check_token(context, token_contract_in);
 
     let (token_x, token_y) = external_token_contracts(context);
 
-    // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in == token_x.contract_address {
+    // make sure token_in matches the token_contract_in
+    let (token_in, token_out) = if token_contract_in == token_x.contract_address {
         (token_x, token_y)
     } else {
         (token_y, token_x)
@@ -219,7 +219,7 @@ fn reserves(
 }
 
 /// Returns the tokens in the pool
-fn token_programs(context: &mut Context) -> (Address, Address) {
+fn token_contracts(context: &mut Context) -> (Address, Address) {
     (
         context
             .get(TokenX)
@@ -233,7 +233,7 @@ fn token_programs(context: &mut Context) -> (Address, Address) {
 }
 /// Returns the external call contexts for the tokens in the pool
 fn external_token_contracts(context: &mut Context) -> (ExternalCallArgs, ExternalCallArgs) {
-    let (token_x, token_y) = token_programs(context);
+    let (token_x, token_y) = token_contracts(context);
     (
         call_args_from_address(token_x),
         call_args_from_address(token_y),
@@ -250,10 +250,10 @@ fn lp_token(context: &mut Context) -> ExternalCallContext {
 mod internal {
     use super::*;
 
-    /// Checks if `token_program` is one of the tokens supported by the pool
-    pub fn check_token(context: &mut Context, token_program: Address) {
-        let (token_x, token_y) = token_programs(context);
-        let supported = token_program == token_x || token_program == token_y;
+    /// Checks if `token_contract` is one of the tokens supported by the pool
+    pub fn check_token(context: &mut Context, token_contract: Address) {
+        let (token_x, token_y) = token_contracts(context);
+        let supported = token_contract == token_x || token_contract == token_y;
         assert!(
             supported,
             "token program is not one of the tokens supported by this pool"

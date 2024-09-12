@@ -42,7 +42,7 @@ pub fn register_panic() {
 
     SET_PANIC_HOOK.call_once(|| {
         panic::set_hook(Box::new(|info| {
-            log(&format!("program {info}"));
+            log(&format!("contract {info}"));
         }));
     });
 }

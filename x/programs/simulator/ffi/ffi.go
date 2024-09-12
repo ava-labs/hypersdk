@@ -59,14 +59,14 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
 	paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
-	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)     //nolint:all
-	programBytes := C.GoBytes(unsafe.Pointer(&ctx.program_address), codec.AddressLen) //nolint:all
+	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)       //nolint:all
+	contractBytes := C.GoBytes(unsafe.Pointer(&ctx.contract_address), codec.AddressLen) //nolint:all
 
 	return &runtime.CallInfo{
 		State:        simState.NewProgramStateManager(db),
 		Actor:        codec.Address(actorBytes),
 		FunctionName: methodName,
-		Program:      codec.Address(programBytes),
+		Program:      codec.Address(contractBytes),
 		Params:       paramBytes,
 		Fuel:         uint64(ctx.max_gas),
 		Height:       uint64(ctx.height),
@@ -77,45 +77,45 @@ func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runti
 //export CreateProgram
 func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
-	programManager := simState.NewProgramStateManager(state)
+	contractManager := simState.NewProgramStateManager(state)
 
-	programPath := C.GoString(path)
-	programBytes, err := os.ReadFile(programPath)
+	contractPath := C.GoString(path)
+	contractBytes, err := os.ReadFile(contractPath)
 	if err != nil {
 		return C.CreateProgramResponse{
 			error: C.CString(err.Error()),
 		}
 	}
 
-	programID, err := generateRandomID()
+	contractID, err := generateRandomID()
 	if err != nil {
 		return C.CreateProgramResponse{
 			error: C.CString(err.Error()),
 		}
 	}
 
-	err = programManager.SetProgram(context.TODO(), programID, programBytes)
+	err = contractManager.SetProgram(context.TODO(), contractID, contractBytes)
 	if err != nil {
-		errmsg := "program creation failed: " + err.Error()
+		errmsg := "contract creation failed: " + err.Error()
 		return C.CreateProgramResponse{
 			error: C.CString(errmsg),
 		}
 	}
 
-	account, err := programManager.NewAccountWithProgram(context.TODO(), programID[:], []byte{})
+	account, err := contractManager.NewAccountWithProgram(context.TODO(), contractID[:], []byte{})
 	if err != nil {
-		errmsg := "program deployment failed: " + err.Error()
+		errmsg := "contract deployment failed: " + err.Error()
 		return C.CreateProgramResponse{
 			error: C.CString(errmsg),
 		}
 	}
 	return C.CreateProgramResponse{
 		error: nil,
-		program_id: C.ProgramId{
-			data:   (*C.uint8_t)(C.CBytes(programID[:])), //nolint:all
-			length: (C.size_t)(len(programID[:])),
+		contract_id: C.ProgramId{
+			data:   (*C.uint8_t)(C.CBytes(contractID[:])), //nolint:all
+			length: (C.size_t)(len(contractID[:])),
 		},
-		program_address: C.Address{
+		contract_address: C.Address{
 			*(*[33]C.uchar)(C.CBytes(account[:])), //nolint:all
 		},
 	}

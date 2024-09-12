@@ -20,16 +20,16 @@ fn inc_and_get_value() {
 
     let owner = Address::new([1; 33]);
 
-    let counter_external = simulator.create_program(PROGRAM_PATH).unwrap().address;
+    let counter_external = simulator.create_contract(PROGRAM_PATH).unwrap().address;
 
-    let counter = simulator.create_program(&counter_path).unwrap().address;
+    let counter = simulator.create_contract(&counter_path).unwrap().address;
 
     simulator
-        .call_program::<(), _>(counter_external, "inc", (counter, owner), 100_000_000)
+        .call_contract::<(), _>(counter_external, "inc", (counter, owner), 100_000_000)
         .unwrap();
 
     let response: u64 = simulator
-        .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
+        .call_contract(counter_external, "get_value", (counter, owner), 100_000_000)
         .unwrap();
 
     assert_eq!(response, 1);

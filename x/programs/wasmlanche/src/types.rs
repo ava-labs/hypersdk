@@ -15,12 +15,12 @@ pub type Id = [u8; ID_LEN];
 /// Gas type alias.
 pub type Gas = u64;
 
-/// The ID bytes of a program.
+/// The ID bytes of a contract.
 #[derive(BorshSerialize, BorshDeserialize)]
-pub struct ProgramId(Box<[u8]>);
+pub struct ContractId(Box<[u8]>);
 
 #[cfg(feature = "test")]
-impl From<Box<[u8]>> for ProgramId {
+impl From<Box<[u8]>> for ContractId {
     fn from(value: Box<[u8]>) -> Self {
         Self(value)
     }

@@ -26,17 +26,17 @@ typedef struct {
     const char* error;
 } BytesWithError;
 
-// Context needed to invoke a program's method
+// Context needed to invoke a contract's method
 typedef struct {
-    // address of the program being invoked
-    Address program_address;
+    // address of the contract being invoked
+    Address contract_address;
     // invoker
     Address actor_address;
     // block height
     uint64_t height;
     // block timestamp
     uint64_t timestamp;
-    // method being called on program
+    // method being called on contract
     const char* method;
     // params borsh serialized as byte vector
     Bytes params;
@@ -44,17 +44,17 @@ typedef struct {
     uint64_t max_gas;
 } SimulatorCallContext;
 
-// Response from calling a program
+// Response from calling a contract
 typedef struct {
     char* error;
     Bytes result;
     uint64_t fuel;
 } CallProgramResponse;
 
-// Response from creating a program
+// Response from creating a contract
 typedef struct {
-    Address program_address;
-    ProgramId program_id;
+    Address contract_address;
+    ProgramId contract_id;
     const char *error;
 } CreateProgramResponse;
 

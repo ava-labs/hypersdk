@@ -138,7 +138,7 @@ impl TestCrate {
 
         linker
             .func_wrap(
-                "program",
+                "contract",
                 "set_call_result",
                 |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
                     let Extern::Memory(memory) = caller
@@ -160,7 +160,7 @@ impl TestCrate {
                     *store_result = Some(result.to_vec())
                 },
             )
-            .expect("failed to link `program.set_call_result` function");
+            .expect("failed to link `contract.set_call_result` function");
 
         linker
             .func_wrap(
@@ -246,14 +246,14 @@ impl TestCrate {
     }
 
     fn write_context(&mut self) -> AllocReturn {
-        let program_id = vec![1; Address::LEN];
+        let contract_id = vec![1; Address::LEN];
         let mut actor = vec![0; Address::LEN];
         let height: u64 = 0;
         let timestamp: u64 = 0;
         let mut action_id = vec![1; ID_LEN];
 
         // this is a hack to create a context since the constructor is private
-        let mut serialized_context = program_id;
+        let mut serialized_context = contract_id;
         serialized_context.append(&mut actor);
         serialized_context.append(&mut height.to_le_bytes().to_vec());
         serialized_context.append(&mut timestamp.to_le_bytes().to_vec());
