@@ -4,6 +4,7 @@
 package prompt
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -28,6 +29,24 @@ var (
 	ErrTxFailed             = errors.New("tx failed on-chain")
 	ErrInsufficientAccounts = errors.New("insufficient accounts")
 )
+
+func Bytes(label string) ([]byte, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := hex.DecodeString(input)
+			return err
+		},
+	}
+	hexString, err := promptText.Run()
+	if err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(hexString)
+}
 
 func Address(label string, parseAddress func(string) (codec.Address, error)) (codec.Address, error) {
 	promptText := promptui.Prompt{
