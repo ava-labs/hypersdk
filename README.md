@@ -106,17 +106,17 @@ _The number of blocks that the `hypersdk` stores on-disk, the `AcceptedBlockWind
 to an arbitrary depth (or set to `MaxInt` to keep all blocks). To limit disk IO used to serve blocks over
 the P2P network, `hypervms` can configure `AcceptedBlockWindowCache` to store recent blocks in memory._
 
-### WASM-Based Programs
+### WASM-Based Contracts
 In the `hypersdk`, [smart contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
-(e.g. programs that run on blockchains) are referred to simply as `programs`. `Programs`
+(e.g. contracts that run on blockchains) are referred to simply as `contracts`. `Contracts`
 are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
 execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
 alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
 `hypervm's` code (like the `tokenvm`).
 
 Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
-be compiled to WASM can be used to write `programs`. You can view a collection of
-Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/examples).
+be compiled to WASM can be used to write `contracts`. You can view a collection of
+Rust-based `contracts` [here](https://github.com/ava-labs/hypersdk/tree/main/x/contracts/examples).
 
 ### Account Abstraction
 The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.
@@ -127,13 +127,13 @@ verification `Auth` module) but may be different (if using a "gas relayer" `Auth
 
 `Auth` modules may be hardcoded, like in
 [`morpheusvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/morpheusvm/auth), or execute
-a `program` (i.e. a custom deployed multi-sig). To allow for easy interaction between different
+a `contract` (i.e. a custom deployed multi-sig). To allow for easy interaction between different
 `Auth` modules (and to ensure `Auth` modules can't interfere with each other), the
 `hypersdk` employs a standard, 33-byte addressing scheme: `<typeID><ids.ID>`. Transaction
 verification ensures that any `Actor` and `Sponsor` returned by an `Auth` module
 must have the same `<typeID>` as the module generating an address. The 32-byte hash (`<ids.ID>`)
-is used to uniquely identify accounts within an `Auth` scheme. For `programs`, this
-will likely be the `txID` when the `program` was deployed and will be the hash
+is used to uniquely identify accounts within an `Auth` scheme. For `contracts`, this
+will likely be the `txID` when the `contract` was deployed and will be the hash
 of the public key for pure cryptographic primitives (the indirect benefit of this
 is that account public keys are obfuscated until used).
 
@@ -168,8 +168,8 @@ can generate an execution plan for a set of transactions on-the-fly (no preproce
 When a `hypervm's` `Auth` and `Actions` are simple and pre-specified (like in the `morpheusvm`),
 the primary benefit of parallel execution is to concurrently fetch the state needed for execution
 (actual execution of precompiled golang only takes nanoseconds). However, parallel execution
-massively speeds up the E2E execution of a block of `programs`, which may each take a few milliseconds
-to process. Consider the simple scenario where a `program` takes 2 milliseconds; processing 1000 `programs`
+massively speeds up the E2E execution of a block of `contracts`, which may each take a few milliseconds
+to process. Consider the simple scenario where a `contract` takes 2 milliseconds; processing 1000 `contracts`
 in serial would take 2 seconds (far too long for a high-throughput blockchain). The same execution, however,
 would only take 125 milliseconds if run over 16 cores (assuming no conflicts).
 
@@ -503,7 +503,7 @@ _To ensure the `hypersdk` remains reliable as we optimize and evolve the codebas
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules._
 
 ### Expert: `indexvm` [DEPRECATED]
-_The `indexvm` will be rewritten using the new WASM Programs module._
+_The `indexvm` will be rewritten using the new WASM Contracts module._
 
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
 the `morpheusvm` (more elaborate mechanisms and a new use case you may not be
