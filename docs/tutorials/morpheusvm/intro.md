@@ -54,11 +54,19 @@ cd examples/tutorial
 go mod init
 ```
 
-Now that we've , we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
+We now define our VM constants. We'll create a new package to store these
+values:
+
+```sh
+mkdir consts
+cd consts/
+```
+
+Here, we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
 and the initial version of our VM:
 
 ```golang
-package tutorial
+package consts
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
@@ -106,12 +114,19 @@ itself will include all of the fields needed to verify and execute onchain.
 You can think of each field in the `Transfer` type as if it's a parameter to the function
 you want to execute onchain.
 
-To start, your `transfer.go` file will declare the struct and add a type assertion that it
+To start, `cd` back to `tutorial/` and execute the following:
+
+```sh
+mkdir actions
+cd actions
+```
+
+Here, create `transfer.go`. This file will declare the struct and add a type assertion that it
 implements the `chain.Action` interface:
 
 
 ```golang
-package tutorial
+package actions
 
 import (
    "github.com/ava-labs/hypersdk/chain"
@@ -190,15 +205,17 @@ We'll break storage down into two components:
 - StateManager - an interface required by HyperSDK to dictate where to store
 required fields in the state (fees, height, timestamp, etc.)
 
+Before that, in `tutorial/`, create a new folder called `storage`.
+
 ### Separating the State into Partitions
 
 To start off, we'll add single byte prefixes to separate out the state into
 metadata required by the HyperSDK and an address -> balance mapping.
 
-Let's create a `storage.go` file with prefixes for balance, height, timestamp, and fees:
+Let's create the file `storage.go` in `storage/` with prefixes for balance, height, timestamp, and fees:
 
 ```golang
-package tutorial
+package storage
 
 const (
    // Active state
@@ -363,7 +380,7 @@ func AddBalance(
            "%w: could not add balance (bal=%d, addr=%v, amount=%d)",
            ErrInvalidBalance,
            bal,
-           codec.MustAddressBech32(HRP, addr),
+           codec.MustAddressBech32(tconsts.HRP, addr),
            amount,
        )
    }
@@ -389,7 +406,7 @@ func SubBalance(
            "%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
            ErrInvalidBalance,
            bal,
-           codec.MustAddressBech32(HRP, addr),
+           codec.MustAddressBech32(tconsts.HRP, addr),
            amount,
        )
    }
@@ -402,14 +419,20 @@ func SubBalance(
 }
 ```
 
-This will give us a few warnings for `smath` and two errors that we have
+This will give us a few warnings for `smath`, `tconsts`, and two errors that we have
 not defined yet. Let's go ahead and import the AvalancheGo safe math package
 and define those two errors at the top of the file.
 
-First, let's add the math pacakge from AvalancheGo to our imports:
+First, let's add the math package from AvalancheGo to our imports:
 
 ```golang
    smath "github.com/ava-labs/avalanchego/utils/math"
+```
+
+Next, we'll add the `consts` package we defined earlier:
+
+```golang
+	tconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 Then, we'll define the two error values at the top of the file:
@@ -426,11 +449,11 @@ var (
 Now we'll implement the `chain.StateManager` interface to tell the HyperSDK
 how to modify our VM's state when it needs to store metadata or charge fees.
 
-Let's start off by creating a new `state_manager.go` file and adding a new
+Let's start off by creating a new `state_manager.go` file in `storage/` and adding a new
 `StateManager` type with function stubs for each of the required functions:
 
 ```golang
-package tutorial
+package storage
 
 import (
    "context"
@@ -587,11 +610,18 @@ a new address, we may allocate a new account, which means we need to include
 permission to allocate a new state. So we'll use `state.Read | state.Write`
 for the actor and `state.All` for the `to` address:
 
+Beforehand, we need to import the `storage` package from earlier:
+
+```golang
+	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
+```
+
+
 ```golang
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(BalanceKey(actor)): state.Read | state.Write,
-		string(BalanceKey(t.To)):  state.All,
+		string(storage.BalanceKey(actor)): state.Read | state.Write,
+		string(storage.BalanceKey(t.To)):  state.All,
 	}
 }
 ```
@@ -609,7 +639,7 @@ Let's update the function like so:
 
 ```golang
 func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{BalanceChunks, BalanceChunks}
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 ```
 
@@ -645,10 +675,10 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := SubBalance(ctx, mu, actor, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return nil, err
 	}
-	if err := AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -700,20 +730,23 @@ So far, we’ve implemented the following:
 - Storage
 
 We can now finish this MorpheusVM tutorial by implementing the vm interface.
-Let's create the file `vm.go`. Here, we first define the “registry” of MorpheusVM:
+In `tutorial/`, create a subdirectory called `vm`. In that folder, let's create the file `vm.go`. Here, we first define the “registry” of MorpheusVM:
 
 ```golang
-package tutorial
+package vm
 
 import (
    "github.com/ava-labs/avalanchego/utils/wrappers"
 
-   "github.com/ava-labs/hypersdk/auth"
-   "github.com/ava-labs/hypersdk/chain"
-   "github.com/ava-labs/hypersdk/codec"
-   "github.com/ava-labs/hypersdk/genesis"
-   "github.com/ava-labs/hypersdk/vm"
-   "github.com/ava-labs/hypersdk/vm/defaultvm"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
@@ -728,7 +761,7 @@ func init() {
 
    errs := &wrappers.Errs{}
    errs.Add(
-       ActionParser.Register(&Transfer{}, nil),
+       ActionParser.Register(&actions.Transfer{}, nil),
 
        AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
        AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
@@ -749,15 +782,15 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-   return defaultvm.New(
-       Version,
-       genesis.DefaultGenesisFactory{},
-       &StateManager{},
-       ActionParser,
-       AuthParser,
-       auth.Engines(),
-       options...,
-   )
+	return defaultvm.New(
+		consts.Version,
+		genesis.DefaultGenesisFactory{},
+		&storage.StateManager{},
+		ActionParser,
+		AuthParser,
+		auth.Engines(),
+		options...,
+	)
 }
 ```
 
