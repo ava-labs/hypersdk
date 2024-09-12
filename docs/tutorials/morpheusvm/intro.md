@@ -810,6 +810,9 @@ func New(options ...vm.Option) (*vm.VM, error) {
 }
 ```
 
+Note: if you see an error when importing
+`"github.com/ava-labs/hypersdk/vm/defaultvm"`, running `go mod tidy` should fix it
+
 At this point, we've implemented the necessary components of MorpheusVM. In the
 next section, we'll look at extending MorpheusVM with options. By adding
 options, we can test the correctness of our VM by adding workload tests.
