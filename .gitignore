@@ -66,7 +66,6 @@ target/
 Cargo.lock
 **/*.rs.bk
 
-x/programs/simulator/libsimulator.h
 x/programs/runtime/target
 compose-dev.yaml
 
