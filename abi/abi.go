@@ -115,7 +115,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 	kind := t.Kind()
 
 	if kind != reflect.Struct {
-		return nil, nil, fmt.Errorf("type %s is not a struct", t.Name())
+		return nil, nil, fmt.Errorf("type %s is not a struct", t)
 	}
 
 	fields := make([]Field, 0)
