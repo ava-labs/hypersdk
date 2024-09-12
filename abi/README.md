@@ -65,6 +65,7 @@ Wallets use ABI to display proper action names and field names. To verify ABI im
 
 ## Code Generation
 Use cmd/abigen to automatically generate Go structs from JSON. For example: `go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage`
+
 ## Type list
 
 | Type     | Range/Description                                        | JSON Serialization | Binary Serialization                  |
