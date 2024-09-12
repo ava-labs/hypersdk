@@ -126,6 +126,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 		fieldType := field.Type
 		fieldName := field.Name
 
+		// Skip any field that will not be serialized by the codec
 		serializeTag := field.Tag.Get("serialize")
 		if serializeTag != "true" {
 			continue
