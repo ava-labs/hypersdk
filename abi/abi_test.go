@@ -4,7 +4,6 @@
 package abi
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,19 +29,7 @@ func TestNewABI(t *testing.T) {
 	expectedAbiJSON := mustReadFile(t, "testdata/abi.json")
 	expectedAbi := mustJSONParse[ABI](t, string(expectedAbiJSON))
 
-	require.Equal(mustPrintOrderedJSON(t, expectedAbi), mustPrintOrderedJSON(t, actualABI))
-}
-
-func mustPrintOrderedJSON(t *testing.T, v any) string {
-	bytes, err := json.Marshal(v)
-	require.NoError(t, err)
-
-	var parsed map[string]any
-	require.NoError(t, json.Unmarshal(bytes, &parsed))
-
-	ordered, err := json.Marshal(parsed)
-	require.NoError(t, err)
-	return string(ordered)
+	require.Equal(expectedAbi, actualABI)
 }
 
 func TestGetABIofABI(t *testing.T) {
