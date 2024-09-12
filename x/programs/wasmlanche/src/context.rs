@@ -6,7 +6,7 @@ extern crate alloc;
 use crate::{
     host::Accessor,
     state::{Cache, Error, IntoPairs, Schema},
-    types::{Address, ProgramId},
+    types::{Address, ContractId},
     Gas, Id,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -93,7 +93,7 @@ impl Context {
         self.contract_address
     }
 
-    /// Returns the address of the actor that is executing the program.
+    /// Returns the address of the actor that is executing the contract.
     /// # Panics
     /// Panics if the context was not injected
     #[must_use]
@@ -177,19 +177,19 @@ impl Context {
         self.state_cache.delete(key)
     }
 
-    /// Deploy an instance of the specified program and returns the account of the new instance
+    /// Deploy an instance of the specified contract and returns the account of the new instance
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&mut self, program_id: ProgramId, account_creation_data: &[u8]) -> Address {
+    pub fn deploy(&mut self, contract_id: ContractId, account_creation_data: &[u8]) -> Address {
         let ptr =
-            borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
+            borsh::to_vec(&(contract_id, account_creation_data)).expect("failed to serialize args");
         let bytes = self.host_accessor.deploy(&ptr);
 
         borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
 
-    /// Gets the remaining fuel available to this program
+    /// Gets the remaining fuel available to this contract
     /// # Panics
     /// Panics if there was an issue deserializing the remaining fuel
     #[must_use]
@@ -210,7 +210,7 @@ impl Context {
         borsh::from_slice(&bytes).expect("failed to deserialize the balance")
     }
 
-    /// Transfer currency from the calling program to the passed address
+    /// Transfer currency from the calling contract to the passed address
     /// # Panics
     /// Panics if there was an issue deserializing the result
     /// # Errors
@@ -222,15 +222,15 @@ impl Context {
         borsh::from_slice(&bytes).expect("failed to deserialize the result")
     }
 
-    /// Attempts to call a function `name` with `args` on the given program. This method
-    /// is used to call functions on external programs.
+    /// Attempts to call a function `name` with `args` on the given contract. This method
+    /// is used to call functions on external contracts.
     /// # Errors
     /// Returns a [`ExternalCallError`] if the call fails.
     /// # Panics
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_program<T: BorshDeserialize>(
+    pub fn call_contract<T: BorshDeserialize>(
         &mut self,
         address: Address,
         function_name: &str,
@@ -241,7 +241,7 @@ impl Context {
         let args = CallContractArgs::new(&address, function_name, args, max_units, value);
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
         self.state_cache.flush();
-        let bytes = self.host_accessor.call_program(&args_bytes);
+        let bytes = self.host_accessor.call_contract(&args_bytes);
 
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
@@ -303,10 +303,10 @@ impl Context {
     /// Mocks a deploy call.
     /// # Panics
     /// Panics if serialization fails.
-    pub fn mock_deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
+    pub fn mock_deploy(&self, contract_id: Id, account_creation_data: &[u8]) -> Address {
         use crate::host::DEPLOY_PREFIX;
 
-        let key = borsh::to_vec(&(DEPLOY_PREFIX, program_id, account_creation_data))
+        let key = borsh::to_vec(&(DEPLOY_PREFIX, contract_id, account_creation_data))
             .expect("failed to serialize args");
 
         let val = self.host_accessor.new_deploy_address();
@@ -355,7 +355,7 @@ pub use external::*;
 mod external {
     use super::{BorshDeserialize, Context, ExternalCallArgs, ExternalCallError};
 
-    /// Special context that is passed to external programs.
+    /// Special context that is passed to external contracts.
     #[allow(clippy::module_name_repetitions)]
     #[cfg_attr(feature = "debug", derive(Debug))]
     pub struct ExternalCallContext<'a, T = Context> {
@@ -364,8 +364,8 @@ mod external {
     }
 
     impl ExternalCallContext<'_> {
-        /// Attempts to call a function `name` with `args` on the given program. This method
-        /// is used to call functions on external programs.
+        /// Attempts to call a function `name` with `args` on the given contract. This method
+        /// is used to call functions on external contracts.
         /// # Errors
         /// Returns a [`ExternalCallError`] if the call fails.
         /// # Panics
@@ -384,7 +384,7 @@ mod external {
             } = self.args;
 
             self.context
-                .call_program(contract_address, function_name, args, max_units, value)
+                .call_contract(contract_address, function_name, args, max_units, value)
         }
     }
 }

@@ -1,4 +1,4 @@
-# Token HyperSDK Program Example
+# Token HyperSDK Contract Example
 
 ## Overview
 

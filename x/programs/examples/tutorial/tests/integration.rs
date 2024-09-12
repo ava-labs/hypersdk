@@ -15,12 +15,12 @@ const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 const LARGE_AMOUNT_OF_GAS: u64 = 100_000_000;
 
 #[test]
-fn create_program() -> Result<(), Error> {
+fn create_contract() -> Result<(), Error> {
     let mut state = SimpleState::new();
     // The simulator needs mutable access to state.
     let simulator = Simulator::new(&mut state);
 
-    simulator.create_program(PROGRAM_PATH)?;
+    simulator.create_contract(PROGRAM_PATH)?;
 
     Ok(())
 }
@@ -32,14 +32,14 @@ fn increment() {
     let mut state = SimpleState::new();
     let simulator = Simulator::new(&mut state);
 
-    let counter_address = simulator.create_program(PROGRAM_PATH).unwrap().address;
+    let counter_address = simulator.create_contract(PROGRAM_PATH).unwrap().address;
 
     simulator
-        .call_program::<(), _>(counter_address, "inc", (bob, 10u64), LARGE_AMOUNT_OF_GAS)
+        .call_contract::<(), _>(counter_address, "inc", (bob, 10u64), LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     let value: Count = simulator
-        .call_program(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
+        .call_contract(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     assert_eq!(value, 10);
@@ -55,14 +55,14 @@ fn inc_by_one() {
     // the default actor is the 0-address instead of bob
     simulator.set_actor(bob);
 
-    let counter_address = simulator.create_program(PROGRAM_PATH).unwrap().address;
+    let counter_address = simulator.create_contract(PROGRAM_PATH).unwrap().address;
 
     simulator
-        .call_program::<(), _>(counter_address, "inc_me_by_one", (), LARGE_AMOUNT_OF_GAS)
+        .call_contract::<(), _>(counter_address, "inc_me_by_one", (), LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     let value: Count = simulator
-        .call_program(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
+        .call_contract(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     assert_eq!(value, 1);

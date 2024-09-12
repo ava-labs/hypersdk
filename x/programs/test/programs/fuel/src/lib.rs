@@ -10,6 +10,6 @@ pub fn get_fuel(ctx: &mut Context) -> u64 {
 
 #[public]
 pub fn out_of_fuel(ctx: &mut Context, target: Address) -> ExternalCallError {
-    ctx.call_program::<u64>(target, "get_fuel", &[], 0, 0)
+    ctx.call_contract::<u64>(target, "get_fuel", &[], 0, 0)
         .unwrap_err()
 }

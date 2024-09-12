@@ -14,7 +14,7 @@
 //!    <br><br>
 //!
 //! 2. **Public Functions**  
-//!    These are the entry-points of your program. They are annotated with the [`#[public]`](crate::public) attribute.
+//!    These are the entry-points of your contract. They are annotated with the [`#[public]`](crate::public) attribute.
 //!    <br><br>
 //!
 //! 3. **Context**  
@@ -54,7 +54,7 @@
 //! ```
 //!
 //! ## Hint
-//! Use the [dbg!] macro when testing your program, along with the `-- --nocapture` argument to your `cargo test` command.
+//! Use the [dbg!] macro when testing your contract, along with the `-- --nocapture` argument to your `cargo test` command.
 
 #[cfg(feature = "build")]
 pub mod build;
@@ -80,7 +80,7 @@ pub use self::context::ExternalCallContext;
 pub use self::{
     context::{Context, ExternalCallArgs, ExternalCallError},
     state::{macro_types, Error},
-    types::{Address, Gas, Id, ProgramId, ID_LEN},
+    types::{Address, ContractId, Gas, Id, ID_LEN},
 };
 
 #[doc(hidden)]

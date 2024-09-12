@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Rust Smart Contract Simulator emulates a Virtual Machine (VM) environment for testing and debugging WASM smart contracts. It provides a lightweight implementation that simulates program execution throughout its lifecycle.
+The Rust Smart Contract Simulator emulates a Virtual Machine (VM) environment for testing and debugging WASM smart contracts. It provides a lightweight implementation that simulates contract execution throughout its lifecycle.
 
 The simulator consists of two main components:
 
 1. `State`: Persists contract state across multiple calls
-2. `Simulator`: Manages program creation, execution, and VM control
+2. `Simulator`: Manages contract creation, execution, and VM control
 
 ## Key Components
 
@@ -25,26 +25,26 @@ The `Simulator` serves as the primary interface for interacting with the simulat
 
 #### 1. Program Creation
 
-Create a new program from a WASM binary:
+Create a new contract from a WASM binary:
 
 ```rust
-pub fn create_program(&self, program_path: &str) -> CreateProgramResponse
+pub fn create_contract(&self, contract_path: &str) -> CreateProgramResponse
 ```
 
 The `CreateProgramResponse` provides:
 
-- `program()`: Returns the program's address
-- `program_id()`: Returns a unique identifier for the program's bytecode storage
+- `contract()`: Returns the contract's address
+- `contract_id()`: Returns a unique identifier for the contract's bytecode storage
 - `error()` or `has_error()`: Indicates potential errors during creation
 
 #### 2. Program Execution
 
-Call a program with specified method, parameters, and gas limit:
+Call a contract with specified method, parameters, and gas limit:
 
 ```rust
-pub fn call_program<T: wasmlanche::borsh::BorshSerialize>(
+pub fn call_contract<T: wasmlanche::borsh::BorshSerialize>(
     &self,
-    program: Address,
+    contract: Address,
     method: &str,
     params: T,
     gas: u64,

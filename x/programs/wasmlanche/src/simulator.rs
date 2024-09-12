@@ -24,10 +24,10 @@ pub enum Error {
     Serialization(#[from] borsh::io::Error),
     #[error(transparent)]
     ExternalCall(#[from] ExternalCallError),
-    #[error("Error during program creation")]
-    CreateProgram(String),
-    #[error("Error during program execution")]
-    CallProgram(String),
+    #[error("Error during contract creation")]
+    CreateContract(String),
+    #[error("Error during contract execution")]
+    CallContract(String),
 }
 
 pub struct ExternalCallError(crate::ExternalCallError);
@@ -65,7 +65,7 @@ impl From<Address> for BindingAddress {
 
 struct CallContext<'a, 'b> {
     simulator: &'a Simulator<'b>,
-    program: Address,
+    contract: Address,
     method: CString,
     params: Vec<u8>,
     gas: u64,
@@ -74,14 +74,14 @@ struct CallContext<'a, 'b> {
 impl<'a, 'b> CallContext<'a, 'b> {
     fn new(
         simulator: &'a Simulator<'b>,
-        program: Address,
+        contract: Address,
         method: CString,
         params: Vec<u8>,
         gas: u64,
     ) -> Self {
         Self {
             simulator,
-            program,
+            contract,
             method,
             params,
             gas,
@@ -95,7 +95,7 @@ impl<'a> From<&'a CallContext<'_, '_>> for BorrowedCallContext<'a> {
     fn from(ctx: &'a CallContext<'_, '_>) -> Self {
         Self(
             SimulatorCallContext {
-                program_address: ctx.program.into(),
+                contract_address: ctx.contract.into(),
                 actor_address: ctx.simulator.get_actor().into(),
                 height: ctx.simulator.get_height(),
                 timestamp: ctx.simulator.get_timestamp(),
@@ -137,11 +137,11 @@ impl<'a> Simulator<'a> {
         }
     }
 
-    /// Creates a new program from the given WASM binary path.
+    /// Creates a new contract from the given WASM binary path.
     /// # Errors
-    /// Returns an error if the program creation fails.
-    pub fn create_program(&self, program_path: &str) -> Result<CreateProgramResult, Error> {
-        let result = simulator::create_program(&self.state, program_path);
+    /// Returns an error if the contract creation fails.
+    pub fn create_contract(&self, contract_path: &str) -> Result<CreateContractResult, Error> {
+        let result = simulator::create_contract(&self.state, contract_path);
 
         if !result.error.is_null() {
             let error = {
@@ -149,15 +149,15 @@ impl<'a> Simulator<'a> {
                 c_str.to_str().map_err(Error::Ffi)?
             };
 
-            return Err(Error::CreateProgram(error.into()));
+            return Err(Error::CreateContract(error.into()));
         }
-        let address = Address::new(result.program_address.address);
-        let id = result.program_id.to_vec().into_boxed_slice();
+        let address = Address::new(result.contract_address.address);
+        let id = result.contract_id.to_vec().into_boxed_slice();
 
-        Ok(CreateProgramResult { id, address })
+        Ok(CreateContractResult { id, address })
     }
 
-    /// Calls a program with specified method, parameters, and gas limit.
+    /// Calls a contract with specified method, parameters, and gas limit.
     ///
     /// # Parameters
     /// - `params`: Borsh-serializable tuple. Exclude context for public functions.
@@ -169,9 +169,9 @@ impl<'a> Simulator<'a> {
     ///
     /// # Panics
     /// Panics if the params fail to serialize.
-    pub fn call_program<T, U>(
+    pub fn call_contract<T, U>(
         &self,
-        program: Address,
+        contract: Address,
         method: &str,
         params: U,
         gas: u64,
@@ -183,10 +183,10 @@ impl<'a> Simulator<'a> {
         let method = CString::new(method).expect("error converting method to CString");
         let params = borsh::to_vec(&params).expect("error serializing result");
 
-        let context = CallContext::new(self, program, method, params, gas);
+        let context = CallContext::new(self, contract, method, params, gas);
         let context = BorrowedCallContext::from(&context);
 
-        let result = simulator::call_program(&self.state, &context);
+        let result = simulator::call_contract(&self.state, &context);
 
         if !result.error.is_null() {
             let error = {
@@ -194,7 +194,7 @@ impl<'a> Simulator<'a> {
                 c_str.to_str().map_err(Error::Ffi)?
             };
 
-            return Err(Error::CallProgram(error.into()));
+            return Err(Error::CallContract(error.into()));
         };
 
         Ok(borsh::from_slice(&result.result)?)
@@ -245,7 +245,7 @@ impl<'a> Simulator<'a> {
     }
 }
 
-pub struct CreateProgramResult {
+pub struct CreateContractResult {
     pub id: Box<[u8]>,
     pub address: Address,
 }

@@ -70,7 +70,7 @@ mod test_wrappers {
             val
         }
 
-        pub fn call_program(&self, args: &[u8]) -> HostPtr {
+        pub fn call_contract(&self, args: &[u8]) -> HostPtr {
             let key = [CALL_FUNCTION_PREFIX]
                 .iter()
                 .chain(args.iter())
@@ -248,14 +248,14 @@ mod external_wrappers {
             unsafe { deploy(args.as_ptr(), args.len()) }
         }
 
-        pub fn call_program(&self, args: &[u8]) -> HostPtr {
+        pub fn call_contract(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "contract")]
             extern "C" {
                 #[link_name = "call_contract"]
-                fn call_program(ptr: *const u8, len: usize) -> HostPtr;
+                fn call_contract(ptr: *const u8, len: usize) -> HostPtr;
             }
 
-            unsafe { call_program(args.as_ptr(), args.len()) }
+            unsafe { call_contract(args.as_ptr(), args.len()) }
         }
 
         pub fn get_balance(&self, args: &[u8]) -> HostPtr {

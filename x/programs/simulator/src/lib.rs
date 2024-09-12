@@ -15,10 +15,10 @@ mod ffi {
     #[link(name = "simulator")]
     extern "C" {
         #[link_name = "CreateProgram"]
-        pub fn create_program(db: usize, path: *const c_char) -> CreateProgramResponse;
+        pub fn create_contract(db: usize, path: *const c_char) -> CreateProgramResponse;
 
         #[link_name = "CallProgram"]
-        pub fn call_program(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+        pub fn call_contract(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 
         #[link_name = "GetBalance"]
         pub fn get_balance(db: usize, account: Address) -> u64;
@@ -28,23 +28,23 @@ mod ffi {
     }
 }
 
-pub fn create_program(
+pub fn create_contract(
     state: &state::Mutable<'_>,
-    program_path: &str,
+    contract_path: &str,
 ) -> bindings::CreateProgramResponse {
-    let program_path = CString::new(program_path).unwrap();
+    let contract_path = CString::new(contract_path).unwrap();
     let state_addr = state as *const _ as usize;
-    // Call FFI function to create program
-    unsafe { ffi::create_program(state_addr, program_path.as_ptr()) }
+    // Call FFI function to create contract
+    unsafe { ffi::create_contract(state_addr, contract_path.as_ptr()) }
 }
 
-pub fn call_program(
+pub fn call_contract(
     state: &state::Mutable<'_>,
     context: &bindings::SimulatorCallContext,
 ) -> bindings::CallProgramResponse {
     let state_addr = state as *const _ as usize;
 
-    unsafe { ffi::call_program(state_addr, context) }
+    unsafe { ffi::call_contract(state_addr, context) }
 }
 
 pub fn get_balance(state: &state::Mutable<'_>, account: bindings::Address) -> u64 {

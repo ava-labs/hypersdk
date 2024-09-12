@@ -1,10 +1,10 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-//! Temporary storage allocated during the Program runtime.
+//! Temporary storage allocated during the Contract runtime.
 //! The general pattern for handling memory is to have the
 //! host allocate a block of memory and return a pointer to
-//! the program. These methods are unsafe as should be used
+//! the contract. These methods are unsafe as should be used
 //! with caution.
 
 extern crate alloc;
@@ -77,7 +77,7 @@ impl HostPtr {
     }
 }
 
-/// Allocate memory into the instance of Program and return the offset to the
+/// Allocate memory into the instance of Contract and return the offset to the
 /// start of the block.
 /// # Panics
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.

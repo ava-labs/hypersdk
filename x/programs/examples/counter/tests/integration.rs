@@ -8,13 +8,13 @@ use wasmlanche::{
 const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
 #[test]
-fn init_program() -> Result<(), Error> {
+fn init_contract() -> Result<(), Error> {
     let mut state = SimpleState::new();
     let mut simulator = Simulator::new(&mut state);
 
     let actor = Address::default();
     simulator.set_actor(actor);
-    simulator.create_program(PROGRAM_PATH)?;
+    simulator.create_contract(PROGRAM_PATH)?;
     Ok(())
 }
 
@@ -24,13 +24,13 @@ fn increment() {
     let simulator = Simulator::new(&mut state);
     let gas = 100000000;
     let bob = Address::new([1; 33]);
-    let counter_address = simulator.create_program(PROGRAM_PATH).unwrap().address;
+    let counter_address = simulator.create_contract(PROGRAM_PATH).unwrap().address;
 
     simulator
-        .call_program::<bool, _>(counter_address, "inc", (bob, 10u64), gas)
+        .call_contract::<bool, _>(counter_address, "inc", (bob, 10u64), gas)
         .unwrap();
     let value: u64 = simulator
-        .call_program(counter_address, "get_value", ((bob),), gas)
+        .call_contract(counter_address, "get_value", ((bob),), gas)
         .unwrap();
 
     assert_eq!(value, 10);
