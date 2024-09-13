@@ -231,6 +231,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
 	testContract := &testContract{
+		ID: ContractID(stringedID),
 		Address: account,
 		Runtime: t,
 	}
@@ -244,6 +245,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 }
 
 type testContract struct {
+	ID 	ContractID
 	Address codec.Address
 	Runtime *testRuntime
 }
