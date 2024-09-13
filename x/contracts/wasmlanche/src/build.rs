@@ -26,7 +26,8 @@ pub fn build_wasm() {
         };
 
         let target_dir = format!("{manifest_dir}/{BUILD_DIR_NAME}");
-
+        let target_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or(target_dir);
+        
         let mut command = Command::new("cargo");
         command
             .arg("rustc")

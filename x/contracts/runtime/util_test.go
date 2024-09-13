@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -49,6 +50,7 @@ func compileContract(contractName string) ([]byte, error) {
 		return nil, err
 	}
 
+	contractName = strings.ReplaceAll(contractName, "-", "_")
 	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
 	if err != nil {
 		return nil, err
