@@ -2,7 +2,7 @@
 
 ## Overview
 
-The token contract provides the following features:
+The token smart-contract provides the following features:
 
 - Initialization of a token with a fixed supply
 - Ability to transfer tokens between accounts

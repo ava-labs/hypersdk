@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Rust Smart Contract Simulator emulates a Virtual Machine (VM) environment for testing and debugging WASM smart contracts. It provides a lightweight implementation that simulates contract execution throughout its lifecycle.
+The Rust Smart Contract Simulator emulates a Virtual Machine (VM) environment for testing and debugging WASM smart-contracts. It provides a lightweight implementation that simulates smart-contract execution throughout its lifecycle.
 
 The simulator consists of two main components:
 
-1. `State`: Persists contract state across multiple calls
-2. `Simulator`: Manages contract creation, execution, and VM control
+1. `State`: Persists smart-contract state across multiple calls
+2. `Simulator`: Manages smart-contract creation, execution, and VM control
 
 ## Key Components
 
@@ -25,26 +25,26 @@ The `Simulator` serves as the primary interface for interacting with the simulat
 
 #### 1. Contract Creation
 
-Create a new contract from a WASM binary:
+Create a new smart-contract from a WASM binary:
 
 ```rust
-pub fn create_contract(&self, contract_path: &str) -> CreateContractResponse
+pub fn create_contract(&self, smart-contract_path: &str) -> CreateContractResponse
 ```
 
 The `CreateContractResponse` provides:
 
-- `contract()`: Returns the contract's address
-- `contract_id()`: Returns a unique identifier for the contract's bytecode storage
+- `contract()`: Returns the smart-contract's address
+- `contract_id()`: Returns a unique identifier for the smart-contract's bytecode storage
 - `error()` or `has_error()`: Indicates potential errors during creation
 
 #### 2. Contract Execution
 
-Call a contract with specified method, parameters, and gas limit:
+Call a smart-contract with specified method, parameters, and gas limit:
 
 ```rust
 pub fn call_contract<T: wasmlanche::borsh::BorshSerialize>(
     &self,
-    contract: Address,
+    smart-contract: Address,
     method: &str,
     params: T,
     gas: u64,
@@ -74,7 +74,7 @@ pub fn get_actor(&self) -> Address
 
 The current actor represents the account address making the call.
 
-> **Note**: In the future, the simulator will also have the ability to toggle the block height and timestamp as well as other VM related functions needed for smart contract execution.
+> **Note**: In the future, the simulator will also have the ability to toggle the block height and timestamp as well as other VM related functions needed for smart-contract execution.
 
 ## Usage
 

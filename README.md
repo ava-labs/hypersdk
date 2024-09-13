@@ -106,12 +106,12 @@ _The number of blocks that the `hypersdk` stores on-disk, the `AcceptedBlockWind
 to an arbitrary depth (or set to `MaxInt` to keep all blocks). To limit disk IO used to serve blocks over
 the P2P network, `hypervms` can configure `AcceptedBlockWindowCache` to store recent blocks in memory._
 
-### WASM-Based Contracts
-In the `hypersdk`, [smart contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
-(e.g. contracts that run on blockchains) are referred to simply as `contracts`. `Contracts`
-are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
+### WASM-Based Smart-Contracts
+In the `hypersdk`, [smart-contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
+are referred to simply as `contracts`. `Contracts`
+are [WASM](https://webassembly.org/) binaries that can be invoked during block
 execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
-alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
+alternative to defining all `Auth` and/or `Actions` that can be invoked in a `hypervm` in the
 `hypervm's` code (like the `tokenvm`).
 
 Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
