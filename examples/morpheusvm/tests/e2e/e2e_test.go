@@ -100,7 +100,7 @@ var _ = ginkgo.Describe("[MorpheusVM APIs]", func() {
 		require.NoError(err)
 
 		require.Equal(actions.TransferResult{
-			SenderBalance:   10000000000000,
+			SenderBalance:   10000000000000 - 1,
 			ReceiverBalance: 1,
 		}, transferResult)
 	})

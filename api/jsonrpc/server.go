@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/abi"
@@ -197,39 +198,22 @@ func (j *JSONRPCServer) ExecuteAction(
 	// Get expected state keys
 	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
 
-	// // Convert to plain array of keys
-	// stateKeys := make([][]byte, 0)
-	// for key := range stateKeysWithPermissions {
-	// 	stateKeys = append(stateKeys, []byte(key))
-	// }
+	//flatten the map to a slice of keys
+	storageKeysToRead := make([][]byte, 0)
+	for key := range stateKeysWithPermissions {
+		storageKeysToRead = append(storageKeysToRead, []byte(key))
+	}
 
-	// // Fetch state
-	// absentKeys := make([][]byte, 0)
-	// stateValues, errs := j.vm.ReadState(ctx, stateKeys)
-	// for i, err := range errs {
-	// 	if err != nil {
-	// 		if errors.Is(err, database.ErrNotFound) {
-	// 			absentKeys = append(absentKeys, stateKeys[i])
-	// 			continue
-	// 		}
-
-	// 		return fmt.Errorf("failed to read state: %w", err)
-	// 	}
-	// }
-
-	// storage := make(map[string][]byte, len(stateValues))
-	// for i, stateValue := range stateValues {
-	// 	isAbsent := false
-	// 	for _, absentKey := range absentKeys {
-	// 		if bytes.Equal(absentKey, stateKeys[i]) {
-	// 			isAbsent = true
-	// 			break
-	// 		}
-	// 	}
-	// 	if !isAbsent {
-	// 		storage[string(stateKeys[i])] = stateValue
-	// 	}
-	// }
+	storage := make(map[string][]byte)
+	values, errs := j.vm.ReadState(ctx, storageKeysToRead)
+	for i := 0; i < len(storageKeysToRead); i++ {
+		if errs[i] != nil && !errors.Is(errs[i], database.ErrNotFound) {
+			return fmt.Errorf("failed to read state: %w", errs[i])
+		}
+		if errs[i] == nil {
+			storage[string(storageKeysToRead[i])] = values[i]
+		}
+	}
 
 	actionSize, err := chain.GetSize(action)
 	if err != nil {
@@ -237,7 +221,7 @@ func (j *JSONRPCServer) ExecuteAction(
 	}
 
 	ts := tstate.New(actionSize)
-	tsv := ts.NewView(stateKeysWithPermissions, make(map[string][]byte))
+	tsv := ts.NewView(stateKeysWithPermissions, storage)
 
 	outputs, err := action.Execute(
 		ctx,
