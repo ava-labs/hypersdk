@@ -1,0 +1,14 @@
+{
+    "transfers": [
+        {
+            "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+            "value": 1000,
+            "memo": "aGk="
+        },
+        {
+            "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+            "value": 1000,
+            "memo": "aGk="
+        }
+    ]
+}

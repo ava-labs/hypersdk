@@ -37,7 +37,7 @@ type Transfer struct {
 	Value uint64 `serialize:"true" json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo []byte `serialize:"true" json:"memo"`
+	Memo codec.Bytes `serialize:"true" json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -104,6 +104,6 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
 	transfer.Value = p.UnpackUint64(true)
-	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
 	return &transfer, p.Err()
 }
