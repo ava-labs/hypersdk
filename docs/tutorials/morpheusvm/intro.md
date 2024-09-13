@@ -59,10 +59,9 @@ values:
 
 ```sh
 mkdir consts
-cd consts/
 ```
 
-Here, we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
+Inside `consts/`, we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
 and the initial version of our VM:
 
 ```golang
@@ -118,10 +117,9 @@ To start, `cd` back to `tutorial/` and execute the following:
 
 ```sh
 mkdir actions
-cd actions
 ```
 
-Here, create `transfer.go`. This file will declare the struct and add a type assertion that it
+In `actions/`, create `transfer.go`. This file will declare the struct and add a type assertion that it
 implements the `chain.Action` interface:
 
 
@@ -426,13 +424,13 @@ and define those two errors in another file.
 First, let's add the math package from AvalancheGo to our imports:
 
 ```golang
-   smath "github.com/ava-labs/avalanchego/utils/math"
+    smath "github.com/ava-labs/avalanchego/utils/math"  
 ```
 
 Next, we'll add the `consts` package we defined earlier:
 
 ```golang
-	mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
+    mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 We now define the two errors from earlier. In `storage/`, create a file called
@@ -615,7 +613,7 @@ func (*Transfer) GetTypeID() uint8 {
 We import the following into `transfer.go`:
 
 ```golang
-   mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
+    mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"  
 ```
 
 ### `StateKeys()`
@@ -813,6 +811,6 @@ func New(options ...vm.Option) (*vm.VM, error) {
 Note: if you see an error when importing
 `"github.com/ava-labs/hypersdk/vm/defaultvm"`, running `go mod tidy` should fix it
 
-At this point, we've implemented the necessary components of MorpheusVM. In the
-next section, we'll look at extending MorpheusVM with options. By adding
-options, we can test the correctness of our VM by adding workload tests.
+At this point, we've implemented the necessary components of MorpheusVM. It's
+time to move onto the next section, where we will implement options and extend
+the functionality of MorpheusVM.
