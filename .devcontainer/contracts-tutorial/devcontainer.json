@@ -23,7 +23,7 @@
   "postStartCommand": {},
 
   "workspaceMount": "source=${localWorkspaceFolder},target=/go/src/github.com/ava-labs/hypersdk,type=bind",
-  "workspaceFolder": "/go/src/github.com/ava-labs/hypersdk/x/programs/rust/examples/tutorial",
+  "workspaceFolder": "/go/src/github.com/ava-labs/hypersdk/x/contracts/rust/examples/tutorial",
 
   "customizations": {
     "vscode": {
