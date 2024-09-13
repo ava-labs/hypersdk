@@ -18,6 +18,8 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
+type ReadState func(context.Context, [][]byte) ([][]byte, []error)
+
 func TokenAddress(name []byte, symbol []byte, metadata []byte) codec.Address {
 	v := make([]byte, len(name)+len(symbol)+len(metadata))
 	copy(v, name)
@@ -76,6 +78,19 @@ func SetTokenInfo(
 	// Insert owner
 	copy(v[hconsts.Uint16Len+nameLen+hconsts.Uint16Len+symbolLen+hconsts.Uint16Len+metadataLen+hconsts.Uint64Len:], owner[:])
 	return mu.Insert(ctx, k, v)
+}
+
+func GetTokenInfoFromState(
+	ctx context.Context,
+	f ReadState,
+	addr codec.Address,
+) ([]byte, []byte, []byte, uint64, codec.Address, error) {
+	k := TokenInfoKey(addr)
+	values, errs := f(ctx, [][]byte{k})
+	if errs[0] != nil {
+		return nil, nil, nil, 0, codec.EmptyAddress, errs[0]
+	}
+	return innerGetTokenInfo(values[0])
 }
 
 func GetTokenInfoNoController(
@@ -174,6 +189,22 @@ func GetTokenAccountBalanceNoController(
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(v), nil
+}
+
+func GetTokenAccountBalanceFromState(
+	ctx context.Context,
+	f ReadState,
+	tokenAddress codec.Address,
+	account codec.Address,
+) (uint64, error) {
+	k := TokenAccountBalanceKey(tokenAddress, account)
+	values, errs := f(ctx, [][]byte{k})
+	if errs[0] == database.ErrNotFound {
+		return 0, nil
+	} else if errs[0] != nil {
+		return 0, errs[0]
+	}
+	return binary.BigEndian.Uint64(values[0]), nil
 }
 
 func BurnToken(

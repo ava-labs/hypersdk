@@ -106,6 +106,19 @@ func GetLiquidityPoolNoController(
 	return innerGetLiquidityPool(v)
 }
 
+func GetLiquidityPoolFromState(
+	ctx context.Context,
+	f ReadState,
+	poolAddress codec.Address,
+) (uint8, codec.Address, codec.Address, uint64, codec.Address, uint64, uint64, codec.Address, uint64, error) {
+	k := LiquidityPoolKey(poolAddress)
+	values, errs := f(ctx, [][]byte{k})
+	if errs[0] != nil {
+		return 0, codec.EmptyAddress, codec.EmptyAddress, 0, codec.EmptyAddress, 0, 0, codec.EmptyAddress, 0, errs[0]
+	}
+	return innerGetLiquidityPool(values[0])
+}
+
 func innerGetLiquidityPool(
 	v []byte,
 ) (uint8, codec.Address, codec.Address, uint64, codec.Address, uint64, uint64, codec.Address, uint64, error) {

@@ -37,7 +37,10 @@ const (
 	LIQUIDITYPOOLTOKENID
 )
 
-const Name = "CFMMVM"
+const (
+	Name = "CFMMVM"
+	HRP  = "cfmm"
+)
 
 var (
 	ID          ids.ID

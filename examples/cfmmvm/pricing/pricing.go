@@ -7,6 +7,7 @@ package pricing
 const (
 	InvalidModelID uint8 = iota
 	ConstantProductID
+	StableswapID
 )
 
 type Model interface {
@@ -26,4 +27,5 @@ func init() {
 
 	// Append any additional pricing models here
 	Models[ConstantProductID] = NewConstantProduct
+	Models[StableswapID] = NewStableswap
 }

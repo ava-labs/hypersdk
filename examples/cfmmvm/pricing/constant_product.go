@@ -19,9 +19,9 @@ type ConstantProduct struct {
 }
 
 func (c *ConstantProduct) Initialize(
-	reserveX uint64, 
-	reserveY uint64, 
-	fee uint64, 
+	reserveX uint64,
+	reserveY uint64,
+	fee uint64,
 	kLast uint64,
 ) {
 	c.reserveX = reserveX
@@ -36,8 +36,8 @@ func NewConstantProduct() Model {
 
 // Returns: tokens to actor, tokens to owner, tokens to "burn"
 func (c *ConstantProduct) AddLiquidity(
-	amountX uint64, 
-	amountY uint64, 
+	amountX uint64,
+	amountY uint64,
 	lpTokenSupply uint64,
 ) (uint64, uint64, uint64, error) {
 	var (
@@ -97,7 +97,7 @@ func (c *ConstantProduct) AddLiquidity(
 // Inputs: tokensToBurn, lpTotalSupply
 // Returns: owner fees, output X, output Y, error
 func (c *ConstantProduct) RemoveLiquidity(
-	tokensToBurn uint64, 
+	tokensToBurn uint64,
 	lpTotalSupply uint64,
 ) (uint64, uint64, uint64, error) {
 	// Compute owner fees
@@ -135,7 +135,7 @@ func (c *ConstantProduct) RemoveLiquidity(
 // TODO: utilize avalancheGo math utils
 // Returns: outputX, outputY, error
 func (c *ConstantProduct) Swap(
-	amountX uint64, 
+	amountX uint64,
 	amountY uint64,
 ) (uint64, uint64, error) {
 	if c.reserveX == 0 || c.reserveY == 0 {
