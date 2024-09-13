@@ -28,29 +28,69 @@ The ABI is defined in JSON format, as shown in the `abi.json` file:
 ```
 
 The ABI consists of two main sections:
-- actions: A list of action definitions, each with an id and action name.
-- types: A list of type definitions, each with a name and a list of fields.
+- actions: A list of action definitions, each with a typeID and action name (action name specifies the type)
+- types: A dictionary of types including their name and corresponding fields
 
-## Implementation
-To create an implementation of this package in any other langauge:
-- Copy the testdata folder.
-- Ensure all marshaling is identical to the Go implementation.
-- JSON files should align with their corresponding .hex files.
+The type in each field must either be included in the ABI's `types` or in the list of [Supported Primitive Types](#supported-primitive-types).
 
-## Hash verification
-Wallets use ABI to display proper action names and field names. To verify ABI implementation in other languages, marshal the ABI into binary, hash it, and compare with the known hash.
+## Test Vectors
+This implementation provides `testdata/` for implementations in any other language.
+
+To verify correctness, an implementation can implement the following pseudocode:
+```
+abi = abi.json
+
+for filename in testdata/*.hex:
+    if filename.endswith(".hash.hex"):
+        continue
+    expectedHex = readFile(filename)
+    json = readFile(filename.replace(".hex", ".json"))
+
+    actualHex = Marshal(abi, json)
+    if actualHex != expectedHex:
+        raise "Hex values do not match"
+
+```
+
+## ABI Verification
+Frontends can use the ABI to display proper action and field names. For a wallet to verify it knows what it's signing, it must ensure that a canonical hash of the ABI is included in the message it signs.
+
+A correct VM will verify the signature against the same ABI hash, such that verification fails if the wallet signed an action against a different than expected ABI.
+
+This enables frontends to provide a verifiable display of what they are asking users to sign.
 
 ## Constraints
-- Actions must have an ID; other structs do not require one.
-- Multiple structs with the same name from different packages are not supported.
-- Maps are not supported; use slices (arrays) instead.
-- Built-in types include `codec.Address` and `codec.Bytes`.
-- In order to decode an action, find a type with the same name and all the other types mentioned in this type as field recursively. 
+- Actions require an ID, other structs / types do not require one
+- Multiple structs with the same name from different packages are not supported
+- Maps are not supported; use slices (arrays) instead
+- Built-in types include the special case type aliases: `codec.Address` and `codec.Bytes`
 
-## Code Generation
-Use cmd/abigen to automatically generate Go structs from JSON. For example: `go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage`
+## Generating Golang Bindings
+Use cmd/abigen to automatically generate Go bindings from an ABI's JSON.
 
-## Type list
-TODO:
+For example, to auto-generate golang bindings for the test ABI provided in `./abi/testdata/abi.json` run:
 
-## 
+```sh
+go run ./cmd/abigen/ ./abi/testdata/abi.json ./example.go --package=testpackage
+```
+
+This should generate the same code that is present in `./abi/mockabi_test.go`.
+
+## Supported Primitive Types
+
+| Type     | Range/Description                                        | JSON Serialization | Binary Serialization                  |
+|----------|----------------------------------------------------------|--------------------|---------------------------------------|
+| `bool`   | true or false                                            | boolean            | 1 byte                                |
+| `uint8`  | numbers from 0 to 255                                    | number             | 1 byte                                |
+| `uint16` | numbers from 0 to 65535                                  | number             | 2 bytes                               |
+| `uint32` | numbers from 0 to 4294967295                             | number             | 4 bytes                               |
+| `uint64` | numbers from 0 to 18446744073709551615                   | number             | 8 bytes                               |
+| `int8`   | numbers from -128 to 127                                 | number             | 1 byte                                |
+| `int16`  | numbers from -32768 to 32767                             | number             | 2 bytes                               |
+| `int32`  | numbers from -2147483648 to 2147483647                   | number             | 4 bytes                               |
+| `int64`  | numbers from -9223372036854775808 to 9223372036854775807 | number             | 8 bytes                               |
+| `Address`| 33 byte array                                            | base64             | 33 bytes                              |
+| `Bytes`  | byte array                                               | base64             | uint32 length + bytes                 |
+| `string` | string                                                   | string             | uint16 length + bytes                 |
+| `[]T`    | for any `T` in the above list, serialized as an array    | array              | uint32 length + elements              |
+
