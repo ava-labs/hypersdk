@@ -197,24 +197,39 @@ func (j *JSONRPCServer) ExecuteAction(
 	// Get expected state keys
 	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
 
-	// Convert to plain array of keys
-	stateKeys := make([][]byte, 0, len(stateKeysWithPermissions))
-	for key := range stateKeysWithPermissions {
-		stateKeys = append(stateKeys, []byte(key))
-	}
+	// // Convert to plain array of keys
+	// stateKeys := make([][]byte, 0)
+	// for key := range stateKeysWithPermissions {
+	// 	stateKeys = append(stateKeys, []byte(key))
+	// }
 
-	// Fetch state
-	stateValues, errs := j.vm.ReadState(ctx, stateKeys)
-	for _, err := range errs {
-		if err != nil {
-			return fmt.Errorf("failed to read state: %w", err)
-		}
-	}
+	// // Fetch state
+	// absentKeys := make([][]byte, 0)
+	// stateValues, errs := j.vm.ReadState(ctx, stateKeys)
+	// for i, err := range errs {
+	// 	if err != nil {
+	// 		if errors.Is(err, database.ErrNotFound) {
+	// 			absentKeys = append(absentKeys, stateKeys[i])
+	// 			continue
+	// 		}
 
-	storage := make(map[string][]byte, len(stateValues))
-	for i, stateValue := range stateValues {
-		storage[string(stateKeys[i])] = stateValue
-	}
+	// 		return fmt.Errorf("failed to read state: %w", err)
+	// 	}
+	// }
+
+	// storage := make(map[string][]byte, len(stateValues))
+	// for i, stateValue := range stateValues {
+	// 	isAbsent := false
+	// 	for _, absentKey := range absentKeys {
+	// 		if bytes.Equal(absentKey, stateKeys[i]) {
+	// 			isAbsent = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !isAbsent {
+	// 		storage[string(stateKeys[i])] = stateValue
+	// 	}
+	// }
 
 	actionSize, err := chain.GetSize(action)
 	if err != nil {
@@ -222,7 +237,7 @@ func (j *JSONRPCServer) ExecuteAction(
 	}
 
 	ts := tstate.New(actionSize)
-	tsv := ts.NewView(stateKeysWithPermissions, storage)
+	tsv := ts.NewView(stateKeysWithPermissions, make(map[string][]byte))
 
 	outputs, err := action.Execute(
 		ctx,

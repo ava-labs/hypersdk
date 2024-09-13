@@ -47,7 +47,7 @@ func TestMarshalSpecs(t *testing.T) {
 
 	testCases := []struct {
 		name   string
-		object codec.Typed
+		object chain.Typed
 	}{
 		{"empty", &MockObjectSingleNumber{}},
 		{"uint16", &MockObjectSingleNumber{}},
