@@ -5,7 +5,7 @@ package vm
 
 import (
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 const Namespace = "controller"

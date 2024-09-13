@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/internal/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
@@ -27,7 +27,7 @@ const MAXCONTRACTSIZE = 2 * units.MiB
 
 type Publish struct {
 	ContractBytes []byte `json:"contractBytes"`
-	id            runtime.ProgramID
+	id            runtime.ContractID
 }
 
 func (*Publish) GetTypeID() uint8 {
@@ -37,7 +37,7 @@ func (*Publish) GetTypeID() uint8 {
 func (t *Publish) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.id == nil {
 		hashedID := sha256.Sum256(t.ContractBytes)
-		t.id, _ = keys.Encode(storage.ProgramsKey(hashedID[:]), len(t.ContractBytes))
+		t.id, _ = keys.Encode(storage.ContractsKey(hashedID[:]), len(t.ContractBytes))
 	}
 	return state.Keys{
 		string(t.id): state.Write | state.Allocate,
@@ -59,7 +59,7 @@ func (t *Publish) Execute(
 	_ codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-	result, err := storage.StoreProgram(ctx, mu, t.ContractBytes)
+	result, err := storage.StoreContract(ctx, mu, t.ContractBytes)
 	return [][]byte{result}, err
 }
 
@@ -75,14 +75,14 @@ func (t *Publish) Marshal(p *codec.Packer) {
 	p.PackBytes(t.ContractBytes)
 }
 
-func UnmarshalPublishProgram(p *codec.Packer) (chain.Action, error) {
-	var publishProgram Publish
-	p.UnpackBytes(MAXCONTRACTSIZE, true, &publishProgram.ContractBytes)
+func UnmarshalPublishContract(p *codec.Packer) (chain.Action, error) {
+	var publishContract Publish
+	p.UnpackBytes(MAXCONTRACTSIZE, true, &publishContract.ContractBytes)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
 
-	return &publishProgram, nil
+	return &publishContract, nil
 }
 
 func (*Publish) ValidRange(chain.Rules) (int64, int64) {

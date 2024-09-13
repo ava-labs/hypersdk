@@ -81,8 +81,8 @@ var publishFileCmd = &cobra.Command{
 			return err
 		}
 
-		// Select program bytes
-		path, err := prompt.String("program file", 1, 1000)
+		// Select contract bytes
+		path, err := prompt.String("contract file", 1, 1000)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ var callCmd = &cobra.Command{
 			return err
 		}
 
-		// Select program
+		// Select contract
 		contractAddress, err := prompt.Address("contract address", parseAddress)
 		if err != nil {
 			return err
@@ -204,7 +204,7 @@ var deployCmd = &cobra.Command{
 			return err
 		}
 
-		programID, err := prompt.Bytes("program id")
+		contractID, err := prompt.Bytes("contract id")
 		if err != nil {
 			return err
 		}
@@ -222,7 +222,7 @@ var deployCmd = &cobra.Command{
 
 		// Generate transaction
 		result, err := sendAndWait(ctx, []chain.Action{&actions.Deploy{
-			ProgramID:    programID,
+			ContractID:   contractID,
 			CreationInfo: creationInfo,
 		}}, cli, bcli, ws, factory)
 
