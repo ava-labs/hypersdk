@@ -1,15 +1,15 @@
 [workspace]
 members = [
-  "x/programs/sdk-macros",
-  "x/programs/wasmlanche",
-  "x/programs/examples/token",
-  "x/programs/examples/counter",
-  "x/programs/examples/counter-external",
-  "x/programs/examples/automated-market-maker",
-  "x/programs/wasmlanche/tests/test-crate",
-  "x/programs/test/programs/*",
-  "x/programs/simulator",
-  "x/programs/examples/tutorial",
+  "x/contracts/sdk-macros",
+  "x/contracts/wasmlanche",
+  "x/contracts/examples/token",
+  "x/contracts/examples/counter",
+  "x/contracts/examples/counter-external",
+  "x/contracts/examples/automated-market-maker",
+  "x/contracts/wasmlanche/tests/test-crate",
+  "x/contracts/test/contracts/*",
+  "x/contracts/simulator",
+  "x/contracts/examples/tutorial",
 ]
 resolver = "2"
 
@@ -22,7 +22,7 @@ panic = 'abort'
 strip = true
 
 [workspace.dependencies]
-sdk-macros = { path = "x/programs/sdk-macros" }
-wasmlanche = { path = "x/programs/wasmlanche" }
-simulator = { path = "x/programs/simulator" }
+sdk-macros = { path = "x/contracts/sdk-macros" }
+wasmlanche = { path = "x/contracts/wasmlanche" }
+simulator = { path = "x/contracts/simulator" }
 thiserror = "1.0.61"

@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 const JSONRPCEndpoint = "/vmwithcontractsapi"
@@ -87,7 +87,7 @@ type SimulateCallTxReply struct {
 	FuelConsumed uint64             `json:"fuel"`
 }
 
-func (j *JSONRPCServer) SimulateCallProgramTx(req *http.Request, args *SimulateCallTxArgs, reply *SimulateCallTxReply) (err error) {
+func (j *JSONRPCServer) SimulateCallContractTx(req *http.Request, args *SimulateCallTxArgs, reply *SimulateCallTxReply) (err error) {
 	stateKeys, fuelConsumed, err := j.simulate(req.Context(), args.CallTx, args.Actor)
 	if err != nil {
 		return err
@@ -108,14 +108,14 @@ func (j *JSONRPCServer) simulate(ctx context.Context, t actions.Call, actor code
 	recorder := storage.NewRecorder(currentState)
 	startFuel := uint64(1000000000)
 	callInfo := &runtime.CallInfo{
-		Program:      t.ContractAddress,
+		Contract:     t.ContractAddress,
 		Actor:        actor,
-		State:        &storage.ProgramStateManager{Mutable: recorder},
+		State:        &storage.ContractStateManager{Mutable: recorder},
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Fuel:         startFuel,
 		Value:        t.Value,
 	}
-	_, err = wasmRuntime.CallProgram(ctx, callInfo)
+	_, err = wasmRuntime.CallContract(ctx, callInfo)
 	return recorder.GetStateKeys(), startFuel - callInfo.RemainingFuel(), err
 }
