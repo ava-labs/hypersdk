@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 // [accountStatePrefix] + [account]
@@ -26,29 +26,29 @@ func accountStateKey(account codec.Address) (k []byte) {
 	return
 }
 
-func AccountProgramKey(account codec.Address) (k []byte) {
+func AccountContractKey(account codec.Address) (k []byte) {
 	k = make([]byte, 2+codec.AddressLen)
 	k[0] = accountsPrefix
 	copy(k[1:], account[:])
-	k[len(k)-1] = accountProgramPrefix
+	k[len(k)-1] = accountContractPrefix
 	return
 }
 
-func ProgramsKey(id []byte) (k []byte) {
+func ContractsKey(id []byte) (k []byte) {
 	k = make([]byte, 1+len(id))
-	k[0] = programsPrefix
+	k[0] = contractsPrefix
 	copy(k[1:], id)
 	return
 }
 
-func StoreProgram(
+func StoreContract(
 	ctx context.Context,
 	mu state.Mutable,
-	programBytes []byte,
+	contractBytes []byte,
 ) ([]byte, error) {
-	programID := ids.ID(sha256.Sum256(programBytes))
-	key, _ := keys.Encode(ProgramsKey(programID[:]), len(programBytes))
-	return key, mu.Insert(ctx, key, programBytes)
+	contractID := ids.ID(sha256.Sum256(contractBytes))
+	key, _ := keys.Encode(ContractsKey(contractID[:]), len(contractBytes))
+	return key, mu.Insert(ctx, key, contractBytes)
 }
 
 func GetAddressForDeploy(typeID uint8, creationData []byte) codec.Address {
@@ -56,30 +56,30 @@ func GetAddressForDeploy(typeID uint8, creationData []byte) codec.Address {
 	return codec.CreateAddress(typeID, digest)
 }
 
-var _ runtime.StateManager = (*ProgramStateManager)(nil)
+var _ runtime.StateManager = (*ContractStateManager)(nil)
 
-type ProgramStateManager struct {
+type ContractStateManager struct {
 	state.Mutable
 }
 
-func (p *ProgramStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
+func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	_, balance, _, err := getBalance(ctx, p, address)
 	return balance, err
 }
 
-func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+func (p *ContractStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
 	if err := SubBalance(ctx, p, from, amount); err != nil {
 		return err
 	}
 	return AddBalance(ctx, p, to, amount, true)
 }
 
-func (p *ProgramStateManager) GetProgramState(address codec.Address) state.Mutable {
+func (p *ContractStateManager) GetContractState(address codec.Address) state.Mutable {
 	return &prefixedStateMutable{prefix: accountStateKey(address), inner: p}
 }
 
-func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (runtime.ProgramID, error) {
-	key, _ := keys.Encode(AccountProgramKey(account), 36)
+func (p *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
+	key, _ := keys.Encode(AccountContractKey(account), 36)
 	result, err := p.GetValue(ctx, key)
 	if err != nil {
 		return ids.Empty[:], err
@@ -87,13 +87,13 @@ func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account cod
 	return result, nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID runtime.ProgramID) ([]byte, error) {
-	return p.GetValue(ctx, programID)
+func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
+	return p.GetValue(ctx, contractID)
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID runtime.ProgramID, accountCreationData []byte) (codec.Address, error) {
+func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
 	newAddress := GetAddressForDeploy(0, accountCreationData)
-	key, _ := keys.Encode(AccountProgramKey(newAddress), 36)
+	key, _ := keys.Encode(AccountContractKey(newAddress), 36)
 	_, err := p.GetValue(ctx, key)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return codec.EmptyAddress, err
@@ -101,12 +101,12 @@ func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, program
 		return codec.EmptyAddress, errors.New("account already exists")
 	}
 
-	return newAddress, p.SetAccountProgram(ctx, newAddress, programID)
+	return newAddress, p.SetAccountContract(ctx, newAddress, contractID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID runtime.ProgramID) error {
-	key, _ := keys.Encode(AccountProgramKey(account), 36)
-	return p.Insert(ctx, key, programID)
+func (p *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
+	key, _ := keys.Encode(AccountContractKey(account), 36)
+	return p.Insert(ctx, key, contractID)
 }
 
 type prefixedStateMutable struct {
