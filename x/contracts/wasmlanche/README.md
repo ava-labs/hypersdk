@@ -11,3 +11,12 @@ This SDK _should_ be fairly easy to use, you just have to learn a couple of simp
 Any Rust that compiles to the `wasm32-unknown-unknown` target should be valid. The SDK provides all the necessary `extern` calls into the runtime and provides safe-wrappers around these calls. It also provides a couple of macros to simplify _state_ and _function_ definitions. You can think of the `state_schema` just like you would a schema definition for a relational-database. And _public_ functions can be thought of as entrypoints with access to the particular state-space belonging to the smart-contract.
 
 For further details, please see the generated rust-docs. You can generate them locally by running `cargo doc --open`.
+
+### Installation
+
+- Install Rust and the wasm target. You can do this by following these instructions:
+
+  - https://www.rust-lang.org/tools/install
+
+- add the wasm target by running
+  - `rustup target add wasm32-unknown-unknown`
