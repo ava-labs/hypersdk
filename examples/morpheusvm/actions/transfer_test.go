@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	//"github.com/ava-labs/hypersdk/internal/state"
 )
 
 func TestTransferAction(t *testing.T) {

@@ -66,4 +66,10 @@ for test in $TESTS; do
   run "${test}" "${TARGET}"
 done
 
+if grep -r "github.com/ava-labs/hypersdk/internal/" ./examples; then
+  echo "Error: example VMs should not use internal packages"
+  exit 1
+fi
+
+
 echo "ALL SUCCESS!"
