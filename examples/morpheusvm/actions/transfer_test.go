@@ -17,8 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-//"github.com/ava-labs/hypersdk/internal/state" just to trigger the linter
-
 func TestTransferAction(t *testing.T) {
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 	addr, err := codectest.NewRandomAddress()
