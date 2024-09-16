@@ -23,9 +23,9 @@ import (
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
