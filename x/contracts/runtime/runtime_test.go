@@ -17,9 +17,7 @@ import (
 // Benchmarks calling a contract that returns 0 immediately
 func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
@@ -36,9 +34,7 @@ func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 // Benchmarks a contract that sends native balance.
 func BenchmarkRuntimeSendValue(b *testing.B) {
 	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 
@@ -57,9 +53,7 @@ func BenchmarkRuntimeSendValue(b *testing.B) {
 
 func BenchmarkRuntimeBasicExternalCalls(b *testing.B) {
 	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("counter-external")
@@ -83,8 +77,7 @@ func BenchmarkRuntimeBasicExternalCalls(b *testing.B) {
 // Benchmarks a contract that performs an AMM swap
 func BenchmarkAmmSwaps(b *testing.B) {
 	require := require.New(b)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	tokenX, err := rt.newTestContract("token")
@@ -139,9 +132,7 @@ func BenchmarkAmmSwaps(b *testing.B) {
 
 func TestRuntimeCallContractBasicAttachValue(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
@@ -170,9 +161,7 @@ func TestRuntimeCallContractBasicAttachValue(t *testing.T) {
 
 func TestRuntimeCallContractBasic(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
@@ -190,9 +179,7 @@ type ComplexReturn struct {
 
 func TestRuntimeCallContractComplexReturn(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("return_complex_type")

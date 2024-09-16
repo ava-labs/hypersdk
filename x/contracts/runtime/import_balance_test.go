@@ -16,8 +16,7 @@ import (
 func TestImportBalanceSendBalanceToAnotherContract(t *testing.T) {
 	require := require.New(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("balance")
@@ -52,9 +51,8 @@ func TestImportBalanceSendBalanceToAnotherContract(t *testing.T) {
 
 func TestImportBalanceGetBalance(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("balance")
@@ -67,9 +65,8 @@ func TestImportBalanceGetBalance(t *testing.T) {
 
 func TestImportBalanceSend(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("balance")
