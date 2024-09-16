@@ -87,16 +87,12 @@ var _ = ginkgo.Describe("[MorpheusVM APIs]", func() {
 			Value: 1,
 			Memo:  []byte("test"),
 		}
-		transferResults, errorString, err := client.ExecuteAction(tc.DefaultContext(), transfer, 0, senderAddr)
+		transferResultBytes, errorString, err := client.ExecuteAction(tc.DefaultContext(), transfer, 0, senderAddr)
 		require.NoError(err)
 		require.Equal("", errorString)
-		require.Len(transferResults, 1)
-
-		transferResultBytes, err := json.Marshal(transferResults[0])
-		require.NoError(err)
 
 		var transferResult actions.TransferResult
-		err = json.Unmarshal(transferResultBytes, &transferResult)
+		err = codec.LinearCodec.Unmarshal(transferResultBytes, &transferResult)
 		require.NoError(err)
 
 		require.Equal(actions.TransferResult{

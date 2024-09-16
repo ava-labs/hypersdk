@@ -4,7 +4,6 @@
 package chain
 
 import (
-	"encoding/json"
 	"fmt"
 	reflect "reflect"
 
@@ -57,6 +56,15 @@ func NewActionRegistry() *ActionRegistry {
 func (a *ActionRegistry) Register(instance Typed, outputInstance interface{}, f func(*codec.Packer) (Action, error)) error {
 	typeID := instance.GetTypeID()
 
+	if f == nil {
+		instanceType := reflect.TypeOf(instance).Elem()
+		f = func(p *codec.Packer) (Action, error) {
+			t := reflect.New(instanceType).Interface().(Action)
+			err := codec.LinearCodec.UnmarshalFrom(p.Packer, t)
+			return t, err
+		}
+	}
+
 	a.actions[typeID] = instance
 	a.actionFuncs[typeID] = f
 	a.outputInstances[typeID] = outputInstance
@@ -68,19 +76,19 @@ func (a *ActionRegistry) LookupUnmarshalFunc(typeID uint8) (func(*codec.Packer) 
 	return f, found
 }
 
-func (a *ActionRegistry) UnmarshalJSON(typeID uint8, data []byte) (Action, error) {
-	actionInstance, ok := a.actions[typeID]
-	if !ok {
-		return nil, fmt.Errorf("action type %d not found", typeID)
-	}
+// func (a *ActionRegistry) UnmarshalJSON(typeID uint8, data []byte) (Action, error) {
+// 	actionInstance, ok := a.actions[typeID]
+// 	if !ok {
+// 		return nil, fmt.Errorf("action type %d not found", typeID)
+// 	}
 
-	actionType := reflect.TypeOf(actionInstance).Elem()
-	action := reflect.New(actionType).Interface().(Action)
-	if err := json.Unmarshal(data, action); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal action: %w", err)
-	}
-	return action, nil
-}
+// 	actionType := reflect.TypeOf(actionInstance).Elem()
+// 	action := reflect.New(actionType).Interface().(Action)
+// 	if err := json.Unmarshal(data, action); err != nil {
+// 		return nil, fmt.Errorf("failed to unmarshal action: %w", err)
+// 	}
+// 	return action, nil
+// }
 
 func (a *ActionRegistry) UnmarshalOutputs(typeID uint8, outputs [][]byte) ([]interface{}, error) {
 	outputInstance, ok := a.outputInstances[typeID]

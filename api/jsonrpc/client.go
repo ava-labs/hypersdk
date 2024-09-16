@@ -5,7 +5,6 @@ package jsonrpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -195,20 +194,14 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	return resp.ABI, err
 }
 
-func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action, actionId uint8, actor codec.Address) ([]interface{}, string, error) {
-	//FIXME: This is a temporary solution to marshal the action to JSON
-	actionJSON, err := json.Marshal(action)
+func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action, actionId uint8, actor codec.Address) ([]byte, string, error) {
+	actionBytes, err := codec.Marshal(action)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to marshal action: %w", err)
 	}
 
-	var actionMap map[string]interface{}
-	if err := json.Unmarshal(actionJSON, &actionMap); err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal action: %w", err)
-	}
-
 	args := &ExecuteActionArgs{
-		Action:       actionMap,
+		ActionBytes:  actionBytes,
 		ActionTypeID: actionId,
 		Actor:        actor,
 	}
@@ -224,7 +217,7 @@ func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action
 		return nil, "", err
 	}
 
-	return resp.Outputs, resp.Error, nil
+	return resp.Output, resp.Error, nil
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

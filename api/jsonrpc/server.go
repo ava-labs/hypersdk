@@ -4,7 +4,6 @@
 package jsonrpc
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -163,14 +162,14 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 }
 
 type ExecuteActionArgs struct {
-	Action       map[string]interface{} `json:"action"`
-	ActionTypeID uint8                  `json:"actionId"`
-	Actor        codec.Address          `json:"actor"`
+	ActionBytes  []byte        `json:"actionBytes"`
+	ActionTypeID uint8         `json:"actionId"`
+	Actor        codec.Address `json:"actor"`
 }
 
 type ExecuteActionReply struct {
-	Outputs []interface{} `json:"outputs"`
-	Error   string        `json:"error"`
+	Output []byte `json:"output"`
+	Error  string `json:"error"`
 }
 
 func (j *JSONRPCServer) ExecuteAction(
@@ -183,16 +182,16 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	actionRegistry, _ := j.vm.Registry()
 
-	//FIXME: is re-marshalling necessary to cast to a particular Action?
-	reMarshalledActionJSON, err := json.Marshal(args.Action)
-	if err != nil {
-		return fmt.Errorf("failed to re-marshal action: %w", err)
+	unmarshalActionFunc, ok := actionRegistry.LookupUnmarshalFunc(args.ActionTypeID)
+	if !ok {
+		return fmt.Errorf("action type %d not found", args.ActionTypeID)
 	}
 
-	action, err := actionRegistry.UnmarshalJSON(args.ActionTypeID, reMarshalledActionJSON)
+	action, err := unmarshalActionFunc(codec.NewReader(args.ActionBytes, consts.NetworkSizeLimit))
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal action: %w", err)
 	}
+
 	now := time.Now().UnixMilli()
 
 	// Get expected state keys
@@ -236,9 +235,11 @@ func (j *JSONRPCServer) ExecuteAction(
 		return nil
 	}
 
-	reply.Outputs, err = actionRegistry.UnmarshalOutputs(args.ActionTypeID, outputs)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal outputs: %w", err)
+	if len(outputs) == 1 {
+		reply.Output = outputs[0]
+	} else if len(outputs) > 1 {
+		reply.Error = fmt.Sprintf("multiple outputs not supported yet, got %d", len(outputs))
 	}
+
 	return nil
 }
