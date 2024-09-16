@@ -4,7 +4,7 @@
 
 set -e
 
-if ! [[ "$0" =~ scripts/tests.bench.sh ]]; then
+if ! [[ "$0" =~ scripts/tests.benchmark.sh ]]; then
   echo "must be run from hypersdk root"
   exit 255
 fi
