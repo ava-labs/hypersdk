@@ -5,9 +5,10 @@ package chain
 
 import (
 	"fmt"
-	reflect "reflect"
 
 	"github.com/ava-labs/hypersdk/codec"
+
+	reflect "reflect"
 )
 
 type Typed interface {
