@@ -5,6 +5,7 @@ package chain
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/ava-labs/hypersdk/codec"
 
@@ -77,20 +78,6 @@ func (a *ActionRegistry) LookupUnmarshalFunc(typeID uint8) (func(*codec.Packer) 
 	return f, found
 }
 
-// func (a *ActionRegistry) UnmarshalJSON(typeID uint8, data []byte) (Action, error) {
-// 	actionInstance, ok := a.actions[typeID]
-// 	if !ok {
-// 		return nil, fmt.Errorf("action type %d not found", typeID)
-// 	}
-
-// 	actionType := reflect.TypeOf(actionInstance).Elem()
-// 	action := reflect.New(actionType).Interface().(Action)
-// 	if err := json.Unmarshal(data, action); err != nil {
-// 		return nil, fmt.Errorf("failed to unmarshal action: %w", err)
-// 	}
-// 	return action, nil
-// }
-
 func (a *ActionRegistry) UnmarshalOutputs(typeID uint8, outputs [][]byte) ([]interface{}, error) {
 	outputInstance, ok := a.outputInstances[typeID]
 	if !ok {
@@ -115,9 +102,16 @@ func (a *ActionRegistry) UnmarshalOutputs(typeID uint8, outputs [][]byte) ([]int
 }
 
 func (a *ActionRegistry) GetRegisteredTypes() []ActionPair {
+	// Get type IDs and sort them to ensure the order is canonical
+	typeIDs := make([]uint8, 0, len(a.actions))
+	for typeID := range a.actions {
+		typeIDs = append(typeIDs, typeID)
+	}
+	sort.Slice(typeIDs, func(i, j int) bool { return typeIDs[i] < typeIDs[j] })
+
 	types := make([]ActionPair, 0, len(a.actions))
-	for typeID, action := range a.actions {
-		types = append(types, ActionPair{Input: action, Output: a.outputInstances[typeID]})
+	for _, typeID := range typeIDs {
+		types = append(types, ActionPair{Input: a.actions[typeID], Output: a.outputInstances[typeID]})
 	}
 	return types
 }

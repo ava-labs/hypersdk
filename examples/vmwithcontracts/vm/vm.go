@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
@@ -22,24 +21,24 @@ import (
 )
 
 var (
-	Action      *codec.TypeParser[chain.Action]
-	Auth        *codec.TypeParser[chain.Auth]
+	Action      *chain.ActionRegistry
+	Auth        *chain.AuthRegistry
 	wasmRuntime *runtime.WasmRuntime
 )
 
 // Setup types
 func init() {
-	Action = codec.NewTypeParser[chain.Action]()
-	Auth = codec.NewTypeParser[chain.Auth]()
+	Action = chain.NewActionRegistry()
+	Auth = chain.NewAuthRegistry()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		Action.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-		Action.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
-		Action.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
-		Action.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
+		Action.Register(&actions.Transfer{}, nil, actions.UnmarshalTransfer),
+		Action.Register(&actions.Call{}, nil, actions.UnmarshalCallContract(wasmRuntime)),
+		Action.Register(&actions.Publish{}, nil, actions.UnmarshalPublishContract),
+		Action.Register(&actions.Deploy{}, nil, actions.UnmarshalDeployContract),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),
