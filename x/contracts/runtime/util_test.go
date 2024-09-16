@@ -218,7 +218,7 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 		Context: ctx,
 		callContext: NewRuntime(
 			NewConfig(),
-			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
+			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000}),
 		StateManager: TestStateManager{
 			ContractsMap: map[string][]byte{},
 			AccountMap:   map[codec.Address]string{},
