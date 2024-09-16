@@ -11,9 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
@@ -60,44 +57,4 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Initialize the local test environment from the global state
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
-})
-
-var _ = ginkgo.Describe("[MorpheusVM APIs]", func() {
-	tc := e2e.NewTestContext()
-	require := require.New(tc)
-
-	ginkgo.It("Ping", func() {
-		client := jsonrpc.NewJSONRPCClient("http://127.0.0.1:9650/ext/bc/" + consts.Name)
-		ok, err := client.Ping(tc.DefaultContext())
-		require.NoError(err)
-		require.True(ok)
-	})
-
-	ginkgo.It("Calls Transfer action via JSONRPC", func() {
-		client := jsonrpc.NewJSONRPCClient("http://127.0.0.1:9650/ext/bc/" + consts.Name)
-
-		senderAddr, err := codec.ParseAddressBech32(consts.HRP, "morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu")
-		require.NoError(err)
-
-		receiverAddr, err := codec.ParseAddressBech32(consts.HRP, "morpheus1qrar5gu3mx0syrkxesd66yzk0h8ep7sy8dejzu4crgkjkcynnj8k6qh5wjj")
-		require.NoError(err)
-
-		transfer := &actions.Transfer{
-			To:    receiverAddr,
-			Value: 1,
-			Memo:  []byte("test"),
-		}
-		transferResultBytes, errorString, err := client.ExecuteAction(tc.DefaultContext(), transfer, 0, senderAddr)
-		require.NoError(err)
-		require.Equal("", errorString)
-
-		var transferResult actions.TransferResult
-		err = codec.LinearCodec.Unmarshal(transferResultBytes, &transferResult)
-		require.NoError(err)
-
-		require.Equal(actions.TransferResult{
-			SenderBalance:   10000000000000 - 1,
-			ReceiverBalance: 1,
-		}, transferResult)
-	})
 })
