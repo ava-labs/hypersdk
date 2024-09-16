@@ -113,7 +113,7 @@ itself will include all of the fields needed to verify and execute onchain.
 You can think of each field in the `Transfer` type as if it's a parameter to the function
 you want to execute onchain.
 
-To start, `cd` back to `tutorial/` and execute the following:
+To start, make sure you're in `tutorial/` and execute the following:
 
 ```sh
 mkdir actions
@@ -127,8 +127,8 @@ implements the `chain.Action` interface:
 package actions
 
 import (
-   "github.com/ava-labs/hypersdk/chain"
-   "github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -167,28 +167,29 @@ You can copy-paste the code below:
 
 ```golang
 func (t *Transfer) GetTypeID() uint8 {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (t *Transfer) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (t *Transfer) StateKeysMaxChunks() []uint16 {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (t *Transfer) ValidRange(chain.Rules) (start int64, end int64) {
-   panic("unimplemented")
+	panic("unimplemented")
 }
+
 ```
 
 Now that we've defined our action, we'll move on to implementing the state layout for
@@ -216,17 +217,17 @@ Let's create the file `storage.go` in `storage/` with prefixes for balance, heig
 package storage
 
 const (
-   // Active state
-   balancePrefix   = 0x0
-   heightPrefix    = 0x1
-   timestampPrefix = 0x2
-   feePrefix       = 0x3
+	// Active state
+	balancePrefix   = 0x0
+	heightPrefix    = 0x1
+	timestampPrefix = 0x2
+	feePrefix       = 0x3
 )
 
 var (
-   heightKey    = []byte{heightPrefix}
-   timestampKey = []byte{timestampPrefix}
-   feeKey       = []byte{feePrefix}
+	heightKey    = []byte{heightPrefix}
+	timestampKey = []byte{timestampPrefix}
+	feeKey       = []byte{feePrefix}
 )
 ```
 
@@ -241,15 +242,15 @@ Let's add the following functions to `storage.go`:
 
 ```golang
 func HeightKey() (k []byte) {
-   return heightKey
+	return heightKey
 }
 
 func TimestampKey() (k []byte) {
-   return timestampKey
+	return timestampKey
 }
 
 func FeeKey() (k []byte) {
-   return feeKey
+	return feeKey
 }
 ```
 
@@ -278,11 +279,11 @@ Now, we can implement `BalanceKey` using the constant:
 ```golang
 // [balancePrefix] + [address] + [BalanceChunks suffix]
 func BalanceKey(addr codec.Address) (k []byte) {
-   k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
-   k[0] = balancePrefix
-   copy(k[1:], addr[:])
-   binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
-   return
+	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+	k[0] = balancePrefix
+	copy(k[1:], addr[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
+	return
 }
 ```
 
@@ -294,12 +295,12 @@ Let's start by adding `setBalance` to set the balance for a pre-computed key:
 
 ```golang
 func setBalance(
-   ctx context.Context,
-   mu state.Mutable,
-   key []byte,
-   balance uint64,
+	ctx context.Context,
+	mu state.Mutable,
+	key []byte,
+	balance uint64,
 ) error {
-   return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 ```
 
@@ -312,16 +313,16 @@ an `innerGetBalance` function that will interpret a raw value and error:
 
 ```golang
 func innerGetBalance(
-   v []byte,
-   err error,
+	v []byte,
+	err error,
 ) (uint64, bool, error) {
-   if errors.Is(err, database.ErrNotFound) {
-       return 0, false, nil
-   }
-   if err != nil {
-       return 0, false, err
-   }
-   return binary.BigEndian.Uint64(v), true, nil
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return binary.BigEndian.Uint64(v), true, nil
 }
 ```
 
@@ -330,22 +331,22 @@ exported `GetBalance` and a private version that returns additional details:
 
 ```golang
 func getBalance(
-   ctx context.Context,
-   im state.Immutable,
-   addr codec.Address,
+	ctx context.Context,
+	im state.Immutable,
+	addr codec.Address,
 ) ([]byte, uint64, bool, error) {
-   k := BalanceKey(addr)
-   bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
-   return k, bal, exists, err
+	k := BalanceKey(addr)
+	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
+	return k, bal, exists, err
 }
 
 func GetBalance(
-   ctx context.Context,
-   im state.Immutable,
-   addr codec.Address,
+	ctx context.Context,
+	im state.Immutable,
+	addr codec.Address,
 ) (uint64, error) {
-   _, bal, _, err := getBalance(ctx, im, addr)
-   return bal, err
+	_, bal, _, err := getBalance(ctx, im, addr)
+	return bal, err
 }
 ```
 
@@ -357,63 +358,63 @@ just wrote:
 
 ```golang
 func AddBalance(
-   ctx context.Context,
-   mu state.Mutable,
-   addr codec.Address,
-   amount uint64,
-   create bool,
+	ctx context.Context,
+	mu state.Mutable,
+	addr codec.Address,
+	amount uint64,
+	create bool,
 ) error {
-  key, bal, exists, err := getBalance(ctx, mu, addr)
-   if err != nil {
-       return err
-   }
-   // Don't add balance if account doesn't exist. This
-   // can be useful when processing fee refunds.
-   if !exists && !create {
-       return nil
-   }
-   nbal, err := smath.Add(bal, amount)
-   if err != nil {
-       return fmt.Errorf(
-           "%w: could not add balance (bal=%d, addr=%v, amount=%d)",
-           ErrInvalidBalance,
-           bal,
-           codec.MustAddressBech32(mconsts.HRP, addr),
-           amount,
-       )
-   }
-   return setBalance(ctx, mu, key, nbal)
+	key, bal, exists, err := getBalance(ctx, mu, addr)
+	if err != nil {
+		return err
+	}
+	// Don't add balance if account doesn't exist. This
+	// can be useful when processing fee refunds.
+	if !exists && !create {
+		return nil
+	}
+	nbal, err := smath.Add(bal, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
+			ErrInvalidBalance,
+			bal,
+			codec.MustAddressBech32(mconsts.HRP, addr),
+			amount,
+		)
+	}
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
-   ctx context.Context,
-   mu state.Mutable,
-   addr codec.Address,
-   amount uint64,
+	ctx context.Context,
+	mu state.Mutable,
+	addr codec.Address,
+	amount uint64,
 ) error {
-   key, bal, ok, err := getBalance(ctx, mu, addr)
-   if !ok {
-       return ErrInvalidAddress
-   }
-   if err != nil {
-       return err
-   }
-   nbal, err := smath.Sub(bal, amount)
-   if err != nil {
-       return fmt.Errorf(
-           "%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
-           ErrInvalidBalance,
-           bal,
-           codec.MustAddressBech32(mconsts.HRP, addr),
-           amount,
-       )
-   }
-   if nbal == 0 {
-       // If there is no balance left, we should delete the record instead of
-       // setting it to 0.
-       return mu.Remove(ctx, key)
-   }
-   return setBalance(ctx, mu, key, nbal)
+	key, bal, ok, err := getBalance(ctx, mu, addr)
+	if !ok {
+		return ErrInvalidAddress
+	}
+	if err != nil {
+		return err
+	}
+	nbal, err := smath.Sub(bal, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
+			ErrInvalidBalance,
+			bal,
+			codec.MustAddressBech32(mconsts.HRP, addr),
+			amount,
+		)
+	}
+	if nbal == 0 {
+		// If there is no balance left, we should delete the record instead of
+		// setting it to 0.
+		return mu.Remove(ctx, key)
+	}
+	return setBalance(ctx, mu, key, nbal)
 }
 ```
 
@@ -424,13 +425,13 @@ and define those two errors in another file.
 First, let's add the math package from AvalancheGo to our imports:
 
 ```golang
-    smath "github.com/ava-labs/avalanchego/utils/math"  
+	smath "github.com/ava-labs/avalanchego/utils/math"
 ```
 
 Next, we'll add the `consts` package we defined earlier:
 
 ```golang
-    mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 We now define the two errors from earlier. In `storage/`, create a file called
@@ -461,10 +462,11 @@ Let's start off by creating a new `state_manager.go` file in `storage/` and addi
 package storage
 
 import (
-   "context"
-   "github.com/ava-labs/hypersdk/chain"
-   "github.com/ava-labs/hypersdk/codec"
-   "github.com/ava-labs/hypersdk/state"
+	"context"
+
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 var _ chain.StateManager = (*StateManager)(nil)
@@ -472,31 +474,31 @@ var _ chain.StateManager = (*StateManager)(nil)
 type StateManager struct{}
 
 func (s *StateManager) FeeKey() []byte {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) HeightKey() []byte {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) TimestampKey() []byte {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 
 func (s *StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
-   panic("unimplemented")
+	panic("unimplemented")
 }
 ```
 
@@ -750,41 +752,37 @@ In `tutorial/`, create a subdirectory called `vm`. In that folder, let's create 
 package vm
 
 import (
-   "github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
-	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
-	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
-	"github.com/ava-labs/hypersdk/genesis"
-	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
-   ActionParser *codec.TypeParser[chain.Action]
-   AuthParser   *codec.TypeParser[chain.Auth]
+	ActionParser *codec.TypeParser[chain.Action]
+	AuthParser   *codec.TypeParser[chain.Auth]
 )
 
 // Setup types
 func init() {
-   ActionParser = codec.NewTypeParser[chain.Action]()
-   AuthParser = codec.NewTypeParser[chain.Auth]()
+	ActionParser = codec.NewTypeParser[chain.Action]()
+	AuthParser = codec.NewTypeParser[chain.Auth]()
 
-   errs := &wrappers.Errs{}
-   errs.Add(
-       ActionParser.Register(&actions.Transfer{}, nil),
+	errs := &wrappers.Errs{}
+	errs.Add(
+		ActionParser.Register(&actions.Transfer{}, nil),
 
-       AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-       AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-       AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
-   )
-   if errs.Errored() {
-       panic(errs.Err)
-   }
+		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+	)
+	if errs.Errored() {
+		panic(errs.Err)
+	}
 }
+
 ```
 
 By “registry”, we mean the `ActionParser` and `AuthParser` which tell our VM
