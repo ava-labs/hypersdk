@@ -249,15 +249,8 @@ func (vm *VM) Initialize(
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 
-	namespacedConfig := make(map[string]json.RawMessage)
-	if len(vm.config.Config) > 0 {
-		if err := json.Unmarshal(vm.config.Config, &namespacedConfig); err != nil {
-			return fmt.Errorf("failed to unmarshal namespaced config: %w", err)
-		}
-	}
-
 	for _, Option := range vm.options {
-		config := namespacedConfig[Option.Namespace]
+		config := vm.config.ServiceConfig[Option.Namespace]
 		if err := Option.optionFunc(vm, config); err != nil {
 			return err
 		}
