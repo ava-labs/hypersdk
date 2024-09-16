@@ -15,7 +15,6 @@ import (
 
 func TestImportBalanceSendBalanceToAnotherContract(t *testing.T) {
 	require := require.New(t)
-
 	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
