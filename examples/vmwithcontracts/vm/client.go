@@ -134,7 +134,7 @@ func (cli *JSONRPCClient) Simulate(ctx context.Context, callTx actions.Call, act
 	resp := new(SimulateCallTxReply)
 	err := cli.requester.SendRequest(
 		ctx,
-		"simulateCallProgramTx",
+		"simulateCallContractTx",
 		&SimulateCallTxArgs{CallTx: callTx, Actor: actor},
 		resp,
 	)

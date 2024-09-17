@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -157,19 +158,19 @@ func setInstances() {
 		_ = listener.Close()
 	})
 
-	externalSubscriberConfig := vm.NewConfig()
-	namespacedConfig := map[string]interface{}{
-		externalsubscriber.Namespace: externalsubscriber.Config{
-			Enabled:       true,
-			ServerAddress: listener.Addr().String(),
-		},
+	vmWithExternalSubscriberConfig := vm.NewConfig()
+	actualExternalSubscriberConfig := externalsubscriber.Config{
+		Enabled:       true,
+		ServerAddress: listener.Addr().String(),
 	}
-
-	namespacedConfigBytes, err := json.Marshal(namespacedConfig)
+	actualExternalSubscriberConfigBytes, err := json.Marshal(actualExternalSubscriberConfig)
 	require.NoError(err)
-	externalSubscriberConfig.Config = namespacedConfigBytes
+	namespacedConfig := map[string]json.RawMessage{
+		externalsubscriber.Namespace: actualExternalSubscriberConfigBytes,
+	}
+	vmWithExternalSubscriberConfig.ServiceConfig = namespacedConfig
 
-	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
+	externalSubscriberConfigBytes, err := json.Marshal(vmWithExternalSubscriberConfig)
 	require.NoError(err)
 	configs := make([][]byte, numVMs)
 	configs[0] = externalSubscriberConfigBytes
@@ -300,6 +301,15 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	ginkgo.It("GetNetwork", func() {
 		ginkgo.By("Send GetNetwork request to every node")
 		workload.GetNetwork(ctx, require, uris, instances[0].vm.NetworkID(), instances[0].chainID)
+	})
+	ginkgo.It("GetABI", func() {
+		ginkgo.By("Gets ABI")
+
+		actionRegistry, _ := instances[0].vm.Registry()
+		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
+		require.NoError(err)
+
+		workload.GetABI(ctx, require, uris, expectedABI)
 	})
 })
 

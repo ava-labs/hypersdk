@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
@@ -48,13 +49,13 @@ func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
 	return resp.Success, err
 }
 
-func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) {
+func (cli *JSONRPCClient) Network(ctx context.Context) (networkID uint32, subnetID ids.ID, chainID ids.ID, err error) {
 	if cli.chainID != ids.Empty {
 		return cli.networkID, cli.subnetID, cli.chainID, nil
 	}
 
 	resp := new(NetworkReply)
-	err := cli.requester.SendRequest(
+	err = cli.requester.SendRequest(
 		ctx,
 		"network",
 		nil,
@@ -179,6 +180,17 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 		_, err := cli.SubmitTx(ictx, tx.Bytes())
 		return err
 	}, tx, nil
+}
+
+func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
+	resp := new(GetABIReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getABI",
+		nil,
+		resp,
+	)
+	return resp.ABI, err
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
@@ -29,16 +29,16 @@ type StateKeyPermission struct {
 }
 
 type Call struct {
-	// program is the address of the program to be called
+	// contract is the address of the contract to be called
 	ContractAddress codec.Address `json:"contractAddress"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
 
-	// Function is the name of the function to call on the program.
+	// Function is the name of the function to call on the contract.
 	Function string `json:"function"`
 
-	// CallData are the serialized parameters to be passed to the program.
+	// CallData are the serialized parameters to be passed to the contract.
 	CallData []byte `json:"calldata"`
 
 	SpecifiedStateKeys []StateKeyPermission `json:"statekeys"`
@@ -49,7 +49,7 @@ type Call struct {
 }
 
 func (*Call) GetTypeID() uint8 {
-	return mconsts.CallProgramID
+	return mconsts.CallContractID
 }
 
 func (t *Call) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
@@ -76,10 +76,10 @@ func (t *Call) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-	result, err := t.r.CallProgram(ctx, &runtime.CallInfo{
-		Program:      t.ContractAddress,
+	result, err := t.r.CallContract(ctx, &runtime.CallInfo{
+		Contract:     t.ContractAddress,
 		Actor:        actor,
-		State:        &storage.ProgramStateManager{Mutable: mu},
+		State:        &storage.ContractStateManager{Mutable: mu},
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
@@ -115,25 +115,25 @@ func (t *Call) Marshal(p *codec.Packer) {
 	}
 }
 
-func UnmarshalCallProgram(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action, error) {
 	return func(p *codec.Packer) (chain.Action, error) {
-		callProgram := Call{r: r}
-		callProgram.Value = p.UnpackUint64(false)
-		callProgram.Fuel = p.UnpackUint64(true)
-		p.UnpackAddress(&callProgram.ContractAddress) // we do not verify the typeID is valid
-		callProgram.Function = p.UnpackString(true)
-		p.UnpackBytes(MaxCallDataSize, false, &callProgram.CallData)
+		callContract := Call{r: r}
+		callContract.Value = p.UnpackUint64(false)
+		callContract.Fuel = p.UnpackUint64(true)
+		p.UnpackAddress(&callContract.ContractAddress) // we do not verify the typeID is valid
+		callContract.Function = p.UnpackString(true)
+		p.UnpackBytes(MaxCallDataSize, false, &callContract.CallData)
 		if err := p.Err(); err != nil {
 			return nil, err
 		}
 		count := int(p.UnpackInt(true))
-		callProgram.SpecifiedStateKeys = make([]StateKeyPermission, count)
+		callContract.SpecifiedStateKeys = make([]StateKeyPermission, count)
 		for i := 0; i < count; i++ {
 			key := p.UnpackString(true)
 			value := p.UnpackByte()
-			callProgram.SpecifiedStateKeys[i] = StateKeyPermission{Key: key, Permission: state.Permissions(value)}
+			callContract.SpecifiedStateKeys[i] = StateKeyPermission{Key: key, Permission: state.Permissions(value)}
 		}
-		return &callProgram, nil
+		return &callContract, nil
 	}
 }
 

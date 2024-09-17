@@ -1,0 +1,28 @@
+error[E0308]: mismatched types
+  --> tests/ui/fail/user-defined-context-type.rs:11:1
+   |
+11 | #[public]
+   | ^^^^^^^^^
+   | |
+   | expected `wasmlanche::Context`, found `Context`
+   | arguments to this function are incorrect
+   |
+   = note: `Context` and `wasmlanche::Context` have similar names, but are actually distinct types
+note: `Context` is defined in the current crate
+  --> tests/ui/fail/user-defined-context-type.rs:9:1
+   |
+9  | struct Context;
+   | ^^^^^^^^^^^^^^
+note: `wasmlanche::Context` is defined in crate `wasmlanche`
+  --> $WORKSPACE/x/contracts/wasmlanche/src/context.rs
+   |
+   | pub struct Context {
+   | ^^^^^^^^^^^^^^^^^^
+note: function defined here
+  --> tests/ui/fail/user-defined-context-type.rs:12:8
+   |
+11 | #[public]
+   | ---------
+12 | pub fn test(_: &mut Context) {}
+   |        ^^^^
+   = note: this error originates in the attribute macro `public` (in Nightly builds, run with -Z macro-backtrace for more info)

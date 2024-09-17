@@ -17,6 +17,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/prometheus/client_golang v1.16.0
+	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.8.4
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
@@ -88,6 +89,7 @@ require (
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jackpal/gateway v1.0.6 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect

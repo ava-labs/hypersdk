@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 var (
@@ -37,9 +37,9 @@ func init() {
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		Action.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-		Action.Register(&actions.Call{}, actions.UnmarshalCallProgram(wasmRuntime)),
-		Action.Register(&actions.Publish{}, actions.UnmarshalPublishProgram),
-		Action.Register(&actions.Deploy{}, actions.UnmarshalDeployProgram),
+		Action.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
+		Action.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
+		Action.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),

@@ -5,8 +5,8 @@ package consts
 
 const (
 	// Action TypeIDs
-	TransferID    uint8 = 0
-	CallProgramID uint8 = 1
-	DeployID      uint8 = 2
-	PublishID     uint8 = 3
+	TransferID     uint8 = 0
+	CallContractID uint8 = 1
+	DeployID       uint8 = 2
+	PublishID      uint8 = 3
 )

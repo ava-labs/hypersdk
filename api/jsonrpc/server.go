@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -137,5 +138,22 @@ func (j *JSONRPCServer) UnitPrices(
 		return err
 	}
 	reply.UnitPrices = unitPrices
+	return nil
+}
+
+type GetABIArgs struct{}
+
+type GetABIReply struct {
+	ABI abi.ABI `json:"abi"`
+}
+
+func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
+	actionRegistry, _ := j.vm.Registry()
+	// Must dereference aliased type to call GetRegisteredTypes
+	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
+	if err != nil {
+		return err
+	}
+	reply.ABI = vmABI
 	return nil
 }

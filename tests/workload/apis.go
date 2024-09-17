@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
@@ -28,5 +29,17 @@ func GetNetwork(ctx context.Context, require *require.Assertions, uris []string,
 		require.NoError(err)
 		require.Equal(expectedNetworkID, networkID)
 		require.Equal(expectedChainID, chainID)
+	}
+}
+
+func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.ABI) {
+	for _, uri := range uris {
+		client := jsonrpc.NewJSONRPCClient(uri)
+		actualABI, err := client.GetABI(ctx)
+		require.NoError(err)
+
+		require.GreaterOrEqual(len(actualABI.Actions), 1)
+		require.NotEmpty(actualABI.Actions[0].Action)
+		require.Equal(expectedABI, actualABI)
 	}
 }
