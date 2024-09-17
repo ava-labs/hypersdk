@@ -22,12 +22,10 @@ type BurnToken struct {
 	Value        uint64        `serialize:"true" json:"value"`
 }
 
-// ComputeUnits implements chain.Action.
 func (*BurnToken) ComputeUnits(chain.Rules) uint64 {
 	return BurnTokenComputeUnits
 }
 
-// Execute implements chain.Action.
 func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Assert invariant
 	if b.Value == 0 {
@@ -55,7 +53,6 @@ func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable
 	return nil, nil
 }
 
-// GetTypeID implements chain.Action.
 func (*BurnToken) GetTypeID() uint8 {
 	return consts.BurnTokenID
 }
@@ -68,12 +65,10 @@ func (b *BurnToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*BurnToken) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks}
 }
 
-// ValidRange implements chain.Action.
-func (*BurnToken) ValidRange(chain.Rules) (start int64, end int64) {
+func (*BurnToken) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

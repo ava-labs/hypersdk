@@ -23,13 +23,11 @@ type TransferToken struct {
 	Value        uint64        `serialize:"true" json:"value"`
 }
 
-// ComputeUnits implements chain.Action.
 func (*TransferToken) ComputeUnits(chain.Rules) uint64 {
 	return TransferTokenComputeUnits
 }
 
-// Execute implements chain.Action.
-func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (outputs [][]byte, err error) {
+func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check invariants
 	if t.Value == 0 {
 		return nil, ErrOutputTransferValueZero
@@ -55,12 +53,10 @@ func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mut
 	return nil, nil
 }
 
-// GetTypeID implements chain.Action.
 func (*TransferToken) GetTypeID() uint8 {
 	return consts.TransferTokenID
 }
 
-// StateKeys implements chain.Action.
 func (t *TransferToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(t.TokenAddress)):                  state.All,
@@ -69,12 +65,10 @@ func (t *TransferToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*TransferToken) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks, storage.TokenAccountBalanceChunks}
 }
 
-// ValidRange implements chain.Action.
-func (*TransferToken) ValidRange(chain.Rules) (start int64, end int64) {
+func (*TransferToken) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

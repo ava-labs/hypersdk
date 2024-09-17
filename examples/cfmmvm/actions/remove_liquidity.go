@@ -29,7 +29,6 @@ func (*RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return RemoveLiquidityUnits
 }
 
-// Execute implements chain.Action.
 func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, l.LiquidityPool)

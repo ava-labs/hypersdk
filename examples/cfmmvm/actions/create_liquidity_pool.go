@@ -25,13 +25,10 @@ type CreateLiquidityPool struct {
 	Fee        uint64        `serialize:"true" json:"fee"`
 }
 
-// ComputeUnits implements chain.Action.
 func (*CreateLiquidityPool) ComputeUnits(chain.Rules) uint64 {
 	return CreateLiquidityPoolUnits
 }
 
-// TODO: rewrite invariant checking logic
-// Execute implements chain.Action.
 func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Assert argument invariants
 	if c.Fee == 0 {
@@ -68,13 +65,10 @@ func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu sta
 	return [][]byte{poolAddress[:], lpTokenAddress[:]}, nil
 }
 
-// GetTypeID implements chain.Action.
 func (*CreateLiquidityPool) GetTypeID() uint8 {
 	return consts.CreateLiquidityPoolID
 }
 
-// TODO: clean-up
-// StateKeys implements chain.Action.
 func (c *CreateLiquidityPool) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	tokenXKey := storage.TokenInfoKey(c.TokenX)
 	tokenYKey := storage.TokenInfoKey(c.TokenY)
@@ -89,12 +83,15 @@ func (c *CreateLiquidityPool) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-// StateKeysMaxChunks implements chain.Action.
 func (*CreateLiquidityPool) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks, storage.TokenInfoChunks, storage.LiquidityPoolChunks, storage.TokenInfoChunks}
+	return []uint16{
+		storage.TokenInfoChunks,
+		storage.TokenInfoChunks,
+		storage.LiquidityPoolChunks,
+		storage.TokenInfoChunks,
+	}
 }
 
-// ValidRange implements chain.Action.
-func (*CreateLiquidityPool) ValidRange(chain.Rules) (start int64, end int64) {
+func (*CreateLiquidityPool) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

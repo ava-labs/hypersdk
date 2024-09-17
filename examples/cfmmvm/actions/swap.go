@@ -26,12 +26,10 @@ type Swap struct {
 	LPAddress codec.Address `serialize:"true" json:"lpAddress"`
 }
 
-// ComputeUnits implements chain.Action.
 func (*Swap) ComputeUnits(chain.Rules) uint64 {
 	return SwapUnits
 }
 
-// Execute implements chain.Action.
 func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, s.LPAddress)
