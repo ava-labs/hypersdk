@@ -238,7 +238,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (outputs [][]byte, err error)
+	) ([]byte, error)
 }
 
 type ActionPair struct {
