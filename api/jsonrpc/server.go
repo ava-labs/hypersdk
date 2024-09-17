@@ -162,9 +162,9 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 }
 
 type ExecuteActionArgs struct {
-	ActionBytes  []byte        `json:"actionBytes"`
-	ActionTypeID uint8         `json:"actionId"`
-	Actor        codec.Address `json:"actor"`
+	ActionBytes       []byte `json:"actionBytes"`
+	ActionTypeID      uint8  `json:"actionId"`
+	ActorAddressBytes []byte `json:"actor"`
 }
 
 type ExecuteActionReply struct {
@@ -194,8 +194,14 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	now := time.Now().UnixMilli()
 
+	// FIXME: We don't have HRP, therefore we can't parse the address. However, this is acceptable as we are switching to hex soon, so this is just a temporary solution.
+	actor, err := codec.ToAddress(args.ActorAddressBytes)
+	if err != nil {
+		return fmt.Errorf("invalid actor address: %w", err)
+	}
+
 	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
+	stateKeysWithPermissions := action.StateKeys(actor, ids.Empty)
 
 	// flatten the map to a slice of keys
 	storageKeysToRead := make([][]byte, 0)
@@ -227,7 +233,7 @@ func (j *JSONRPCServer) ExecuteAction(
 		j.vm.Rules(now),
 		tsv,
 		now,
-		args.Actor,
+		actor,
 		ids.Empty,
 	)
 	if err != nil {

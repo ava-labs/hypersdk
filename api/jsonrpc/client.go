@@ -201,9 +201,9 @@ func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action
 	}
 
 	args := &ExecuteActionArgs{
-		ActionBytes:  actionBytes,
-		ActionTypeID: actionID,
-		Actor:        actor,
+		ActionBytes:       actionBytes,
+		ActionTypeID:      actionID,
+		ActorAddressBytes: actor[:],
 	}
 
 	resp := new(ExecuteActionReply)
