@@ -63,8 +63,7 @@ type ActionTest struct {
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
 
-	Assertion       func(context.Context, *testing.T, state.Mutable)
-	AssertBenchmark func(context.Context, *testing.B, state.Mutable)
+	Assertion func(context.Context, *testing.T, state.Mutable)
 }
 
 // Run executes the [ActionTest] and make sure all assertions pass.
@@ -83,19 +82,40 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	})
 }
 
-// RunBenchmark executes the [ActionTest] and make sure all the benchmark assertions pass.
-func (test *ActionTest) RunBenchmark(ctx context.Context, b *testing.B) {
-	b.Run(test.Name, func(b *testing.B) {
-		require := require.New(b)
+// ActionBenchmark is paramatized benchmark. It calls Execute on the action with the passed parameters
+// and checks that all assertions pass. To avoid using shared state between runs, a new
+// state is created for each iteration using the provided `CreateState` function.
+type ActionBenchmark struct {
+	Name   string
+	Action chain.Action
 
-		for i := 0; i < b.N; i++ {
-			output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
-			require.NoError(err)
-			require.Equal(output, test.ExpectedOutputs)
+	Rules       chain.Rules
+	CreateState func() state.Mutable
+	Timestamp   int64
+	Actor       codec.Address
+	ActionID    ids.ID
 
-			if test.AssertBenchmark != nil {
-				test.AssertBenchmark(ctx, b, test.State)
-			}
+	ExpectedOutputs [][]byte
+	ExpectedErr     error
+
+	Assertion func(context.Context, *testing.B, state.Mutable)
+}
+
+// Run executes the [ActionBenchmark] and make sure all the benchmark assertions pass.
+func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
+	require := require.New(b)
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		state := test.CreateState()
+		b.StartTimer()
+
+		output, err := test.Action.Execute(ctx, test.Rules, state, test.Timestamp, test.Actor, test.ActionID)
+		require.NoError(err)
+		require.Equal(output, test.ExpectedOutputs)
+
+		if test.Assertion != nil {
+			test.Assertion(ctx, b, state)
 		}
-	})
+	}
 }

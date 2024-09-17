@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -134,30 +133,33 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	toBalanceKey := storage.BalanceKey(to)
 	fromBalanceKey := storage.BalanceKey(from)
 
-	transferActionTest := &chaintest.ActionTest{
+	transferActionTest := &chaintest.ActionBenchmark{
 		Name:  "SimpleTransferBenchmark",
 		Actor: from,
 		Action: &Transfer{
 			To:    to,
 			Value: 1,
 		},
-		State: func() state.Mutable {
+		CreateState: func() state.Mutable {
 			keys := make(state.Keys)
 			store := chaintest.NewInMemoryStore()
-			err := storage.SetBalance(context.Background(), store, from, consts.MaxUint64)
+			err := storage.SetBalance(context.Background(), store, from, 1)
 			require.NoError(err)
 			keys.Add(string(toBalanceKey), state.All)
 			keys.Add(string(fromBalanceKey), state.All)
 			return store
-		}(),
-		AssertBenchmark: func(ctx context.Context, b *testing.B, store state.Mutable) {
-			_, err := storage.GetBalance(ctx, store, to)
+		},
+		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
+			toBalance, err := storage.GetBalance(ctx, store, to)
 			require.NoError(err)
-			_, err = storage.GetBalance(ctx, store, from)
+			require.Equal(uint64(1), toBalance)
+
+			fromBalance, err := storage.GetBalance(ctx, store, from)
 			require.NoError(err)
+			require.Equal(uint64(0), fromBalance)
 		},
 	}
 
 	ctx := context.Background()
-	transferActionTest.RunBenchmark(ctx, b)
+	transferActionTest.Run(ctx, b)
 }
