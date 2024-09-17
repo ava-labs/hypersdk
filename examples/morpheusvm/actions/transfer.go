@@ -90,12 +90,10 @@ func (t *Transfer) Execute(
 		return nil, err
 	}
 
-	bytes, err := codec.Marshal(TransferResult{
+	return codec.Marshal(TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
 	})
-
-	return [][]byte{bytes}, err
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {

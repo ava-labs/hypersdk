@@ -228,7 +228,7 @@ func (j *JSONRPCServer) ExecuteAction(
 	ts := tstate.New(actionSize)
 	tsv := ts.NewView(stateKeysWithPermissions, storage)
 
-	outputs, err := action.Execute(
+	output, err := action.Execute(
 		ctx,
 		j.vm.Rules(now),
 		tsv,
@@ -241,11 +241,7 @@ func (j *JSONRPCServer) ExecuteAction(
 		return nil
 	}
 
-	if len(outputs) == 1 {
-		reply.Output = outputs[0]
-	} else if len(outputs) > 1 {
-		reply.Error = fmt.Sprintf("multiple outputs not supported yet, got %d", len(outputs))
-	}
+	reply.Output = output
 
 	return nil
 }
