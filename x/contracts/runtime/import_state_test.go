@@ -13,9 +13,7 @@ import (
 
 func TestImportStatePutGet(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("state_access")
@@ -34,9 +32,7 @@ func TestImportStatePutGet(t *testing.T) {
 
 func TestImportStateRemove(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("state_access")
@@ -60,9 +56,7 @@ func TestImportStateRemove(t *testing.T) {
 
 func TestImportStateDeleteMissingKey(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("state_access")
@@ -75,9 +69,7 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 
 func TestImportStateGetMissingKey(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("state_access")
