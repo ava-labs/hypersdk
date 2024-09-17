@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRemoveLiquidity(t *testing.T) {
@@ -83,8 +84,8 @@ func TestRemoveLiquidity(t *testing.T) {
 		},
 		&AddLiquidity{
 			LiquidityPool: lpAddress,
-			AmountX: 10_000,
-			AmountY: 10_000,
+			AmountX:       10_000,
+			AmountY:       10_000,
 		},
 	}
 
@@ -99,8 +100,8 @@ func TestRemoveLiquidity(t *testing.T) {
 			Action: &RemoveLiquidity{
 				BurnAmount:    1_000,
 				LiquidityPool: lpAddress,
-				TokenX: tokenOneAddress,
-				TokenY: tokenTwoAddress,
+				TokenX:        tokenOneAddress,
+				TokenY:        tokenTwoAddress,
 			},
 			ExpectedOutputs: nil,
 			ExpectedErr:     nil,

@@ -15,14 +15,6 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
-type ComparisonValue int
-
-const (
-	LessThan ComparisonValue = iota - 1
-	Equal
-	GreaterThan
-)
-
 func LiquidityPoolKey(liquidityPoolAddress codec.Address) []byte {
 	k := make([]byte, 1+codec.AddressLen+hconsts.Uint16Len)
 	k[0] = liquidityPoolPrefix
@@ -31,18 +23,15 @@ func LiquidityPoolKey(liquidityPoolAddress codec.Address) []byte {
 	return k
 }
 
-// TODO: rewrite all of this logic
 // Ordering of tokenX, tokenY handled by this function during address generation
 func LiquidityPoolAddress(tokenX codec.Address, tokenY codec.Address) codec.Address {
-	comp := CompareAddress(tokenX, tokenY)
-	var firstAddress, secondAddress codec.Address
-	switch comp {
-	case LessThan:
-		firstAddress = tokenX
-		secondAddress = tokenY
-	default:
-		firstAddress = tokenY
-		secondAddress = tokenX
+	firstAddress, secondAddress := tokenX, tokenY
+	for i := range tokenX {
+		if tokenY[i] > tokenX[i] {
+			firstAddress = tokenY
+			secondAddress = tokenX
+			break
+		}
 	}
 	v := make([]byte, codec.AddressLen+codec.AddressLen)
 	copy(v, firstAddress[:])
@@ -132,17 +121,6 @@ func innerGetLiquidityPool(
 	lpTokenAddress := codec.Address(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len:])
 	kLast := binary.BigEndian.Uint64(v[hconsts.ByteLen+codec.AddressLen+codec.AddressLen+hconsts.Uint64Len+codec.AddressLen+hconsts.Uint64Len+hconsts.Uint64Len+codec.AddressLen:])
 	return functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, nil
-}
-
-func CompareAddress(a codec.Address, b codec.Address) ComparisonValue {
-	for i := range a {
-		if a[i] < b[i] {
-			return LessThan
-		} else if a[i] > b[i] {
-			return GreaterThan
-		}
-	}
-	return Equal
 }
 
 func LiquidityPoolExists(

@@ -101,7 +101,6 @@ func (c *ConstantProduct) RemoveLiquidity(
 	lpTotalSupply uint64,
 ) (uint64, uint64, uint64, error) {
 	// Compute owner fees
-	// Note: lpTotalSupply ~= liquidity
 	tokensToOwner, err := c.computeOwnerFees(lpTotalSupply)
 	if err != nil {
 		return 0, 0, 0, err
@@ -129,10 +128,9 @@ func (c *ConstantProduct) RemoveLiquidity(
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	return outputX, outputY, tokensToOwner, nil
+	return tokensToOwner, outputX, outputY, nil
 }
 
-// TODO: utilize avalancheGo math utils
 // Returns: outputX, outputY, error
 func (c *ConstantProduct) Swap(
 	amountX uint64,
