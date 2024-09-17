@@ -49,13 +49,13 @@ func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
 	return resp.Success, err
 }
 
-func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) {
+func (cli *JSONRPCClient) Network(ctx context.Context) (networkID uint32, subnetID ids.ID, chainID ids.ID, err error) {
 	if cli.chainID != ids.Empty {
 		return cli.networkID, cli.subnetID, cli.chainID, nil
 	}
 
 	resp := new(NetworkReply)
-	err := cli.requester.SendRequest(
+	err = cli.requester.SendRequest(
 		ctx,
 		"network",
 		nil,

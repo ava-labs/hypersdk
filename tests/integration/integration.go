@@ -158,19 +158,19 @@ func setInstances() {
 		_ = listener.Close()
 	})
 
-	externalSubscriberConfig := vm.NewConfig()
-	namespacedConfig := map[string]interface{}{
-		externalsubscriber.Namespace: externalsubscriber.Config{
-			Enabled:       true,
-			ServerAddress: listener.Addr().String(),
-		},
+	vmWithExternalSubscriberConfig := vm.NewConfig()
+	actualExternalSubscriberConfig := externalsubscriber.Config{
+		Enabled:       true,
+		ServerAddress: listener.Addr().String(),
 	}
-
-	namespacedConfigBytes, err := json.Marshal(namespacedConfig)
+	actualExternalSubscriberConfigBytes, err := json.Marshal(actualExternalSubscriberConfig)
 	require.NoError(err)
-	externalSubscriberConfig.Config = namespacedConfigBytes
+	namespacedConfig := map[string]json.RawMessage{
+		externalsubscriber.Namespace: actualExternalSubscriberConfigBytes,
+	}
+	vmWithExternalSubscriberConfig.ServiceConfig = namespacedConfig
 
-	externalSubscriberConfigBytes, err := json.Marshal(externalSubscriberConfig)
+	externalSubscriberConfigBytes, err := json.Marshal(vmWithExternalSubscriberConfig)
 	require.NoError(err)
 	configs := make([][]byte, numVMs)
 	configs[0] = externalSubscriberConfigBytes

@@ -20,11 +20,12 @@ import (
 )
 
 func (h *Handler) ImportChain() error {
-	chainID, err := prompt.ID("chainID")
+	uri, err := prompt.String("uri", 0, consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	uri, err := prompt.String("uri", 0, consts.MaxInt)
+	client := jsonrpc.NewJSONRPCClient(uri)
+	_, _, chainID, err := client.Network(context.TODO())
 	if err != nil {
 		return err
 	}
