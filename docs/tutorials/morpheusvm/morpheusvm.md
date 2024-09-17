@@ -51,7 +51,7 @@ To start, we'll create a new directory in examples and initialize the go mod:
 ```sh
 mkdir examples/tutorial
 cd examples/tutorial
-go mod init
+go mod init github.com/ava-labs/hypersdk/examples/tutorial
 ```
 
 We now define our VM constants. We'll create a new package to store these
