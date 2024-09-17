@@ -66,6 +66,7 @@ func BenchmarkWorker(b *testing.B) {
 						return nil
 					})
 				}
+				j.Done(nil)
 				_ = j.Wait()
 			}
 		})
