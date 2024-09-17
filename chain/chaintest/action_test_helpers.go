@@ -82,7 +82,7 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	})
 }
 
-// ActionBenchmark is a paramatized benchmark. It calls Execute on the action with the passed parameters
+// ActionBenchmark is a parameterized benchmark. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass. To avoid using shared state between runs, a new
 // state is created for each iteration using the provided `CreateState` function.
 type ActionBenchmark struct {
