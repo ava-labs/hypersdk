@@ -17,9 +17,8 @@ import (
 
 func TestCallContext(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	contractID := ids.GenerateTestID()
 	contractAccount := codec.CreateAddress(0, contractID)
 	stringedID := string(contractID[:])
@@ -68,9 +67,7 @@ func TestCallContext(t *testing.T) {
 
 func TestCallContextPreventOverwrite(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	contract0ID := ids.GenerateTestID()
 	contract0Address := codec.CreateAddress(0, contract0ID)
