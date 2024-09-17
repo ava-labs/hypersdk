@@ -183,7 +183,7 @@ func (t *Transfer) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
-func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs []byte, err error) {
 	panic("unimplemented")
 }
 
@@ -705,7 +705,7 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
+) ([]byte, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}

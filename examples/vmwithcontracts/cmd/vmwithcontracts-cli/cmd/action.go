@@ -103,7 +103,7 @@ var publishFileCmd = &cobra.Command{
 		}}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
-			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
+			utils.Outf(hexutils.BytesToHex(result.Outputs[0]) + "\n")
 		}
 		return err
 	},
@@ -169,12 +169,12 @@ var callCmd = &cobra.Command{
 		result, err := sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
-			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
+			utils.Outf(hexutils.BytesToHex(result.Outputs[0]) + "\n")
 			switch function {
 			case "balance":
 				{
 					var intValue uint64
-					err := borsh.Deserialize(&intValue, result.Outputs[0][0])
+					err := borsh.Deserialize(&intValue, result.Outputs[0])
 					if err != nil {
 						return err
 					}
@@ -183,7 +183,7 @@ var callCmd = &cobra.Command{
 			case "get_value":
 				{
 					var intValue int64
-					err := borsh.Deserialize(&intValue, result.Outputs[0][0])
+					err := borsh.Deserialize(&intValue, result.Outputs[0])
 					if err != nil {
 						return err
 					}
@@ -227,7 +227,7 @@ var deployCmd = &cobra.Command{
 		}}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
-			address, err := codec.ToAddress(result.Outputs[0][0])
+			address, err := codec.ToAddress(result.Outputs[0])
 			if err != nil {
 				return err
 			}

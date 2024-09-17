@@ -75,8 +75,8 @@ func (t *Call) Execute(
 	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
-	result, err := t.r.CallContract(ctx, &runtime.CallInfo{
+) ([]byte, error) {
+	return t.r.CallContract(ctx, &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
 		State:        &storage.ContractStateManager{Mutable: mu},
@@ -86,11 +86,6 @@ func (t *Call) Execute(
 		Fuel:         t.Fuel,
 		Value:        t.Value,
 	})
-	var output [][]byte
-	if result != nil {
-		output = [][]byte{result}
-	}
-	return output, err
 }
 
 func (t *Call) ComputeUnits(chain.Rules) uint64 {
