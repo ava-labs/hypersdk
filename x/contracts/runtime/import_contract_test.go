@@ -13,6 +13,37 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+func BenchmarkDeployContract(b *testing.B) {
+	require := require.New(b)
+
+	ctx := context.Background()
+	rt := newTestRuntime(ctx)
+	contract, err := rt.newTestContract("deploy_contract")
+	require.NoError(err)
+
+	runtime := contract.Runtime
+	otherContractID := ids.GenerateTestID()
+	err = runtime.AddContract(otherContractID[:], codec.CreateAddress(0, otherContractID), "call_contract")
+	require.NoError(err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result, err := contract.Call(
+			"deploy",
+			otherContractID[:])
+			require.NoError(err)
+			
+			newAccount := into[codec.Address](result)
+			
+		b.StopTimer()
+		result, err = runtime.CallContract(newAccount, "simple_call")
+		require.NoError(err)
+		require.Equal(uint64(0), into[uint64](result))
+		b.StartTimer()
+	}
+}
+
+
 func TestImportContractDeployContract(t *testing.T) {
 	require := require.New(t)
 
