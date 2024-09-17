@@ -19,7 +19,6 @@ import (
 )
 
 func TestTransferAction(t *testing.T) {
-	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 	addr, err := codectest.NewRandomAddress()
 	require.NoError(t, err)
 
@@ -103,11 +102,8 @@ func TestTransferAction(t *testing.T) {
 				Value: 1,
 			},
 			State: func() state.Mutable {
-				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
 				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
-				keys.Add(string(emptyBalanceKey), state.All)
-				keys.Add(string(storage.BalanceKey(addr)), state.All)
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -130,8 +126,6 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	require := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
-	toBalanceKey := storage.BalanceKey(to)
-	fromBalanceKey := storage.BalanceKey(from)
 
 	transferActionTest := &chaintest.ActionBenchmark{
 		Name:  "SimpleTransferBenchmark",
@@ -141,12 +135,9 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			Value: 1,
 		},
 		CreateState: func() state.Mutable {
-			keys := make(state.Keys)
 			store := chaintest.NewInMemoryStore()
 			err := storage.SetBalance(context.Background(), store, from, 1)
 			require.NoError(err)
-			keys.Add(string(toBalanceKey), state.All)
-			keys.Add(string(fromBalanceKey), state.All)
 			return store
 		},
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {

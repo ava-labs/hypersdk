@@ -82,7 +82,7 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	})
 }
 
-// ActionBenchmark is paramatized benchmark. It calls Execute on the action with the passed parameters
+// ActionBenchmark is a paramatized benchmark. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass. To avoid using shared state between runs, a new
 // state is created for each iteration using the provided `CreateState` function.
 type ActionBenchmark struct {
@@ -105,17 +105,24 @@ type ActionBenchmark struct {
 func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 	require := require.New(b)
 
+	// create a slice of b.N states
+	states := make([]state.Mutable, b.N)
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		state := test.CreateState()
-		b.StartTimer()
+		states[i] = test.CreateState()
+	}
 
-		output, err := test.Action.Execute(ctx, test.Rules, state, test.Timestamp, test.Actor, test.ActionID)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
 		require.NoError(err)
 		require.Equal(output, test.ExpectedOutputs)
+	}
 
-		if test.Assertion != nil {
-			test.Assertion(ctx, b, state)
+	b.StopTimer()
+	// check assertions
+	if test.Assertion != nil {
+		for i := 0; i < b.N; i++ {
+			test.Assertion(ctx, b, states[i])
 		}
 	}
 }
