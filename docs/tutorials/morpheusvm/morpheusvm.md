@@ -581,19 +581,14 @@ Finally, we need to implement `SponsorStateKeys`.
 The HyperSDK uses `state.Keys` to determine what state keys may be touched during
 the execution of a transaction or block. `state.Keys` includes explicit
 Read/Write/Allocate permissions, so that it can determine how to safely execute
-transactions in parallel as well.
+transactions in parallel.
 
 This enables [parallel transaction execution](../../explanation/features.md#parallel-transaction-execution)
-both by prefetching state in parallel and executing transactions in parallel.
+both for prefetching state and executing transactions.
 
-`SponsorStateKeys` is required to handle the `Auth` module used for
-[account abstraction](../../explanation/features.md#account-abstraction) in the HyperSDK.
-`Auth` separates the `Actor` and `Sponsor` as the address executing an action and
-the address responsible for paying fees on a transaction.
-
-We've already implemented `CanDeduct` and `Deduct`, so that the HyperSDK can charge
-fees, so now we'll implement `SponsorStateKeys` to tell the HyperSDK which state keys
-will be modified and what Read/Write/Allocate permissions are needed.
+`SponsorStateKeys` provides the state keys required by `CanDeduct` and `Deduct`
+when the HyperSDK charges fees to the transaction sponsor (see [account abstraction](../../explanation/features.md#account-abstraction)
+for more details on the `Auth` module).
 
 We'll re-use our `BalanceKey` function and specify that both read and write
 permissions, since the HyperSDK may need to both read/write this balance when
