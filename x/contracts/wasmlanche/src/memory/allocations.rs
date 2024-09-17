@@ -175,20 +175,22 @@ cfg_if! {
             #[test]
             #[should_panic(expected = "already accessed")]
             fn panic_on_concurrent_access() {
-                static SINGLETON: SingletonLenMap = SingletonLenMap::new();
+                fn test_with_iterations(n: usize) -> impl FnOnce() {
+                    static SINGLETON: SingletonLenMap = SingletonLenMap::new();
 
-                let test = || {
-                    // run enough times to make sure there's a collision
-                    for _ in 0..10000 {
-                        SINGLETON.with_borrow(|map| {
-                            assert!(map.is_empty());
-                        });
+                    move || {
+                        for _ in 0..n {
+                            SINGLETON.with_borrow(|map| {
+                                assert!(map.is_empty());
+                            });
+                        }
                     }
-                };
+                }
 
                 std::thread::scope(|scope| {
-                    let t1 = scope.spawn(test);
-                    let t2 = scope.spawn(test);
+                    // run enough times to make sure there's a collision
+                    let t1 = scope.spawn(test_with_iterations(10_000));
+                    let t2 = scope.spawn(test_with_iterations(100));
                     let (t1, t2) = (t1.join(), t2.join());
 
                     if let Err(e) = t1.and(t2) {
