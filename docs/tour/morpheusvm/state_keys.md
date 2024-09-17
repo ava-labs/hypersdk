@@ -110,25 +110,5 @@ HyperSDK:
 - `Write`: the action can write to the storage slot
 - `Allocate`: the action can write a non-zero value to a previously zero slot
 
-We also have the `All` permission which allows for reads, writes, and allocations. 
-
-## Exercise
-
-In the previous section, we added a "donate" feature to the `Execute()` method
-of the transfer action. In this exercise, we'll build on our work by updating
-`StateKeys()` and `StateKeysMaxChunks()` for our code to work.
-
-Your tasks are the following:
-
-- In `StateKeys()`, make sure that the state key associated with the zero
-  address is added
-- In `StateKeysMaxChunks`, make sure that the chunk size associated with the
-  balance of the zero address is added
-
-## Conclusion
-
-In this section, we've gone over the concept of state keys in the HyperSDK.
-Furthermore, we tasked you with implementing state keys on your own.
-
-With both sections now completed, you've successfully implemented a
-donation-like functionality within MorpheusVM!
+We also have the `All` permission which allows for reads, writes, and
+allocations. 
