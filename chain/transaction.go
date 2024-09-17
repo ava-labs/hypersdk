@@ -347,11 +347,6 @@ func (t *Transaction) Execute(
 			actionOutput = []byte{}
 		}
 
-		// Wait to append outputs until after we check that there aren't too many
-		if len(actionOutput) > int(r.GetMaxOutputsPerAction()) {
-			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), actionOutputs, units, fee}, nil
-		}
 		actionOutputs = append(actionOutputs, actionOutput)
 	}
 	return &Result{

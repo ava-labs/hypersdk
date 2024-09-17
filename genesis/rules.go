@@ -100,10 +100,6 @@ func (r *Rules) GetMaxActionsPerTx() uint8 {
 	return r.MaxActionsPerTx
 }
 
-func (r *Rules) GetMaxOutputsPerAction() uint8 {
-	return r.MaxOutputsPerAction
-}
-
 func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.MaxBlockUnits
 }

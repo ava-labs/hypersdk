@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -409,6 +410,10 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.Equal(lastAccepted, blk.ID())
 
 			results := blk.(*chain.StatefulBlock).Results()
+			// Print results
+			for i, result := range results {
+				fmt.Printf("Result %d: Success=%v, Error=%s\n", i, result.Success, result.Error)
+			}
 			require.Len(results, 1)
 			require.True(results[0].Success)
 		})

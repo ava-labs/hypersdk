@@ -121,7 +121,6 @@ type Rules interface {
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
-	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
