@@ -15,3 +15,14 @@
 ### token
 
 - A simple ERC-20 replica
+
+## Installation
+
+To run examples locally, you will need to install the following dependencies:
+
+- Rus. You can do this by following these instructions:
+
+  - https://www.rust-lang.org/tools/install
+
+- Wasm Target. You can do this by running the following command:
+  - `rustup target add wasm32-unknown-unknown`

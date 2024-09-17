@@ -41,7 +41,7 @@ pub fn get_value(context: &mut Context, of: Address) -> Count {
     // T is `Count` which is just an alias for a `u64` (unless you changed it).
     // Note:
     // `expect` will cause the code to panic if there's a deserialization error
-    // otherwise it will take a `Result<T, E>` and return the `T`.`
+    // otherwise it will take a `Result<T, E>` and return the `T`.
     context
         .get(Counter(of))
         .expect("state corrupt")
