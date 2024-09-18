@@ -50,10 +50,6 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ValidatorState() validators.State {
-	return vm.snowCtx.ValidatorState
-}
-
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
