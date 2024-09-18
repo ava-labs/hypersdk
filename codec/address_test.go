@@ -21,7 +21,7 @@ func TestAddress(t *testing.T) {
 	require.NoError(err)
 
 	var parsedAddr Address
-	require.NoError(parsedAddr.UnmarshalText([]byte(addrStr)))
+	require.NoError(parsedAddr.UnmarshalText(addrStr))
 	require.Equal(addr, parsedAddr)
 }
 
