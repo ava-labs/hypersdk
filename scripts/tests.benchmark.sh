@@ -20,4 +20,4 @@ while IFS= read -r line; do
     file_args+=("$line")
 done < <(find "$subdir" -type f -name "*.go" | grep -v "./examples/" | xargs -n1 dirname | sort -u)
 
-go test -timeout="10m" -bench=. -benchtime=1x "${file_args[@]}"
+go test -benchmem -run=^$ -timeout="10m" -bench=. -benchtime=1x "${file_args[@]}"
