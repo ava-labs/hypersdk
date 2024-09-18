@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -47,7 +46,7 @@ func TestMarshalSpecs(t *testing.T) {
 
 	testCases := []struct {
 		name   string
-		object chain.Typed
+		object codec.Typed
 	}{
 		{"empty", &MockObjectSingleNumber{}},
 		{"uint16", &MockObjectSingleNumber{}},
@@ -66,8 +65,8 @@ func TestMarshalSpecs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a copy of the original object
-			unmarshaledFromJSON := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(chain.Typed)
-			unmarshaledFromBytes := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(chain.Typed)
+			unmarshaledFromJSON := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(codec.Typed)
+			unmarshaledFromBytes := reflect.New(reflect.TypeOf(tc.object).Elem()).Interface().(codec.Typed)
 
 			// Get object from file
 			err := json.Unmarshal(mustReadFile(t, "testdata/"+tc.name+".json"), unmarshaledFromJSON)

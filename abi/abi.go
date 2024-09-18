@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type ABI struct {
@@ -18,7 +19,7 @@ type ABI struct {
 	Types   []Type   `serialize:"true" json:"types"`
 }
 
-var _ chain.Typed = (*ABI)(nil)
+var _ codec.Typed = (*ABI)(nil)
 
 func (ABI) GetTypeID() uint8 {
 	return 0

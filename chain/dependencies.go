@@ -241,7 +241,7 @@ type Action interface {
 }
 
 type ActionPair struct {
-	Input  Typed
+	Input  codec.Typed
 	Output interface{}
 }
 
