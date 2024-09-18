@@ -35,7 +35,7 @@ Execute(
 	timestamp int64,
 	actor codec.Address,
 	actionID ids.ID,
-) (output []byte, err error)
+) (output codec.Typed, err error)
 ```
 
 To provide performance out of the box, the `chain.Action` interface requires additional functions to provide state prefetching, pessimistic concurrency control, and multi-dimensional fees.
