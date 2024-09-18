@@ -69,13 +69,19 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	if err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	return &TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	}, err
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -106,4 +112,15 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()
+}
+
+var _ codec.Typed = (*TransferResult)(nil)
+
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
+}
+
+func (*TransferResult) GetTypeID() uint8 {
+	return mconsts.TransferID // Common practice is to use the action ID
 }

@@ -93,18 +93,6 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-// Return type, optional
-var _ codec.Typed = (*TransferResult)(nil)
-
-type TransferResult struct {
-	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
-	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
-}
-
-func (*TransferResult) GetTypeID() uint8 {
-	return mconsts.TransferID // Common practice is to use the action ID
-}
-
 // Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
 var _ chain.Marshaler = (*Transfer)(nil)
 
@@ -124,4 +112,15 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
 	return &transfer, p.Err()
+}
+
+var _ codec.Typed = (*TransferResult)(nil)
+
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
+}
+
+func (*TransferResult) GetTypeID() uint8 {
+	return mconsts.TransferID // Common practice is to use the action ID
 }

@@ -133,19 +133,19 @@ func AddBalance(
 	addr codec.Address,
 	amount uint64,
 	create bool,
-) error {
+) (uint64, error) {
 	key, bal, exists, err := getBalance(ctx, mu, addr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// Don't add balance if account doesn't exist. This
 	// can be useful when processing fee refunds.
 	if !exists && !create {
-		return nil
+		return 0, nil
 	}
 	nbal, err := smath.Add(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
@@ -153,7 +153,7 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
@@ -161,14 +161,17 @@ func SubBalance(
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
-) error {
-	key, bal, _, err := getBalance(ctx, mu, addr)
+) (uint64, error) {
+	key, bal, ok, err := getBalance(ctx, mu, addr)
+	if !ok {
+		return 0, err
+	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
@@ -179,9 +182,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return mu.Remove(ctx, key)
+		return 0, mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 
 func HeightKey() (k []byte) {
