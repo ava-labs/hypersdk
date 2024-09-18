@@ -22,8 +22,7 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	tests := []chaintest.ActionTest{
 		{
