@@ -14,8 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestTransferAction(t *testing.T) {

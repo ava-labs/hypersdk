@@ -110,4 +110,6 @@ linters-settings:
             desc: github.com/stretchr/testify/require should be used instead.
           - pkg: "io/ioutil"
             desc: io/ioutil is deprecated. Use package io or os instead.
+          - pkg: "github.com/ava-labs/hypersdk/internal"
+            desc: internal packages should not be used in example VMs.
     include-go-root: true
