@@ -38,8 +38,8 @@ type RuleFactory interface {
 }
 
 type CustomAllocation struct {
-	Address string `json:"address"`
-	Balance uint64 `json:"balance"`
+	Address codec.Address `json:"address"`
+	Balance uint64        `json:"balance"`
 }
 
 type DefaultGenesis struct {
@@ -60,17 +60,16 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 	_, span := tracer.Start(ctx, "Genesis.InitializeState")
 	defer span.End()
 
-	supply := uint64(0)
+	var (
+		supply uint64
+		err    error
+	)
 	for _, alloc := range g.CustomAllocation {
-		addr, err := codec.ParseAnyHrpAddressBech32(alloc.Address) // TODO: allow VM to specify required HRP
-		if err != nil {
-			return fmt.Errorf("%w: %s", err, alloc.Address)
-		}
 		supply, err = safemath.Add(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
-		if err := balanceHandler.AddBalance(ctx, addr, mu, alloc.Balance, true); err != nil {
+		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance, true); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

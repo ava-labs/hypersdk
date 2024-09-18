@@ -26,10 +26,6 @@ var actionCmd = &cobra.Command{
 	},
 }
 
-func parseAddress(address string) (codec.Address, error) {
-	return codec.ParseAddressBech32(consts.HRP, address)
-}
-
 var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
@@ -46,7 +42,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select recipient
-		recipient, err := prompt.Address("recipient", parseAddress)
+		recipient, err := prompt.Address("recipient")
 		if err != nil {
 			return err
 		}
@@ -125,7 +121,7 @@ var callCmd = &cobra.Command{
 		}
 
 		// Select contract
-		contractAddress, err := prompt.Address("contract address", parseAddress)
+		contractAddress, err := prompt.Address("contract address")
 		if err != nil {
 			return err
 		}
@@ -231,11 +227,7 @@ var deployCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			addressString, err := codec.AddressBech32(consts.HRP, address)
-			if err != nil {
-				return err
-			}
-			utils.Outf(addressString + "\n")
+			utils.Outf(address.String() + "\n")
 		}
 		return err
 	},

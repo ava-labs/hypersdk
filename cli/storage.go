@@ -135,7 +135,7 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 		return codec.EmptyAddress, nil, err
 	}
 	if log {
-		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))
+		utils.Outf("{{yellow}}address:{{/}} %s\n", addr)
 	}
 	return addr, priv, nil
 }
