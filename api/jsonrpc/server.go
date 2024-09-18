@@ -204,6 +204,9 @@ func (j *JSONRPCServer) Execute(
 		}
 	}
 	for i, value := range values {
+		if value == nil {
+			continue
+		}
 		storage[string(storageKeysToRead[i])] = value
 	}
 
