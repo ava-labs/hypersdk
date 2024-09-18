@@ -47,6 +47,9 @@ func init() {
 		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		Auth.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		Auth.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		Output.Register(&actions.PlainBytesOutput{}, nil),
+		Output.Register(&actions.AddressOutput{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

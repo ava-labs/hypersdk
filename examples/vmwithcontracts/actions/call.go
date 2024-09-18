@@ -145,6 +145,6 @@ type PlainBytesOutput struct {
 	Value []byte `serialize:"true" json:"value"`
 }
 
-func (b *PlainBytesOutput) GetTypeID() uint8 {
+func (*PlainBytesOutput) GetTypeID() uint8 {
 	return mconsts.PlainBytesOutputID
 }

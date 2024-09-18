@@ -94,6 +94,6 @@ type AddressOutput struct {
 	Address codec.Address `serialize:"true" json:"address"`
 }
 
-func (a *AddressOutput) GetTypeID() uint8 {
+func (*AddressOutput) GetTypeID() uint8 {
 	return mconsts.AddressOutputID
 }
