@@ -7,8 +7,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 func TestNewABI(t *testing.T) {

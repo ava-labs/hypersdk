@@ -22,6 +22,7 @@ func marshalInto(item interface{}, p *codec.Packer) error {
 	}
 	return codec.LinearCodec.MarshalInto(item, p.Packer)
 }
+
 func Marshal(v interface{}) ([]byte, error) {
 	size, err := GetSize(v)
 	if err != nil {
