@@ -85,7 +85,7 @@ func (t *Transfer) Execute(
 		return nil, err
 	}
 
-	return chain.Marshal(TransferResult{
+	return chain.MarshalTyped(&TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
 	})

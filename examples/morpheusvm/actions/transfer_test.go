@@ -80,7 +80,7 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
-			ExpectedOutputs: chain.MustMarshal(TransferResult{
+			ExpectedOutputs: chain.MustMarshalTyped(&TransferResult{
 				SenderBalance:   1,
 				ReceiverBalance: 1,
 			}),
@@ -119,7 +119,7 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
-			ExpectedOutputs: chain.MustMarshal(TransferResult{
+			ExpectedOutputs: chain.MustMarshalTyped(&TransferResult{
 				SenderBalance:   0,
 				ReceiverBalance: 1,
 			}),

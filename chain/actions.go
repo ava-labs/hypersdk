@@ -35,8 +35,24 @@ func Marshal(v interface{}) ([]byte, error) {
 	return p.Bytes(), nil
 }
 
+func MarshalTyped(v codec.Typed) ([]byte, error) {
+	bytes, err := Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte{v.GetTypeID()}, bytes...), nil
+}
+
 func MustMarshal(v interface{}) []byte {
 	b, err := Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func MustMarshalTyped(v codec.Typed) []byte {
+	b, err := MarshalTyped(v)
 	if err != nil {
 		panic(err)
 	}
