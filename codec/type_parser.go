@@ -9,19 +9,19 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-type decoder[T any] struct {
+type decoder[T Typed] struct {
 	f func(*Packer) (T, error)
 }
 
 // The number of types is limited to 255.
-type TypeParser[T any] struct {
+type TypeParser[T Typed] struct {
 	typeToIndex     map[string]uint8
 	indexToDecoder  map[uint8]*decoder[T]
 	registeredTypes []Typed
 }
 
 // NewTypeParser returns an instance of a Typeparser with generic type [T].
-func NewTypeParser[T any]() *TypeParser[T] {
+func NewTypeParser[T Typed]() *TypeParser[T] {
 	return &TypeParser[T]{
 		typeToIndex:     map[string]uint8{},
 		indexToDecoder:  map[uint8]*decoder[T]{},

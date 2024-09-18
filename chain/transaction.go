@@ -474,7 +474,7 @@ func UnmarshalTx(
 
 func unmarshalActions(
 	p *codec.Packer,
-	actionRegistry ActionRegistry,
+	actionRegistry codec.TypeParser[Action],
 ) ([]Action, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {
@@ -483,7 +483,7 @@ func unmarshalActions(
 	actions := []Action{}
 	for i := uint8(0); i < actionCount; i++ {
 		actionType := p.UnpackByte()
-		unmarshalAction, ok := actionRegistry.LookupUnmarshalFunc(actionType)
+		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}

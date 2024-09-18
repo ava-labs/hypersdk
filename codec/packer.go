@@ -156,33 +156,4 @@ func (p *Packer) Offset() int {
 	return p.Packer.Offset
 }
 
-func Marshal(v interface{}) ([]byte, error) {
-	size, err := LinearCodec.Size(v)
-	if err != nil {
-		return nil, err
-	}
-	p := wrappers.Packer{
-		Bytes:   make([]byte, 0, size),
-		MaxSize: size,
-	}
-	err = LinearCodec.MarshalInto(v, &p)
-	if err != nil {
-		return nil, err
-	}
-
-	if p.Err != nil {
-		return nil, fmt.Errorf("failed to marshal value: %w", p.Err)
-	}
-
-	return p.Bytes, nil
-}
-
-func MustMarshal(v interface{}) []byte {
-	b, err := Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
 type Bytes []byte
