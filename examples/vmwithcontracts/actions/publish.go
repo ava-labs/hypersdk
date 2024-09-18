@@ -63,7 +63,7 @@ func (t *Publish) Execute(
 	if err != nil {
 		return nil, err
 	}
-	return &PlainBytesOutput{Value: resultBytes}, nil
+	return &Result{Value: resultBytes}, nil
 }
 
 func (*Publish) ComputeUnits(chain.Rules) uint64 {

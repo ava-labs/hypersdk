@@ -32,27 +32,25 @@ func Marshal(v interface{}) ([]byte, error) {
 	if err := marshalInto(v, p); err != nil {
 		return nil, err
 	}
-	return p.Bytes(), nil
+	return p.Bytes(), p.Err()
 }
 
 func MarshalTyped(v codec.Typed) ([]byte, error) {
-	bytes, err := Marshal(v)
+	size, err := GetSize(v)
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte{v.GetTypeID()}, bytes...), nil
+	// Allocate a writer with the expected size + 1 byte for the typeID
+	p := codec.NewWriter(size+1, consts.NetworkSizeLimit)
+	p.PackByte(v.GetTypeID())
+	if err := marshalInto(v, p); err != nil {
+		return nil, err
+	}
+	return p.Bytes(), p.Err()
 }
 
 func MustMarshal(v interface{}) []byte {
 	b, err := Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-func MustMarshalTyped(v codec.Typed) []byte {
-	b, err := MarshalTyped(v)
 	if err != nil {
 		panic(err)
 	}
