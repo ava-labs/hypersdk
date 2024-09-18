@@ -151,9 +151,9 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, _, _ := j.vm.Registry()
+	actionRegistry, _, outputRegistry := j.vm.Registry()
 	// Must dereference aliased type to call GetRegisteredTypes
-	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
+	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	actionRegistry, _, _ := j.vm.Registry()
 
-	unmarshalActionFunc, ok := actionRegistry.LookupUnmarshalFunc(args.ActionTypeID)
+	unmarshalActionFunc, ok := (*actionRegistry).LookupIndex(args.ActionTypeID)
 	if !ok {
 		return fmt.Errorf("action type %d not found", args.ActionTypeID)
 	}

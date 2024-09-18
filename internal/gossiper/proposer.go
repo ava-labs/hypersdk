@@ -162,7 +162,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	actionRegistry, authRegistry := g.vm.Registry()
+	actionRegistry, authRegistry, _ := g.vm.Registry()
 	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(

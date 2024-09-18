@@ -195,7 +195,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 }
 
 func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action, actionID uint8, actor codec.Address) ([]byte, string, error) {
-	actionBytes, err := codec.Marshal(action)
+	actionBytes, err := chain.Marshal(action)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to marshal action: %w", err)
 	}

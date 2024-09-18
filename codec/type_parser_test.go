@@ -13,8 +13,10 @@ import (
 )
 
 type Blah interface {
+	Typed
 	Bark() string
 }
+
 type Blah1 struct{}
 
 func (*Blah1) Bark() string { return "blah1" }

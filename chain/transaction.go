@@ -474,7 +474,7 @@ func UnmarshalTx(
 
 func unmarshalActions(
 	p *codec.Packer,
-	actionRegistry codec.TypeParser[Action],
+	actionRegistry *codec.TypeParser[Action],
 ) ([]Action, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {

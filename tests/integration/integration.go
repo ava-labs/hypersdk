@@ -305,8 +305,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
 
-		actionRegistry, _, _ := instances[0].vm.Registry()
-		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
+		actionRegistry, _, outputRegistry := instances[0].vm.Registry()
+		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 		require.NoError(err)
 
 		workload.GetABI(ctx, require, uris, expectedABI)
