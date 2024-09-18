@@ -9,4 +9,7 @@ const (
 	CallContractID uint8 = 1
 	DeployID       uint8 = 2
 	PublishID      uint8 = 3
+
+	PlainBytesOutputID uint8 = 0
+	AddressOutputID    uint8 = 1
 )

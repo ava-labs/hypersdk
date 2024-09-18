@@ -62,7 +62,7 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([]byte, error) {
+) (codec.Typed, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}

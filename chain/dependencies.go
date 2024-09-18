@@ -243,7 +243,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) ([]byte, error)
+	) (codec.Typed, error)
 }
 
 type Auth interface {

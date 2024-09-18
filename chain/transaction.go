@@ -341,13 +341,20 @@ func (t *Transaction) Execute(
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
+
+		var encodedOutput []byte
 		if actionOutput == nil {
 			// Ensure output standardization (match form we will
 			// unmarshal)
-			actionOutput = []byte{}
+			encodedOutput = []byte{}
+		} else {
+			encodedOutput, err = Marshal(actionOutput)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		actionOutputs = append(actionOutputs, actionOutput)
+		actionOutputs = append(actionOutputs, encodedOutput)
 	}
 	return &Result{
 		Success: true,

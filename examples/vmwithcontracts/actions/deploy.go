@@ -54,10 +54,10 @@ func (d *Deploy) Execute(
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
-) ([]byte, error) {
+) (codec.Typed, error) {
 	result, err := (&storage.ContractStateManager{Mutable: mu}).
 		NewAccountWithContract(ctx, d.ContractID, d.CreationInfo)
-	return result[:], err
+	return &AddressOutput{Address: result}, err
 }
 
 func (*Deploy) ComputeUnits(chain.Rules) uint64 {
@@ -88,4 +88,12 @@ func UnmarshalDeployContract(p *codec.Packer) (chain.Action, error) {
 func (*Deploy) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+type AddressOutput struct {
+	Address codec.Address `serialize:"true" json:"address"`
+}
+
+func (a *AddressOutput) GetTypeID() uint8 {
+	return mconsts.AddressOutputID
 }
