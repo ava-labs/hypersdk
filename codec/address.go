@@ -4,25 +4,15 @@
 package codec
 
 import (
-	"encoding/base64"
-	"errors"
-	"fmt"
+	"encoding/hex"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
 
-const (
-	AddressLen = 33
+// TODO: add a checksum to the hex address format (ideally similar to EIP55).
+const AddressLen = 33
 
-	// These consts are pulled from BIP-173: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
-	fromBits      = 8
-	toBits        = 5
-	separatorLen  = 1
-	checksumlen   = 6
-	maxBech32Size = 90
-)
-
+// Address represents the 33 byte address of a HyperSDK account
 type Address [AddressLen]byte
 
 var EmptyAddress = Address{}
@@ -36,106 +26,43 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 	return Address(a)
 }
 
-func ToAddress(bytes []byte) (Address, error) {
-	var result Address
-	if len(bytes) != AddressLen {
-		return result, errors.New("bytes are not an address")
-	}
-	copy(result[:], bytes)
+// HexToAddress returns Address with bytes set to the hex decoding
+// of s.
+// StringToAddress uses copy, which simply copies the minimum of
+// either AddressLen or the length of the hex decoded string.
+func StringToAddress(s string) Address {
+	b, _ := hex.DecodeString(s)
+	var a Address
+	copy(a[:], b)
+	return a
+}
+
+// String implements fmt.Stringer.
+func (a Address) String() string {
+	return hex.EncodeToString(a[:])
+}
+
+// MarshalText returns the hex representation of a.
+func (a Address) MarshalText() ([]byte, error) {
+	result := make([]byte, len(a)*2+2)
+	copy(result, `0x`)
+	hex.Encode(result[2:], a[:])
 	return result, nil
 }
 
-// AddressBech32 returns a Bech32 address from [hrp] and [p].
-// This function uses avalanchego's FormatBech32 function.
-func AddressBech32(hrp string, p Address) (string, error) {
-	expanedNum := AddressLen * fromBits
-	expandedLen := expanedNum / toBits
-	if expanedNum%toBits != 0 {
-		expandedLen++
+// UnmarshalText parses a hex-encoded address.
+func (a *Address) UnmarshalText(input []byte) error {
+	// Check if the input has the '0x' prefix and skip it
+	if len(input) >= 2 && input[0] == '0' && input[1] == 'x' {
+		input = input[2:]
 	}
-	addrLen := len(hrp) + separatorLen + expandedLen + checksumlen
-	if addrLen > maxBech32Size {
-		return "", fmt.Errorf("%w: max=%d, requested=%d", ErrInvalidSize, maxBech32Size, addrLen)
-	}
-	return address.FormatBech32(hrp, p[:])
-}
 
-// MustAddressBech32 returns a Bech32 address from [hrp] and [p] or panics.
-func MustAddressBech32(hrp string, p Address) string {
-	addr, err := AddressBech32(hrp, p)
+	// Decode the hex string
+	decoded, err := hex.DecodeString(string(input))
 	if err != nil {
-		panic(err)
-	}
-	return addr
-}
-
-// ParseAddressBech32 parses a Bech32 encoded address string and extracts
-// its [AddressBytes]. If there is an error reading the address or
-// the hrp value is not valid, ParseAddressBech32 returns an error.
-func ParseAddressBech32(hrp, saddr string) (Address, error) {
-	phrp, addr, err := parseAddressBech32(saddr)
-	if err != nil {
-		return EmptyAddress, err
-	}
-	if phrp != hrp {
-		return EmptyAddress, ErrIncorrectHRP
-	}
-	return addr, nil
-}
-
-// ParseAnyHrpAddressBech32 parses a Bech32 encoded address string and extracts
-// its [AddressBytes]. If there is an error reading the address ParseAnyHrpAddressBech32 returns an error.
-func ParseAnyHrpAddressBech32(saddr string) (Address, error) {
-	_, addr, err := parseAddressBech32(saddr)
-	return addr, err
-}
-
-// parseAddressBech32 parses a Bech32 encoded address string and extracts
-// its [AddressBytes]. If there is an error reading the address parseAddressBech32 returns an error.
-func parseAddressBech32(saddr string) (string, Address, error) {
-	phrp, p, err := address.ParseBech32(saddr)
-	if err != nil {
-		return phrp, EmptyAddress, err
-	}
-	// The parsed value may be greater than [minLength] because the
-	// underlying Bech32 implementation requires bytes to each encode 5 bits
-	// instead of 8 (and we must pad the input to ensure we fill all bytes):
-	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
-	if len(p) < AddressLen {
-		return phrp, EmptyAddress, ErrInsufficientLength
-	}
-	return phrp, Address(p[:AddressLen]), nil
-}
-
-// MarshalJSON marshals the address as a base64  encoded string
-func (a Address) MarshalJSON() ([]byte, error) {
-	// TODO: use hex https://github.com/ava-labs/hypersdk/issues/1527
-	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
-}
-
-// UnmarshalJSON unmarshals the Address from a base64-encoded string.
-func (a *Address) UnmarshalJSON(data []byte) error {
-	// Check if the data starts and ends with quotes
-	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {
-		return errors.New("invalid JSON format: string must be enclosed in quotes")
+		return err // Return the error if the hex string is invalid
 	}
 
-	// Remove quotes from the string
-	s := string(data[1 : len(data)-1])
-
-	// Decode base64 string
-	decoded, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		return err
-	}
-
-	// Check if the decoded data has the correct length
-	if len(decoded) != AddressLen {
-		return ErrInsufficientLength
-	}
-
-	// Copy decoded data to the Address
 	copy(a[:], decoded)
-
 	return nil
 }

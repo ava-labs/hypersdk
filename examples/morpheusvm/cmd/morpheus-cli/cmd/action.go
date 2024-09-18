@@ -42,10 +42,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		recipient, err := codec.ParseAddressBech32(consts.HRP, receipientStr)
-		if err != nil {
-			return err
-		}
+		recipient := codec.HexToAddress(receipientStr)
 
 		// Select amount
 		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)

@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
@@ -68,7 +67,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
 			tx.ID(),
-			codec.MustAddressBech32(consts.HRP, actor),
+			actor,
 			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
@@ -82,13 +81,13 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		var summaryStr string
 		switch act := action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, act.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, actor)
 		}
 		utils.Outf(
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"✅",
 			tx.ID(),
-			codec.MustAddressBech32(consts.HRP, actor),
+			actor,
 			reflect.TypeOf(action),
 			summaryStr,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,

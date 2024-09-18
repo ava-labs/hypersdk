@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
@@ -141,7 +140,7 @@ func AddBalance(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
@@ -167,7 +166,7 @@ func SubBalance(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
