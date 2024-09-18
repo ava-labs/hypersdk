@@ -88,7 +88,7 @@ func (j *JSONRPCServer) SubmitTx(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	actionRegistry, authRegistry, _ := j.vm.Registry()
+	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
 	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
@@ -151,7 +151,7 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, _, outputRegistry := j.vm.Registry()
+	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
 	// Must dereference aliased type to call GetRegisteredTypes
 	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 	if err != nil {
@@ -180,7 +180,7 @@ func (j *JSONRPCServer) ExecuteAction(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	actionRegistry, _, _ := j.vm.Registry()
+	actionRegistry := j.vm.ActionRegistry()
 
 	unmarshalActionFunc, ok := (*actionRegistry).LookupIndex(args.ActionTypeID)
 	if !ok {
