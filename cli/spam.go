@@ -76,7 +76,7 @@ type SpamHelper interface {
 	// interface for the HyperSDK.
 	CreateClient(uri string) error
 	GetParser(ctx context.Context) (chain.Parser, error)
-	LookupBalance(choice int, address string) (uint64, error)
+	LookupBalance(choice int, address codec.Address) (uint64, error)
 
 	// GetTransfer returns a list of actions that sends [amount] to a given [address].
 	//
@@ -112,8 +112,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {
-		address := h.c.Address(keys[i].Address)
-		balance, err := sh.LookupBalance(i, address)
+		balance, err := sh.LookupBalance(i, keys[i].Address)
 		if err != nil {
 			return err
 		}
@@ -415,7 +414,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	issuerWg.Wait()
 
 	// Return funds
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", key.Address)
 	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -49,6 +50,7 @@ func compileContract(contractName string) ([]byte, error) {
 		return nil, err
 	}
 
+	contractName = strings.ReplaceAll(contractName, "-", "_")
 	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
 	if err != nil {
 		return nil, err
@@ -216,7 +218,7 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 		Context: ctx,
 		callContext: NewRuntime(
 			NewConfig(),
-			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
+			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000}),
 		StateManager: TestStateManager{
 			ContractsMap: map[string][]byte{},
 			AccountMap:   map[codec.Address]string{},
@@ -231,6 +233,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
 	testContract := &testContract{
+		ID:      ContractID(stringedID),
 		Address: account,
 		Runtime: t,
 	}
@@ -244,6 +247,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 }
 
 type testContract struct {
+	ID      ContractID
 	Address codec.Address
 	Runtime *testRuntime
 }

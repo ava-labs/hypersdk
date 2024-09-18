@@ -333,32 +333,32 @@ func (t *Transaction) Execute(
 	// for a transaction that returns an error.
 	var (
 		actionStart   = ts.OpIndex()
-		resultOutputs = [][][]byte{}
+		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil
+			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
-		if outputs == nil {
+		if actionOutput == nil {
 			// Ensure output standardization (match form we will
 			// unmarshal)
-			outputs = [][]byte{}
+			actionOutput = []byte{}
 		}
 
 		// Wait to append outputs until after we check that there aren't too many
-		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
+		if len(actionOutput) > int(r.GetMaxOutputsPerAction()) {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), resultOutputs, units, fee}, nil
+			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), actionOutputs, units, fee}, nil
 		}
-		resultOutputs = append(resultOutputs, outputs)
+		actionOutputs = append(actionOutputs, actionOutput)
 	}
 	return &Result{
 		Success: true,
 		Error:   []byte{},
 
-		Outputs: resultOutputs,
+		Outputs: actionOutputs,
 
 		Units: units,
 		Fee:   fee,

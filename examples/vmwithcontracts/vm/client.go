@@ -56,7 +56,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis,
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -71,7 +71,7 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, err
 
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
-	addr string,
+	addr codec.Address,
 	min uint64,
 ) error {
 	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {

@@ -45,7 +45,7 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 }
 
 type BalanceArgs struct {
-	Address string `json:"address"`
+	Address codec.Address `json:"address"`
 }
 
 type BalanceReply struct {
@@ -56,11 +56,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
-	if err != nil {
-		return err
-	}
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, addr)
+	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address)
 	if err != nil {
 		return err
 	}

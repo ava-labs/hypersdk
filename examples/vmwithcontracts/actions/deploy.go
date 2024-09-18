@@ -54,10 +54,10 @@ func (d *Deploy) Execute(
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
+) ([]byte, error) {
 	result, err := (&storage.ContractStateManager{Mutable: mu}).
 		NewAccountWithContract(ctx, d.ContractID, d.CreationInfo)
-	return [][]byte{result[:]}, err
+	return result[:], err
 }
 
 func (*Deploy) ComputeUnits(chain.Rules) uint64 {

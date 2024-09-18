@@ -58,9 +58,8 @@ func (t *Publish) Execute(
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
-	result, err := storage.StoreContract(ctx, mu, t.ContractBytes)
-	return [][]byte{result}, err
+) ([]byte, error) {
+	return storage.StoreContract(ctx, mu, t.ContractBytes)
 }
 
 func (*Publish) ComputeUnits(chain.Rules) uint64 {
