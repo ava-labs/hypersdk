@@ -42,7 +42,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes())
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name

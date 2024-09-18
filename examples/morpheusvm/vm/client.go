@@ -106,7 +106,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.OutputRegistry) {
-	return ActionParser, AuthParser, ReturnTypeParser
+	return ActionParser, AuthParser, OutputParser
 }
 
 func (*Parser) StateManager() chain.StateManager {

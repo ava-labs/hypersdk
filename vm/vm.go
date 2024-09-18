@@ -151,6 +151,7 @@ func New(
 	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
+	outputRegistry chain.OutputRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -168,6 +169,7 @@ func New(
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
+		outputRegistry:        outputRegistry,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,

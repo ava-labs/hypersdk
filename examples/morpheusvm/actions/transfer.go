@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
@@ -84,7 +85,10 @@ func (t *Transfer) Execute(
 		return nil, err
 	}
 
-	return ReturnTypeParser.Marshal(TransferResult{
+	return chain.Marshal(TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	})
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -107,7 +111,6 @@ type TransferResult struct {
 func (*TransferResult) GetTypeID() uint8 {
 	return mconsts.TransferID // Common practice is to use the action ID
 }
-
 
 // Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
 var _ chain.Marshaler = (*Transfer)(nil)

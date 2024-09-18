@@ -33,3 +33,11 @@ func Marshal(v interface{}) ([]byte, error) {
 	}
 	return p.Bytes(), nil
 }
+
+func MustMarshal(v interface{}) []byte {
+	b, err := Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}

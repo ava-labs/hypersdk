@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ActionParser chain.ActionRegistry
-	AuthParser   chain.AuthRegistry
-	OutputParser chain.OutputRegistry
+	ActionParser *codec.TypeParser[chain.Action]
+	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
@@ -54,6 +54,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		&storage.StateManager{},
 		ActionParser,
 		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		options...,
 	)
