@@ -5,7 +5,6 @@ package abi
 
 import (
 	"go/format"
-	"os"
 	"strings"
 	"testing"
 
@@ -24,8 +23,6 @@ func TestGenerateAllStructs(t *testing.T) {
 
 	formatted, err := format.Source(removeCommentLines(expected))
 	require.NoError(err)
-
-	os.WriteFile("mockabi_test.txt", []byte(code), 0o644)
 
 	require.Equal(string(formatted), code)
 }
