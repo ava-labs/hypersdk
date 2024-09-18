@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type ABI struct {
@@ -17,7 +18,7 @@ type ABI struct {
 	Types   []NamedStruct `serialize:"true" json:"types"`
 }
 
-var _ Typed = (*ABI)(nil)
+var _ codec.Typed = (*ABI)(nil)
 
 func (ABI) GetTypeID() uint8 {
 	return 0
@@ -38,7 +39,7 @@ type NamedStruct struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func NewABI(actions []Typed, returnTypes []Typed) (ABI, error) {
+func NewABI(actions []codec.Typed, returnTypes []codec.Typed) (ABI, error) {
 	vmActions := make([]TypedStruct, 0)
 	vmOutputs := make([]TypedStruct, 0)
 	vmTypes := make([]NamedStruct, 0)
@@ -80,7 +81,7 @@ func NewABI(actions []Typed, returnTypes []Typed) (ABI, error) {
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
 
-func describeAction(action Typed, typesAlreadyProcessed set.Set[reflect.Type]) (TypedStruct, []NamedStruct, error) {
+func describeAction(action codec.Typed, typesAlreadyProcessed set.Set[reflect.Type]) (TypedStruct, []NamedStruct, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()

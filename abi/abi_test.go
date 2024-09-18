@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]Typed{
+	actualABI, err := NewABI([]codec.Typed{
 		MockObjectSingleNumber{},
 		MockActionTransfer{},
 		MockObjectAllNumbers{},
@@ -23,7 +24,7 @@ func TestNewABI(t *testing.T) {
 		MockActionWithTransferArray{},
 		Outer{},
 		ActionWithOutput{},
-	}, []Typed{
+	}, []codec.Typed{
 		ActionOutput{},
 	})
 	require.NoError(err)
@@ -37,9 +38,9 @@ func TestNewABI(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]Typed{
+	actualABI, err := NewABI([]codec.Typed{
 		ABI{},
-	}, []Typed{})
+	}, []codec.Typed{})
 	require.NoError(err)
 
 	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
