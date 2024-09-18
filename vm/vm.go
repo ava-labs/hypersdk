@@ -39,6 +39,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/network"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
+	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
@@ -66,7 +67,7 @@ type VM struct {
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
-	proposerMonitor *ProposerMonitor
+	proposerMonitor *validators.ProposerMonitor
 
 	config Config
 
@@ -205,7 +206,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
-	vm.proposerMonitor = NewProposerMonitor(vm)
+	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
 	pebbleConfig := pebble.NewDefaultConfig()

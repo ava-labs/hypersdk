@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package validators
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -23,8 +24,13 @@ const (
 	proposerMonitorLRUSize = 60
 )
 
+type Backend interface {
+	PreferredHeight(ctx context.Context) (uint64, error)
+}
+
 type ProposerMonitor struct {
-	vm       *VM
+	backend  Backend
+	snowCtx  *snow.Context
 	proposer proposer.Windower
 
 	currentPHeight      uint64
@@ -37,13 +43,14 @@ type ProposerMonitor struct {
 	rl sync.Mutex
 }
 
-func NewProposerMonitor(vm *VM) *ProposerMonitor {
+func NewProposerMonitor(backend Backend, snowCtx *snow.Context) *ProposerMonitor {
 	return &ProposerMonitor{
-		vm: vm,
+		backend: backend,
+		snowCtx: snowCtx,
 		proposer: proposer.New(
-			vm.snowCtx.ValidatorState,
-			vm.snowCtx.SubnetID,
-			vm.snowCtx.ChainID,
+			snowCtx.ValidatorState,
+			snowCtx.SubnetID,
+			snowCtx.ChainID,
 		),
 		proposerCache: &cache.LRU[string, []ids.NodeID]{Size: proposerMonitorLRUSize},
 	}
@@ -58,14 +65,14 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		return nil
 	}
 	start := time.Now()
-	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+	pHeight, err := p.snowCtx.ValidatorState.GetCurrentHeight(ctx)
 	if err != nil {
 		return err
 	}
-	p.validators, err = p.vm.snowCtx.ValidatorState.GetValidatorSet(
+	p.validators, err = p.snowCtx.ValidatorState.GetValidatorSet(
 		ctx,
 		pHeight,
-		p.vm.snowCtx.SubnetID,
+		p.snowCtx.SubnetID,
 	)
 	if err != nil {
 		return err
@@ -78,7 +85,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		pks[string(bls.PublicKeyToCompressedBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Info(
+	p.snowCtx.Log.Info(
 		"refreshed proposer monitor",
 		zap.Uint64("previous", p.currentPHeight),
 		zap.Uint64("new", pHeight),
@@ -105,14 +112,14 @@ func (p *ProposerMonitor) Proposers(
 	if err := p.refresh(ctx); err != nil {
 		return nil, err
 	}
-	preferredBlk, err := p.vm.GetStatefulBlock(ctx, p.vm.preferred)
+	preferredHeight, err := p.backend.PreferredHeight(ctx)
 	if err != nil {
 		return nil, err
 	}
 	proposersToGossip := set.NewSet[ids.NodeID](diff * depth)
 	udepth := uint64(depth)
 	for i := uint64(1); i <= uint64(diff); i++ {
-		height := preferredBlk.Hght + i
+		height := preferredHeight + i
 		key := fmt.Sprintf("%d-%d", height, p.currentPHeight)
 		var proposers []ids.NodeID
 		if v, ok := p.proposerCache.Get(key); ok {
