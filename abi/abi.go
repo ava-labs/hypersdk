@@ -16,7 +16,7 @@ import (
 type ABI struct {
 	Actions []TypedStruct `serialize:"true" json:"actions"`
 	Outputs []TypedStruct `serialize:"true" json:"outputs"`
-	Types   []NamedStruct `serialize:"true" json:"types"`
+	Types   []Type        `serialize:"true" json:"types"`
 }
 
 var _ codec.Typed = (*ABI)(nil)
@@ -35,7 +35,7 @@ type TypedStruct struct {
 	Name string `serialize:"true" json:"name"`
 }
 
-type NamedStruct struct {
+type Type struct {
 	Name   string  `serialize:"true" json:"name"`
 	Fields []Field `serialize:"true" json:"fields"`
 }
@@ -43,12 +43,12 @@ type NamedStruct struct {
 func NewABI(actions []codec.Typed, returnTypes []codec.Typed) (ABI, error) {
 	vmActions := make([]TypedStruct, 0)
 	vmOutputs := make([]TypedStruct, 0)
-	vmTypes := make([]NamedStruct, 0)
+	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
 	typesAlreadyProcessed := set.Set[reflect.Type]{}
 
 	for _, action := range actions {
-		actionABI, typeABI, err := describeAction(action, typesAlreadyProcessed)
+		actionABI, typeABI, err := describeTypedStruct(action, typesAlreadyProcessed)
 		if err != nil {
 			return ABI{}, err
 		}
@@ -62,7 +62,7 @@ func NewABI(actions []codec.Typed, returnTypes []codec.Typed) (ABI, error) {
 	}
 
 	for _, returnType := range returnTypes {
-		outputABI, typeABI, err := describeAction(returnType, typesAlreadyProcessed)
+		outputABI, typeABI, err := describeTypedStruct(returnType, typesAlreadyProcessed)
 		if err != nil {
 			return ABI{}, err
 		}
@@ -78,22 +78,22 @@ func NewABI(actions []codec.Typed, returnTypes []codec.Typed) (ABI, error) {
 	return ABI{Actions: vmActions, Outputs: vmOutputs, Types: vmTypes}, nil
 }
 
-// describeAction generates the TypedStruct and NamedStructs for a single action or output.
+// describeTypedStruct generates the TypedStruct and Types for a single typed struct (action or output).
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
 
-func describeAction(action codec.Typed, typesAlreadyProcessed set.Set[reflect.Type]) (TypedStruct, []NamedStruct, error) {
-	t := reflect.TypeOf(action)
+func describeTypedStruct(typedStruct codec.Typed, typesAlreadyProcessed set.Set[reflect.Type]) (TypedStruct, []Type, error) {
+	t := reflect.TypeOf(typedStruct)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	actionABI := TypedStruct{
-		ID:   action.GetTypeID(),
+	typedStructABI := TypedStruct{
+		ID:   typedStruct.GetTypeID(),
 		Name: t.Name(),
 	}
 
-	typesABI := make([]NamedStruct, 0)
+	typesABI := make([]Type, 0)
 	typesLeft := []reflect.Type{t}
 
 	// Process all types, including nested ones
@@ -116,7 +116,7 @@ func describeAction(action codec.Typed, typesAlreadyProcessed set.Set[reflect.Ty
 			return TypedStruct{}, nil, err
 		}
 
-		typesABI = append(typesABI, NamedStruct{
+		typesABI = append(typesABI, Type{
 			Name:   nextType.Name(),
 			Fields: fields,
 		})
@@ -125,7 +125,7 @@ func describeAction(action codec.Typed, typesAlreadyProcessed set.Set[reflect.Ty
 		typesAlreadyProcessed.Add(nextType)
 	}
 
-	return actionABI, typesABI, nil
+	return typedStructABI, typesABI, nil
 }
 
 // describeStruct analyzes a struct type and returns its fields and any nested struct types it found

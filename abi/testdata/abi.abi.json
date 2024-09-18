@@ -20,7 +20,7 @@
                 },
                 {
                     "name": "types",
-                    "type": "[]NamedStruct"
+                    "type": "[]Type"
                 }
             ]
         },
@@ -38,7 +38,7 @@
             ]
         },
         {
-            "name": "NamedStruct",
+            "name": "Type",
             "fields": [
                 {
                     "name": "name",
