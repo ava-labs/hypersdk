@@ -60,7 +60,7 @@ type ActionTest struct {
 	Actor     codec.Address
 	ActionID  ids.ID
 
-	ExpectedOutputs []byte
+	ExpectedOutputs codec.Typed
 	ExpectedErr     error
 
 	Assertion func(context.Context, *testing.T, state.Mutable)
@@ -95,7 +95,7 @@ type ActionBenchmark struct {
 	Actor       codec.Address
 	ActionID    ids.ID
 
-	ExpectedOutputs [][]byte
+	ExpectedOutputs []codec.Typed
 	ExpectedErr     error
 
 	Assertion func(context.Context, *testing.B, state.Mutable)

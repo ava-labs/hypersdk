@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
@@ -80,10 +79,10 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
-			ExpectedOutputs: chain.MustMarshalTyped(&TransferResult{
+			ExpectedOutputs: &TransferResult{
 				SenderBalance:   1,
 				ReceiverBalance: 1,
-			}),
+			},
 		},
 		{
 			Name:  "OverflowBalance",
@@ -119,10 +118,10 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
-			ExpectedOutputs: chain.MustMarshalTyped(&TransferResult{
+			ExpectedOutputs: &TransferResult{
 				SenderBalance:   0,
 				ReceiverBalance: 1,
-			}),
+			},
 		},
 	}
 
