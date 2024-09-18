@@ -81,7 +81,7 @@ func (t *Transfer) Execute(
 	return &TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
-	}, err
+	}, nil
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
