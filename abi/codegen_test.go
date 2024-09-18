@@ -4,8 +4,8 @@
 package abi
 
 import (
-	"encoding/json"
 	"go/format"
+	"os"
 	"strings"
 	"testing"
 
@@ -25,6 +25,8 @@ func TestGenerateAllStructs(t *testing.T) {
 	formatted, err := format.Source(removeCommentLines(expected))
 	require.NoError(err)
 
+	os.WriteFile("mockabi_test.txt", []byte(code), 0o644)
+
 	require.Equal(string(formatted), code)
 }
 
@@ -37,11 +39,4 @@ func removeCommentLines(input []byte) []byte {
 		}
 	}
 	return []byte(strings.Join(result, "\n"))
-}
-
-func mustJSONParse[T any](t *testing.T, jsonStr string) T {
-	var parsed T
-	err := json.Unmarshal([]byte(jsonStr), &parsed)
-	require.NoError(t, err, jsonStr)
-	return parsed
 }

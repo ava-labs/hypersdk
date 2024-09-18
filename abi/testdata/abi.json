@@ -1,49 +1,46 @@
 {
     "actions": [
         {
+            "id": 0,
+            "name": "MockObjectSingleNumber"
+        },
+        {
             "id": 1,
-            "action": "MockObjectSingleNumber",
-            "output": ""
+            "name": "MockActionTransfer"
         },
         {
             "id": 2,
-            "action": "MockActionTransfer",
-            "output": ""
+            "name": "MockObjectAllNumbers"
         },
         {
             "id": 3,
-            "action": "MockObjectAllNumbers",
-            "output": ""
+            "name": "MockObjectStringAndBytes"
         },
         {
             "id": 4,
-            "action": "MockObjectStringAndBytes",
-            "output": ""
+            "name": "MockObjectArrays"
         },
         {
             "id": 5,
-            "action": "MockObjectArrays",
-            "output": ""
-        },
-        {
-            "id": 7,
-            "action": "MockActionWithTransfer",
-            "output": ""
+            "name": "MockActionWithTransfer"
         },
         {
             "id": 6,
-            "action": "MockActionWithTransferArray",
-            "output": ""
+            "name": "MockActionWithTransferArray"
+        },
+        {
+            "id": 7,
+            "name": "Outer"
         },
         {
             "id": 8,
-            "action": "Outer",
-            "output": ""
-        },
+            "name": "ActionWithOutput"
+        }
+    ],
+    "outputs": [
         {
-            "id": 9,
-            "action": "ActionWithOutput",
-            "output": "ActionOutput"
+            "id": 0,
+            "name": "ActionOutput"
         }
     ],
     "types": [

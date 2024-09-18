@@ -72,27 +72,27 @@ type ActionOutput struct {
 }
 
 func (MockObjectSingleNumber) GetTypeID() uint8 {
-	return 1
+	return 0
 }
 
 func (MockActionTransfer) GetTypeID() uint8 {
-	return 2
+	return 1
 }
 
 func (MockObjectAllNumbers) GetTypeID() uint8 {
-	return 3
+	return 2
 }
 
 func (MockObjectStringAndBytes) GetTypeID() uint8 {
-	return 4
+	return 3
 }
 
 func (MockObjectArrays) GetTypeID() uint8 {
-	return 5
+	return 4
 }
 
 func (MockActionWithTransfer) GetTypeID() uint8 {
-	return 7
+	return 5
 }
 
 func (MockActionWithTransferArray) GetTypeID() uint8 {
@@ -100,9 +100,13 @@ func (MockActionWithTransferArray) GetTypeID() uint8 {
 }
 
 func (Outer) GetTypeID() uint8 {
-	return 8
+	return 7
 }
 
 func (ActionWithOutput) GetTypeID() uint8 {
-	return 9
+	return 8
+}
+
+func (ActionOutput) GetTypeID() uint8 {
+	return 0
 }

@@ -2,42 +2,43 @@
     "actions": [
         {
             "id": 0,
-            "action": "ABI"
+            "name": "ABI"
         }
     ],
+    "outputs": [],
     "types": [
         {
             "name": "ABI",
             "fields": [
                 {
                     "name": "actions",
-                    "type": "[]Action"
+                    "type": "[]TypedStruct"
+                },
+                {
+                    "name": "outputs",
+                    "type": "[]TypedStruct"
                 },
                 {
                     "name": "types",
-                    "type": "[]Type"
+                    "type": "[]NamedStruct"
                 }
             ]
         },
         {
-            "name": "Action",
+            "name": "TypedStruct",
             "fields": [
                 {
                     "name": "id",
                     "type": "uint8"
                 },
                 {
-                    "name": "action",
-                    "type": "string"
-                },
-                {
-                    "name": "output",
+                    "name": "name",
                     "type": "string"
                 }
             ]
         },
         {
-            "name": "Type",
+            "name": "NamedStruct",
             "fields": [
                 {
                     "name": "name",

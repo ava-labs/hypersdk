@@ -6,3 +6,7 @@ type ActionPair struct {
 	Input  codec.Typed
 	Output interface{}
 }
+
+type Typed interface {
+	GetTypeID() uint8
+}

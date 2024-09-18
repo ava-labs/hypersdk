@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,16 +13,18 @@ import (
 func TestNewABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]ActionPair{
-		{Input: MockObjectSingleNumber{}},
-		{Input: MockActionTransfer{}},
-		{Input: MockObjectAllNumbers{}},
-		{Input: MockObjectStringAndBytes{}},
-		{Input: MockObjectArrays{}},
-		{Input: MockActionWithTransfer{}},
-		{Input: MockActionWithTransferArray{}},
-		{Input: Outer{}},
-		{Input: ActionWithOutput{}, Output: ActionOutput{}},
+	actualABI, err := NewABI([]Typed{
+		MockObjectSingleNumber{},
+		MockActionTransfer{},
+		MockObjectAllNumbers{},
+		MockObjectStringAndBytes{},
+		MockObjectArrays{},
+		MockActionWithTransfer{},
+		MockActionWithTransferArray{},
+		Outer{},
+		ActionWithOutput{},
+	}, []Typed{
+		ActionOutput{},
 	})
 	require.NoError(err)
 
@@ -34,13 +37,20 @@ func TestNewABI(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]ActionPair{
-		{Input: ABI{}},
-	})
+	actualABI, err := NewABI([]Typed{
+		ABI{},
+	}, []Typed{})
 	require.NoError(err)
 
 	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
 	expectedABI := mustJSONParse[ABI](t, string(expectedABIJSON))
 
 	require.Equal(expectedABI, actualABI)
+}
+
+func mustJSONParse[T any](t *testing.T, jsonStr string) T {
+	var parsed T
+	err := json.Unmarshal([]byte(jsonStr), &parsed)
+	require.NoError(t, err, jsonStr)
+	return parsed
 }
