@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli/prompt"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
@@ -38,11 +37,10 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select recipient
-		receipientStr, err := prompt.String("recipient", 0, 200)
+		recipient, err := prompt.Address("recipient")
 		if err != nil {
 			return err
 		}
-		recipient := codec.HexToAddress(receipientStr)
 
 		// Select amount
 		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)

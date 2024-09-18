@@ -5,6 +5,7 @@ package codec
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 )
@@ -26,9 +27,18 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 	return Address(a)
 }
 
-// HexToAddress returns Address with bytes set to the hex decoding
+func ToAddress(b []byte) (Address, error) {
+	var a Address
+	if len(b) != AddressLen {
+		return a, fmt.Errorf("failed to convert bytes to address: length of bytes is %d, expected %d", len(b), AddressLen)
+	}
+	copy(a[:], b)
+	return a, nil
+}
+
+// StringToAddress returns Address with bytes set to the hex decoding
 // of s.
-// StringToAddress uses copy, which simply copies the minimum of
+// StringToAddress uses copy, which copies the minimum of
 // either AddressLen or the length of the hex decoded string.
 func StringToAddress(s string) Address {
 	b, _ := hex.DecodeString(s)
