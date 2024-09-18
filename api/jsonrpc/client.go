@@ -200,11 +200,11 @@ func (cli *JSONRPCClient) ExecuteAction(ctx context.Context, action chain.Action
 		return nil, "", fmt.Errorf("failed to marshal action: %w", err)
 	}
 
-	actionTypeId := action.GetTypeID()
+	actionTypeID := action.GetTypeID()
 
 	args := &ExecuteActionArgs{
 		ActionBytes:       actionBytes,
-		ActionTypeID:      actionTypeId,
+		ActionTypeID:      actionTypeID,
 		ActorAddressBytes: actor[:],
 	}
 
