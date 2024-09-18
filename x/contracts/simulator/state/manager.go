@@ -47,32 +47,40 @@ func NewContractStateManager(db state.Mutable) *ContractStateManager {
 // GetBalance gets the balance associated [account].
 // Returns 0 if no balance was found or errors if another error is present
 func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
-	return p.getAccountBalance(ctx, address)
+	v, err := p.db.GetValue(ctx, accountBalanceKey(address[:]))
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.BigEndian.Uint64(v), nil
 }
 
 func (p *ContractStateManager) SetBalance(ctx context.Context, address codec.Address, amount uint64) error {
-	return p.setAccountBalance(ctx, address, amount)
+	return p.db.Insert(ctx, accountBalanceKey(address[:]), binary.BigEndian.AppendUint64(nil, amount))
 }
 
 func (p *ContractStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
-	fromBalance, err := p.getAccountBalance(ctx, from)
+	fromBalance, err := p.GetBalance(ctx, from)
 	if err != nil {
 		return err
 	}
 	if fromBalance < amount {
 		return errors.New("insufficient balance")
 	}
-	toBalance, err := p.getAccountBalance(ctx, to)
+	toBalance, err := p.GetBalance(ctx, to)
 	if err != nil {
 		return err
 	}
 
-	err = p.setAccountBalance(ctx, to, toBalance+amount)
+	err = p.SetBalance(ctx, to, toBalance+amount)
 	if err != nil {
 		return err
 	}
 
-	return p.setAccountBalance(ctx, from, fromBalance-amount)
+	return p.SetBalance(ctx, from, fromBalance-amount)
 }
 
 func (p *ContractStateManager) GetContractState(account codec.Address) state.Mutable {
@@ -92,42 +100,25 @@ func (p *ContractStateManager) GetAccountContract(ctx context.Context, account c
 	return contractID[:], nil
 }
 
+// [contractID] -> [contractBytes]
 func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
 	// TODO: take fee out of balance?
-	contractBytes, exists, err := p.getContract(ctx, contractID)
+	contractBytes, err := p.db.GetValue(ctx, contractKey(contractID))
 	if err != nil {
 		return []byte{}, ErrUnknownAccount
 	}
-	if !exists {
-		return []byte{}, ErrUnknownAccount
-	}
+
 	return contractBytes, nil
 }
 
 func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
 	newID := sha256.Sum256(append(contractID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
-	return newAccount, p.setAccountContract(ctx, newAccount, contractID)
+	return newAccount, p.SetAccountContract(ctx, newAccount, contractID)
 }
 
 func (p *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
-	return p.setAccountContract(ctx, account, contractID)
-}
-
-func (p *ContractStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
-	return p.db.Insert(ctx, accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
-}
-
-func (p *ContractStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
-	v, err := p.db.GetValue(ctx, accountBalanceKey(account[:]))
-	if errors.Is(err, database.ErrNotFound) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	return binary.BigEndian.Uint64(v), nil
+	return p.db.Insert(ctx, accountDataKey(account[:], contractKeyBytes), contractID)
 }
 
 // Creates an account balance key
@@ -166,26 +157,6 @@ func (p *ContractStateManager) getAccountContract(ctx context.Context, account c
 		return ids.Empty, false, err
 	}
 	return ids.ID(v[:ids.IDLen]), true, nil
-}
-
-func (p *ContractStateManager) setAccountContract(
-	ctx context.Context,
-	account codec.Address,
-	contractID []byte,
-) error {
-	return p.db.Insert(ctx, accountDataKey(account[:], contractKeyBytes), contractID)
-}
-
-// [contractID] -> [contractBytes]
-func (p *ContractStateManager) getContract(ctx context.Context, contractID runtime.ContractID) ([]byte, bool, error) {
-	v, err := p.db.GetValue(ctx, contractKey(contractID))
-	if errors.Is(err, database.ErrNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return v, true, nil
 }
 
 // setContract stores [contract] at [contractID]

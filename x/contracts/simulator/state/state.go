@@ -28,7 +28,7 @@ type Mutable = C.Mutable
 
 func NewSimulatorState(db unsafe.Pointer) *Mutable {
 	// convert unsafe pointer to C.Mutable
-	mutable := (*C.Mutable)(db)
+	mutable := (*Mutable)(db)
 	return mutable
 }
 
