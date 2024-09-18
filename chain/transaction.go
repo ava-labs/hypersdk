@@ -348,7 +348,7 @@ func (t *Transaction) Execute(
 			// unmarshal)
 			encodedOutput = []byte{}
 		} else {
-			encodedOutput, err = Marshal(actionOutput)
+			encodedOutput, err = MarshalTyped(actionOutput)
 			if err != nil {
 				return nil, err
 			}

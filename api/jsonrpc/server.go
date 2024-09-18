@@ -241,7 +241,7 @@ func (j *JSONRPCServer) ExecuteAction(
 		return nil
 	}
 
-	encodedOutput, err := chain.Marshal(output)
+	encodedOutput, err := chain.MarshalTyped(output)
 	if err != nil {
 		return fmt.Errorf("failed to marshal output: %w", err)
 	}
