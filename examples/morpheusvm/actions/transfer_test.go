@@ -19,8 +19,7 @@ import (
 )
 
 func TestTransferAction(t *testing.T) {
-	addr, err := codectest.NewRandomAddress()
-	require.NoError(t, err)
+	addr := codectest.NewRandomAddress()
 
 	tests := []chaintest.ActionTest{
 		{

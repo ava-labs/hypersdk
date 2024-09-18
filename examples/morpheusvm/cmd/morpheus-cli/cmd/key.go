@@ -10,11 +10,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -136,7 +134,7 @@ var genKeyCmd = &cobra.Command{
 		}
 		utils.Outf(
 			"{{green}}created address:{{/}} %s",
-			codec.MustAddressBech32(consts.HRP, priv.Address),
+			priv.Address,
 		)
 		return nil
 	},
@@ -163,7 +161,7 @@ var importKeyCmd = &cobra.Command{
 		}
 		utils.Outf(
 			"{{green}}imported address:{{/}} %s",
-			codec.MustAddressBech32(consts.HRP, priv.Address),
+			priv.Address,
 		)
 		return nil
 	},

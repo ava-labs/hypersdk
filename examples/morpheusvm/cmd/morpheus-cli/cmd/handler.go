@@ -87,17 +87,13 @@ func (*Handler) GetBalance(
 	cli *vm.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
-	saddr, err := codec.AddressBech32(consts.HRP, addr)
-	if err != nil {
-		return 0, err
-	}
-	balance, err := cli.Balance(ctx, saddr)
+	balance, err := cli.Balance(ctx, addr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
 		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		utils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
@@ -129,14 +125,6 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(addr codec.Address) string {
-	return codec.MustAddressBech32(consts.HRP, addr)
-}
-
-func (*Controller) ParseAddress(addr string) (codec.Address, error) {
-	return codec.ParseAddressBech32(consts.HRP, addr)
-}
-
 func (*Controller) GetParser(uri string) (chain.Parser, error) {
 	cli := vm.NewJSONRPCClient(uri)
 	return cli.Parser(context.TODO())
@@ -146,7 +134,7 @@ func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
 	handleTx(tx, result)
 }
 
-func (*Controller) LookupBalance(address string, uri string) (uint64, error) {
+func (*Controller) LookupBalance(address codec.Address, uri string) (uint64, error) {
 	cli := vm.NewJSONRPCClient(uri)
 	balance, err := cli.Balance(context.TODO(), address)
 	return balance, err
