@@ -5,6 +5,7 @@ package chain
 
 import (
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 func GetSize(item interface{}) (int, error) {
@@ -20,4 +21,15 @@ func marshalInto(item interface{}, p *codec.Packer) error {
 		return nil
 	}
 	return codec.LinearCodec.MarshalInto(item, p.Packer)
+}
+func Marshal(v interface{}) ([]byte, error) {
+	size, err := GetSize(v)
+	if err != nil {
+		return nil, err
+	}
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	if err := marshalInto(v, p); err != nil {
+		return nil, err
+	}
+	return p.Bytes(), nil
 }

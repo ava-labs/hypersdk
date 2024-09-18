@@ -428,8 +428,8 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
@@ -442,7 +442,7 @@ func UnmarshalTx(
 	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
-	unmarshalAuth, ok := authRegistry.LookupUnmarshalFunc(authType)
+	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
 	}

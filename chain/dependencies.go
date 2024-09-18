@@ -23,14 +23,14 @@ import (
 )
 
 type (
-	ActionRegistry     *codec.TypeParser[Action]
-	AuthRegistry       *codec.TypeParser[Auth]
-	ReturnTypeRegistry *codec.TypeParser[codec.Typed]
+	ActionRegistry *codec.TypeParser[Action]
+	AuthRegistry   *codec.TypeParser[Auth]
+	OutputRegistry *codec.TypeParser[codec.Typed]
 )
 
 type Parser interface {
 	Rules(int64) Rules
-	Registry() (ActionRegistry, AuthRegistry, ReturnTypeRegistry)
+	Registry() (ActionRegistry, AuthRegistry, OutputRegistry)
 }
 
 type Metrics interface {

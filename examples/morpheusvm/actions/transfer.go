@@ -107,3 +107,25 @@ type TransferResult struct {
 func (*TransferResult) GetTypeID() uint8 {
 	return mconsts.TransferID // Common practice is to use the action ID
 }
+
+
+// Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
+var _ chain.Marshaler = (*Transfer)(nil)
+
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+}
+
+func (t *Transfer) Marshal(p *codec.Packer) {
+	p.PackAddress(t.To)
+	p.PackLong(t.Value)
+	p.PackBytes(t.Memo)
+}
+
+func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+	var transfer Transfer
+	p.UnpackAddress(&transfer.To)
+	transfer.Value = p.UnpackUint64(true)
+	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
+	return &transfer, p.Err()
+}

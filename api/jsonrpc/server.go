@@ -153,7 +153,7 @@ type GetABIReply struct {
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
 	actionRegistry, _, _ := j.vm.Registry()
 	// Must dereference aliased type to call GetRegisteredTypes
-	vmABI, err := abi.NewABI((ActionRegistry).GetRegisteredTypes())
+	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}

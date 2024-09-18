@@ -109,8 +109,8 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
-	actionRegistry := chain.NewActionRegistry()
-	authRegistry := chain.NewAuthRegistry()
+	actionRegistry := codec.NewTypeParser[chain.Action]()
+	authRegistry := codec.NewTypeParser[chain.Auth]()
 
 	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)

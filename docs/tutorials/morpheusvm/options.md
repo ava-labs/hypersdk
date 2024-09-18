@@ -270,7 +270,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.ReturnTypeRegistry) {
+func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.OutputRegistry) {
 	return ActionParser, AuthParser, ReturnTypeParser
 }
 

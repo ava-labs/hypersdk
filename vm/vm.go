@@ -91,7 +91,7 @@ type VM struct {
 	stateManager          chain.StateManager
 	actionRegistry        chain.ActionRegistry
 	authRegistry          chain.AuthRegistry
-	returnTypeRegistry    chain.ReturnTypeRegistry
+	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer

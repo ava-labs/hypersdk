@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
@@ -23,14 +24,14 @@ import (
 var (
 	Action      chain.ActionRegistry
 	Auth        chain.AuthRegistry
-	ReturnType  chain.ReturnTypeRegistry
+	ReturnType  chain.OutputRegistry
 	wasmRuntime *runtime.WasmRuntime
 )
 
 // Setup types
 func init() {
-	Action = chain.NewActionRegistry()
-	Auth = chain.NewAuthRegistry()
+	Action = codec.NewTypeParser[chain.Action]()
+	Auth = codec.NewTypeParser[chain.Auth]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(

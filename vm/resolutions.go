@@ -54,8 +54,8 @@ func (vm *VM) ValidatorState() validators.State {
 	return vm.snowCtx.ValidatorState
 }
 
-func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.ReturnTypeRegistry) {
-	return vm.actionRegistry, vm.authRegistry, vm.returnTypeRegistry
+func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.OutputRegistry) {
+	return vm.actionRegistry, vm.authRegistry, vm.outputRegistry
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
