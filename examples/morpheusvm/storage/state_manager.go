@@ -55,7 +55,8 @@ func (*StateManager) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return SubBalance(ctx, mu, addr, amount)
+	_, err := SubBalance(ctx, mu, addr, amount)
+	return err
 }
 
 func (*StateManager) AddBalance(
@@ -65,5 +66,6 @@ func (*StateManager) AddBalance(
 	amount uint64,
 	createAccount bool,
 ) error {
-	return AddBalance(ctx, mu, addr, amount, createAccount)
+	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
+	return err
 }

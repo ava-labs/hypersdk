@@ -69,18 +69,11 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return nil, err
-	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return nil, err
-	}
-
-	senderBalance, err := storage.GetBalance(ctx, mu, actor)
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.GetBalance(ctx, mu, t.To)
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}

@@ -50,13 +50,14 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				s := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.AddBalance(
+				_, err := storage.AddBalance(
 					context.Background(),
 					s,
 					codec.EmptyAddress,
 					0,
 					true,
-				))
+				)
+				require.NoError(t, err)
 				return s
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
@@ -79,7 +80,7 @@ func TestTransferAction(t *testing.T) {
 				require.Equal(t, balance, uint64(1))
 			},
 			ExpectedOutputs: &TransferResult{
-				SenderBalance:   1,
+				SenderBalance:   0,
 				ReceiverBalance: 1,
 			},
 		},
