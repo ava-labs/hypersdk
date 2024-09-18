@@ -20,9 +20,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/internal/keys"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const (
