@@ -246,11 +246,6 @@ type Action interface {
 	) ([]byte, error)
 }
 
-type ActionPair struct {
-	Input  codec.Typed
-	Output interface{}
-}
-
 type Auth interface {
 	Object
 	Marshaler

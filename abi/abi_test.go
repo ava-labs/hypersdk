@@ -7,14 +7,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/chain"
 )
 
 func TestNewABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]chain.ActionPair{
+	actualABI, err := NewABI([]ActionPair{
 		{Input: MockObjectSingleNumber{}},
 		{Input: MockActionTransfer{}},
 		{Input: MockObjectAllNumbers{}},
@@ -36,7 +34,7 @@ func TestNewABI(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]chain.ActionPair{
+	actualABI, err := NewABI([]ActionPair{
 		{Input: ABI{}},
 	})
 	require.NoError(err)

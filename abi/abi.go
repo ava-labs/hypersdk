@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -41,7 +40,7 @@ type Type struct {
 	Fields []Field `serialize:"true" json:"fields"`
 }
 
-func NewABI(actions []chain.ActionPair) (ABI, error) {
+func NewABI(actions []ActionPair) (ABI, error) {
 	vmActions := make([]Action, 0)
 	vmTypes := make([]Type, 0)
 	typesSet := set.Set[string]{}
@@ -67,7 +66,7 @@ func NewABI(actions []chain.ActionPair) (ABI, error) {
 // It handles both struct and pointer types, and recursively processes nested structs.
 // Does not support maps or interfaces - only standard go types, slices, arrays and structs
 
-func describeAction(action chain.ActionPair, typesAlreadyProcessed set.Set[reflect.Type]) (Action, []Type, error) {
+func describeAction(action ActionPair, typesAlreadyProcessed set.Set[reflect.Type]) (Action, []Type, error) {
 	t := reflect.TypeOf(action.Input)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
