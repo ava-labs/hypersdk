@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
@@ -24,7 +25,7 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.ReturnTypeRegistry)
+	Registry() (codec.TypeParser[chain.Action], codec.TypeParser[chain.Auth], codec.TypeParser[codec.Typed])
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,
