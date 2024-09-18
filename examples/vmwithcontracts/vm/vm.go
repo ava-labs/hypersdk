@@ -21,8 +21,9 @@ import (
 )
 
 var (
-	Action      *chain.ActionRegistry
-	Auth        *chain.AuthRegistry
+	Action      chain.ActionRegistry
+	Auth        chain.AuthRegistry
+	ReturnType  chain.ReturnTypeRegistry
 	wasmRuntime *runtime.WasmRuntime
 )
 

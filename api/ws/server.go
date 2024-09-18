@@ -55,7 +55,7 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return nil
 	}
 
-	actionRegistry, authRegistry := v.Registry()
+	actionRegistry, authRegistry, _ := v.Registry()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
@@ -106,8 +106,8 @@ type WebSocketServer struct {
 	vm             api.VM
 	logger         logging.Logger
 	tracer         trace.Tracer
-	actionRegistry *chain.ActionRegistry
-	authRegistry   *chain.AuthRegistry
+	actionRegistry chain.ActionRegistry
+	authRegistry   chain.AuthRegistry
 
 	s *pubsub.Server
 
@@ -122,8 +122,8 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionRegistry *chain.ActionRegistry,
-	authRegistry *chain.AuthRegistry,
+	actionRegistry chain.ActionRegistry,
+	authRegistry chain.AuthRegistry,
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{

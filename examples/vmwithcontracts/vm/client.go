@@ -109,8 +109,8 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) Registry() (*chain.ActionRegistry, *chain.AuthRegistry) {
-	return Action, Auth
+func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.ReturnTypeRegistry) {
+	return Action, Auth, ReturnType
 }
 
 func (*Parser) StateManager() chain.StateManager {

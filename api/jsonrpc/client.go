@@ -169,7 +169,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	actionRegistry, authRegistry := parser.Registry()
+	actionRegistry, authRegistry, _ := parser.Registry()
 	tx := chain.NewTx(base, actions)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {

@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	ActionParser *chain.ActionRegistry
-	AuthParser   *chain.AuthRegistry
+	ActionParser     chain.ActionRegistry
+	AuthParser       chain.AuthRegistry
+	ReturnTypeParser chain.ReturnTypeRegistry
 )
 
 // Setup types
