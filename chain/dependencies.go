@@ -68,8 +68,6 @@ type VM interface {
 	LastAcceptedBlock() *StatefulBlock
 	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
-
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State

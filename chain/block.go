@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -358,7 +359,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 		// If the parent block's height is less than or equal to the last accepted height (and
 		// the last accepted height is processed), the accepted state will be used as the execution
 		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			b.vm.Logger().Warn("unable to get verify context",
 				zap.Uint64("height", b.Hght),
@@ -611,7 +612,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return fmt.Errorf("%w: unable to get verify context", err)
 		}
@@ -765,7 +766,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.accepted),
 	)
-	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
 		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
 		return nil, err
@@ -839,6 +840,39 @@ func (b *StatefulBlock) IsRepeat(
 		return marker, err
 	}
 	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
+}
+
+func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
+	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
+	if blockHeight == 0 {
+		return nil, errors.New("cannot get context of genesis block")
+	}
+
+	// If the parent block is not yet accepted, we should return the block's processing parent (it may
+	// or may not be verified yet).
+	lastAcceptedBlock := b.vm.LastAcceptedBlock()
+	if blockHeight-1 > lastAcceptedBlock.Hght {
+		blk, err := b.vm.GetStatefulBlock(ctx, parent)
+		if err != nil {
+			return nil, err
+		}
+		return &PendingVerifyContext{blk}, nil
+	}
+
+	// If the last accepted block is not yet processed, we can't use the accepted state for the
+	// verification context. This could happen if state sync finishes with no processing blocks (we
+	// sync to the post-execution state of the parent of the last accepted block, not the post-execution
+	// state of the last accepted block).
+	//
+	// Invariant: When [View] is called on [vm.lastAccepted], the block will be verified and the accepted
+	// state will be updated.
+	if !lastAcceptedBlock.Processed() && parent == lastAcceptedBlock.ID() {
+		return &PendingVerifyContext{lastAcceptedBlock}, nil
+	}
+
+	// If the parent block is accepted and processed, we should
+	// just use the accepted state as the verification context.
+	return &AcceptedVerifyContext{b.vm}, nil
 }
 
 func (b *StatefulBlock) GetTxs() []*Transaction {
