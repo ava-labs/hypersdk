@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/requester"
 )
 
@@ -62,4 +63,37 @@ func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Du
 		return false, 0, err
 	}
 	return success, fee, nil
+}
+
+func (c *Client) GetBlock(ctx context.Context, blkID ids.ID) (*chain.StatefulBlock, error) {
+	resp := GetBlockResponse{}
+	err := c.requester.SendRequest(
+		ctx,
+		"getBlock",
+		&GetBlockRequest{BlockID: blkID},
+		&resp,
+	)
+	return resp.Block, err
+}
+
+func (c *Client) GetBlockByHeight(ctx context.Context, height uint64) (*chain.StatefulBlock, error) {
+	resp := GetBlockResponse{}
+	err := c.requester.SendRequest(
+		ctx,
+		"getBlockByHeight",
+		&GetBlockByHeightRequest{Height: height},
+		&resp,
+	)
+	return resp.Block, err
+}
+
+func (c *Client) GetLatestBlock(ctx context.Context) (*chain.StatefulBlock, error) {
+	resp := GetBlockResponse{}
+	err := c.requester.SendRequest(
+		ctx,
+		"getLatestBlock",
+		nil,
+		&resp,
+	)
+	return resp.Block, err
 }

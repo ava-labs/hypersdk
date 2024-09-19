@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"path/filepath"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -29,16 +31,18 @@ var (
 	successByte = byte(0x1)
 
 	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
+	_ event.Subscription[*chain.StatefulBlock]        = (*indexer)(nil)
 )
 
 type Config struct {
-	Enabled bool `json:"enabled"`
+	Enabled             bool `json:"enabled"`
+	AcceptedBlockWindow int  `json:"acceptedBlockWindow"`
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		Enabled: true,
+		Enabled:             true,
+		AcceptedBlockWindow: 1_000,
 	}
 }
 
@@ -56,8 +60,19 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return err
 	}
 
-	indexer := &txDBIndexer{
-		db: db,
+	acceptedBlocksByID, err := cache.NewFIFO[ids.ID, *chain.StatefulBlock](config.AcceptedBlockWindow)
+	if err != nil {
+		return err
+	}
+	acceptedBlocksByHeight, err := cache.NewFIFO[uint64, ids.ID](config.AcceptedBlockWindow)
+	if err != nil {
+		return err
+	}
+
+	indexer := &indexer{
+		db:                     db,
+		acceptedBlocksByID:     acceptedBlocksByID,
+		acceptedBlocksByHeight: acceptedBlocksByHeight,
 	}
 
 	subscriptionFactory := &subscriptionFactory{
@@ -77,26 +92,38 @@ func OptionFunc(v *vm.VM, config Config) error {
 }
 
 type subscriptionFactory struct {
-	indexer *txDBIndexer
+	indexer *indexer
 }
 
 func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
 	return s.indexer, nil
 }
 
-type txDBIndexer struct {
-	db database.Database
+type indexer struct {
+	db                     database.Database
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
+	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
+
+	lock        sync.RWMutex
+	latestBlock *chain.StatefulBlock
 }
 
-func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
-	batch := t.db.NewBatch()
+func (i *indexer) Accept(blk *chain.StatefulBlock) error {
+	i.lock.Lock()
+	i.latestBlock = blk
+	i.lock.Unlock()
+
+	i.acceptedBlocksByID.Put(blk.ID(), blk)
+	i.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+
+	batch := i.db.NewBatch()
 	defer batch.Reset()
 
 	timestamp := blk.GetTimestamp()
 	results := blk.Results()
 	for j, tx := range blk.Txs {
 		result := results[j]
-		if err := t.storeTransaction(
+		if err := i.storeTransaction(
 			batch,
 			tx.ID(),
 			timestamp,
@@ -111,11 +138,11 @@ func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
 	return batch.Write()
 }
 
-func (t *txDBIndexer) Close() error {
-	return t.db.Close()
+func (i *indexer) Close() error {
+	return i.db.Close()
 }
 
-func (*txDBIndexer) storeTransaction(
+func (*indexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -135,8 +162,8 @@ func (*txDBIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	v, err := t.db.Get(txID[:])
+func (i *indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+	v, err := i.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil
 	}
@@ -154,4 +181,23 @@ func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 	}
 	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, timestamp, success, d, fee, nil
+}
+
+func (i *indexer) getBlock(blkID ids.ID) (*chain.StatefulBlock, bool) {
+	return i.acceptedBlocksByID.Get(blkID)
+}
+
+func (i *indexer) getBlockByHeight(height uint64) (*chain.StatefulBlock, bool) {
+	blkID, ok := i.acceptedBlocksByHeight.Get(height)
+	if !ok {
+		return nil, false
+	}
+	return i.acceptedBlocksByID.Get(blkID)
+}
+
+func (i *indexer) getLatestBlock() (*chain.StatefulBlock, bool) {
+	i.lock.RLock()
+	defer i.lock.RUnlock()
+
+	return i.latestBlock, i.latestBlock != nil
 }
