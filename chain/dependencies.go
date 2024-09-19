@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -73,7 +72,6 @@ type VM interface {
 
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
-	ValidatorState() validators.State
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
