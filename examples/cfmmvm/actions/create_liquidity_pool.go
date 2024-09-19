@@ -16,7 +16,19 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*CreateLiquidityPool)(nil)
+var (
+	_ codec.Typed  = (*CreateLiquidityPoolResult)(nil)
+	_ chain.Action = (*CreateLiquidityPool)(nil)
+)
+
+type CreateLiquidityPoolResult struct {
+	PoolAddress      codec.Address `serialize:"true" json:"poolAddress"`
+	PoolTokenAddress codec.Address `serialize:"true" json:"poolTokenAddress"`
+}
+
+func (*CreateLiquidityPoolResult) GetTypeID() uint8 {
+	return consts.CreateLiquidityPoolID
+}
 
 type CreateLiquidityPool struct {
 	FunctionID uint8         `serialize:"true" json:"functionID"`
@@ -29,7 +41,7 @@ func (*CreateLiquidityPool) ComputeUnits(chain.Rules) uint64 {
 	return CreateLiquidityPoolUnits
 }
 
-func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Assert argument invariants
 	if c.Fee == 0 {
 		return nil, ErrOutputInvalidFee
@@ -62,7 +74,10 @@ func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu sta
 		return nil, err
 	}
 
-	return [][]byte{poolAddress[:], lpTokenAddress[:]}, nil
+	return &CreateLiquidityPoolResult{
+		PoolAddress:      poolAddress,
+		PoolTokenAddress: lpTokenAddress,
+	}, nil
 }
 
 func (*CreateLiquidityPool) GetTypeID() uint8 {

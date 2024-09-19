@@ -16,7 +16,16 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*Swap)(nil)
+var (
+	_ codec.Typed  = (*SwapResult)(nil)
+	_ chain.Action = (*Swap)(nil)
+)
+
+type SwapResult struct{}
+
+func (*SwapResult) GetTypeID() uint8 {
+	return consts.SwapID
+}
 
 type Swap struct {
 	TokenX    codec.Address `serialize:"true" json:"tokenX"`
@@ -30,7 +39,7 @@ func (*Swap) ComputeUnits(chain.Rules) uint64 {
 	return SwapUnits
 }
 
-func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, s.LPAddress)
 	if err != nil {
@@ -76,7 +85,7 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 		}
 	}
 
-	return nil, nil
+	return &SwapResult{}, nil
 }
 
 func (*Swap) GetTypeID() uint8 {

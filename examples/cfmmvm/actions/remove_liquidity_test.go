@@ -16,16 +16,15 @@ import (
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/pricing"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestRemoveLiquidity(t *testing.T) {
 	req := require.New(t)
 	ts = tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -48,7 +47,7 @@ func TestRemoveLiquidity(t *testing.T) {
 		Action: &RemoveLiquidity{
 			LiquidityPool: lpAddress,
 		},
-		ExpectedOutputs: [][]byte(nil),
+		ExpectedOutputs: nil,
 		ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 		State:           parentState,
 	}
@@ -103,7 +102,7 @@ func TestRemoveLiquidity(t *testing.T) {
 				TokenX:        tokenOneAddress,
 				TokenY:        tokenTwoAddress,
 			},
-			ExpectedOutputs: nil,
+			ExpectedOutputs: &RemoveLiquidityResult{},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Actor:           addr,

@@ -15,7 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*TransferToken)(nil)
+var (
+	_ codec.Typed  = (*TransferTokenResult)(nil)
+	_ chain.Action = (*TransferToken)(nil)
+)
+
+type TransferTokenResult struct{}
+
+func (t *TransferTokenResult) GetTypeID() uint8 {
+	return consts.TransferTokenID
+}
 
 type TransferToken struct {
 	To           codec.Address `serialize:"true" json:"to"`
@@ -27,7 +36,7 @@ func (*TransferToken) ComputeUnits(chain.Rules) uint64 {
 	return TransferTokenComputeUnits
 }
 
-func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Check invariants
 	if t.Value == 0 {
 		return nil, ErrOutputTransferValueZero
@@ -50,7 +59,7 @@ func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mut
 		return nil, err
 	}
 
-	return nil, nil
+	return &TransferTokenResult{}, nil
 }
 
 func (*TransferToken) GetTypeID() uint8 {

@@ -12,16 +12,15 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestCreateToken(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -38,7 +37,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenNameEmpty,
 			State:           parentState,
 		},
@@ -49,7 +48,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte{},
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenSymbolEmpty,
 			State:           parentState,
 		},
@@ -60,7 +59,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte{},
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenMetadataEmpty,
 			State:           parentState,
 		},
@@ -71,7 +70,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenNameTooLarge,
 			State:           parentState,
 		},
@@ -82,7 +81,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TooLargeTokenSymbol),
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenSymbolTooLarge,
 			State:           parentState,
 		},
@@ -93,7 +92,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte(TooLargeTokenMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenMetadataTooLarge,
 			State:           parentState,
 		},
@@ -104,9 +103,11 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte{tokenOneAddress[:]},
-			ExpectedErr:     nil,
-			State:           parentState,
+			ExpectedOutputs: &CreateTokenResult{
+				TokenAddress: tokenOneAddress,
+			},
+			ExpectedErr: nil,
+			State:       parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				name, symbol, metadata, totalSupply, owner, err := storage.GetTokenInfoNoController(ctx, m, tokenOneAddress)
@@ -135,7 +136,7 @@ func TestCreateToken(t *testing.T) {
 				Symbol:   []byte(TokenOneSymbol),
 				Metadata: []byte(TokenOneMetadata),
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenAlreadyExists,
 			State:           parentState,
 			Actor:           addr,

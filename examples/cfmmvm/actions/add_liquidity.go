@@ -16,7 +16,16 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*AddLiquidity)(nil)
+var (
+	_ codec.Typed  = (*AddLiquidityResult)(nil)
+	_ chain.Action = (*AddLiquidity)(nil)
+)
+
+type AddLiquidityResult struct{}
+
+func (a *AddLiquidityResult) GetTypeID() uint8 {
+	return consts.AddLiquidityID
+}
 
 type AddLiquidity struct {
 	AmountX       uint64        `serialize:"true" json:"amountX"`
@@ -30,7 +39,7 @@ func (*AddLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return AddLiquidityUnits
 }
 
-func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, a.LiquidityPool)
 	if err != nil {
@@ -88,7 +97,7 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 	reserveX, reserveY, k := pricingModel.GetState()
 
 	// Update LP reserves via pricingModel
-	return nil, storage.SetLiquidityPool(ctx, mu, a.LiquidityPool, functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, k)
+	return &AddLiquidityResult{}, storage.SetLiquidityPool(ctx, mu, a.LiquidityPool, functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, k)
 }
 
 func (*AddLiquidity) GetTypeID() uint8 {

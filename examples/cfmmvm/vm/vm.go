@@ -23,6 +23,7 @@ import (
 var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
@@ -75,6 +76,7 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 		&storage.StateManager{},
 		ActionParser,
 		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		options...,
 	)

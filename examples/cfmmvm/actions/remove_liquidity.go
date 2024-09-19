@@ -16,7 +16,17 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*RemoveLiquidity)(nil)
+var (
+	_ codec.Typed  = (*RemoveLiquidityResult)(nil)
+	_ chain.Action = (*RemoveLiquidity)(nil)
+)
+
+type RemoveLiquidityResult struct{}
+
+// GetTypeID implements codec.Typed.
+func (r *RemoveLiquidityResult) GetTypeID() uint8 {
+	return consts.RemoveLiquidityID
+}
 
 type RemoveLiquidity struct {
 	BurnAmount    uint64        `serialize:"true" json:"burnAmount"`
@@ -29,7 +39,7 @@ func (*RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return RemoveLiquidityUnits
 }
 
-func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, kLast, err := storage.GetLiquidityPoolNoController(ctx, mu, l.LiquidityPool)
 	if err != nil {
@@ -80,7 +90,7 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, err
 	}
 
-	return nil, nil
+	return &RemoveLiquidityResult{}, nil
 }
 
 func (*RemoveLiquidity) GetTypeID() uint8 {

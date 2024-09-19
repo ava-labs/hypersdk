@@ -12,19 +12,17 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestTransferToken(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
-	addrTwo, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addrTwo := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -43,7 +41,7 @@ func TestTransferToken(t *testing.T) {
 				TokenAddress: tokenOneAddress,
 				Value:        TokenTransferValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenDoesNotExist,
 			State:           parentState,
 		},
@@ -54,7 +52,7 @@ func TestTransferToken(t *testing.T) {
 				TokenAddress: tokenOneAddress,
 				Value:        0,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTransferValueZero,
 			State:           parentState,
 		},
@@ -75,7 +73,7 @@ func TestTransferToken(t *testing.T) {
 				TokenAddress: tokenOneAddress,
 				Value:        TokenTransferValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputInsufficientTokenBalance,
 			State:           parentState,
 			Actor:           addrTwo,
@@ -87,7 +85,7 @@ func TestTransferToken(t *testing.T) {
 				TokenAddress: tokenOneAddress,
 				Value:        TokenTransferValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: &TransferTokenResult{},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {

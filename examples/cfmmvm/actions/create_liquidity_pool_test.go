@@ -14,16 +14,15 @@ import (
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/pricing"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestCreateLiquidityPool(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -44,7 +43,7 @@ func TestCreateLiquidityPool(t *testing.T) {
 				TokenY:     tokenTwoAddress,
 				Fee:        0,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputInvalidFee,
 			State:           parentState,
 		},
@@ -56,7 +55,7 @@ func TestCreateLiquidityPool(t *testing.T) {
 				TokenY:     tokenTwoAddress,
 				Fee:        InitialFee,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenXDoesNotExist,
 			State:           parentState,
 		},
@@ -77,7 +76,7 @@ func TestCreateLiquidityPool(t *testing.T) {
 				TokenY:     codec.EmptyAddress,
 				Fee:        InitialFee,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenYDoesNotExist,
 			State:           parentState,
 		},
@@ -98,7 +97,7 @@ func TestCreateLiquidityPool(t *testing.T) {
 				TokenY:     tokenTwoAddress,
 				Fee:        InitialFee,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputFunctionDoesNotExist,
 			State:           parentState,
 		},
@@ -110,9 +109,12 @@ func TestCreateLiquidityPool(t *testing.T) {
 				TokenY:     tokenTwoAddress,
 				Fee:        InitialFee,
 			},
-			ExpectedErr:     nil,
-			ExpectedOutputs: [][]byte{lpAddress[:], lpTokenAddress[:]},
-			State:           parentState,
+			ExpectedErr: nil,
+			ExpectedOutputs: &CreateLiquidityPoolResult{
+				PoolAddress:      lpAddress,
+				PoolTokenAddress: lpTokenAddress,
+			},
+			State: parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				// Assert correct lp instantiation
@@ -147,7 +149,7 @@ func TestCreateLiquidityPool(t *testing.T) {
 				Fee:        InitialFee,
 			},
 			ExpectedErr:     ErrOutputLiquidityPoolAlreadyExists,
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			State:           parentState,
 		},
 	}

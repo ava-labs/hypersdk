@@ -16,8 +16,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/pricing"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	hconsts "github.com/ava-labs/hypersdk/consts"
@@ -27,8 +27,7 @@ func TestAddLiquidity(t *testing.T) {
 	req := require.New(t)
 	ts = tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -51,7 +50,7 @@ func TestAddLiquidity(t *testing.T) {
 		Action: &AddLiquidity{
 			LiquidityPool: lpAddress,
 		},
-		ExpectedOutputs: [][]byte(nil),
+		ExpectedOutputs: nil,
 		ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 		State:           parentState,
 	}
@@ -112,7 +111,7 @@ func TestAddLiquidity(t *testing.T) {
 				AmountY:       hconsts.MaxUint64,
 				LiquidityPool: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     smath.ErrOverflow,
 			State:           parentState,
 			Actor:           addr,
@@ -125,7 +124,7 @@ func TestAddLiquidity(t *testing.T) {
 				LiquidityPool: lpAddress,
 			},
 			ExpectedErr:     nil,
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: &AddLiquidityResult{},
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
@@ -165,7 +164,7 @@ func TestAddLiquidity(t *testing.T) {
 			Action: &AddLiquidity{
 				LiquidityPool: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     pricing.ErrOutputInsufficientLiquidityMinted,
 			State:           parentState,
 			Actor:           addr,
@@ -177,7 +176,7 @@ func TestAddLiquidity(t *testing.T) {
 				AmountY:       5_000,
 				LiquidityPool: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: &AddLiquidityResult{},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Actor:           addr,

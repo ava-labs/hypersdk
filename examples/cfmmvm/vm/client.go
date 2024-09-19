@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
@@ -44,7 +45,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis,
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) GetTokenInfo(ctx context.Context, tokenAddress string) (*GetTokenInfoReply, error) {
+func (cli *JSONRPCClient) GetTokenInfo(ctx context.Context, tokenAddress codec.Address) (*GetTokenInfoReply, error) {
 	resp := new(GetTokenInfoReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -57,7 +58,7 @@ func (cli *JSONRPCClient) GetTokenInfo(ctx context.Context, tokenAddress string)
 	return resp, err
 }
 
-func (cli *JSONRPCClient) GetBalance(ctx context.Context, tokenAddress string, account string) (*GetBalanceReply, error) {
+func (cli *JSONRPCClient) GetBalance(ctx context.Context, tokenAddress codec.Address, account codec.Address) (*GetBalanceReply, error) {
 	resp := new(GetBalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -71,7 +72,7 @@ func (cli *JSONRPCClient) GetBalance(ctx context.Context, tokenAddress string, a
 	return resp, err
 }
 
-func (cli *JSONRPCClient) GetLiquidityPool(ctx context.Context, liquidityPoolAddress string) (*GetLiquidityPoolReply, error) {
+func (cli *JSONRPCClient) GetLiquidityPool(ctx context.Context, liquidityPoolAddress codec.Address) (*GetLiquidityPoolReply, error) {
 	resp := new(GetLiquidityPoolReply)
 	err := cli.requester.SendRequest(
 		ctx,

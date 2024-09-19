@@ -15,7 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*MintToken)(nil)
+var (
+	_ codec.Typed  = (*MintTokenResult)(nil)
+	_ chain.Action = (*MintToken)(nil)
+)
+
+type MintTokenResult struct{}
+
+func (m *MintTokenResult) GetTypeID() uint8 {
+	return consts.MintTokenID
+}
 
 type MintToken struct {
 	To    codec.Address `serialize:"true" json:"to"`
@@ -27,7 +36,7 @@ func (*MintToken) ComputeUnits(chain.Rules) uint64 {
 	return MintTokenComputeUnits
 }
 
-func (m *MintToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (m *MintToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Enforce initial invariants
 	if m.Value == 0 {
 		return nil, ErrOutputMintValueZero
@@ -46,7 +55,7 @@ func (m *MintToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable
 		return nil, err
 	}
 
-	return nil, nil
+	return &MintTokenResult{}, nil
 }
 
 func (*MintToken) GetTypeID() uint8 {

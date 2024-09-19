@@ -12,19 +12,17 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestMintToken(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
-	addrTwo, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addrTwo := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -42,7 +40,7 @@ func TestMintToken(t *testing.T) {
 				Token: tokenOneAddress,
 				Value: 0,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputMintValueZero,
 			State:           parentState,
 		},
@@ -53,7 +51,7 @@ func TestMintToken(t *testing.T) {
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenDoesNotExist,
 			State:           parentState,
 		},
@@ -73,7 +71,7 @@ func TestMintToken(t *testing.T) {
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: &MintTokenResult{},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
@@ -94,7 +92,7 @@ func TestMintToken(t *testing.T) {
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     ErrOutputTokenNotOwner,
 			State:           parentState,
 			Actor:           addrTwo,

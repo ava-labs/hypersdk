@@ -45,27 +45,22 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 }
 
 type GetTokenInfoArgs struct {
-	TokenAddress string `json:"tokenAddress"`
+	TokenAddress codec.Address `json:"tokenAddress"`
 }
 
 type GetTokenInfoReply struct {
-	Name        string `json:"name"`
-	Symbol      string `json:"symbol"`
-	Metadata    string `json:"metadata"`
-	TotalSupply uint64 `json:"totalSupply"`
-	Owner       string `json:"owner"`
+	Name        string        `json:"name"`
+	Symbol      string        `json:"symbol"`
+	Metadata    string        `json:"metadata"`
+	TotalSupply uint64        `json:"totalSupply"`
+	Owner       codec.Address `json:"owner"`
 }
 
 func (j *JSONRPCServer) GetTokenInfo(req *http.Request, args *GetTokenInfoArgs, reply *GetTokenInfoReply) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.GetTokenInfo")
 	defer span.End()
 
-	addr, err := codec.ParseAddressBech32(consts.HRP, args.TokenAddress)
-	if err != nil {
-		return err
-	}
-
-	name, symbol, metadata, totalSupply, owner, err := storage.GetTokenInfoFromState(ctx, j.vm.ReadState, addr)
+	name, symbol, metadata, totalSupply, owner, err := storage.GetTokenInfoFromState(ctx, j.vm.ReadState, args.TokenAddress)
 	if err != nil {
 		return err
 	}
@@ -74,17 +69,13 @@ func (j *JSONRPCServer) GetTokenInfo(req *http.Request, args *GetTokenInfoArgs, 
 	reply.Symbol = string(symbol)
 	reply.Metadata = string(metadata)
 	reply.TotalSupply = totalSupply
-	ownerStr, err := codec.AddressBech32(consts.HRP, owner)
-	if err != nil {
-		return err
-	}
-	reply.Owner = ownerStr
+	reply.Owner = owner
 	return nil
 }
 
 type GetBalanceArgs struct {
-	TokenAddress string `json:"tokenAddress"`
-	Account      string `json:"account"`
+	TokenAddress codec.Address `json:"tokenAddress"`
+	Account      codec.Address `json:"account"`
 }
 
 type GetBalanceReply struct {
@@ -95,16 +86,7 @@ func (j *JSONRPCServer) GetBalance(req *http.Request, args *GetBalanceArgs, repl
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.GetBalance")
 	defer span.End()
 
-	accountAddr, err := codec.ParseAddressBech32(consts.HRP, args.Account)
-	if err != nil {
-		return err
-	}
-	tokenAddr, err := codec.ParseAddressBech32(consts.HRP, args.TokenAddress)
-	if err != nil {
-		return err
-	}
-
-	balance, err := storage.GetTokenAccountBalanceFromState(ctx, j.vm.ReadState, tokenAddr, accountAddr)
+	balance, err := storage.GetTokenAccountBalanceFromState(ctx, j.vm.ReadState, args.TokenAddress, args.Account)
 	if err != nil {
 		return err
 	}
@@ -113,62 +95,38 @@ func (j *JSONRPCServer) GetBalance(req *http.Request, args *GetBalanceArgs, repl
 }
 
 type GetLiquidityPoolArgs struct {
-	LiquidityPoolAddress string `json:"liquidityPoolAddress"`
+	LiquidityPoolAddress codec.Address `json:"liquidityPoolAddress"`
 }
 
 type GetLiquidityPoolReply struct {
-	TokenX         string `json:"tokenX"`
-	TokenY         string `json:"tokenY"`
-	Fee            uint64 `json:"fee"`
-	FeeTo          string `json:"feeTo"`
-	FunctionID     uint8  `json:"functionID"`
-	ReserveX       uint64 `json:"reserveX"`
-	ReserveY       uint64 `json:"reserveY"`
-	LiquidityToken string `json:"liquidityToken"`
-	KLast          uint64 `json:"kLast"`
+	TokenX         codec.Address `json:"tokenX"`
+	TokenY         codec.Address `json:"tokenY"`
+	Fee            uint64        `json:"fee"`
+	FeeTo          codec.Address `json:"feeTo"`
+	FunctionID     uint8         `json:"functionID"`
+	ReserveX       uint64        `json:"reserveX"`
+	ReserveY       uint64        `json:"reserveY"`
+	LiquidityToken codec.Address `json:"liquidityToken"`
+	KLast          uint64        `json:"kLast"`
 }
 
 func (j *JSONRPCServer) GetLiquidityPool(req *http.Request, args *GetLiquidityPoolArgs, reply *GetLiquidityPoolReply) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.GetLiquidityPool")
 	defer span.End()
 
-	poolAddr, err := codec.ParseAddressBech32(consts.HRP, args.LiquidityPoolAddress)
+	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, liquidityToken, kLast, err := storage.GetLiquidityPoolFromState(ctx, j.vm.ReadState, args.LiquidityPoolAddress)
 	if err != nil {
 		return err
 	}
 
-	functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, liquidityToken, kLast, err := storage.GetLiquidityPoolFromState(ctx, j.vm.ReadState, poolAddr)
-	if err != nil {
-		return err
-	}
-
-	tokenXStr, err := codec.AddressBech32(consts.HRP, tokenX)
-	if err != nil {
-		return err
-	}
-	reply.TokenX = tokenXStr
-
-	tokenYStr, err := codec.AddressBech32(consts.HRP, tokenY)
-	if err != nil {
-		return err
-	}
-	reply.TokenY = tokenYStr
+	reply.TokenX = tokenX
+	reply.TokenY = tokenY
 	reply.Fee = fee
-
-	feeToStr, err := codec.AddressBech32(consts.HRP, feeTo)
-	if err != nil {
-		return err
-	}
-	reply.FeeTo = feeToStr
+	reply.FeeTo = feeTo
 	reply.FunctionID = functionID
 	reply.ReserveX = reserveX
 	reply.ReserveY = reserveY
-
-	liquidityTokenStr, err := codec.AddressBech32(consts.HRP, liquidityToken)
-	if err != nil {
-		return err
-	}
-	reply.LiquidityToken = liquidityTokenStr
+	reply.LiquidityToken = liquidityToken
 	reply.KLast = kLast
 	return nil
 }

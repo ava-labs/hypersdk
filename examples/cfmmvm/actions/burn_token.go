@@ -15,7 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*BurnToken)(nil)
+var (
+	_ codec.Typed  = (*BurnTokenResult)(nil)
+	_ chain.Action = (*BurnToken)(nil)
+)
+
+type BurnTokenResult struct{}
+
+func (b *BurnTokenResult) GetTypeID() uint8 {
+	return consts.BurnTokenID
+}
 
 type BurnToken struct {
 	TokenAddress codec.Address `serialize:"true" json:"tokenAddress"`
@@ -26,7 +35,7 @@ func (*BurnToken) ComputeUnits(chain.Rules) uint64 {
 	return BurnTokenComputeUnits
 }
 
-func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
+func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Assert invariant
 	if b.Value == 0 {
 		return nil, ErrOutputBurnValueZero
@@ -50,7 +59,7 @@ func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable
 		return nil, err
 	}
 
-	return nil, nil
+	return &BurnTokenResult{}, nil
 }
 
 func (*BurnToken) GetTypeID() uint8 {

@@ -16,16 +16,15 @@ import (
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/pricing"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestSwap(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 
-	addr, err := codectest.NewRandomAddress()
-	req.NoError(err)
+	addr := codectest.NewRandomAddress()
 
 	parentState := ts.NewView(
 		state.Keys{
@@ -76,7 +75,7 @@ func TestSwap(t *testing.T) {
 		Action: &Swap{
 			LPAddress: lpAddress,
 		},
-		ExpectedOutputs: [][]byte(nil),
+		ExpectedOutputs: nil,
 		ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 		State:           parentState,
 	}
@@ -110,7 +109,7 @@ func TestSwap(t *testing.T) {
 				AmountYIn: 0,
 				LPAddress: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     pricing.ErrBothDeltasZero,
 			State:           parentState,
 			Actor:           addr,
@@ -122,7 +121,7 @@ func TestSwap(t *testing.T) {
 				AmountYIn: 1,
 				LPAddress: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: nil,
 			ExpectedErr:     pricing.ErrNoClearDeltaToCompute,
 			State:           parentState,
 			Actor:           addr,
@@ -134,7 +133,7 @@ func TestSwap(t *testing.T) {
 				AmountYIn: 0,
 				LPAddress: lpAddress,
 			},
-			ExpectedOutputs: [][]byte(nil),
+			ExpectedOutputs: &SwapResult{},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {

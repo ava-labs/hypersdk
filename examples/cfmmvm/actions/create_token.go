@@ -15,7 +15,18 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*CreateToken)(nil)
+var (
+	_ codec.Typed  = (*CreateTokenResult)(nil)
+	_ chain.Action = (*CreateToken)(nil)
+)
+
+type CreateTokenResult struct {
+	TokenAddress codec.Address `serialize:"true" json:"tokenAddress"`
+}
+
+func (c *CreateTokenResult) GetTypeID() uint8 {
+	return consts.CreateTokenID
+}
 
 type CreateToken struct {
 	Name     []byte `serialize:"true" json:"name"`
@@ -27,7 +38,7 @@ func (*CreateToken) ComputeUnits(chain.Rules) uint64 {
 	return CreateTokenComputeUnits
 }
 
-func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (outputs [][]byte, err error) {
+func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (codec.Typed, error) {
 	// Enforce initial invariants
 	if len(c.Name) == 0 {
 		return nil, ErrOutputTokenNameEmpty
@@ -63,7 +74,9 @@ func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutab
 	}
 
 	// Return address
-	return [][]byte{tokenAddress[:]}, nil
+	return &CreateTokenResult{
+		TokenAddress: tokenAddress,
+	}, nil
 }
 
 func (*CreateToken) GetTypeID() uint8 {
