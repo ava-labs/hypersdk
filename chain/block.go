@@ -451,12 +451,13 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	// Expiry replay protection
 	//
 	// Replay protection confirms a transaction has not been included within the
-	// past validity window. Before node is ready (we have synced validity window)
-	// of blocks, this function may return an error when other nodes see the block
-	// as valid.
+	// past validity window.
+	// Before the node is ready (we have synced a validity window of blocks), this
+	// function may return an error when other nodes see the block as valid.
 	//
 	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
+	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
+	// when it should already be considered valid, so we skip this step here.
 	if !b.accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
