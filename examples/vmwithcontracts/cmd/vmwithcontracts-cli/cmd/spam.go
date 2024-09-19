@@ -64,7 +64,7 @@ func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
-func (sh *SpamHelper) LookupBalance(choice int, address string) (uint64, error) {
+func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, error) {
 	balance, err := sh.cli.Balance(context.TODO(), address)
 	if err != nil {
 		return 0, err

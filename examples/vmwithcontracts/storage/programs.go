@@ -68,10 +68,11 @@ func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Add
 }
 
 func (p *ContractStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
-	if err := SubBalance(ctx, p, from, amount); err != nil {
+	if _, err := SubBalance(ctx, p, from, amount); err != nil {
 		return err
 	}
-	return AddBalance(ctx, p, to, amount, true)
+	_, err := AddBalance(ctx, p, to, amount, true)
+	return err
 }
 
 func (p *ContractStateManager) GetContractState(address codec.Address) state.Mutable {

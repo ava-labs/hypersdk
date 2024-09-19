@@ -111,7 +111,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry, _ := parser.Registry()
+	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {

@@ -24,7 +24,9 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.OutputRegistry)
+	ActionRegistry() chain.ActionRegistry
+	OutputRegistry() chain.OutputRegistry
+	AuthRegistry() chain.AuthRegistry
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,

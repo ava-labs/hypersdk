@@ -88,7 +88,7 @@ func (j *JSONRPCServer) SubmitTx(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	actionRegistry, authRegistry, _ := j.vm.Registry()
+	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
 	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
@@ -151,7 +151,7 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, _, outputRegistry := j.vm.Registry()
+	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
 	// Must dereference aliased type to call GetRegisteredTypes
 	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 	if err != nil {
@@ -162,9 +162,8 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 }
 
 type ExecuteActionArgs struct {
-	ActionBytes       []byte `json:"actionBytes"`
-	ActionTypeID      uint8  `json:"actionId"`
-	ActorAddressBytes []byte `json:"actor"`
+	Actor  codec.Address `json:"actor"`
+	Action codec.Bytes   `json:"action"`
 }
 
 type ExecuteActionReply struct {
@@ -172,7 +171,7 @@ type ExecuteActionReply struct {
 	Error  string `json:"error"`
 }
 
-func (j *JSONRPCServer) ExecuteAction(
+func (j *JSONRPCServer) Execute(
 	req *http.Request,
 	args *ExecuteActionArgs,
 	reply *ExecuteActionReply,
@@ -180,28 +179,16 @@ func (j *JSONRPCServer) ExecuteAction(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	actionRegistry, _, _ := j.vm.Registry()
-
-	unmarshalActionFunc, ok := (*actionRegistry).LookupIndex(args.ActionTypeID)
-	if !ok {
-		return fmt.Errorf("action type %d not found", args.ActionTypeID)
-	}
-
-	action, err := unmarshalActionFunc(codec.NewReader(args.ActionBytes, consts.NetworkSizeLimit))
+	actionRegistry := j.vm.ActionRegistry()
+	action, err := (*actionRegistry).Unmarshal(codec.NewReader(args.Action, len(args.Action)))
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal action: %w", err)
+		return fmt.Errorf("failed to unmashal action: %w", err)
 	}
 
 	now := time.Now().UnixMilli()
 
-	// FIXME: We don't have HRP, therefore we can't parse the address. However, this is acceptable as we are switching to hex soon, so this is just a temporary solution.
-	actor, err := codec.ToAddress(args.ActorAddressBytes)
-	if err != nil {
-		return fmt.Errorf("invalid actor address: %w", err)
-	}
-
 	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(actor, ids.Empty)
+	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
 
 	// flatten the map to a slice of keys
 	storageKeysToRead := make([][]byte, 0)
@@ -211,21 +198,19 @@ func (j *JSONRPCServer) ExecuteAction(
 
 	storage := make(map[string][]byte)
 	values, errs := j.vm.ReadState(ctx, storageKeysToRead)
-	for i := 0; i < len(storageKeysToRead); i++ {
-		if errs[i] != nil && !errors.Is(errs[i], database.ErrNotFound) {
-			return fmt.Errorf("failed to read state: %w", errs[i])
-		}
-		if errs[i] == nil {
-			storage[string(storageKeysToRead[i])] = values[i]
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, database.ErrNotFound) {
+			return fmt.Errorf("failed to read state: %w", err)
 		}
 	}
-
-	actionSize, err := chain.GetSize(action)
-	if err != nil {
-		return fmt.Errorf("failed to get action size: %w", err)
+	for i, value := range values {
+		if value == nil {
+			continue
+		}
+		storage[string(storageKeysToRead[i])] = value
 	}
 
-	ts := tstate.New(actionSize)
+	ts := tstate.New(1)
 	tsv := ts.NewView(stateKeysWithPermissions, storage)
 
 	output, err := action.Execute(
@@ -233,7 +218,7 @@ func (j *JSONRPCServer) ExecuteAction(
 		j.vm.Rules(now),
 		tsv,
 		now,
-		actor,
+		args.Actor,
 		ids.Empty,
 	)
 	if err != nil {

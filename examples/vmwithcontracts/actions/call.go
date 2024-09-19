@@ -89,7 +89,7 @@ func (t *Call) Execute(
 	if err != nil {
 		return nil, err
 	}
-	return &PlainBytesOutput{Value: resutBytes}, nil
+	return &Result{Value: resutBytes}, nil
 }
 
 func (t *Call) ComputeUnits(chain.Rules) uint64 {
@@ -141,10 +141,10 @@ func (*Call) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-type PlainBytesOutput struct {
+type Result struct {
 	Value []byte `serialize:"true" json:"value"`
 }
 
-func (*PlainBytesOutput) GetTypeID() uint8 {
-	return mconsts.PlainBytesOutputID
+func (*Result) GetTypeID() uint8 {
+	return mconsts.ResultOutputID
 }

@@ -183,7 +183,7 @@ func (t *Transfer) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
-func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs []byte, err error) {
+func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (output codec.Typed, err error) {
 	panic("unimplemented")
 }
 
@@ -377,27 +377,27 @@ func AddBalance(
 	addr codec.Address,
 	amount uint64,
 	create bool,
-) error {
+) (uint64, error) {
 	key, bal, exists, err := getBalance(ctx, mu, addr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// Don't add balance if account doesn't exist. This
 	// can be useful when processing fee refunds.
 	if !exists && !create {
-		return nil
+		return 0, nil
 	}
 	nbal, err := smath.Add(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
@@ -405,30 +405,30 @@ func SubBalance(
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
-) error {
+) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)
 	if !ok {
-		return ErrInvalidAddress
+		return 0, ErrInvalidAddress
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return mu.Remove(ctx, key)
+		return 0, mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 ```
 
@@ -572,7 +572,8 @@ func (*StateManager) AddBalance(
 	amount uint64,
 	createAccount bool,
 ) error {
-	return AddBalance(ctx, mu, addr, amount, createAccount)
+	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
+	return err
 }
 ```
 
@@ -705,20 +706,26 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([]byte, error) {
+) (codec.Typed, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	if err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	return &TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	}, nil
 }
 ```
 
@@ -784,20 +791,24 @@ import (
 var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
 func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
+	OutputParser = codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		ActionParser.Register(&actions.Transfer{}, nil),
+		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
@@ -821,6 +832,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		&storage.StateManager{},
 		ActionParser,
 		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		options...,
 	)

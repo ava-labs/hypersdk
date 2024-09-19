@@ -69,18 +69,11 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return nil, err
-	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return nil, err
-	}
-
-	senderBalance, err := storage.GetBalance(ctx, mu, actor)
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.GetBalance(ctx, mu, t.To)
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +81,7 @@ func (t *Transfer) Execute(
 	return &TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
-	}, err
+	}, nil
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -98,18 +91,6 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-// Return type, optional
-var _ codec.Typed = (*TransferResult)(nil)
-
-type TransferResult struct {
-	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
-	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
-}
-
-func (*TransferResult) GetTypeID() uint8 {
-	return mconsts.TransferID // Common practice is to use the action ID
 }
 
 // Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
@@ -131,4 +112,15 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
 	return &transfer, p.Err()
+}
+
+var _ codec.Typed = (*TransferResult)(nil)
+
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
+}
+
+func (*TransferResult) GetTypeID() uint8 {
+	return mconsts.TransferID // Common practice is to use the action ID
 }

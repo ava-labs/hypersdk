@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/ava-labs/hypersdk/consts"
@@ -60,14 +61,29 @@ func (p *TypeParser[T]) Register(instance Typed, f func(*Packer) (T, error)) err
 	return nil
 }
 
-// LookupIndex returns the decoder function and success of lookup of [index]
+// lookupIndex returns the decoder function and success of lookup of [index]
 // from Typeparser [p].
-func (p *TypeParser[T]) LookupIndex(index uint8) (func(*Packer) (T, error), bool) {
+func (p *TypeParser[T]) lookupIndex(index uint8) (func(*Packer) (T, error), bool) {
 	d, ok := p.indexToDecoder[index]
 	if ok {
 		return d.f, true
 	}
 	return nil, false
+}
+
+// Unmarshal unmarshals a value of type [T] from the reader by unpacking
+// the typeID and invoking the corresponding decoder function.
+func (p *TypeParser[T]) Unmarshal(reader *Packer) (T, error) {
+	typeID := reader.UnpackByte()
+	if reader.Errored() {
+		return *new(T), reader.Err()
+	}
+
+	decoder, ok := p.lookupIndex(typeID)
+	if !ok {
+		return *new(T), fmt.Errorf("type %d not found", typeID)
+	}
+	return decoder(reader)
 }
 
 // GetRegisteredTypes returns all registered types in the TypeParser.

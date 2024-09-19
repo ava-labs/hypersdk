@@ -48,15 +48,14 @@ func Bytes(label string) ([]byte, error) {
 	return hex.DecodeString(hexString)
 }
 
-func Address(label string, parseAddress func(string) (codec.Address, error)) (codec.Address, error) {
+func Address(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			_, err := parseAddress(input)
-			return err
+			return nil
 		},
 	}
 	recipient, err := promptText.Run()
@@ -64,7 +63,7 @@ func Address(label string, parseAddress func(string) (codec.Address, error)) (co
 		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
-	return parseAddress(recipient)
+	return codec.StringToAddress(recipient), nil
 }
 
 func String(label string, min int, max int) (string, error) {

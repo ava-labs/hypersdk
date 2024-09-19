@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -42,7 +41,6 @@ var (
 	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
 	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
-	ed25519AddrStrs      = make([]string, len(ed25519HexKeys))
 )
 
 func init() {
@@ -56,7 +54,6 @@ func init() {
 		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
 		addr := auth.NewED25519Address(priv.PublicKey())
 		ed25519Addrs[i] = addr
-		ed25519AddrStrs[i] = codec.MustAddressBech32(consts.HRP, addr)
 	}
 }
 
@@ -66,8 +63,8 @@ type workloadFactory struct {
 }
 
 func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
-	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519AddrStrs))
-	for _, prefundedAddrStr := range ed25519AddrStrs {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
+	for _, prefundedAddrStr := range ed25519Addrs {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
 			Address: prefundedAddrStr,
 			Balance: initialBalance,
@@ -119,7 +116,6 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	aother := auth.NewED25519Address(other.PublicKey())
-	aotherStr := codec.MustAddressBech32(consts.HRP, aother)
 	parser, err := g.lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -143,7 +139,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		require.NoError(err)
 		require.True(success)
 		lcli := vm.NewJSONRPCClient(uri)
-		balance, err := lcli.Balance(ctx, aotherStr)
+		balance, err := lcli.Balance(ctx, aother)
 		require.NoError(err)
 		require.Equal(uint64(1), balance)
 	}, nil
@@ -213,7 +209,6 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 
 	sender := g.addressAndFactories[g.count]
 	receiver := g.addressAndFactories[g.count+1]
-	receiverAddrStr := codec.MustAddressBech32(consts.HRP, receiver.address)
 	expectedBalance := g.balance - 1_000_000
 
 	parser, err := g.lcli.Parser(ctx)
@@ -240,7 +235,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 		require.NoError(err)
 		require.True(success)
 		lcli := vm.NewJSONRPCClient(uri)
-		balance, err := lcli.Balance(ctx, receiverAddrStr)
+		balance, err := lcli.Balance(ctx, receiver.address)
 		require.NoError(err)
 		require.Equal(expectedBalance, balance)
 		// TODO check tx fee + units (not currently available via API)

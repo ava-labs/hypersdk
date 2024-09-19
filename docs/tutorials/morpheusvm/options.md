@@ -86,7 +86,7 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 }
 
 type BalanceArgs struct {
-	Address string `json:"address"`
+	Address codec.Address `json:"address"`
 }
 
 type BalanceReply struct {
@@ -97,11 +97,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
-	if err != nil {
-		return err
-	}
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, addr)
+	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address)
 	if err != nil {
 		return err
 	}
@@ -210,7 +206,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis,
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -225,7 +221,7 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, err
 
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
-	addr string,
+	addr codec.Address,
 	min uint64,
 ) error {
 	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
@@ -270,8 +266,16 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry, chain.OutputRegistry) {
-	return ActionParser, AuthParser, ReturnTypeParser
+func (*Parser) ActionRegistry() chain.ActionRegistry {
+	return ActionParser
+}
+
+func (*Parser) OutputRegistry() chain.OutputRegistry {
+	return OutputParser
+}
+
+func (*Parser) AuthRegistry() chain.AuthRegistry {
+	return AuthParser
 }
 
 func (*Parser) StateManager() chain.StateManager {
