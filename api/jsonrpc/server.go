@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const (
