@@ -95,6 +95,10 @@ type VM interface {
 
 type VerifyContext interface {
 	View(ctx context.Context, verify bool) (state.View, error)
+	// IsRepeat returns a bitset containing the indices of [txs] that are repeats from this context back to
+	// [oldestAllowed].
+	// If [stop] is true, the search will stop at the first repeat transaction. This supports early termination
+	// during verification when any invalid transaction will cause the block to fail verification.
 	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
