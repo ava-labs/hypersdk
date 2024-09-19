@@ -9,17 +9,18 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
-type StateSyncHandler struct {
-	vm *VM
+type StateSyncHandler[T any] struct {
+	vm *VM[T]
 }
 
-func NewStateSyncHandler(vm *VM) *StateSyncHandler {
-	return &StateSyncHandler{vm}
+func NewStateSyncHandler[T chain.RuntimeInterface](vm *VM[T]) *StateSyncHandler[T] {
+	return &StateSyncHandler[T]{vm}
 }
 
-func (s *StateSyncHandler) Connected(
+func (s *StateSyncHandler[_]) Connected(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	v *version.Application,
@@ -27,15 +28,15 @@ func (s *StateSyncHandler) Connected(
 	return s.vm.stateSyncNetworkClient.Connected(ctx, nodeID, v)
 }
 
-func (s *StateSyncHandler) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+func (s *StateSyncHandler[_]) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	return s.vm.stateSyncNetworkClient.Disconnected(ctx, nodeID)
 }
 
-func (*StateSyncHandler) AppGossip(context.Context, ids.NodeID, []byte) error {
+func (*StateSyncHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) error {
 	return nil
 }
 
-func (s *StateSyncHandler) AppRequest(
+func (s *StateSyncHandler[_]) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
@@ -48,7 +49,7 @@ func (s *StateSyncHandler) AppRequest(
 	return s.vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
-func (s *StateSyncHandler) AppRequestFailed(
+func (s *StateSyncHandler[_]) AppRequestFailed(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
@@ -56,7 +57,7 @@ func (s *StateSyncHandler) AppRequestFailed(
 	return s.vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
 }
 
-func (s *StateSyncHandler) AppResponse(
+func (s *StateSyncHandler[_]) AppResponse(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
@@ -65,7 +66,7 @@ func (s *StateSyncHandler) AppResponse(
 	return s.vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
 }
 
-func (*StateSyncHandler) CrossChainAppRequest(
+func (*StateSyncHandler[_]) CrossChainAppRequest(
 	context.Context,
 	ids.ID,
 	uint32,
@@ -75,10 +76,10 @@ func (*StateSyncHandler) CrossChainAppRequest(
 	return nil
 }
 
-func (*StateSyncHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+func (*StateSyncHandler[_]) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
 	return nil
 }
 
-func (*StateSyncHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+func (*StateSyncHandler[_]) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
 	return nil
 }

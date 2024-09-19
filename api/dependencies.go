@@ -10,30 +10,29 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type VM interface {
+type VM[T chain.RuntimeInterface] interface {
 	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	ActionRegistry() chain.ActionRegistry
+	ActionRegistry() chain.ActionRegistry[T]
 	OutputRegistry() chain.OutputRegistry
 	AuthRegistry() chain.AuthRegistry
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,
 		verifySig bool,
-		txs []*chain.Transaction,
+		txs []*chain.Transaction[T],
 	) (errs []error)
-	LastAcceptedBlock() *chain.StatefulBlock
+	LastAcceptedBlock() *chain.StatefulBlock[T]
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,
@@ -41,4 +40,5 @@ type VM interface {
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
+	GetRuntime() T
 }

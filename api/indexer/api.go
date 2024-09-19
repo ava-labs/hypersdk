@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
@@ -19,17 +20,17 @@ const Endpoint = "/indexer"
 var (
 	ErrTxNotFound = errors.New("tx not found")
 
-	_ api.HandlerFactory[api.VM] = (*apiFactory)(nil)
+	_ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*apiFactory[chain.RuntimeInterface])(nil)
 )
 
-type apiFactory struct {
+type apiFactory[T chain.RuntimeInterface] struct {
 	path    string
 	name    string
-	indexer *txDBIndexer
+	indexer *txDBIndexer[T]
 }
 
-func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
-	handler, err := api.NewJSONRPCHandler(f.name, &Server{
+func (f *apiFactory[T]) New(vm api.VM[T]) (api.Handler, error) {
+	handler, err := api.NewJSONRPCHandler(f.name, &Server[T]{
 		tracer:  vm.Tracer(),
 		indexer: f.indexer,
 	})
@@ -54,12 +55,12 @@ type GetTxResponse struct {
 	Fee       uint64          `json:"fee"`
 }
 
-type Server struct {
+type Server[T chain.RuntimeInterface] struct {
 	tracer  trace.Tracer
-	indexer *txDBIndexer
+	indexer *txDBIndexer[T]
 }
 
-func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
+func (s *Server[_]) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 

@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
@@ -21,16 +22,16 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 )
 
 var (
 	vmName            string
-	txWorkloadFactory workload.TxWorkloadFactory
+	txWorkloadFactory workload.TxWorkloadFactory[struct{}]
 	expectedABI       abi.ABI
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory[struct{}], abi abi.ABI) {
 	vmName = name
 	txWorkloadFactory = factory
 	expectedABI = abi
@@ -63,12 +64,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		client := info.NewClient(baseURI)
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
 		require.NoError(err)
-		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
+		workload.GetNetwork[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
 	})
 
 	ginkgo.It("GetABI", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
+		workload.GetABI[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
 	})
 
 	ginkgo.It("ReadState", func() {
@@ -95,7 +96,7 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
 		require.NoError(err)
 		for _, txWorkload := range txWorkloads {
-			workload.ExecuteWorkload(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
+			workload.ExecuteWorkload[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
 		}
 	})
 })
@@ -108,7 +109,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {
-			workload.GenerateNBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
+			workload.GenerateNBlocks[struct{}](tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
 		})
 
 		var (

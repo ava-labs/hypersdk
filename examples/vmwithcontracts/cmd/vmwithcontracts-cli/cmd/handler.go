@@ -33,11 +33,11 @@ func NewHandler(h *cli.Handler) *Handler {
 	return &Handler{h}
 }
 
-func (h *Handler) Root() *cli.Handler {
+func (h *Handler[_]) Root() *cli.Handler {
 	return h.h
 }
 
-func (h *Handler) DefaultActor() (
+func (h *Handler[_]) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
 	*jsonrpc.JSONRPCClient, *vm.JSONRPCClient, *ws.WebSocketClient, error,
 ) {

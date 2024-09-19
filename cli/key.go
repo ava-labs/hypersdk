@@ -8,7 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-func (h *Handler) SetKey() error {
+func (h *Handler[_]) SetKey() error {
 	keys, err := h.GetKeys()
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func (h *Handler) SetKey() error {
 	return h.StoreDefaultKey(key.Address)
 }
 
-func (h *Handler) Balance(checkAllChains bool) error {
+func (h *Handler[_]) Balance(checkAllChains bool) error {
 	addr, _, err := h.GetDefaultKey(true)
 	if err != nil {
 		return err

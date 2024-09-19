@@ -11,12 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"go.opentelemetry.io/otel/attribute"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
@@ -60,11 +61,11 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 // TODO: This code is terrible and will be removed during the Vryx integration.
-func BuildBlock(
+func BuildBlock[T RuntimeInterface](
 	ctx context.Context,
-	vm VM,
-	parent *StatefulBlock,
-) (*StatefulBlock, error) {
+	vm VM[T],
+	parent *StatefulBlock[T],
+) (*StatefulBlock[T], error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
@@ -115,7 +116,7 @@ func BuildBlock(
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
-		restorable     = []*Transaction{}
+		restorable     = []*Transaction[T]{}
 
 		// cache contains keys already fetched from state that can be
 		// used during prefetching.
@@ -139,7 +140,7 @@ func BuildBlock(
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
-	b.Txs = []*Transaction{}
+	b.Txs = []*Transaction[T]{}
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -158,7 +159,7 @@ func BuildBlock(
 		}
 
 		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
-		pending := make(map[ids.ID]*Transaction, streamBatch)
+		pending := make(map[ids.ID]*Transaction[T], streamBatch)
 		var pendingLock sync.Mutex
 		for li, ltx := range txs {
 			txsAttempted++
@@ -273,6 +274,7 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
+					vm.GetRuntime(),
 					sm,
 					r,
 					tsv,

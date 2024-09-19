@@ -8,9 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/timer"
-	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 // minBuildGap ensures we don't build blocks too quickly (can fail
@@ -19,11 +22,11 @@ import (
 // TODO: consider replacing this with AvalancheGo block build metering
 const minBuildGap int64 = 25 // ms
 
-var _ Builder = (*Time)(nil)
+var _ Builder = (*Time[chain.RuntimeInterface])(nil)
 
 // Time tells the engine when to build blocks and gossip transactions
-type Time struct {
-	vm        VM
+type Time[T chain.RuntimeInterface] struct {
+	vm        VM[T]
 	doneBuild chan struct{}
 
 	timer     *timer.Timer
@@ -31,8 +34,8 @@ type Time struct {
 	waiting   atomic.Bool
 }
 
-func NewTime(vm VM) *Time {
-	b := &Time{
+func NewTime[T chain.RuntimeInterface](vm VM[T]) *Time[T] {
+	b := &Time[T]{
 		vm:        vm,
 		doneBuild: make(chan struct{}),
 	}
@@ -40,12 +43,12 @@ func NewTime(vm VM) *Time {
 	return b
 }
 
-func (b *Time) Run() {
+func (b *Time[_]) Run() {
 	b.Queue(context.TODO()) // start building loop (may not be an initial trigger)
 	b.timer.Dispatch()      // this blocks
 }
 
-func (b *Time) handleTimerNotify() {
+func (b *Time[_]) handleTimerNotify() {
 	if err := b.Force(context.TODO()); err != nil {
 		b.vm.Logger().Warn("unable to build", zap.Error(err))
 	} else {
@@ -55,7 +58,7 @@ func (b *Time) handleTimerNotify() {
 	b.waiting.Store(false)
 }
 
-func (b *Time) nextTime(now int64, preferred int64) int64 {
+func (b *Time[_]) nextTime(now int64, preferred int64) int64 {
 	gap := b.vm.Rules(now).GetMinBlockGap()
 	next := max(b.lastQueue+minBuildGap, preferred+gap)
 	if next < now {
@@ -64,7 +67,7 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) Queue(ctx context.Context) {
+func (b *Time[_]) Queue(ctx context.Context) {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.vm.Logger().Debug("unable to acquire waiting lock")
 		return
@@ -93,7 +96,7 @@ func (b *Time) Queue(ctx context.Context) {
 	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 }
 
-func (b *Time) Force(context.Context) error {
+func (b *Time[_]) Force(context.Context) error {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 		b.lastQueue = time.Now().UnixMilli()
@@ -103,6 +106,6 @@ func (b *Time) Force(context.Context) error {
 	return nil
 }
 
-func (b *Time) Done() {
+func (b *Time[_]) Done() {
 	b.timer.Stop()
 }

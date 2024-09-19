@@ -11,12 +11,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -24,10 +25,10 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
-var _ Gossiper = (*Proposer)(nil)
+var _ Gossiper = (*Proposer[chain.RuntimeInterface])(nil)
 
-type Proposer struct {
-	vm         VM
+type Proposer[T chain.RuntimeInterface] struct {
+	vm         VM[T]
 	cfg        *ProposerConfig
 	appSender  common.AppSender
 	doneGossip chan struct{}
@@ -69,8 +70,8 @@ func DefaultProposerConfig() *ProposerConfig {
 	}
 }
 
-func NewProposer(vm VM, cfg *ProposerConfig) (*Proposer, error) {
-	g := &Proposer{
+func NewProposer[T chain.RuntimeInterface](vm VM[T], cfg *ProposerConfig) (*Proposer[T], error) {
+	g := &Proposer[T]{
 		vm:         vm,
 		cfg:        cfg,
 		doneGossip: make(chan struct{}),
@@ -89,7 +90,7 @@ func NewProposer(vm VM, cfg *ProposerConfig) (*Proposer, error) {
 	return g, nil
 }
 
-func (g *Proposer) Force(ctx context.Context) error {
+func (g *Proposer[T]) Force(ctx context.Context) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.Force")
 	defer span.End()
 
@@ -109,7 +110,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	// that increases the probability they'll be accepted
 	// before they expire.
 	var (
-		txs   = []*chain.Transaction{}
+		txs   = []*chain.Transaction[T]{}
 		size  = 0
 		start = time.Now()
 		now   = start.UnixMilli()
@@ -117,7 +118,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.Transaction[T]) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -161,7 +162,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	return g.sendTxs(ctx, txs)
 }
 
-func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (g *Proposer[_]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
 	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
@@ -261,7 +262,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	return nil
 }
 
-func (g *Proposer) notify() {
+func (g *Proposer[_]) notify() {
 	select {
 	case g.q <- struct{}{}:
 		g.lastQueue = time.Now().UnixMilli()
@@ -269,12 +270,12 @@ func (g *Proposer) notify() {
 	}
 }
 
-func (g *Proposer) handleTimerNotify() {
+func (g *Proposer[_]) handleTimerNotify() {
 	g.notify()
 	g.waiting.Store(false)
 }
 
-func (g *Proposer) Queue(context.Context) {
+func (g *Proposer[_]) Queue(context.Context) {
 	if !g.waiting.CompareAndSwap(false, true) {
 		g.vm.Logger().Debug("unable to start waiting")
 		return
@@ -293,7 +294,7 @@ func (g *Proposer) Queue(context.Context) {
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer) Run(appSender common.AppSender) {
+func (g *Proposer[_]) Run(appSender common.AppSender) {
 	g.appSender = appSender
 	defer close(g.doneGossip)
 
@@ -334,19 +335,19 @@ func (g *Proposer) Run(appSender common.AppSender) {
 	}
 }
 
-func (g *Proposer) BlockVerified(t int64) {
+func (g *Proposer[_]) BlockVerified(t int64) {
 	if t < g.lastVerified {
 		return
 	}
 	g.lastVerified = t
 }
 
-func (g *Proposer) Done() {
+func (g *Proposer[_]) Done() {
 	g.timer.Stop()
 	<-g.doneGossip
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (g *Proposer[T]) sendTxs(ctx context.Context, txs []*chain.Transaction[T]) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 

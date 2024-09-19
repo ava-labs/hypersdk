@@ -17,13 +17,13 @@ const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
 // and a sized sequence of transactions to test on a given environment and reach a particular state
-type TxWorkloadFactory interface {
+type TxWorkloadFactory[T chain.RuntimeInterface] interface {
 	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
 	// to define each sequence of transactions that should be tested.
 	// TODO: switch from workload generator to procedural test style for VM-defined workloads
-	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
+	NewWorkloads(uri string) ([]TxWorkloadIterator[T], error)
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
-	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
+	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator[T], error)
 }
 
 type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
@@ -43,17 +43,17 @@ type TxAssertion func(ctx context.Context, require *require.Assertions, uri stri
 //
 // To handle tx expiry correctly, the workload must generate txs on demand (right before issuance) rather than
 // returning a slice of txs, which may expire before they are issued.
-type TxWorkloadIterator interface {
+type TxWorkloadIterator[T chain.RuntimeInterface] interface {
 	// Next returns true iff there are more transactions to generate.
 	Next() bool
 	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
 	// 1. The tx was accepted on the provided URI
 	// 2. The state was updated as expected according to the provided URI
-	GenerateTxWithAssertion(context.Context) (*chain.Transaction, TxAssertion, error)
+	GenerateTxWithAssertion(context.Context) (*chain.Transaction[T], TxAssertion, error)
 }
 
-func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
-	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+func ExecuteWorkload[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator[T]) {
+	submitClient := jsonrpc.NewJSONRPCClient[T](uris[0])
 
 	for generator.Next() {
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
@@ -68,11 +68,11 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory, n uint64) {
+func GenerateNBlocks[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory[T], n uint64) {
 	uri := uris[0]
 	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
-	client := jsonrpc.NewJSONRPCClient(uri)
+	client := jsonrpc.NewJSONRPCClient[T](uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
 	require.NoError(err)
@@ -94,7 +94,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 
 	for _, uri := range uris {
-		client := jsonrpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient[T](uri)
 		err := jsonrpc.Wait(ctx, reachedAcceptedTipSleepInterval, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
 			if err != nil {
@@ -106,14 +106,14 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateUntilStop(
+func GenerateUntilStop[T chain.RuntimeInterface](
 	ctx context.Context,
 	require *require.Assertions,
 	uris []string,
-	generator TxWorkloadIterator,
+	generator TxWorkloadIterator[T],
 	stopChannel <-chan struct{},
 ) {
-	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient[T](uris[0])
 	for {
 		select {
 		case <-stopChannel:

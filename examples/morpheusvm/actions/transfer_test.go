@@ -8,20 +8,21 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
 
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/state"
 )
 
 func TestTransferAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
 
-	tests := []chaintest.ActionTest{
+	tests := []chaintest.ActionTest[struct{}]{
 		{
 			Name:  "ZeroTransfer",
 			Actor: codec.EmptyAddress,
@@ -38,7 +39,10 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			State:       chaintest.NewInMemoryStore(),
+			Runtime: chain.Runtime[struct{}]{
+				T:     struct{}{},
+				State: chaintest.NewInMemoryStore(),
+			},
 			ExpectedErr: storage.ErrInvalidAddress,
 		},
 		{
@@ -48,18 +52,23 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			State: func() state.Mutable {
-				s := chaintest.NewInMemoryStore()
+			Runtime: func() chain.Runtime[struct{}] {
+				runtime := chain.Runtime[struct{}]{
+					T:     struct{}{},
+					State: chaintest.NewInMemoryStore(),
+				}
+
 				_, err := storage.AddBalance(
 					context.Background(),
-					s,
+					runtime.State,
 					codec.EmptyAddress,
 					0,
 					true,
 				)
 				require.NoError(t, err)
-				return s
+				return runtime
 			}(),
+
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
 		{
@@ -69,13 +78,17 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			State: func() state.Mutable {
-				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
-				return store
+			Runtime: func() chain.Runtime[struct{}] {
+				runtime := chain.Runtime[struct{}]{
+					T:     struct{}{},
+					State: chaintest.NewInMemoryStore(),
+				}
+
+				require.NoError(t, storage.SetBalance(context.Background(), runtime.State, codec.EmptyAddress, 1))
+				return runtime
 			}(),
-			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+			Assertion: func(ctx context.Context, t *testing.T, runtime chain.Runtime[struct{}]) {
+				balance, err := storage.GetBalance(ctx, runtime.State, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
@@ -91,10 +104,14 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: math.MaxUint64,
 			},
-			State: func() state.Mutable {
-				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
-				return store
+			Runtime: func() chain.Runtime[struct{}] {
+				runtime := chain.Runtime[struct{}]{
+					T:     struct{}{},
+					State: chaintest.NewInMemoryStore(),
+				}
+
+				require.NoError(t, storage.SetBalance(context.Background(), runtime.State, codec.EmptyAddress, 1))
+				return runtime
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
@@ -105,16 +122,20 @@ func TestTransferAction(t *testing.T) {
 				To:    addr,
 				Value: 1,
 			},
-			State: func() state.Mutable {
-				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
-				return store
+			Runtime: func() chain.Runtime[struct{}] {
+				runtime := chain.Runtime[struct{}]{
+					T:     struct{}{},
+					State: chaintest.NewInMemoryStore(),
+				}
+
+				require.NoError(t, storage.SetBalance(context.Background(), runtime.State, codec.EmptyAddress, 1))
+				return runtime
 			}(),
-			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, store, addr)
+			Assertion: func(ctx context.Context, t *testing.T, runtime chain.Runtime[struct{}]) {
+				receiverBalance, err := storage.GetBalance(ctx, runtime.State, addr)
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, runtime.State, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -135,25 +156,28 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
 
-	transferActionTest := &chaintest.ActionBenchmark{
+	transferActionTest := &chaintest.ActionBenchmark[struct{}]{
 		Name:  "SimpleTransferBenchmark",
 		Actor: from,
 		Action: &Transfer{
 			To:    to,
 			Value: 1,
 		},
-		CreateState: func() state.Mutable {
+		NewRuntimeF: func() chain.Runtime[struct{}] {
 			store := chaintest.NewInMemoryStore()
 			err := storage.SetBalance(context.Background(), store, from, 1)
 			require.NoError(err)
-			return store
+			return chain.Runtime[struct{}]{
+				T:     struct{}{},
+				State: store,
+			}
 		},
-		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
-			toBalance, err := storage.GetBalance(ctx, store, to)
+		Assertion: func(ctx context.Context, b *testing.B, runtime chain.Runtime[struct{}]) {
+			toBalance, err := storage.GetBalance(ctx, runtime.State, to)
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)
 
-			fromBalance, err := storage.GetBalance(ctx, store, from)
+			fromBalance, err := storage.GetBalance(ctx, runtime.State, from)
 			require.NoError(err)
 			require.Equal(uint64(0), fromBalance)
 		},

@@ -15,22 +15,22 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-type VM interface {
+type VM[T chain.RuntimeInterface] interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 	StopChan() chan struct{}
 	Tracer() trace.Tracer
-	Mempool() chain.Mempool
+	Mempool() chain.Mempool[T]
 	GetTargetGossipDuration() time.Duration
 	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
-	PreferredBlock(context.Context) (*chain.StatefulBlock, error)
-	ActionRegistry() chain.ActionRegistry
+	PreferredBlock(context.Context) (*chain.StatefulBlock[T], error)
+	ActionRegistry() chain.ActionRegistry[T]
 	AuthRegistry() chain.AuthRegistry
 	NodeID() ids.NodeID
 	Rules(int64) chain.Rules
-	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error
+	Submit(ctx context.Context, verify bool, txs []*chain.Transaction[T]) []error
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
 	StateManager() chain.StateManager
 

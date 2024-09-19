@@ -8,7 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/prometheus"
 )
 
-func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startPrometheus bool, prometheusFile string, prometheusData string) error {
+func (h *Handler[_]) GeneratePrometheus(baseURI string, openBrowser bool, startPrometheus bool, prometheusFile string, prometheusData string) error {
 	chains, err := h.GetChains()
 	if err != nil {
 		return err

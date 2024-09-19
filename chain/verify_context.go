@@ -12,33 +12,33 @@ import (
 )
 
 var (
-	_ VerifyContext = (*AcceptedVerifyContext)(nil)
-	_ VerifyContext = (*PendingVerifyContext)(nil)
+	_ VerifyContext[RuntimeInterface] = (*AcceptedVerifyContext[RuntimeInterface])(nil)
+	_ VerifyContext[RuntimeInterface] = (*PendingVerifyContext[RuntimeInterface])(nil)
 )
 
-type PendingVerifyContext struct {
-	blk *StatefulBlock
+type PendingVerifyContext[T RuntimeInterface] struct {
+	blk *StatefulBlock[T]
 }
 
-func (p *PendingVerifyContext) View(ctx context.Context, verify bool) (state.View, error) {
+func (p *PendingVerifyContext[_]) View(ctx context.Context, verify bool) (state.View, error) {
 	return p.blk.View(ctx, verify)
 }
 
-func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (p *PendingVerifyContext[T]) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction[T], marker set.Bits, stop bool) (set.Bits, error) {
 	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
-type AcceptedVerifyContext struct {
-	vm VM
+type AcceptedVerifyContext[T RuntimeInterface] struct {
+	vm VM[T]
 }
 
 // We disregard [verify] because [GetVerifyContext] ensures
 // we will never need to verify a block if [AcceptedVerifyContext] is returned.
-func (a *AcceptedVerifyContext) View(context.Context, bool) (state.View, error) {
+func (a *AcceptedVerifyContext[_]) View(context.Context, bool) (state.View, error) {
 	return a.vm.State()
 }
 
-func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (a *AcceptedVerifyContext[T]) IsRepeat(ctx context.Context, _ int64, txs []*Transaction[T], marker set.Bits, stop bool) (set.Bits, error) {
 	bits := a.vm.IsRepeat(ctx, txs, marker, stop)
 	return bits, nil
 }

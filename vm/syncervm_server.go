@@ -6,15 +6,16 @@ package vm
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
 	"github.com/ava-labs/hypersdk/chain"
 )
 
 // GetLastStateSummary returns the latest state summary.
 // If no summary is available, [database.ErrNotFound] must be returned.
-func (vm *VM) GetLastStateSummary(context.Context) (block.StateSummary, error) {
+func (vm *VM[_]) GetLastStateSummary(context.Context) (block.StateSummary, error) {
 	summary := chain.NewSyncableBlock(vm.LastAcceptedBlock())
 	vm.Logger().Info("Serving syncable block at latest height", zap.Stringer("summary", summary))
 	return summary, nil
@@ -23,7 +24,7 @@ func (vm *VM) GetLastStateSummary(context.Context) (block.StateSummary, error) {
 // GetStateSummary implements StateSyncableVM and returns a summary corresponding
 // to the provided [height] if the node can serve state sync data for that key.
 // If not, [database.ErrNotFound] must be returned.
-func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSummary, error) {
+func (vm *VM[_]) GetStateSummary(ctx context.Context, height uint64) (block.StateSummary, error) {
 	id, err := vm.GetBlockIDAtHeight(ctx, height)
 	if err != nil {
 		return nil, err
@@ -40,8 +41,8 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 	return summary, nil
 }
 
-func (vm *VM) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
-	sb, err := chain.ParseBlock(ctx, bytes, false, vm)
+func (vm *VM[T]) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
+	sb, err := chain.ParseBlock[T](ctx, bytes, false, vm)
 	if err != nil {
 		return nil, err
 	}

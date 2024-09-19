@@ -24,15 +24,15 @@ func NewDefaultConfig() Config {
 	return Config{}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
+func With[T chain.RuntimeInterface]() vm.Option[T] {
+	return vm.NewOption[T](Namespace, NewDefaultConfig(), OptionFunc[T])
 }
 
-func OptionFunc(v *vm.VM, config Config) error {
+func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
 	if !config.Enabled {
 		return nil
 	}
-	server, err := NewExternalSubscriberClient(
+	server, err := NewExternalSubscriberClient[T](
 		context.TODO(),
 		v.Logger(),
 		config.ServerAddress,
@@ -42,12 +42,12 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return err
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
-		AcceptF: func(blk *chain.StatefulBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock[T]]{
+		AcceptF: func(blk *chain.StatefulBlock[T]) error {
 			return server.Accept(blk)
 		},
 	}
 
-	vm.WithBlockSubscriptions(blockSubscription)(v)
+	vm.WithBlockSubscriptions[T](blockSubscription)(v)
 	return nil
 }

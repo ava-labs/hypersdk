@@ -20,29 +20,31 @@ import (
 // DefaultOptions provides the default set of options to include
 // when constructing a new VM including the indexer, websocket,
 // JSONRPC, and external subscriber options.
-func NewDefaultOptions() []vm.Option {
-	return []vm.Option{
-		indexer.With(),
-		ws.With(),
-		jsonrpc.With(),
-		externalsubscriber.With(),
-		staterpc.With(),
+func NewDefaultOptions[T chain.RuntimeInterface]() []vm.Option[T] {
+	return []vm.Option[T]{
+		indexer.With[T](),
+		ws.With[T](),
+		jsonrpc.With[T](),
+		externalsubscriber.With[T](),
+		staterpc.With[T](),
 	}
 }
 
 // New returns a VM with DefaultOptions pre-supplied
-func New(
+func New[T chain.RuntimeInterface](
+	runtime T,
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
+	actionRegistry chain.ActionRegistry[T],
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
 	authEngine map[uint8]vm.AuthEngine,
-	options ...vm.Option,
-) (*vm.VM, error) {
-	options = append(options, NewDefaultOptions()...)
+	options ...vm.Option[T],
+) (*vm.VM[T], error) {
+	options = append(options, NewDefaultOptions[T]()...)
 	return vm.New(
+		runtime,
 		v,
 		genesisFactory,
 		stateManager,

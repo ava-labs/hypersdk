@@ -7,15 +7,16 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 const Endpoint = "/corestate"
 
-var _ api.HandlerFactory[api.VM] = (*JSONRPCStateServerFactory)(nil)
+var _ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*JSONRPCStateServerFactory[chain.RuntimeInterface])(nil)
 
-type JSONRPCStateServerFactory struct{}
+type JSONRPCStateServerFactory[T chain.RuntimeInterface] struct{}
 
-func (JSONRPCStateServerFactory) New(stateReader api.VM) (api.Handler, error) {
+func (JSONRPCStateServerFactory[T]) New(stateReader api.VM[T]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCStateServer(stateReader))
 	if err != nil {
 		return api.Handler{}, err
@@ -36,18 +37,18 @@ type ReadStateResponse struct {
 	Errors []string
 }
 
-func NewJSONRPCStateServer(stateReader api.VM) *JSONRPCStateServer {
-	return &JSONRPCStateServer{
+func NewJSONRPCStateServer[T chain.RuntimeInterface](stateReader api.VM[T]) *JSONRPCStateServer[T] {
+	return &JSONRPCStateServer[T]{
 		stateReader: stateReader,
 	}
 }
 
 // JSONRPCStateServer gives direct read access to the vm state
-type JSONRPCStateServer struct {
-	stateReader api.VM
+type JSONRPCStateServer[T chain.RuntimeInterface] struct {
+	stateReader api.VM[T]
 }
 
-func (s *JSONRPCStateServer) ReadState(req *http.Request, args *ReadStateRequest, res *ReadStateResponse) error {
+func (s *JSONRPCStateServer[_]) ReadState(req *http.Request, args *ReadStateRequest, res *ReadStateResponse) error {
 	ctx, span := s.stateReader.Tracer().Start(req.Context(), "Server.ReadState")
 	defer span.End()
 

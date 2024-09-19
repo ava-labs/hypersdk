@@ -18,14 +18,14 @@ import (
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action]
+	ActionParser *codec.TypeParser[chain.Action[struct{}]]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
+	ActionParser = codec.NewTypeParser[chain.Action[struct{}]]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 
@@ -33,7 +33,7 @@ func init() {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		ActionParser.Register(&actions.Transfer[struct{}]{}, actions.UnmarshalTransfer[struct{}]),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
@@ -48,9 +48,10 @@ func init() {
 }
 
 // NewWithOptions returns a VM with the specified options
-func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With()) // Add MorpheusVM API
-	return defaultvm.New(
+func New(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
+	options = append(options, With[struct{}]()) // Add MorpheusVM API
+	return defaultvm.New[struct{}](
+		struct{}{}, // MorpheusVM does not define a runtime
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},

@@ -12,11 +12,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-type VM interface {
+type VM[T chain.RuntimeInterface] interface {
 	StopChan() chan struct{}
 	EngineChan() chan<- common.Message
-	PreferredBlock(context.Context) (*chain.StatefulBlock, error)
+	PreferredBlock(context.Context) (*chain.StatefulBlock[T], error)
 	Logger() logging.Logger
-	Mempool() chain.Mempool
+	Mempool() chain.Mempool[T]
 	Rules(int64) chain.Rules
 }

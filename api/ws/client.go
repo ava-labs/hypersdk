@@ -11,9 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
@@ -25,7 +26,7 @@ const DefaultHandshakeTimeout = 10 * time.Second
 
 var ErrClosed = errors.New("closed")
 
-type WebSocketClient struct {
+type WebSocketClient[T chain.RuntimeInterface] struct {
 	cl   sync.Once
 	conn *websocket.Conn
 
@@ -44,7 +45,12 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int, maxSize int) (*WebSocketClient, error) {
+func NewWebSocketClient[T chain.RuntimeInterface](
+	uri string,
+	handshakeTimeout time.Duration,
+	pending int,
+	maxSize int,
+) (*WebSocketClient[T], error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -62,7 +68,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		return nil, err
 	}
 	resp.Body.Close()
-	wc := &WebSocketClient{
+	wc := &WebSocketClient[T]{
 		conn:          conn,
 		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
@@ -137,7 +143,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	return wc, nil
 }
 
-func (c *WebSocketClient) RegisterBlocks() error {
+func (c *WebSocketClient[_]) RegisterBlocks() error {
 	if c.closed {
 		return ErrClosed
 	}
@@ -145,13 +151,13 @@ func (c *WebSocketClient) RegisterBlocks() error {
 }
 
 // ListenBlock listens for block messages from the streaming server.
-func (c *WebSocketClient) ListenBlock(
+func (c *WebSocketClient[T]) ListenBlock(
 	ctx context.Context,
-	parser chain.Parser,
-) (*chain.StatelessBlock, []*chain.Result, fees.Dimensions, error) {
+	parser chain.Parser[T],
+) (*chain.StatelessBlock[T], []*chain.Result, fees.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
-		return UnpackBlockMessage(msg, parser)
+		return UnpackBlockMessage[T](msg, parser)
 	case <-c.readStopped:
 		return nil, nil, fees.Dimensions{}, c.err
 	case <-ctx.Done():
@@ -160,7 +166,7 @@ func (c *WebSocketClient) ListenBlock(
 }
 
 // IssueTx sends [tx] to the streaming rpc server.
-func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+func (c *WebSocketClient[T]) RegisterTx(tx *chain.Transaction[T]) error {
 	if c.closed {
 		return ErrClosed
 	}
@@ -172,7 +178,7 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
+func (c *WebSocketClient[_]) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
 	select {
 	case msg := <-c.pendingTxs:
 		return UnpackTxMessage(msg)
@@ -184,7 +190,7 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 }
 
 // Close closes [c]'s connection to the decision rpc server.
-func (c *WebSocketClient) Close() error {
+func (c *WebSocketClient[_]) Close() error {
 	var err error
 	c.cl.Do(func() {
 		c.startedClose = true
@@ -199,6 +205,6 @@ func (c *WebSocketClient) Close() error {
 	return err
 }
 
-func (c *WebSocketClient) Closed() bool {
+func (c *WebSocketClient[_]) Closed() bool {
 	return c.closed
 }

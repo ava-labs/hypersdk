@@ -7,47 +7,48 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-var _ Gossiper = (*Manual)(nil)
+var _ Gossiper = (*Manual[chain.RuntimeInterface])(nil)
 
-type Manual struct {
-	vm         VM
+type Manual[T chain.RuntimeInterface] struct {
+	vm         VM[T]
 	appSender  common.AppSender
 	doneGossip chan struct{}
 }
 
-func NewManual(vm VM) *Manual {
-	return &Manual{
+func NewManual[T chain.RuntimeInterface](vm VM[T]) *Manual[T] {
+	return &Manual[T]{
 		vm:         vm,
 		doneGossip: make(chan struct{}),
 	}
 }
 
-func (g *Manual) Run(appSender common.AppSender) {
+func (g *Manual[_]) Run(appSender common.AppSender) {
 	g.appSender = appSender
 
 	// Only respond to explicitly triggered gossip
 	close(g.doneGossip)
 }
 
-func (g *Manual) Force(ctx context.Context) error {
+func (g *Manual[T]) Force(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
-		txs  = []*chain.Transaction{}
+		txs  = []*chain.Transaction[T]{}
 		size = 0
 		now  = time.Now().UnixMilli()
 	)
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.Transaction[T]) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -84,7 +85,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	return nil
 }
 
-func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (g *Manual[_]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
 	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
@@ -117,11 +118,11 @@ func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 	return nil
 }
 
-func (*Manual) BlockVerified(int64) {}
+func (*Manual[_]) BlockVerified(int64) {}
 
-func (g *Manual) Done() {
+func (g *Manual[_]) Done() {
 	<-g.doneGossip
 }
 
 // Queue is a no-op in [Manual].
-func (*Manual) Queue(context.Context) {}
+func (*Manual[_]) Queue(context.Context) {}

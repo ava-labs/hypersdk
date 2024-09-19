@@ -25,11 +25,11 @@ const (
 	Endpoint = "/coreapi"
 )
 
-var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
+var _ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*JSONRPCServerFactory[chain.RuntimeInterface])(nil)
 
-type JSONRPCServerFactory struct{}
+type JSONRPCServerFactory[T chain.RuntimeInterface] struct{}
 
-func (JSONRPCServerFactory) New(vm api.VM) (api.Handler, error) {
+func (JSONRPCServerFactory[T]) New(vm api.VM[T]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCServer(vm))
 	if err != nil {
 		return api.Handler{}, err
@@ -41,19 +41,19 @@ func (JSONRPCServerFactory) New(vm api.VM) (api.Handler, error) {
 	}, nil
 }
 
-type JSONRPCServer struct {
-	vm api.VM
+type JSONRPCServer[T chain.RuntimeInterface] struct {
+	vm api.VM[T]
 }
 
-func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
-	return &JSONRPCServer{vm}
+func NewJSONRPCServer[T chain.RuntimeInterface](vm api.VM[T]) *JSONRPCServer[T] {
+	return &JSONRPCServer[T]{vm}
 }
 
 type PingReply struct {
 	Success bool `json:"success"`
 }
 
-func (j *JSONRPCServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+func (j *JSONRPCServer[_]) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
 	j.vm.Logger().Info("ping")
 	reply.Success = true
 	return nil
@@ -65,7 +65,7 @@ type NetworkReply struct {
 	ChainID   ids.ID `json:"chainId"`
 }
 
-func (j *JSONRPCServer) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
+func (j *JSONRPCServer[_]) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
 	reply.NetworkID = j.vm.NetworkID()
 	reply.SubnetID = j.vm.SubnetID()
 	reply.ChainID = j.vm.ChainID()
@@ -80,7 +80,7 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (j *JSONRPCServer) SubmitTx(
+func (j *JSONRPCServer[T]) SubmitTx(
 	req *http.Request,
 	args *SubmitTxArgs,
 	reply *SubmitTxReply,
@@ -90,7 +90,7 @@ func (j *JSONRPCServer) SubmitTx(
 
 	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
+	tx, err := chain.UnmarshalTx[T](rtx, actionRegistry, authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -107,7 +107,7 @@ func (j *JSONRPCServer) SubmitTx(
 	}
 	txID := tx.ID()
 	reply.TxID = txID
-	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, false, []*chain.Transaction[T]{tx})[0]
 }
 
 type LastAcceptedReply struct {
@@ -116,7 +116,7 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+func (j *JSONRPCServer[_]) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := j.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
@@ -128,7 +128,7 @@ type UnitPricesReply struct {
 	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
-func (j *JSONRPCServer) UnitPrices(
+func (j *JSONRPCServer[_]) UnitPrices(
 	req *http.Request,
 	_ *struct{},
 	reply *UnitPricesReply,
@@ -150,10 +150,15 @@ type GetABIReply struct {
 	ABI abi.ABI `json:"abi"`
 }
 
-func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
+func (j *JSONRPCServer[T]) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
+	var (
+		actionRegistry *codec.TypeParser[chain.Action[T]]
+		outputRegistry chain.OutputRegistry
+	)
+
+	actionRegistry, outputRegistry = j.vm.ActionRegistry(), j.vm.OutputRegistry()
 	// Must dereference aliased type to call GetRegisteredTypes
-	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
+	vmABI, err := abi.NewABI(actionRegistry.GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
@@ -171,7 +176,7 @@ type ExecuteActionReply struct {
 	Error  string `json:"error"`
 }
 
-func (j *JSONRPCServer) Execute(
+func (j *JSONRPCServer[T]) Execute(
 	req *http.Request,
 	args *ExecuteActionArgs,
 	reply *ExecuteActionReply,
@@ -179,8 +184,9 @@ func (j *JSONRPCServer) Execute(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	actionRegistry := j.vm.ActionRegistry()
-	action, err := (*actionRegistry).Unmarshal(codec.NewReader(args.Action, len(args.Action)))
+	var actionRegistry *codec.TypeParser[chain.Action[T]]
+	actionRegistry = j.vm.ActionRegistry()
+	action, err := actionRegistry.Unmarshal(codec.NewReader(args.Action, len(args.Action)))
 	if err != nil {
 		return fmt.Errorf("failed to unmashal action: %w", err)
 	}
@@ -215,8 +221,11 @@ func (j *JSONRPCServer) Execute(
 
 	output, err := action.Execute(
 		ctx,
-		j.vm.Rules(now),
-		tsv,
+		chain.Runtime[T]{
+			T:     j.vm.GetRuntime(),
+			Rules: j.vm.Rules(now),
+			State: tsv,
+		},
 		now,
 		args.Actor,
 		ids.Empty,
