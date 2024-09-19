@@ -6,7 +6,7 @@ package chain
 import (
 	"time"
 
-	"github.com/ava-labs/hypersdk/internal/keys"
+	"github.com/ava-labs/hypersdk/keys"
 )
 
 const (

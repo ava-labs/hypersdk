@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 type fetchData struct {
