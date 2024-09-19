@@ -31,62 +31,62 @@ import (
 )
 
 var (
-	_ chain.VM              = (*VM)(nil)
-	_ gossiper.VM           = (*VM)(nil)
-	_ builder.VM            = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ chain.VM[chain.RuntimeInterface]    = (*VM[chain.RuntimeInterface])(nil)
+	_ gossiper.VM[chain.RuntimeInterface] = (*VM[chain.RuntimeInterface])(nil)
+	_ builder.VM[chain.RuntimeInterface]  = (*VM[chain.RuntimeInterface])(nil)
+	_ block.ChainVM                       = (*VM[chain.RuntimeInterface])(nil)
+	_ block.StateSyncableVM               = (*VM[chain.RuntimeInterface])(nil)
 )
 
-func (vm *VM) ChainID() ids.ID {
+func (vm *VM[_]) ChainID() ids.ID {
 	return vm.snowCtx.ChainID
 }
 
-func (vm *VM) NetworkID() uint32 {
+func (vm *VM[_]) NetworkID() uint32 {
 	return vm.snowCtx.NetworkID
 }
 
-func (vm *VM) SubnetID() ids.ID {
+func (vm *VM[_]) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionRegistry() chain.ActionRegistry {
+func (vm *VM[T]) ActionRegistry() chain.ActionRegistry[T] {
 	return vm.actionRegistry
 }
 
-func (vm *VM) OutputRegistry() chain.OutputRegistry {
+func (vm *VM[_]) OutputRegistry() chain.OutputRegistry {
 	return vm.outputRegistry
 }
 
-func (vm *VM) AuthRegistry() chain.AuthRegistry {
+func (vm *VM[_]) AuthRegistry() chain.AuthRegistry {
 	return vm.authRegistry
 }
 
-func (vm *VM) AuthVerifiers() workers.Workers {
+func (vm *VM[_]) AuthVerifiers() workers.Workers {
 	return vm.authVerifiers
 }
 
-func (vm *VM) Tracer() trace.Tracer {
+func (vm *VM[_]) Tracer() trace.Tracer {
 	return vm.tracer
 }
 
-func (vm *VM) Logger() logging.Logger {
+func (vm *VM[_]) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
-func (vm *VM) Rules(t int64) chain.Rules {
+func (vm *VM[_]) Rules(t int64) chain.Rules {
 	return vm.ruleFactory.GetRules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.StatefulBlock {
+func (vm *VM[T]) LastAcceptedBlock() *chain.StatefulBlock[T] {
 	return vm.lastAccepted
 }
 
-func (vm *VM) IsBootstrapped() bool {
+func (vm *VM[_]) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (merkledb.MerkleDB, error) {
+func (vm *VM[_]) State() (merkledb.MerkleDB, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
 	if !vm.StateReady() {
 		return nil, ErrStateMissing
@@ -94,7 +94,7 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
 
-func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
+func (vm *VM[_]) ImmutableState(ctx context.Context) (state.Immutable, error) {
 	ts := tstate.New(0)
 	state, err := vm.State()
 	if err != nil {
@@ -103,18 +103,18 @@ func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
 	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
 }
 
-func (vm *VM) Mempool() chain.Mempool {
+func (vm *VM[T]) Mempool() chain.Mempool[T] {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
+func (vm *VM[T]) IsRepeat(ctx context.Context, txs []*chain.Transaction[T], marker set.Bits, stop bool) set.Bits {
 	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
 	defer span.End()
 
 	return vm.seen.Contains(txs, marker, stop)
 }
 
-func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM[T]) Verified(ctx context.Context, b *chain.StatefulBlock[T]) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
@@ -153,7 +153,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
 	}
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM[T]) Rejected(ctx context.Context, b *chain.StatefulBlock[T]) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
@@ -167,7 +167,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
+func (vm *VM[T]) processAcceptedBlock(b *chain.StatefulBlock[T]) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -210,7 +210,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 	}
 }
 
-func (vm *VM) processAcceptedBlocks() {
+func (vm *VM[_]) processAcceptedBlocks() {
 	// Always close [acceptorDone] or we may block shutdown.
 	defer func() {
 		close(vm.acceptorDone)
@@ -231,7 +231,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM[T]) Accepted(ctx context.Context, b *chain.StatefulBlock[T]) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -303,29 +303,29 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatefulBlock) {
 	)
 }
 
-func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
+func (vm *VM[_]) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }
 
-func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
+func (vm *VM[_]) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
 	return vm.proposerMonitor.Proposers(ctx, diff, depth)
 }
 
-func (vm *VM) CurrentValidators(
+func (vm *VM[_]) CurrentValidators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	return vm.proposerMonitor.Validators(ctx)
 }
 
-func (vm *VM) NodeID() ids.NodeID {
+func (vm *VM[_]) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
+func (vm *VM[T]) PreferredBlock(ctx context.Context) (*chain.StatefulBlock[T], error) {
 	return vm.GetStatefulBlock(ctx, vm.preferred)
 }
 
-func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
+func (vm *VM[_]) PreferredHeight(ctx context.Context) (uint64, error) {
 	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
 		return 0, err
@@ -333,31 +333,31 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 	return preferredBlk.Hght, nil
 }
 
-func (vm *VM) StopChan() chan struct{} {
+func (vm *VM[_]) StopChan() chan struct{} {
 	return vm.stop
 }
 
-func (vm *VM) EngineChan() chan<- common.Message {
+func (vm *VM[_]) EngineChan() chan<- common.Message {
 	return vm.toEngine
 }
 
 // Used for integration and load testing
-func (vm *VM) Builder() builder.Builder {
+func (vm *VM[_]) Builder() builder.Builder {
 	return vm.builder
 }
 
-func (vm *VM) Gossiper() gossiper.Gossiper {
+func (vm *VM[_]) Gossiper() gossiper.Gossiper {
 	return vm.gossiper
 }
 
-func (vm *VM) AcceptedSyncableBlock(
+func (vm *VM[T]) AcceptedSyncableBlock(
 	ctx context.Context,
-	sb *chain.SyncableBlock,
+	sb *chain.SyncableBlock[T],
 ) (block.StateSyncMode, error) {
 	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
 }
 
-func (vm *VM) StateReady() bool {
+func (vm *VM[_]) StateReady() bool {
 	if vm.stateSyncClient == nil {
 		// Can occur in test
 		return false
@@ -365,79 +365,79 @@ func (vm *VM) StateReady() bool {
 	return vm.stateSyncClient.StateReady()
 }
 
-func (vm *VM) UpdateSyncTarget(b *chain.StatefulBlock) (bool, error) {
+func (vm *VM[T]) UpdateSyncTarget(b *chain.StatefulBlock[T]) (bool, error) {
 	return vm.stateSyncClient.UpdateSyncTarget(b)
 }
 
-func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
+func (vm *VM[_]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
 	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
 }
 
-func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
+func (vm *VM[_]) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
 }
 
-func (vm *VM) Genesis() genesis.Genesis {
+func (vm *VM[_]) Genesis() genesis.Genesis {
 	return vm.genesis
 }
 
-func (vm *VM) StateManager() chain.StateManager {
+func (vm *VM[_]) StateManager() chain.StateManager {
 	return vm.stateManager
 }
 
-func (vm *VM) RecordRootCalculated(t time.Duration) {
+func (vm *VM[_]) RecordRootCalculated(t time.Duration) {
 	vm.metrics.rootCalculated.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitRoot(t time.Duration) {
+func (vm *VM[_]) RecordWaitRoot(t time.Duration) {
 	vm.metrics.waitRoot.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitSignatures(t time.Duration) {
+func (vm *VM[_]) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
 
-func (vm *VM) RecordStateChanges(c int) {
+func (vm *VM[_]) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }
 
-func (vm *VM) RecordStateOperations(c int) {
+func (vm *VM[_]) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
 }
 
-func (vm *VM) GetVerifyAuth() bool {
+func (vm *VM[_]) GetVerifyAuth() bool {
 	return vm.config.VerifyAuth
 }
 
-func (vm *VM) RecordTxsGossiped(c int) {
+func (vm *VM[_]) RecordTxsGossiped(c int) {
 	vm.metrics.txsGossiped.Add(float64(c))
 }
 
-func (vm *VM) RecordTxsReceived(c int) {
+func (vm *VM[_]) RecordTxsReceived(c int) {
 	vm.metrics.txsReceived.Add(float64(c))
 }
 
-func (vm *VM) RecordSeenTxsReceived(c int) {
+func (vm *VM[_]) RecordSeenTxsReceived(c int) {
 	vm.metrics.seenTxsReceived.Add(float64(c))
 }
 
-func (vm *VM) RecordBuildCapped() {
+func (vm *VM[_]) RecordBuildCapped() {
 	vm.metrics.buildCapped.Inc()
 }
 
-func (vm *VM) GetTargetBuildDuration() time.Duration {
+func (vm *VM[_]) GetTargetBuildDuration() time.Duration {
 	return vm.config.TargetBuildDuration
 }
 
-func (vm *VM) GetTargetGossipDuration() time.Duration {
+func (vm *VM[_]) GetTargetGossipDuration() time.Duration {
 	return vm.config.TargetGossipDuration
 }
 
-func (vm *VM) RecordEmptyBlockBuilt() {
+func (vm *VM[_]) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
 }
 
-func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+func (vm *VM[_]) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
 	bv, ok := vm.authEngine[authTypeID]
 	if !ok {
 		return nil, false
@@ -445,7 +445,7 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) cacheAuth(auth chain.Auth) {
+func (vm *VM[_]) cacheAuth(auth chain.Auth) {
 	bv, ok := vm.authEngine[auth.GetTypeID()]
 	if !ok {
 		return
@@ -453,19 +453,19 @@ func (vm *VM) cacheAuth(auth chain.Auth) {
 	bv.Cache(auth)
 }
 
-func (vm *VM) RecordBlockVerify(t time.Duration) {
+func (vm *VM[_]) RecordBlockVerify(t time.Duration) {
 	vm.metrics.blockVerify.Observe(float64(t))
 }
 
-func (vm *VM) RecordBlockAccept(t time.Duration) {
+func (vm *VM[_]) RecordBlockAccept(t time.Duration) {
 	vm.metrics.blockAccept.Observe(float64(t))
 }
 
-func (vm *VM) RecordClearedMempool() {
+func (vm *VM[_]) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
-func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
+func (vm *VM[_]) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -473,18 +473,18 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	return internalfees.NewManager(v).UnitPrices(), nil
 }
 
-func (vm *VM) GetTransactionExecutionCores() int {
+func (vm *VM[_]) GetTransactionExecutionCores() int {
 	return vm.config.TransactionExecutionCores
 }
 
-func (vm *VM) GetStateFetchConcurrency() int {
+func (vm *VM[_]) GetStateFetchConcurrency() int {
 	return vm.config.StateFetchConcurrency
 }
 
-func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
+func (vm *VM[_]) GetExecutorBuildRecorder() executor.Metrics {
 	return vm.metrics.executorBuildRecorder
 }
 
-func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
+func (vm *VM[_]) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
 }

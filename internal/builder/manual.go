@@ -7,30 +7,31 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
-var _ Builder = (*Manual)(nil)
+var _ Builder = (*Manual[chain.RuntimeInterface])(nil)
 
-type Manual struct {
-	vm        VM
+type Manual[T chain.RuntimeInterface] struct {
+	vm        VM[T]
 	doneBuild chan struct{}
 }
 
-func NewManual(vm VM) *Manual {
-	return &Manual{
+func NewManual[T chain.RuntimeInterface](vm VM[T]) *Manual[T] {
+	return &Manual[T]{
 		vm:        vm,
 		doneBuild: make(chan struct{}),
 	}
 }
 
-func (b *Manual) Run() {
+func (b *Manual[_]) Run() {
 	close(b.doneBuild)
 }
 
 // Queue is a no-op in [Manual].
-func (*Manual) Queue(context.Context) {}
+func (*Manual[_]) Queue(context.Context) {}
 
-func (b *Manual) Force(context.Context) error {
+func (b *Manual[_]) Force(context.Context) error {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:
@@ -39,6 +40,6 @@ func (b *Manual) Force(context.Context) error {
 	return nil
 }
 
-func (b *Manual) Done() {
+func (b *Manual[_]) Done() {
 	<-b.doneBuild
 }

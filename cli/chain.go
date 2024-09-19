@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/units"
-
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/cli/prompt"
@@ -19,12 +18,12 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-func (h *Handler) ImportChain() error {
+func (h *Handler[T]) ImportChain() error {
 	uri, err := prompt.String("uri", 0, consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	client := jsonrpc.NewJSONRPCClient(uri)
+	client := jsonrpc.NewJSONRPCClient[T](uri)
 	_, _, chainID, err := client.Network(context.TODO())
 	if err != nil {
 		return err
@@ -38,7 +37,7 @@ func (h *Handler) ImportChain() error {
 	return nil
 }
 
-func (h *Handler) SetDefaultChain() error {
+func (h *Handler[_]) SetDefaultChain() error {
 	chains, err := h.GetChains()
 	if err != nil {
 		return err
@@ -50,7 +49,7 @@ func (h *Handler) SetDefaultChain() error {
 	return h.StoreDefaultChain(chainID)
 }
 
-func (h *Handler) PrintChainInfo() error {
+func (h *Handler[T]) PrintChainInfo() error {
 	chains, err := h.GetChains()
 	if err != nil {
 		return err
@@ -59,7 +58,7 @@ func (h *Handler) PrintChainInfo() error {
 	if err != nil {
 		return err
 	}
-	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient[T](uris[0])
 	networkID, subnetID, chainID, err := cli.Network(context.Background())
 	if err != nil {
 		return err
@@ -73,7 +72,7 @@ func (h *Handler) PrintChainInfo() error {
 	return nil
 }
 
-func (h *Handler) WatchChain(hideTxs bool) error {
+func (h *Handler[T]) WatchChain(hideTxs bool) error {
 	ctx := context.Background()
 	chains, err := h.GetChains()
 	if err != nil {
@@ -91,7 +90,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 	if err != nil {
 		return err
 	}
-	scli, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	scli, err := ws.NewWebSocketClient[T](uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}

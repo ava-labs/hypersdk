@@ -22,14 +22,14 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action]
-	OutputRegistry *codec.TypeParser[codec.Typed]
-	AuthRegistry   *codec.TypeParser[Auth]
+	ActionRegistry[T RuntimeInterface] *codec.TypeParser[Action[T]]
+	OutputRegistry                     *codec.TypeParser[codec.Typed]
+	AuthRegistry                       *codec.TypeParser[Auth]
 )
 
-type Parser interface {
+type Parser[T RuntimeInterface] interface {
 	Rules(int64) Rules
-	ActionRegistry() ActionRegistry
+	ActionRegistry() ActionRegistry[T]
 	OutputRegistry() OutputRegistry
 	AuthRegistry() AuthRegistry
 }
@@ -55,10 +55,10 @@ type Monitoring interface {
 	Logger() logging.Logger
 }
 
-type VM interface {
+type VM[T RuntimeInterface] interface {
 	Metrics
 	Monitoring
-	Parser
+	Parser[T]
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
@@ -67,54 +67,56 @@ type VM interface {
 	GetVerifyAuth() bool
 
 	IsBootstrapped() bool
-	LastAcceptedBlock() *StatefulBlock
-	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
+	LastAcceptedBlock() *StatefulBlock[T]
+	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock[T], error)
 
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 
-	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
+	Mempool() Mempool[T]
+	IsRepeat(context.Context, []*Transaction[T], set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
 
-	Verified(context.Context, *StatefulBlock)
-	Rejected(context.Context, *StatefulBlock)
-	Accepted(context.Context, *StatefulBlock)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
+	Verified(context.Context, *StatefulBlock[T])
+	Rejected(context.Context, *StatefulBlock[T])
+	Accepted(context.Context, *StatefulBlock[T])
+	AcceptedSyncableBlock(context.Context, *SyncableBlock[T]) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatefulBlock) (bool, error)
+	UpdateSyncTarget(*StatefulBlock[T]) (bool, error)
 	StateReady() bool
+	// GetRuntime returns the application-defined runtime
+	GetRuntime() T
 }
 
-type VerifyContext interface {
+type VerifyContext[T RuntimeInterface] interface {
 	View(ctx context.Context, verify bool) (state.View, error)
 	// IsRepeat returns a bitset containing the indices of [txs] that are repeats from this context back to
 	// [oldestAllowed].
 	// If [stop] is true, the search will stop at the first repeat transaction. This supports early termination
 	// during verification when any invalid transaction will cause the block to fail verification.
-	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
+	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction[T], marker set.Bits, stop bool) (set.Bits, error)
 }
 
-type Mempool interface {
+type Mempool[T RuntimeInterface] interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
-	Add(context.Context, []*Transaction)
+	Add(context.Context, []*Transaction[T])
 
 	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
+		func(context.Context, *Transaction[T]) (cont bool, rest bool, err error),
 	) error
 
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context, int) []*Transaction[T]
+	FinishStreaming(context.Context, []*Transaction[T]) int
 }
 
 // TODO: add fixed rules as a subset of this interface
@@ -209,7 +211,17 @@ type Marshaler interface {
 	Size() int
 }
 
-type Action interface {
+// TODO add explicit functions for child view processing + rolling back
+// pending runtime state
+type RuntimeInterface interface{}
+
+type Runtime[T RuntimeInterface] struct {
+	T     T
+	Rules Rules
+	State state.Mutable
+}
+
+type Action[T RuntimeInterface] interface {
 	Object
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
@@ -240,8 +252,7 @@ type Action interface {
 	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
-		r Rules,
-		mu state.Mutable,
+		runtime Runtime[T],
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,

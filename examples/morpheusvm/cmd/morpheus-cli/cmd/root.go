@@ -62,7 +62,7 @@ func init() {
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		controller := NewController(dbPath)
-		root, err := cli.New(controller)
+		root, err := cli.New[struct{}](controller)
 		if err != nil {
 			return err
 		}

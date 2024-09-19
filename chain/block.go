@@ -10,14 +10,15 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -29,16 +30,16 @@ import (
 )
 
 var (
-	_ snowman.Block      = (*StatefulBlock)(nil)
-	_ block.StateSummary = (*SyncableBlock)(nil)
+	_ snowman.Block      = (*StatefulBlock[RuntimeInterface])(nil)
+	_ block.StateSummary = (*SyncableBlock[RuntimeInterface])(nil)
 )
 
-type StatelessBlock struct {
+type StatelessBlock[T RuntimeInterface] struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	Txs []*Transaction `json:"txs"`
+	Txs []*Transaction[T] `json:"txs"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -57,11 +58,11 @@ type StatelessBlock struct {
 	authCounts map[uint8]int
 }
 
-func (b *StatelessBlock) Size() int {
+func (b *StatelessBlock[_]) Size() int {
 	return b.size
 }
 
-func (b *StatelessBlock) ID() (ids.ID, error) {
+func (b *StatelessBlock[_]) ID() (ids.ID, error) {
 	blk, err := b.Marshal()
 	if err != nil {
 		return ids.ID{}, err
@@ -69,7 +70,7 @@ func (b *StatelessBlock) ID() (ids.ID, error) {
 	return utils.ToID(blk), nil
 }
 
-func (b *StatelessBlock) Marshal() ([]byte, error) {
+func (b *StatelessBlock[_]) Marshal() ([]byte, error) {
 	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
 		consts.IntLen + codec.CummSize(b.Txs) +
@@ -99,10 +100,10 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
-func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
+func UnmarshalBlock[T RuntimeInterface](raw []byte, parser Parser[T]) (*StatelessBlock[T], error) {
 	var (
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatelessBlock
+		b StatelessBlock[T]
 	)
 	b.size = len(raw)
 
@@ -113,10 +114,10 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.Txs = []*Transaction[T]{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx[T](p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
@@ -133,8 +134,8 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	return &b, p.Err()
 }
 
-func NewGenesisBlock(root ids.ID) *StatelessBlock {
-	return &StatelessBlock{
+func NewGenesisBlock[T RuntimeInterface](root ids.ID) *StatelessBlock[T] {
+	return &StatelessBlock[T]{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
 		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
@@ -153,8 +154,8 @@ func NewGenesisBlock(root ids.ID) *StatelessBlock {
 // Stateless is defined separately from "Block"
 // in case external packages need to use the stateless block
 // without mocking VM or parent block
-type StatefulBlock struct {
-	*StatelessBlock `json:"block"`
+type StatefulBlock[T RuntimeInterface] struct {
+	*StatelessBlock[T] `json:"block"`
 
 	id       ids.ID
 	accepted bool
@@ -165,15 +166,15 @@ type StatefulBlock struct {
 	results    []*Result
 	feeManager *fees.Manager
 
-	vm   VM
+	vm   VM[T]
 	view merkledb.View
 
 	sigJob workers.Job
 }
 
-func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatefulBlock {
-	return &StatefulBlock{
-		StatelessBlock: &StatelessBlock{
+func NewBlock[T RuntimeInterface](vm VM[T], parent snowman.Block, tmstp int64) *StatefulBlock[T] {
+	return &StatefulBlock[T]{
+		StatelessBlock: &StatelessBlock[T]{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
@@ -183,25 +184,25 @@ func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatefulBlock {
 	}
 }
 
-func ParseBlock(
+func ParseBlock[T RuntimeInterface](
 	ctx context.Context,
 	source []byte,
 	accepted bool,
-	vm VM,
-) (*StatefulBlock, error) {
+	vm VM[T],
+) (*StatefulBlock[T], error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
 	defer span.End()
 
-	blk, err := UnmarshalBlock(source, vm)
+	blk, err := UnmarshalBlock[T](source, vm)
 	if err != nil {
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatelessBlock(ctx, blk, source, accepted, vm)
+	return ParseStatelessBlock[T](ctx, blk, source, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
-func (b *StatefulBlock) populateTxs(ctx context.Context) error {
+func (b *StatefulBlock[_]) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.populateTxs")
 	defer span.End()
 
@@ -243,13 +244,13 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 	return nil
 }
 
-func ParseStatelessBlock(
+func ParseStatelessBlock[T RuntimeInterface](
 	ctx context.Context,
-	blk *StatelessBlock,
+	blk *StatelessBlock[T],
 	source []byte,
 	accepted bool,
-	vm VM,
-) (*StatefulBlock, error) {
+	vm VM[T],
+) (*StatefulBlock[T], error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatelessBlock")
 	defer span.End()
 
@@ -265,7 +266,7 @@ func ParseStatelessBlock(
 		}
 		source = nsource
 	}
-	b := &StatefulBlock{
+	b := &StatefulBlock[T]{
 		StatelessBlock: blk,
 		t:              time.UnixMilli(blk.Tmstmp),
 		bytes:          source,
@@ -286,7 +287,7 @@ func ParseStatelessBlock(
 }
 
 // [initializeBuilt] is invoked after a block is built
-func (b *StatefulBlock) initializeBuilt(
+func (b *StatefulBlock[_]) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
@@ -313,10 +314,10 @@ func (b *StatefulBlock) initializeBuilt(
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock) ID() ids.ID { return b.id }
+func (b *StatefulBlock[_]) ID() ids.ID { return b.id }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Verify(ctx context.Context) error {
+func (b *StatefulBlock[_]) Verify(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockVerify(time.Since(start))
@@ -401,7 +402,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
+func (b *StatefulBlock[T]) innerVerify(ctx context.Context, vctx VerifyContext[T]) error {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
@@ -486,7 +487,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
+	results, ts, err := b.Execute(ctx, b.vm.Tracer(), b.vm.GetRuntime(), parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
@@ -578,7 +579,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock) Accept(ctx context.Context) error {
+func (b *StatefulBlock[_]) Accept(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockAccept(time.Since(start))
@@ -635,7 +636,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 	return nil
 }
 
-func (b *StatefulBlock) MarkAccepted(ctx context.Context) {
+func (b *StatefulBlock[_]) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
 	b.accepted = true
 	b.txsSet = nil // only used for replay protection when processing
@@ -648,7 +649,7 @@ func (b *StatefulBlock) MarkAccepted(ctx context.Context) {
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock) Reject(ctx context.Context) error {
+func (b *StatefulBlock[_]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.Reject")
 	defer span.End()
 
@@ -657,19 +658,19 @@ func (b *StatefulBlock) Reject(ctx context.Context) error {
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Parent() ids.ID { return b.StatelessBlock.Prnt }
+func (b *StatefulBlock[_]) Parent() ids.ID { return b.StatelessBlock.Prnt }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Bytes() []byte { return b.bytes }
+func (b *StatefulBlock[_]) Bytes() []byte { return b.bytes }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Height() uint64 { return b.StatelessBlock.Hght }
+func (b *StatefulBlock[_]) Height() uint64 { return b.StatelessBlock.Hght }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Timestamp() time.Time { return b.t }
+func (b *StatefulBlock[_]) Timestamp() time.Time { return b.t }
 
 // Used to determine if should notify listeners and/or pass to controller
-func (b *StatefulBlock) Processed() bool {
+func (b *StatefulBlock[_]) Processed() bool {
 	return b.view != nil
 }
 
@@ -686,7 +687,7 @@ func (b *StatefulBlock) Processed() bool {
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, error) {
+func (b *StatefulBlock[_]) View(ctx context.Context, verify bool) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.View",
 		trace.WithAttributes(
 			attribute.Bool("processed", b.Processed()),
@@ -802,10 +803,10 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 //
 // If [stop] is set to true, IsRepeat will return as soon as the first repeat
 // is found (useful for block verification).
-func (b *StatefulBlock) IsRepeat(
+func (b *StatefulBlock[T]) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,
-	txs []*Transaction,
+	txs []*Transaction[T],
 	marker set.Bits,
 	stop bool,
 ) (set.Bits, error) {
@@ -845,7 +846,7 @@ func (b *StatefulBlock) IsRepeat(
 	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
-func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
+func (b *StatefulBlock[T]) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext[T], error) {
 	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
 	if blockHeight == 0 {
 		return nil, errors.New("cannot get context of genesis block")
@@ -859,7 +860,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 		if err != nil {
 			return nil, err
 		}
-		return &PendingVerifyContext{blk}, nil
+		return &PendingVerifyContext[T]{blk}, nil
 	}
 
 	// If the last accepted block is not yet processed, we can't use the accepted state for the
@@ -870,47 +871,47 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 	// Invariant: When [View] is called on [vm.lastAccepted], the block will be verified and the accepted
 	// state will be updated.
 	if !lastAcceptedBlock.Processed() && parent == lastAcceptedBlock.ID() {
-		return &PendingVerifyContext{lastAcceptedBlock}, nil
+		return &PendingVerifyContext[T]{lastAcceptedBlock}, nil
 	}
 
 	// If the parent block is accepted and processed, we should
 	// just use the accepted state as the verification context.
-	return &AcceptedVerifyContext{b.vm}, nil
+	return &AcceptedVerifyContext[T]{b.vm}, nil
 }
 
-func (b *StatefulBlock) GetTxs() []*Transaction {
+func (b *StatefulBlock[T]) GetTxs() []*Transaction[T] {
 	return b.Txs
 }
 
-func (b *StatefulBlock) GetTimestamp() int64 {
+func (b *StatefulBlock[_]) GetTimestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *StatefulBlock) Results() []*Result {
+func (b *StatefulBlock[_]) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) FeeManager() *fees.Manager {
+func (b *StatefulBlock[_]) FeeManager() *fees.Manager {
 	return b.feeManager
 }
 
-type SyncableBlock struct {
-	*StatefulBlock
+type SyncableBlock[T RuntimeInterface] struct {
+	*StatefulBlock[T]
 }
 
-func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
+func (sb *SyncableBlock[_]) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.vm.AcceptedSyncableBlock(ctx, sb)
 }
 
-func NewSyncableBlock(sb *StatefulBlock) *SyncableBlock {
-	return &SyncableBlock{sb}
+func NewSyncableBlock[T RuntimeInterface](sb *StatefulBlock[T]) *SyncableBlock[T] {
+	return &SyncableBlock[T]{sb}
 }
 
-func (sb *SyncableBlock) String() string {
+func (sb *SyncableBlock[_]) String() string {
 	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
 }
 
 // Testing
-func (b *StatefulBlock) MarkUnprocessed() {
+func (b *StatefulBlock[_]) MarkUnprocessed() {
 	b.view = nil
 }

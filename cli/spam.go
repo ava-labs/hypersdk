@@ -18,8 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -52,7 +53,7 @@ var (
 	sent     atomic.Int64
 )
 
-type SpamHelper interface {
+type SpamHelper[T chain.RuntimeInterface] interface {
 	// CreateAccount generates a new account and returns the [PrivateKey].
 	//
 	// The spammer tracks all created accounts and orchestrates the return of funds
@@ -75,17 +76,17 @@ type SpamHelper interface {
 	// TODO: consider making these functions part of the required JSONRPC
 	// interface for the HyperSDK.
 	CreateClient(uri string) error
-	GetParser(ctx context.Context) (chain.Parser, error)
+	GetParser(ctx context.Context) (chain.Parser[T], error)
 	LookupBalance(choice int, address codec.Address) (uint64, error)
 
 	// GetTransfer returns a list of actions that sends [amount] to a given [address].
 	//
 	// Memo is used to ensure that each transaction is unique (even if between the same
 	// sender and receiver for the same amount).
-	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action[T]
 }
 
-func (h *Handler) Spam(sh SpamHelper) error {
+func (h *Handler[T]) Spam(sh SpamHelper[T]) error {
 	ctx := context.Background()
 
 	// Select chain
@@ -97,7 +98,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient[T](uris[0])
 	if err != nil {
 		return err
 	}
@@ -208,14 +209,14 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	webSocketClient, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	webSocketClient, err := ws.NewWebSocketClient[T](uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
 	funds := map[codec.Address]uint64{}
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
-	p := &pacer{ws: webSocketClient}
+	p := &pacer[T]{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -252,15 +253,15 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 	// Kickoff txs
-	issuers := []*issuer{}
+	issuers := []*issuer[T]{}
 	for i := 0; i < len(uris); i++ {
 		for j := 0; j < numClients; j++ {
-			cli := jsonrpc.NewJSONRPCClient(uris[i])
-			webSocketClient, err := ws.NewWebSocketClient(uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			cli := jsonrpc.NewJSONRPCClient[T](uris[i])
+			webSocketClient, err := ws.NewWebSocketClient[T](uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: uris[i]}
+			issuer := &issuer[T]{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: uris[i]}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -424,7 +425,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	var returnedBalance uint64
-	p = &pacer{ws: webSocketClient}
+	p = &pacer[T]{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
@@ -461,14 +462,14 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	return nil
 }
 
-type pacer struct {
-	ws *ws.WebSocketClient
+type pacer[T chain.RuntimeInterface] struct {
+	ws *ws.WebSocketClient[T]
 
 	inflight chan struct{}
 	done     chan error
 }
 
-func (p *pacer) Run(ctx context.Context, max int) {
+func (p *pacer[_]) Run(ctx context.Context, max int) {
 	p.inflight = make(chan struct{}, max)
 	p.done = make(chan error)
 
@@ -491,7 +492,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 	p.done <- nil
 }
 
-func (p *pacer) Add(tx *chain.Transaction) error {
+func (p *pacer[T]) Add(tx *chain.Transaction[T]) error {
 	if err := p.ws.RegisterTx(tx); err != nil {
 		return err
 	}
@@ -503,25 +504,25 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 	}
 }
 
-func (p *pacer) Wait() error {
+func (p *pacer[_]) Wait() error {
 	close(p.inflight)
 	return <-p.done
 }
 
-type issuer struct {
+type issuer[T chain.RuntimeInterface] struct {
 	i      int
 	uri    string
-	parser chain.Parser
+	parser chain.Parser[T]
 
 	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
-	cli            *jsonrpc.JSONRPCClient
-	ws             *ws.WebSocketClient
+	cli            *jsonrpc.JSONRPCClient[T]
+	ws             *ws.WebSocketClient[T]
 	outstandingTxs int
 	abandoned      error
 }
 
-func (i *issuer) Start(ctx context.Context) {
+func (i *issuer[_]) Start(ctx context.Context) {
 	issuerWg.Add(1)
 	go func() {
 		for {
@@ -575,7 +576,7 @@ func (i *issuer) Start(ctx context.Context) {
 	}()
 }
 
-func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
+func (i *issuer[T]) Send(ctx context.Context, actions []chain.Action[T], factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
 	_, tx, err := i.cli.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
 	if err != nil {
@@ -600,7 +601,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 
 			// Attempt to recreate issuer
 			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %s\n", i.i, i.uri)
-			ws, err := ws.NewWebSocketClient(i.uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			ws, err := ws.NewWebSocketClient[T](i.uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				i.abandoned = err
 				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
@@ -620,7 +621,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	return nil
 }
 
-func getRandomIssuer(issuers []*issuer) *issuer {
+func getRandomIssuer[T chain.RuntimeInterface](issuers []*issuer[T]) *issuer[T] {
 	index := rand.Int() % len(issuers)
 	return issuers[index]
 }

@@ -22,7 +22,7 @@ import (
 
 const unitPricesCacheRefresh = 10 * time.Second
 
-type JSONRPCClient struct {
+type JSONRPCClient[T chain.RuntimeInterface] struct {
 	requester *requester.EndpointRequester
 
 	networkID uint32
@@ -33,14 +33,14 @@ type JSONRPCClient struct {
 	unitPrices     fees.Dimensions
 }
 
-func NewJSONRPCClient(uri string) *JSONRPCClient {
+func NewJSONRPCClient[T chain.RuntimeInterface](uri string) *JSONRPCClient[T] {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
 	req := requester.New(uri, api.Name)
-	return &JSONRPCClient{requester: req}
+	return &JSONRPCClient[T]{requester: req}
 }
 
-func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
+func (cli *JSONRPCClient[_]) Ping(ctx context.Context) (bool, error) {
 	resp := new(PingReply)
 	err := cli.requester.SendRequest(ctx,
 		"ping",
@@ -50,7 +50,7 @@ func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
 	return resp.Success, err
 }
 
-func (cli *JSONRPCClient) Network(ctx context.Context) (networkID uint32, subnetID ids.ID, chainID ids.ID, err error) {
+func (cli *JSONRPCClient[_]) Network(ctx context.Context) (networkID uint32, subnetID ids.ID, chainID ids.ID, err error) {
 	if cli.chainID != ids.Empty {
 		return cli.networkID, cli.subnetID, cli.chainID, nil
 	}
@@ -71,7 +71,7 @@ func (cli *JSONRPCClient) Network(ctx context.Context) (networkID uint32, subnet
 	return resp.NetworkID, resp.SubnetID, resp.ChainID, nil
 }
 
-func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
+func (cli *JSONRPCClient[_]) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
 	resp := new(LastAcceptedReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -82,7 +82,7 @@ func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, 
 	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
-func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.Dimensions, error) {
+func (cli *JSONRPCClient[_]) UnitPrices(ctx context.Context, useCache bool) (fees.Dimensions, error) {
 	if useCache && time.Since(cli.lastUnitPrices) < unitPricesCacheRefresh {
 		return cli.unitPrices, nil
 	}
@@ -104,7 +104,7 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.D
 	return resp.UnitPrices, nil
 }
 
-func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
+func (cli *JSONRPCClient[_]) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -119,13 +119,13 @@ type Modifier interface {
 	Base(*chain.Base)
 }
 
-func (cli *JSONRPCClient) GenerateTransaction(
+func (cli *JSONRPCClient[T]) GenerateTransaction(
 	ctx context.Context,
-	parser chain.Parser,
-	actions []chain.Action,
+	parser chain.Parser[T],
+	actions []chain.Action[T],
 	authFactory chain.AuthFactory,
 	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, uint64, error) {
+) (func(context.Context) error, *chain.Transaction[T], uint64, error) {
 	// Get latest fee info
 	unitPrices, err := cli.UnitPrices(ctx, true)
 	if err != nil {
@@ -147,13 +147,13 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	return f, tx, maxFee, nil
 }
 
-func (cli *JSONRPCClient) GenerateTransactionManual(
-	parser chain.Parser,
-	actions []chain.Action,
+func (cli *JSONRPCClient[T]) GenerateTransactionManual(
+	parser chain.Parser[T],
+	actions []chain.Action[T],
 	authFactory chain.AuthFactory,
 	maxFee uint64,
 	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, error) {
+) (func(context.Context) error, *chain.Transaction[T], error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
@@ -183,7 +183,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}, tx, nil
 }
 
-func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
+func (cli *JSONRPCClient[_]) GetABI(ctx context.Context) (abi.ABI, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -194,7 +194,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	return resp.ABI, err
 }
 
-func (cli *JSONRPCClient) Execute(ctx context.Context, actor codec.Address, action chain.Action) ([]byte, error) {
+func (cli *JSONRPCClient[T]) Execute(ctx context.Context, actor codec.Address, action chain.Action[T]) ([]byte, error) {
 	actionBytes, err := chain.MarshalTyped(action)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal action: %w", err)

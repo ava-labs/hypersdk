@@ -24,15 +24,15 @@ import (
 )
 
 var (
-	_ emap.Item    = (*Transaction)(nil)
-	_ mempool.Item = (*Transaction)(nil)
+	_ emap.Item    = (*Transaction[RuntimeInterface])(nil)
+	_ mempool.Item = (*Transaction[RuntimeInterface])(nil)
 )
 
-type Transaction struct {
+type Transaction[T RuntimeInterface] struct {
 	Base *Base `json:"base"`
 
-	Actions []Action `json:"actions"`
-	Auth    Auth     `json:"auth"`
+	Actions []Action[T] `json:"actions"`
+	Auth    Auth        `json:"auth"`
 
 	digest    []byte
 	bytes     []byte
@@ -41,14 +41,14 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
-func NewTx(base *Base, actions []Action) *Transaction {
-	return &Transaction{
+func NewTx[T RuntimeInterface](base *Base, actions []Action[T]) *Transaction[T] {
+	return &Transaction[T]{
 		Base:    base,
 		Actions: actions,
 	}
 }
 
-func (t *Transaction) Digest() ([]byte, error) {
+func (t *Transaction[_]) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
@@ -73,11 +73,11 @@ func (t *Transaction) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func (t *Transaction) Sign(
+func (t *Transaction[T]) Sign(
 	factory AuthFactory,
-	actionRegistry ActionRegistry,
+	actionRegistry ActionRegistry[T],
 	authRegistry AuthRegistry,
-) (*Transaction, error) {
+) (*Transaction[T], error) {
 	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
@@ -99,20 +99,20 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
+	return UnmarshalTx[T](p, actionRegistry, authRegistry)
 }
 
-func (t *Transaction) Bytes() []byte { return t.bytes }
+func (t *Transaction[_]) Bytes() []byte { return t.bytes }
 
-func (t *Transaction) Size() int { return t.size }
+func (t *Transaction[_]) Size() int { return t.size }
 
-func (t *Transaction) ID() ids.ID { return t.id }
+func (t *Transaction[_]) ID() ids.ID { return t.id }
 
-func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
+func (t *Transaction[_]) Expiry() int64 { return t.Base.Timestamp }
 
-func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
+func (t *Transaction[_]) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
+func (t *Transaction[_]) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -138,10 +138,10 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 }
 
 // Sponsor is the [codec.Address] that pays fees for this transaction.
-func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
+func (t *Transaction[_]) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
+func (t *Transaction[_]) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
@@ -195,7 +195,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits[T RuntimeInterface](r Rules, actions []Action[T], authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -257,7 +257,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
-func (t *Transaction) PreExecute(
+func (t *Transaction[_]) PreExecute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
 	s StateManager,
@@ -302,9 +302,10 @@ func (t *Transaction) PreExecute(
 // to charge the fee in as many cases as possible.
 //
 // Invariant: [PreExecute] is called just before [Execute]
-func (t *Transaction) Execute(
+func (t *Transaction[T]) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
+	runtime T,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -335,8 +336,15 @@ func (t *Transaction) Execute(
 		actionStart   = ts.OpIndex()
 		actionOutputs = [][]byte{}
 	)
+
+	rt := Runtime[T]{
+		T:     runtime,
+		Rules: r,
+		State: ts,
+	}
+
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, rt, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
@@ -367,7 +375,7 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
-func (t *Transaction) Marshal(p *codec.Packer) error {
+func (t *Transaction[_]) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
@@ -376,7 +384,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	return t.marshalActions(p)
 }
 
-func (t *Transaction) marshalActions(p *codec.Packer) error {
+func (t *Transaction[_]) marshalActions(p *codec.Packer) error {
 	t.Base.Marshal(p)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
@@ -393,7 +401,7 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	return p.Err()
 }
 
-func MarshalTxs(txs []*Transaction) ([]byte, error) {
+func MarshalTxs[T RuntimeInterface](txs []*Transaction[T]) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
@@ -408,18 +416,18 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func UnmarshalTxs(
+func UnmarshalTxs[T RuntimeInterface](
 	raw []byte,
 	initialCapacity int,
-	actionRegistry ActionRegistry,
+	actionRegistry ActionRegistry[T],
 	authRegistry AuthRegistry,
-) (map[uint8]int, []*Transaction, error) {
+) (map[uint8]int, []*Transaction[T], error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
+	txs := make([]*Transaction[T], 0, initialCapacity) // DoS to set size to txCount
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx[T](p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -433,17 +441,17 @@ func UnmarshalTxs(
 	return authCounts, txs, p.Err()
 }
 
-func UnmarshalTx(
+func UnmarshalTx[T RuntimeInterface](
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
+	actionRegistry *codec.TypeParser[Action[T]],
 	authRegistry *codec.TypeParser[Auth],
-) (*Transaction, error) {
+) (*Transaction[T], error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := unmarshalActions(p, actionRegistry)
+	actions, err := unmarshalActions[T](p, actionRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
@@ -461,7 +469,7 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx Transaction
+	var tx Transaction[T]
 	tx.Base = base
 	tx.Actions = actions
 	tx.Auth = auth
@@ -476,15 +484,15 @@ func UnmarshalTx(
 	return &tx, nil
 }
 
-func unmarshalActions(
+func unmarshalActions[T RuntimeInterface](
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-) ([]Action, error) {
+	actionRegistry *codec.TypeParser[Action[T]],
+) ([]Action[T], error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {
 		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
 	}
-	actions := []Action{}
+	actions := []Action[T]{}
 	for i := uint8(0); i < actionCount; i++ {
 		action, err := actionRegistry.Unmarshal(p)
 		if err != nil {

@@ -14,19 +14,19 @@ import (
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 )
 
-type RegisterFunc func(*VM)
+type RegisterFunc[T chain.RuntimeInterface] func(*VM[T])
 
-type optionFunc func(vm *VM, configBytes []byte) error
+type optionFunc[T chain.RuntimeInterface] func(vm *VM[T], configBytes []byte) error
 
-type OptionFunc[T any] func(vm *VM, config T) error
+type OptionFunc[T chain.RuntimeInterface, U any] func(vm *VM[T], config U) error
 
-type Option struct {
+type Option[T chain.RuntimeInterface] struct {
 	Namespace  string
-	optionFunc optionFunc
+	optionFunc optionFunc[T]
 }
 
-func newOptionWithBytes(namespace string, optionFunc optionFunc) Option {
-	return Option{
+func newOptionWithBytes[T chain.RuntimeInterface](namespace string, optionFunc optionFunc[T]) Option[T] {
+	return Option[T]{
 		Namespace:  namespace,
 		optionFunc: optionFunc,
 	}
@@ -36,9 +36,9 @@ func newOptionWithBytes(namespace string, optionFunc optionFunc) Option {
 // 1) A namespace to define the key in the VM's JSON config that should be supplied to this option
 // 2) A default config value the VM will directly unmarshal into
 // 3) An option function that takes the VM and resulting config value as arguments
-func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T]) Option {
+func NewOption[T chain.RuntimeInterface, U any](namespace string, defaultConfig U, optionFunc OptionFunc[T, U]) Option[T] {
 	config := defaultConfig
-	configOptionFunc := func(vm *VM, configBytes []byte) error {
+	configOptionFunc := func(vm *VM[T], configBytes []byte) error {
 		if len(configBytes) > 0 {
 			if err := json.Unmarshal(configBytes, &config); err != nil {
 				return fmt.Errorf("failed to unmarshal %q config %q: %w", namespace, string(configBytes), err)
@@ -50,44 +50,44 @@ func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T
 	return newOptionWithBytes(namespace, configOptionFunc)
 }
 
-func WithBuilder() RegisterFunc {
-	return func(vm *VM) {
-		vm.builder = builder.NewManual(vm)
+func WithBuilder[T chain.RuntimeInterface]() RegisterFunc[T] {
+	return func(vm *VM[T]) {
+		vm.builder = builder.NewManual[T](vm)
 	}
 }
 
-func WithGossiper() RegisterFunc {
-	return func(vm *VM) {
-		vm.gossiper = gossiper.NewManual(vm)
+func WithGossiper[T chain.RuntimeInterface]() RegisterFunc[T] {
+	return func(vm *VM[T]) {
+		vm.gossiper = gossiper.NewManual[T](vm)
 	}
 }
 
-func WithManual() Option {
-	return NewOption[struct{}](
+func WithManual[T chain.RuntimeInterface]() Option[T] {
+	return NewOption(
 		"manual",
 		struct{}{},
-		func(vm *VM, _ struct{}) error {
-			WithBuilder()(vm)
-			WithGossiper()(vm)
+		func(vm *VM[T], _ struct{}) error {
+			WithBuilder[T]()(vm)
+			WithGossiper[T]()(vm)
 			return nil
 		},
 	)
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.StatefulBlock]) RegisterFunc {
-	return func(vm *VM) {
+func WithBlockSubscriptions[T chain.RuntimeInterface](subscriptions ...event.SubscriptionFactory[*chain.StatefulBlock[T]]) RegisterFunc[T] {
+	return func(vm *VM[T]) {
 		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
 	}
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc {
-	return func(vm *VM) {
+func WithVMAPIs[T chain.RuntimeInterface](apiHandlerFactories ...api.HandlerFactory[api.VM[T]]) RegisterFunc[T] {
+	return func(vm *VM[T]) {
 		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
 	}
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
-	return func(vm *VM) {
+func WithTxRemovedSubscriptions[T chain.RuntimeInterface](subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc[T] {
+	return func(vm *VM[T]) {
 		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
 	}
 }

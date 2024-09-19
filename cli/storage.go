@@ -23,14 +23,14 @@ const (
 	defaultChainKey = "chain"
 )
 
-func (h *Handler) StoreDefault(key string, value []byte) error {
+func (h *Handler[_]) StoreDefault(key string, value []byte) error {
 	k := make([]byte, 1+len(key))
 	k[0] = defaultPrefix
 	copy(k[1:], []byte(key))
 	return h.db.Put(k, value)
 }
 
-func (h *Handler) GetDefault(key string) ([]byte, error) {
+func (h *Handler[_]) GetDefault(key string) ([]byte, error) {
 	k := make([]byte, 1+len(key))
 	k[0] = defaultPrefix
 	copy(k[1:], []byte(key))
@@ -44,11 +44,11 @@ func (h *Handler) GetDefault(key string) ([]byte, error) {
 	return v, nil
 }
 
-func (h *Handler) StoreDefaultChain(chainID ids.ID) error {
+func (h *Handler[_]) StoreDefaultChain(chainID ids.ID) error {
 	return h.StoreDefault(defaultChainKey, chainID[:])
 }
 
-func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
+func (h *Handler[_]) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	v, err := h.GetDefault(defaultChainKey)
 	if err != nil {
 		return ids.Empty, nil, err
@@ -67,7 +67,7 @@ func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	return chainID, uris, nil
 }
 
-func (h *Handler) StoreKey(priv *PrivateKey) error {
+func (h *Handler[_]) StoreKey(priv *PrivateKey) error {
 	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
 	copy(k[1:], priv.Address[:])
@@ -81,7 +81,7 @@ func (h *Handler) StoreKey(priv *PrivateKey) error {
 	return h.db.Put(k, priv.Bytes)
 }
 
-func (h *Handler) GetKey(addr codec.Address) ([]byte, error) {
+func (h *Handler[_]) GetKey(addr codec.Address) ([]byte, error) {
 	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
 	copy(k[1:], addr[:])
@@ -101,7 +101,7 @@ type PrivateKey struct {
 	Bytes   []byte
 }
 
-func (h *Handler) GetKeys() ([]*PrivateKey, error) {
+func (h *Handler[_]) GetKeys() ([]*PrivateKey, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{keyPrefix})
 	defer iter.Release()
 
@@ -117,11 +117,11 @@ func (h *Handler) GetKeys() ([]*PrivateKey, error) {
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(addr codec.Address) error {
+func (h *Handler[_]) StoreDefaultKey(addr codec.Address) error {
 	return h.StoreDefault(defaultKeyKey, addr[:])
 }
 
-func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
+func (h *Handler[_]) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
 		return codec.EmptyAddress, nil, err
@@ -140,7 +140,7 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	return addr, priv, nil
 }
 
-func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
+func (h *Handler[_]) StoreChain(chainID ids.ID, rpc string) error {
 	k := make([]byte, 1+ids.IDLen*2)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
@@ -157,7 +157,7 @@ func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
 	return h.db.Put(k, brpc)
 }
 
-func (h *Handler) GetChain(chainID ids.ID) ([]string, error) {
+func (h *Handler[_]) GetChain(chainID ids.ID) ([]string, error) {
 	k := make([]byte, 1+ids.IDLen)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
@@ -173,7 +173,7 @@ func (h *Handler) GetChain(chainID ids.ID) ([]string, error) {
 	return rpcs, iter.Error()
 }
 
-func (h *Handler) GetChains() (map[ids.ID][]string, error) {
+func (h *Handler[_]) GetChains() (map[ids.ID][]string, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{chainPrefix})
 	defer iter.Release()
 
@@ -193,7 +193,7 @@ func (h *Handler) GetChains() (map[ids.ID][]string, error) {
 	return chains, iter.Error()
 }
 
-func (h *Handler) DeleteChains() ([]ids.ID, error) {
+func (h *Handler[_]) DeleteChains() ([]ids.ID, error) {
 	chains, err := h.GetChains()
 	if err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func (h *Handler) DeleteChains() ([]ids.ID, error) {
 	return chainIDs, nil
 }
 
-func (h *Handler) CloseDatabase() error {
+func (h *Handler[_]) CloseDatabase() error {
 	if h.db == nil {
 		return nil
 	}

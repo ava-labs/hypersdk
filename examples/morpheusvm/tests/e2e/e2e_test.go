@@ -7,8 +7,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -16,8 +17,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
+	"github.com/onsi/ginkgo/v2"
+
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 const owner = "morpheusvm-e2e-tests"

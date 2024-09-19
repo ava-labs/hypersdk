@@ -88,7 +88,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
+func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser[struct{}], error) {
 	g, err := cli.Genesis(ctx)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	return NewParser(g), nil
 }
 
-var _ chain.Parser = (*Parser)(nil)
+var _ chain.Parser[struct{}] = (*Parser)(nil)
 
 type Parser struct {
 	genesis *genesis.DefaultGenesis
@@ -106,7 +106,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() chain.ActionRegistry {
+func (*Parser) ActionRegistry() chain.ActionRegistry[struct{}] {
 	return ActionParser
 }
 
@@ -122,12 +122,12 @@ func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
+func NewParser(genesis *genesis.DefaultGenesis) chain.Parser[struct{}] {
 	return &Parser{genesis: genesis}
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
-func CreateParser(genesisBytes []byte) (chain.Parser, error) {
+func CreateParser(genesisBytes []byte) (chain.Parser[struct{}], error) {
 	var genesis genesis.DefaultGenesis
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err

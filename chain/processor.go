@@ -23,9 +23,10 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (b *StatefulBlock) Execute(
+func (b *StatefulBlock[T]) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
+	runtime T,
 	im state.Immutable,
 	feeManager *fees.Manager,
 	r Rules,
@@ -92,7 +93,7 @@ func (b *StatefulBlock) Execute(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, runtime, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}

@@ -7,8 +7,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -18,8 +19,8 @@ import (
 )
 
 var (
-	_ chain.Action = (*mockTransferAction)(nil)
-	_ chain.Action = (*action2)(nil)
+	_ chain.Action[struct{}] = (*mockTransferAction)(nil)
+	_ chain.Action[struct{}] = (*action2)(nil)
 )
 
 type abstractMockAction struct{}
@@ -28,7 +29,7 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.Runtime[struct{}], _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
@@ -65,13 +66,13 @@ func (*action2) GetTypeID() uint8 {
 	return 222
 }
 
-func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+func unmarshalTransfer(p *codec.Packer) (chain.Action[struct{}], error) {
 	var transfer mockTransferAction
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 
-func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
+func unmarshalAction2(p *codec.Packer) (chain.Action[struct{}], error) {
 	var action action2
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 	return &action, err
@@ -81,13 +82,13 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
-	tx := chain.Transaction{
+	tx := chain.Transaction[struct{}]{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
 		},
-		Actions: []chain.Action{
+		Actions: []chain.Action[struct{}]{
 			&mockTransferAction{
 				To:    codec.Address{1, 2, 3, 4},
 				Value: 4,
@@ -109,7 +110,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
-	actionRegistry := codec.NewTypeParser[chain.Action]()
+	actionRegistry := codec.NewTypeParser[chain.Action[struct{}]]()
 	authRegistry := codec.NewTypeParser[chain.Auth]()
 
 	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)

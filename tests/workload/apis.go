@@ -7,24 +7,26 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
-func Ping(ctx context.Context, require *require.Assertions, uris []string) {
+func Ping[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string) {
 	for _, uri := range uris {
-		client := jsonrpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient[T](uri)
 		ok, err := client.Ping(ctx)
 		require.NoError(err)
 		require.True(ok)
 	}
 }
 
-func GetNetwork(ctx context.Context, require *require.Assertions, uris []string, expectedNetworkID uint32, expectedChainID ids.ID) {
+func GetNetwork[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, expectedNetworkID uint32, expectedChainID ids.ID) {
 	for _, uri := range uris {
-		client := jsonrpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient[T](uri)
 		networkID, _, chainID, err := client.Network(ctx)
 		require.NoError(err)
 		require.Equal(expectedNetworkID, networkID)
@@ -32,9 +34,9 @@ func GetNetwork(ctx context.Context, require *require.Assertions, uris []string,
 	}
 }
 
-func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.ABI) {
+func GetABI[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.ABI) {
 	for _, uri := range uris {
-		client := jsonrpc.NewJSONRPCClient(uri)
+		client := jsonrpc.NewJSONRPCClient[T](uri)
 		actualABI, err := client.GetABI(ctx)
 		require.NoError(err)
 

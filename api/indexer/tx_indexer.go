@@ -28,8 +28,8 @@ var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 
-	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
+	_ event.SubscriptionFactory[*chain.StatefulBlock[chain.RuntimeInterface]] = (*subscriptionFactory[chain.RuntimeInterface])(nil)
+	_ event.Subscription[*chain.StatefulBlock[chain.RuntimeInterface]]        = (*txDBIndexer[chain.RuntimeInterface])(nil)
 )
 
 type Config struct {
@@ -42,11 +42,11 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
+func With[T chain.RuntimeInterface]() vm.Option[T] {
+	return vm.NewOption[T](Namespace, NewDefaultConfig(), OptionFunc[T])
 }
 
-func OptionFunc(v *vm.VM, config Config) error {
+func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
 	if !config.Enabled {
 		return nil
 	}
@@ -56,39 +56,39 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return err
 	}
 
-	indexer := &txDBIndexer{
+	indexer := &txDBIndexer[T]{
 		db: db,
 	}
 
-	subscriptionFactory := &subscriptionFactory{
+	subscriptionFactory := &subscriptionFactory[T]{
 		indexer: indexer,
 	}
 
-	apiFactory := &apiFactory{
+	apiFactory := &apiFactory[T]{
 		path:    Endpoint,
 		name:    Name,
 		indexer: indexer,
 	}
 
-	vm.WithBlockSubscriptions(subscriptionFactory)(v)
-	vm.WithVMAPIs(apiFactory)(v)
+	vm.WithBlockSubscriptions[T](subscriptionFactory)(v)
+	vm.WithVMAPIs[T](apiFactory)(v)
 
 	return nil
 }
 
-type subscriptionFactory struct {
-	indexer *txDBIndexer
+type subscriptionFactory[T chain.RuntimeInterface] struct {
+	indexer *txDBIndexer[T]
 }
 
-func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
+func (s *subscriptionFactory[T]) New() (event.Subscription[*chain.StatefulBlock[T]], error) {
 	return s.indexer, nil
 }
 
-type txDBIndexer struct {
+type txDBIndexer[T chain.RuntimeInterface] struct {
 	db database.Database
 }
 
-func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
+func (t *txDBIndexer[T]) Accept(blk *chain.StatefulBlock[T]) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
@@ -111,11 +111,11 @@ func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
 	return batch.Write()
 }
 
-func (t *txDBIndexer) Close() error {
+func (t *txDBIndexer[_]) Close() error {
 	return t.db.Close()
 }
 
-func (*txDBIndexer) storeTransaction(
+func (*txDBIndexer[_]) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -135,7 +135,7 @@ func (*txDBIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (t *txDBIndexer[_]) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil

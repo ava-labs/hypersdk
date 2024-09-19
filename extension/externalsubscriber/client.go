@@ -17,20 +17,20 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-var _ event.Subscription[*chain.StatefulBlock] = (*ExternalSubscriberClient)(nil)
+var _ event.Subscription[*chain.StatefulBlock[chain.RuntimeInterface]] = (*ExternalSubscriberClient[chain.RuntimeInterface])(nil)
 
-type ExternalSubscriberClient struct {
+type ExternalSubscriberClient[T chain.RuntimeInterface] struct {
 	conn   *grpc.ClientConn
 	client pb.ExternalSubscriberClient
 	log    logging.Logger
 }
 
-func NewExternalSubscriberClient(
+func NewExternalSubscriberClient[T chain.RuntimeInterface](
 	ctx context.Context,
 	log logging.Logger,
 	serverAddr string,
 	genesisBytes []byte,
-) (*ExternalSubscriberClient, error) {
+) (*ExternalSubscriberClient[T], error) {
 	// Establish connection to server
 	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -48,14 +48,14 @@ func NewExternalSubscriberClient(
 		return nil, err
 	}
 	log.Debug("connected to external subscriber server", zap.String("address", serverAddr))
-	return &ExternalSubscriberClient{
+	return &ExternalSubscriberClient[T]{
 		conn:   conn,
 		client: client,
 		log:    log,
 	}, nil
 }
 
-func (e *ExternalSubscriberClient) Accept(blk *chain.StatefulBlock) error {
+func (e *ExternalSubscriberClient[T]) Accept(blk *chain.StatefulBlock[T]) error {
 	blockBytes, err := blk.Marshal()
 	if err != nil {
 		return err
@@ -77,6 +77,6 @@ func (e *ExternalSubscriberClient) Accept(blk *chain.StatefulBlock) error {
 	return err
 }
 
-func (e *ExternalSubscriberClient) Close() error {
+func (e *ExternalSubscriberClient[_]) Close() error {
 	return e.conn.Close()
 }
