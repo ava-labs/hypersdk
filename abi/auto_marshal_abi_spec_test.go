@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -30,12 +31,9 @@ func TestABIHash(t *testing.T) {
 	require.NoError(err)
 
 	// check hash and compare it to expected
-	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(abiFromFile, writer.Packer)
-	require.NoError(err)
-	require.NoError(writer.Err())
+	abiBytes := chain.MustMarshal(&abiFromFile)
 
-	abiHash := sha256.Sum256(writer.Bytes())
+	abiHash := sha256.Sum256(abiBytes)
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }

@@ -54,7 +54,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		actionSize, err := getSize(action)
+		actionSize, err := GetSize(action)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		actionSize, err := getSize(action)
+		actionSize, err := GetSize(action)
 		if err != nil {
 			return fees.Dimensions{}, err
 		}
@@ -341,18 +341,20 @@ func (t *Transaction) Execute(
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
+
+		var encodedOutput []byte
 		if actionOutput == nil {
 			// Ensure output standardization (match form we will
 			// unmarshal)
-			actionOutput = []byte{}
+			encodedOutput = []byte{}
+		} else {
+			encodedOutput, err = MarshalTyped(actionOutput)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		// Wait to append outputs until after we check that there aren't too many
-		if len(actionOutput) > int(r.GetMaxOutputsPerAction()) {
-			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), actionOutputs, units, fee}, nil
-		}
-		actionOutputs = append(actionOutputs, actionOutput)
+		actionOutputs = append(actionOutputs, encodedOutput)
 	}
 	return &Result{
 		Success: true,
@@ -446,15 +448,12 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
-	authType := p.UnpackByte()
-	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
-	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
-	}
-	auth, err := unmarshalAuth(p)
+	auth, err := authRegistry.Unmarshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
 	}
+	authType := auth.GetTypeID()
+
 	if actorType := auth.Actor()[0]; actorType != authType {
 		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
 	}
@@ -487,12 +486,7 @@ func unmarshalActions(
 	}
 	actions := []Action{}
 	for i := uint8(0); i < actionCount; i++ {
-		actionType := p.UnpackByte()
-		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
-		if !ok {
-			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-		}
-		action, err := unmarshalAction(p)
+		action, err := actionRegistry.Unmarshal(p)
 		if err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal action", err)
 		}

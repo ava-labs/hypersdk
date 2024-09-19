@@ -55,7 +55,7 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return nil
 	}
 
-	actionRegistry, authRegistry := v.Registry()
+	actionRegistry, authRegistry := v.ActionRegistry(), v.AuthRegistry()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),

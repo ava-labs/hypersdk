@@ -63,7 +63,7 @@ func Address(label string) (codec.Address, error) {
 		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
-	return codec.StringToAddress(recipient), nil
+	return codec.StringToAddress(recipient)
 }
 
 func String(label string, min int, max int) (string, error) {

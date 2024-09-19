@@ -22,29 +22,34 @@ import (
 )
 
 var (
-	Action      *codec.TypeParser[chain.Action]
-	Auth        *codec.TypeParser[chain.Auth]
-	wasmRuntime *runtime.WasmRuntime
+	ActionParser *codec.TypeParser[chain.Action]
+	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
+	wasmRuntime  *runtime.WasmRuntime
 )
 
 // Setup types
 func init() {
-	Action = codec.NewTypeParser[chain.Action]()
-	Auth = codec.NewTypeParser[chain.Auth]()
+	ActionParser = codec.NewTypeParser[chain.Action]()
+	AuthParser = codec.NewTypeParser[chain.Auth]()
+	OutputParser = codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		Action.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-		Action.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
-		Action.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
-		Action.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
+		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		ActionParser.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
+		ActionParser.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
+		ActionParser.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		Auth.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		Auth.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		Auth.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		OutputParser.Register(&actions.Result{}, nil),
+		OutputParser.Register(&actions.AddressOutput{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
@@ -73,8 +78,9 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		Action,
-		Auth,
+		ActionParser,
+		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		opts...,
 	)

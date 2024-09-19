@@ -35,7 +35,7 @@ func TestGetActionSize(t *testing.T) {
 	require := require.New(t)
 
 	obj := &mockObject{Value: 7}
-	size1, err := getSize(obj)
+	size1, err := GetSize(obj)
 	require.NoError(err)
 	require.Equal(consts.Uint8Len, size1)
 
@@ -43,7 +43,7 @@ func TestGetActionSize(t *testing.T) {
 	objMarshaler := &mockObjectMarshaler{
 		mockSize: mockObjectSize,
 	}
-	size2, err := getSize(objMarshaler)
+	size2, err := GetSize(objMarshaler)
 	require.NoError(err)
 	require.Equal(mockObjectSize, size2)
 }

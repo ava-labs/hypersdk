@@ -4,6 +4,7 @@
 package abi
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,9 @@ func TestNewABI(t *testing.T) {
 		MockActionWithTransfer{},
 		MockActionWithTransferArray{},
 		Outer{},
+		ActionWithOutput{},
+	}, []codec.Typed{
+		ActionOutput{},
 	})
 	require.NoError(err)
 
@@ -35,11 +39,20 @@ func TestNewABI(t *testing.T) {
 func TestGetABIofABI(t *testing.T) {
 	require := require.New(t)
 
-	actualABI, err := NewABI([]codec.Typed{ABI{}})
+	actualABI, err := NewABI([]codec.Typed{
+		ABI{},
+	}, []codec.Typed{})
 	require.NoError(err)
 
 	expectedABIJSON := mustReadFile(t, "testdata/abi.abi.json")
 	expectedABI := mustJSONParse[ABI](t, string(expectedABIJSON))
 
 	require.Equal(expectedABI, actualABI)
+}
+
+func mustJSONParse[T any](t *testing.T, jsonStr string) T {
+	var parsed T
+	err := json.Unmarshal([]byte(jsonStr), &parsed)
+	require.NoError(t, err, jsonStr)
+	return parsed
 }

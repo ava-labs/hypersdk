@@ -24,12 +24,15 @@ import (
 
 type (
 	ActionRegistry *codec.TypeParser[Action]
+	OutputRegistry *codec.TypeParser[codec.Typed]
 	AuthRegistry   *codec.TypeParser[Auth]
 )
 
 type Parser interface {
 	Rules(int64) Rules
-	Registry() (ActionRegistry, AuthRegistry)
+	ActionRegistry() ActionRegistry
+	OutputRegistry() OutputRegistry
+	AuthRegistry() AuthRegistry
 }
 
 type Metrics interface {
@@ -124,7 +127,6 @@ type Rules interface {
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
-	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
@@ -241,7 +243,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) ([]byte, error)
+	) (codec.Typed, error)
 }
 
 type Auth interface {

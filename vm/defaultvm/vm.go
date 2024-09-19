@@ -37,6 +37,7 @@ func New(
 	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
+	outputRegistry chain.OutputRegistry,
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
 ) (*vm.VM, error) {
@@ -47,6 +48,7 @@ func New(
 		stateManager,
 		actionRegistry,
 		authRegistry,
+		outputRegistry,
 		authEngine,
 		options...,
 	)

@@ -2,16 +2,21 @@
     "actions": [
         {
             "id": 0,
-            "action": "ABI"
+            "name": "ABI"
         }
     ],
+    "outputs": [],
     "types": [
         {
             "name": "ABI",
             "fields": [
                 {
                     "name": "actions",
-                    "type": "[]Action"
+                    "type": "[]TypedStruct"
+                },
+                {
+                    "name": "outputs",
+                    "type": "[]TypedStruct"
                 },
                 {
                     "name": "types",
@@ -20,14 +25,14 @@
             ]
         },
         {
-            "name": "Action",
+            "name": "TypedStruct",
             "fields": [
                 {
                     "name": "id",
                     "type": "uint8"
                 },
                 {
-                    "name": "action",
+                    "name": "name",
                     "type": "string"
                 }
             ]

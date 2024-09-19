@@ -305,8 +305,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
 
-		actionRegistry, _ := instances[0].vm.Registry()
-		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes())
+		actionRegistry, outputRegistry := instances[0].vm.ActionRegistry(), instances[0].vm.OutputRegistry()
+		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 		require.NoError(err)
 
 		workload.GetABI(ctx, require, uris, expectedABI)
@@ -411,7 +411,6 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results := blk.(*chain.StatefulBlock).Results()
 			require.Len(results, 1)
 			require.True(results[0].Success)
-			require.Empty(results[0].Outputs[0])
 		})
 
 		ginkgo.By("ensure balance is updated", func() {

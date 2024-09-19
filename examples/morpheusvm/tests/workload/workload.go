@@ -142,6 +142,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		balance, err := lcli.Balance(ctx, aother)
 		require.NoError(err)
 		require.Equal(uint64(1), balance)
+		// TODO: check transaction output (not currently available via API)
 	}, nil
 }
 
@@ -238,6 +239,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 		balance, err := lcli.Balance(ctx, receiver.address)
 		require.NoError(err)
 		require.Equal(expectedBalance, balance)
-		// TODO check tx fee + units (not currently available via API)
+		// TODO: check tx fee + units (not currently available via API)
+		// TODO: check transaction output (not currently available via API)
 	}, nil
 }
