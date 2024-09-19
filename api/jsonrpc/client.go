@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
@@ -168,7 +169,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	actionRegistry, authRegistry := parser.Registry()
+	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
 	tx := chain.NewTx(base, actions)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
@@ -191,6 +192,34 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 		resp,
 	)
 	return resp.ABI, err
+}
+
+func (cli *JSONRPCClient) Execute(ctx context.Context, actor codec.Address, action chain.Action) ([]byte, error) {
+	actionBytes, err := chain.MarshalTyped(action)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal action: %w", err)
+	}
+
+	args := &ExecuteActionArgs{
+		Actor:  actor,
+		Action: actionBytes,
+	}
+
+	resp := new(ExecuteActionReply)
+	err = cli.requester.SendRequest(
+		ctx,
+		"executeAction",
+		args,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("failed to execute action: %s", resp.Error)
+	}
+
+	return resp.Output, nil
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

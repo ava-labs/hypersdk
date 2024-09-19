@@ -58,8 +58,12 @@ func (t *Publish) Execute(
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
-) ([]byte, error) {
-	return storage.StoreContract(ctx, mu, t.ContractBytes)
+) (codec.Typed, error) {
+	resultBytes, err := storage.StoreContract(ctx, mu, t.ContractBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{Value: resultBytes}, nil
 }
 
 func (*Publish) ComputeUnits(chain.Rules) uint64 {

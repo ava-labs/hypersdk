@@ -43,8 +43,14 @@ func GenerateGoStructs(abi ABI, packageName string) (string, error) {
 	}
 
 	for _, action := range abi.Actions {
-		sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Action))
+		sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", action.Name))
 		sb.WriteString(fmt.Sprintf("\treturn %d\n", action.ID))
+		sb.WriteString("}\n\n")
+	}
+
+	for _, output := range abi.Outputs {
+		sb.WriteString(fmt.Sprintf("func (%s) GetTypeID() uint8 {\n", output.Name))
+		sb.WriteString(fmt.Sprintf("\treturn %d\n", output.ID))
 		sb.WriteString("}\n\n")
 	}
 

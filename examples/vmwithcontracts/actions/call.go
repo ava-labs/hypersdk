@@ -75,8 +75,8 @@ func (t *Call) Execute(
 	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([]byte, error) {
-	return t.r.CallContract(ctx, &runtime.CallInfo{
+) (codec.Typed, error) {
+	resutBytes, err := t.r.CallContract(ctx, &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
 		State:        &storage.ContractStateManager{Mutable: mu},
@@ -86,6 +86,10 @@ func (t *Call) Execute(
 		Fuel:         t.Fuel,
 		Value:        t.Value,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &Result{Value: resutBytes}, nil
 }
 
 func (t *Call) ComputeUnits(chain.Rules) uint64 {
@@ -135,4 +139,12 @@ func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.
 func (*Call) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+type Result struct {
+	Value []byte `serialize:"true" json:"value"`
+}
+
+func (*Result) GetTypeID() uint8 {
+	return mconsts.ResultOutputID
 }

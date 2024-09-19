@@ -40,11 +40,14 @@ func ToAddress(b []byte) (Address, error) {
 // of s.
 // StringToAddress uses copy, which copies the minimum of
 // either AddressLen or the length of the hex decoded string.
-func StringToAddress(s string) Address {
-	b, _ := hex.DecodeString(s)
+func StringToAddress(s string) (Address, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return Address{}, fmt.Errorf("failed to convert hex string to address: %w", err)
+	}
 	var a Address
 	copy(a[:], b)
-	return a
+	return a, nil
 }
 
 // String implements fmt.Stringer.
