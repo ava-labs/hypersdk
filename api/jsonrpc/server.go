@@ -184,8 +184,7 @@ func (j *JSONRPCServer[T]) Execute(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	var actionRegistry *codec.TypeParser[chain.Action[T]]
-	actionRegistry = j.vm.ActionRegistry()
+	var actionRegistry *codec.TypeParser[chain.Action[T]] = j.vm.ActionRegistry()
 	action, err := actionRegistry.Unmarshal(codec.NewReader(args.Action, len(args.Action)))
 	if err != nil {
 		return fmt.Errorf("failed to unmashal action: %w", err)
