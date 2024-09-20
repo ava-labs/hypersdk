@@ -20,11 +20,11 @@ import (
 
 const JSONRPCEndpoint = "/vmwithcontractsapi"
 
-var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
+var _ api.HandlerFactory[api.VM[struct{}]] = (*jsonRPCServerFactory)(nil)
 
 type jsonRPCServerFactory struct{}
 
-func (jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
+func (jsonRPCServerFactory) New(v api.VM[struct{}]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v))
 	return api.Handler{
 		Path:    JSONRPCEndpoint,
@@ -33,10 +33,10 @@ func (jsonRPCServerFactory) New(v api.VM) (api.Handler, error) {
 }
 
 type JSONRPCServer struct {
-	vm api.VM
+	vm api.VM[struct{}]
 }
 
-func NewJSONRPCServer(vm api.VM) *JSONRPCServer {
+func NewJSONRPCServer(vm api.VM[struct{}]) *JSONRPCServer {
 	return &JSONRPCServer{vm: vm}
 }
 

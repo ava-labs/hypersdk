@@ -20,18 +20,18 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+func With() vm.Option[struct{}] {
+	return vm.NewOption[struct{}](Namespace, NewDefaultConfig(), func(v *vm.VM[struct{}], config Config) error {
 		if !config.Enabled {
 			return nil
 		}
-		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
+		vm.WithVMAPIs[struct{}](jsonRPCServerFactory{})(v)
 		return nil
 	})
 }
 
-func WithRuntime() vm.Option {
-	return vm.NewOption(Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM, cfg runtime.Config) error {
+func WithRuntime() vm.Option[struct{}] {
+	return vm.NewOption[struct{}](Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM[struct{}], cfg runtime.Config) error {
 		wasmRuntime = runtime.NewRuntime(&cfg, v.Logger())
 		return nil
 	})

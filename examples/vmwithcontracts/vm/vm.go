@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action]
+	ActionParser *codec.TypeParser[chain.Action[struct{}]]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
 	wasmRuntime  *runtime.WasmRuntime
@@ -30,7 +30,7 @@ var (
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
+	ActionParser = codec.NewTypeParser[chain.Action[struct{}]]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 
@@ -57,24 +57,25 @@ func init() {
 }
 
 // New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
-func New(options ...vm.Option) (*vm.VM, error) {
-	opts := append([]vm.Option{
-		indexer.With(),
-		ws.With(),
-		jsonrpc.With(),
+func New(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
+	opts := append([]vm.Option[struct{}]{
+		indexer.With[struct{}](),
+		ws.With[struct{}](),
+		jsonrpc.With[struct{}](),
 		With(), // Add Controller API
-		externalsubscriber.With(),
+		externalsubscriber.With[struct{}](),
 	}, options...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
-	opts := append([]vm.Option{
+func NewWithOptions(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
+	opts := append([]vm.Option[struct{}]{
 		WithRuntime(),
 	}, options...)
-	return vm.New(
+	return vm.New[struct{}](
+		struct{}{},
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
