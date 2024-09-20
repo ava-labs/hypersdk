@@ -50,7 +50,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		hardcodedHostPort := "http://localhost:9650"
 		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + vmName
 
-		c := jsonrpc.NewJSONRPCClient(fixedNodeURL)
+		c := jsonrpc.NewJSONRPCClient[struct{}](fixedNodeURL)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
@@ -76,7 +76,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 		ctx := tc.DefaultContext()
 		for _, uri := range getE2EURIs(tc, blockchainID) {
-			client := state.NewJSONRPCStateClient(uri)
+			client := state.NewJSONRPCStateClient[struct{}](uri)
 			values, readerrs, err := client.ReadState(ctx, [][]byte{
 				[]byte(`my-unknown-key`),
 			})
@@ -141,7 +141,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			syncNodeURI = formatURI(syncNode.URI, blockchainID)
 			uris = append(uris, syncNodeURI)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
-			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
@@ -156,7 +156,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
-			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
 			ok, err := c.Ping(tc.DefaultContext())
 			require.Error(err) //nolint:forbidigo
 			require.False(ok)
@@ -173,7 +173,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
 
-			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
@@ -206,7 +206,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			syncConcurrentNode := e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
 			syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
 			uris = append(uris, syncConcurrentNodeURI)
-			c := jsonrpc.NewJSONRPCClient(syncConcurrentNodeURI)
+			c := jsonrpc.NewJSONRPCClient[struct{}](syncConcurrentNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
