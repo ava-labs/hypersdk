@@ -7,12 +7,11 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/chain"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 func Ping[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string) {

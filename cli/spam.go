@@ -18,9 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/ava-labs/avalanchego/utils/set"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"

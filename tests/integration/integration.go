@@ -11,9 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
@@ -25,6 +22,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm/grpcutils"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
@@ -39,10 +38,9 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/onsi/ginkgo/v2"
-
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 // TODO integration tests require MinBlockGap to be 0, so that BuildBlock can be called

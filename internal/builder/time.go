@@ -8,10 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 )
