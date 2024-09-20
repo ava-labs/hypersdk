@@ -30,6 +30,7 @@ var (
 func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
+	OutputParser = codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
