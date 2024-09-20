@@ -169,6 +169,7 @@ func New[T chain.RuntimeInterface](
 	}
 
 	return &VM[T]{
+		runtime:               runtime,
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
