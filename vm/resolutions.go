@@ -50,10 +50,6 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ValidatorState() validators.State {
-	return vm.snowCtx.ValidatorState
-}
-
 func (vm *VM) ActionRegistry() chain.ActionRegistry {
 	return vm.actionRegistry
 }
@@ -327,6 +323,14 @@ func (vm *VM) NodeID() ids.NodeID {
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
 	return vm.GetStatefulBlock(ctx, vm.preferred)
+}
+
+func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
+	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	if err != nil {
+		return 0, err
+	}
+	return preferredBlk.Hght, nil
 }
 
 func (vm *VM) StopChan() chan struct{} {
