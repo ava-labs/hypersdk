@@ -337,14 +337,18 @@ func (t *Transaction[T]) Execute(
 		actionOutputs = [][]byte{}
 	)
 
-	rt := Runtime[T]{
-		T:     runtime,
-		Rules: r,
-		State: ts,
-	}
-
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, rt, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(
+			ctx,
+			Runtime[T]{
+				T:     runtime,
+				Rules: r,
+				State: ts,
+			},
+			timestamp,
+			t.Auth.Actor(),
+			CreateActionID(t.ID(), uint8(i)),
+		)
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
