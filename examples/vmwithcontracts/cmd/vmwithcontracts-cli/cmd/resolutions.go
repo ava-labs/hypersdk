@@ -19,8 +19,8 @@ import (
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
-	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory,
+	ctx context.Context, actions []chain.Action[struct{}], cli *jsonrpc.JSONRPCClient[struct{}],
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient[struct{}], factory chain.AuthFactory,
 ) (*chain.Result, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
@@ -57,7 +57,7 @@ func sendAndWait(
 	return result, nil
 }
 
-func handleTx(tx *chain.Transaction, result *chain.Result) {
+func handleTx(tx *chain.Transaction[struct{}], result *chain.Result) {
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(
