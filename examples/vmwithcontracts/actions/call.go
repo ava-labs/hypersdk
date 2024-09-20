@@ -19,7 +19,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
-var _ chain.Action = (*Call)(nil)
+var _ chain.Action[struct{}] = (*Call)(nil)
 
 const MaxCallDataSize = units.MiB
 
@@ -70,8 +70,7 @@ func (t *Call) StateKeysMaxChunks() []uint16 {
 
 func (t *Call) Execute(
 	ctx context.Context,
-	_ chain.Rules,
-	mu state.Mutable,
+	rt chain.Runtime[struct{}],
 	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
@@ -79,7 +78,7 @@ func (t *Call) Execute(
 	resutBytes, err := t.r.CallContract(ctx, &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
-		State:        &storage.ContractStateManager{Mutable: mu},
+		State:        &storage.ContractStateManager{Mutable: rt.State},
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
@@ -114,8 +113,8 @@ func (t *Call) Marshal(p *codec.Packer) {
 	}
 }
 
-func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action, error) {
-	return func(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action[struct{}], error) {
+	return func(p *codec.Packer) (chain.Action[struct{}], error) {
 		callContract := Call{r: r}
 		callContract.Value = p.UnpackUint64(false)
 		callContract.Fuel = p.UnpackUint64(true)

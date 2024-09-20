@@ -23,23 +23,23 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ cli.Controller = (*Controller)(nil)
+var _ cli.Controller[struct{}] = (*Controller)(nil)
 
 type Handler struct {
-	h *cli.Handler
+	h *cli.Handler[struct{}]
 }
 
-func NewHandler(h *cli.Handler) *Handler {
+func NewHandler(h *cli.Handler[struct{}]) *Handler {
 	return &Handler{h}
 }
 
-func (h *Handler[_]) Root() *cli.Handler {
+func (h *Handler) Root() *cli.Handler[struct{}] {
 	return h.h
 }
 
-func (h *Handler[_]) DefaultActor() (
+func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*jsonrpc.JSONRPCClient, *vm.JSONRPCClient, *ws.WebSocketClient, error,
+	*jsonrpc.JSONRPCClient[struct{}], *vm.JSONRPCClient, *ws.WebSocketClient[struct{}], error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
@@ -125,12 +125,12 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) GetParser(uri string) (chain.Parser, error) {
+func (*Controller) GetParser(uri string) (chain.Parser[struct{}], error) {
 	cli := vm.NewJSONRPCClient(uri)
 	return cli.Parser(context.TODO())
 }
 
-func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
+func (*Controller) HandleTx(tx *chain.Transaction[struct{}], result *chain.Result) {
 	handleTx(tx, result)
 }
 

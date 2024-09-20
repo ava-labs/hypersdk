@@ -24,9 +24,9 @@ const (
 )
 
 var (
-	ErrOutputValueZero                 = errors.New("value is zero")
-	ErrOutputMemoTooLarge              = errors.New("memo is too large")
-	_                     chain.Action = (*Transfer)(nil)
+	ErrOutputValueZero                           = errors.New("value is zero")
+	ErrOutputMemoTooLarge                        = errors.New("memo is too large")
+	_                     chain.Action[struct{}] = (*Transfer)(nil)
 )
 
 type Transfer struct {
@@ -57,8 +57,7 @@ func (*Transfer) StateKeysMaxChunks() []uint16 {
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	_ chain.Rules,
-	mu state.Mutable,
+	runtime chain.Runtime[struct{}],
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
@@ -69,11 +68,11 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	senderBalance, err := storage.SubBalance(ctx, runtime.State, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	receiverBalance, err := storage.AddBalance(ctx, runtime.State, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +105,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackBytes(t.Memo)
 }
 
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+func UnmarshalTransfer(p *codec.Packer) (chain.Action[struct{}], error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
 	transfer.Value = p.UnpackUint64(true)

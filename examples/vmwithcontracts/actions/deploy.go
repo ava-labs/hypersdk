@@ -19,7 +19,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
-var _ chain.Action = (*Deploy)(nil)
+var _ chain.Action[struct{}] = (*Deploy)(nil)
 
 const MAXCREATIONSIZE = units.MiB
 
@@ -49,13 +49,12 @@ func (*Deploy) StateKeysMaxChunks() []uint16 {
 
 func (d *Deploy) Execute(
 	ctx context.Context,
-	_ chain.Rules,
-	mu state.Mutable,
+	runtime chain.Runtime[struct{}],
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	result, err := (&storage.ContractStateManager{Mutable: mu}).
+	result, err := (&storage.ContractStateManager{Mutable: runtime.State}).
 		NewAccountWithContract(ctx, d.ContractID, d.CreationInfo)
 	return &AddressOutput{Address: result}, err
 }
@@ -73,7 +72,7 @@ func (d *Deploy) Marshal(p *codec.Packer) {
 	p.PackBytes(d.CreationInfo)
 }
 
-func UnmarshalDeployContract(p *codec.Packer) (chain.Action, error) {
+func UnmarshalDeployContract(p *codec.Packer) (chain.Action[struct{}], error) {
 	var deployContract Deploy
 	p.UnpackBytes(36, true, (*[]byte)(&deployContract.ContractID))
 	p.UnpackBytes(MAXCREATIONSIZE, false, &deployContract.CreationInfo)

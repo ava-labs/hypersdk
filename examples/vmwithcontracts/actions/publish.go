@@ -21,7 +21,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
-var _ chain.Action = (*Publish)(nil)
+var _ chain.Action[struct{}] = (*Publish)(nil)
 
 const MAXCONTRACTSIZE = 2 * units.MiB
 
@@ -53,13 +53,12 @@ func (t *Publish) StateKeysMaxChunks() []uint16 {
 
 func (t *Publish) Execute(
 	ctx context.Context,
-	_ chain.Rules,
-	mu state.Mutable,
+	runtime chain.Runtime[struct{}],
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	resultBytes, err := storage.StoreContract(ctx, mu, t.ContractBytes)
+	resultBytes, err := storage.StoreContract(ctx, runtime.State, t.ContractBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +77,7 @@ func (t *Publish) Marshal(p *codec.Packer) {
 	p.PackBytes(t.ContractBytes)
 }
 
-func UnmarshalPublishContract(p *codec.Packer) (chain.Action, error) {
+func UnmarshalPublishContract(p *codec.Packer) (chain.Action[struct{}], error) {
 	var publishContract Publish
 	p.UnpackBytes(MAXCONTRACTSIZE, true, &publishContract.ContractBytes)
 	if err := p.Err(); err != nil {
