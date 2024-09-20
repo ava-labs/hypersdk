@@ -43,7 +43,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 
 	ginkgo.It("Ping", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
+		workload.Ping[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
