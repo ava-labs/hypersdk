@@ -19,6 +19,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
+// TODO: inject runtime here instead of attaching to the action
 var _ chain.Action[struct{}] = (*Call)(nil)
 
 const MaxCallDataSize = units.MiB
