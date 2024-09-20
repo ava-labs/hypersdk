@@ -8,9 +8,8 @@ import "errors"
 var (
 	ErrOutputFunctionDoesNotExist = errors.New("function does not exist")
 
-	ErrReservesZero          = errors.New("reserves are zero")
-	ErrBothDeltasZero        = errors.New("both delta values are equal to zero")
-	ErrNoClearDeltaToCompute = errors.New("both delta values are nonzero")
+	ErrReservesZero = errors.New("reserves are zero")
+	ErrZeroInput    = errors.New("zero input")
 
 	ErrOutputInsufficientLiquidityMinted = errors.New("insufficient liquidity minted")
 )

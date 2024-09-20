@@ -22,8 +22,8 @@ var (
 )
 
 type SwapResult struct {
-	AmountXOut uint64 `serialize:"true" json:"amountXOut"`
-	AmountYOut uint64 `serialize:"true" json:"amountYOut"`
+	AmountOut uint64        `serialize:"true" json:"amountOut"`
+	TokenOut  codec.Address `serialize:"true" json:"tokenOut"`
 }
 
 func (*SwapResult) GetTypeID() uint8 {
@@ -31,10 +31,12 @@ func (*SwapResult) GetTypeID() uint8 {
 }
 
 type Swap struct {
-	TokenX    codec.Address `serialize:"true" json:"tokenX"`
-	TokenY    codec.Address `serialize:"true" json:"tokenY"`
-	AmountXIn uint64        `serialize:"true" json:"amountXIn"`
-	AmountYIn uint64        `serialize:"true" json:"amountYIn"`
+	// First two arguments are required for `StateKeys()`
+	TokenX codec.Address `serialize:"true" json:"tokenX"`
+	TokenY codec.Address `serialize:"true" json:"tokenY"`
+
+	AmountIn  uint64        `serialize:"true" json:"amountIn"`
+	TokenIn   codec.Address `serialize:"true" json:"tokenIn"`
 	LPAddress codec.Address `serialize:"true" json:"lpAddress"`
 }
 
@@ -57,7 +59,9 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 	pricingModel := initModel()
 	pricingModel.Initialize(reserveX, reserveY, fee, kLast)
 
-	deltaX, deltaY, err := pricingModel.Swap(s.AmountXIn, s.AmountYIn)
+	swappingX := s.TokenIn == tokenX
+
+	amountOut, err := pricingModel.Swap(s.AmountIn, swappingX)
 	if err != nil {
 		return nil, err
 	}
@@ -70,27 +74,34 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 	}
 
 	// Swap tokens
-	if deltaX == s.AmountXIn {
+	if swappingX {
 		// Take X, return Y
-		if err := storage.TransferToken(ctx, mu, tokenX, actor, s.LPAddress, deltaX); err != nil {
+		if err := storage.TransferToken(ctx, mu, tokenX, actor, s.LPAddress, s.AmountIn); err != nil {
 			return nil, err
 		}
-		if err := storage.TransferToken(ctx, mu, tokenY, s.LPAddress, actor, deltaY); err != nil {
+		if err := storage.TransferToken(ctx, mu, tokenY, s.LPAddress, actor, amountOut); err != nil {
 			return nil, err
 		}
 	} else {
 		// Take Y, return X
-		if err := storage.TransferToken(ctx, mu, tokenY, actor, s.LPAddress, deltaY); err != nil {
+		if err := storage.TransferToken(ctx, mu, tokenY, actor, s.LPAddress, s.AmountIn); err != nil {
 			return nil, err
 		}
-		if err := storage.TransferToken(ctx, mu, tokenX, s.LPAddress, actor, deltaX); err != nil {
+		if err := storage.TransferToken(ctx, mu, tokenX, s.LPAddress, actor, amountOut); err != nil {
 			return nil, err
 		}
 	}
 
+	var tokenOut codec.Address
+	if swappingX {
+		tokenOut = tokenY
+	} else {
+		tokenOut = tokenX
+	}
+
 	return &SwapResult{
-		AmountXOut: deltaX,
-		AmountYOut: deltaY,
+		AmountOut: amountOut,
+		TokenOut:  tokenOut,
 	}, nil
 }
 

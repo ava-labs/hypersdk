@@ -123,11 +123,11 @@ func TestAddLiquidity(t *testing.T) {
 				AmountY:       10_000,
 				LiquidityPool: lpAddress,
 			},
-			ExpectedErr:     nil,
+			ExpectedErr: nil,
 			ExpectedOutputs: &AddLiquidityResult{
 				LPTokensAllocated: 9_000,
 			},
-			State:           parentState,
+			State: parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				// Check LP-state
@@ -181,9 +181,9 @@ func TestAddLiquidity(t *testing.T) {
 			ExpectedOutputs: &AddLiquidityResult{
 				LPTokensAllocated: 5_000,
 			},
-			ExpectedErr:     nil,
-			State:           parentState,
-			Actor:           addr,
+			ExpectedErr: nil,
+			State:       parentState,
+			Actor:       addr,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				// Check LP provider state

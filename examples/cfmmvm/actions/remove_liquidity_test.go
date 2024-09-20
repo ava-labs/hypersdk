@@ -106,9 +106,9 @@ func TestRemoveLiquidity(t *testing.T) {
 				TokenXAmount: 1_000,
 				TokenYAmount: 1_000,
 			},
-			ExpectedErr:     nil,
-			State:           parentState,
-			Actor:           addr,
+			ExpectedErr: nil,
+			State:       parentState,
+			Actor:       addr,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				tokenOneBalance, err := storage.GetTokenAccountBalanceNoController(context.TODO(), m, tokenOneAddress, addr)

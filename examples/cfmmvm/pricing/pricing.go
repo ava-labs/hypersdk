@@ -14,7 +14,9 @@ type Model interface {
 	Initialize(reserveX uint64, reserveY uint64, fee uint64, kLast uint64)
 	AddLiquidity(amountX uint64, amountY uint64, lpTokenSupply uint64) (uint64, uint64, uint64, error)
 	RemoveLiquidity(uint64, uint64) (uint64, uint64, uint64, error)
-	Swap(amountX uint64, amountY uint64) (uint64, uint64, error)
+	// Amount IN, tokenIN
+	// AmountOut, error
+	Swap(uint64, bool) (uint64, error)
 	GetState() (uint64, uint64, uint64)
 }
 
@@ -27,5 +29,4 @@ func init() {
 
 	// Append any additional pricing models here
 	Models[ConstantProductID] = NewConstantProduct
-	Models[StableswapID] = NewStableswap
 }

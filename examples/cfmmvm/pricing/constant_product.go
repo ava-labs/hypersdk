@@ -133,92 +133,89 @@ func (c *ConstantProduct) RemoveLiquidity(
 
 // Returns: outputX, outputY, error
 func (c *ConstantProduct) Swap(
-	amountX uint64,
-	amountY uint64,
-) (uint64, uint64, error) {
+	amountIn uint64,
+	swappingX bool,
+) (uint64, error) {
 	if c.reserveX == 0 || c.reserveY == 0 {
-		return 0, 0, ErrReservesZero
+		return 0, ErrReservesZero
 	}
-	if amountX == 0 && amountY == 0 {
-		return 0, 0, ErrBothDeltasZero
-	}
-	if amountX != 0 && amountY != 0 {
-		return 0, 0, ErrNoClearDeltaToCompute
+	if amountIn == 0 {
+		return 0, ErrZeroInput
 	}
 	k, err := smath.Mul(c.reserveX, c.reserveY)
 	if err != nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var output uint64
-	if amountX == 0 {
-		// Swapping Y for X
-		num, err := smath.Mul(1000, k)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		denomLeft, err := smath.Mul(1000, c.reserveY)
-		if err != nil {
-			return 0, 0, err
-		}
-		denomRight, err := smath.Mul(amountY, c.fee)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		denom, err := smath.Add(denomLeft, denomRight)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		output, err = smath.Sub(c.reserveX, num/denom)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		c.reserveX, err = smath.Sub(c.reserveX, output)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		c.reserveY, err = smath.Add(c.reserveY, amountY)
-		if err != nil {
-			return 0, 0, err
-		}
-		return output, amountY, nil
-	} else {
+	if swappingX {
 		// Swapping X for Y
 		num, err := smath.Mul(1000, k)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		denomLeft, err := smath.Mul(1000, c.reserveX)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
-		denomRight, err := smath.Mul(amountX, c.fee)
+		denomRight, err := smath.Mul(amountIn, c.fee)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		denom, err := smath.Add(denomLeft, denomRight)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 
 		output, err = smath.Sub(c.reserveY, num/denom)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 
-		c.reserveX, err = smath.Add(c.reserveX, amountX)
+		c.reserveX, err = smath.Add(c.reserveX, amountIn)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		c.reserveY, err = smath.Sub(c.reserveY, output)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
-		return amountX, output, nil
+		return output, nil
+	} else {
+		// Swapping Y for X
+		num, err := smath.Mul(1000, k)
+		if err != nil {
+			return 0, err
+		}
+
+		denomLeft, err := smath.Mul(1000, c.reserveY)
+		if err != nil {
+			return 0, err
+		}
+		denomRight, err := smath.Mul(amountIn, c.fee)
+		if err != nil {
+			return 0, err
+		}
+
+		denom, err := smath.Add(denomLeft, denomRight)
+		if err != nil {
+			return 0, err
+		}
+
+		output, err = smath.Sub(c.reserveX, num/denom)
+		if err != nil {
+			return 0, err
+		}
+
+		c.reserveX, err = smath.Sub(c.reserveX, output)
+		if err != nil {
+			return 0, err
+		}
+
+		c.reserveY, err = smath.Add(c.reserveY, amountIn)
+		if err != nil {
+			return 0, err
+		}
+		return output, nil
 	}
 }
 

@@ -103,42 +103,31 @@ func TestSwap(t *testing.T) {
 
 	tests := []chaintest.ActionTest{
 		{
-			Name: "Both deltas cannot be zero",
+			Name: "Input must be nonzero",
 			Action: &Swap{
-				AmountXIn: 0,
-				AmountYIn: 0,
+				AmountIn:  0,
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: nil,
-			ExpectedErr:     pricing.ErrBothDeltasZero,
-			State:           parentState,
-			Actor:           addr,
-		},
-		{
-			Name: "Both deltas cannot be nonzero",
-			Action: &Swap{
-				AmountXIn: 1,
-				AmountYIn: 1,
-				LPAddress: lpAddress,
-			},
-			ExpectedOutputs: nil,
-			ExpectedErr:     pricing.ErrNoClearDeltaToCompute,
+			ExpectedErr:     pricing.ErrZeroInput,
 			State:           parentState,
 			Actor:           addr,
 		},
 		{
 			Name: "Correct swap should work",
 			Action: &Swap{
-				AmountXIn: InitialSwapValue,
-				AmountYIn: 0,
+				TokenX:    tokenOneAddress,
+				TokenY:    tokenTwoAddress,
+				AmountIn:  InitialSwapValue,
+				TokenIn:   tokenOneAddress,
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: &SwapResult{
-				AmountXOut: 100,
-				AmountYOut: 99,
+				AmountOut: 99,
+				TokenOut:  tokenTwoAddress,
 			},
-			ExpectedErr:     nil,
-			State:           parentState,
+			ExpectedErr: nil,
+			State:       parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
 				balance, err := storage.GetTokenAccountBalanceNoController(ctx, m, tokenTwoAddress, addr)
