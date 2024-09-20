@@ -26,7 +26,7 @@ const (
 var (
 	ErrOutputValueZero                           = errors.New("value is zero")
 	ErrOutputMemoTooLarge                        = errors.New("memo is too large")
-	_                     chain.Action[struct{}] = (*Transfer[struct{}])(nil)
+	_                     chain.Action[struct{}] = (*Transfer)(nil)
 )
 
 type Transfer struct {

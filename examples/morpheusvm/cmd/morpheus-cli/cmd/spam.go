@@ -26,7 +26,7 @@ import (
 type SpamHelper struct {
 	keyType string
 	cli     *vm.JSONRPCClient
-	ws      *ws.WebSocketClient
+	ws      *ws.WebSocketClient[struct{}]
 }
 
 func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
@@ -52,7 +52,7 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 
 func (sh *SpamHelper) CreateClient(uri string) error {
 	sh.cli = vm.NewJSONRPCClient(uri)
-	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := ws.NewWebSocketClient[struct{}](uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (sh *SpamHelper) CreateClient(uri string) error {
 	return nil
 }
 
-func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
+func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser[struct{}], error) {
 	return sh.cli.Parser(ctx)
 }
 
@@ -79,8 +79,8 @@ func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, 
 	return balance, err
 }
 
-func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
-	return []chain.Action{&actions.Transfer{
+func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action[struct{}] {
+	return []chain.Action[struct{}]{&actions.Transfer{
 		To:    address,
 		Value: amount,
 		Memo:  memo,

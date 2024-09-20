@@ -49,7 +49,7 @@ func init() {
 
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
-	options = append(options, With[struct{}]()) // Add MorpheusVM API
+	options = append(options, With()) // Add MorpheusVM API
 	return defaultvm.New[struct{}](
 		struct{}{}, // MorpheusVM does not define a runtime
 		consts.Version,
