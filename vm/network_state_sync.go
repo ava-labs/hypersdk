@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
+
 	"github.com/ava-labs/hypersdk/chain"
 )
 
