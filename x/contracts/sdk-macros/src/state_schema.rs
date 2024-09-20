@@ -36,7 +36,7 @@ pub fn impl_state_schema(
                 #(#key_comments)*
                 #[derive(Copy, Clone, wasmlanche::bytemuck::NoUninit)]
                 #[bytemuck(crate = "wasmlanche::bytemuck")]
-                #[repr(C)]
+                #[repr(C, packed)]
                 #key_vis struct #key_type_name #key_fields;
 
                 wasmlanche::prefixed_key_size_check!(wasmlanche::macro_types, #key_type_name);
