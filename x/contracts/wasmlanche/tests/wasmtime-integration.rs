@@ -35,8 +35,7 @@ fn public_functions() {
 #[should_panic = "failed to allocate memory"]
 fn allocate_zero() {
     let mut test_crate = build_test_crate();
-    let result = test_crate.allocate(Vec::new());
-    dbg!(result);
+    test_crate.allocate(Vec::new());
 }
 
 const ALLOCATION_MAP_OVERHEAD: usize = 48;
@@ -206,8 +205,7 @@ impl TestCrate {
                         .expect("data should exist");
 
                     let args: Vec<(StateKey, StateValue)> =
-                        borsh::from_slice(dbg!(&serialized_args))
-                            .expect("failed to deserialize args");
+                        borsh::from_slice(serialized_args).expect("failed to deserialize args");
 
                     let state = &mut caller.data_mut().1;
 

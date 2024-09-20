@@ -279,6 +279,7 @@ impl Context {
         target: Address,
         function: &str,
         args: T,
+        // TODO: remove this
         max_units: Gas,
         max_value: u64,
         result: U,

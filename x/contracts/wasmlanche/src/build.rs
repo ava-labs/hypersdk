@@ -25,6 +25,21 @@ pub fn build_wasm() {
             "test"
         };
 
+        let features = std::env::vars()
+            .filter_map(|(key, value)| {
+                if key.starts_with("CARGO_FEATURE_") && value == "1" {
+                    let feature = key.trim_start_matches("CARGO_FEATURE_").to_lowercase();
+
+                    match feature.as_str() {
+                        "bindings" | "test" => None,
+                        _ => Some(feature),
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
         let target_dir = format!("{manifest_dir}/{BUILD_DIR_NAME}");
         let mut command = Command::new("cargo");
         command
@@ -36,6 +51,10 @@ pub fn build_wasm() {
 
         if profile == RELEASE_PROFILE {
             command.arg("--release");
+        }
+
+        if !features.is_empty() {
+            command.arg("--features").arg(features.join(","));
         }
 
         command.arg("--crate-type").arg("cdylib");

@@ -28,7 +28,7 @@ impl From<Box<[u8]>> for ContractId {
 
 /// Represents an address where a smart contract is deployed.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
+#[derive(Clone, Copy, Ord, PartialOrd, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 #[repr(transparent)]
 pub struct Address([u8; 33]);
 

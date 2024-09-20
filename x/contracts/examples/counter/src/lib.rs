@@ -3,7 +3,7 @@
 
 use wasmlanche::{public, state_schema, Address, Context};
 
-type Count = u64;
+pub type Count = u64;
 
 state_schema! {
     /// Counter for each address.
