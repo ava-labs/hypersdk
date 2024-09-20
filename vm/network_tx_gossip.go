@@ -7,10 +7,9 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
+	"go.uber.org/zap"
 )
 
 type TxGossipHandler[T any] struct {

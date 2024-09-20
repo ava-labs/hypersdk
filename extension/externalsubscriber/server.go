@@ -7,10 +7,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
