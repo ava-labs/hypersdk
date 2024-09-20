@@ -76,7 +76,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 		ctx := tc.DefaultContext()
 		for _, uri := range getE2EURIs(tc, blockchainID) {
-			client := state.NewJSONRPCStateClient[struct{}](uri)
+			client := state.NewJSONRPCStateClient(uri)
 			values, readerrs, err := client.ReadState(ctx, [][]byte{
 				[]byte(`my-unknown-key`),
 			})
