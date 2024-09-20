@@ -60,7 +60,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
+		_, err = sendAndWait(ctx, []chain.Action[struct{}]{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
 		}}, cli, bcli, ws, factory)
@@ -94,7 +94,7 @@ var publishFileCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action{&actions.Publish{
+		result, err := sendAndWait(ctx, []chain.Action[struct{}]{&actions.Publish{
 			ContractBytes: bytes,
 		}}, cli, bcli, ws, factory)
 
@@ -162,7 +162,7 @@ var callCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory)
+		result, err := sendAndWait(ctx, []chain.Action[struct{}]{action}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
 			utils.Outf(hexutils.BytesToHex(result.Outputs[0]) + "\n")
@@ -217,7 +217,7 @@ var deployCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action{&actions.Deploy{
+		result, err := sendAndWait(ctx, []chain.Action[struct{}]{&actions.Deploy{
 			ContractID:   contractID,
 			CreationInfo: creationInfo,
 		}}, cli, bcli, ws, factory)
