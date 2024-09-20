@@ -21,7 +21,10 @@ var (
 	_ chain.Action = (*RemoveLiquidity)(nil)
 )
 
-type RemoveLiquidityResult struct{}
+type RemoveLiquidityResult struct {
+	TokenXAmount uint64 `serialize:"true" json:"tokenXAmount"`
+	TokenYAmount uint64 `serialize:"true" json:"tokenYAmount"`
+}
 
 // GetTypeID implements codec.Typed.
 func (r *RemoveLiquidityResult) GetTypeID() uint8 {
@@ -90,7 +93,10 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, err
 	}
 
-	return &RemoveLiquidityResult{}, nil
+	return &RemoveLiquidityResult{
+		TokenXAmount: amountX,
+		TokenYAmount: amountY,
+	}, nil
 }
 
 func (*RemoveLiquidity) GetTypeID() uint8 {

@@ -21,7 +21,9 @@ var (
 	_ chain.Action = (*AddLiquidity)(nil)
 )
 
-type AddLiquidityResult struct{}
+type AddLiquidityResult struct {
+	LPTokensAllocated uint64 `serialize:"true" json:"lpTokensAllocated"`
+}
 
 func (a *AddLiquidityResult) GetTypeID() uint8 {
 	return consts.AddLiquidityID
@@ -97,7 +99,9 @@ func (a *AddLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Muta
 	reserveX, reserveY, k := pricingModel.GetState()
 
 	// Update LP reserves via pricingModel
-	return &AddLiquidityResult{}, storage.SetLiquidityPool(ctx, mu, a.LiquidityPool, functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, k)
+	return &AddLiquidityResult{
+		LPTokensAllocated: tokensToActor,
+	}, storage.SetLiquidityPool(ctx, mu, a.LiquidityPool, functionID, tokenX, tokenY, fee, feeTo, reserveX, reserveY, lpTokenAddress, k)
 }
 
 func (*AddLiquidity) GetTypeID() uint8 {

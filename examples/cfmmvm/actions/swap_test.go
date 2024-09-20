@@ -133,7 +133,10 @@ func TestSwap(t *testing.T) {
 				AmountYIn: 0,
 				LPAddress: lpAddress,
 			},
-			ExpectedOutputs: &SwapResult{},
+			ExpectedOutputs: &SwapResult{
+				AmountXOut: 100,
+				AmountYOut: 99,
+			},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {

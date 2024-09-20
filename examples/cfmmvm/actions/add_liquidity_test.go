@@ -124,7 +124,9 @@ func TestAddLiquidity(t *testing.T) {
 				LiquidityPool: lpAddress,
 			},
 			ExpectedErr:     nil,
-			ExpectedOutputs: &AddLiquidityResult{},
+			ExpectedOutputs: &AddLiquidityResult{
+				LPTokensAllocated: 9_000,
+			},
 			State:           parentState,
 			Assertion: func(ctx context.Context, t *testing.T, m state.Mutable) {
 				require := require.New(t)
@@ -176,7 +178,9 @@ func TestAddLiquidity(t *testing.T) {
 				AmountY:       5_000,
 				LiquidityPool: lpAddress,
 			},
-			ExpectedOutputs: &AddLiquidityResult{},
+			ExpectedOutputs: &AddLiquidityResult{
+				LPTokensAllocated: 5_000,
+			},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Actor:           addr,

@@ -48,6 +48,15 @@ func init() {
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		OutputParser.Register(&actions.CreateToken{}, nil),
+		OutputParser.Register(&actions.MintToken{}, nil),
+		OutputParser.Register(&actions.BurnToken{}, nil),
+		OutputParser.Register(&actions.TransferToken{}, nil),
+		OutputParser.Register(&actions.CreateLiquidityPool{}, nil),
+		OutputParser.Register(&actions.AddLiquidity{}, nil),
+		OutputParser.Register(&actions.RemoveLiquidity{}, nil),
+		OutputParser.Register(&actions.Swap{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

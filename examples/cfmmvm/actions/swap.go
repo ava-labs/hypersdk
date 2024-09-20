@@ -21,7 +21,10 @@ var (
 	_ chain.Action = (*Swap)(nil)
 )
 
-type SwapResult struct{}
+type SwapResult struct {
+	AmountXOut uint64 `serialize:"true" json:"amountXOut"`
+	AmountYOut uint64 `serialize:"true" json:"amountYOut"`
+}
 
 func (*SwapResult) GetTypeID() uint8 {
 	return consts.SwapID
@@ -85,7 +88,10 @@ func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ i
 		}
 	}
 
-	return &SwapResult{}, nil
+	return &SwapResult{
+		AmountXOut: deltaX,
+		AmountYOut: deltaY,
+	}, nil
 }
 
 func (*Swap) GetTypeID() uint8 {

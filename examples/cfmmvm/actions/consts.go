@@ -17,4 +17,8 @@ const (
 	AddLiquidityUnits        = 1
 	RemoveLiquidityUnits     = 1
 	SwapUnits                = 1
+
+	GetTokenInfoUnits           = 1
+	GetTokenAccountBalanceUnits = 1
+	GetLiquidityPoolInfoUnits   = 1
 )

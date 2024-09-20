@@ -22,6 +22,11 @@ const (
 	AddLiquidityID
 	RemoveLiquidityID
 	SwapID
+
+	// Read-only actions
+	GetTokenInfoID
+	GetTokenAccountBalanceID
+	GetLiquidityPoolInfoID
 )
 
 // TypeIDs for auth

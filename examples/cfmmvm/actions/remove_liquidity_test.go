@@ -102,7 +102,10 @@ func TestRemoveLiquidity(t *testing.T) {
 				TokenX:        tokenOneAddress,
 				TokenY:        tokenTwoAddress,
 			},
-			ExpectedOutputs: &RemoveLiquidityResult{},
+			ExpectedOutputs: &RemoveLiquidityResult{
+				TokenXAmount: 1_000,
+				TokenYAmount: 1_000,
+			},
 			ExpectedErr:     nil,
 			State:           parentState,
 			Actor:           addr,
