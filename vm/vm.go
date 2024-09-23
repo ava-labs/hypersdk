@@ -28,6 +28,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/dsmr"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -96,6 +97,9 @@ type VM struct {
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
+
+	// DSMR
+	
 
 	// track all accepted but still valid txs (replay protection)
 	seen                   *emap.EMap[*chain.Transaction]
