@@ -58,6 +58,15 @@ func init() {
 		OutputParser.Register(&actions.AddLiquidity{}, nil),
 		OutputParser.Register(&actions.RemoveLiquidity{}, nil),
 		OutputParser.Register(&actions.Swap{}, nil),
+
+		// Read-only actions
+		ActionParser.Register(&actions.GetTokenInfo{}, nil),
+		ActionParser.Register(&actions.GetTokenAccountBalance{}, nil),
+		ActionParser.Register(&actions.GetLiquidityPoolInfo{}, nil),
+
+		OutputParser.Register(&actions.GetTokenInfoResult{}, nil),
+		OutputParser.Register(&actions.GetTokenAccountBalanceResult{}, nil),
+		OutputParser.Register(&actions.GetLiquidityPoolInfoResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
