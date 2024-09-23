@@ -50,14 +50,14 @@ func init() {
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.CreateToken{}, nil),
-		OutputParser.Register(&actions.MintToken{}, nil),
-		OutputParser.Register(&actions.BurnToken{}, nil),
-		OutputParser.Register(&actions.TransferToken{}, nil),
-		OutputParser.Register(&actions.CreateLiquidityPool{}, nil),
-		OutputParser.Register(&actions.AddLiquidity{}, nil),
-		OutputParser.Register(&actions.RemoveLiquidity{}, nil),
-		OutputParser.Register(&actions.Swap{}, nil),
+		OutputParser.Register(&actions.CreateTokenResult{}, nil),
+		OutputParser.Register(&actions.MintTokenResult{}, nil),
+		OutputParser.Register(&actions.BurnTokenResult{}, nil),
+		OutputParser.Register(&actions.TransferTokenResult{}, nil),
+		OutputParser.Register(&actions.CreateLiquidityPoolResult{}, nil),
+		OutputParser.Register(&actions.AddLiquidityResult{}, nil),
+		OutputParser.Register(&actions.RemoveLiquidityResult{}, nil),
+		OutputParser.Register(&actions.SwapResult{}, nil),
 
 		// Read-only actions
 		ActionParser.Register(&actions.GetTokenInfo{}, nil),
