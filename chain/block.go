@@ -349,7 +349,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info(
-			"skipping verification, already processed",
+			"skipping verification of locally built block",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 		)
@@ -448,13 +448,16 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 		return ErrTimestampTooEarly
 	}
 
-	// Ensure tx cannot be replayed
+	// Expiry replay protection
 	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
+	// Replay protection confirms a transaction has not been included within the
+	// past validity window.
+	// Before the node is ready (we have synced a validity window of blocks), this
+	// function may return an error when other nodes see the block as valid.
 	//
 	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
+	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
+	// when it should already be considered valid, so we skip this step here.
 	if !b.accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
