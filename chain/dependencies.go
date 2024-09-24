@@ -238,7 +238,7 @@ type ViewFactory[T PendingView] interface {
 	NewView(numTxs int) View[T]
 }
 
-type Action[T PendingView] interface {
+type Action[T state.Mutable] interface {
 	Object
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
@@ -270,7 +270,7 @@ type Action[T PendingView] interface {
 	Execute(
 		ctx context.Context,
 		r Rules,
-		runtimeView T,
+		mutable T,
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
