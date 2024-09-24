@@ -28,8 +28,8 @@ var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 
-	_ event.SubscriptionFactory[*chain.StatefulBlock[chain.RuntimeInterface]] = (*subscriptionFactory[chain.RuntimeInterface])(nil)
-	_ event.Subscription[*chain.StatefulBlock[chain.RuntimeInterface]]        = (*txDBIndexer[chain.RuntimeInterface])(nil)
+	_ event.SubscriptionFactory[*chain.StatefulBlock[chain.PendingView]] = (*subscriptionFactory[chain.PendingView])(nil)
+	_ event.Subscription[*chain.StatefulBlock[chain.PendingView]]        = (*txDBIndexer[chain.PendingView])(nil)
 )
 
 type Config struct {
@@ -42,11 +42,11 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With[T chain.RuntimeInterface]() vm.Option[T] {
+func With[T chain.PendingView]() vm.Option[T] {
 	return vm.NewOption[T](Namespace, NewDefaultConfig(), OptionFunc[T])
 }
 
-func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
+func OptionFunc[T chain.PendingView](v *vm.VM[T], config Config) error {
 	if !config.Enabled {
 		return nil
 	}
@@ -76,7 +76,7 @@ func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
 	return nil
 }
 
-type subscriptionFactory[T chain.RuntimeInterface] struct {
+type subscriptionFactory[T chain.PendingView] struct {
 	indexer *txDBIndexer[T]
 }
 
@@ -84,7 +84,7 @@ func (s *subscriptionFactory[T]) New() (event.Subscription[*chain.StatefulBlock[
 	return s.indexer, nil
 }
 
-type txDBIndexer[T chain.RuntimeInterface] struct {
+type txDBIndexer[T chain.PendingView] struct {
 	db database.Database
 }
 

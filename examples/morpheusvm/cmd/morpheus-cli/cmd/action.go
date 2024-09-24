@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 var actionCmd = &cobra.Command{
@@ -55,7 +56,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action[struct{}]{&actions.Transfer{
+		_, _, err = sendAndWait(ctx, []chain.Action[*tstate.TStateView]{&actions.Transfer[*tstate.TStateView]{
 			To:    recipient,
 			Value: amount,
 		}}, cli, bcli, ws, factory, true)

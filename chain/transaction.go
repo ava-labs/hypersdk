@@ -17,18 +17,17 @@ import (
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
-	_ emap.Item    = (*Transaction[RuntimeInterface])(nil)
-	_ mempool.Item = (*Transaction[RuntimeInterface])(nil)
+	_ emap.Item    = (*Transaction[PendingView])(nil)
+	_ mempool.Item = (*Transaction[PendingView])(nil)
 )
 
-type Transaction[T RuntimeInterface] struct {
+type Transaction[T PendingView] struct {
 	Base *Base `json:"base"`
 
 	Actions []Action[T] `json:"actions"`
@@ -41,7 +40,7 @@ type Transaction[T RuntimeInterface] struct {
 	stateKeys state.Keys
 }
 
-func NewTx[T RuntimeInterface](base *Base, actions []Action[T]) *Transaction[T] {
+func NewTx[T PendingView](base *Base, actions []Action[T]) *Transaction[T] {
 	return &Transaction[T]{
 		Base:    base,
 		Actions: actions,
@@ -195,7 +194,7 @@ func (t *Transaction[_]) Units(sm StateManager, r Rules) (fees.Dimensions, error
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits[T RuntimeInterface](r Rules, actions []Action[T], authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits[T PendingView](r Rules, actions []Action[T], authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -305,10 +304,9 @@ func (t *Transaction[_]) PreExecute(
 func (t *Transaction[T]) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	runtime T,
+	runtimeView T,
 	s StateManager,
 	r Rules,
-	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
 	// Always charge fee first
@@ -322,7 +320,7 @@ func (t *Transaction[T]) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
+	if err := s.Deduct(ctx, t.Auth.Sponsor(), runtimeView, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -333,24 +331,21 @@ func (t *Transaction[T]) Execute(
 	// We should favor reverting over returning an error because the caller won't be charged
 	// for a transaction that returns an error.
 	var (
-		actionStart   = ts.OpIndex()
+		actionStart   = runtimeView.OpIndex()
 		actionOutputs = [][]byte{}
 	)
 
 	for i, action := range t.Actions {
 		actionOutput, err := action.Execute(
 			ctx,
-			Runtime[T]{
-				T:     runtime,
-				Rules: r,
-				State: ts,
-			},
+			r,
+			runtimeView,
 			timestamp,
 			t.Auth.Actor(),
 			CreateActionID(t.ID(), uint8(i)),
 		)
 		if err != nil {
-			ts.Rollback(ctx, actionStart)
+			runtimeView.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
 
@@ -405,7 +400,7 @@ func (t *Transaction[_]) marshalActions(p *codec.Packer) error {
 	return p.Err()
 }
 
-func MarshalTxs[T RuntimeInterface](txs []*Transaction[T]) ([]byte, error) {
+func MarshalTxs[T PendingView](txs []*Transaction[T]) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
@@ -420,7 +415,7 @@ func MarshalTxs[T RuntimeInterface](txs []*Transaction[T]) ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func UnmarshalTxs[T RuntimeInterface](
+func UnmarshalTxs[T PendingView](
 	raw []byte,
 	initialCapacity int,
 	actionRegistry ActionRegistry[T],
@@ -445,7 +440,7 @@ func UnmarshalTxs[T RuntimeInterface](
 	return authCounts, txs, p.Err()
 }
 
-func UnmarshalTx[T RuntimeInterface](
+func UnmarshalTx[T PendingView](
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action[T]],
 	authRegistry *codec.TypeParser[Auth],
@@ -488,7 +483,7 @@ func UnmarshalTx[T RuntimeInterface](
 	return &tx, nil
 }
 
-func unmarshalActions[T RuntimeInterface](
+func unmarshalActions[T PendingView](
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action[T]],
 ) ([]Action[T], error) {

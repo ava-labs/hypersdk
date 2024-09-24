@@ -20,10 +20,10 @@ const Endpoint = "/indexer"
 var (
 	ErrTxNotFound = errors.New("tx not found")
 
-	_ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*apiFactory[chain.RuntimeInterface])(nil)
+	_ api.HandlerFactory[api.VM[chain.PendingView]] = (*apiFactory[chain.PendingView])(nil)
 )
 
-type apiFactory[T chain.RuntimeInterface] struct {
+type apiFactory[T chain.PendingView] struct {
 	path    string
 	name    string
 	indexer *txDBIndexer[T]
@@ -55,7 +55,7 @@ type GetTxResponse struct {
 	Fee       uint64          `json:"fee"`
 }
 
-type Server[T chain.RuntimeInterface] struct {
+type Server[T chain.PendingView] struct {
 	tracer  trace.Tracer
 	indexer *txDBIndexer[T]
 }

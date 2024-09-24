@@ -19,7 +19,7 @@ const (
 	TxMode    byte = 1
 )
 
-func PackBlockMessage[T chain.RuntimeInterface](b *chain.StatefulBlock[T]) ([]byte, error) {
+func PackBlockMessage[T chain.PendingView](b *chain.StatefulBlock[T]) ([]byte, error) {
 	results := b.Results()
 	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + fees.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
@@ -33,7 +33,7 @@ func PackBlockMessage[T chain.RuntimeInterface](b *chain.StatefulBlock[T]) ([]by
 	return p.Bytes(), p.Err()
 }
 
-func UnpackBlockMessage[T chain.RuntimeInterface](
+func UnpackBlockMessage[T chain.PendingView](
 	msg []byte,
 	parser chain.Parser[T],
 ) (*chain.StatelessBlock[T], []*chain.Result, fees.Dimensions, error) {

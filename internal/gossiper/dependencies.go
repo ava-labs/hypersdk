@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-type VM[T chain.RuntimeInterface] interface {
+type VM[T chain.PendingView] interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 	StopChan() chan struct{}

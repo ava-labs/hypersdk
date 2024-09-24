@@ -19,7 +19,7 @@ import (
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
-type stateSyncerClient[T chain.RuntimeInterface] struct {
+type stateSyncerClient[T chain.PendingView] struct {
 	vm          *VM[T]
 	gatherer    avametrics.MultiGatherer
 	syncManager *avasync.Manager

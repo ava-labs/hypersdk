@@ -22,12 +22,12 @@ import (
 )
 
 type (
-	ActionRegistry[T RuntimeInterface] *codec.TypeParser[Action[T]]
-	OutputRegistry                     *codec.TypeParser[codec.Typed]
-	AuthRegistry                       *codec.TypeParser[Auth]
+	ActionRegistry[T PendingView] *codec.TypeParser[Action[T]]
+	OutputRegistry                *codec.TypeParser[codec.Typed]
+	AuthRegistry                  *codec.TypeParser[Auth]
 )
 
-type Parser[T RuntimeInterface] interface {
+type Parser[T PendingView] interface {
 	Rules(int64) Rules
 	ActionRegistry() ActionRegistry[T]
 	OutputRegistry() OutputRegistry
@@ -55,7 +55,7 @@ type Monitoring interface {
 	Logger() logging.Logger
 }
 
-type VM[T RuntimeInterface] interface {
+type VM[T PendingView] interface {
 	Metrics
 	Monitoring
 	Parser[T]
@@ -89,11 +89,11 @@ type VM[T RuntimeInterface] interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatefulBlock[T]) (bool, error)
 	StateReady() bool
-	// GetRuntime returns the application-defined runtime
-	GetRuntime() T
+	// GetRuntimeFactory returns a factory for the application-defined runtime
+	GetRuntimeFactory() ViewFactory[T]
 }
 
-type VerifyContext[T RuntimeInterface] interface {
+type VerifyContext[T PendingView] interface {
 	View(ctx context.Context, verify bool) (state.View, error)
 	// IsRepeat returns a bitset containing the indices of [txs] that are repeats from this context back to
 	// [oldestAllowed].
@@ -102,7 +102,7 @@ type VerifyContext[T RuntimeInterface] interface {
 	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction[T], marker set.Bits, stop bool) (set.Bits, error)
 }
 
-type Mempool[T RuntimeInterface] interface {
+type Mempool[T PendingView] interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction[T])
@@ -211,17 +211,30 @@ type Marshaler interface {
 	Size() int
 }
 
-// TODO add explicit functions for child view processing + rolling back
-// pending runtime state
-type RuntimeInterface interface{}
-
-type Runtime[T RuntimeInterface] struct {
-	T     T
-	Rules Rules
-	State state.Mutable
+// PendingView is a pending view of the current state
+type PendingView interface {
+	Rollback(ctx context.Context, restorePoint int)
+	OpIndex() int
+	GetValue(ctx context.Context, key []byte) ([]byte, error)
+	Insert(ctx context.Context, key []byte, value []byte) error
+	Remove(ctx context.Context, key []byte) error
+	Commit()
 }
 
-type Action[T RuntimeInterface] interface {
+type View[T PendingView] interface {
+	NewView(scope state.Keys, storage map[string][]byte) T
+	PendingChanges() int
+	OpIndex() int
+	ExportMerkleDBView(ctx context.Context, t trace.Tracer, view state.View) (merkledb.View, error)
+}
+
+type ViewFactory[T PendingView] interface {
+	// NewView returns a runtime view factory with numTxs in the associated
+	// block
+	NewView(numTxs int) View[T]
+}
+
+type Action[T PendingView] interface {
 	Object
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
@@ -252,7 +265,8 @@ type Action[T RuntimeInterface] interface {
 	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
-		runtime Runtime[T],
+		r Rules,
+		runtimeView T,
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,

@@ -17,15 +17,15 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-var _ event.Subscription[*chain.StatefulBlock[chain.RuntimeInterface]] = (*ExternalSubscriberClient[chain.RuntimeInterface])(nil)
+var _ event.Subscription[*chain.StatefulBlock[chain.PendingView]] = (*ExternalSubscriberClient[chain.PendingView])(nil)
 
-type ExternalSubscriberClient[T chain.RuntimeInterface] struct {
+type ExternalSubscriberClient[T chain.PendingView] struct {
 	conn   *grpc.ClientConn
 	client pb.ExternalSubscriberClient
 	log    logging.Logger
 }
 
-func NewExternalSubscriberClient[T chain.RuntimeInterface](
+func NewExternalSubscriberClient[T chain.PendingView](
 	ctx context.Context,
 	log logging.Logger,
 	serverAddr string,

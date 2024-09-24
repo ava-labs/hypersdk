@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -32,9 +33,9 @@ const (
 )
 
 var (
-	_              workload.TxWorkloadFactory[struct{}]  = (*workloadFactory)(nil)
-	_              workload.TxWorkloadIterator[struct{}] = (*simpleTxWorkload)(nil)
-	ed25519HexKeys                                       = []string{
+	_              workload.TxWorkloadFactory[*tstate.TStateView]  = (*workloadFactory)(nil)
+	_              workload.TxWorkloadIterator[*tstate.TStateView] = (*simpleTxWorkload)(nil)
+	ed25519HexKeys                                                 = []string{
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
 		"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 	}
@@ -62,7 +63,7 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory[struct{}], error) {
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory[*tstate.TStateView], error) {
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
 	for _, prefundedAddrStr := range ed25519Addrs {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
@@ -85,8 +86,8 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 	}, nil
 }
 
-func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator[struct{}], error) {
-	cli := jsonrpc.NewJSONRPCClient[struct{}](uri)
+func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator[*tstate.TStateView], error) {
+	cli := jsonrpc.NewJSONRPCClient[*tstate.TStateView](uri)
 	lcli := vm.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
@@ -98,7 +99,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 
 type simpleTxWorkload struct {
 	factory *auth.ED25519Factory
-	cli     *jsonrpc.JSONRPCClient[struct{}]
+	cli     *jsonrpc.JSONRPCClient[*tstate.TStateView]
 	lcli    *vm.JSONRPCClient
 	count   int
 	size    int
@@ -108,7 +109,7 @@ func (g *simpleTxWorkload) Next() bool {
 	return g.count < g.size
 }
 
-func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction[struct{}], workload.TxAssertion, error) {
+func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction[*tstate.TStateView], workload.TxAssertion, error) {
 	g.count++
 	other, err := ed25519.GeneratePrivateKey()
 	if err != nil {
@@ -123,7 +124,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	_, tx, _, err := g.cli.GenerateTransaction(
 		ctx,
 		parser,
-		[]chain.Action[struct{}]{&actions.Transfer{
+		[]chain.Action[*tstate.TStateView]{&actions.Transfer{
 			To:    aother,
 			Value: 1,
 		}},
@@ -145,7 +146,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}, nil
 }
 
-func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator[struct{}], error) {
+func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator[*tstate.TStateView], error) {
 	blsPriv, err := bls.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
@@ -162,7 +163,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	secpAddr := auth.NewSECP256R1Address(secpPub)
 	secpFactory := auth.NewSECP256R1Factory(secpPriv)
 
-	cli := jsonrpc.NewJSONRPCClient[struct{}](uri)
+	cli := jsonrpc.NewJSONRPCClient[*tstate.TStateView](uri)
 	networkID, _, blockchainID, err := cli.Network(context.Background())
 	if err != nil {
 		return nil, err
@@ -182,7 +183,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 		chainID:   blockchainID,
 	}
 
-	return []workload.TxWorkloadIterator[struct{}]{generator}, nil
+	return []workload.TxWorkloadIterator[*tstate.TStateView]{generator}, nil
 }
 
 type addressAndFactory struct {
@@ -193,7 +194,7 @@ type addressAndFactory struct {
 type mixedAuthWorkload struct {
 	addressAndFactories []addressAndFactory
 	balance             uint64
-	cli                 *jsonrpc.JSONRPCClient[struct{}]
+	cli                 *jsonrpc.JSONRPCClient[*tstate.TStateView]
 	lcli                *vm.JSONRPCClient
 	networkID           uint32
 	chainID             ids.ID
@@ -204,7 +205,7 @@ func (g *mixedAuthWorkload) Next() bool {
 	return g.count < len(g.addressAndFactories)-1
 }
 
-func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction[struct{}], workload.TxAssertion, error) {
+func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction[*tstate.TStateView], workload.TxAssertion, error) {
 	defer func() { g.count++ }()
 
 	sender := g.addressAndFactories[g.count]
@@ -218,7 +219,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	_, tx, _, err := g.cli.GenerateTransaction(
 		ctx,
 		parser,
-		[]chain.Action[struct{}]{&actions.Transfer{
+		[]chain.Action[*tstate.TStateView]{&actions.Transfer{
 			To:    receiver.address,
 			Value: expectedBalance,
 		}},

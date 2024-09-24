@@ -18,16 +18,15 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const (
 	Endpoint = "/coreapi"
 )
 
-var _ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*JSONRPCServerFactory[chain.RuntimeInterface])(nil)
+var _ api.HandlerFactory[api.VM[chain.PendingView]] = (*JSONRPCServerFactory[chain.PendingView])(nil)
 
-type JSONRPCServerFactory[T chain.RuntimeInterface] struct{}
+type JSONRPCServerFactory[T chain.PendingView] struct{}
 
 func (JSONRPCServerFactory[T]) New(vm api.VM[T]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCServer(vm))
@@ -41,11 +40,11 @@ func (JSONRPCServerFactory[T]) New(vm api.VM[T]) (api.Handler, error) {
 	}, nil
 }
 
-type JSONRPCServer[T chain.RuntimeInterface] struct {
+type JSONRPCServer[T chain.PendingView] struct {
 	vm api.VM[T]
 }
 
-func NewJSONRPCServer[T chain.RuntimeInterface](vm api.VM[T]) *JSONRPCServer[T] {
+func NewJSONRPCServer[T chain.PendingView](vm api.VM[T]) *JSONRPCServer[T] {
 	return &JSONRPCServer[T]{vm}
 }
 
@@ -215,16 +214,14 @@ func (j *JSONRPCServer[T]) Execute(
 		storage[string(storageKeysToRead[i])] = value
 	}
 
-	ts := tstate.New(1)
-	tsv := ts.NewView(stateKeysWithPermissions, storage)
+	runtimeFactory := j.vm.GetRuntimeFactory()
+	runtime := runtimeFactory.NewView(1)
+	runtimeView := runtime.NewView(stateKeysWithPermissions, storage)
 
 	output, err := action.Execute(
 		ctx,
-		chain.Runtime[T]{
-			T:     j.vm.GetRuntime(),
-			Rules: j.vm.Rules(now),
-			State: tsv,
-		},
+		j.vm.Rules(now),
+		runtimeView,
 		now,
 		args.Actor,
 		ids.Empty,

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -88,7 +89,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser[struct{}], error) {
+func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser[*tstate.TStateView], error) {
 	g, err := cli.Genesis(ctx)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser[struct{}], e
 	return NewParser(g), nil
 }
 
-var _ chain.Parser[struct{}] = (*Parser)(nil)
+var _ chain.Parser[*tstate.TStateView] = (*Parser)(nil)
 
 type Parser struct {
 	genesis *genesis.DefaultGenesis
@@ -106,7 +107,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() chain.ActionRegistry[struct{}] {
+func (*Parser) ActionRegistry() chain.ActionRegistry[*tstate.TStateView] {
 	return ActionParser
 }
 
@@ -122,12 +123,12 @@ func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func NewParser(genesis *genesis.DefaultGenesis) chain.Parser[struct{}] {
+func NewParser(genesis *genesis.DefaultGenesis) chain.Parser[*tstate.TStateView] {
 	return &Parser{genesis: genesis}
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
-func CreateParser(genesisBytes []byte) (chain.Parser[struct{}], error) {
+func CreateParser(genesisBytes []byte) (chain.Parser[*tstate.TStateView], error) {
 	var genesis genesis.DefaultGenesis
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err

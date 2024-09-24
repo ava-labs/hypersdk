@@ -16,12 +16,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
-var _ chain.Action[struct{}] = (*Publish)(nil)
+var _ chain.Action[*tstate.TStateView] = (*Publish)(nil)
 
 const MAXCONTRACTSIZE = 2 * units.MiB
 
@@ -53,12 +54,13 @@ func (t *Publish) StateKeysMaxChunks() []uint16 {
 
 func (t *Publish) Execute(
 	ctx context.Context,
-	runtime chain.Runtime[struct{}],
+	_ chain.Rules,
+	view *tstate.TStateView,
 	_ int64,
 	_ codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	resultBytes, err := storage.StoreContract(ctx, runtime.State, t.ContractBytes)
+	resultBytes, err := storage.StoreContract(ctx, view, t.ContractBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +79,7 @@ func (t *Publish) Marshal(p *codec.Packer) {
 	p.PackBytes(t.ContractBytes)
 }
 
-func UnmarshalPublishContract(p *codec.Packer) (chain.Action[struct{}], error) {
+func UnmarshalPublishContract(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
 	var publishContract Publish
 	p.UnpackBytes(MAXCONTRACTSIZE, true, &publishContract.ContractBytes)
 	if err := p.Err(); err != nil {

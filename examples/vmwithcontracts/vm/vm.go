@@ -17,12 +17,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action[struct{}]]
+	ActionParser *codec.TypeParser[chain.Action[*tstate.TStateView]]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
 	wasmRuntime  *runtime.WasmRuntime
@@ -30,7 +31,7 @@ var (
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action[struct{}]]()
+	ActionParser = codec.NewTypeParser[chain.Action[*tstate.TStateView]]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 
@@ -57,25 +58,24 @@ func init() {
 }
 
 // New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
-func New(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
-	opts := append([]vm.Option[struct{}]{
-		indexer.With[struct{}](),
-		ws.With[struct{}](),
-		jsonrpc.With[struct{}](),
+func New(options ...vm.Option[*tstate.TStateView]) (*vm.VM[*tstate.TStateView], error) {
+	opts := append([]vm.Option[*tstate.TStateView]{
+		indexer.With[*tstate.TStateView](),
+		ws.With[*tstate.TStateView](),
+		jsonrpc.With[*tstate.TStateView](),
 		With(), // Add Controller API
-		externalsubscriber.With[struct{}](),
+		externalsubscriber.With[*tstate.TStateView](),
 	}, options...)
 
 	return NewWithOptions(opts...)
 }
 
 // NewWithOptions returns a VM with the specified options
-func NewWithOptions(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
-	opts := append([]vm.Option[struct{}]{
+func NewWithOptions(options ...vm.Option[*tstate.TStateView]) (*vm.VM[*tstate.TStateView], error) {
+	opts := append([]vm.Option[*tstate.TStateView]{
 		WithRuntime(),
 	}, options...)
-	return vm.New[struct{}](
-		struct{}{},
+	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},

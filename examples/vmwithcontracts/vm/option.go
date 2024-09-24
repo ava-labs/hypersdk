@@ -4,6 +4,7 @@
 package vm
 
 import (
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
@@ -20,18 +21,18 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option[struct{}] {
-	return vm.NewOption[struct{}](Namespace, NewDefaultConfig(), func(v *vm.VM[struct{}], config Config) error {
+func With() vm.Option[*tstate.TStateView] {
+	return vm.NewOption[*tstate.TStateView](Namespace, NewDefaultConfig(), func(v *vm.VM[*tstate.TStateView], config Config) error {
 		if !config.Enabled {
 			return nil
 		}
-		vm.WithVMAPIs[struct{}](jsonRPCServerFactory{})(v)
+		vm.WithVMAPIs[*tstate.TStateView](jsonRPCServerFactory{})(v)
 		return nil
 	})
 }
 
-func WithRuntime() vm.Option[struct{}] {
-	return vm.NewOption[struct{}](Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM[struct{}], cfg runtime.Config) error {
+func WithRuntime() vm.Option[*tstate.TStateView] {
+	return vm.NewOption[*tstate.TStateView](Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM[*tstate.TStateView], cfg runtime.Config) error {
 		wasmRuntime = runtime.NewRuntime(&cfg, v.Logger())
 		return nil
 	})

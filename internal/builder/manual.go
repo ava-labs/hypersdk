@@ -11,14 +11,14 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-var _ Builder = (*Manual[chain.RuntimeInterface])(nil)
+var _ Builder = (*Manual[chain.PendingView])(nil)
 
-type Manual[T chain.RuntimeInterface] struct {
+type Manual[T chain.PendingView] struct {
 	vm        VM[T]
 	doneBuild chan struct{}
 }
 
-func NewManual[T chain.RuntimeInterface](vm VM[T]) *Manual[T] {
+func NewManual[T chain.PendingView](vm VM[T]) *Manual[T] {
 	return &Manual[T]{
 		vm:        vm,
 		doneBuild: make(chan struct{}),

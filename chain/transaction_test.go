@@ -15,11 +15,12 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 var (
-	_ chain.Action[struct{}] = (*mockTransferAction)(nil)
-	_ chain.Action[struct{}] = (*action2)(nil)
+	_ chain.Action[*tstate.TStateView] = (*mockTransferAction)(nil)
+	_ chain.Action[*tstate.TStateView] = (*action2)(nil)
 )
 
 type abstractMockAction struct{}
@@ -28,7 +29,7 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Runtime[struct{}], _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.PendingView[*tstate.TStateView], _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
@@ -81,13 +82,13 @@ func unmarshalAction2(p *codec.Packer) (chain.Action[struct{}], error) {
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
-	tx := chain.Transaction[struct{}]{
+	tx := chain.Transaction[*tstate.TStateView]{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
 		},
-		Actions: []chain.Action[struct{}]{
+		Actions: []chain.Action[*tstate.TStateView]{
 			&mockTransferAction{
 				To:    codec.Address{1, 2, 3, 4},
 				Value: 4,
@@ -109,7 +110,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
-	actionRegistry := codec.NewTypeParser[chain.Action[struct{}]]()
+	actionRegistry := codec.NewTypeParser[chain.Action[*tstate.TStateView]]()
 	authRegistry := codec.NewTypeParser[chain.Auth]()
 
 	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)

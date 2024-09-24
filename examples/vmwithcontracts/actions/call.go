@@ -14,13 +14,14 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
 
 // TODO: inject runtime here instead of attaching to the action
-var _ chain.Action[struct{}] = (*Call)(nil)
+var _ chain.Action[*tstate.TStateView] = (*Call)(nil)
 
 const MaxCallDataSize = units.MiB
 
@@ -71,7 +72,8 @@ func (t *Call) StateKeysMaxChunks() []uint16 {
 
 func (t *Call) Execute(
 	ctx context.Context,
-	rt chain.Runtime[struct{}],
+	_ chain.Rules,
+	rt *tstate.TStateView,
 	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
@@ -79,7 +81,7 @@ func (t *Call) Execute(
 	resutBytes, err := t.r.CallContract(ctx, &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
-		State:        &storage.ContractStateManager{Mutable: rt.State},
+		State:        &storage.ContractStateManager{Mutable: rt},
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
@@ -114,8 +116,8 @@ func (t *Call) Marshal(p *codec.Packer) {
 	}
 }
 
-func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action[struct{}], error) {
-	return func(p *codec.Packer) (chain.Action[struct{}], error) {
+func UnmarshalCallContract(r *runtime.WasmRuntime) func(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
+	return func(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
 		callContract := Call{r: r}
 		callContract.Value = p.UnpackUint64(false)
 		callContract.Fuel = p.UnpackUint64(true)

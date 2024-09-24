@@ -15,16 +15,17 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 const JSONRPCEndpoint = "/vmwithcontractsapi"
 
-var _ api.HandlerFactory[api.VM[struct{}]] = (*jsonRPCServerFactory)(nil)
+var _ api.HandlerFactory[api.VM[*tstate.TStateView]] = (*jsonRPCServerFactory)(nil)
 
 type jsonRPCServerFactory struct{}
 
-func (jsonRPCServerFactory) New(v api.VM[struct{}]) (api.Handler, error) {
+func (jsonRPCServerFactory) New(v api.VM[*tstate.TStateView]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(v))
 	return api.Handler{
 		Path:    JSONRPCEndpoint,
@@ -33,10 +34,10 @@ func (jsonRPCServerFactory) New(v api.VM[struct{}]) (api.Handler, error) {
 }
 
 type JSONRPCServer struct {
-	vm api.VM[struct{}]
+	vm api.VM[*tstate.TStateView]
 }
 
-func NewJSONRPCServer(vm api.VM[struct{}]) *JSONRPCServer {
+func NewJSONRPCServer(vm api.VM[*tstate.TStateView]) *JSONRPCServer {
 	return &JSONRPCServer{vm: vm}
 }
 

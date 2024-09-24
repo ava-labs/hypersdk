@@ -22,7 +22,7 @@ import (
 
 const unitPricesCacheRefresh = 10 * time.Second
 
-type JSONRPCClient[T chain.RuntimeInterface] struct {
+type JSONRPCClient[T chain.PendingView] struct {
 	requester *requester.EndpointRequester
 
 	networkID uint32
@@ -33,7 +33,7 @@ type JSONRPCClient[T chain.RuntimeInterface] struct {
 	unitPrices     fees.Dimensions
 }
 
-func NewJSONRPCClient[T chain.RuntimeInterface](uri string) *JSONRPCClient[T] {
+func NewJSONRPCClient[T chain.PendingView](uri string) *JSONRPCClient[T] {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
 	req := requester.New(uri, api.Name)

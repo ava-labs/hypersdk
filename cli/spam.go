@@ -52,7 +52,7 @@ var (
 	sent     atomic.Int64
 )
 
-type SpamHelper[T chain.RuntimeInterface] interface {
+type SpamHelper[T chain.PendingView] interface {
 	// CreateAccount generates a new account and returns the [PrivateKey].
 	//
 	// The spammer tracks all created accounts and orchestrates the return of funds
@@ -461,7 +461,7 @@ func (h *Handler[T]) Spam(sh SpamHelper[T]) error {
 	return nil
 }
 
-type pacer[T chain.RuntimeInterface] struct {
+type pacer[T chain.PendingView] struct {
 	ws *ws.WebSocketClient[T]
 
 	inflight chan struct{}
@@ -508,7 +508,7 @@ func (p *pacer[_]) Wait() error {
 	return <-p.done
 }
 
-type issuer[T chain.RuntimeInterface] struct {
+type issuer[T chain.PendingView] struct {
 	i      int
 	uri    string
 	parser chain.Parser[T]
@@ -620,7 +620,7 @@ func (i *issuer[T]) Send(ctx context.Context, actions []chain.Action[T], factory
 	return nil
 }
 
-func getRandomIssuer[T chain.RuntimeInterface](issuers []*issuer[T]) *issuer[T] {
+func getRandomIssuer[T chain.PendingView](issuers []*issuer[T]) *issuer[T] {
 	index := rand.Int() % len(issuers)
 	return issuers[index]
 }

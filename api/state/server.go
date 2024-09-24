@@ -12,9 +12,9 @@ import (
 
 const Endpoint = "/corestate"
 
-var _ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*JSONRPCStateServerFactory[chain.RuntimeInterface])(nil)
+var _ api.HandlerFactory[api.VM[chain.PendingView]] = (*JSONRPCStateServerFactory[chain.PendingView])(nil)
 
-type JSONRPCStateServerFactory[T chain.RuntimeInterface] struct{}
+type JSONRPCStateServerFactory[T chain.PendingView] struct{}
 
 func (JSONRPCStateServerFactory[T]) New(stateReader api.VM[T]) (api.Handler, error) {
 	handler, err := api.NewJSONRPCHandler(api.Name, NewJSONRPCStateServer(stateReader))
@@ -37,14 +37,14 @@ type ReadStateResponse struct {
 	Errors []string
 }
 
-func NewJSONRPCStateServer[T chain.RuntimeInterface](stateReader api.VM[T]) *JSONRPCStateServer[T] {
+func NewJSONRPCStateServer[T chain.PendingView](stateReader api.VM[T]) *JSONRPCStateServer[T] {
 	return &JSONRPCStateServer[T]{
 		stateReader: stateReader,
 	}
 }
 
 // JSONRPCStateServer gives direct read access to the vm state
-type JSONRPCStateServer[T chain.RuntimeInterface] struct {
+type JSONRPCStateServer[T chain.PendingView] struct {
 	stateReader api.VM[T]
 }
 

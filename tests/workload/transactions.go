@@ -17,7 +17,7 @@ const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
 // and a sized sequence of transactions to test on a given environment and reach a particular state
-type TxWorkloadFactory[T chain.RuntimeInterface] interface {
+type TxWorkloadFactory[T chain.PendingView] interface {
 	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
 	// to define each sequence of transactions that should be tested.
 	// TODO: switch from workload generator to procedural test style for VM-defined workloads
@@ -43,7 +43,7 @@ type TxAssertion func(ctx context.Context, require *require.Assertions, uri stri
 //
 // To handle tx expiry correctly, the workload must generate txs on demand (right before issuance) rather than
 // returning a slice of txs, which may expire before they are issued.
-type TxWorkloadIterator[T chain.RuntimeInterface] interface {
+type TxWorkloadIterator[T chain.PendingView] interface {
 	// Next returns true iff there are more transactions to generate.
 	Next() bool
 	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
@@ -52,7 +52,7 @@ type TxWorkloadIterator[T chain.RuntimeInterface] interface {
 	GenerateTxWithAssertion(context.Context) (*chain.Transaction[T], TxAssertion, error)
 }
 
-func ExecuteWorkload[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator[T]) {
+func ExecuteWorkload[T chain.PendingView](ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator[T]) {
 	submitClient := jsonrpc.NewJSONRPCClient[T](uris[0])
 
 	for generator.Next() {
@@ -68,7 +68,7 @@ func ExecuteWorkload[T chain.RuntimeInterface](ctx context.Context, require *req
 	}
 }
 
-func GenerateNBlocks[T chain.RuntimeInterface](ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory[T], n uint64) {
+func GenerateNBlocks[T chain.PendingView](ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory[T], n uint64) {
 	uri := uris[0]
 	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
@@ -106,7 +106,7 @@ func GenerateNBlocks[T chain.RuntimeInterface](ctx context.Context, require *req
 	}
 }
 
-func GenerateUntilStop[T chain.RuntimeInterface](
+func GenerateUntilStop[T chain.PendingView](
 	ctx context.Context,
 	require *require.Assertions,
 	uris []string,

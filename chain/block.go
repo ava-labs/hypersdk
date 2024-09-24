@@ -29,11 +29,11 @@ import (
 )
 
 var (
-	_ snowman.Block      = (*StatefulBlock[RuntimeInterface])(nil)
-	_ block.StateSummary = (*SyncableBlock[RuntimeInterface])(nil)
+	_ snowman.Block      = (*StatefulBlock[PendingView])(nil)
+	_ block.StateSummary = (*SyncableBlock[PendingView])(nil)
 )
 
-type StatelessBlock[T RuntimeInterface] struct {
+type StatelessBlock[T PendingView] struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
@@ -99,7 +99,7 @@ func (b *StatelessBlock[_]) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
-func UnmarshalBlock[T RuntimeInterface](raw []byte, parser Parser[T]) (*StatelessBlock[T], error) {
+func UnmarshalBlock[T PendingView](raw []byte, parser Parser[T]) (*StatelessBlock[T], error) {
 	var (
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatelessBlock[T]
@@ -133,7 +133,7 @@ func UnmarshalBlock[T RuntimeInterface](raw []byte, parser Parser[T]) (*Stateles
 	return &b, p.Err()
 }
 
-func NewGenesisBlock[T RuntimeInterface](root ids.ID) *StatelessBlock[T] {
+func NewGenesisBlock[T PendingView](root ids.ID) *StatelessBlock[T] {
 	return &StatelessBlock[T]{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
@@ -153,7 +153,7 @@ func NewGenesisBlock[T RuntimeInterface](root ids.ID) *StatelessBlock[T] {
 // Stateless is defined separately from "Block"
 // in case external packages need to use the stateless block
 // without mocking VM or parent block
-type StatefulBlock[T RuntimeInterface] struct {
+type StatefulBlock[T PendingView] struct {
 	*StatelessBlock[T] `json:"block"`
 
 	id       ids.ID
@@ -171,7 +171,7 @@ type StatefulBlock[T RuntimeInterface] struct {
 	sigJob workers.Job
 }
 
-func NewBlock[T RuntimeInterface](vm VM[T], parent snowman.Block, tmstp int64) *StatefulBlock[T] {
+func NewBlock[T PendingView](vm VM[T], parent snowman.Block, tmstp int64) *StatefulBlock[T] {
 	return &StatefulBlock[T]{
 		StatelessBlock: &StatelessBlock[T]{
 			Prnt:   parent.ID(),
@@ -183,7 +183,7 @@ func NewBlock[T RuntimeInterface](vm VM[T], parent snowman.Block, tmstp int64) *
 	}
 }
 
-func ParseBlock[T RuntimeInterface](
+func ParseBlock[T PendingView](
 	ctx context.Context,
 	source []byte,
 	accepted bool,
@@ -243,7 +243,7 @@ func (b *StatefulBlock[_]) populateTxs(ctx context.Context) error {
 	return nil
 }
 
-func ParseStatelessBlock[T RuntimeInterface](
+func ParseStatelessBlock[T PendingView](
 	ctx context.Context,
 	blk *StatelessBlock[T],
 	source []byte,
@@ -486,7 +486,7 @@ func (b *StatefulBlock[T]) innerVerify(ctx context.Context, vctx VerifyContext[T
 	}
 
 	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), b.vm.GetRuntime(), parentView, feeManager, r)
+	results, ts, err := b.Execute(ctx, b.vm.Tracer(), b.vm.GetRuntimeFactory(), parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
@@ -894,7 +894,7 @@ func (b *StatefulBlock[_]) FeeManager() *fees.Manager {
 	return b.feeManager
 }
 
-type SyncableBlock[T RuntimeInterface] struct {
+type SyncableBlock[T PendingView] struct {
 	*StatefulBlock[T]
 }
 
@@ -902,7 +902,7 @@ func (sb *SyncableBlock[_]) Accept(ctx context.Context) (block.StateSyncMode, er
 	return sb.vm.AcceptedSyncableBlock(ctx, sb)
 }
 
-func NewSyncableBlock[T RuntimeInterface](sb *StatefulBlock[T]) *SyncableBlock[T] {
+func NewSyncableBlock[T PendingView](sb *StatefulBlock[T]) *SyncableBlock[T] {
 	return &SyncableBlock[T]{sb}
 }
 

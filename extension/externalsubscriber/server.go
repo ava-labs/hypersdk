@@ -17,7 +17,7 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-type CreateParser[T chain.RuntimeInterface] func(genesisBytes []byte) (chain.Parser[T], error)
+type CreateParser[T chain.PendingView] func(genesisBytes []byte) (chain.Parser[T], error)
 
 var (
 	ErrParserNotInitialized     = errors.New("parser not initialized")
@@ -26,12 +26,12 @@ var (
 
 // TODO: switch to eventually using chain.Stateless block
 // Wrapper to pass blocks + results to subscribers
-type ExternalSubscriberSubscriptionData[T chain.RuntimeInterface] struct {
+type ExternalSubscriberSubscriptionData[T chain.PendingView] struct {
 	Blk     *chain.StatelessBlock[T]
 	Results []*chain.Result
 }
 
-func NewExternalSubscriberSubscriptionData[T chain.RuntimeInterface](
+func NewExternalSubscriberSubscriptionData[T chain.PendingView](
 	blk *chain.StatelessBlock[T],
 	results []*chain.Result,
 ) *ExternalSubscriberSubscriptionData[T] {
@@ -41,7 +41,7 @@ func NewExternalSubscriberSubscriptionData[T chain.RuntimeInterface](
 	}
 }
 
-type ExternalSubscriberServer[T chain.RuntimeInterface] struct {
+type ExternalSubscriberServer[T chain.PendingView] struct {
 	pb.ExternalSubscriberServer
 	parser              chain.Parser[T]
 	createParser        CreateParser[T]
@@ -49,7 +49,7 @@ type ExternalSubscriberServer[T chain.RuntimeInterface] struct {
 	log                 logging.Logger
 }
 
-func NewExternalSubscriberServer[T chain.RuntimeInterface](
+func NewExternalSubscriberServer[T chain.PendingView](
 	logger logging.Logger,
 	createParser CreateParser[T],
 	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData[T]],

@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-type VM[T chain.RuntimeInterface] interface {
+type VM[T chain.PendingView] interface {
 	StopChan() chan struct{}
 	EngineChan() chan<- common.Message
 	PreferredBlock(context.Context) (*chain.StatefulBlock[T], error)

@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	_ api.HandlerFactory[api.VM[chain.RuntimeInterface]] = (*WebSocketServerFactory[chain.RuntimeInterface])(nil)
+	_ api.HandlerFactory[api.VM[chain.PendingView]] = (*WebSocketServerFactory[chain.PendingView])(nil)
 
 	ErrExpired = errors.New("expired")
 )
@@ -46,11 +46,11 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With[T chain.RuntimeInterface]() vm.Option[T] {
+func With[T chain.PendingView]() vm.Option[T] {
 	return vm.NewOption[T](Namespace, NewDefaultConfig(), OptionFunc[T])
 }
 
-func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
+func OptionFunc[T chain.PendingView](v *vm.VM[T], config Config) error {
 	if !config.Enabled {
 		return nil
 	}
@@ -85,13 +85,13 @@ func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
 	return nil
 }
 
-func NewWebSocketServerFactory[T chain.RuntimeInterface](server *pubsub.Server) *WebSocketServerFactory[T] {
+func NewWebSocketServerFactory[T chain.PendingView](server *pubsub.Server) *WebSocketServerFactory[T] {
 	return &WebSocketServerFactory[T]{
 		handler: server,
 	}
 }
 
-type WebSocketServerFactory[T chain.RuntimeInterface] struct {
+type WebSocketServerFactory[T chain.PendingView] struct {
 	handler *pubsub.Server
 }
 
@@ -102,7 +102,7 @@ func (w WebSocketServerFactory[T]) New(api.VM[T]) (api.Handler, error) {
 	}, nil
 }
 
-type WebSocketServer[T chain.RuntimeInterface] struct {
+type WebSocketServer[T chain.PendingView] struct {
 	vm             api.VM[T]
 	logger         logging.Logger
 	tracer         trace.Tracer
@@ -118,7 +118,7 @@ type WebSocketServer[T chain.RuntimeInterface] struct {
 	expiringTxs *emap.EMap[*chain.Transaction[T]] // ensures all tx listeners are eventually responded to
 }
 
-func NewWebSocketServer[T chain.RuntimeInterface](
+func NewWebSocketServer[T chain.PendingView](
 	vm api.VM[T],
 	log logging.Logger,
 	tracer trace.Tracer,

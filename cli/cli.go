@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
-type Controller[T chain.RuntimeInterface] interface {
+type Controller[T chain.PendingView] interface {
 	DatabasePath() string
 	Symbol() string
 	Decimals() uint8
@@ -20,13 +20,13 @@ type Controller[T chain.RuntimeInterface] interface {
 	LookupBalance(address codec.Address, uri string) (uint64, error)
 }
 
-type Handler[T chain.RuntimeInterface] struct {
+type Handler[T chain.PendingView] struct {
 	c Controller[T]
 
 	db database.Database
 }
 
-func New[T chain.RuntimeInterface](c Controller[T]) (*Handler[T], error) {
+func New[T chain.PendingView](c Controller[T]) (*Handler[T], error) {
 	db, _, err := pebble.New(c.DatabasePath(), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, err

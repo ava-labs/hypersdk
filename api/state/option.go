@@ -20,7 +20,7 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With[T chain.RuntimeInterface]() vm.Option[T] {
+func With[T chain.PendingView]() vm.Option[T] {
 	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM[T], config Config) error {
 		if !config.Enabled {
 			return nil

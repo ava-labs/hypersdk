@@ -20,26 +20,27 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ cli.Controller[struct{}] = (*Controller)(nil)
+var _ cli.Controller[*tstate.TStateView] = (*Controller)(nil)
 
 type Handler struct {
-	h *cli.Handler[struct{}]
+	h *cli.Handler[*tstate.TStateView]
 }
 
-func NewHandler(h *cli.Handler[struct{}]) *Handler {
+func NewHandler(h *cli.Handler[*tstate.TStateView]) *Handler {
 	return &Handler{h}
 }
 
-func (h *Handler) Root() *cli.Handler[struct{}] {
+func (h *Handler) Root() *cli.Handler[*tstate.TStateView] {
 	return h.h
 }
 
 func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*jsonrpc.JSONRPCClient[struct{}], *vm.JSONRPCClient, *ws.WebSocketClient[struct{}], error,
+	*jsonrpc.JSONRPCClient[*tstate.TStateView], *vm.JSONRPCClient, *ws.WebSocketClient[*tstate.TStateView], error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
@@ -64,11 +65,11 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	jcli := jsonrpc.NewJSONRPCClient[struct{}](uris[0])
+	jcli := jsonrpc.NewJSONRPCClient[*tstate.TStateView](uris[0])
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	ws, err := ws.NewWebSocketClient[struct{}](uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := ws.NewWebSocketClient[*tstate.TStateView](uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -125,12 +126,12 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) GetParser(uri string) (chain.Parser[struct{}], error) {
+func (*Controller) GetParser(uri string) (chain.Parser[*tstate.TStateView], error) {
 	cli := vm.NewJSONRPCClient(uri)
 	return cli.Parser(context.TODO())
 }
 
-func (*Controller) HandleTx(tx *chain.Transaction[struct{}], result *chain.Result) {
+func (*Controller) HandleTx(tx *chain.Transaction[*tstate.TStateView], result *chain.Result) {
 	handleTx(tx, result)
 }
 

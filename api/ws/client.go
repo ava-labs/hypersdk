@@ -25,7 +25,7 @@ const DefaultHandshakeTimeout = 10 * time.Second
 
 var ErrClosed = errors.New("closed")
 
-type WebSocketClient[T chain.RuntimeInterface] struct {
+type WebSocketClient[T chain.PendingView] struct {
 	cl   sync.Once
 	conn *websocket.Conn
 
@@ -44,7 +44,7 @@ type WebSocketClient[T chain.RuntimeInterface] struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient[T chain.RuntimeInterface](
+func NewWebSocketClient[T chain.PendingView](
 	uri string,
 	handshakeTimeout time.Duration,
 	pending int,

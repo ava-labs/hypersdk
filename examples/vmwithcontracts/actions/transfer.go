@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 )
@@ -24,9 +25,9 @@ const (
 )
 
 var (
-	ErrOutputValueZero                           = errors.New("value is zero")
-	ErrOutputMemoTooLarge                        = errors.New("memo is too large")
-	_                     chain.Action[struct{}] = (*Transfer)(nil)
+	ErrOutputValueZero                                     = errors.New("value is zero")
+	ErrOutputMemoTooLarge                                  = errors.New("memo is too large")
+	_                     chain.Action[*tstate.TStateView] = (*Transfer)(nil)
 )
 
 type Transfer struct {
@@ -57,7 +58,8 @@ func (*Transfer) StateKeysMaxChunks() []uint16 {
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	runtime chain.Runtime[struct{}],
+	_ chain.Rules,
+	view *tstate.TStateView,
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
@@ -68,11 +70,11 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	senderBalance, err := storage.SubBalance(ctx, runtime.State, actor, t.Value)
+	senderBalance, err := storage.SubBalance(ctx, view, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.AddBalance(ctx, runtime.State, t.To, t.Value, true)
+	receiverBalance, err := storage.AddBalance(ctx, view, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +107,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackBytes(t.Memo)
 }
 
-func UnmarshalTransfer(p *codec.Packer) (chain.Action[struct{}], error) {
+func UnmarshalTransfer(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
 	transfer.Value = p.UnpackUint64(true)

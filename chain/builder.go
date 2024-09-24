@@ -22,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const (
@@ -60,7 +59,7 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 // TODO: This code is terrible and will be removed during the Vryx integration.
-func BuildBlock[T RuntimeInterface](
+func BuildBlock[T PendingView](
 	ctx context.Context,
 	vm VM[T],
 	parent *StatefulBlock[T],
@@ -109,8 +108,8 @@ func BuildBlock[T RuntimeInterface](
 	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
-		ts            = tstate.New(changesEstimate)
-		oldestAllowed = nextTime - r.GetValidityWindow()
+		runtimeViewFactory = vm.GetRuntimeFactory().NewView(changesEstimate)
+		oldestAllowed      = nextTime - r.GetValidityWindow()
 
 		mempool = vm.Mempool()
 
@@ -264,8 +263,8 @@ func BuildBlock[T RuntimeInterface](
 				}
 
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				runtimeView := runtimeViewFactory.NewView(stateKeys, storage)
+				if err := tx.PreExecute(ctx, feeManager, sm, r, runtimeView, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -276,10 +275,9 @@ func BuildBlock[T RuntimeInterface](
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					vm.GetRuntime(),
+					runtimeView,
 					sm,
 					r,
-					tsv,
 					nextTime,
 				)
 				if err != nil {
@@ -317,7 +315,7 @@ func BuildBlock[T RuntimeInterface](
 				}
 
 				// Update block with new transaction
-				tsv.Commit()
+				runtimeView.Commit()
 				b.Txs = append(b.Txs, tx)
 				results = append(results, result)
 				return nil
@@ -383,7 +381,7 @@ func BuildBlock[T RuntimeInterface](
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
+	tsv := runtimeViewFactory.NewView(keys, map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
@@ -408,7 +406,7 @@ func BuildBlock[T RuntimeInterface](
 	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
+	view, err := runtimeViewFactory.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
 	if err != nil {
 		return nil, err
 	}
@@ -440,8 +438,8 @@ func BuildBlock[T RuntimeInterface](
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
-		zap.Int("state changes", ts.PendingChanges()),
-		zap.Int("state operations", ts.OpIndex()),
+		zap.Int("state changes", runtimeViewFactory.PendingChanges()),
+		zap.Int("state operations", runtimeViewFactory.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", b.Tmstmp),
 	)

@@ -42,6 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -61,10 +62,12 @@ const (
 	MinAcceptedBlockWindow = 1024
 )
 
-type VM[T chain.RuntimeInterface] struct {
-	runtime T
-	DataDir string
-	v       *version.Semantic
+var _ chain.ViewFactory[*tstate.TStateView] = (*runtimeFactory)(nil)
+
+type VM[T chain.PendingView] struct {
+	runtimeFactory chain.ViewFactory[T]
+	DataDir        string
+	v              *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
@@ -147,8 +150,31 @@ type VM[T chain.RuntimeInterface] struct {
 	stop  chan struct{}
 }
 
-func New[T chain.RuntimeInterface](
-	runtime T,
+func New(
+	v *version.Semantic,
+	genesisFactory genesis.GenesisAndRuleFactory,
+	stateManager chain.StateManager,
+	actionRegistry chain.ActionRegistry[*tstate.TStateView],
+	authRegistry chain.AuthRegistry,
+	outputRegistry chain.OutputRegistry,
+	authEngine map[uint8]AuthEngine,
+	options ...Option[*tstate.TStateView],
+) (*VM[*tstate.TStateView], error) {
+	return NewWithRuntime[*tstate.TStateView](
+		&runtimeFactory{},
+		v,
+		genesisFactory,
+		stateManager,
+		actionRegistry,
+		authRegistry,
+		outputRegistry,
+		authEngine,
+		options...,
+	)
+}
+
+func NewWithRuntime[T chain.PendingView](
+	runtimeFactory chain.ViewFactory[T],
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
@@ -167,7 +193,7 @@ func New[T chain.RuntimeInterface](
 	}
 
 	return &VM[T]{
-		runtime:               runtime,
+		runtimeFactory:        runtimeFactory,
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
@@ -1251,6 +1277,12 @@ func (vm *VM[_]) Fatal(msg string, fields ...zap.Field) {
 	panic("fatal error")
 }
 
-func (vm *VM[T]) GetRuntime() T {
-	return vm.runtime
+func (vm *VM[T]) GetRuntimeFactory() chain.ViewFactory[T] {
+	return vm.runtimeFactory
+}
+
+type runtimeFactory struct{}
+
+func (runtimeFactory) NewView(numTxs int) chain.View[*tstate.TStateView] {
+	return tstate.New(numTxs)
 }

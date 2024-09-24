@@ -24,11 +24,11 @@ func NewDefaultConfig() Config {
 	return Config{}
 }
 
-func With[T chain.RuntimeInterface]() vm.Option[T] {
+func With[T chain.PendingView]() vm.Option[T] {
 	return vm.NewOption[T](Namespace, NewDefaultConfig(), OptionFunc[T])
 }
 
-func OptionFunc[T chain.RuntimeInterface](v *vm.VM[T], config Config) error {
+func OptionFunc[T chain.PendingView](v *vm.VM[T], config Config) error {
 	if !config.Enabled {
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -62,7 +63,7 @@ func init() {
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		controller := NewController(dbPath)
-		root, err := cli.New[struct{}](controller)
+		root, err := cli.New[*tstate.TStateView](controller)
 		if err != nil {
 			return err
 		}

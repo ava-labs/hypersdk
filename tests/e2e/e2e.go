@@ -18,19 +18,20 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 )
 
 var (
 	vmName            string
-	txWorkloadFactory workload.TxWorkloadFactory[struct{}]
+	txWorkloadFactory workload.TxWorkloadFactory[*tstate.TStateView]
 	expectedABI       abi.ABI
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory[struct{}], abi abi.ABI) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory[*tstate.TStateView], abi abi.ABI) {
 	vmName = name
 	txWorkloadFactory = factory
 	expectedABI = abi
@@ -42,14 +43,14 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 
 	ginkgo.It("Ping", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		workload.Ping[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
+		workload.Ping[*tstate.TStateView](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
 		hardcodedHostPort := "http://localhost:9650"
 		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + vmName
 
-		c := jsonrpc.NewJSONRPCClient[struct{}](fixedNodeURL)
+		c := jsonrpc.NewJSONRPCClient[*tstate.TStateView](fixedNodeURL)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
@@ -63,12 +64,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		client := info.NewClient(baseURI)
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
 		require.NoError(err)
-		workload.GetNetwork[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
+		workload.GetNetwork[*tstate.TStateView](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
 	})
 
 	ginkgo.It("GetABI", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		workload.GetABI[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
+		workload.GetABI[*tstate.TStateView](tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
 	})
 
 	ginkgo.It("ReadState", func() {
@@ -95,7 +96,7 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
 		require.NoError(err)
 		for _, txWorkload := range txWorkloads {
-			workload.ExecuteWorkload[struct{}](tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
+			workload.ExecuteWorkload[*tstate.TStateView](tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
 		}
 	})
 })
@@ -108,7 +109,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {
-			workload.GenerateNBlocks[struct{}](tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
+			workload.GenerateNBlocks[*tstate.TStateView](tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
 		})
 
 		var (
@@ -140,7 +141,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			syncNodeURI = formatURI(syncNode.URI, blockchainID)
 			uris = append(uris, syncNodeURI)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
-			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[*tstate.TStateView](syncNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
@@ -155,7 +156,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
-			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[*tstate.TStateView](syncNodeURI)
 			ok, err := c.Ping(tc.DefaultContext())
 			require.Error(err) //nolint:forbidigo
 			require.False(ok)
@@ -172,7 +173,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
 
-			c := jsonrpc.NewJSONRPCClient[struct{}](syncNodeURI)
+			c := jsonrpc.NewJSONRPCClient[*tstate.TStateView](syncNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})
@@ -205,7 +206,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			syncConcurrentNode := e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
 			syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
 			uris = append(uris, syncConcurrentNodeURI)
-			c := jsonrpc.NewJSONRPCClient[struct{}](syncConcurrentNodeURI)
+			c := jsonrpc.NewJSONRPCClient[*tstate.TStateView](syncConcurrentNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
 		})

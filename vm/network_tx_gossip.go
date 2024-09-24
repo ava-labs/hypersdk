@@ -10,13 +10,15 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/chain"
 )
 
-type TxGossipHandler[T any] struct {
+type TxGossipHandler[T chain.PendingView] struct {
 	vm *VM[T]
 }
 
-func NewTxGossipHandler[T any](vm *VM[T]) *TxGossipHandler[T] {
+func NewTxGossipHandler[T chain.PendingView](vm *VM[T]) *TxGossipHandler[T] {
 	return &TxGossipHandler[T]{vm}
 }
 

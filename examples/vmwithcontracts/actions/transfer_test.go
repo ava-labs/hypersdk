@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
@@ -25,7 +24,7 @@ func TestTransferAction(t *testing.T) {
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 	addr := codectest.NewRandomAddress()
 
-	tests := []chaintest.ActionTest[struct{}]{
+	tests := []chaintest.ActionTest[*tstate.TStateView]{
 		{
 			Name:  "ZeroTransfer",
 			Actor: codec.EmptyAddress,
@@ -42,12 +41,7 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			Runtime: func() chain.Runtime[struct{}] {
-				return chain.Runtime[struct{}]{
-					T:     struct{}{},
-					State: ts.NewView(make(state.Keys), map[string][]byte{}),
-				}
-			}(),
+			View:        ts.NewView(make(state.Keys), map[string][]byte{}),
 			ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 		},
 		{
@@ -57,14 +51,10 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			Runtime: func() chain.Runtime[struct{}] {
+			View: func() *tstate.TStateView {
 				keys := make(state.Keys)
 				keys.Add(string(emptyBalanceKey), state.Read)
-				tsv := ts.NewView(keys, map[string][]byte{})
-				return chain.Runtime[struct{}]{
-					T:     struct{}{},
-					State: tsv,
-				}
+				return ts.NewView(keys, map[string][]byte{})
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
@@ -75,19 +65,16 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			Runtime: func() chain.Runtime[struct{}] {
+			View: func() *tstate.TStateView {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
 				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
-				return chain.Runtime[struct{}]{
-					T:     struct{}{},
-					State: ts.NewView(keys, store.Storage),
-				}
+				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(ctx context.Context, t *testing.T, runtime chain.Runtime[struct{}]) {
+			Assertion: func(ctx context.Context, t *testing.T, view *tstate.TStateView) {
 				require := require.New(t)
-				balance, err := storage.GetBalance(ctx, runtime.State, codec.EmptyAddress)
+				balance, err := storage.GetBalance(ctx, view, codec.EmptyAddress)
 				require.NoError(err)
 				require.Equal(balance, uint64(1))
 			},
@@ -99,15 +86,12 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: math.MaxUint64,
 			},
-			Runtime: func() chain.Runtime[struct{}] {
+			View: func() *tstate.TStateView {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
 				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
-				return chain.Runtime[struct{}]{
-					T:     struct{}{},
-					State: ts.NewView(keys, store.Storage),
-				}
+				return ts.NewView(keys, store.Storage)
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
@@ -118,24 +102,21 @@ func TestTransferAction(t *testing.T) {
 				To:    addr,
 				Value: 1,
 			},
-			Runtime: func() chain.Runtime[struct{}] {
+			View: func() *tstate.TStateView {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
 				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				keys.Add(string(storage.BalanceKey(addr)), state.All)
 
-				return chain.Runtime[struct{}]{
-					T:     struct{}{},
-					State: ts.NewView(keys, store.Storage),
-				}
+				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(ctx context.Context, t *testing.T, runtime chain.Runtime[struct{}]) {
+			Assertion: func(ctx context.Context, t *testing.T, view *tstate.TStateView) {
 				require := require.New(t)
-				receiverBalance, err := storage.GetBalance(ctx, runtime.State, addr)
+				receiverBalance, err := storage.GetBalance(ctx, view, addr)
 				require.NoError(err)
 				require.Equal(receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, runtime.State, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, view, codec.EmptyAddress)
 				require.NoError(err)
 				require.Equal(senderBalance, uint64(0))
 			},

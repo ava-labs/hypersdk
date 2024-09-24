@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -60,7 +61,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, []chain.Action[struct{}]{&actions.Transfer{
+		_, err = sendAndWait(ctx, []chain.Action[*tstate.TStateView]{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
 		}}, cli, bcli, ws, factory)
@@ -94,7 +95,7 @@ var publishFileCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action[struct{}]{&actions.Publish{
+		result, err := sendAndWait(ctx, []chain.Action[*tstate.TStateView]{&actions.Publish{
 			ContractBytes: bytes,
 		}}, cli, bcli, ws, factory)
 
@@ -162,7 +163,7 @@ var callCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action[struct{}]{action}, cli, bcli, ws, factory)
+		result, err := sendAndWait(ctx, []chain.Action[*tstate.TStateView]{action}, cli, bcli, ws, factory)
 
 		if result != nil && result.Success {
 			utils.Outf(hexutils.BytesToHex(result.Outputs[0]) + "\n")
@@ -217,7 +218,7 @@ var deployCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		result, err := sendAndWait(ctx, []chain.Action[struct{}]{&actions.Deploy{
+		result, err := sendAndWait(ctx, []chain.Action[*tstate.TStateView]{&actions.Deploy{
 			ContractID:   contractID,
 			CreationInfo: creationInfo,
 		}}, cli, bcli, ws, factory)

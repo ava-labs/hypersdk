@@ -21,10 +21,10 @@ import (
 // TODO: consider replacing this with AvalancheGo block build metering
 const minBuildGap int64 = 25 // ms
 
-var _ Builder = (*Time[chain.RuntimeInterface])(nil)
+var _ Builder = (*Time[chain.PendingView])(nil)
 
 // Time tells the engine when to build blocks and gossip transactions
-type Time[T chain.RuntimeInterface] struct {
+type Time[T chain.PendingView] struct {
 	vm        VM[T]
 	doneBuild chan struct{}
 
@@ -33,7 +33,7 @@ type Time[T chain.RuntimeInterface] struct {
 	waiting   atomic.Bool
 }
 
-func NewTime[T chain.RuntimeInterface](vm VM[T]) *Time[T] {
+func NewTime[T chain.PendingView](vm VM[T]) *Time[T] {
 	b := &Time[T]{
 		vm:        vm,
 		doneBuild: make(chan struct{}),

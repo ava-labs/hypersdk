@@ -13,11 +13,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-type StateSyncHandler[T any] struct {
+type StateSyncHandler[T chain.PendingView] struct {
 	vm *VM[T]
 }
 
-func NewStateSyncHandler[T chain.RuntimeInterface](vm *VM[T]) *StateSyncHandler[T] {
+func NewStateSyncHandler[T chain.PendingView](vm *VM[T]) *StateSyncHandler[T] {
 	return &StateSyncHandler[T]{vm}
 }
 

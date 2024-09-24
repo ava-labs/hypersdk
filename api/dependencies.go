@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type VM[T chain.RuntimeInterface] interface {
+type VM[T chain.PendingView] interface {
 	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32
@@ -41,5 +41,5 @@ type VM[T chain.RuntimeInterface] interface {
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
-	GetRuntime() T
+	GetRuntimeFactory() chain.ViewFactory[T]
 }

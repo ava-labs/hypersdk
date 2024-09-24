@@ -20,13 +20,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 type SpamHelper struct {
 	keyType string
 	cli     *vm.JSONRPCClient
-	ws      *ws.WebSocketClient[struct{}]
+	ws      *ws.WebSocketClient[*tstate.TStateView]
 }
 
 func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
@@ -52,7 +53,7 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 
 func (sh *SpamHelper) CreateClient(uri string) error {
 	sh.cli = vm.NewJSONRPCClient(uri)
-	ws, err := ws.NewWebSocketClient[struct{}](uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := ws.NewWebSocketClient[*tstate.TStateView](uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func (sh *SpamHelper) CreateClient(uri string) error {
 	return nil
 }
 
-func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser[struct{}], error) {
+func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser[*tstate.TStateView], error) {
 	return sh.cli.Parser(ctx)
 }
 
@@ -79,8 +80,8 @@ func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, 
 	return balance, err
 }
 
-func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action[struct{}] {
-	return []chain.Action[struct{}]{&actions.Transfer{
+func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action[*tstate.TStateView] {
+	return []chain.Action[*tstate.TStateView]{&actions.Transfer{
 		To:    address,
 		Value: amount,
 		Memo:  memo,

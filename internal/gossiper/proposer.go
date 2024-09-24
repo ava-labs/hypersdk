@@ -24,9 +24,9 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
-var _ Gossiper = (*Proposer[chain.RuntimeInterface])(nil)
+var _ Gossiper = (*Proposer[chain.PendingView])(nil)
 
-type Proposer[T chain.RuntimeInterface] struct {
+type Proposer[T chain.PendingView] struct {
 	vm         VM[T]
 	cfg        *ProposerConfig
 	appSender  common.AppSender
@@ -69,7 +69,7 @@ func DefaultProposerConfig() *ProposerConfig {
 	}
 }
 
-func NewProposer[T chain.RuntimeInterface](vm VM[T], cfg *ProposerConfig) (*Proposer[T], error) {
+func NewProposer[T chain.PendingView](vm VM[T], cfg *ProposerConfig) (*Proposer[T], error) {
 	g := &Proposer[T]{
 		vm:         vm,
 		cfg:        cfg,

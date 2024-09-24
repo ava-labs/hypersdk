@@ -31,11 +31,11 @@ import (
 )
 
 var (
-	_ chain.VM[chain.RuntimeInterface]    = (*VM[chain.RuntimeInterface])(nil)
-	_ gossiper.VM[chain.RuntimeInterface] = (*VM[chain.RuntimeInterface])(nil)
-	_ builder.VM[chain.RuntimeInterface]  = (*VM[chain.RuntimeInterface])(nil)
-	_ block.ChainVM                       = (*VM[chain.RuntimeInterface])(nil)
-	_ block.StateSyncableVM               = (*VM[chain.RuntimeInterface])(nil)
+	_ chain.VM[chain.PendingView]    = (*VM[chain.PendingView])(nil)
+	_ gossiper.VM[chain.PendingView] = (*VM[chain.PendingView])(nil)
+	_ builder.VM[chain.PendingView]  = (*VM[chain.PendingView])(nil)
+	_ block.ChainVM                  = (*VM[chain.PendingView])(nil)
+	_ block.StateSyncableVM          = (*VM[chain.PendingView])(nil)
 )
 
 func (vm *VM[_]) ChainID() ids.ID {

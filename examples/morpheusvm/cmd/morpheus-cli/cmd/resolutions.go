@@ -16,13 +16,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
-	ctx context.Context, actions []chain.Action[struct{}], cli *jsonrpc.JSONRPCClient[struct{}],
-	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient[struct{}], factory chain.AuthFactory, printStatus bool,
+	ctx context.Context, actions []chain.Action[*tstate.TStateView], cli *jsonrpc.JSONRPCClient[*tstate.TStateView],
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient[*tstate.TStateView], factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
@@ -60,7 +61,7 @@ func sendAndWait(
 	return result.Success, tx.ID(), nil
 }
 
-func handleTx(tx *chain.Transaction[struct{}], result *chain.Result) {
+func handleTx(tx *chain.Transaction[*tstate.TStateView], result *chain.Result) {
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(
@@ -80,7 +81,7 @@ func handleTx(tx *chain.Transaction[struct{}], result *chain.Result) {
 	for _, action := range tx.Actions {
 		var summaryStr string
 		switch act := action.(type) { //nolint:gocritic
-		case *actions.Transfer:
+		case *actions.Transfer[*tstate.TStateView]:
 			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, actor)
 		}
 		utils.Outf(

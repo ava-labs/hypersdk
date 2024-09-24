@@ -35,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -62,13 +63,13 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option[struct{}]) (*vm.VM[struct{}], error)
+	createVM              func(...vm.Option[*tstate.TStateView]) (*vm.VM[*tstate.TStateView], error)
 	genesisBytes          []byte
 	vmID                  ids.ID
-	createParserFromBytes func(genesisBytes []byte) (chain.Parser[struct{}], error)
-	parser                chain.Parser[struct{}]
+	createParserFromBytes func(genesisBytes []byte) (chain.Parser[*tstate.TStateView], error)
+	parser                chain.Parser[*tstate.TStateView]
 	customJSONRPCEndpoint string
-	txWorkloadFactory     workload.TxWorkloadFactory[struct{}]
+	txWorkloadFactory     workload.TxWorkloadFactory[*tstate.TStateView]
 	authFactory           chain.AuthFactory
 
 	externalSubscriberAcceptedBlocksCh chan ids.ID
@@ -77,13 +78,13 @@ var (
 type instance struct {
 	chainID                 ids.ID
 	nodeID                  ids.NodeID
-	vm                      *vm.VM[struct{}]
+	vm                      *vm.VM[*tstate.TStateView]
 	toEngine                chan common.Message
 	routerServer            *httptest.Server
 	JSONRPCServer           *httptest.Server
 	ControllerJSONRPCServer *httptest.Server
 	WebSocketServer         *httptest.Server
-	cli                     *jsonrpc.JSONRPCClient[struct{}] // clients for embedded VMs
+	cli                     *jsonrpc.JSONRPCClient[*tstate.TStateView] // clients for embedded VMs
 	onAccept                func(snowman.Block)
 }
 
@@ -99,12 +100,12 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option[struct{}]) (*vm.VM[struct{}], error),
+	newVM func(...vm.Option[*tstate.TStateView]) (*vm.VM[*tstate.TStateView], error),
 	genesis []byte,
 	id ids.ID,
-	createParser func(genesisBytes []byte) (chain.Parser[struct{}], error),
+	createParser func(genesisBytes []byte) (chain.Parser[*tstate.TStateView], error),
 	customEndpoint string,
-	workloadFactory workload.TxWorkloadFactory[struct{}],
+	workloadFactory workload.TxWorkloadFactory[*tstate.TStateView],
 	authF chain.AuthFactory,
 ) {
 	require := require.New(ginkgo.GinkgoT())
@@ -132,9 +133,9 @@ func setInstances() {
 	instances = make([]instance, numVMs)
 
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
-	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData[struct{}]]{
-		event.SubscriptionFunc[*externalsubscriber.ExternalSubscriberSubscriptionData[struct{}]]{
-			AcceptF: func(data *externalsubscriber.ExternalSubscriberSubscriptionData[struct{}]) error {
+	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData[*tstate.TStateView]]{
+		event.SubscriptionFunc[*externalsubscriber.ExternalSubscriberSubscriptionData[*tstate.TStateView]]{
+			AcceptF: func(data *externalsubscriber.ExternalSubscriberSubscriptionData[*tstate.TStateView]) error {
 				blkID, err := data.Blk.ID()
 				require.NoError(err)
 				externalSubscriberAcceptedBlocksCh <- blkID
@@ -215,7 +216,7 @@ func setInstances() {
 		db := memdb.New()
 
 		v, err := createVM(
-			vm.WithManual[struct{}](),
+			vm.WithManual[*tstate.TStateView](),
 		)
 		require.NoError(err)
 		require.NoError(v.Initialize(
@@ -251,7 +252,7 @@ func setInstances() {
 			JSONRPCServer:           jsonRPCServer,
 			ControllerJSONRPCServer: ljsonRPCServer,
 			WebSocketServer:         webSocketServer,
-			cli:                     jsonrpc.NewJSONRPCClient[struct{}](jsonRPCServer.URL),
+			cli:                     jsonrpc.NewJSONRPCClient[*tstate.TStateView](jsonRPCServer.URL),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -296,11 +297,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 
 	ginkgo.It("Ping", func() {
 		ginkgo.By("Send Ping request to every node")
-		workload.Ping[struct{}](ctx, require, uris)
+		workload.Ping[*tstate.TStateView](ctx, require, uris)
 	})
 	ginkgo.It("GetNetwork", func() {
 		ginkgo.By("Send GetNetwork request to every node")
-		workload.GetNetwork[struct{}](ctx, require, uris, instances[0].vm.NetworkID(), instances[0].chainID)
+		workload.GetNetwork[*tstate.TStateView](ctx, require, uris, instances[0].vm.NetworkID(), instances[0].chainID)
 	})
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
@@ -309,7 +310,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
 		require.NoError(err)
 
-		workload.GetABI[struct{}](ctx, require, uris, expectedABI)
+		workload.GetABI[*tstate.TStateView](ctx, require, uris, expectedABI)
 	})
 })
 
@@ -326,7 +327,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	var (
-		initialTx          *chain.Transaction[struct{}]
+		initialTx          *chain.Transaction[*tstate.TStateView]
 		initialTxAssertion workload.TxAssertion
 	)
 	ginkgo.It("Gossip TransferTx to a different node", func() {
@@ -408,7 +409,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(err)
 			require.Equal(lastAccepted, blk.ID())
 
-			results := blk.(*chain.StatefulBlock[struct{}]).Results()
+			results := blk.(*chain.StatefulBlock[*tstate.TStateView]).Results()
 			require.Len(results, 1)
 			require.True(results[0].Success)
 		})
@@ -449,7 +450,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 			// Ensure we can handle case where accepted block is not processed
 			latestBlock := blocks[len(blocks)-1]
-			latestBlock.(*chain.StatefulBlock[struct{}]).MarkUnprocessed()
+			latestBlock.(*chain.StatefulBlock[*tstate.TStateView]).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
 			accept := expectBlk(instances[1])
@@ -550,7 +551,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		accept(false) // don't care about results
 
 		// Subscribe to blocks
-		cli, err := ws.NewWebSocketClient[struct{}](instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+		cli, err := ws.NewWebSocketClient[*tstate.TStateView](instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		require.NoError(err)
 		require.NoError(cli.RegisterBlocks())
 
@@ -587,7 +588,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		cli, err := ws.NewWebSocketClient[struct{}](instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+		cli, err := ws.NewWebSocketClient[*tstate.TStateView](instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		require.NoError(err)
 
 		// Create tx
@@ -681,6 +682,6 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 		lastAccepted, err := i.vm.LastAccepted(ctx)
 		require.NoError(err)
 		require.Equal(lastAccepted, blk.ID())
-		return blk.(*chain.StatefulBlock[struct{}]).Results()
+		return blk.(*chain.StatefulBlock[*tstate.TStateView]).Results()
 	}
 }

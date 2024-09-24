@@ -13,19 +13,20 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action[struct{}]]
+	ActionParser *codec.TypeParser[chain.Action[*tstate.TStateView]]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action[struct{}]]()
+	ActionParser = codec.NewTypeParser[chain.Action[*tstate.TStateView]]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 
@@ -33,7 +34,7 @@ func init() {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		ActionParser.Register(&actions.Transfer[*tstate.TStateView]{}, actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
@@ -48,10 +49,9 @@ func init() {
 }
 
 // NewWithOptions returns a VM with the specified options
-func New(options ...vm.Option[struct{}]) (*vm.VM[struct{}], error) {
+func New(options ...vm.Option[*tstate.TStateView]) (*vm.VM[*tstate.TStateView], error) {
 	options = append(options, With()) // Add MorpheusVM API
-	return defaultvm.New[struct{}](
-		struct{}{}, // MorpheusVM does not define a runtime
+	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},

@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 type fetchData struct {
@@ -26,11 +25,11 @@ type fetchData struct {
 func (b *StatefulBlock[T]) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
-	runtime T,
+	runtimeFactory ViewFactory[T],
 	im state.Immutable,
 	feeManager *fees.Manager,
 	r Rules,
-) ([]*Result, *tstate.TState, error) {
+) ([]*Result, View[T], error) {
 	ctx, span := tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
@@ -39,10 +38,10 @@ func (b *StatefulBlock[T]) Execute(
 		numTxs = len(b.Txs)
 		t      = b.GetTimestamp()
 
-		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
-		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
-		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
-		results = make([]*Result, numTxs)
+		f                  = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
+		e                  = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
+		runtimeViewFactory = runtimeFactory.NewView(numTxs * 2) // TODO: tune this heuristic
+		results            = make([]*Result, numTxs)
 	)
 
 	// Fetch required keys and execute transactions
@@ -86,21 +85,21 @@ func (b *StatefulBlock[T]) Execute(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			runtimeView := runtimeViewFactory.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, sm, r, runtimeView, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, runtime, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, runtimeView, sm, r, t)
 			if err != nil {
 				return err
 			}
 			results[i] = result
 
 			// Commit results to parent [TState]
-			tsv.Commit()
+			runtimeView.Commit()
 			return nil
 		})
 	}
@@ -112,5 +111,5 @@ func (b *StatefulBlock[T]) Execute(
 	}
 
 	// Return tstate that can be used to add block-level keys to state
-	return results, ts, nil
+	return results, runtimeViewFactory, nil
 }

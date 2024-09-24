@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	_ VerifyContext[RuntimeInterface] = (*AcceptedVerifyContext[RuntimeInterface])(nil)
-	_ VerifyContext[RuntimeInterface] = (*PendingVerifyContext[RuntimeInterface])(nil)
+	_ VerifyContext[PendingView] = (*AcceptedVerifyContext[PendingView])(nil)
+	_ VerifyContext[PendingView] = (*PendingVerifyContext[PendingView])(nil)
 )
 
-type PendingVerifyContext[T RuntimeInterface] struct {
+type PendingVerifyContext[T PendingView] struct {
 	blk *StatefulBlock[T]
 }
 
@@ -28,7 +28,7 @@ func (p *PendingVerifyContext[T]) IsRepeat(ctx context.Context, oldestAllowed in
 	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
-type AcceptedVerifyContext[T RuntimeInterface] struct {
+type AcceptedVerifyContext[T PendingView] struct {
 	vm VM[T]
 }
 

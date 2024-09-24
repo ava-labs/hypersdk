@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -29,8 +30,8 @@ func TestBlockCache(t *testing.T) {
 	defer ctrl.Finish()
 
 	// create a block with "Unknown" status
-	blk := &chain.StatefulBlock[struct{}]{
-		StatelessBlock: &chain.StatelessBlock[struct{}]{
+	blk := &chain.StatefulBlock[*tstate.TStateView]{
+		StatelessBlock: &chain.StatelessBlock[*tstate.TStateView]{
 			Prnt: ids.GenerateTestID(),
 			Hght: 10000,
 		},
@@ -38,10 +39,10 @@ func TestBlockCache(t *testing.T) {
 	blkID := blk.ID()
 
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatefulBlock[struct{}]](3)
+	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatefulBlock[*tstate.TStateView]](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	rules := chain.NewMockRules(ctrl)
-	vm := VM[struct{}]{
+	vm := VM[*tstate.TStateView]{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  NewConfig(),
 		vmDB:    memdb.New(),
@@ -50,10 +51,10 @@ func TestBlockCache(t *testing.T) {
 		acceptedBlocksByID:     bByID,
 		acceptedBlocksByHeight: bByHeight,
 
-		verifiedBlocks: make(map[ids.ID]*chain.StatefulBlock[struct{}]),
-		seen:           emap.NewEMap[*chain.Transaction[struct{}]](),
-		mempool:        mempool.New[*chain.Transaction[struct{}]](tracer, 100, 32),
-		acceptedQueue:  make(chan *chain.StatefulBlock[struct{}], 1024), // don't block on queue
+		verifiedBlocks: make(map[ids.ID]*chain.StatefulBlock[*tstate.TStateView]),
+		seen:           emap.NewEMap[*chain.Transaction[*tstate.TStateView]](),
+		mempool:        mempool.New[*chain.Transaction[*tstate.TStateView]](tracer, 100, 32),
+		acceptedQueue:  make(chan *chain.StatefulBlock[*tstate.TStateView], 1024), // don't block on queue
 		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
 	}
 
