@@ -213,11 +213,15 @@ type Marshaler interface {
 
 // PendingView is a pending view of the current state
 type PendingView interface {
+	// Rollback restores the PendingView to the restorePoint operation. The
+	// implementation is responsible for maintaining ordering.
 	Rollback(ctx context.Context, restorePoint int)
+	// OpIndex is the number of operations performed in the view
 	OpIndex() int
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
 	Insert(ctx context.Context, key []byte, value []byte) error
 	Remove(ctx context.Context, key []byte) error
+	// Commit writes the changes to the underlying view
 	Commit()
 }
 
