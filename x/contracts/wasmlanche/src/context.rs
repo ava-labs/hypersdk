@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use crate::{
-    host::Accessor,
+    host::{Accessor, CallContractArgs},
     state::{Cache, Error, IntoPairs, Schema},
     types::{Address, ContractId},
     Gas, Id,
@@ -238,10 +238,15 @@ impl Context {
         max_units: Gas,
         value: u64,
     ) -> Result<T, ExternalCallError> {
-        let args = CallContractArgs::new(&address, function_name, args, max_units, value);
-        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
         self.state_cache.flush();
-        let bytes = self.host_accessor.call_contract(&args_bytes);
+
+        let bytes = self.host_accessor.call_contract(&CallContractArgs {
+            address,
+            function_name,
+            args,
+            max_units,
+            value,
+        });
 
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
@@ -276,12 +281,10 @@ impl Context {
     /// Panics if serialization fails.
     pub fn mock_function_call<T, U>(
         &self,
-        target: Address,
-        function: &str,
+        address: Address,
+        function_name: &str,
         args: T,
-        // TODO: remove this
-        max_units: Gas,
-        max_value: u64,
+        value: u64,
         result: U,
     ) where
         T: BorshSerialize,
@@ -289,9 +292,16 @@ impl Context {
     {
         use crate::host::CALL_FUNCTION_PREFIX;
 
-        let args = borsh::to_vec(&args).expect("error serializing result");
+        let args = &borsh::to_vec(&args).expect("error serializing result");
 
-        let contract_args = CallContractArgs::new(&target, function, &args, max_units, max_value);
+        let contract_args = CallContractArgs {
+            address,
+            function_name,
+            args,
+            value,
+            max_units: 0,
+        };
+
         let contract_args = borsh::to_vec(&(CALL_FUNCTION_PREFIX, contract_args))
             .expect("error serializing result");
 
@@ -394,32 +404,5 @@ mod external {
 impl Default for Context {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(BorshSerialize)]
-pub struct CallContractArgs<'a> {
-    target: &'a Address,
-    function: &'a [u8],
-    args: &'a [u8],
-    max_units: Gas,
-    max_value: u64,
-}
-
-impl<'a> CallContractArgs<'a> {
-    pub fn new(
-        target: &'a Address,
-        function: &'a str,
-        args: &'a [u8],
-        max_units: Gas,
-        max_value: u64,
-    ) -> Self {
-        Self {
-            target,
-            function: function.as_bytes(),
-            args,
-            max_units,
-            max_value,
-        }
     }
 }

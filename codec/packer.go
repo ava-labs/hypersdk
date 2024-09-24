@@ -155,5 +155,3 @@ func (p *Packer) addErr(err error) {
 func (p *Packer) Offset() int {
 	return p.Packer.Offset
 }
-
-type Bytes []byte
