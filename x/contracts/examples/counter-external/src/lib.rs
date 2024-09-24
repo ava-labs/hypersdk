@@ -41,7 +41,7 @@ mod tests {
 
         // mock `get_value` external contract call to return `value`
         let value = 5_u64;
-        ctx.mock_function_call(external, "get_value", of, 1_000_000, 0, value);
+        ctx.mock_function_call(external, "get_value", of, 0, value);
 
         let value = get_value(&mut ctx, external, of);
         assert_eq!(value, 5);
