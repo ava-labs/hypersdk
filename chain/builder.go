@@ -85,8 +85,6 @@ func BuildBlock(
 	//
 	// If the parent block is not yet verified, we will attempt to
 	// execute it.
-	mempoolSize := vm.Mempool().Len(ctx)
-	changesEstimate := min(mempoolSize, maxViewPreallocation)
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -106,6 +104,9 @@ func BuildBlock(
 	}
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
+
+	mempoolSize := vm.Mempool().Len(ctx)
+	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
 		ts            = tstate.New(changesEstimate)
@@ -151,6 +152,8 @@ func BuildBlock(
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
+		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
+		// This should only happen after startup, so we add the transactions back to the mempool.
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
 			restorable = append(restorable, txs...)
