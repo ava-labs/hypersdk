@@ -16,7 +16,7 @@ func GenerateGoStructs(abi ABI, packageName string) (string, error) {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("package %s\n\n", packageName))
-	sb.WriteString("import (\n\t\"github.com/ava-labs/hypersdk/codec\"\n)\n\n")
+	sb.WriteString("import \"github.com/ava-labs/hypersdk/codec\"\n\n")
 
 	processed := set.Set[string]{}
 
@@ -70,8 +70,6 @@ func convertToGoType(abiType string) string {
 		return abiType
 	case "Address":
 		return "codec.Address"
-	case "Bytes":
-		return "codec.Bytes"
 	default:
 		if strings.HasPrefix(abiType, "[]") {
 			return "[]" + convertToGoType(strings.TrimPrefix(abiType, "[]"))

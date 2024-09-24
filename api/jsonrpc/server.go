@@ -163,7 +163,7 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 
 type ExecuteActionArgs struct {
 	Actor  codec.Address `json:"actor"`
-	Action codec.Bytes   `json:"action"`
+	Action []byte        `json:"action"`
 }
 
 type ExecuteActionReply struct {
