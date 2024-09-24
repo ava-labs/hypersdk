@@ -29,7 +29,7 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.PendingView[*tstate.TStateView], _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ *tstate.TStateView, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
@@ -66,13 +66,13 @@ func (*action2) GetTypeID() uint8 {
 	return 222
 }
 
-func unmarshalTransfer(p *codec.Packer) (chain.Action[struct{}], error) {
+func unmarshalTransfer(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
 	var transfer mockTransferAction
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
 	return &transfer, err
 }
 
-func unmarshalAction2(p *codec.Packer) (chain.Action[struct{}], error) {
+func unmarshalAction2(p *codec.Packer) (chain.Action[*tstate.TStateView], error) {
 	var action action2
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 	return &action, err

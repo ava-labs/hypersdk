@@ -46,18 +46,18 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
-func (i *InMemoryStore) Rollback(ctx context.Context, restorePoint int) {
-	//TODO implement me
+func (*InMemoryStore) Rollback(ctx context.Context, restorePoint int) {
+	// TODO implement me
 	panic("implement me")
 }
 
-func (i *InMemoryStore) OpIndex() int {
-	//TODO implement me
+func (*InMemoryStore) OpIndex() int {
+	// TODO implement me
 	panic("implement me")
 }
 
-func (i *InMemoryStore) Commit() {
-	//TODO implement me
+func (*InMemoryStore) Commit() {
+	// TODO implement me
 	panic("implement me")
 }
 
