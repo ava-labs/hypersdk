@@ -110,7 +110,7 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
 	transfer.Value = p.UnpackUint64(true)
-	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
+	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()
 }
 
