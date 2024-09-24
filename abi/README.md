@@ -63,6 +63,7 @@ This enables frontends to provide a verifiable display of what they are asking u
 - Actions require an ID, other structs / types do not require one
 - Multiple structs with the same name from different packages are not supported
 - Maps are not supported; use slices or arrays instead
+- Built-in type `codec.Address` included as a special case
 
 ## Generating Golang Bindings
 Use cmd/abigen to automatically generate Go bindings from an ABI's JSON.
@@ -88,6 +89,7 @@ This should generate the same code that is present in `./abi/mockabi_test.go`.
 | `int16`   | numbers from -32768 to 32767                             | number             | 2 bytes                               |
 | `int32`   | numbers from -2147483648 to 2147483647                   | number             | 4 bytes                               |
 | `int64`   | numbers from -9223372036854775808 to 9223372036854775807 | number             | 8 bytes                               |
+| `Address` | 33 byte array                                            | base64             | 33 bytes                              |
 | `string`  | string                                                   | string             | uint16 length + bytes                 |
 | `[]T`     | for any `T` in the above list, serialized as an array    | array              | uint32 length + elements              |
 | `[x]T`    | for any `T` in the above list, serialized as an array    | array              | uint32 length + elements              |

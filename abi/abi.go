@@ -168,7 +168,11 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 		} else {
 			arrayPrefix := ""
 
-			for fieldType.Kind() == reflect.Array || fieldType.Kind() == reflect.Slice {
+			// Here we assume that all types without a name are slices or arrays.
+			// We completely ignore the fact that maps exist as we don't support them.
+			// Types like `type Address = [33]byte` are arrays technically, but they have a name
+			// and we need them to be named types instead of slices.
+			for fieldType.Name() == "" {
 				if fieldType.Kind() == reflect.Array {
 					arrayPrefix += fmt.Sprintf("[%d]", fieldType.Len())
 					fieldType = fieldType.Elem()
@@ -180,7 +184,7 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 
 			typeName := arrayPrefix + fieldType.Name()
 
-			// Add nested structs and pointers to str`ucts to the list for processing
+			// Add nested structs and pointers to structs to the list for processing
 			if fieldType.Kind() == reflect.Struct {
 				otherStructsSeen = append(otherStructsSeen, fieldType)
 			} else if fieldType.Kind() == reflect.Ptr {

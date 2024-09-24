@@ -62,7 +62,7 @@
             "fields": [
                 {
                     "name": "to",
-                    "type": "[33]uint8"
+                    "type": "Address"
                 },
                 {
                     "name": "value",
