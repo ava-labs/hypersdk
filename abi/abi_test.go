@@ -25,6 +25,7 @@ func TestNewABI(t *testing.T) {
 		MockActionWithTransferArray{},
 		Outer{},
 		ActionWithOutput{},
+		FixedBytes{},
 	}, []codec.Typed{
 		ActionOutput{},
 	})
