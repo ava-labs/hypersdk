@@ -54,6 +54,7 @@ func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Add
 	if err != nil {
 		return 0, err
 	}
+
 	return database.ParseUInt64(v)
 }
 

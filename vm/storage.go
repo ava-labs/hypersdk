@@ -82,7 +82,6 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	return database.ParseUInt64(b)
 }
 
