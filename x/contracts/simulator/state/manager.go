@@ -58,6 +58,7 @@ func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Add
 	if len(v) != consts.Uint64Len {
 		return 0, state.ErrMalformedEncoding
 	}
+
 	return binary.BigEndian.Uint64(v), nil
 }
 
