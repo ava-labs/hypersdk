@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/trace"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func TestBlockCache(t *testing.T) {

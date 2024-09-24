@@ -27,14 +27,3 @@ type View interface {
 	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.View, error)
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }
-
-//type Interface interface {
-//	NewView(scope Keys, storage map[string][]byte) (View, error)
-//	Ops() int
-//	GetValue(ctx context.Context, key []byte) ([]byte, error)
-//	Commit()
-//
-//	Insert(ctx context.Context, key []byte, value []byte) error
-//	Remove(ctx context.Context, key []byte) error
-//	Rollback(restorePoint int)
-//}

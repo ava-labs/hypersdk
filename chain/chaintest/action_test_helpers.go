@@ -46,7 +46,7 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
-func (*InMemoryStore) Rollback(ctx context.Context, restorePoint int) {
+func (*InMemoryStore) Rollback(context.Context, int) {
 	// TODO implement me
 	panic("implement me")
 }
