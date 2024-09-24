@@ -35,6 +35,17 @@ const (
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
+
+	// prefix's all contract related keys
+	contractPrefix = 0x4
+	contractBytePrefix = 0x5
+	// prefix's all contract state keys
+	contractStatePrefix = 0x0
+	// contract bytes prefixc, prefix's ids -> contract bytes
+	// contract state prefix, prefix's ids -> contract state
+	// contract ID prefix[ contractPrefix -> contractIDPrefix ]
+	contractIDPrefix = 0x2
+
 )
 
 const BalanceChunks uint16 = 1
