@@ -336,10 +336,11 @@ func innerGetBalance(
 	if err != nil {
 		return 0, false, err
 	}
-	if len(v) != consts.Uint64Len {
-		return 0, false, state.ErrMalformedEncoding
+	val, err := database.ParseUInt64(v)
+	if err != nil {
+		return 0, false, err
 	}
-	return binary.BigEndian.Uint64(v), true, nil
+	return val, true, nil
 }
 ```
 

@@ -4,8 +4,6 @@
 package state
 
 import (
-	"errors"
-
 	"github.com/ava-labs/hypersdk/keys"
 )
 
@@ -17,8 +15,6 @@ const (
 	None Permissions = 0
 	All              = Read | Allocate | Write
 )
-
-var ErrMalformedEncoding = errors.New("malformed encoding")
 
 // StateKey holds the name of the key and its permission (Read/Allocate/Write). By default,
 // initialization of Keys with duplicate key will not work. And to prevent duplicate
