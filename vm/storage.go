@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 // compactionOffset is used to randomize the height that we compact
@@ -82,6 +83,9 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if len(b) != consts.Uint64Len {
+		return 0, state.ErrMalformedEncoding
+	}
 	return binary.BigEndian.Uint64(b), nil
 }
 
@@ -97,6 +101,9 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	b, err := vm.vmDB.Get(lastProcessed)
 	if err != nil {
 		return 0, err
+	}
+	if len(b) != consts.Uint64Len {
+		return 0, state.ErrMalformedEncoding
 	}
 	return binary.BigEndian.Uint64(b), nil
 }
@@ -198,6 +205,9 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 	b, err := vm.vmDB.Get(PrefixBlockIDHeightKey(blkID))
 	if err != nil {
 		return 0, err
+	}
+	if len(b) != consts.Uint64Len {
+		return 0, state.ErrMalformedEncoding
 	}
 	return binary.BigEndian.Uint64(b), nil
 }

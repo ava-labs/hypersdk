@@ -96,6 +96,9 @@ func innerGetBalance(
 	if err != nil {
 		return 0, false, err
 	}
+	if len(v) != consts.Uint64Len {
+		return 0, false, state.ErrMalformedEncoding
+	}
 	return binary.BigEndian.Uint64(v), true, nil
 }
 

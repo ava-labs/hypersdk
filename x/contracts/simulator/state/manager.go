@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
@@ -54,7 +55,9 @@ func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Add
 	if err != nil {
 		return 0, err
 	}
-
+	if len(v) != consts.Uint64Len {
+		return 0, state.ErrMalformedEncoding
+	}
 	return binary.BigEndian.Uint64(v), nil
 }
 
