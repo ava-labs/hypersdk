@@ -3,18 +3,14 @@
 
 package abi
 
-import (
-	"github.com/ava-labs/hypersdk/codec"
-)
-
 type MockObjectSingleNumber struct {
 	Field1 uint16 `serialize:"true"`
 }
 
 type MockActionTransfer struct {
-	To    codec.Address `serialize:"true" json:"to"`
-	Value uint64        `serialize:"true" json:"value"`
-	Memo  codec.Bytes   `serialize:"true" json:"memo"`
+	To    [33]uint8 `serialize:"true" json:"to"`
+	Value uint64    `serialize:"true" json:"value"`
+	Memo  []uint8   `serialize:"true" json:"memo"`
 }
 
 type MockObjectAllNumbers struct {
@@ -67,6 +63,11 @@ type ActionWithOutput struct {
 	Field1 uint8 `serialize:"true" json:"field1"`
 }
 
+type FixedBytes struct {
+	TwoBytes       [2]uint8  `serialize:"true" json:"twoBytes"`
+	ThirtyTwoBytes [32]uint8 `serialize:"true" json:"thirtyTwoBytes"`
+}
+
 type ActionOutput struct {
 	Field1 uint16 `serialize:"true" json:"field1"`
 }
@@ -105,6 +106,10 @@ func (Outer) GetTypeID() uint8 {
 
 func (ActionWithOutput) GetTypeID() uint8 {
 	return 8
+}
+
+func (FixedBytes) GetTypeID() uint8 {
+	return 9
 }
 
 func (ActionOutput) GetTypeID() uint8 {
