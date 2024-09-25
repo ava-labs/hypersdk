@@ -6,8 +6,8 @@ extern crate alloc;
 use alloc::boxed::Box;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
+use core::num::NonZeroU64;
 use core::{array, mem::size_of};
-use std::num::NonZeroU64;
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
@@ -15,6 +15,7 @@ pub const ID_LEN: usize = 32;
 pub type Id = [u8; ID_LEN];
 
 /// Gas type alias.
+#[derive(Clone, Copy, Debug)]
 pub enum Gas {
     PassAll,
     Units(NonZeroU64),
@@ -38,8 +39,15 @@ impl From<u64> for Gas {
     }
 }
 
+impl BorshSerialize for Gas {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        let num: u64 = self.into();
+        num.serialize(writer)
+    }
+}
+
 impl BorshDeserialize for Gas {
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let num = u64::deserialize_reader(reader)?;
         Ok(num.into())
     }

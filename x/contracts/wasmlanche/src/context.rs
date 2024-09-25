@@ -251,6 +251,10 @@ impl Context {
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
+    pub fn call_contract_builder(&mut self, address: Address) -> CallContractBuilder<'_> {
+        CallContractBuilder::with_address(self, address)
+    }
+
     #[cfg(feature = "bindings")]
     #[must_use]
     pub fn to_extern(&mut self, args: ExternalCallArgs) -> ExternalCallContext<'_, Self> {
@@ -299,7 +303,7 @@ impl Context {
             function_name,
             args,
             value,
-            max_units: 0,
+            max_units: Gas::PassAll,
         };
 
         let contract_args = borsh::to_vec(&(CALL_FUNCTION_PREFIX, contract_args))
@@ -331,6 +335,48 @@ impl Context {
     #[cfg(feature = "test")]
     pub fn mock_set_balance(&self, account: Address, balance: u64) {
         self.host_accessor.set_balance(account, balance);
+    }
+}
+
+pub struct CallContractBuilder<'a> {
+    ctx: &'a mut Context,
+    address: Address,
+    max_units: Gas,
+    value: Option<u64>,
+}
+
+impl<'a> CallContractBuilder<'a> {
+    fn with_address(ctx: &'a mut Context, address: Address) -> Self {
+        CallContractBuilder {
+            ctx,
+            address,
+            max_units: Gas::PassAll,
+            value: None,
+        }
+    }
+
+    pub fn with_max_units(mut self, units: u64) -> Self {
+        self.max_units = units.into();
+        self
+    }
+
+    pub fn with_value(mut self, value: u64) -> Self {
+        self.value = Some(value);
+        self
+    }
+
+    pub fn call_function<T: BorshDeserialize>(
+        self,
+        function_name: &str,
+        args: &[u8],
+    ) -> Result<T, ExternalCallError> {
+        self.ctx.call_contract(
+            self.address,
+            function_name,
+            args,
+            self.max_units,
+            self.value.unwrap_or_default(),
+        )
     }
 }
 

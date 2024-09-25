@@ -7,7 +7,7 @@ use wasmlanche::{public, Address, Context, ExternalCallArgs};
 pub fn inc(ctx: &mut Context, contract_address: Address, of: Address) {
     let args = ExternalCallArgs {
         contract_address,
-        max_units: 1_000_000,
+        max_units: 1_000_000.into(),
         value: 0,
     };
 
@@ -20,7 +20,7 @@ pub fn inc(ctx: &mut Context, contract_address: Address, of: Address) {
 pub fn get_value(ctx: &mut Context, contract_address: Address, of: Address) -> u64 {
     let args = ExternalCallArgs {
         contract_address,
-        max_units: 1_000_000,
+        max_units: 1_000_000.into(),
         value: 0,
     };
 
