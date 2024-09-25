@@ -1,13 +1,12 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package indexer
+package txindexer
 
 import (
 	"encoding/binary"
 	"errors"
 	"path/filepath"
-	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,14 +15,13 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
 const (
-	Name      = "indexer"
-	Namespace = "indexer"
+	Name      = "txindexer"
+	Namespace = "txindexer"
 )
 
 var (
@@ -35,14 +33,12 @@ var (
 )
 
 type Config struct {
-	Enabled             bool `json:"enabled"`
-	AcceptedBlockWindow int  `json:"acceptedBlockWindow"`
+	Enabled bool `json:"enabled"`
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		Enabled:             true,
-		AcceptedBlockWindow: 1_000,
+		Enabled: true,
 	}
 }
 
@@ -54,26 +50,13 @@ func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
-	dbPath := filepath.Join(v.DataDir, "indexer", "db")
+	dbPath := filepath.Join(v.DataDir, Namespace, "db")
 	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
 	}
 
-	acceptedBlocksByID, err := cache.NewFIFO[ids.ID, *chain.StatefulBlock](config.AcceptedBlockWindow)
-	if err != nil {
-		return err
-	}
-	acceptedBlocksByHeight, err := cache.NewFIFO[uint64, ids.ID](config.AcceptedBlockWindow)
-	if err != nil {
-		return err
-	}
-
-	indexer := &indexer{
-		db:                     db,
-		acceptedBlocksByID:     acceptedBlocksByID,
-		acceptedBlocksByHeight: acceptedBlocksByHeight,
-	}
+	indexer := &indexer{db: db}
 
 	subscriptionFactory := &subscriptionFactory{
 		indexer: indexer,
@@ -100,22 +83,10 @@ func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], e
 }
 
 type indexer struct {
-	db                     database.Database
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
-	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
-
-	lock        sync.RWMutex
-	latestBlock *chain.StatefulBlock
+	db database.Database
 }
 
 func (i *indexer) Accept(blk *chain.StatefulBlock) error {
-	i.lock.Lock()
-	i.latestBlock = blk
-	i.lock.Unlock()
-
-	i.acceptedBlocksByID.Put(blk.ID(), blk)
-	i.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-
 	batch := i.db.NewBatch()
 	defer batch.Reset()
 
@@ -136,10 +107,6 @@ func (i *indexer) Accept(blk *chain.StatefulBlock) error {
 	}
 
 	return batch.Write()
-}
-
-func (i *indexer) Close() error {
-	return i.db.Close()
 }
 
 func (*indexer) storeTransaction(
@@ -183,21 +150,6 @@ func (i *indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 	return true, timestamp, success, d, fee, nil
 }
 
-func (i *indexer) getBlock(blkID ids.ID) (*chain.StatefulBlock, bool) {
-	return i.acceptedBlocksByID.Get(blkID)
-}
-
-func (i *indexer) getBlockByHeight(height uint64) (*chain.StatefulBlock, bool) {
-	blkID, ok := i.acceptedBlocksByHeight.Get(height)
-	if !ok {
-		return nil, false
-	}
-	return i.acceptedBlocksByID.Get(blkID)
-}
-
-func (i *indexer) getLatestBlock() (*chain.StatefulBlock, bool) {
-	i.lock.RLock()
-	defer i.lock.RUnlock()
-
-	return i.latestBlock, i.latestBlock != nil
+func (i *indexer) Close() error {
+	return i.db.Close()
 }

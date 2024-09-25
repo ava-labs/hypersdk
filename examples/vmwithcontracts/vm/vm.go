@@ -6,8 +6,8 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/txindexer"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -59,7 +59,7 @@ func init() {
 // New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
 func New(options ...vm.Option) (*vm.VM, error) {
 	opts := append([]vm.Option{
-		indexer.With(),
+		txindexer.With(),
 		ws.With(),
 		jsonrpc.With(),
 		With(), // Add Controller API

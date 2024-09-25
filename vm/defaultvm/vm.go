@@ -6,8 +6,8 @@ package defaultvm
 import (
 	"github.com/ava-labs/avalanchego/version"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/txindexer"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
@@ -22,7 +22,7 @@ import (
 // JSONRPC, and external subscriber options.
 func NewDefaultOptions() []vm.Option {
 	return []vm.Option{
-		indexer.With(),
+		txindexer.With(),
 		ws.With(),
 		jsonrpc.With(),
 		externalsubscriber.With(),

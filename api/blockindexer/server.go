@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package indexer
+package txindexer
 
 import (
 	"errors"
@@ -13,10 +13,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
-const Endpoint = "/indexer"
+const Endpoint = "/blockindexer"
 
 var (
 	ErrTxNotFound    = errors.New("tx not found")
@@ -46,39 +45,9 @@ func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
 	}, nil
 }
 
-type GetTxRequest struct {
-	TxID ids.ID `json:"txId"`
-}
-
-type GetTxResponse struct {
-	Timestamp int64           `json:"timestamp"`
-	Success   bool            `json:"success"`
-	Units     fees.Dimensions `json:"units"`
-	Fee       uint64          `json:"fee"`
-}
-
 type Server struct {
 	tracer  trace.Tracer
 	indexer *indexer
-}
-
-func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
-	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
-	defer span.End()
-
-	found, t, success, units, fee, err := s.indexer.GetTransaction(args.TxID)
-	if err != nil {
-		return err
-	}
-
-	if !found {
-		return ErrTxNotFound
-	}
-	reply.Timestamp = t
-	reply.Success = success
-	reply.Units = units
-	reply.Fee = fee
-	return nil
 }
 
 type GetBlockRequest struct {
@@ -97,7 +66,7 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlock")
 	defer span.End()
 
-	block, ok := s.indexer.getBlock(args.BlockID)
+	block, ok := s.indexer.GetBlock(args.BlockID)
 	if !ok {
 		return fmt.Errorf("block %s not found", args.BlockID)
 	}
@@ -109,7 +78,7 @@ func (s *Server) GetBlockByHeight(req *http.Request, args *GetBlockByHeightReque
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlockByHeight")
 	defer span.End()
 
-	block, ok := s.indexer.getBlockByHeight(args.Height)
+	block, ok := s.indexer.GetBlockByHeight(args.Height)
 	if !ok {
 		return fmt.Errorf("block at height %d not found", args.Height)
 	}
@@ -121,7 +90,7 @@ func (s *Server) GetLatestBlock(req *http.Request, _ *struct{}, reply *GetBlockR
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetLatestBlock")
 	defer span.End()
 
-	block, ok := s.indexer.getLatestBlock()
+	block, ok := s.indexer.GetLatestBlock()
 	if !ok {
 		return ErrNoLatestBlock
 	}
