@@ -11,13 +11,25 @@ import (
 	"github.com/near/borsh-go"
 )
 
+type CargoMissing struct{}
+
+func (e *CargoMissing) Error() string {
+	return "Cargo is not installed"
+}
+
 func CompileTest(contractName string) error {
+	_, err := exec.Command("which", "cargo").Output()
+
+	if err != nil {
+		return &CargoMissing{}
+	}
+
 	cmd := exec.Command("cargo", "rustc", "-p", contractName, "--release", "--target-dir=./target", "--target=wasm32-unknown-unknown", "--crate-type=cdylib")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
 		return err
