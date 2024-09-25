@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/txindexer"
 	"github.com/ava-labs/hypersdk/auth"
@@ -231,8 +230,8 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	}
 	g.balance = expectedBalance
 
-	return tx, functxindexer.text.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri)
+	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
+		indexerCli := txindexer.NewClient(uri)
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
 		require.NoError(err)
 		require.True(success)
