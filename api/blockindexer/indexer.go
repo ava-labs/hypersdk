@@ -125,6 +125,6 @@ func (i *indexer) GetLatestBlock() (*chain.StatefulBlock, bool) {
 	return i.latestBlock, i.latestBlock != nil
 }
 
-func (i *indexer) Close() error {
+func (*indexer) Close() error {
 	return nil
 }
