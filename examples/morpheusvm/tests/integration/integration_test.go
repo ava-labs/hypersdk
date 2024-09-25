@@ -7,17 +7,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -28,11 +25,10 @@ func TestIntegration(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
-	gen, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
+	genesis, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := lrpc.NewParser(0, ids.Empty, gen)
-	genesisBytes, err := json.Marshal(gen)
+	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
@@ -42,11 +38,11 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Setup imports the integration test coverage
 	integration.Setup(
-		controller.New,
+		vm.New,
 		genesisBytes,
 		lconsts.ID,
-		parser,
-		rpc.JSONRPCEndpoint,
+		vm.CreateParser,
+		vm.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
 	)

@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
@@ -41,25 +42,16 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	require.NoError(err)
+
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
-	he2e.SetWorkload(consts.Name, workloadFactory)
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI)
 
-	// Run only once in the first ginkgo process
-	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
-	subnet := fixture.NewHyperVMSubnet(
-		consts.Name,
-		consts.ID,
-		genesisBytes,
-		nodes...,
-	)
+	tc := e2e.NewTestContext()
 
-	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-	return e2e.NewTestEnvironment(
-		e2e.NewTestContext(),
-		flagVars,
-		network,
-	).Marshal()
+	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

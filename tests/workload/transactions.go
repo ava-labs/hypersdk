@@ -9,9 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/rpc"
 )
+
+const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
 // and a sized sequence of transactions to test on a given environment and reach a particular state
@@ -24,7 +26,7 @@ type TxWorkloadFactory interface {
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }
 
-type TxAssertion func(ctx context.Context, uri string) error
+type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
 
 // TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
 // The caller must proceed in the following sequence:
@@ -51,7 +53,7 @@ type TxWorkloadIterator interface {
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
 	for generator.Next() {
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
@@ -61,8 +63,7 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []st
 		require.NoError(err)
 
 		for _, uri := range uris {
-			err := confirm(ctx, uri)
-			require.NoError(err)
+			confirm(ctx, require, uri)
 		}
 	}
 }
@@ -71,7 +72,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	uri := uris[0]
 	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
-	client := rpc.NewJSONRPCClient(uri)
+	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
 	require.NoError(err)
@@ -85,7 +86,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 		_, err = client.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		require.NoError(confirm(ctx, uri))
+		confirm(ctx, require, uri)
 
 		_, acceptedHeight, _, err := client.Accepted(ctx)
 		require.NoError(err)
@@ -93,8 +94,8 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 
 	for _, uri := range uris {
-		client := rpc.NewJSONRPCClient(uri)
-		err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+		client := jsonrpc.NewJSONRPCClient(uri)
+		err := jsonrpc.Wait(ctx, reachedAcceptedTipSleepInterval, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
 			if err != nil {
 				return false, err
@@ -105,31 +106,37 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateUntilCancel(
+func GenerateUntilStop(
 	ctx context.Context,
+	require *require.Assertions,
 	uris []string,
 	generator TxWorkloadIterator,
+	stopChannel <-chan struct{},
 ) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+	for {
+		select {
+		case <-stopChannel:
+			return
+		default:
+			if !generator.Next() {
+				return
+			}
+			tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-	// Use backgroundCtx within the loop to avoid erroring due to an expected
-	// context cancellation.
-	backgroundCtx := context.Background()
-	for generator.Next() && ctx.Err() == nil {
-		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
+			_, err = submitClient.SubmitTx(ctx, tx.Bytes())
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 
-		_, err = submitClient.SubmitTx(backgroundCtx, tx.Bytes())
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		for _, uri := range uris {
-			_ = confirm(backgroundCtx, uri)
+			for _, uri := range uris {
+				confirm(ctx, require, uri)
+			}
 		}
 	}
 }

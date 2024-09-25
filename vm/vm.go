@@ -26,26 +26,30 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
-	"github.com/ava-labs/hypersdk/cache"
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/network"
-	"github.com/ava-labs/hypersdk/pebble"
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/builder"
+	"github.com/ava-labs/hypersdk/internal/cache"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/network"
+	"github.com/ava-labs/hypersdk/internal/pebble"
+	"github.com/ava-labs/hypersdk/internal/trace"
+	"github.com/ava-labs/hypersdk/internal/validators"
+	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
-	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 const (
@@ -58,25 +62,38 @@ const (
 )
 
 type VM struct {
-	factory ControllerFactory
-	c       Controller
+	DataDir string
 	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
-	proposerMonitor *ProposerMonitor
+	proposerMonitor *validators.ProposerMonitor
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
-	gossiper       gossiper.Gossiper
-	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
-	vmDB           database.Database
-	handlers       Handlers
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
-	authEngine     map[uint8]AuthEngine
+	config Config
+
+	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
+	genesis                    genesis.Genesis
+	GenesisBytes               []byte
+	ruleFactory                genesis.RuleFactory
+	options                    []Option
+	builder                    builder.Builder
+	gossiper                   gossiper.Gossiper
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatefulBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatefulBlock]
+	// TODO remove by returning an verification error from the submit tx api
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
+
+	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
+	rawStateDB            database.Database
+	stateDB               merkledb.MerkleDB
+	vmDB                  database.Database
+	handlers              map[string]http.Handler
+	stateManager          chain.StateManager
+	actionRegistry        chain.ActionRegistry
+	authRegistry          chain.AuthRegistry
+	outputRegistry        chain.OutputRegistry
+	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -88,33 +105,30 @@ type VM struct {
 	seenValidityWindow     chan struct{}
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *chain.StatelessBlock]
+	parsedBlocks *avacache.LRU[ids.ID, *chain.StatefulBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*chain.StatelessBlock
+	verifiedBlocks map[ids.ID]*chain.StatefulBlock
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatelessBlock]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatelessBlock
+	acceptedQueue chan *chain.StatefulBlock
 	acceptorDone  chan struct{}
-
-	// Transactions that streaming users are currently subscribed to
-	webSocketServer *rpc.WebSocketServer
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
 	authVerifiers workers.Workers
 
 	bootstrapped avautils.Atomic[bool]
-	genesisBlk   *chain.StatelessBlock
+	genesisBlk   *chain.StatefulBlock
 	preferred    ids.ID
-	lastAccepted *chain.StatelessBlock
+	lastAccepted *chain.StatefulBlock
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
@@ -133,36 +147,34 @@ type VM struct {
 }
 
 func New(
-	factory ControllerFactory,
 	v *version.Semantic,
+	genesisFactory genesis.GenesisAndRuleFactory,
+	stateManager chain.StateManager,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
+	outputRegistry chain.OutputRegistry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
-	vm := &VM{
-		factory:        factory,
-		v:              v,
-		config:         NewConfig(),
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
-		authEngine:     authEngine,
-	}
-
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return nil, err
-	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
-	vm.gossiper = txGossiper
-
+	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
-		option(vm)
+		if allocatedNamespaces.Contains(option.Namespace) {
+			return nil, fmt.Errorf("namespace %s already allocated", option.Namespace)
+		}
+		allocatedNamespaces.Add(option.Namespace)
 	}
 
-	return vm, nil
+	return &VM{
+		v:                     v,
+		stateManager:          stateManager,
+		config:                NewConfig(),
+		actionRegistry:        actionRegistry,
+		authRegistry:          authRegistry,
+		outputRegistry:        outputRegistry,
+		authEngine:            authEngine,
+		genesisAndRuleFactory: genesisFactory,
+		options:               options,
+	}, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -177,6 +189,7 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
+	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	// This will be overwritten when we accept the first block (in state sync) or
@@ -196,7 +209,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
-	vm.proposerMonitor = NewProposerMonitor(vm)
+	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
 	pebbleConfig := pebble.NewDefaultConfig()
@@ -210,54 +223,18 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// TODO do not expose entire context to the Controller
-	//
-	// Note: does not copy the consensus lock but this is safe because the
-	// consensus lock does not work over rpc anyways
-	controllerContext := &snow.Context{
-		NetworkID:      vm.snowCtx.NetworkID,
-		SubnetID:       vm.snowCtx.SubnetID,
-		ChainID:        vm.snowCtx.ChainID,
-		NodeID:         vm.snowCtx.NodeID,
-		PublicKey:      vm.snowCtx.PublicKey,
-		XChainID:       vm.snowCtx.XChainID,
-		CChainID:       vm.snowCtx.CChainID,
-		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
-		Log:            vm.snowCtx.Log,
-		Keystore:       vm.snowCtx.Keystore,
-		SharedMemory:   vm.snowCtx.SharedMemory,
-		BCLookup:       vm.snowCtx.BCLookup,
-		Metrics:        vm.snowCtx.Metrics,
-		WarpSigner:     vm.snowCtx.WarpSigner,
-		ValidatorState: vm.snowCtx.ValidatorState,
-		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.GenesisBytes = genesisBytes
+	if err != nil {
+		return err
 	}
 
-	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	if len(configBytes) > 0 {
+		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+			return fmt.Errorf("failed to unmarshal config: %w", err)
+		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
-
-	controllerConfigBytes, err := json.Marshal(vm.config.Config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal controller config: %w", err)
-	}
-
-	// Always initialize implementation first
-	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
-		vm,
-		controllerContext.Log,
-		controllerContext.NetworkID,
-		controllerContext.ChainID,
-		controllerContext.ChainDataDir,
-		controllerContext.Metrics,
-		genesisBytes,
-		upgradeBytes,
-		controllerConfigBytes,
-	)
-	if err != nil {
-		return fmt.Errorf("implementation initialization failed: %w", err)
-	}
 
 	// Setup tracer
 	vm.tracer, err = trace.New(&vm.config.TraceConfig)
@@ -266,6 +243,22 @@ func (vm *VM) Initialize(
 	}
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
+
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return err
+	}
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
+
+	for _, Option := range vm.options {
+		config := vm.config.ServiceConfig[Option.Namespace]
+		if err := Option.optionFunc(vm, config); err != nil {
+			return err
+		}
+	}
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -305,9 +298,9 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.ParsedBlockCacheSize}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.AcceptedBlockWindowCache)
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
+	vm.verifiedBlocks = make(map[ids.ID]*chain.StatefulBlock)
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatefulBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
@@ -323,7 +316,7 @@ func (vm *VM) Initialize(
 	if acceptedBlockWindow < MinAcceptedBlockWindow {
 		return fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
 	}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
+	vm.acceptedQueue = make(chan *chain.StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
@@ -352,18 +345,14 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
-		if err := vm.loadAcceptedBlocks(ctx); err != nil {
-			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
-			return err
-		}
+		vm.loadAcceptedBlocks(ctx)
 		// It is not guaranteed that the last accepted state on-disk matches the post-execution
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
-		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
-			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.stateManager); err != nil {
+			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
 		if err := sps.Commit(ctx); err != nil {
@@ -377,7 +366,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatefulBlock(
+		genesisBlk, err := chain.ParseStatelessBlock(
 			ctx,
 			chain.NewGenesisBlock(root),
 			nil,
@@ -397,8 +386,8 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		genesisRules := vm.c.Rules(0)
-		feeManager := fees.NewManager(nil)
+		genesisRules := vm.Rules(0)
+		feeManager := internalfees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
@@ -467,32 +456,36 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
-	if err != nil {
-		return fmt.Errorf("unable to create handler: %w", err)
-	}
-	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
-		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
-	}
-	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
-	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
-		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
-	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
-	vm.webSocketServer = webSocketServer
-	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
-
-	// Add optional direct state read handler
-	if vm.config.EnableJSONRPCStateHandler {
-		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
-			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
-		}
-		jsonRPCStateHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCStateServer(vm))
+	for _, factory := range vm.blockSubscriptionFactories {
+		subscription, err := factory.New()
 		if err != nil {
-			return fmt.Errorf("unable to create handler: %w", err)
+			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
-		vm.handlers[rpc.JSONRPCStateEndpoint] = jsonRPCStateHandler
+
+		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
+	}
+
+	for _, factory := range vm.txRemovedSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
+		}
+
+		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
+	}
+
+	vm.handlers = make(map[string]http.Handler)
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
 	}
 
 	err = vm.restoreAcceptedQueue(ctx)
@@ -637,7 +630,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(ctx context.Context) error {
+func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
@@ -657,12 +650,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
-	// shutdown.
-	if err := vm.c.Shutdown(ctx); err != nil {
-		return err
-	}
-
 	// Close DBs
 	if vm.snowCtx == nil {
 		return nil
@@ -673,7 +660,25 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateDB.Close(); err != nil {
 		return err
 	}
-	return vm.rawStateDB.Close()
+
+	if err := vm.rawStateDB.Close(); err != nil {
+		return err
+	}
+
+	// Close subscriptions
+	for _, subscription := range vm.txRemovedSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -708,11 +713,11 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	defer span.End()
 
 	// We purposely don't return parsed but unverified blocks from here
-	return vm.GetStatelessBlock(ctx, id)
+	return vm.GetStatefulBlock(ctx, id)
 }
 
-func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
+func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.StatefulBlock, error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
 	defer span.End()
 
 	// Check if verified block
@@ -767,7 +772,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 
 	// If we have seen this block before, return it with the most
 	// up-to-date info
-	if oldBlk, err := vm.GetStatelessBlock(ctx, id); err == nil {
+	if oldBlk, err := vm.GetStatefulBlock(ctx, id); err == nil {
 		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
@@ -830,7 +835,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 
 	// Build block and store as parsed
-	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
@@ -863,7 +868,7 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
@@ -876,9 +881,9 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	feeManager := fees.NewManager(feeRaw)
+	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
-	r := vm.c.Rules(now)
+	r := vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}
@@ -909,7 +914,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.c.StateManager())
+		_, err := tx.StateKeys(vm.stateManager)
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -927,9 +932,17 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				event := TxRemovedEvent{
+					TxID: txID,
+					Err:  err,
 				}
+
+				for _, subscription := range vm.txRemovedSubscriptions {
+					if err := subscription.Accept(event); err != nil {
+						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
+					}
+				}
+
 				errs = append(errs, err)
 				continue
 			}
@@ -944,7 +957,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.stateManager, r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -1146,7 +1159,7 @@ func (vm *VM) backfillSeenTransactions() {
 		}
 
 		// Set next blk in lookback
-		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		tblk, err := vm.GetStatefulBlock(context.Background(), blk.Prnt)
 		if err != nil {
 			vm.snowCtx.Log.Info("could not load block, exiting backfill",
 				zap.Uint64("height", blk.Height()-1),
@@ -1164,7 +1177,7 @@ func (vm *VM) backfillSeenTransactions() {
 	)
 }
 
-func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+func (vm *VM) loadAcceptedBlocks(ctx context.Context) {
 	start := uint64(0)
 	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
@@ -1183,7 +1196,6 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
-	return nil
 }
 
 func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
@@ -1209,14 +1221,14 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
-		var blk *chain.StatelessBlock
-		if height == vm.lastAccepted.Height() {
-			blk = vm.lastAccepted
-		} else {
-			blk, err = vm.GetDiskBlock(ctx, height)
-			if err != nil {
-				return fmt.Errorf("could not find accepted block at height %d on disk", height)
-			}
+		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
+		}
+
+		blk, err := vm.GetStatefulBlock(ctx, blkID)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}
 
 		vm.acceptedQueue <- blk

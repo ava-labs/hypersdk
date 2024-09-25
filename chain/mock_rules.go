@@ -40,20 +40,6 @@ func (m *MockRules) EXPECT() *MockRulesMockRecorder {
 	return m.recorder
 }
 
-// ChainID mocks base method.
-func (m *MockRules) ChainID() ids.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ChainID")
-	ret0, _ := ret[0].(ids.ID)
-	return ret0
-}
-
-// ChainID indicates an expected call of ChainID.
-func (mr *MockRulesMockRecorder) ChainID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRules)(nil).ChainID))
-}
-
 // FetchCustom mocks base method.
 func (m *MockRules) FetchCustom(arg0 string) (any, bool) {
 	m.ctrl.T.Helper()
@@ -83,6 +69,20 @@ func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseComputeUnits))
 }
 
+// GetChainID mocks base method.
+func (m *MockRules) GetChainID() ids.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChainID")
+	ret0, _ := ret[0].(ids.ID)
+	return ret0
+}
+
+// GetChainID indicates an expected call of GetChainID.
+func (mr *MockRulesMockRecorder) GetChainID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChainID", reflect.TypeOf((*MockRules)(nil).GetChainID))
+}
+
 // GetMaxActionsPerTx mocks base method.
 func (m *MockRules) GetMaxActionsPerTx() byte {
 	m.ctrl.T.Helper()
@@ -109,20 +109,6 @@ func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetMaxBlockUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxBlockUnits))
-}
-
-// GetMaxOutputsPerAction mocks base method.
-func (m *MockRules) GetMaxOutputsPerAction() byte {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMaxOutputsPerAction")
-	ret0, _ := ret[0].(byte)
-	return ret0
-}
-
-// GetMaxOutputsPerAction indicates an expected call of GetMaxOutputsPerAction.
-func (mr *MockRulesMockRecorder) GetMaxOutputsPerAction() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxOutputsPerAction", reflect.TypeOf((*MockRules)(nil).GetMaxOutputsPerAction))
 }
 
 // GetMinBlockGap mocks base method.
@@ -165,6 +151,20 @@ func (m *MockRules) GetMinUnitPrice() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetMinUnitPrice() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinUnitPrice", reflect.TypeOf((*MockRules)(nil).GetMinUnitPrice))
+}
+
+// GetNetworkID mocks base method.
+func (m *MockRules) GetNetworkID() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetworkID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// GetNetworkID indicates an expected call of GetNetworkID.
+func (mr *MockRulesMockRecorder) GetNetworkID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkID", reflect.TypeOf((*MockRules)(nil).GetNetworkID))
 }
 
 // GetSponsorStateKeysMaxChunks mocks base method.
@@ -305,18 +305,4 @@ func (m *MockRules) GetWindowTargetUnits() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetWindowTargetUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetWindowTargetUnits))
-}
-
-// NetworkID mocks base method.
-func (m *MockRules) NetworkID() uint32 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NetworkID")
-	ret0, _ := ret[0].(uint32)
-	return ret0
-}
-
-// NetworkID indicates an expected call of NetworkID.
-func (mr *MockRulesMockRecorder) NetworkID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkID", reflect.TypeOf((*MockRules)(nil).NetworkID))
 }

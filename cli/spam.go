@@ -21,12 +21,14 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -50,16 +52,52 @@ var (
 	sent     atomic.Int64
 )
 
+type SpamHelper interface {
+	// CreateAccount generates a new account and returns the [PrivateKey].
+	//
+	// The spammer tracks all created accounts and orchestrates the return of funds
+	// sent to any created accounts on shutdown. If the spammer exits ungracefully,
+	// any funds sent to created accounts will be lost unless they are persisted by
+	// the [SpamHelper] implementation.
+	CreateAccount() (*PrivateKey, error)
+	// GetFactory returns the [chain.AuthFactory] for a given private key.
+	//
+	// A [chain.AuthFactory] signs transactions and provides a unit estimate
+	// for using a given private key (needed to estimate fees for a transaction).
+	GetFactory(pk *PrivateKey) (chain.AuthFactory, error)
+
+	// CreateClient instructs the [SpamHelper] to create and persist a VM-specific
+	// JSONRPC client.
+	//
+	// This client is used to retrieve the [chain.Parser] and the balance
+	// of arbitrary addresses.
+	//
+	// TODO: consider making these functions part of the required JSONRPC
+	// interface for the HyperSDK.
+	CreateClient(uri string) error
+	GetParser(ctx context.Context) (chain.Parser, error)
+	LookupBalance(choice int, address codec.Address) (uint64, error)
+
+	// GetTransfer returns a list of actions that sends [amount] to a given [address].
+	//
+	// Memo is used to ensure that each transaction is unique (even if between the same
+	// sender and receiver for the same amount).
+	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+}
+
 func (h *Handler) Spam(sh SpamHelper) error {
 	ctx := context.Background()
 
 	// Select chain
-	chainID, uris, err := h.PromptChain("select chainID", nil)
+	chains, err := h.GetChains()
 	if err != nil {
 		return err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(ctx)
+	_, uris, err := prompt.SelectChain("select chainID", chains)
+	if err != nil {
+		return err
+	}
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
 	if err != nil {
 		return err
 	}
@@ -70,18 +108,17 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	if err := sh.CreateClient(uris[0], networkID, chainID); err != nil {
+	if err := sh.CreateClient(uris[0]); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {
-		address := h.c.Address(keys[i].Address)
-		balance, err := sh.LookupBalance(i, address)
+		balance, err := sh.LookupBalance(i, keys[i].Address)
 		if err != nil {
 			return err
 		}
 		balances[i] = balance
 	}
-	keyIndex, err := h.PromptChoice("select root key", len(keys))
+	keyIndex, err := prompt.Choice("select root key", len(keys))
 	if err != nil {
 		return err
 	}
@@ -109,34 +146,34 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	}
 
 	// Collect parameters
-	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
+	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
 	if numAccounts < 2 {
 		return ErrInsufficientAccounts
 	}
-	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+	sZipf, err := prompt.Float("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
 	if err != nil {
 		return err
 	}
-	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+	vZipf, err := prompt.Float("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
 	if err != nil {
 		return err
 	}
-	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
+	txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	minTxsPerSecond, err := h.PromptInt("minimum txs to issue per second", consts.MaxInt)
+	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
+	txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numClients, err := h.PromptInt("number of clients per node", consts.MaxInt)
+	numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -171,14 +208,14 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	webSocketClient, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
 	funds := map[codec.Address]uint64{}
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
-	p := &pacer{ws: ws}
+	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -218,12 +255,12 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	issuers := []*issuer{}
 	for i := 0; i < len(uris); i++ {
 		for j := 0; j < numClients; j++ {
-			cli := rpc.NewJSONRPCClient(uris[i])
-			ws, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			cli := jsonrpc.NewJSONRPCClient(uris[i])
+			webSocketClient, err := ws.NewWebSocketClient(uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: ws, parser: parser, uri: uris[i]}
+			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: uris[i]}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -262,7 +299,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						inflight.Load(),
 						current-psent,
-						ParseDimensions(unitPrices),
+						unitPrices,
 					)
 				}
 				l.Unlock()
@@ -377,7 +414,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	issuerWg.Wait()
 
 	// Return funds
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", key.Address)
 	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -387,7 +424,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	var returnedBalance uint64
-	p = &pacer{ws: ws}
+	p = &pacer{ws: webSocketClient}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
@@ -425,7 +462,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 }
 
 type pacer struct {
-	ws *rpc.WebSocketClient
+	ws *ws.WebSocketClient
 
 	inflight chan struct{}
 	done     chan error
@@ -478,8 +515,8 @@ type issuer struct {
 
 	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
-	cli            *rpc.JSONRPCClient
-	ws             *rpc.WebSocketClient
+	cli            *jsonrpc.JSONRPCClient
+	ws             *ws.WebSocketClient
 	outstandingTxs int
 	abandoned      error
 }
@@ -505,7 +542,7 @@ func (i *issuer) Start(ctx context.Context) {
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(wsErr.Error(), rpc.ErrExpired.Error()) {
+				if !strings.Contains(wsErr.Error(), ws.ErrExpired.Error()) {
 					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 				}
 			}
@@ -563,7 +600,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 
 			// Attempt to recreate issuer
 			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %s\n", i.i, i.uri)
-			ws, err := rpc.NewWebSocketClient(i.uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			ws, err := ws.NewWebSocketClient(i.uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				i.abandoned = err
 				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)

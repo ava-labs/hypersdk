@@ -5,11 +5,14 @@ package workload
 
 import (
 	"context"
-	"fmt"
 	"math"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -17,16 +20,16 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
-
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
-const initialBalance uint64 = 10_000_000_000_000
+const (
+	initialBalance  uint64 = 10_000_000_000_000
+	txCheckInterval        = 100 * time.Millisecond
+)
 
 var (
 	_              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
@@ -38,7 +41,6 @@ var (
 	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
 	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
-	ed25519AddrStrs      = make([]string, len(ed25519HexKeys))
 )
 
 func init() {
@@ -52,7 +54,6 @@ func init() {
 		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
 		addr := auth.NewED25519Address(priv.PublicKey())
 		ed25519Addrs[i] = addr
-		ed25519AddrStrs[i] = codec.MustAddressBech32(consts.HRP, addr)
 	}
 }
 
@@ -61,34 +62,32 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
-	gen := genesis.Default()
-	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	gen.MinBlockGap = minBlockGap
-	for _, prefundedAddrStr := range ed25519AddrStrs {
-		gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
-			Address: prefundedAddrStr,
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
+	for _, prefundedAddr := range ed25519Addrs {
+		customAllocs = append(customAllocs, &genesis.CustomAllocation{
+			Address: prefundedAddr,
 			Balance: initialBalance,
 		})
 	}
 
-	return gen, &workloadFactory{
+	genesis := genesis.NewDefaultGenesis(customAllocs)
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	genesis.Rules.MinBlockGap = minBlockGap
+
+	return genesis, &workloadFactory{
 		factories: ed25519AuthFactories,
 		addrs:     ed25519Addrs,
 	}, nil
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
-	cli := rpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+	cli := jsonrpc.NewJSONRPCClient(uri)
+	lcli := vm.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
 		cli:     cli,
@@ -98,13 +97,11 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *rpc.JSONRPCClient
-	lcli      *lrpc.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
+	factory *auth.ED25519Factory
+	cli     *jsonrpc.JSONRPCClient
+	lcli    *vm.JSONRPCClient
+	count   int
+	size    int
 }
 
 func (g *simpleTxWorkload) Next() bool {
@@ -119,7 +116,6 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	aother := auth.NewED25519Address(other.PublicKey())
-	aotherStr := codec.MustAddressBech32(consts.HRP, aother)
 	parser, err := g.lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -137,23 +133,16 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		return nil, nil, err
 	}
 
-	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
-		}
-		if !success {
-			return fmt.Errorf("tx %s not accepted", tx.ID())
-		}
-		balance, err := lcli.Balance(ctx, aotherStr)
-		if err != nil {
-			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
-		}
-		if balance != 1 {
-			return fmt.Errorf("expected balance of 1, got %d", balance)
-		}
-		return nil
+	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
+		indexerCli := indexer.NewClient(uri)
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
+		require.NoError(err)
+		require.True(success)
+		lcli := vm.NewJSONRPCClient(uri)
+		balance, err := lcli.Balance(ctx, aother)
+		require.NoError(err)
+		require.Equal(uint64(1), balance)
+		// TODO: check transaction output (not currently available via API)
 	}, nil
 }
 
@@ -174,12 +163,12 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	secpAddr := auth.NewSECP256R1Address(secpPub)
 	secpFactory := auth.NewSECP256R1Factory(secpPriv)
 
-	cli := rpc.NewJSONRPCClient(uri)
+	cli := jsonrpc.NewJSONRPCClient(uri)
 	networkID, _, blockchainID, err := cli.Network(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := vm.NewJSONRPCClient(uri)
 
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
@@ -205,8 +194,8 @@ type addressAndFactory struct {
 type mixedAuthWorkload struct {
 	addressAndFactories []addressAndFactory
 	balance             uint64
-	cli                 *rpc.JSONRPCClient
-	lcli                *lrpc.JSONRPCClient
+	cli                 *jsonrpc.JSONRPCClient
+	lcli                *vm.JSONRPCClient
 	networkID           uint32
 	chainID             ids.ID
 	count               int
@@ -221,7 +210,6 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 
 	sender := g.addressAndFactories[g.count]
 	receiver := g.addressAndFactories[g.count+1]
-	receiverAddrStr := codec.MustAddressBech32(consts.HRP, receiver.address)
 	expectedBalance := g.balance - 1_000_000
 
 	parser, err := g.lcli.Parser(ctx)
@@ -242,23 +230,16 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	}
 	g.balance = expectedBalance
 
-	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
-		}
-		if !success {
-			return fmt.Errorf("tx %s not accepted", tx.ID())
-		}
-		balance, err := lcli.Balance(ctx, receiverAddrStr)
-		if err != nil {
-			return fmt.Errorf("failed to get balance of %s: %w", receiverAddrStr, err)
-		}
-		if balance != expectedBalance {
-			return fmt.Errorf("expected balance of 1, got %d", balance)
-		}
-		// TODO check tx fee + units (not currently available via API)
-		return nil
+	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
+		indexerCli := indexer.NewClient(uri)
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
+		require.NoError(err)
+		require.True(success)
+		lcli := vm.NewJSONRPCClient(uri)
+		balance, err := lcli.Balance(ctx, receiver.address)
+		require.NoError(err)
+		require.Equal(expectedBalance, balance)
+		// TODO: check tx fee + units (not currently available via API)
+		// TODO: check transaction output (not currently available via API)
 	}, nil
 }

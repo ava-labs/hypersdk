@@ -10,21 +10,19 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/cli"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/utils"
-
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
-	ctx context.Context, actions []chain.Action, cli *rpc.JSONRPCClient,
-	bcli *brpc.JSONRPCClient, ws *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
@@ -53,7 +51,11 @@ func sendAndWait(
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), result.Success)
+		status := "❌"
+		if result.Success {
+			status = "✅"
+		}
+		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
 	}
 	return result.Success, tx.ID(), nil
 }
@@ -65,12 +67,12 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
 			tx.ID(),
-			codec.MustAddressBech32(consts.HRP, actor),
+			actor,
 			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 		return
 	}
@@ -79,19 +81,19 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		var summaryStr string
 		switch act := action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, act.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, actor)
 		}
 		utils.Outf(
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"✅",
 			tx.ID(),
-			codec.MustAddressBech32(consts.HRP, actor),
+			actor,
 			reflect.TypeOf(action),
 			summaryStr,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,
-			cli.ParseDimensions(result.Units),
+			result.Units,
 		)
 	}
 }

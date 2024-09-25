@@ -9,11 +9,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 
-	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/fetcher"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 type fetchData struct {
@@ -23,7 +23,7 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (b *StatelessBlock) Execute(
+func (b *StatefulBlock) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
