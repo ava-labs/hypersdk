@@ -10,17 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mock-gen:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-      - shell: bash
-        run: scripts/mock.gen.sh
-      - shell: bash
-        run: scripts/tests.clean.sh
-
   go-mod-tidy:
     runs-on: ubuntu-latest
     steps:
