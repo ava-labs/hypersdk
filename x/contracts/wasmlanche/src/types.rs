@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use borsh::io;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
 use core::{array, mem::size_of};
@@ -27,7 +28,7 @@ impl From<u64> for Gas {
 }
 
 impl BorshSerialize for Gas {
-    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         let units = match self {
             Self::PassAll => {
                 true.serialize(writer)?;
@@ -43,13 +44,12 @@ impl BorshSerialize for Gas {
 }
 
 impl BorshDeserialize for Gas {
-    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let pass_all = bool::deserialize_reader(reader)?;
         let units = u64::deserialize_reader(reader)?;
         let gas = if pass_all {
             if units > 0 {
-                // return Err()
-                todo!()
+                return Err(io::Error::other("cannot pass units while passing all gas"));
             }
             Gas::PassAll
         } else {
