@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
@@ -19,6 +20,7 @@ var (
 
 const (
 	AccountTypeID = 0
+	MaxKeySize = 36
 )
 
 var _ runtime.StateManager = (*ContractStateManager)(nil)
@@ -67,19 +69,32 @@ func (c *ContractStateManager) GetAccountContract(ctx context.Context, account c
 	return runtime.ContractID(v[:ids.IDLen]), nil
 }
 
-func (c *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
+func ContractBytesKey(contractID runtime.ContractID) (k []byte) {
 	// contractBytePrefix -> contractID = bytes
-	k := make([]byte, 0, 2+ids.IDLen)
+	k = make([]byte, 0, 1+ids.IDLen)
 	k = append(k, contractBytePrefix)
 	k = append(k, contractID[:]...)
+	k, _ = keys.Encode(k, MaxKeySize)
+	return
+}
 
-	return c.GetValue(ctx, k)
+func (c *ContractStateManager) SetContractBytes(ctx context.Context, contractID runtime.ContractID, contractBytes []byte) error {
+	return c.Insert(ctx, ContractBytesKey(contractID), contractBytes)
+}
+
+func (c *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
+	return c.GetValue(ctx, ContractBytesKey(contractID))
+}
+
+func GetAccountAddress(contractID runtime.ContractID, accountCreationData []byte) codec.Address {
+	return codec.CreateAddress(AccountTypeID, sha256.Sum256(append(contractID[:], accountCreationData...)))
 }
 
 func (c *ContractStateManager) NewAccountWithContract(ctx  context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {	
 	// TODO: don't we need to generate a random address here? where should we get the randomness?
 	// if we use the account creation data, someone could override previous accounts
-	account := codec.CreateAddress(AccountTypeID, sha256.Sum256(accountCreationData))
+	account := GetAccountAddress(contractID, accountCreationData)
+
 
 	// check if the account already exists
 	if _, err := c.GetValue(ctx, AccountContractIDKey(account)); err == nil {
@@ -95,7 +110,7 @@ func AccountContractIDKey(account codec.Address) (k []byte) {
 	k = append(k, contractPrefix)
 	k = append(k, account[:]...)
 	k = append(k, contractIDPrefix)
-
+	k, _ = keys.Encode(k, MaxKeySize)
 	return
 }
 

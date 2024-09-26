@@ -7,4 +7,8 @@ const (
 	// Action TypeIDs
 	TransferID uint8 = 0
 	DeployID  uint8 = 1
+	DeployOutputId uint8 = 2
+
+	// Id used for codec.Address
+	AddressID uint8 = 0
 )

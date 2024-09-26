@@ -8,7 +8,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 var _ chain.Action = (*Deploy)(nil)
@@ -17,9 +19,9 @@ var _ chain.Action = (*Deploy)(nil)
 type Deploy struct {
 	// ContractBytes is the wasm bytes of the contract being deployed
 	ContractBytes []byte
+	// Creation Data used for generating random accounts
+	CreationData []byte
 }
-
-// Action Interface
 
 // units to execute this action
 func (*Deploy) ComputeUnits(chain.Rules) uint64 {
@@ -28,27 +30,45 @@ func (*Deploy) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Why is StateKeysMaxChunks part of the action interface?
-func (*Deploy) StateKeysMaxChunks() []uint16 {
-	return nil
+func (d *Deploy) StateKeysMaxChunks() []uint16 {
+	return []uint16{uint16(len(d.ContractBytes) / 64), uint16(1)}
 }
 
-// Specify all statekeys 
-func (*Deploy) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
-	return nil
+// Specify all statekeys Execute can touch
+func (d *Deploy) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+	contractID := sha256.Sum256(d.ContractBytes)
+	contractBytesKey := storage.ContractBytesKey(contractID[:])
+	account := storage.GetAccountAddress(contractID[:], d.CreationData)
+	contractAccountKey := storage.AccountContractIDKey(account)
+
+	return state.Keys{
+		string(contractBytesKey): state.Read | state.Write,
+		string(contractAccountKey): state.Read | state.Write,
+	}
 }
 
 // Execute deploys the contract to the chain, returning {deploy contract ID, deployed contract address}
 func (d *Deploy) Execute(ctx context.Context, rules chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (codec.Typed, error) {
+	contractStateManager := (&storage.ContractStateManager{Mutable: mu})
 	// gets the contract ID by hashing the contract bytes
 	contractID := sha256.Sum256(d.ContractBytes)
 	
-	// checks if the contract is already deployed
-		// if _, err := mu.Get(ctx, contractID); err == nil {
+	// no need to re-set the bytes
+	if _, err := contractStateManager.GetContractBytes(ctx, contractID[:]); err == nil {
+		account := storage.GetAccountAddress(contractID[:], d.CreationData)
+		return &DeployOutput{contractID[:], account}, nil
+	}
+	
 	// add the contract bytes to the storage
-	// create a new account associated with the contract
+	contractStateManager.SetContractBytes(ctx, contractID[:], d.ContractBytes)
 
+	// set the contract id
+	account, err := contractStateManager.NewAccountWithContract(ctx, contractID[:], d.CreationData)
+	if err != nil {
+		return &DeployOutput{}, nil
+	}
 
-	return nil, nil
+	return &DeployOutput{contractID[:], account}, nil
 }
 
 // Object interface
@@ -58,4 +78,13 @@ func (*Deploy) GetTypeID() uint8 {
 
 func (*Deploy) ValidRange(rules chain.Rules) (int64, int64) {
 	return -1, -1
+}
+
+type DeployOutput struct {
+	ID runtime.ContractID
+	Account codec.Address
+}
+
+func (*DeployOutput) GetTypeID() uint8 {
+	return consts.DeployOutputId
 }
