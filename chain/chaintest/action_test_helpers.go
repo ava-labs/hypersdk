@@ -115,7 +115,7 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
 		require.NoError(err)
-		require.Equal(output, test.ExpectedOutputs)
+		require.Equal(test.ExpectedOutputs[i], output)
 	}
 
 	b.StopTimer()
