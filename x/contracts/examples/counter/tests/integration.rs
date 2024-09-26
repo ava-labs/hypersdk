@@ -22,15 +22,14 @@ fn init_contract() -> Result<(), Error> {
 fn increment() {
     let mut state = SimpleState::new();
     let simulator = Simulator::new(&mut state);
-    let gas = 100000000;
     let bob = Address::new([1; 33]);
     let counter_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<bool, _>(counter_address, "inc", (bob, 10u64), gas)
+        .call_contract::<bool, _>(counter_address, "inc", (bob, 10u64))
         .unwrap();
     let value: u64 = simulator
-        .call_contract(counter_address, "get_value", ((bob),), gas)
+        .call_contract(counter_address, "get_value", ((bob),))
         .unwrap();
 
     assert_eq!(value, 10);

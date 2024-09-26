@@ -1,10 +1,10 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{borsh, Address};
+use crate::{borsh, Address, Gas};
 use core::{marker::PhantomData, ops::Deref};
 use simulator::{
-    bindings::{Address as BindingAddress, Bytes, SimulatorCallContext},
+    bindings::{Address as BindingAddress, Bytes, Gas as BindingGas, SimulatorCallContext},
     state::{self, Mutable},
 };
 use std::{
@@ -63,12 +63,24 @@ impl From<Address> for BindingAddress {
     }
 }
 
+impl From<Gas> for BindingGas {
+    fn from(value: Gas) -> Self {
+        match value {
+            Gas::PassAll => Self {
+                pass_all: 1,
+                units: 0,
+            },
+            Gas::Units(units) => Self { pass_all: 0, units },
+        }
+    }
+}
+
 struct CallContext<'a, 'b> {
     simulator: &'a Simulator<'b>,
     contract: Address,
     method: CString,
     params: Vec<u8>,
-    gas: u64,
+    gas: Gas,
 }
 
 impl<'a, 'b> CallContext<'a, 'b> {
@@ -77,7 +89,7 @@ impl<'a, 'b> CallContext<'a, 'b> {
         contract: Address,
         method: CString,
         params: Vec<u8>,
-        gas: u64,
+        gas: Gas,
     ) -> Self {
         Self {
             simulator,
@@ -104,7 +116,7 @@ impl<'a> From<&'a CallContext<'_, '_>> for BorrowedCallContext<'a> {
                     data: ctx.params.as_ptr(),
                     length: ctx.params.len(),
                 },
-                max_gas: ctx.gas,
+                gas: ctx.gas.into(),
             },
             PhantomData,
         )
@@ -174,7 +186,6 @@ impl<'a> Simulator<'a> {
         contract: Address,
         method: &str,
         params: U,
-        gas: u64,
     ) -> Result<T, Error>
     where
         T: borsh::BorshDeserialize,
@@ -183,7 +194,7 @@ impl<'a> Simulator<'a> {
         let method = CString::new(method).expect("error converting method to CString");
         let params = borsh::to_vec(&params).expect("error serializing result");
 
-        let context = CallContext::new(self, contract, method, params, gas);
+        let context = CallContext::new(self, contract, method, params, Gas::Units(u64::MAX));
         let context = BorrowedCallContext::from(&context);
 
         let result = simulator::call_contract(&self.state, &context);

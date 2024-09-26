@@ -10,7 +10,6 @@ const CONTRACT_PATH: &str = env!("CONTRACT_PATH");
 
 type Units = u64;
 
-const MAX_UNITS: u64 = 1000000;
 #[test]
 fn create_contract() -> Result<(), Error> {
     let mut state = SimpleState::new();
@@ -30,21 +29,21 @@ fn init_token() {
     let contract_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"), MAX_UNITS)
+        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"))
         .unwrap();
 
     let supply = simulator
-        .call_contract::<Units, _>(contract_address, "total_supply", (), MAX_UNITS)
+        .call_contract::<Units, _>(contract_address, "total_supply", ())
         .unwrap();
     assert_eq!(supply, 0);
 
     let symbol = simulator
-        .call_contract::<String, _>(contract_address, "symbol", (), MAX_UNITS)
+        .call_contract::<String, _>(contract_address, "symbol", ())
         .unwrap();
     assert_eq!(symbol, "TST");
 
     let name = simulator
-        .call_contract::<String, _>(contract_address, "name", (), MAX_UNITS)
+        .call_contract::<String, _>(contract_address, "name", ())
         .unwrap();
     assert_eq!(name, "Test");
 }
@@ -60,25 +59,20 @@ fn mint() {
     let contract_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"), MAX_UNITS)
+        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"))
         .unwrap();
 
     simulator
-        .call_contract::<(), _>(
-            contract_address,
-            "mint",
-            (alice, alice_initial_balance),
-            MAX_UNITS,
-        )
+        .call_contract::<(), _>(contract_address, "mint", (alice, alice_initial_balance))
         .unwrap();
 
     let balance: Units = simulator
-        .call_contract(contract_address, "balance_of", (alice,), MAX_UNITS)
+        .call_contract(contract_address, "balance_of", (alice,))
         .unwrap();
     assert_eq!(balance, alice_initial_balance);
 
     let total_supply: Units = simulator
-        .call_contract(contract_address, "total_supply", (), MAX_UNITS)
+        .call_contract(contract_address, "total_supply", ())
         .unwrap();
     assert_eq!(total_supply, alice_initial_balance);
 }
@@ -95,29 +89,19 @@ fn burn() {
     let contract_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"), MAX_UNITS)
+        .call_contract::<(), _>(contract_address, "init", ("Test", "TST"))
         .unwrap();
 
     simulator
-        .call_contract::<(), _>(
-            contract_address,
-            "mint",
-            (alice, alice_initial_balance),
-            MAX_UNITS,
-        )
+        .call_contract::<(), _>(contract_address, "mint", (alice, alice_initial_balance))
         .unwrap();
 
     simulator
-        .call_contract::<Units, _>(
-            contract_address,
-            "burn",
-            (alice, alice_burn_amount),
-            MAX_UNITS,
-        )
+        .call_contract::<Units, _>(contract_address, "burn", (alice, alice_burn_amount))
         .unwrap();
 
     let balance: Units = simulator
-        .call_contract(contract_address, "balance_of", (alice,), MAX_UNITS)
+        .call_contract(contract_address, "balance_of", (alice,))
         .unwrap();
     assert_eq!(balance, alice_initial_balance - alice_burn_amount);
 }

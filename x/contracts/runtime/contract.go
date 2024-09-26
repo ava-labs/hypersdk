@@ -45,6 +45,9 @@ type CallInfo struct {
 	// the serialized parameters that will be passed to the called function
 	Params []byte
 
+	// true if the call passes all gas
+	PassAll bool
+
 	// the maximum amount of fuel allowed to be consumed by wasm for this call
 	Fuel uint64
 

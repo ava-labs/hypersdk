@@ -4,7 +4,7 @@
 use std::cmp;
 use token::Units;
 use wasmlanche::{
-    public, state_schema, Address, Context, ContractId, ExternalCallArgs, ExternalCallContext,
+    public, state_schema, Address, Context, ContractId, ExternalCallArgs, ExternalCallContext, Gas,
 };
 
 mod math;
@@ -17,14 +17,11 @@ state_schema! {
     LiquidityToken => Address,
 }
 
-const MAX_GAS: u64 = 10_000_000;
-const ZERO: u64 = 0;
-
 fn call_args_from_address(address: Address) -> ExternalCallArgs {
     ExternalCallArgs {
         contract_address: address,
-        max_units: MAX_GAS.into(),
-        value: ZERO,
+        max_units: Gas::PassAll,
+        value: 0,
     }
 }
 

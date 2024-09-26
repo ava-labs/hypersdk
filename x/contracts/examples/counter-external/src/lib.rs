@@ -1,13 +1,13 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche::{public, Address, Context, ExternalCallArgs};
+use wasmlanche::{public, Address, Context, ExternalCallArgs, Gas};
 
 #[public]
 pub fn inc(ctx: &mut Context, contract_address: Address, of: Address) {
     let args = ExternalCallArgs {
         contract_address,
-        max_units: 1_000_000.into(),
+        max_units: Gas::PassAll,
         value: 0,
     };
 
@@ -20,7 +20,7 @@ pub fn inc(ctx: &mut Context, contract_address: Address, of: Address) {
 pub fn get_value(ctx: &mut Context, contract_address: Address, of: Address) -> u64 {
     let args = ExternalCallArgs {
         contract_address,
-        max_units: 1_000_000.into(),
+        max_units: Gas::PassAll,
         value: 0,
     };
 

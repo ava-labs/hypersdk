@@ -6,7 +6,6 @@ extern crate alloc;
 use alloc::boxed::Box;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use core::num::NonZeroU64;
 use core::{array, mem::size_of};
 
 /// Byte length of an action ID.
@@ -18,38 +17,45 @@ pub type Id = [u8; ID_LEN];
 #[derive(Clone, Copy, Debug)]
 pub enum Gas {
     PassAll,
-    Units(NonZeroU64),
-}
-
-impl From<&Gas> for u64 {
-    fn from(value: &Gas) -> Self {
-        match value {
-            Gas::PassAll => 0,
-            Gas::Units(num) => num.get(),
-        }
-    }
+    Units(u64),
 }
 
 impl From<u64> for Gas {
     fn from(value: u64) -> Self {
-        match value {
-            0 => Gas::PassAll,
-            num => Gas::Units(unsafe { NonZeroU64::new_unchecked(num) }),
-        }
+        Self::Units(value)
     }
 }
 
 impl BorshSerialize for Gas {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        let num: u64 = self.into();
-        num.serialize(writer)
+        let units = match self {
+            Self::PassAll => {
+                true.serialize(writer)?;
+                0
+            }
+            Self::Units(units) => {
+                false.serialize(writer)?;
+                *units
+            }
+        };
+        units.serialize(writer)
     }
 }
 
 impl BorshDeserialize for Gas {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let num = u64::deserialize_reader(reader)?;
-        Ok(num.into())
+        let pass_all = bool::deserialize_reader(reader)?;
+        let units = u64::deserialize_reader(reader)?;
+        let gas = if pass_all {
+            if units > 0 {
+                // return Err()
+                todo!()
+            }
+            Gas::PassAll
+        } else {
+            Gas::Units(units)
+        };
+        Ok(gas)
     }
 }
 
