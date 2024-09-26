@@ -92,7 +92,6 @@ func (c *ContractStateManager) NewAccountWithContract(ctx  context.Context, cont
 	// if we use the account creation data, someone could override previous accounts
 	account := GetAccountAddress(contractID, accountCreationData)
 
-
 	// check if the account already exists
 	if _, err := c.GetValue(ctx, AccountContractIDKey(account)); err == nil {
 		return codec.EmptyAddress, ErrContractExists

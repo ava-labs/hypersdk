@@ -90,3 +90,37 @@ type CallOutput struct {
 func (*CallOutput) GetTypeID() uint8 {
 	return consts.CallOutputId
 }
+
+
+var _ chain.Marshaler = (*Call)(nil)
+
+func (c *Call) Size() int {
+	// TODO: don't hardcode uint sizes
+	return codec.AddressLen + 8 + len(c.FunctionName) + len(c.Args) + 8
+}
+
+func (c *Call) Marshal(p *codec.Packer) {
+	p.PackBytes(c.ContractAddress[:])
+	p.PackUint64(c.Value)
+	p.PackString(c.FunctionName)
+	p.PackBytes(c.Args)
+	p.PackUint64(c.Fuel)
+
+}
+
+func UnmarshalCall(p *codec.Packer) (chain.Action, error) {
+	var callContract Call
+	contractAddress := p.Packer.UnpackBytes()
+	value := p.UnpackUint64(true)
+	functionName := p.UnpackString(true)
+	args := p.Packer.UnpackBytes()
+	fuel := p.UnpackUint64(true)
+
+	callContract.ContractAddress = codec.Address(contractAddress)
+	callContract.Value = value
+	callContract.FunctionName = functionName
+	callContract.Args = args
+	callContract.Fuel = fuel
+
+	return &callContract, nil
+}

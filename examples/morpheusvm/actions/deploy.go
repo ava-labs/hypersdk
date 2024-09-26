@@ -11,10 +11,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
+	"github.com/docker/go-units"
 )
 
 var _ chain.Action = (*Deploy)(nil)
 
+const (
+	MAX_CONTRACT_SIZE = 4 * units.MiB
+)
 // Deploy, deploys a contract to the chain with the given bytes
 type Deploy struct {
 	// ContractBytes is the wasm bytes of the contract being deployed
@@ -87,4 +91,24 @@ type DeployOutput struct {
 
 func (*DeployOutput) GetTypeID() uint8 {
 	return consts.DeployOutputId
+}
+
+var _ chain.Marshaler = (*Deploy)(nil)
+
+func (d *Deploy) Size() int {
+	return len(d.ContractBytes) + len(d.CreationData)
+}
+
+func (d *Deploy) Marshal(p *codec.Packer) {
+	p.PackBytes(d.ContractBytes)
+	p.PackBytes(d.CreationData)
+}
+
+func UnmarshalDeploy(p *codec.Packer) (chain.Action, error) {
+	var deployContract Deploy
+	contractBytes := p.Packer.UnpackBytes()
+	contractCreationData := p.Packer.UnpackBytes()
+	deployContract.ContractBytes = contractBytes
+	deployContract.CreationData = contractCreationData
+	return &deployContract, nil
 }
