@@ -342,7 +342,7 @@ pub struct CallContractBuilder<'a> {
     ctx: &'a mut Context,
     address: Address,
     max_units: Gas,
-    value: Option<u64>,
+    value: u64,
 }
 
 impl<'a> CallContractBuilder<'a> {
@@ -351,7 +351,7 @@ impl<'a> CallContractBuilder<'a> {
             ctx,
             address,
             max_units: Gas::PassAll,
-            value: None,
+            value: 0,
         }
     }
 
@@ -361,7 +361,7 @@ impl<'a> CallContractBuilder<'a> {
     }
 
     pub fn with_value(mut self, value: u64) -> Self {
-        self.value = Some(value);
+        self.value = value;
         self
     }
 
@@ -375,7 +375,7 @@ impl<'a> CallContractBuilder<'a> {
             function_name,
             args,
             self.max_units,
-            self.value.unwrap_or_default(),
+            self.value,
         )
     }
 }
