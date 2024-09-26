@@ -49,7 +49,7 @@ func (d *Deploy) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 
 // Execute deploys the contract to the chain, returning {deploy contract ID, deployed contract address}
 func (d *Deploy) Execute(ctx context.Context, rules chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (codec.Typed, error) {
-	contractStateManager := (&storage.ContractStateManager{Mutable: mu})
+	contractStateManager := &storage.ContractStateManager{Mutable: mu}
 	// gets the contract ID by hashing the contract bytes
 	contractID := sha256.Sum256(d.ContractBytes)
 	

@@ -16,7 +16,7 @@ func TestDeployAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
 	counterBytes, err := LoadBytes("counter.wasm")
 	require.NoError(t, err)
-	contractID := sha256.Sum256(counterBytes)
+	counterID := sha256.Sum256(counterBytes)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -31,19 +31,21 @@ func TestDeployAction(t *testing.T) {
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				account := storage.GetAccountAddress(contractID[:], []byte{0})
+				account := storage.GetAccountAddress(counterID[:], []byte{0})
 				contractAccountKey := storage.AccountContractIDKey(account)
-				contractBytesKey := storage.ContractBytesKey(contractID[:])
+				contractBytesKey := storage.ContractBytesKey(counterID[:])
 
-				_, err := store.GetValue(ctx, contractBytesKey)
+				contractBytes, err := store.GetValue(ctx, contractBytesKey)
+				require.Equal(t, counterBytes, contractBytes)
 				require.NoError(t, err)
 
-				_, err = store.GetValue(ctx, contractAccountKey)
+				contractID, err := store.GetValue(ctx, contractAccountKey)
+				require.Equal(t, counterID[:], contractID[:])
 				require.NoError(t, err)
 			},
 			ExpectedOutputs: &DeployOutput{
-				ID: contractID[:],
-				Account: storage.GetAccountAddress(contractID[:], []byte{0}),
+				ID: counterID[:],
+				Account: storage.GetAccountAddress(counterID[:], []byte{0}),
 			},
 		},
 	}

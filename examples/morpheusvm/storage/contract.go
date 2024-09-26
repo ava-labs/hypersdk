@@ -54,10 +54,7 @@ func (c *ContractStateManager) GetContractState(address codec.Address) state.Mut
 
 func (c *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
 	// contractPrefix -> account -> id prefix = contractID
-	k := make([]byte, 0, 2+codec.AddressLen)
-	k = append(k, contractPrefix)
-	k = append(k, account[:]...)
-	k = append(k, contractIDPrefix)
+	k := AccountContractIDKey(account)
 
 	v, err := c.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
