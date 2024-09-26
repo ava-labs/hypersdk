@@ -142,6 +142,16 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			To:    to,
 			Value: 1,
 		},
+		ExpectedOutputs: func() []codec.Typed {
+			outputs := make([]codec.Typed, 0)
+			for i := 0; i < b.N; i++ {
+				outputs = append(outputs, &TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				})
+			}
+			return outputs
+		}(),
 		CreateState: func() state.Mutable {
 			store := chaintest.NewInMemoryStore()
 			err := storage.SetBalance(context.Background(), store, from, 1)
