@@ -18,7 +18,6 @@ import (
 const Endpoint = "/blockindexer"
 
 var (
-	ErrTxNotFound    = errors.New("tx not found")
 	ErrNoLatestBlock = errors.New("latest block not found")
 
 	_ api.HandlerFactory[api.VM] = (*apiFactory)(nil)
