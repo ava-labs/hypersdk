@@ -29,9 +29,10 @@ func (*Deploy) ComputeUnits(chain.Rules) uint64 {
 	return consts.DeployUnits
 }
 
-// Why is StateKeysMaxChunks part of the action interface?
 func (d *Deploy) StateKeysMaxChunks() []uint16 {
-	return []uint16{uint16(len(d.ContractBytes) / 64), uint16(1)}
+	byteChunks := storage.MaxContractSize / consts.ChunkSize
+	accountKeyChunks := uint16(1)
+	return []uint16{uint16(byteChunks), accountKeyChunks}
 }
 
 // Specify all statekeys Execute can touch

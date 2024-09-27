@@ -7,6 +7,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -21,6 +22,7 @@ var (
 const (
 	AccountTypeID = 0
 	MaxKeySize    = 36
+	MaxContractSize = units.MiB * 4
 )
 
 var _ runtime.StateManager = (*ContractStateManager)(nil)
