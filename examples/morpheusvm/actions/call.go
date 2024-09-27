@@ -37,7 +37,7 @@ type Call struct {
 
 // units to execute this action
 func (*Call) ComputeUnits(chain.Rules) uint64 {
-	return consts.CallUnits;
+	return consts.CallUnits
 }
 
 func (c *Call) StateKeysMaxChunks() []uint16 {
@@ -55,17 +55,17 @@ func (c *Call) Execute(ctx context.Context, rules chain.Rules, mu state.Mutable,
 	contractState := &storage.ContractStateManager{Mutable: mu}
 
 	runtimeCallInfo := &runtime.CallInfo{
-		State: contractState,
-		Actor: actor,
+		State:        contractState,
+		Actor:        actor,
 		FunctionName: c.FunctionName,
-		Contract: c.ContractAddress,
-		Params: c.Args,
-		Fuel: c.Fuel,
+		Contract:     c.ContractAddress,
+		Params:       c.Args,
+		Fuel:         c.Fuel,
 		// pass in the timestamp as the height
-		Height: uint64(timestamp),
+		Height:    uint64(timestamp),
 		Timestamp: uint64(timestamp),
 	}
-	
+
 	result, err := c.r.CallContract(ctx, runtimeCallInfo)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,6 @@ type CallOutput struct {
 func (*CallOutput) GetTypeID() uint8 {
 	return consts.CallOutputId
 }
-
 
 var _ chain.Marshaler = (*Call)(nil)
 

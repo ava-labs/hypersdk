@@ -42,7 +42,7 @@ func (d *Deploy) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	contractAccountKey := storage.AccountContractIDKey(account)
 
 	return state.Keys{
-		string(contractBytesKey): state.Read | state.Write,
+		string(contractBytesKey):   state.Read | state.Write,
 		string(contractAccountKey): state.Read | state.Write,
 	}
 }
@@ -52,13 +52,13 @@ func (d *Deploy) Execute(ctx context.Context, rules chain.Rules, mu state.Mutabl
 	contractStateManager := &storage.ContractStateManager{Mutable: mu}
 	// gets the contract ID by hashing the contract bytes
 	contractID := sha256.Sum256(d.ContractBytes)
-	
+
 	// no need to re-set the bytes
 	if _, err := contractStateManager.GetContractBytes(ctx, contractID[:]); err == nil {
 		account := storage.GetAccountAddress(contractID[:], d.CreationData)
 		return &DeployOutput{contractID[:], account}, nil
 	}
-	
+
 	// add the contract bytes to the storage
 	contractStateManager.SetContractBytes(ctx, contractID[:], d.ContractBytes)
 
@@ -81,7 +81,7 @@ func (*Deploy) ValidRange(rules chain.Rules) (int64, int64) {
 }
 
 type DeployOutput struct {
-	ID runtime.ContractID
+	ID      runtime.ContractID
 	Account codec.Address
 }
 

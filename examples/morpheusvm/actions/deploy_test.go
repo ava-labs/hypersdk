@@ -44,7 +44,7 @@ func TestDeployAction(t *testing.T) {
 				require.NoError(t, err)
 			},
 			ExpectedOutputs: &DeployOutput{
-				ID: counterID[:],
+				ID:      counterID[:],
 				Account: storage.GetAccountAddress(counterID[:], []byte{0}),
 			},
 		},
