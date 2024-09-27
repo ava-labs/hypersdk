@@ -20,7 +20,7 @@ var (
 
 const (
 	AccountTypeID = 0
-	MaxKeySize = 36
+	MaxKeySize    = 36
 )
 
 var _ runtime.StateManager = (*ContractStateManager)(nil)
@@ -29,7 +29,6 @@ type ContractStateManager struct {
 	state.Mutable
 }
 
-// implement BalanceManager interface
 func (c *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	return GetBalance(ctx, c, address)
 }
@@ -44,7 +43,6 @@ func (c *ContractStateManager) TransferBalance(ctx context.Context, from codec.A
 	return err
 }
 
-// implement ContractManager interface
 func (c *ContractStateManager) GetContractState(address codec.Address) state.Mutable {
 	return &prefixedStateMutable{
 		inner:  c,
@@ -53,7 +51,6 @@ func (c *ContractStateManager) GetContractState(address codec.Address) state.Mut
 }
 
 func (c *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
-	// contractPrefix -> account -> id prefix = contractID
 	k := AccountContractIDKey(account)
 
 	v, err := c.GetValue(ctx, k)
@@ -87,7 +84,7 @@ func GetAccountAddress(contractID runtime.ContractID, accountCreationData []byte
 	return codec.CreateAddress(AccountTypeID, sha256.Sum256(append(contractID[:], accountCreationData...)))
 }
 
-func (c *ContractStateManager) NewAccountWithContract(ctx  context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {	
+func (c *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
 	// TODO: don't we need to generate a random address here? where should we get the randomness?
 	// if we use the account creation data, someone could override previous accounts
 	account := GetAccountAddress(contractID, accountCreationData)
@@ -112,7 +109,6 @@ func AccountContractIDKey(account codec.Address) (k []byte) {
 
 func (c *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
 	k := AccountContractIDKey(account)
-
 	return c.Insert(ctx, k, contractID[:])
 }
 
@@ -146,5 +142,5 @@ func accountStatePrefix(addr codec.Address) (k []byte) {
 	k = append(k, contractPrefix)
 	k = append(k, addr[:]...)
 	k = append(k, contractStatePrefix)
-	return 
+	return
 }
