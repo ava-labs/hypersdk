@@ -4,7 +4,6 @@
 package indexer
 
 import (
-	"encoding/binary"
 	"errors"
 	"path/filepath"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
@@ -25,9 +25,6 @@ const (
 )
 
 var (
-	failureByte = byte(0x0)
-	successByte = byte(0x1)
-
 	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
 	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
 )
@@ -103,6 +100,7 @@ func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
 			result.Success,
 			result.Units,
 			result.Fee,
+			result.Outputs,
 		); err != nil {
 			return err
 		}
@@ -122,36 +120,54 @@ func (*txDBIndexer) storeTransaction(
 	success bool,
 	units fees.Dimensions,
 	fee uint64,
+	outputs [][]byte,
 ) error {
-	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
-	binary.BigEndian.PutUint64(v, uint64(timestamp))
-	if success {
-		v[consts.Uint64Len] = successByte
-	} else {
-		v[consts.Uint64Len] = failureByte
+	outputLength := consts.ByteLen // Single byte containing number of outputs
+	for _, output := range outputs {
+		outputLength += consts.Uint32Len + len(output)
 	}
-	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
-	return batch.Put(txID[:], v)
+	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
+
+	writer := codec.NewWriter(txResultLength, txResultLength)
+	writer.PackUint64(uint64(timestamp))
+	writer.PackBool(success)
+	writer.PackFixedBytes(units.Bytes())
+	writer.PackUint64(fee)
+	writer.PackByte(byte(len(outputs)))
+	for _, output := range outputs {
+		writer.PackBytes(output)
+	}
+	if err := writer.Err(); err != nil {
+		return err
+	}
+	return batch.Put(txID[:], writer.Bytes())
 }
 
-func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
 	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil
+		return false, 0, false, fees.Dimensions{}, 0, nil, nil
 	}
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, nil, err
 	}
-	timestamp := int64(binary.BigEndian.Uint64(v))
-	success := true
-	if v[consts.Uint64Len] == failureByte {
-		success = false
+	reader := codec.NewReader(v, consts.NetworkSizeLimit)
+	timestamp := reader.UnpackUint64(true)
+	success := reader.UnpackBool()
+	dimensionsBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &dimensionsBytes)
+	fee := reader.UnpackUint64(true)
+	numOutputs := int(reader.UnpackByte())
+	outputs := make([][]byte, numOutputs)
+	for i := range outputs {
+		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
 	}
-	d, err := fees.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+fees.DimensionsLen])
+	if err := reader.Err(); err != nil {
+		return false, 0, false, fees.Dimensions{}, 0, nil, err
+	}
+	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, nil, err
 	}
-	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
-	return true, timestamp, success, d, fee, nil
+	return true, int64(timestamp), success, dimensions, fee, outputs, nil
 }
