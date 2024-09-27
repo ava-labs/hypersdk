@@ -11,20 +11,16 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
-	"github.com/docker/go-units"
 )
 
 var _ chain.Action = (*Deploy)(nil)
 
-const (
-	MAX_CONTRACT_SIZE = 4 * units.MiB
-)
 // Deploy, deploys a contract to the chain with the given bytes
 type Deploy struct {
 	// ContractBytes is the wasm bytes of the contract being deployed
-	ContractBytes []byte
+	ContractBytes []byte `json:"contractBytes"`
 	// Creation Data used for generating random accounts
-	CreationData []byte
+	CreationData []byte `json:"creationData"`
 }
 
 // units to execute this action

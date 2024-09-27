@@ -17,19 +17,19 @@ var _ chain.Action = (*Call)(nil)
 // Deploy, deploys a contract to the chain with the given bytes
 type Call struct {
 	// address of the contract
-	ContractAddress codec.Address
+	ContractAddress codec.Address `json:"contractAddress"`
 
 	// value passed into the contract
-	Value uint64
+	Value uint64 `json:"value"`
 
 	// function name to call
-	FunctionName string
+	FunctionName string `json:"functionName"`
 
 	// borsh serialized arguments
-	Args []byte
+	Args []byte `json:"args"`
 
 	// amount of gas to use
-	Fuel uint64
+	Fuel uint64 `json:"fuel"`
 
 	// runtime
 	r *runtime.WasmRuntime

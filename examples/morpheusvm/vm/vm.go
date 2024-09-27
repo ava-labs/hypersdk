@@ -43,7 +43,7 @@ func init() {
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		// OutputParser.Register(&actions.TransferResult{}, nil),
 		OutputParser.Register(&actions.DeployOutput{}, nil),
 		OutputParser.Register(&actions.CallOutput{}, nil),
 	)
