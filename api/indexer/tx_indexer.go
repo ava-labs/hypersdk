@@ -122,11 +122,11 @@ func (*txDBIndexer) storeTransaction(
 	fee uint64,
 	outputs [][]byte,
 ) error {
-	outputLength := 1 // Single byte containing number of outputs
+	outputLength := consts.ByteLen // Single byte containing number of outputs
 	for _, output := range outputs {
 		outputLength += consts.Uint32Len + len(output)
 	}
-	txResultLength := consts.Uint64Len + 1 + fees.DimensionsLen + consts.Uint64Len + outputLength
+	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
 
 	writer := codec.NewWriter(txResultLength, txResultLength)
 	writer.PackUint64(uint64(timestamp))
