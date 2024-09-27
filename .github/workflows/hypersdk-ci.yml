@@ -53,6 +53,9 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
+      - name: Run noInternalLint
+        shell: bash
+        run: scripts/lint.no_internal.sh
 
   hypersdk-unit-tests:
     runs-on: ubuntu-20.04-32
