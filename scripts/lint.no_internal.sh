@@ -1,6 +1,7 @@
 #!/bin/bash
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
-# Find all Go files in the /examples directory
 violations=0
 
 if ! [[ "$0" =~ scripts/lint.no_internal.sh ]]; then
