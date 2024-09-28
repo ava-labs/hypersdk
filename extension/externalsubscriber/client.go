@@ -60,14 +60,9 @@ func (e *ExternalSubscriberClient) Accept(blk *chain.ExecutedBlock) error {
 	if err != nil {
 		return err
 	}
-	resultsMarshaled, err := chain.MarshalResults(blk.Results)
-	if err != nil {
-		return err
-	}
 
 	req := &pb.BlockRequest{
 		BlockData: blockBytes,
-		Results:   resultsMarshaled,
 	}
 	e.log.Debug("sending accepted block to server",
 		zap.Stringer("blockID", blk.ID()),
