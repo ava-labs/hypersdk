@@ -73,3 +73,10 @@ func Encode(key []byte, maxSize int) ([]byte, bool) {
 func EncodeChunks(key []byte, maxChunks uint16) []byte {
 	return binary.BigEndian.AppendUint16(key, maxChunks)
 }
+
+func DecodeChunks(key []byte) (uint16, bool) {
+	if len(key) < 2 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint16(key[len(key)-2:]), true
+}

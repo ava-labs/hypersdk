@@ -98,6 +98,10 @@ func (*ED25519Factory) MaxUnits() (uint64, uint64) {
 	return ED25519Size, ED25519ComputeUnits
 }
 
+func (d *ED25519Factory) Address() codec.Address {
+	return NewED25519Address(d.priv.PublicKey())
+}
+
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
