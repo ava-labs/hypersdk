@@ -11,56 +11,12 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
 const (
 	BlockMode byte = 0
 	TxMode    byte = 1
 )
-
-func PackBlockMessage(b *chain.StatefulBlock) ([]byte, error) {
-	results := b.Results()
-	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + fees.DimensionsLen
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackBytes(b.Bytes())
-	mresults, err := chain.MarshalResults(results)
-	if err != nil {
-		return nil, err
-	}
-	p.PackBytes(mresults)
-	p.PackFixedBytes(b.FeeManager().UnitPrices().Bytes())
-	return p.Bytes(), p.Err()
-}
-
-func UnpackBlockMessage(
-	msg []byte,
-	parser chain.Parser,
-) (*chain.StatelessBlock, []*chain.Result, fees.Dimensions, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
-	var blkMsg []byte
-	p.UnpackBytes(-1, true, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg, parser)
-	if err != nil {
-		return nil, nil, fees.Dimensions{}, err
-	}
-	var resultsMsg []byte
-	p.UnpackBytes(-1, true, &resultsMsg)
-	results, err := chain.UnmarshalResults(resultsMsg)
-	if err != nil {
-		return nil, nil, fees.Dimensions{}, err
-	}
-	pricesMsg := make([]byte, fees.DimensionsLen)
-	p.UnpackFixedBytes(fees.DimensionsLen, &pricesMsg)
-	prices, err := fees.UnpackDimensions(pricesMsg)
-	if err != nil {
-		return nil, nil, fees.Dimensions{}, err
-	}
-	if !p.Empty() {
-		return nil, nil, fees.Dimensions{}, chain.ErrInvalidObject
-	}
-	return blk, results, prices, p.Err()
-}
 
 // Could be a better place for these methods
 // Packs an accepted block message

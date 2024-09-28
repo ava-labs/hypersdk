@@ -26,6 +26,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	publicfees "github.com/ava-labs/hypersdk/fees"
 )
 
 var (
@@ -892,6 +894,79 @@ func (b *StatefulBlock) Results() []*Result {
 
 func (b *StatefulBlock) FeeManager() *fees.Manager {
 	return b.feeManager
+}
+
+func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
+	return &ExecutedBlock{
+		StatelessBlock: b.StatelessBlock,
+		Results:        b.results,
+		UnitPrices:     b.feeManager.UnitPrices(),
+		blockBytes:     b.Bytes(),
+		id:             b.ID(),
+	}
+}
+
+type ExecutedBlock struct {
+	*StatelessBlock `json:"block"`
+	Results         []*Result             `json:"results"`
+	UnitPrices      publicfees.Dimensions `json:"unitPrices"`
+
+	blockBytes []byte
+	id         ids.ID
+}
+
+func (b *ExecutedBlock) ID() ids.ID { return b.id }
+
+func (b *ExecutedBlock) Marshal() ([]byte, error) {
+	size := codec.BytesLen(b.blockBytes) + codec.CummSize(b.Results) + publicfees.DimensionsLen
+	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	writer.PackBytes(b.blockBytes)
+	resultBytes, err := MarshalResults(b.Results)
+	if err != nil {
+		return nil, err
+	}
+	writer.PackBytes(resultBytes)
+	writer.PackFixedBytes(b.UnitPrices.Bytes())
+
+	return writer.Bytes(), writer.Err()
+}
+
+func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
+	reader := codec.NewReader(bytes, consts.NetworkSizeLimit)
+
+	var blkMsg []byte
+	reader.UnpackBytes(-1, true, &blkMsg)
+	blk, err := UnmarshalBlock(blkMsg, parser)
+	if err != nil {
+		return nil, err
+	}
+	var resultsMsg []byte
+	reader.UnpackBytes(-1, true, &resultsMsg)
+	results, err := UnmarshalResults(resultsMsg)
+	if err != nil {
+		return nil, err
+	}
+	unitPricesBytes := make([]byte, publicfees.DimensionsLen)
+	reader.UnpackFixedBytes(publicfees.DimensionsLen, &unitPricesBytes)
+	prices, err := publicfees.UnpackDimensions(unitPricesBytes)
+	if err != nil {
+		return nil, err
+	}
+	if !reader.Empty() {
+		return nil, ErrInvalidObject
+	}
+	blkID, err := blk.ID()
+	if err != nil {
+		return nil, err
+	}
+	return &ExecutedBlock{
+		StatelessBlock: blk,
+		Results:        results,
+		UnitPrices:     prices,
+		blockBytes:     blkMsg,
+		id:             blkID,
+	}, nil
 }
 
 type SyncableBlock struct {

@@ -25,12 +25,12 @@ const (
 )
 
 var (
-	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatefulBlock]        = (*indexer)(nil)
+	_ event.SubscriptionFactory[*chain.ExecutedBlock] = (*subscriptionFactory)(nil)
+	_ event.Subscription[*chain.ExecutedBlock]        = (*indexer)(nil)
 )
 
 type Config struct {
-	Enabled     bool `json:"enabled"`
+	Enabled bool `json:"enabled"`
 }
 
 func NewDefaultConfig() Config {
@@ -77,7 +77,7 @@ type subscriptionFactory struct {
 	indexer *indexer
 }
 
-func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
+func (s *subscriptionFactory) New() (event.Subscription[*chain.ExecutedBlock], error) {
 	return s.indexer, nil
 }
 
@@ -85,18 +85,16 @@ type indexer struct {
 	db database.Database
 }
 
-func (t *indexer) Accept(blk *chain.StatefulBlock) error {
+func (t *indexer) Accept(blk *chain.ExecutedBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
-	timestamp := blk.GetTimestamp()
-	results := blk.Results()
 	for j, tx := range blk.Txs {
-		result := results[j]
+		result := blk.Results[j]
 		if err := t.storeTransaction(
 			batch,
 			tx.ID(),
-			timestamp,
+			blk.Tmstmp,
 			result.Success,
 			result.Units,
 			result.Fee,

@@ -17,7 +17,7 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
-var _ event.Subscription[*chain.StatefulBlock] = (*ExternalSubscriberClient)(nil)
+var _ event.Subscription[*chain.ExecutedBlock] = (*ExternalSubscriberClient)(nil)
 
 type ExternalSubscriberClient struct {
 	conn   *grpc.ClientConn
@@ -55,12 +55,12 @@ func NewExternalSubscriberClient(
 	}, nil
 }
 
-func (e *ExternalSubscriberClient) Accept(blk *chain.StatefulBlock) error {
+func (e *ExternalSubscriberClient) Accept(blk *chain.ExecutedBlock) error {
 	blockBytes, err := blk.Marshal()
 	if err != nil {
 		return err
 	}
-	resultsMarshaled, err := chain.MarshalResults(blk.Results())
+	resultsMarshaled, err := chain.MarshalResults(blk.Results)
 	if err != nil {
 		return err
 	}
