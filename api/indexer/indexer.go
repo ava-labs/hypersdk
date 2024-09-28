@@ -26,11 +26,11 @@ const (
 
 var (
 	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
+	_ event.Subscription[*chain.StatefulBlock]        = (*indexer)(nil)
 )
 
 type Config struct {
-	Enabled bool `json:"enabled"`
+	Enabled     bool `json:"enabled"`
 }
 
 func NewDefaultConfig() Config {
@@ -47,13 +47,13 @@ func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
-	dbPath := filepath.Join(v.DataDir, "indexer", "db")
+	dbPath := filepath.Join(v.DataDir, Namespace)
 	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
 	}
 
-	indexer := &txDBIndexer{
+	indexer := &indexer{
 		db: db,
 	}
 
@@ -74,18 +74,18 @@ func OptionFunc(v *vm.VM, config Config) error {
 }
 
 type subscriptionFactory struct {
-	indexer *txDBIndexer
+	indexer *indexer
 }
 
 func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
 	return s.indexer, nil
 }
 
-type txDBIndexer struct {
+type indexer struct {
 	db database.Database
 }
 
-func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
+func (t *indexer) Accept(blk *chain.StatefulBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
@@ -109,11 +109,7 @@ func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
 	return batch.Write()
 }
 
-func (t *txDBIndexer) Close() error {
-	return t.db.Close()
-}
-
-func (*txDBIndexer) storeTransaction(
+func (*indexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -143,7 +139,7 @@ func (*txDBIndexer) storeTransaction(
 	return batch.Put(txID[:], writer.Bytes())
 }
 
-func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
+func (t *indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
 	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil, nil
@@ -170,4 +166,8 @@ func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 		return false, 0, false, fees.Dimensions{}, 0, nil, err
 	}
 	return true, int64(timestamp), success, dimensions, fee, outputs, nil
+}
+
+func (t *indexer) Close() error {
+	return t.db.Close()
 }

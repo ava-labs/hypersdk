@@ -26,7 +26,7 @@ var (
 type apiFactory struct {
 	path    string
 	name    string
-	indexer *txDBIndexer
+	indexer *indexer
 }
 
 func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
@@ -58,7 +58,7 @@ type GetTxResponse struct {
 
 type Server struct {
 	tracer  trace.Tracer
-	indexer *txDBIndexer
+	indexer *indexer
 }
 
 func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
