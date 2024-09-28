@@ -6,6 +6,7 @@ package workload
 import (
 	"context"
 	"math"
+	"os"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -24,6 +25,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -229,7 +231,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	indexerCli := indexer.NewClient(uri)
+	indexerCli := indexer.NewClient(uri, requester.WithWriter(os.Stdout))
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)

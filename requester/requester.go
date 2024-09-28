@@ -6,6 +6,7 @@ package requester
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ type Option func(*Options)
 type Options struct {
 	headers     http.Header
 	queryParams url.Values
+	writer      io.Writer
 }
 
 func NewOptions(ops []Option) *Options {
@@ -57,12 +59,19 @@ func WithQueryParam(key, val string) Option {
 	}
 }
 
+func WithWriter(w io.Writer) Option {
+	return func(o *Options) {
+		o.writer = w
+	}
+}
+
 type EndpointRequester struct {
 	cli       *http.Client
 	uri, base string
+	opts      []Option
 }
 
-func New(uri, base string) *EndpointRequester {
+func New(uri, base string, opts ...Option) *EndpointRequester {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100_000
 	t.MaxConnsPerHost = 100_000
@@ -75,6 +84,7 @@ func New(uri, base string) *EndpointRequester {
 		},
 		uri:  uri,
 		base: base,
+		opts: opts,
 	}
 }
 
@@ -89,6 +99,7 @@ func (e *EndpointRequester) SendRequest(
 	if err != nil {
 		return err
 	}
+	options = append(e.opts, options...)
 	return SendJSONRequest(
 		ctx,
 		e.cli,
@@ -117,6 +128,12 @@ func SendJSONRequest(
 	ops := NewOptions(options)
 	uri.RawQuery = ops.queryParams.Encode()
 
+	if ops.writer != nil {
+		requestStr := fmt.Sprintf("Request: %s\n%s\n", uri.String(), requestBodyBytes)
+		if _, err := ops.writer.Write([]byte(requestStr)); err != nil {
+			return err
+		}
+	}
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -148,6 +165,16 @@ func SendJSONRequest(
 		all, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		return fmt.Errorf("failed to decode client response: %w %s %s", err, all, uri.String())
+	}
+	if ops.writer != nil {
+		replyBytes, err := json.Marshal(reply)
+		if err != nil {
+			return err
+		}
+
+		if _, err := ops.writer.Write([]byte(fmt.Sprintf("Response: %s\n", replyBytes))); err != nil {
+			return err
+		}
 	}
 	return resp.Body.Close()
 }

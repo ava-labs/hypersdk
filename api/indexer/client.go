@@ -14,12 +14,12 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 )
 
-func NewClient(uri string) *Client {
+func NewClient(uri string, ops ...requester.Option) *Client {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
 
 	return &Client{
-		requester: requester.New(uri, Name),
+		requester: requester.New(uri, Name, ops...),
 	}
 }
 
