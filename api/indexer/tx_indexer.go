@@ -26,7 +26,7 @@ const (
 
 var (
 	_ event.SubscriptionFactory[*chain.ExecutedBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.ExecutedBlock]        = (*indexer)(nil)
+	_ event.Subscription[*chain.ExecutedBlock]        = (*txDBIndexer)(nil)
 )
 
 type Config struct {
@@ -53,7 +53,7 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return err
 	}
 
-	indexer := &indexer{
+	indexer := &txDBIndexer{
 		db: db,
 	}
 
@@ -74,18 +74,18 @@ func OptionFunc(v *vm.VM, config Config) error {
 }
 
 type subscriptionFactory struct {
-	indexer *indexer
+	indexer *txDBIndexer
 }
 
 func (s *subscriptionFactory) New() (event.Subscription[*chain.ExecutedBlock], error) {
 	return s.indexer, nil
 }
 
-type indexer struct {
+type txDBIndexer struct {
 	db database.Database
 }
 
-func (t *indexer) Accept(blk *chain.ExecutedBlock) error {
+func (t *txDBIndexer) Accept(blk *chain.ExecutedBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
@@ -107,7 +107,11 @@ func (t *indexer) Accept(blk *chain.ExecutedBlock) error {
 	return batch.Write()
 }
 
-func (*indexer) storeTransaction(
+func (t *txDBIndexer) Close() error {
+	return t.db.Close()
+}
+
+func (*txDBIndexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -137,7 +141,7 @@ func (*indexer) storeTransaction(
 	return batch.Put(txID[:], writer.Bytes())
 }
 
-func (t *indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
+func (t *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
 	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil, nil
@@ -164,8 +168,4 @@ func (t *indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 		return false, 0, false, fees.Dimensions{}, 0, nil, err
 	}
 	return true, int64(timestamp), success, dimensions, fee, outputs, nil
-}
-
-func (t *indexer) Close() error {
-	return t.db.Close()
 }
