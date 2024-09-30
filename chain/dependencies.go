@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -9,27 +9,29 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
 	ActionRegistry *codec.TypeParser[Action]
+	OutputRegistry *codec.TypeParser[codec.Typed]
 	AuthRegistry   *codec.TypeParser[Auth]
 )
 
 type Parser interface {
 	Rules(int64) Rules
-	Registry() (ActionRegistry, AuthRegistry)
+	ActionRegistry() ActionRegistry
+	OutputRegistry() OutputRegistry
+	AuthRegistry() AuthRegistry
 }
 
 type Metrics interface {
@@ -65,14 +67,11 @@ type VM interface {
 	GetVerifyAuth() bool
 
 	IsBootstrapped() bool
-	LastAcceptedBlock() *StatelessBlock
-	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
-
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
+	LastAcceptedBlock() *StatefulBlock
+	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
-	ValidatorState() validators.State
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
@@ -80,20 +79,24 @@ type VM interface {
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
 
-	Verified(context.Context, *StatelessBlock)
-	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock)
+	Verified(context.Context, *StatefulBlock)
+	Rejected(context.Context, *StatefulBlock)
+	Accepted(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
+	UpdateSyncTarget(*StatefulBlock) (bool, error)
 	StateReady() bool
 }
 
 type VerifyContext interface {
 	View(ctx context.Context, verify bool) (state.View, error)
+	// IsRepeat returns a bitset containing the indices of [txs] that are repeats from this context back to
+	// [oldestAllowed].
+	// If [stop] is true, the search will stop at the first repeat transaction. This supports early termination
+	// during verification when any invalid transaction will cause the block to fail verification.
 	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
@@ -118,15 +121,14 @@ type Mempool interface {
 type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
-	NetworkID() uint32
-	ChainID() ids.ID
+	GetNetworkID() uint32
+	GetChainID() ids.ID
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
-	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
@@ -158,7 +160,7 @@ type MetadataManager interface {
 	FeeKey() []byte
 }
 
-type FeeHandler interface {
+type BalanceHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
@@ -172,6 +174,9 @@ type FeeHandler interface {
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+
+	// AddBalance adds [amount] to [addr].
+	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state
@@ -181,7 +186,7 @@ type FeeHandler interface {
 // None of these keys should be suffixed with the max amount of chunks they will
 // use. This will be handled by the hypersdk.
 type StateManager interface {
-	FeeHandler
+	BalanceHandler
 	MetadataManager
 }
 
@@ -194,10 +199,11 @@ type Object interface {
 	//
 	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
+}
 
-	// Marshal encodes an [Action] as bytes.
+type Marshaler interface {
+	// Marshal encodes a type as bytes.
 	Marshal(p *codec.Packer)
-
 	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
 	// memory during encoding and to charge bandwidth fees.
 	Size() int
@@ -239,11 +245,12 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (outputs [][]byte, err error)
+	) (codec.Typed, error)
 }
 
 type Auth interface {
 	Object
+	Marshaler
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute

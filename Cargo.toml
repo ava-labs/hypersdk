@@ -1,15 +1,15 @@
 [workspace]
 members = [
-    "x/programs/cmd/simulator",
-    "x/programs/rust/sdk-macros",
-    "x/programs/rust/wasmlanche-sdk",
-    "x/programs/rust/examples/token",
-    "x/programs/rust/examples/counter",
-    "x/programs/rust/examples/counter-external",
-    "x/programs/rust/examples/automated-market-maker",
-    "x/programs/rust/wasmlanche-sdk/tests/test-crate",
-    "x/programs/test/programs/*",
-    "x/programs/cmd/simulator/test/*",
+  "x/contracts/sdk-macros",
+  "x/contracts/wasmlanche",
+  "x/contracts/examples/token",
+  "x/contracts/examples/counter",
+  "x/contracts/examples/counter-external",
+  "x/contracts/examples/automated-market-maker",
+  "x/contracts/wasmlanche/tests/test-crate",
+  "x/contracts/test/contracts/*",
+  "x/contracts/simulator",
+  "x/contracts/examples/tutorial",
 ]
 resolver = "2"
 
@@ -22,9 +22,7 @@ panic = 'abort'
 strip = true
 
 [workspace.dependencies]
-sdk-macros = { path = "x/programs/rust/sdk-macros" }
-simulator = { path = "x/programs/cmd/simulator" }
-wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
-
-borsh = { version = "1.5.1", features = ["derive"] }
+sdk-macros = { path = "x/contracts/sdk-macros" }
+wasmlanche = { path = "x/contracts/wasmlanche" }
+simulator = { path = "x/contracts/simulator" }
 thiserror = "1.0.61"

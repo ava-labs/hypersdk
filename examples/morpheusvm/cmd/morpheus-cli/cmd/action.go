@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cmd
@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
@@ -36,19 +37,19 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select recipient
-		recipient, err := handler.Root().PromptAddress("recipient")
+		recipient, err := prompt.Address("recipient")
 		if err != nil {
 			return err
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", consts.Decimals, balance, nil)
+		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := handler.Root().PromptContinue()
+		cont, err := prompt.Continue()
 		if !cont || err != nil {
 			return err
 		}

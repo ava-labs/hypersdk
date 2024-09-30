@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cli
@@ -6,8 +6,19 @@ package cli
 import (
 	"github.com/ava-labs/avalanchego/database"
 
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/internal/pebble"
 )
+
+type Controller interface {
+	DatabasePath() string
+	Symbol() string
+	Decimals() uint8
+	GetParser(string) (chain.Parser, error)
+	HandleTx(*chain.Transaction, *chain.Result)
+	LookupBalance(address codec.Address, uri string) (uint64, error)
+}
 
 type Handler struct {
 	c Controller

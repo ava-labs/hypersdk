@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -17,12 +17,17 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/builder"
+	"github.com/ava-labs/hypersdk/internal/executor"
+	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -45,12 +50,16 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ValidatorState() validators.State {
-	return vm.snowCtx.ValidatorState
+func (vm *VM) ActionRegistry() chain.ActionRegistry {
+	return vm.actionRegistry
 }
 
-func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return vm.actionRegistry, vm.authRegistry
+func (vm *VM) OutputRegistry() chain.OutputRegistry {
+	return vm.outputRegistry
+}
+
+func (vm *VM) AuthRegistry() chain.AuthRegistry {
+	return vm.authRegistry
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
@@ -66,10 +75,10 @@ func (vm *VM) Logger() logging.Logger {
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.c.Rules(t)
+	return vm.ruleFactory.GetRules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
+func (vm *VM) LastAcceptedBlock() *chain.StatefulBlock {
 	return vm.lastAccepted
 }
 
@@ -85,6 +94,15 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
 
+func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
+	ts := tstate.New(0)
+	state, err := vm.State()
+	if err != nil {
+		return nil, err
+	}
+	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
+}
+
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
@@ -96,7 +114,7 @@ func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set
 	return vm.seen.Contains(txs, marker, stop)
 }
 
-func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
@@ -135,7 +153,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	}
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
@@ -149,7 +167,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -165,25 +183,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		return
 	}
 
-	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.Fatal("accepted processing failed", zap.Error(err))
-	}
-
 	// TODO: consider removing this (unused and requires an extra iteration)
 	for _, tx := range b.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
-	}
-
-	// Update server
-	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
-	}
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 
 	// Update price metrics
@@ -193,6 +196,14 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+
+	// Subscriptions must be updated before setting the last processed height
+	// key to guarantee at-least-once delivery semantics
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Accept(b); err != nil {
+			vm.Fatal("subscription failed to process block", zap.Error(err))
+		}
+	}
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
 		vm.Fatal("failed to update the last processed height", zap.Error(err))
@@ -220,7 +231,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -310,8 +321,16 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
-	return vm.GetStatelessBlock(ctx, vm.preferred)
+func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
+	return vm.GetStatefulBlock(ctx, vm.preferred)
+}
+
+func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
+	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	if err != nil {
+		return 0, err
+	}
+	return preferredBlk.Hght, nil
 }
 
 func (vm *VM) StopChan() chan struct{} {
@@ -346,7 +365,7 @@ func (vm *VM) StateReady() bool {
 	return vm.stateSyncClient.StateReady()
 }
 
-func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+func (vm *VM) UpdateSyncTarget(b *chain.StatefulBlock) (bool, error) {
 	return vm.stateSyncClient.UpdateSyncTarget(b)
 }
 
@@ -358,8 +377,12 @@ func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
 }
 
+func (vm *VM) Genesis() genesis.Genesis {
+	return vm.genesis
+}
+
 func (vm *VM) StateManager() chain.StateManager {
-	return vm.c.StateManager()
+	return vm.stateManager
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
@@ -447,7 +470,7 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.NewManager(v).UnitPrices(), nil
+	return internalfees.NewManager(v).UnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {

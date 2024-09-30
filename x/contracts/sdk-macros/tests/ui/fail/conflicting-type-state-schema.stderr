@@ -1,0 +1,11 @@
+error[E0428]: the name `Key` is defined multiple times
+ --> tests/ui/fail/conflicting-type-state-schema.rs:8:1
+  |
+6 | struct Key;
+  | ----------- previous definition of the type `Key` here
+7 |
+8 | state_schema! {
+  | ^^^^^^^^^^^^^ `Key` redefined here
+  |
+  = note: `Key` must be defined only once in the type namespace of this module
+  = note: this error originates in the macro `state_schema` (in Nightly builds, run with -Z macro-backtrace for more info)

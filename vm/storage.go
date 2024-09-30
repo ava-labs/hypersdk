@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -66,7 +65,7 @@ func (vm *VM) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatelessBlock, error) {
+func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatefulBlock, error) {
 	return vm.GetDiskBlock(ctx, 0)
 }
 
@@ -102,7 +101,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldComapct(expiryHeight uint64) bool {
+func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
 		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
 		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
@@ -119,7 +118,7 @@ func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 //
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
-func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+func (vm *VM) UpdateLastAccepted(blk *chain.StatefulBlock) error {
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
@@ -162,7 +161,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	if expired && vm.shouldComapct(expiryHeight) {
+	if expired && vm.shouldCompact(expiryHeight) {
 		go func() {
 			start := time.Now()
 			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
@@ -175,12 +174,12 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
-func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
+func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatefulBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockKey(height))
 	if err != nil {
 		return nil, err
 	}
-	return chain.ParseBlock(ctx, b, choices.Accepted, vm)
+	return chain.ParseBlock(ctx, b, true, vm)
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {

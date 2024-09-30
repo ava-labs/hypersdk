@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cmd
@@ -6,9 +6,9 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
@@ -18,20 +18,19 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
 	authbls "github.com/ava-labs/hypersdk/auth/bls"
 	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
 	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
-	mrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 type SpamHelper struct {
 	keyType string
-	cli     *mrpc.JSONRPCClient
-	ws      *rpc.WebSocketClient
+	cli     *vm.JSONRPCClient
+	ws      *ws.WebSocketClient
 }
 
 func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
@@ -55,9 +54,9 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	}
 }
 
-func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID) error {
-	sh.cli = mrpc.NewJSONRPCClient(uri, networkID, chainID)
-	ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+func (sh *SpamHelper) CreateClient(uri string) error {
+	sh.cli = vm.NewJSONRPCClient(uri)
+	ws, err := ws.NewWebSocketClient(uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err
 	}
@@ -69,7 +68,7 @@ func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
-func (sh *SpamHelper) LookupBalance(choice int, address string) (uint64, error) {
+func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, error) {
 	balance, err := sh.cli.Balance(context.TODO(), address)
 	if err != nil {
 		return 0, err
@@ -101,7 +100,7 @@ var spamCmd = &cobra.Command{
 
 var runSpamCmd = &cobra.Command{
 	Use: "run [ed25519/secp256r1/bls]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}

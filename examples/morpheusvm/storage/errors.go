@@ -1,8 +1,11 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package storage
 
 import "errors"
 
-var ErrInvalidBalance = errors.New("invalid balance")
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrInvalidBalance = errors.New("invalid balance")
+)

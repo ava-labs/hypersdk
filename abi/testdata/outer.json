@@ -1,0 +1,10 @@
+{
+    "inner": {
+        "field1": 3
+    },
+    "innerArr": [
+        {
+            "field1": 2
+        }
+    ]
+}
