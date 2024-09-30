@@ -17,6 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
+var ErrUnpermissionedKeyAccessed = errors.New("unpermissioned key accessed")
+
 // [accountStatePrefix] + [account]
 func accountStateKey(account codec.Address) (k []byte) {
 	k = make([]byte, 2+codec.AddressLen)
@@ -60,6 +62,14 @@ var _ runtime.StateManager = (*ContractStateManager)(nil)
 
 type ContractStateManager struct {
 	state.Mutable
+	limitStateKeys map[string]state.Permissions
+}
+
+func NewContractStateManager(mu state.Mutable, limitStateKeys map[string]state.Permissions) *ContractStateManager {
+	return &ContractStateManager{
+		Mutable:        mu,
+		limitStateKeys: limitStateKeys,
+	}
 }
 
 func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
@@ -81,6 +91,9 @@ func (p *ContractStateManager) GetContractState(address codec.Address) state.Mut
 
 func (p *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
 	key, _ := keys.Encode(AccountContractKey(account), 36)
+	if perm, has := p.limitStateKeys[string(key)]; has && !perm.Has(state.Read) {
+		return ids.Empty[:], ErrUnpermissionedKeyAccessed
+	}
 	result, err := p.GetValue(ctx, key)
 	if err != nil {
 		return ids.Empty[:], err
@@ -89,12 +102,18 @@ func (p *ContractStateManager) GetAccountContract(ctx context.Context, account c
 }
 
 func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
+	if perm, has := p.limitStateKeys[string(contractID)]; has && !perm.Has(state.Read) {
+		return ids.Empty[:], ErrUnpermissionedKeyAccessed
+	}
 	return p.GetValue(ctx, contractID)
 }
 
 func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
 	newAddress := GetAddressForDeploy(0, accountCreationData)
 	key, _ := keys.Encode(AccountContractKey(newAddress), 36)
+	if perm, has := p.limitStateKeys[string(contractID)]; has && !perm.Has(state.Read) {
+		return codec.EmptyAddress, ErrUnpermissionedKeyAccessed
+	}
 	_, err := p.GetValue(ctx, key)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return codec.EmptyAddress, err
@@ -107,6 +126,9 @@ func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contr
 
 func (p *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
 	key, _ := keys.Encode(AccountContractKey(account), 36)
+	if perm, has := p.limitStateKeys[string(key)]; has && !perm.Has(state.Write) && !perm.Has(state.Allocate) {
+		return ErrUnpermissionedKeyAccessed
+	}
 	return p.Insert(ctx, key, contractID)
 }
 
