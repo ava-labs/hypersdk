@@ -18,9 +18,9 @@ import (
 func TestDynamicMarshal(t *testing.T) {
 	require := require.New(t)
 
-	// Load the ABI
 	abiJSON := mustReadFile(t, "../testdata/abi.json")
 	var abi abi.ABI
+
 	err := json.Unmarshal(abiJSON, &abi)
 	require.NoError(err)
 
@@ -48,8 +48,7 @@ func TestDynamicMarshal(t *testing.T) {
 			// Read the JSON data
 			jsonData := mustReadFile(t, "../testdata/"+tc.name+".json")
 
-			// Use DynamicMarshal to marshal the data
-			objectBytes, err := DynamicMarshal(abi, tc.typeName, string(jsonData))
+			objectBytes, err := Marshal(abi, tc.typeName, string(jsonData))
 			require.NoError(err)
 
 			// Compare with expected hex
@@ -57,8 +56,7 @@ func TestDynamicMarshal(t *testing.T) {
 			expectedHex = strings.TrimSpace(expectedHex)
 			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
-			// Use DynamicUnmarshal to unmarshal the data
-			unmarshaledJSON, err := DynamicUnmarshal(abi, tc.typeName, objectBytes)
+			unmarshaledJSON, err := Unmarshal(abi, tc.typeName, objectBytes)
 			require.NoError(err)
 
 			// Compare with expected JSON

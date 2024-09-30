@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,58 +19,60 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-func DynamicMarshal(inputAbi abi.ABI, typeName string, jsonData string) ([]byte, error) {
-	// Find the type in the ABI
-	abiType := findABIType(inputAbi, typeName)
-	if abiType == nil {
+var (
+	// Matches fixed-size arrays like [32]uint8
+	fixedSizeArrayRegex = regexp.MustCompile(`^\[(\d+)\](.+)$`)
+)
+
+func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error) {
+	_, ok := findABIType(inputABI, typeName)
+	if !ok {
 		return nil, fmt.Errorf("type %s not found in ABI", typeName)
 	}
 
-	// Create a cache to avoid rebuilding types
 	typeCache := make(map[string]reflect.Type)
 
-	// Create a dynamic struct type
-	dynamicType := getReflectType(typeName, inputAbi, typeCache)
+	typ, err := getReflectType(typeName, inputABI, typeCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reflect type: %w", err)
+	}
 
-	// Create an instance of the dynamic struct
-	dynamicValue := reflect.New(dynamicType).Interface()
+	value := reflect.New(typ).Interface()
 
-	// Unmarshal JSON data into the dynamic struct
-	if err := json.Unmarshal([]byte(jsonData), dynamicValue); err != nil {
+	err = json.Unmarshal([]byte(jsonData), value)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 	}
 
-	// Marshal the dynamic struct using LinearCodec
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	if err := codec.LinearCodec.MarshalInto(dynamicValue, writer.Packer); err != nil {
+	err = codec.LinearCodec.MarshalInto(value, writer.Packer)
+	if err != nil {
 		return nil, fmt.Errorf("failed to marshal struct: %w", err)
 	}
 
 	return writer.Bytes(), nil
 }
 
-func DynamicUnmarshal(inputAbi abi.ABI, typeName string, data []byte) (string, error) {
-	// Find the type in the ABI
-	abiType := findABIType(inputAbi, typeName)
-	if abiType == nil {
+func Unmarshal(inputABI abi.ABI, typeName string, data []byte) (string, error) {
+	_, ok := findABIType(inputABI, typeName)
+	if !ok {
 		return "", fmt.Errorf("type %s not found in ABI", typeName)
 	}
 
-	// Create a cache to avoid rebuilding types
 	typeCache := make(map[string]reflect.Type)
 
-	// Create a dynamic struct type
-	dynamicType := getReflectType(typeName, inputAbi, typeCache)
+	dynamicType, err := getReflectType(typeName, inputABI, typeCache)
+	if err != nil {
+		return "", fmt.Errorf("failed to get reflect type: %w", err)
+	}
 
-	// Create an instance of the dynamic struct
 	dynamicValue := reflect.New(dynamicType).Interface()
 
-	// Unmarshal the data into the dynamic struct
-	if err := codec.LinearCodec.Unmarshal(data, dynamicValue); err != nil {
+	err = codec.LinearCodec.Unmarshal(data, dynamicValue)
+	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
-	// Marshal the dynamic struct back to JSON
 	jsonData, err := json.Marshal(dynamicValue)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal struct to JSON: %w", err)
@@ -78,85 +81,90 @@ func DynamicUnmarshal(inputAbi abi.ABI, typeName string, data []byte) (string, e
 	return string(jsonData), nil
 }
 
-func getReflectType(abiTypeName string, inputAbi abi.ABI, typeCache map[string]reflect.Type) reflect.Type {
+func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]reflect.Type) (reflect.Type, error) {
 	switch abiTypeName {
 	case "string":
-		return reflect.TypeOf("")
+		return reflect.TypeOf(""), nil
 	case "uint8":
-		return reflect.TypeOf(uint8(0))
+		return reflect.TypeOf(uint8(0)), nil
 	case "uint16":
-		return reflect.TypeOf(uint16(0))
+		return reflect.TypeOf(uint16(0)), nil
 	case "uint32":
-		return reflect.TypeOf(uint32(0))
+		return reflect.TypeOf(uint32(0)), nil
 	case "uint64":
-		return reflect.TypeOf(uint64(0))
+		return reflect.TypeOf(uint64(0)), nil
 	case "int8":
-		return reflect.TypeOf(int8(0))
+		return reflect.TypeOf(int8(0)), nil
 	case "int16":
-		return reflect.TypeOf(int16(0))
+		return reflect.TypeOf(int16(0)), nil
 	case "int32":
-		return reflect.TypeOf(int32(0))
+		return reflect.TypeOf(int32(0)), nil
 	case "int64":
-		return reflect.TypeOf(int64(0))
+		return reflect.TypeOf(int64(0)), nil
 	case "Address":
-		return reflect.TypeOf(codec.Address{})
+		return reflect.TypeOf(codec.Address{}), nil
 	default:
+		//golang slices
 		if strings.HasPrefix(abiTypeName, "[]") {
-			elemType := getReflectType(strings.TrimPrefix(abiTypeName, "[]"), inputAbi, typeCache)
-			return reflect.SliceOf(elemType)
-		} else if strings.HasPrefix(abiTypeName, "[") {
-			// Handle fixed-size arrays
+			elemType, err := getReflectType(strings.TrimPrefix(abiTypeName, "[]"), inputABI, typeCache)
+			if err != nil {
+				return nil, err
+			}
+			return reflect.SliceOf(elemType), nil
+		}
 
-			sizeStr := strings.Split(abiTypeName, "]")[0]
-			sizeStr = strings.TrimPrefix(sizeStr, "[")
-
+		//golang arrays
+		match := fixedSizeArrayRegex.FindStringSubmatch(abiTypeName) //`^\[(\d+)\](.+)$`
+		if match != nil {
+			sizeStr := match[1]
 			size, err := strconv.Atoi(sizeStr)
 			if err != nil {
-				return reflect.TypeOf((*interface{})(nil)).Elem()
+				return nil, fmt.Errorf("failed to convert size to int: %w", err)
 			}
-			elemType := getReflectType(strings.TrimPrefix(abiTypeName, "["+sizeStr+"]"), inputAbi, typeCache)
-			return reflect.ArrayOf(size, elemType)
+			elemType, err := getReflectType(match[2], inputABI, typeCache)
+			if err != nil {
+				return nil, err
+			}
+			return reflect.ArrayOf(size, elemType), nil
 		}
+
 		// For custom types, recursively construct the struct type
-
-		// Check if type already in cache
-		if cachedType, ok := typeCache[abiTypeName]; ok {
-			return cachedType
+		cachedType, ok := typeCache[abiTypeName]
+		if ok {
+			return cachedType, nil
 		}
 
-		// Find the type in the ABI
-		abiType := findABIType(inputAbi, abiTypeName)
-		if abiType == nil {
-			// If not found, fallback to interface{}
-			return reflect.TypeOf((*interface{})(nil)).Elem()
+		abiType, ok := findABIType(inputABI, abiTypeName)
+		if !ok {
+			return nil, fmt.Errorf("type %s not found in ABI", abiTypeName)
 		}
 
-		// Build fields
+		// It is a struct, as we don't support anything else as custom types
 		fields := make([]reflect.StructField, len(abiType.Fields))
 		for i, field := range abiType.Fields {
-			fieldType := getReflectType(field.Type, inputAbi, typeCache)
+			fieldType, err := getReflectType(field.Type, inputABI, typeCache)
+			if err != nil {
+				return nil, err
+			}
 			fields[i] = reflect.StructField{
 				Name: cases.Title(language.English).String(field.Name),
 				Type: fieldType,
 				Tag:  reflect.StructTag(fmt.Sprintf(`serialize:"true" json:"%s"`, field.Name)),
 			}
 		}
-		// Create struct type
-		structType := reflect.StructOf(fields)
 
-		// Cache the type
+		structType := reflect.StructOf(fields)
 		typeCache[abiTypeName] = structType
 
-		return structType
+		return structType, nil
 	}
 }
 
-// Helper function to find ABI type
-func findABIType(inputAbi abi.ABI, typeName string) *abi.Type {
-	for i := range inputAbi.Types {
-		if inputAbi.Types[i].Name == typeName {
-			return &inputAbi.Types[i]
+func findABIType(inputABI abi.ABI, typeName string) (abi.Type, bool) {
+	for _, typ := range inputABI.Types {
+		if typ.Name == typeName {
+			return typ, true
 		}
 	}
-	return nil
+	return abi.Type{}, false
 }
