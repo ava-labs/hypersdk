@@ -19,10 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-var (
-	// Matches fixed-size arrays like [32]uint8
-	fixedSizeArrayRegex = regexp.MustCompile(`^\[(\d+)\](.+)$`)
-)
+// Matches fixed-size arrays like [32]uint8
+var fixedSizeArrayRegex = regexp.MustCompile(`^\[(\d+)\](.+)$`)
 
 func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error) {
 	_, ok := findABIType(inputABI, typeName)
@@ -104,7 +102,7 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 	case "Address":
 		return reflect.TypeOf(codec.Address{}), nil
 	default:
-		//golang slices
+		// golang slices
 		if strings.HasPrefix(abiTypeName, "[]") {
 			elemType, err := getReflectType(strings.TrimPrefix(abiTypeName, "[]"), inputABI, typeCache)
 			if err != nil {
@@ -113,8 +111,8 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 			return reflect.SliceOf(elemType), nil
 		}
 
-		//golang arrays
-		match := fixedSizeArrayRegex.FindStringSubmatch(abiTypeName) //`^\[(\d+)\](.+)$`
+		// golang arrays
+		match := fixedSizeArrayRegex.FindStringSubmatch(abiTypeName) // ^\[(\d+)\](.+)$
 		if match != nil {
 			sizeStr := match[1]
 			size, err := strconv.Atoi(sizeStr)
