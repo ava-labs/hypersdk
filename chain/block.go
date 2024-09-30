@@ -897,13 +897,12 @@ func (b *StatefulBlock) FeeManager() *fees.Manager {
 }
 
 func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
-	return &ExecutedBlock{
-		StatelessBlock: b.StatelessBlock,
-		Results:        b.results,
-		UnitPrices:     b.feeManager.UnitPrices(),
-		blockBytes:     b.Bytes(),
-		id:             b.ID(),
-	}
+	return NewExecutedBlock(
+		b.id,
+		b.StatelessBlock,
+		b.results,
+		b.feeManager.UnitPrices(),
+	)
 }
 
 type ExecutedBlock struct {
@@ -911,17 +910,34 @@ type ExecutedBlock struct {
 	Results         []*Result             `json:"results"`
 	UnitPrices      publicfees.Dimensions `json:"unitPrices"`
 
-	blockBytes []byte
-	id         ids.ID
+	id ids.ID
+}
+
+func NewExecutedBlock(
+	blkID ids.ID,
+	sb *StatelessBlock,
+	results []*Result,
+	unitPrices publicfees.Dimensions,
+) *ExecutedBlock {
+	return &ExecutedBlock{
+		StatelessBlock: sb,
+		Results:        results,
+		UnitPrices:     unitPrices,
+		id:             blkID,
+	}
 }
 
 func (b *ExecutedBlock) ID() ids.ID { return b.id }
 
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	size := codec.BytesLen(b.blockBytes) + codec.CummSize(b.Results) + publicfees.DimensionsLen
+	blockBytes, err := b.StatelessBlock.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + publicfees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
-	writer.PackBytes(b.blockBytes)
+	writer.PackBytes(blockBytes)
 	resultBytes, err := MarshalResults(b.Results)
 	if err != nil {
 		return nil, err
@@ -956,17 +972,19 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
 	}
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
 	blkID, err := blk.ID()
 	if err != nil {
 		return nil, err
 	}
-	return &ExecutedBlock{
-		StatelessBlock: blk,
-		Results:        results,
-		UnitPrices:     prices,
-		blockBytes:     blkMsg,
-		id:             blkID,
-	}, nil
+	return NewExecutedBlock(
+		blkID,
+		blk,
+		results,
+		prices,
+	), nil
 }
 
 type SyncableBlock struct {
