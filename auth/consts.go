@@ -1,11 +1,9 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package auth
 
-import (
-	"github.com/ava-labs/hypersdk/vm"
-)
+import "github.com/ava-labs/hypersdk/vm"
 
 // Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
 const (

@@ -1,0 +1,5 @@
+error: Functions with the `#[public]` attribute must have `pub` visibility.
+  --> tests/ui/fail/not-pub.rs:10:1
+   |
+10 | fn test(_: &mut Context) {}
+   | ^^

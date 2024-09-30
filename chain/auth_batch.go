@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
 const authWorkerBacklog = 16_384

@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -6,11 +6,11 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -21,19 +21,19 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/window"
+	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/window"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
-	_ snowman.Block      = &StatelessBlock{}
-	_ block.StateSummary = &SyncableBlock{}
+	_ snowman.Block      = (*StatefulBlock)(nil)
+	_ block.StateSummary = (*SyncableBlock)(nil)
 )
 
-type StatefulBlock struct {
+type StatelessBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
@@ -57,11 +57,11 @@ type StatefulBlock struct {
 	authCounts map[uint8]int
 }
 
-func (b *StatefulBlock) Size() int {
+func (b *StatelessBlock) Size() int {
 	return b.size
 }
 
-func (b *StatefulBlock) ID() (ids.ID, error) {
+func (b *StatelessBlock) ID() (ids.ID, error) {
 	blk, err := b.Marshal()
 	if err != nil {
 		return ids.ID{}, err
@@ -69,8 +69,72 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 	return utils.ToID(blk), nil
 }
 
-func NewGenesisBlock(root ids.ID) *StatefulBlock {
-	return &StatefulBlock{
+func (b *StatelessBlock) Marshal() ([]byte, error) {
+	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
+		consts.Uint64Len + window.WindowSliceSize +
+		consts.IntLen + codec.CummSize(b.Txs) +
+		ids.IDLen + consts.Uint64Len + consts.Uint64Len
+
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackID(b.Prnt)
+	p.PackInt64(b.Tmstmp)
+	p.PackUint64(b.Hght)
+
+	p.PackInt(uint32(len(b.Txs)))
+	b.authCounts = map[uint8]int{}
+	for _, tx := range b.Txs {
+		if err := tx.Marshal(p); err != nil {
+			return nil, err
+		}
+		b.authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	p.PackID(b.StateRoot)
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	b.size = len(bytes)
+	return bytes, nil
+}
+
+func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
+	var (
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
+		b StatelessBlock
+	)
+	b.size = len(raw)
+
+	p.UnpackID(false, &b.Prnt)
+	b.Tmstmp = p.UnpackInt64(false)
+	b.Hght = p.UnpackUint64(false)
+
+	// Parse transactions
+	txCount := p.UnpackInt(false) // can produce empty blocks
+	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
+	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.authCounts = map[uint8]int{}
+	for i := uint32(0); i < txCount; i++ {
+		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		b.Txs = append(b.Txs, tx)
+		b.authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	p.UnpackID(false, &b.StateRoot)
+
+	// Ensure no leftover bytes
+	if !p.Empty() {
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	}
+	return &b, p.Err()
+}
+
+func NewGenesisBlock(root ids.ID) *StatelessBlock {
+	return &StatelessBlock{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
 		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
@@ -87,16 +151,16 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 }
 
 // Stateless is defined separately from "Block"
-// in case external packages needs use the stateful block
+// in case external packages need to use the stateless block
 // without mocking VM or parent block
-type StatelessBlock struct {
-	*StatefulBlock `json:"block"`
+type StatefulBlock struct {
+	*StatelessBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
+	id       ids.ID
+	accepted bool
+	t        time.Time
+	bytes    []byte
+	txsSet   set.Set[ids.ID]
 
 	results    []*Result
 	feeManager *fees.Manager
@@ -107,24 +171,24 @@ type StatelessBlock struct {
 	sigJob workers.Job
 }
 
-func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
-	return &StatelessBlock{
-		StatefulBlock: &StatefulBlock{
+func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatefulBlock {
+	return &StatefulBlock{
+		StatelessBlock: &StatelessBlock{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 		},
-		vm: vm,
-		st: choices.Processing,
+		vm:       vm,
+		accepted: false,
 	}
 }
 
 func ParseBlock(
 	ctx context.Context,
 	source []byte,
-	status choices.Status,
+	accepted bool,
 	vm VM,
-) (*StatelessBlock, error) {
+) (*StatefulBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
 	defer span.End()
 
@@ -133,16 +197,16 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatefulBlock(ctx, blk, source, status, vm)
+	return ParseStatelessBlock(ctx, blk, source, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
-func (b *StatelessBlock) populateTxs(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
+func (b *StatefulBlock) populateTxs(ctx context.Context) error {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.populateTxs")
 	defer span.End()
 
 	// Setup signature verification job
-	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatefulBlock.verifySignatures") //nolint:spancheck
 	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
 	if err != nil {
 		return err //nolint:spancheck
@@ -179,14 +243,14 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	return nil
 }
 
-func ParseStatefulBlock(
+func ParseStatelessBlock(
 	ctx context.Context,
-	blk *StatefulBlock,
+	blk *StatelessBlock,
 	source []byte,
-	status choices.Status,
+	accepted bool,
 	vm VM,
-) (*StatelessBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
+) (*StatefulBlock, error) {
+	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatelessBlock")
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
@@ -201,13 +265,13 @@ func ParseStatefulBlock(
 		}
 		source = nsource
 	}
-	b := &StatelessBlock{
-		StatefulBlock: blk,
-		t:             time.UnixMilli(blk.Tmstmp),
-		bytes:         source,
-		st:            status,
-		vm:            vm,
-		id:            utils.ToID(source),
+	b := &StatefulBlock{
+		StatelessBlock: blk,
+		t:              time.UnixMilli(blk.Tmstmp),
+		bytes:          source,
+		accepted:       accepted,
+		vm:             vm,
+		id:             utils.ToID(source),
 	}
 
 	// If we are parsing an older block, it will not be re-executed and should
@@ -222,23 +286,23 @@ func ParseStatefulBlock(
 }
 
 // [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(
+func (b *StatefulBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
 	feeManager *fees.Manager,
 ) error {
-	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
+	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
 
-	blk, err := b.StatefulBlock.Marshal()
+	blk, err := b.StatelessBlock.Marshal()
 	if err != nil {
 		return err
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.view = view
-	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
+	b.t = time.UnixMilli(b.StatelessBlock.Tmstmp)
 	b.results = results
 	b.feeManager = feeManager
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
@@ -249,10 +313,10 @@ func (b *StatelessBlock) initializeBuilt(
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatelessBlock) ID() ids.ID { return b.id }
+func (b *StatefulBlock) ID() ids.ID { return b.id }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Verify(ctx context.Context) error {
+func (b *StatefulBlock) Verify(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockVerify(time.Since(start))
@@ -260,7 +324,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
-		ctx, "StatelessBlock.Verify",
+		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
@@ -285,7 +349,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info(
-			"skipping verification, already processed",
+			"skipping verification of locally built block",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 		)
@@ -295,7 +359,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		// If the parent block's height is less than or equal to the last accepted height (and
 		// the last accepted height is processed), the accepted state will be used as the execution
 		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			b.vm.Logger().Warn("unable to get verify context",
 				zap.Uint64("height", b.Hght),
@@ -337,7 +401,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
+func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
@@ -384,14 +448,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return ErrTimestampTooEarly
 	}
 
-	// Ensure tx cannot be replayed
+	// Expiry replay protection
 	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
+	// Replay protection confirms a transaction has not been included within the
+	// past validity window.
+	// Before the node is ready (we have synced a validity window of blocks), this
+	// function may return an error when other nodes see the block as valid.
 	//
 	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
-	if b.st != choices.Accepted {
+	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
+	// when it should already be considered valid, so we skip this step here.
+	if !b.accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
 			// Can occur if verifying genesis
@@ -456,7 +523,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	_, rspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitRoot")
+	_, rspan := b.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
@@ -474,7 +541,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	}
 
 	// Ensure signatures are verified
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
+	_, sspan := b.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitSignatures")
 	start = time.Now()
 	err = b.sigJob.Wait()
 	sspan.End()
@@ -511,20 +578,20 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatelessBlock) Accept(ctx context.Context) error {
+func (b *StatefulBlock) Accept(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockAccept(time.Since(start))
 	}()
 
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
+	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.Accept")
 	defer span.End()
 
 	// Consider verifying the a block if it is not processed and we are no longer
 	// syncing.
 	if !b.Processed() {
 		// The state of this block was not calculated during the call to
-		// [StatelessBlock.Verify]. This is because the VM was state syncing
+		// [StatefulBlock.Verify]. This is because the VM was state syncing
 		// and did not have the state necessary to verify the block.
 		updated, err := b.vm.UpdateSyncTarget(b)
 		if err != nil {
@@ -548,7 +615,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return fmt.Errorf("%w: unable to get verify context", err)
 		}
@@ -568,9 +635,9 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	return nil
 }
 
-func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
+func (b *StatefulBlock) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
-	b.st = choices.Accepted
+	b.accepted = true
 	b.txsSet = nil // only used for replay protection when processing
 
 	// [Accepted] will persist the block to disk and set in-memory variables
@@ -581,32 +648,28 @@ func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatelessBlock) Reject(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Reject")
+func (b *StatefulBlock) Reject(ctx context.Context) error {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.Reject")
 	defer span.End()
 
-	b.st = choices.Rejected
 	b.vm.Rejected(ctx, b)
 	return nil
 }
 
-// implements "snowman.Block.choices.Decidable"
-func (b *StatelessBlock) Status() choices.Status { return b.st }
+// implements "snowman.Block"
+func (b *StatefulBlock) Parent() ids.ID { return b.StatelessBlock.Prnt }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Prnt }
+func (b *StatefulBlock) Bytes() []byte { return b.bytes }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Bytes() []byte { return b.bytes }
+func (b *StatefulBlock) Height() uint64 { return b.StatelessBlock.Hght }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
-
-// implements "snowman.Block"
-func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+func (b *StatefulBlock) Timestamp() time.Time { return b.t }
 
 // Used to determine if should notify listeners and/or pass to controller
-func (b *StatelessBlock) Processed() bool {
+func (b *StatefulBlock) Processed() bool {
 	return b.view != nil
 }
 
@@ -623,8 +686,8 @@ func (b *StatelessBlock) Processed() bool {
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
+func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.View",
 		trace.WithAttributes(
 			attribute.Bool("processed", b.Processed()),
 			attribute.Bool("verify", verify),
@@ -640,7 +703,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	// If block is processed, we can return either the accepted state
 	// or its pending view.
 	if b.Processed() {
-		if b.st == choices.Accepted {
+		if b.accepted {
 			// We assume that base state was properly updated if this
 			// block was accepted (this is not obvious because
 			// the accepted state may be that of the parent of the last
@@ -659,7 +722,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	//
 	// We cannot use the merkle root to check against the accepted state
 	// because the block only contains the root of the parent block's post-execution.
-	if b.st == choices.Accepted {
+	if b.accepted {
 		acceptedState, err := b.vm.State()
 		if err != nil {
 			return nil, err
@@ -704,9 +767,9 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	b.vm.Logger().Info("verifying block when view requested",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
-		zap.Bool("accepted", b.st == choices.Accepted),
+		zap.Bool("accepted", b.accepted),
 	)
-	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
 		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
 		return nil, err
@@ -715,7 +778,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		b.vm.Logger().Error("unable to verify block", zap.Error(err))
 		return nil, err
 	}
-	if b.st != choices.Accepted {
+	if !b.accepted {
 		return b.view, nil
 	}
 
@@ -739,14 +802,14 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 //
 // If [stop] is set to true, IsRepeat will return as soon as the first repeat
 // is found (useful for block verification).
-func (b *StatelessBlock) IsRepeat(
+func (b *StatefulBlock) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,
 	txs []*Transaction,
 	marker set.Bits,
 	stop bool,
 ) (set.Bits, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.IsRepeat")
+	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.IsRepeat")
 	defer span.End()
 
 	// Early exit if we are already back at least [ValidityWindow]
@@ -759,7 +822,7 @@ func (b *StatelessBlock) IsRepeat(
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
-	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+	if b.accepted || b.Hght == 0 /* genesis */ {
 		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
 	}
 
@@ -775,102 +838,71 @@ func (b *StatelessBlock) IsRepeat(
 			}
 		}
 	}
-	prnt, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
+	prnt, err := b.vm.GetStatefulBlock(ctx, b.Prnt)
 	if err != nil {
 		return marker, err
 	}
 	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
-func (b *StatelessBlock) GetTxs() []*Transaction {
-	return b.Txs
-}
-
-func (b *StatelessBlock) GetTimestamp() int64 {
-	return b.Tmstmp
-}
-
-func (b *StatelessBlock) Results() []*Result {
-	return b.results
-}
-
-func (b *StatelessBlock) FeeManager() *fees.Manager {
-	return b.feeManager
-}
-
-func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
-		consts.Uint64Len + window.WindowSliceSize +
-		consts.IntLen + codec.CummSize(b.Txs) +
-		ids.IDLen + consts.Uint64Len + consts.Uint64Len
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackID(b.Prnt)
-	p.PackInt64(b.Tmstmp)
-	p.PackUint64(b.Hght)
-
-	p.PackInt(len(b.Txs))
-	b.authCounts = map[uint8]int{}
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-		b.authCounts[tx.Auth.GetTypeID()]++
+func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
+	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
+	if blockHeight == 0 {
+		return nil, errors.New("cannot get context of genesis block")
 	}
 
-	p.PackID(b.StateRoot)
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	b.size = len(bytes)
-	return bytes, nil
-}
-
-func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
-	var (
-		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatefulBlock
-	)
-	b.size = len(raw)
-
-	p.UnpackID(false, &b.Prnt)
-	b.Tmstmp = p.UnpackInt64(false)
-	b.Hght = p.UnpackUint64(false)
-
-	// Parse transactions
-	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	b.authCounts = map[uint8]int{}
-	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+	// If the parent block is not yet accepted, we should return the block's processing parent (it may
+	// or may not be verified yet).
+	lastAcceptedBlock := b.vm.LastAcceptedBlock()
+	if blockHeight-1 > lastAcceptedBlock.Hght {
+		blk, err := b.vm.GetStatefulBlock(ctx, parent)
 		if err != nil {
 			return nil, err
 		}
-		b.Txs = append(b.Txs, tx)
-		b.authCounts[tx.Auth.GetTypeID()]++
+		return &PendingVerifyContext{blk}, nil
 	}
 
-	p.UnpackID(false, &b.StateRoot)
-
-	// Ensure no leftover bytes
-	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	// If the last accepted block is not yet processed, we can't use the accepted state for the
+	// verification context. This could happen if state sync finishes with no processing blocks (we
+	// sync to the post-execution state of the parent of the last accepted block, not the post-execution
+	// state of the last accepted block).
+	//
+	// Invariant: When [View] is called on [vm.lastAccepted], the block will be verified and the accepted
+	// state will be updated.
+	if !lastAcceptedBlock.Processed() && parent == lastAcceptedBlock.ID() {
+		return &PendingVerifyContext{lastAcceptedBlock}, nil
 	}
-	return &b, p.Err()
+
+	// If the parent block is accepted and processed, we should
+	// just use the accepted state as the verification context.
+	return &AcceptedVerifyContext{b.vm}, nil
+}
+
+func (b *StatefulBlock) GetTxs() []*Transaction {
+	return b.Txs
+}
+
+func (b *StatefulBlock) GetTimestamp() int64 {
+	return b.Tmstmp
+}
+
+func (b *StatefulBlock) Results() []*Result {
+	return b.results
+}
+
+func (b *StatefulBlock) FeeManager() *fees.Manager {
+	return b.feeManager
 }
 
 type SyncableBlock struct {
-	*StatelessBlock
+	*StatefulBlock
 }
 
 func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.vm.AcceptedSyncableBlock(ctx, sb)
 }
 
-func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
+func NewSyncableBlock(sb *StatefulBlock) *SyncableBlock {
 	return &SyncableBlock{sb}
 }
 
@@ -879,6 +911,6 @@ func (sb *SyncableBlock) String() string {
 }
 
 // Testing
-func (b *StatelessBlock) MarkUnprocessed() {
+func (b *StatefulBlock) MarkUnprocessed() {
 	b.view = nil
 }

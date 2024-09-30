@@ -1,11 +1,9 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
 
-import (
-	"errors"
-)
+import "errors"
 
 var (
 	ErrNotAdded            = errors.New("not added")

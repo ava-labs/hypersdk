@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package utils
@@ -43,10 +43,8 @@ func TestLoadBytesIncorrectLength(t *testing.T) {
 	f, err := os.CreateTemp("", "TestLoadBytes*")
 	require.NoError(err)
 	fileName := f.Name()
-	err = os.WriteFile(fileName, invalidBytes, 0o600)
-	require.NoError(err, "Error writing using OS during tests")
-	err = f.Close()
-	require.NoError(err, "Error closing file during tests")
+	require.NoError(os.WriteFile(fileName, invalidBytes, 0o600), "Error writing using OS during tests")
+	require.NoError(f.Close(), "Error closing file during tests")
 
 	// Validate
 	_, err = LoadBytes(fileName, ids.IDLen)
@@ -74,8 +72,7 @@ func TestLoadBytes(t *testing.T) {
 	id := ids.GenerateTestID()
 	_, err = f.Write(id[:])
 	require.NoError(err)
-	err = f.Close()
-	require.NoError(err)
+	require.NoError(f.Close())
 
 	// Validate
 	lid, err := LoadBytes(fileName, ids.IDLen)

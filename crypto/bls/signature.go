@@ -1,11 +1,9 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package bls
 
-import (
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-)
+import "github.com/ava-labs/avalanchego/utils/crypto/bls"
 
 const SignatureLen = bls.SignatureLen
 

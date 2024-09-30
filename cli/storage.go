@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cli
@@ -135,7 +135,7 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 		return codec.EmptyAddress, nil, err
 	}
 	if log {
-		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))
+		utils.Outf("{{yellow}}address:{{/}} %s\n", addr)
 	}
 	return addr, priv, nil
 }

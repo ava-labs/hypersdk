@@ -1,48 +1,41 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package codec
 
 import (
-	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/stretchr/testify/require"
 )
 
-const hrp = "blah"
-
-func TestIDAddress(t *testing.T) {
+func TestAddress(t *testing.T) {
 	require := require.New(t)
+	typeID := byte(0)
+	addrID := ids.GenerateTestID()
 
-	id := ids.GenerateTestID()
-	addrBytes := CreateAddress(0, id)
-	addr, err := AddressBech32(hrp, addrBytes)
+	addr := CreateAddress(typeID, addrID)
+	addrStr, err := addr.MarshalText()
 	require.NoError(err)
 
-	sb, err := ParseAddressBech32(hrp, addr)
+	var parsedAddr Address
+	require.NoError(parsedAddr.UnmarshalText(addrStr))
+	require.Equal(addr, parsedAddr)
+}
+
+func TestAddressJSON(t *testing.T) {
+	require := require.New(t)
+	typeID := byte(0)
+	addrID := ids.GenerateTestID()
+
+	addr := CreateAddress(typeID, addrID)
+
+	addrJSONBytes, err := json.Marshal(addr)
 	require.NoError(err)
-	require.True(bytes.Equal(addrBytes[:], sb[:]))
-}
 
-func TestInvalidAddressHRP(t *testing.T) {
-	require := require.New(t)
-	addr := "blah1859dz2uwazfgahey3j53ef2kqrans0c8cv4l78tda3rjkfw0txns8u2e8k"
-
-	_, err := ParseAddressBech32("test", addr)
-	require.ErrorIs(err, ErrIncorrectHRP)
-}
-
-func TestInvalidAddressChecksum(t *testing.T) {
-	require := require.New(t)
-	addr := "blah1859dz2uwazfgahey3j53ef2kqrans0c8cv4l78tda3rjkfw0txns8u2e7k"
-
-	_, err := ParseAddressBech32(hrp, addr)
-	require.ErrorIs(err, bech32.ErrInvalidChecksum{
-		Expected:  "8u2e8k",
-		ExpectedM: "8u2e8kjq64z5",
-		Actual:    "8u2e7k",
-	})
+	var parsedAddr Address
+	require.NoError(json.Unmarshal(addrJSONBytes, &parsedAddr))
+	require.Equal(addr, parsedAddr)
 }
