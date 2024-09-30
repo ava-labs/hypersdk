@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use wasmlanche_sdk::{public, state_keys, Address, Program};
 #[cfg(not(feature = "bindings"))]
