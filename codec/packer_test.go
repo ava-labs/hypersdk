@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package codec
@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/window"
+	"github.com/ava-labs/hypersdk/internal/window"
 )
 
 var (
@@ -122,7 +122,7 @@ func TestPackerAddress(t *testing.T) {
 
 func TestNewReader(t *testing.T) {
 	require := require.New(t)
-	vInt := 900
+	vInt := uint32(900)
 	wp := NewWriter(5, 5)
 	// Add an int and a bool
 	wp.PackInt(vInt)

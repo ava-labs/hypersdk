@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -51,7 +51,6 @@ var (
 	ErrInvalidActor         = errors.New("invalid actor")
 	ErrInvalidSponsor       = errors.New("invalid sponsor")
 	ErrTooManyActions       = errors.New("too many actions")
-	ErrTooManyOutputs       = errors.New("too many outputs")
 
 	// Execution Correctness
 	ErrInvalidBalance  = errors.New("invalid balance")

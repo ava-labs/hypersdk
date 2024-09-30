@@ -1,0 +1,19 @@
+[package]
+name = "token"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+wasmlanche = { workspace = true, features = ["debug"] }
+
+[dev-dependencies]
+wasmlanche = { workspace = true, features = ["debug", "test"] }
+
+[build-dependencies]
+wasmlanche = { workspace = true, features = ["build"] }
+
+[features]
+bindings = ["wasmlanche/bindings"]

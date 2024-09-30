@@ -1,0 +1,5 @@
+error: types with named fields are not supported
+ --> tests/ui/fail/named-fields-state-schema.rs:9:13
+  |
+9 |     Invalid { param: u8 } => u8,
+  |             ^^^^^^^^^^^^^

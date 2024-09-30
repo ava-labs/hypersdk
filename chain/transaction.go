@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -11,14 +11,16 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/math"
+	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/math"
-	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -52,14 +54,21 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size() + consts.Uint8Len
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		actionSize, err := GetSize(action)
+		if err != nil {
+			return nil, err
+		}
+		size += consts.ByteLen + actionSize
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return p.Bytes(), p.Err()
 }
@@ -199,7 +208,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionSize, err := GetSize(action)
+		if err != nil {
+			return fees.Dimensions{}, err
+		}
+
+		bandwidth += consts.ByteLen + uint64(actionSize)
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
@@ -217,7 +231,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	}
 
 	// Estimate storage costs
-	for maxChunks := range stateKeysMaxChunks {
+	for _, maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
@@ -245,13 +259,13 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 	s StateManager,
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
+	if err := t.Base.Execute(r, timestamp); err != nil {
 		return err
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
@@ -290,7 +304,7 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -319,32 +333,34 @@ func (t *Transaction) Execute(
 	// for a transaction that returns an error.
 	var (
 		actionStart   = ts.OpIndex()
-		resultOutputs = [][][]byte{}
+		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil
-		}
-		if outputs == nil {
-			// Ensure output standardization (match form we will
-			// unmarshal)
-			outputs = [][]byte{}
+			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
 
-		// Wait to append outputs until after we check that there aren't too many
-		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), resultOutputs, units, fee}, nil
+		var encodedOutput []byte
+		if actionOutput == nil {
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			encodedOutput = []byte{}
+		} else {
+			encodedOutput, err = MarshalTyped(actionOutput)
+			if err != nil {
+				return nil, err
+			}
 		}
-		resultOutputs = append(resultOutputs, outputs)
+
+		actionOutputs = append(actionOutputs, encodedOutput)
 	}
 	return &Result{
 		Success: true,
 		Error:   []byte{},
 
-		Outputs: resultOutputs,
+		Outputs: actionOutputs,
 
 		Units: units,
 		Fee:   fee,
@@ -366,7 +382,10 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		action.Marshal(p)
+		err := marshalInto(action, p)
+		if err != nil {
+			return err
+		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
@@ -380,7 +399,7 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	}
 	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(len(txs))
+	p.PackInt(uint32(len(txs)))
 	for _, tx := range txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
@@ -399,7 +418,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < txCount; i++ {
+	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
@@ -429,15 +448,12 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
-	authType := p.UnpackByte()
-	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
-	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
-	}
-	auth, err := unmarshalAuth(p)
+	auth, err := authRegistry.Unmarshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
 	}
+	authType := auth.GetTypeID()
+
 	if actorType := auth.Actor()[0]; actorType != authType {
 		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
 	}
@@ -470,12 +486,7 @@ func unmarshalActions(
 	}
 	actions := []Action{}
 	for i := uint8(0); i < actionCount; i++ {
-		actionType := p.UnpackByte()
-		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
-		if !ok {
-			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-		}
-		action, err := unmarshalAction(p)
+		action, err := actionRegistry.Unmarshal(p)
 		if err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal action", err)
 		}
