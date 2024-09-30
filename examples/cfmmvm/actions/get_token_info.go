@@ -59,14 +59,10 @@ func (g *GetTokenInfo) GetTypeID() uint8 {
 	return consts.GetTokenInfoID
 }
 
-func (g *GetTokenInfo) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (g *GetTokenInfo) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(g.Token)): state.Read,
 	}
-}
-
-func (g *GetTokenInfo) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks}
 }
 
 func (g *GetTokenInfo) ValidRange(chain.Rules) (start int64, end int64) {

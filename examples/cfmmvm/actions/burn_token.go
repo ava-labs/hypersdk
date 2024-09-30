@@ -67,15 +67,11 @@ func (*BurnToken) GetTypeID() uint8 {
 }
 
 // StateKeys implements chain.Action.
-func (b *BurnToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (b *BurnToken) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(b.TokenAddress)):                  state.All,
 		string(storage.TokenAccountBalanceKey(b.TokenAddress, actor)): state.All,
 	}
-}
-
-func (*BurnToken) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks}
 }
 
 func (*BurnToken) ValidRange(chain.Rules) (int64, int64) {

@@ -83,14 +83,10 @@ func (*CreateToken) GetTypeID() uint8 {
 	return consts.CreateTokenID
 }
 
-func (c *CreateToken) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+func (c *CreateToken) StateKeys(_ codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(storage.TokenAddress(c.Name, c.Symbol, c.Metadata))): state.All,
 	}
-}
-
-func (*CreateToken) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks}
 }
 
 func (*CreateToken) ValidRange(chain.Rules) (int64, int64) {

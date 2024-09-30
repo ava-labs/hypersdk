@@ -108,7 +108,7 @@ func (*AddLiquidity) GetTypeID() uint8 {
 	return consts.AddLiquidityID
 }
 
-func (a *AddLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (a *AddLiquidity) StateKeys(actor codec.Address) state.Keys {
 	lpToken := storage.LiqudityPoolTokenAddress(a.LiquidityPool)
 	return state.Keys{
 		string(storage.LiquidityPoolKey(a.LiquidityPool)):                state.All,
@@ -120,20 +120,6 @@ func (a *AddLiquidity) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 		string(storage.TokenAccountBalanceKey(a.TokenY, actor)):           state.All,
 		string(storage.TokenAccountBalanceKey(a.TokenX, a.LiquidityPool)): state.All,
 		string(storage.TokenAccountBalanceKey(a.TokenY, a.LiquidityPool)): state.All,
-	}
-}
-
-func (*AddLiquidity) StateKeysMaxChunks() []uint16 {
-	return []uint16{
-		storage.LiquidityPoolChunks,
-		storage.TokenInfoChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
-
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
 	}
 }
 

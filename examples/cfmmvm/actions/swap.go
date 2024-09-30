@@ -109,7 +109,7 @@ func (*Swap) GetTypeID() uint8 {
 	return consts.SwapID
 }
 
-func (s *Swap) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (s *Swap) StateKeys(actor codec.Address) state.Keys {
 	lpAddress := storage.LiquidityPoolAddress(s.TokenX, s.TokenY)
 	return state.Keys{
 		string(storage.LiquidityPoolKey(lpAddress)):                 state.All,
@@ -117,16 +117,6 @@ func (s *Swap) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 		string(storage.TokenAccountBalanceKey(s.TokenY, actor)):     state.All,
 		string(storage.TokenAccountBalanceKey(s.TokenX, lpAddress)): state.All,
 		string(storage.TokenAccountBalanceKey(s.TokenY, lpAddress)): state.All,
-	}
-}
-
-func (*Swap) StateKeysMaxChunks() []uint16 {
-	return []uint16{
-		storage.LiquidityPoolChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
-		storage.TokenAccountBalanceChunks,
 	}
 }
 

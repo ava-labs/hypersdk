@@ -84,7 +84,7 @@ func (*CreateLiquidityPool) GetTypeID() uint8 {
 	return consts.CreateLiquidityPoolID
 }
 
-func (c *CreateLiquidityPool) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+func (c *CreateLiquidityPool) StateKeys(_ codec.Address) state.Keys {
 	tokenXKey := storage.TokenInfoKey(c.TokenX)
 	tokenYKey := storage.TokenInfoKey(c.TokenY)
 	lpAddress := storage.LiquidityPoolAddress(c.TokenX, c.TokenY)
@@ -95,15 +95,6 @@ func (c *CreateLiquidityPool) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 		string(tokenYKey):  state.Read,
 		string(lpKey):      state.All,
 		string(lpTokenKey): state.All,
-	}
-}
-
-func (*CreateLiquidityPool) StateKeysMaxChunks() []uint16 {
-	return []uint16{
-		storage.TokenInfoChunks,
-		storage.TokenInfoChunks,
-		storage.LiquidityPoolChunks,
-		storage.TokenInfoChunks,
 	}
 }
 

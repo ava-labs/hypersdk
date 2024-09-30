@@ -66,16 +66,12 @@ func (*TransferToken) GetTypeID() uint8 {
 	return consts.TransferTokenID
 }
 
-func (t *TransferToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (t *TransferToken) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(t.TokenAddress)):                  state.All,
 		string(storage.TokenAccountBalanceKey(t.TokenAddress, actor)): state.All,
 		string(storage.TokenAccountBalanceKey(t.TokenAddress, t.To)):  state.All,
 	}
-}
-
-func (*TransferToken) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenInfoChunks, storage.TokenAccountBalanceChunks, storage.TokenAccountBalanceChunks}
 }
 
 func (*TransferToken) ValidRange(chain.Rules) (int64, int64) {

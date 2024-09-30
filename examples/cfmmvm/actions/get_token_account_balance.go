@@ -54,15 +54,10 @@ func (g *GetTokenAccountBalance) GetTypeID() uint8 {
 }
 
 // StateKeys implements chain.Action.
-func (g *GetTokenAccountBalance) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (g *GetTokenAccountBalance) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenAccountBalanceKey(g.Token, g.Account)): state.Read,
 	}
-}
-
-// StateKeysMaxChunks implements chain.Action.
-func (g *GetTokenAccountBalance) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.TokenAccountBalanceChunks}
 }
 
 // ValidRange implements chain.Action.

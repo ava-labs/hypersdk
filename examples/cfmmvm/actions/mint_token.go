@@ -62,17 +62,10 @@ func (*MintToken) GetTypeID() uint8 {
 	return consts.MintTokenID
 }
 
-func (m *MintToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (m *MintToken) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(m.Token)):                  state.All,
 		string(storage.TokenAccountBalanceKey(m.Token, actor)): state.All,
-	}
-}
-
-func (*MintToken) StateKeysMaxChunks() []uint16 {
-	return []uint16{
-		storage.TokenInfoChunks,
-		storage.TokenAccountBalanceChunks,
 	}
 }
 

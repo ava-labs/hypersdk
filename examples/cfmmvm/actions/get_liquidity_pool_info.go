@@ -66,14 +66,10 @@ func (g *GetLiquidityPoolInfo) GetTypeID() uint8 {
 	return consts.GetLiquidityPoolInfoID
 }
 
-func (g *GetLiquidityPoolInfo) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (g *GetLiquidityPoolInfo) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.LiquidityPoolKey(g.LiquidityPoolAddress)): state.Read,
 	}
-}
-
-func (g *GetLiquidityPoolInfo) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.LiquidityPoolChunks}
 }
 
 func (g *GetLiquidityPoolInfo) ValidRange(chain.Rules) (start int64, end int64) {
