@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package storage
+package state
 
 import (
 	"context"
@@ -9,18 +9,16 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/set"
-
-	"github.com/ava-labs/hypersdk/state"
 )
 
 type Recorder struct {
-	State         state.Immutable
+	State         Immutable
 	changedValues map[string][]byte
 	ReadState     set.Set[string]
 	WriteState    set.Set[string]
 }
 
-func NewRecorder(db state.Immutable) *Recorder {
+func NewRecorder(db Immutable) *Recorder {
 	return &Recorder{State: db, changedValues: map[string][]byte{}}
 }
 
@@ -50,10 +48,10 @@ func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err 
 	return r.State.GetValue(ctx, key)
 }
 
-func (r *Recorder) GetStateKeys() state.Keys {
-	result := state.Keys{}
+func (r *Recorder) GetStateKeys() Keys {
+	result := Keys{}
 	for key := range r.ReadState {
-		result.Add(key, state.Read)
+		result.Add(key, Read)
 	}
 	for key := range r.WriteState {
 		if _, err := r.State.GetValue(context.Background(), []byte(key)); err != nil && errors.Is(err, database.ErrNotFound) {
@@ -62,9 +60,9 @@ func (r *Recorder) GetStateKeys() state.Keys {
 				continue
 			}
 			// wasn't found so needs to be allocated
-			result.Add(key, state.Allocate)
+			result.Add(key, Allocate)
 		}
-		result.Add(key, state.Write)
+		result.Add(key, Write)
 	}
 	return result
 }

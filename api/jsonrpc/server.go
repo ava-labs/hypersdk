@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -233,5 +234,98 @@ func (j *JSONRPCServer) Execute(
 
 	reply.Output = encodedOutput
 
+	return nil
+}
+
+type SimulateTransactionArgs struct {
+	Tx []byte `json:"tx"`
+}
+
+type SimulatedAction struct {
+	Output []byte  `json:"output_b64"`
+	Error  *string `json:"error"`
+}
+
+type SimulateTransactionReply struct {
+	SimulatedActions []SimulatedAction `json:"simulatedActions"`
+	ReadKeys         []string          `json:"readKeys"`
+	WriteKeys        []string          `json:"writeKeys"`
+	AllocateKeys     []string          `json:"allocKeys"`
+	BlockHeight      uint64            `json:"blockheight"`
+	Error            string            `json:"error"`
+}
+
+type SimulationEnabledRules struct {
+	chain.Rules
+}
+
+func (SimulationEnabledRules) GetTransactionExecutionMode() chain.TransactionExecutionMode {
+	return chain.SimulatedTransactionExecution
+}
+
+func (j *JSONRPCServer) SimulateTransaction(
+	req *http.Request,
+	args *SimulateTransactionArgs,
+	reply *SimulateTransactionReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateTransaction")
+	defer span.End()
+
+	if reply == nil {
+		return errors.New("SimulateTransaction was called with a nil reply object")
+	}
+
+	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
+	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
+	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
+	if err != nil {
+		return fmt.Errorf("%w: unable to unmarshal on public service", err)
+	}
+	if !rtx.Empty() {
+		return errors.New("tx has extra bytes")
+	}
+	actor := tx.Auth.Actor()
+
+	currentState, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	reply.BlockHeight = j.vm.LastAcceptedBlock().Hght
+	recorder := state.NewRecorder(currentState)
+	simulationEnabledRules := SimulationEnabledRules{j.vm.Rules(tx.Base.Timestamp)}
+	for actionIdx, action := range tx.Actions {
+		actionOutput, err := action.Execute(ctx, simulationEnabledRules, recorder, tx.Base.Timestamp, actor, chain.CreateActionID(tx.ID(), uint8(actionIdx)))
+
+		var simAction SimulatedAction
+		if actionOutput == nil {
+			simAction.Output = []byte{}
+		} else {
+			simAction.Output, err = chain.MarshalTyped(actionOutput)
+			if err != nil {
+				return fmt.Errorf("failed to marshal output: %w", err)
+			}
+		}
+		if err != nil {
+			errString := err.Error()
+			simAction.Error = &errString
+		}
+
+		reply.SimulatedActions = append(reply.SimulatedActions, simAction)
+
+		if err != nil {
+			break
+		}
+	}
+	for key, perm := range recorder.GetStateKeys() {
+		if perm.Has(state.Read) {
+			reply.ReadKeys = append(reply.ReadKeys, key)
+		}
+		if perm.Has(state.Write) {
+			reply.WriteKeys = append(reply.WriteKeys, key)
+		}
+		if perm.Has(state.Allocate) {
+			reply.AllocateKeys = append(reply.AllocateKeys, key)
+		}
+	}
 	return nil
 }

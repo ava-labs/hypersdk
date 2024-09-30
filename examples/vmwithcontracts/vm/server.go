@@ -101,7 +101,7 @@ func (j *JSONRPCServer) simulate(ctx context.Context, t actions.Call, actor code
 	if err != nil {
 		return nil, 0, err
 	}
-	recorder := storage.NewRecorder(currentState)
+	recorder := state.NewRecorder(currentState)
 	startFuel := uint64(1000000000)
 	callInfo := &runtime.CallInfo{
 		Contract:     t.ContractAddress,

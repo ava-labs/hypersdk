@@ -265,6 +265,20 @@ func (mr *MockRulesMockRecorder) GetStorageValueWriteUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueWriteUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueWriteUnits))
 }
 
+// GetTransactionExecutionMode mocks base method.
+func (m *MockRules) GetTransactionExecutionMode() TransactionExecutionMode {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTransactionExecutionMode")
+	ret0, _ := ret[0].(TransactionExecutionMode)
+	return ret0
+}
+
+// GetTransactionExecutionMode indicates an expected call of GetTransactionExecutionMode.
+func (mr *MockRulesMockRecorder) GetTransactionExecutionMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionExecutionMode", reflect.TypeOf((*MockRules)(nil).GetTransactionExecutionMode))
+}
+
 // GetUnitPriceChangeDenominator mocks base method.
 func (m *MockRules) GetUnitPriceChangeDenominator() fees.Dimensions {
 	m.ctrl.T.Helper()
