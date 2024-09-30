@@ -222,7 +222,6 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 		stateKeys := action.StateKeys(auth.Actor())
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
-			// TODO: return more descriptive error
 			return fees.Dimensions{}, ErrInvalidKeyValue
 		}
 		bandwidth += consts.ByteLen + uint64(actionSize)
