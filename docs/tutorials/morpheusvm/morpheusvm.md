@@ -179,10 +179,6 @@ func (t *Transfer) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
-func (t *Transfer) StateKeysMaxChunks() []uint16 {
-	panic("unimplemented")
-}
-
 func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (output codec.Typed, err error) {
 	panic("unimplemented")
 }
@@ -661,23 +657,6 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 		string(storage.BalanceKey(actor)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To)):  state.All,
 	}
-}
-```
-
-### `StateKeysMaxChunks()`
-
-Remember handling "chunk size" for the `BalanceKey` implementation?
-
-We implement `StateKeysMaxChunks()` to provide the exact same idea to HyperSDK:
-
-This function returns a slice of `uint16` values (one for each state key) and they
-both update a single balance key-value pair, so we'll use `BalanceChunks` as before.
-
-Let's update the function like so:
-
-```golang
-func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 ```
 
