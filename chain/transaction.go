@@ -203,8 +203,6 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 		readsOp            = math.NewUint64Operator(0)
 		allocatesOp        = math.NewUint64Operator(0)
 		writesOp           = math.NewUint64Operator(0)
-
-		message = []byte{}
 	)
 
 	// Calculate over action/auth
@@ -215,11 +213,8 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 			return fees.Dimensions{}, err
 		}
 
-		auth, err := authFactory.Sign(message)
-		if err != nil {
-			return fees.Dimensions{}, err
-		}
-		stateKeys := action.StateKeys(auth.Actor())
+		actor := authFactory.Address()
+		stateKeys := action.StateKeys(actor)
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
