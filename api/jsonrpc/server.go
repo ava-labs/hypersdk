@@ -189,7 +189,7 @@ func (j *JSONRPCServer) Execute(
 	now := time.Now().UnixMilli()
 
 	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
+	stateKeysWithPermissions := action.StateKeys(args.Actor)
 
 	// flatten the map to a slice of keys
 	storageKeysToRead := make([][]byte, 0)

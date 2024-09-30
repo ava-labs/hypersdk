@@ -32,11 +32,7 @@ func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mut
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
-}
-
-func (*abstractMockAction) StateKeysMaxChunks() []uint16 {
+func (*abstractMockAction) StateKeys(_ codec.Address) state.Keys {
 	panic("unimplemented")
 }
 

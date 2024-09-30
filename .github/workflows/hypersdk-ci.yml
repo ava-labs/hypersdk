@@ -10,17 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mock-gen:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-      - shell: bash
-        run: scripts/mock.gen.sh
-      - shell: bash
-        run: scripts/tests.clean.sh
-
   go-mod-tidy:
     runs-on: ubuntu-latest
     steps:
@@ -90,7 +79,7 @@ jobs:
 
   hypersdk-tests:
     runs-on: ubuntu-latest
-    needs: [mock-gen, go-mod-tidy, hypersdk-lint, hypersdk-unit-tests]
+    needs: [go-mod-tidy, hypersdk-lint, hypersdk-unit-tests]
     outputs:
       only_contracts_changed: ${{ steps.check_changes.outputs.only_contracts_changed }}
     steps:
