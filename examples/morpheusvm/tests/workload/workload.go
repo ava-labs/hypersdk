@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
@@ -25,6 +24,10 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
+
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 )
 
 const (
@@ -41,7 +44,7 @@ var (
 	}
 	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
-	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
+	ed25519AuthFactories = make([]*authed25519.ED25519Factory, len(ed25519HexKeys))
 )
 
 func init() {
@@ -52,14 +55,14 @@ func init() {
 		}
 		priv := ed25519.PrivateKey(privBytes)
 		ed25519PrivKeys[i] = priv
-		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
-		addr := auth.NewED25519Address(priv.PublicKey())
+		ed25519AuthFactories[i] = authed25519.NewED25519Factory(priv)
+		addr := authed25519.NewED25519Address(priv.PublicKey())
 		ed25519Addrs[i] = addr
 	}
 }
 
 type workloadFactory struct {
-	factories []*auth.ED25519Factory
+	factories []*authed25519.ED25519Factory
 	addrs     []codec.Address
 }
 
@@ -98,7 +101,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory *auth.ED25519Factory
+	factory *authed25519.ED25519Factory
 	cli     *jsonrpc.JSONRPCClient
 	lcli    *vm.JSONRPCClient
 	count   int
@@ -116,7 +119,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		return nil, nil, err
 	}
 
-	aother := auth.NewED25519Address(other.PublicKey())
+	aother := authed25519.NewED25519Address(other.PublicKey())
 	parser, err := g.lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -145,16 +148,16 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 		return nil, err
 	}
 	blsPub := bls.PublicFromPrivateKey(blsPriv)
-	blsAddr := auth.NewBLSAddress(blsPub)
-	blsFactory := auth.NewBLSFactory(blsPriv)
+	blsAddr := authbls.NewBLSAddress(blsPub)
+	blsFactory := authbls.NewBLSFactory(blsPriv)
 
 	secpPriv, err := secp256r1.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}
 	secpPub := secpPriv.PublicKey()
-	secpAddr := auth.NewSECP256R1Address(secpPub)
-	secpFactory := auth.NewSECP256R1Factory(secpPriv)
+	secpAddr := authsecp256r1.NewSECP256R1Address(secpPub)
+	secpFactory := authsecp256r1.NewSECP256R1Factory(secpPriv)
 
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	networkID, _, blockchainID, err := cli.Network(context.Background())

@@ -6,7 +6,7 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/auth/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -15,6 +15,10 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
+
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 )
 
 var (
@@ -36,9 +40,9 @@ func init() {
 		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		AuthParser.Register(&authed25519.ED25519{}, authed25519.UnmarshalED25519),
+		AuthParser.Register(&authsecp256r1.SECP256R1{}, authsecp256r1.UnmarshalSECP256R1),
+		AuthParser.Register(&authbls.BLS{}, authbls.UnmarshalBLS),
 
 		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
@@ -57,7 +61,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		ActionParser,
 		AuthParser,
 		OutputParser,
-		auth.Engines(),
+		common.Engines(),
 		options...,
 	)
 }

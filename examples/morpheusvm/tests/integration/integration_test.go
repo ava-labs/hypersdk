@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -34,7 +34,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
 
-	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
+	randomEd25519AuthFactory := authed25519.NewED25519Factory(randomEd25519Priv)
 
 	// Setup imports the integration test coverage
 	integration.Setup(

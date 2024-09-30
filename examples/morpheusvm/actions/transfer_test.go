@@ -158,7 +158,7 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			require.NoError(err)
 			return store
 		},
-		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
+		Assertion: func(ctx context.Context, _ *testing.B, store state.Mutable) {
 			toBalance, err := storage.GetBalance(ctx, store, to)
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)
