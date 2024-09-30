@@ -1,0 +1,12 @@
+[package]
+name = "simulator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libc = "0.2.155"
+thiserror = { workspace = true }
+
+[build-dependencies]
+bindgen = "0.69.4"
+serde_json = "1.0.122"

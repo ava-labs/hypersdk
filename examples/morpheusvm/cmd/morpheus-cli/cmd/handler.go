@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cmd
@@ -8,6 +8,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
@@ -16,11 +18,9 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -39,7 +39,7 @@ func (h *Handler) Root() *cli.Handler {
 
 func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*rpc.JSONRPCClient, *brpc.JSONRPCClient, *rpc.WebSocketClient, error,
+	*jsonrpc.JSONRPCClient, *vm.JSONRPCClient, *ws.WebSocketClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
@@ -64,12 +64,11 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	jcli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := jcli.Network(context.TODO())
+	jcli := jsonrpc.NewJSONRPCClient(uris[0])
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -78,29 +77,23 @@ func (h *Handler) DefaultActor() (
 			Address: addr,
 			Bytes:   priv,
 		}, factory, jcli,
-		brpc.NewJSONRPCClient(
+		vm.NewJSONRPCClient(
 			uris[0],
-			networkID,
-			chainID,
 		), ws, nil
 }
 
 func (*Handler) GetBalance(
 	ctx context.Context,
-	cli *brpc.JSONRPCClient,
+	cli *vm.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
-	saddr, err := codec.AddressBech32(consts.HRP, addr)
-	if err != nil {
-		return 0, err
-	}
-	balance, err := cli.Balance(ctx, saddr)
+	balance, err := cli.Balance(ctx, addr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
 		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		utils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
@@ -132,10 +125,17 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(addr codec.Address) string {
-	return codec.MustAddressBech32(consts.HRP, addr)
+func (*Controller) GetParser(uri string) (chain.Parser, error) {
+	cli := vm.NewJSONRPCClient(uri)
+	return cli.Parser(context.TODO())
 }
 
-func (*Controller) ParseAddress(addr string) (codec.Address, error) {
-	return codec.ParseAddressBech32(consts.HRP, addr)
+func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
+	handleTx(tx, result)
+}
+
+func (*Controller) LookupBalance(address codec.Address, uri string) (uint64, error) {
+	cli := vm.NewJSONRPCClient(uri)
+	balance, err := cli.Balance(context.TODO(), address)
+	return balance, err
 }

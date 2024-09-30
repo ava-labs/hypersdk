@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package codec
@@ -21,4 +21,21 @@ func LoadHex(s string, expectedSize int) ([]byte, error) {
 		return nil, ErrInvalidSize
 	}
 	return bytes, nil
+}
+
+type Bytes []byte
+
+// MarshalText returns the hex representation of b.
+func (b Bytes) MarshalText() ([]byte, error) {
+	return []byte(ToHex(b)), nil
+}
+
+// UnmarshalText sets b to the bytes represented by text.
+func (b *Bytes) UnmarshalText(text []byte) error {
+	bytes, err := LoadHex(string(text), -1)
+	if err != nil {
+		return err
+	}
+	*b = bytes
+	return nil
 }

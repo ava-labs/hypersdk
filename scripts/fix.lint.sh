@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 set -o errexit
 set -o pipefail
@@ -11,23 +13,15 @@ fi
 
 # Calculate the directory where the script is located
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-
-# Source the utils.sh script using an absolute path
 # shellcheck source=/scripts/common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
-echo "adding license header"
-go install -v github.com/palantir/go-license@latest
-
-# alert the user if they do not have $GOPATH properly configured
-check_command go-license
-
-go-license --config="${SCRIPT_DIR}/../license.yml" -- **/*.go
+add_license_headers ""
 
 echo "gofumpt files"
-go install -v mvdan.cc/gofumpt@latest
+install_if_not_exists gofumpt mvdan.cc/gofumpt@latest
 gofumpt -l -w .
 
 echo "gci files"
-go install -v github.com/daixiang0/gci@v0.12.1
+install_if_not_exists gci github.com/daixiang0/gci@v0.12.1
 gci write --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .
