@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -25,8 +24,6 @@ import (
 
 func TestBlockCache(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// create a block with "Unknown" status
 	blk := &chain.StatefulBlock{
@@ -40,7 +37,7 @@ func TestBlockCache(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatefulBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
-	rules := chain.NewMockRules(ctrl)
+	rules := genesis.NewDefaultRules()
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  NewConfig(),
@@ -66,7 +63,7 @@ func TestBlockCache(t *testing.T) {
 	// put the block into the cache "vm.blocks"
 	// and delete from "vm.verifiedBlocks"
 	ctx := context.TODO()
-	rules.EXPECT().GetValidityWindow().Return(int64(60))
+	rules.ValidityWindow = int64(60)
 	vm.Accepted(ctx, blk)
 
 	// we have not set up any persistent db
