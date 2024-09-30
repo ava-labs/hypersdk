@@ -22,6 +22,7 @@ pub struct Context {
     actor: Address,
     height: u64,
     timestamp: u64,
+    value: u64,
     action_id: Id,
     state_cache: Cache,
     host_accessor: Accessor,
@@ -47,6 +48,7 @@ mod debug {
                 actor,
                 height,
                 timestamp,
+                value,
                 action_id,
                 state_cache: _,
                 host_accessor: _,
@@ -59,6 +61,7 @@ mod debug {
                 actor,
                 height,
                 timestamp,
+                value,
                 action_id
             )
         }
@@ -71,6 +74,7 @@ impl BorshDeserialize for Context {
         let actor = Address::deserialize_reader(reader)?;
         let height = u64::deserialize_reader(reader)?;
         let timestamp = u64::deserialize_reader(reader)?;
+        let value = u64::deserialize_reader(reader)?;
         let action_id = Id::deserialize_reader(reader)?;
 
         let ctx = Context {
@@ -78,6 +82,7 @@ impl BorshDeserialize for Context {
             actor,
             height,
             timestamp,
+            value,
             action_id,
             state_cache: Cache::new(),
             host_accessor: Accessor::new(),
@@ -123,6 +128,14 @@ impl Context {
     #[must_use]
     pub fn timestamp(&self) -> u64 {
         self.timestamp
+    }
+
+    /// Returns the call-value
+    /// # Panics
+    /// Panics if the context was not injected
+    #[must_use]
+    pub fn value(&self) -> u64 {
+        self.value
     }
 
     /// Returns the action-id
@@ -270,6 +283,7 @@ impl Context {
             actor: Address::default(),
             height: 0,
             timestamp: 0,
+            value: 0,
             action_id: Id::default(),
             state_cache: Cache::new(),
             host_accessor: Accessor::new(),

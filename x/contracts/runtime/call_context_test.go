@@ -65,6 +65,57 @@ func TestCallContext(t *testing.T) {
 	require.Nil(result)
 }
 
+func TestValueContext(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	contract0ID := ids.GenerateTestID()
+	contract0Address := codec.CreateAddress(0, contract0ID)
+	stringedID0 := string(contract0ID[:])
+
+	defaultActorAddress := codec.Address{}
+
+	value := uint64(123456)
+
+	testStateManager := &TestStateManager{
+		ContractsMap: map[string][]byte{},
+		AccountMap:   map[codec.Address]string{contract0Address: stringedID0},
+		Balances:     map[codec.Address]uint64{defaultActorAddress: value},
+	}
+
+	err := testStateManager.CompileAndSetContract(ContractID(stringedID0), "call_contract")
+	require.NoError(err)
+
+	r := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+	).WithDefaults(
+		CallInfo{
+			Contract: contract0Address,
+			State:    testStateManager,
+			Fuel:     1000000,
+		})
+
+	result, err := r.WithValue(value).CallContract(
+		ctx,
+		&CallInfo{
+			Actor:        r.defaultCallInfo.Actor,
+			FunctionName: "value_check",
+		})
+	require.NoError(err)
+	require.Equal(value, into[uint64](result))
+
+	result, err = r.CallContract(
+		ctx,
+		&CallInfo{
+			FunctionName: "value_check",
+		})
+	require.NoError(err)
+	require.Equal(uint64(0), into[uint64](result))
+}
+
 func TestCallContextPreventOverwrite(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
