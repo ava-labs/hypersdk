@@ -41,18 +41,18 @@ func ToAddress(b []byte) (Address, error) {
 // StringToAddress uses copy, which copies the minimum of
 // either AddressLen or the length of the hex decoded string.
 func StringToAddress(s string) (Address, error) {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return Address{}, fmt.Errorf("failed to convert hex string to address: %w", err)
-	}
 	var a Address
+	b, err := LoadHex(s, AddressLen)
+	if err != nil {
+		return a, err
+	}
 	copy(a[:], b)
 	return a, nil
 }
 
 // String implements fmt.Stringer.
 func (a Address) String() string {
-	return hex.EncodeToString(a[:])
+	return ToHex(a[:])
 }
 
 // MarshalText returns the hex representation of a.

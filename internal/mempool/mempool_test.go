@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/trace"
@@ -50,8 +49,6 @@ func GenerateTestItem(sponsor codec.Address, t int64) *TestItem {
 
 func TestMempool(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
@@ -71,8 +68,6 @@ func TestMempool(t *testing.T) {
 
 func TestMempoolAddDuplicates(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	txm := New[*TestItem](tracer, 3, 16)
@@ -93,8 +88,6 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	// Sponsor1 has reached his max
 	// Sponsor2 is exempt from max size
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
@@ -111,8 +104,6 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 
 func TestMempoolAddExceedMaxSize(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
@@ -141,8 +132,6 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 
 func TestMempoolRemoveTxs(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
@@ -161,8 +150,6 @@ func TestMempoolRemoveTxs(t *testing.T) {
 
 func TestMempoolSetMinTimestamp(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
