@@ -346,6 +346,7 @@ pub struct CallContractBuilder<'a> {
 }
 
 impl<'a> CallContractBuilder<'a> {
+    /// Creates a new context with an address.
     fn with_address(ctx: &'a mut Context, address: Address) -> Self {
         CallContractBuilder {
             ctx,
@@ -355,16 +356,25 @@ impl<'a> CallContractBuilder<'a> {
         }
     }
 
+    /// Specifies the amount of units that should be passed to the context.
     pub fn with_max_units(mut self, units: u64) -> Self {
         self.max_units = units.into();
         self
     }
 
+    /// Sets the gas forwarding rule to be "pass-all". This is the default behaviour.
+    pub fn with_pass_all(mut self) -> Self {
+        self.max_units = Gas::PassAll;
+        self
+    }
+
+    /// Sets the value passed to the context. Defaults to 0.
     pub fn with_value(mut self, value: u64) -> Self {
         self.value = value;
         self
     }
 
+    /// Consumes the builder and call the specified function with the args.
     pub fn call_function<T: BorshDeserialize>(
         self,
         function_name: &str,

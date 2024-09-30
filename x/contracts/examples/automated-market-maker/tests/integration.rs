@@ -7,8 +7,8 @@ use wasmlanche::{
     simulator::{Error, SimpleState, Simulator},
     Address,
 };
-
 const CONTRACT_PATH: &str = env!("CONTRACT_PATH");
+const MAX_GAS: u64 = 1000000000;
 
 #[test]
 fn init_contract() -> Result<(), Error> {
@@ -41,30 +41,35 @@ fn add_liquidity_same_ratio() {
     let amount: u64 = 100;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
-    let balance: u64 = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: u64 = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     simulator
-        .call_contract::<(), _>(token_x, "approve", (amm, amount))
+        .call_contract::<(), _>(token_x, "approve", (amm, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "approve", (amm, amount))
+        .call_contract::<(), _>(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount));
+    let result =
+        simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         result.is_ok(),
         "Add liquidity errored {:?}",
         result.unwrap_err()
     );
 
-    let balance: u64 = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: u64 = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
 }
 
@@ -79,16 +84,19 @@ fn add_liquidity_without_approval() {
     let amount: u64 = 100;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
-    let balance: u64 = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: u64 = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
-    let result = simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount));
+    let result =
+        simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(result.is_err(), "Add liquidity did not error");
 }
 
@@ -104,20 +112,21 @@ fn swap_changes_ratio() {
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount + amount_x_swap))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
-        .call_contract::<(), _>(token_x, "approve", (amm, amount + amount_x_swap))
+        .call_contract::<(), _>(token_x, "approve", (amm, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "approve", (amm, amount))
+        .call_contract::<(), _>(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount));
+    let result =
+        simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         result.is_ok(),
         "Add liquidity errored {:?}",
@@ -125,23 +134,23 @@ fn swap_changes_ratio() {
     );
 
     let balance_y: u64 = simulator
-        .call_contract(token_y, "balance_of", alice)
+        .call_contract(token_y, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
 
     let swap: u64 = simulator
-        .call_contract(amm, "swap", (token_x, amount_x_swap))
+        .call_contract(amm, "swap", (token_x, amount_x_swap), MAX_GAS)
         .unwrap();
 
     assert!(swap > 0, "Swap did not return any tokens");
 
     let balance_x: Units = simulator
-        .call_contract(token_x, "balance_of", alice)
+        .call_contract(token_x, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert_eq!(balance_x, 0, "Balance of token x is incorrect");
 
     let balance_y: u64 = simulator
-        .call_contract(token_y, "balance_of", alice)
+        .call_contract(token_y, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert!(balance_y > 0, "Balance of token y is incorrect");
 }
@@ -158,10 +167,10 @@ fn swap_insufficient_funds() {
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
@@ -169,22 +178,23 @@ fn swap_insufficient_funds() {
             token_x,
             "approve",
             (amm, amount + amount_x_swap + amount_x_swap),
+            MAX_GAS,
         )
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "approve", (amm, amount))
+        .call_contract::<(), _>(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
     let _result: Units = simulator
-        .call_contract(amm, "add_liquidity", (amount, amount))
+        .call_contract(amm, "add_liquidity", (amount, amount), MAX_GAS)
         .unwrap();
 
     let balance_y: Units = simulator
-        .call_contract(token_y, "balance_of", alice)
+        .call_contract(token_y, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
 
-    let swap = simulator.call_contract::<Units, _>(amm, "swap", (token_x, amount_x_swap));
+    let swap = simulator.call_contract::<Units, _>(amm, "swap", (token_x, amount_x_swap), MAX_GAS);
     assert!(swap.is_err(), "Swap succeeded with insufficient funds");
 }
 
@@ -206,27 +216,29 @@ fn swap_incorrect_token() {
     let amount_x_swap: u64 = 50;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount + amount_x_swap))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
     simulator
-        .call_contract::<(), _>(token_x, "approve", (amm, amount + amount_x_swap))
+        .call_contract::<(), _>(token_x, "approve", (amm, amount + amount_x_swap), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "approve", (amm, amount))
+        .call_contract::<(), _>(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount));
+    let result =
+        simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         result.is_ok(),
         "Add liquidity errored {:?}",
         result.unwrap_err()
     );
 
-    let swap = simulator.call_contract::<Units, _>(amm, "swap", (wrong_token, amount_x_swap));
+    let swap =
+        simulator.call_contract::<Units, _>(amm, "swap", (wrong_token, amount_x_swap), MAX_GAS);
     assert!(swap.is_err(), "Swap succeeded with incorrect token");
 }
 
@@ -241,49 +253,56 @@ fn remove_liquidity() {
     let amount: u64 = 100;
 
     simulator
-        .call_contract::<(), _>(token_x, "mint", (alice, amount))
+        .call_contract::<(), _>(token_x, "mint", (alice, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "mint", (alice, amount))
+        .call_contract::<(), _>(token_y, "mint", (alice, amount), MAX_GAS)
         .unwrap();
 
-    let balance: u64 = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: u64 = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     simulator
-        .call_contract::<(), _>(token_x, "approve", (amm, amount))
+        .call_contract::<(), _>(token_x, "approve", (amm, amount), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "approve", (amm, amount))
+        .call_contract::<(), _>(token_y, "approve", (amm, amount), MAX_GAS)
         .unwrap();
 
-    let result = simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount));
+    let result =
+        simulator.call_contract::<Units, _>(amm, "add_liquidity", (amount, amount), MAX_GAS);
     assert!(
         result.is_ok(),
         "Add liquidity errored {:?}",
         result.unwrap_err()
     );
 
-    let balance: Units = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: Units = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
 
     let (token_x_balance, token_y_balance): (u64, u64) = simulator
-        .call_contract(amm, "remove_liquidity", balance)
+        .call_contract(amm, "remove_liquidity", balance, MAX_GAS)
         .unwrap();
 
     assert_eq!(token_x_balance, amount, "Token x balance is incorrect");
     assert_eq!(token_y_balance, amount, "Token y balance is incorrect");
 
-    let balance: Units = simulator.call_contract(lt, "balance_of", alice).unwrap();
+    let balance: Units = simulator
+        .call_contract(lt, "balance_of", alice, MAX_GAS)
+        .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     let balance_x: Units = simulator
-        .call_contract(token_x, "balance_of", alice)
+        .call_contract(token_x, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert_eq!(balance_x, amount, "Balance of token x is incorrect");
 
     let balance_y: Units = simulator
-        .call_contract(token_y, "balance_of", alice)
+        .call_contract(token_y, "balance_of", alice, MAX_GAS)
         .unwrap();
     assert_eq!(balance_y, amount, "Balance of token y is incorrect");
 }
@@ -303,23 +322,28 @@ fn init_amm(simulator: &mut Simulator) -> (Address, Address, Address, Address) {
 
     // initialize tokens
     simulator
-        .call_contract::<(), _>(token_x, "init", ("CoinX", "CX"))
+        .call_contract::<(), _>(token_x, "init", ("CoinX", "CX"), MAX_GAS)
         .unwrap();
     simulator
-        .call_contract::<(), _>(token_y, "init", ("YCoin", "YC"))
+        .call_contract::<(), _>(token_y, "init", ("YCoin", "YC"), MAX_GAS)
         .unwrap();
     let amm_contract = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(amm_contract, "init", (token_x, token_y, token_contract_id))
+        .call_contract::<(), _>(
+            amm_contract,
+            "init",
+            (token_x, token_y, token_contract_id),
+            MAX_GAS,
+        )
         .unwrap();
 
     // Check if the liquidity token was created
     let lt: Address = simulator
-        .call_contract(amm_contract, "get_liquidity_token", ())
+        .call_contract(amm_contract, "get_liquidity_token", (), MAX_GAS)
         .unwrap();
     // grab the name of the liquidity token
-    let lt_name: String = simulator.call_contract(lt, "symbol", ()).unwrap();
+    let lt_name: String = simulator.call_contract(lt, "symbol", (), MAX_GAS).unwrap();
 
     assert_eq!(lt_name, "LT", "Liquidity token name is incorrect");
 

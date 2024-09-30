@@ -93,10 +93,8 @@ func NewContractModule(r *WasmRuntime) *ImportModule {
 					return Err[RawBytes, ContractCallErrorCode](ExecutionFailure), err
 				}
 
-				// return any remaining fuel to the calling program
-				if callInfo.Fuel > 0 {
-					callInfo.AddFuel(newInfo.RemainingFuel())
-				}
+				// return any remaining fuel to the calling contract
+				callInfo.AddFuel(newInfo.RemainingFuel())
 
 				return Ok[RawBytes, ContractCallErrorCode](result), nil
 			})},

@@ -25,11 +25,11 @@ fn inc_and_get_value() {
     let counter = simulator.create_contract(&counter_path).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(counter_external, "inc", (counter, owner))
+        .call_contract::<(), _>(counter_external, "inc", (counter, owner), 100_000_000)
         .unwrap();
 
     let response: u64 = simulator
-        .call_contract(counter_external, "get_value", (counter, owner))
+        .call_contract(counter_external, "get_value", (counter, owner), 100_000_000)
         .unwrap();
 
     assert_eq!(response, 1);

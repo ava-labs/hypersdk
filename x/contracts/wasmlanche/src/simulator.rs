@@ -186,6 +186,7 @@ impl<'a> Simulator<'a> {
         contract: Address,
         method: &str,
         params: U,
+        gas: u64,
     ) -> Result<T, Error>
     where
         T: borsh::BorshDeserialize,
@@ -194,7 +195,7 @@ impl<'a> Simulator<'a> {
         let method = CString::new(method).expect("error converting method to CString");
         let params = borsh::to_vec(&params).expect("error serializing result");
 
-        let context = CallContext::new(self, contract, method, params, Gas::Units(u64::MAX));
+        let context = CallContext::new(self, contract, method, params, gas.into());
         let context = BorrowedCallContext::from(&context);
 
         let result = simulator::call_contract(&self.state, &context);

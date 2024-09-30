@@ -11,6 +11,9 @@ use wasmlanche::{
 // .wasm file that's output when we compile.
 const CONTRACT_PATH: &str = env!("CONTRACT_PATH");
 
+// Let's not worry about how much gas things cost for now.
+const LARGE_AMOUNT_OF_GAS: u64 = 100_000_000;
+
 #[test]
 fn create_contract() -> Result<(), Error> {
     let mut state = SimpleState::new();
@@ -32,11 +35,11 @@ fn increment() {
     let counter_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(counter_address, "inc", (bob, 10u64))
+        .call_contract::<(), _>(counter_address, "inc", (bob, 10u64), LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     let value: Count = simulator
-        .call_contract(counter_address, "get_value", bob)
+        .call_contract(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     assert_eq!(value, 10);
@@ -55,11 +58,11 @@ fn inc_by_one() {
     let counter_address = simulator.create_contract(CONTRACT_PATH).unwrap().address;
 
     simulator
-        .call_contract::<(), _>(counter_address, "inc_me_by_one", ())
+        .call_contract::<(), _>(counter_address, "inc_me_by_one", (), LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     let value: Count = simulator
-        .call_contract(counter_address, "get_value", bob)
+        .call_contract(counter_address, "get_value", bob, LARGE_AMOUNT_OF_GAS)
         .unwrap();
 
     assert_eq!(value, 1);
