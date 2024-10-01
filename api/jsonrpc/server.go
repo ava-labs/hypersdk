@@ -269,7 +269,7 @@ func (j *JSONRPCServer) SimulateAction(
 		return errors.New("tx has extra bytes")
 	}
 	if len(actions) != 1 {
-		return fmt.Errorf("simulateAction expectes a single action, %d found", len(actions))
+		return fmt.Errorf("simulateAction expects a single action, %d found", len(actions))
 	}
 	currentState, err := j.vm.ImmutableState(ctx)
 	if err != nil {
