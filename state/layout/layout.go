@@ -60,7 +60,3 @@ func FeePrefix() []byte {
 func IsConflictingPrefix(prefix byte) bool {
 	return defaultHeightStatePrefix == prefix || defaultTimestampStatePrefix == prefix || defaultFeeStatePrefix == prefix
 }
-
-func LAvailablePrefix() byte {
-	return LowestAvailablePrefix
-}
