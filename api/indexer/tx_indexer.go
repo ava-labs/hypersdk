@@ -89,12 +89,12 @@ func (t *txDBIndexer) Accept(blk *chain.ExecutedBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
-	for j, tx := range blk.Txs {
+	for j, tx := range blk.Block.Txs {
 		result := blk.Results[j]
 		if err := t.storeTransaction(
 			batch,
 			tx.ID(),
-			blk.Tmstmp,
+			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
 			result.Fee,

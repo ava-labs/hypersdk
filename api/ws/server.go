@@ -208,7 +208,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 	results := b.Results
-	for i, tx := range b.Txs {
+	for i, tx := range b.Block.Txs {
 		txID := tx.ID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
@@ -223,7 +223,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return w.setMinTx(b.Tmstmp)
+	return w.setMinTx(b.Block.Tmstmp)
 }
 
 func (w *WebSocketServer) MessageCallback() pubsub.Callback {

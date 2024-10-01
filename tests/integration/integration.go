@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -135,7 +136,11 @@ func setInstances() {
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
 		event.SubscriptionFunc[*chain.ExecutedBlock]{
 			AcceptF: func(blk *chain.ExecutedBlock) error {
-				externalSubscriberAcceptedBlocksCh <- blk.ID()
+				blockID, err := blk.Block.ID()
+				if err != nil {
+					return fmt.Errorf("failed to get block ID: %w", err)
+				}
+				externalSubscriberAcceptedBlocksCh <- blockID
 				return nil
 			},
 		},

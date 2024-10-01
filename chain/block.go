@@ -898,27 +898,28 @@ func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 
 func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
 	return &ExecutedBlock{
-		StatelessBlock: b.StatelessBlock,
-		Results:        b.results,
-		UnitPrices:     b.feeManager.UnitPrices(),
-		id:             b.ID(),
+		Block:      b.StatelessBlock,
+		Results:    b.results,
+		UnitPrices: b.feeManager.UnitPrices(),
 	}
 }
 
 type ExecutedBlock struct {
-	*StatelessBlock `json:"block"`
-	Results         []*Result       `json:"results"`
-	UnitPrices      fees.Dimensions `json:"unitPrices"`
-	id         ids.ID
+	Block      *StatelessBlock `json:"block"`
+	Results    []*Result       `json:"results"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
-func (b *ExecutedBlock) ID() ids.ID { return b.id }
-
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	size := codec.BytesLen(b.blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
+	blockBytes, err := b.Block.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
-	writer.PackBytes(b.blockBytes)
+	writer.PackBytes(blockBytes)
 	resultBytes, err := MarshalResults(b.Results)
 	if err != nil {
 		return nil, err
@@ -953,16 +954,10 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
 	}
-	blkID, err := blk.ID()
-	if err != nil {
-		return nil, err
-	}
 	return &ExecutedBlock{
-		StatelessBlock: blk,
-		Results:        results,
-		UnitPrices:     prices,
-		blockBytes:     blkMsg,
-		id:             blkID,
+		Block:      blk,
+		Results:    results,
+		UnitPrices: prices,
 	}, nil
 }
 
