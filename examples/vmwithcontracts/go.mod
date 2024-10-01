@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/vmwithcontracts
 go 1.21.12
 
 require (
-	github.com/ava-labs/avalanchego v1.11.11
+	github.com/ava-labs/avalanchego v1.11.12-rc.2
 	github.com/ava-labs/hypersdk v0.0.16
 	github.com/fatih/color v1.13.0
 	github.com/near/borsh-go v0.3.1
