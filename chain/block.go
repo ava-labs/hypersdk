@@ -21,13 +21,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	publicfees "github.com/ava-labs/hypersdk/fees"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -165,7 +165,7 @@ type StatefulBlock struct {
 	txsSet   set.Set[ids.ID]
 
 	results    []*Result
-	feeManager *fees.Manager
+	feeManager *internalfees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -292,7 +292,7 @@ func (b *StatefulBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
@@ -481,7 +481,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentFeeManager := fees.NewManager(feeRaw)
+	parentFeeManager := internalfees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -892,49 +892,46 @@ func (b *StatefulBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) FeeManager() *fees.Manager {
+func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 	return b.feeManager
 }
 
-func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
-	return NewExecutedBlock(
-		b.id,
-		b.StatelessBlock,
-		b.results,
-		b.feeManager.UnitPrices(),
-	)
-}
-
 type ExecutedBlock struct {
-	*StatelessBlock `json:"block"`
-	Results         []*Result             `json:"results"`
-	UnitPrices      publicfees.Dimensions `json:"unitPrices"`
-
-	id ids.ID
+	BlockID    ids.ID          `json:"blockID"`
+	Block      *StatelessBlock `json:"block"`
+	Results    []*Result       `json:"results"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
-func NewExecutedBlock(
-	blkID ids.ID,
-	sb *StatelessBlock,
-	results []*Result,
-	unitPrices publicfees.Dimensions,
-) *ExecutedBlock {
+func NewExecutedBlockFromStateful(b *StatefulBlock) *ExecutedBlock {
 	return &ExecutedBlock{
-		StatelessBlock: sb,
-		Results:        results,
-		UnitPrices:     unitPrices,
-		id:             blkID,
+		BlockID:    b.ID(),
+		Block:      b.StatelessBlock,
+		Results:    b.results,
+		UnitPrices: b.feeManager.UnitPrices(),
 	}
 }
 
-func (b *ExecutedBlock) ID() ids.ID { return b.id }
-
-func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	blockBytes, err := b.StatelessBlock.Marshal()
+func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions) (*ExecutedBlock, error) {
+	blkID, err := statelessBlock.ID()
 	if err != nil {
 		return nil, err
 	}
-	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + publicfees.DimensionsLen
+	return &ExecutedBlock{
+		BlockID:    blkID,
+		Block:      statelessBlock,
+		Results:    results,
+		UnitPrices: unitPrices,
+	}, nil
+}
+
+func (b *ExecutedBlock) Marshal() ([]byte, error) {
+	blockBytes, err := b.Block.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	writer.PackBytes(blockBytes)
@@ -963,9 +960,9 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if err != nil {
 		return nil, err
 	}
-	unitPricesBytes := make([]byte, publicfees.DimensionsLen)
-	reader.UnpackFixedBytes(publicfees.DimensionsLen, &unitPricesBytes)
-	prices, err := publicfees.UnpackDimensions(unitPricesBytes)
+	unitPricesBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &unitPricesBytes)
+	prices, err := fees.UnpackDimensions(unitPricesBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -975,16 +972,7 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if err := reader.Err(); err != nil {
 		return nil, err
 	}
-	blkID, err := blk.ID()
-	if err != nil {
-		return nil, err
-	}
-	return NewExecutedBlock(
-		blkID,
-		blk,
-		results,
-		prices,
-	), nil
+	return NewExecutedBlock(blk, results, prices)
 }
 
 type SyncableBlock struct {

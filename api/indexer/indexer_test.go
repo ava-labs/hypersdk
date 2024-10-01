@@ -34,12 +34,12 @@ func TestBlockIndex(t *testing.T) {
 		blkID, err := statelessBlock.ID()
 		require.NoError(err)
 		parentID = blkID
-		blk := chain.NewExecutedBlock(
-			blkID,
+		blk, err := chain.NewExecutedBlock(
 			statelessBlock,
 			[]*chain.Result{},
 			fees.Dimensions{},
 		)
+		require.NoError(err)
 		executedBlocks[i] = blk
 		err = indexer.Accept(blk)
 		require.NoError(err)
@@ -48,19 +48,19 @@ func TestBlockIndex(t *testing.T) {
 	expectedLatestBlk := executedBlocks[len(executedBlocks)-1]
 	receivedLatestBlk, err := indexer.GetLatestBlock()
 	require.NoError(err)
-	require.Equal(expectedLatestBlk.ID(), receivedLatestBlk.ID())
+	require.Equal(expectedLatestBlk.BlockID, receivedLatestBlk.BlockID)
 
 	checkBlocks := func(indexer *Indexer, expectedBlocks []*chain.ExecutedBlock, blockWindow int) {
 		for i := 0; i < blockWindow; i++ {
 			expectedBlk := expectedBlocks[len(expectedBlocks)-1-i]
-			height := expectedBlk.Hght
+			height := expectedBlk.Block.Hght
 			blkByHeight, err := indexer.GetBlockByHeight(height)
 			require.NoError(err)
-			require.Equal(expectedBlk.ID(), blkByHeight.ID())
+			require.Equal(expectedBlk.BlockID, blkByHeight.BlockID)
 
-			blkByID, err := indexer.GetBlock(expectedBlk.ID())
+			blkByID, err := indexer.GetBlock(expectedBlk.BlockID)
 			require.NoError(err)
-			require.Equal(expectedBlk.ID(), blkByID.ID())
+			require.Equal(expectedBlk.BlockID, blkByID.BlockID)
 		}
 
 		for i := 0; i <= len(executedBlocks)-blockWindow; i++ {

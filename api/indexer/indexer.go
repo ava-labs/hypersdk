@@ -86,9 +86,9 @@ func (i *Indexer) initBlocks() error {
 			return err
 		}
 
-		i.blockIDToHeight.Put(blk.ID(), blk.Hght)
-		i.blockHeightToBlock.Put(blk.Hght, blk)
-		lastHeight = blk.Hght
+		i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
+		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+		lastHeight = blk.Block.Hght
 	}
 	if err := iter.Error(); err != nil {
 		return err
@@ -125,17 +125,17 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Hght), executedBlkBytes); err != nil {
+	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
 	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Hght-i.blockWindow)); err != nil {
+	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
 		return err
 	}
 
-	i.blockIDToHeight.Put(blk.ID(), blk.Hght)
-	i.blockHeightToBlock.Put(blk.Hght, blk)
-	i.lastHeight.Store(blk.Hght)
+	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
+	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+	i.lastHeight.Store(blk.Block.Hght)
 
 	return nil
 }
@@ -164,12 +164,12 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 	batch := i.txDB.NewBatch()
 	defer batch.Reset()
 
-	for j, tx := range blk.Txs {
+	for j, tx := range blk.Block.Txs {
 		result := blk.Results[j]
 		if err := i.storeTransaction(
 			batch,
 			tx.ID(),
-			blk.Tmstmp,
+			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
 			result.Fee,

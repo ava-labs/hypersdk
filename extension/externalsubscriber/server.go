@@ -69,7 +69,7 @@ func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockReq
 	}
 
 	e.log.Info("external subscriber received accepted block",
-		zap.Uint64("height", blk.Hght),
+		zap.Uint64("height", blk.Block.Hght),
 	)
 
 	// Forward to subscribers

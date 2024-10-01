@@ -51,10 +51,10 @@ func GetBlocks(ctx context.Context, require *require.Assertions, parser chain.Pa
 		client := indexer.NewClient(uri)
 		latestBlock, err := client.GetLatestBlock(ctx, parser)
 		require.NoError(err)
-		blockByHeight, err := client.GetBlockByHeight(ctx, latestBlock.Hght, parser)
+		blockByHeight, err := client.GetBlockByHeight(ctx, latestBlock.Block.Hght, parser)
 		require.NoError(err)
 		require.Equal(latestBlock, blockByHeight)
-		blockByID, err := client.GetBlock(ctx, latestBlock.ID(), parser)
+		blockByID, err := client.GetBlock(ctx, latestBlock.BlockID, parser)
 		require.NoError(err)
 		require.Equal(latestBlock, blockByID)
 	}

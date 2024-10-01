@@ -65,8 +65,8 @@ func (e *ExternalSubscriberClient) Accept(blk *chain.ExecutedBlock) error {
 		BlockData: blockBytes,
 	}
 	e.log.Debug("sending accepted block to server",
-		zap.Stringer("blockID", blk.ID()),
-		zap.Uint64("blockHeight", blk.Hght),
+		zap.Stringer("blockID", blk.BlockID),
+		zap.Uint64("blockHeight", blk.Block.Hght),
 	)
 	_, err = e.client.AcceptBlock(context.TODO(), req)
 	return err
