@@ -49,7 +49,6 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
-
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
