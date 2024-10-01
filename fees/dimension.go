@@ -24,6 +24,8 @@ const (
 	FeeDimensions = 5
 
 	DimensionsLen = consts.Uint64Len * FeeDimensions
+
+	dimensionsFormatter = "(Bandwidth=%d, Compute=%d, Storage(Read)=%d, Storage(Allocate)=%d, Storage(Write)=%d)"
 )
 
 var ErrWrongDimensionSize = errors.New("wrong dimensions size")
@@ -103,8 +105,6 @@ func (d Dimensions) Greater(o Dimensions) bool {
 	}
 	return true
 }
-
-const dimensionsFormatter = "(Bandwidth=%d, Compute=%d, Storage(Read)=%d, Storage(Allocate)=%d, Storage(Write)=%d)"
 
 func (d Dimensions) String() string {
 	return fmt.Sprintf(
