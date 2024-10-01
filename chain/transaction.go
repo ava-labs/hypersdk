@@ -448,7 +448,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := unmarshalActions(p, actionRegistry)
+	actions, err := UnmarshalActions(p, actionRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
@@ -481,7 +481,7 @@ func UnmarshalTx(
 	return &tx, nil
 }
 
-func unmarshalActions(
+func UnmarshalActions(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],
 ) ([]Action, error) {

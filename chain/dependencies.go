@@ -25,13 +25,6 @@ type (
 	ActionRegistry *codec.TypeParser[Action]
 	OutputRegistry *codec.TypeParser[codec.Typed]
 	AuthRegistry   *codec.TypeParser[Auth]
-
-	TransactionExecutionMode int
-)
-
-const (
-	OnchainTransactionExecution TransactionExecutionMode = iota
-	SimulatedTransactionExecution
 )
 
 type Parser interface {
@@ -159,8 +152,6 @@ type Rules interface {
 	GetStorageValueWriteUnits() uint64 // per chunk
 
 	FetchCustom(string) (any, bool)
-
-	GetTransactionExecutionMode() TransactionExecutionMode // either OnchainTransactionExecution or SimulatedTransactionExecution
 }
 
 type MetadataManager interface {
@@ -238,8 +229,8 @@ type Action interface {
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//
-	// If any keys are touched during [Execute] while running in [OnchainTransactionExecution] mode that
-	// are not specified in [StateKeys], the transaction will revert and the max fee will be charged.
+	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
+	// will revert and the max fee will be charged.
 	//
 	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(

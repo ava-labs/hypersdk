@@ -152,10 +152,6 @@ func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
 
-func (*Rules) GetTransactionExecutionMode() chain.TransactionExecutionMode {
-	return chain.OnchainTransactionExecution
-}
-
 type ImmutableRuleFactory struct {
 	Rules chain.Rules
 }

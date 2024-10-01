@@ -5,7 +5,6 @@ package jsonrpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -237,54 +236,26 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-type SimulatedActionResponse struct {
-	Output []byte
-	Error  error
-}
-
-type SimulateTransactionResponse struct {
-	SimulatedActions []SimulatedActionResponse
-	ReadKeys         []string
-	WriteKeys        []string
-	AllocateKeys     []string
-	BlockHeight      uint64
-}
-
-func (cli *JSONRPCClient) SimulateTransaction(ctx context.Context, txn []byte) (*SimulateTransactionResponse, error) {
-	args := &SimulateTransactionArgs{
-		Tx: txn,
+func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Action, actor codec.Address) (*SimulateActionReply, error) {
+	marshaledAction, err := chain.MarshalTyped(action)
+	if err != nil {
+		return nil, err
+	}
+	args := &SimulatActionArgs{
+		Action: marshaledAction,
+		Actor:  actor,
 	}
 
-	resp := new(SimulateTransactionReply)
-	err := cli.requester.SendRequest(
+	resp := new(SimulateActionReply)
+	err = cli.requester.SendRequest(
 		ctx,
-		"simulateTransaction",
+		"simulateAction",
 		args,
 		resp,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if resp.Error != "" {
-		return nil, fmt.Errorf("failed to execute action: %s", resp.Error)
-	}
 
-	// copy the response from resp into the model SimulateTransactionResponse
-	output := SimulateTransactionResponse{
-		ReadKeys:     resp.ReadKeys,
-		WriteKeys:    resp.WriteKeys,
-		AllocateKeys: resp.AllocateKeys,
-		BlockHeight:  resp.BlockHeight,
-	}
-	for _, action := range resp.SimulatedActions {
-		entry := SimulatedActionResponse{
-			Output: action.Output,
-		}
-		if action.Error != nil {
-			entry.Error = errors.New(*action.Error)
-		}
-		output.SimulatedActions = append(output.SimulatedActions, entry)
-	}
-
-	return &output, nil
+	return resp, nil
 }

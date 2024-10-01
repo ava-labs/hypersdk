@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	mstorage "github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 )
 
 var _ chain.Action = (*Call)(nil)
@@ -62,23 +62,16 @@ func (t *Call) StateKeys(_ codec.Address) state.Keys {
 
 func (t *Call) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	mu state.Mutable,
 	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	var limitStateKeys map[string]state.Permissions
-	if r.GetTransactionExecutionMode() == chain.OnchainTransactionExecution {
-		limitStateKeys = make(map[string]state.Permissions, len(t.SpecifiedStateKeys))
-		for _, statekey := range t.SpecifiedStateKeys {
-			limitStateKeys[statekey.Key] = statekey.Permission
-		}
-	}
 	resutBytes, err := t.r.CallContract(ctx, &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
-		State:        mstorage.NewContractStateManager(mu, limitStateKeys),
+		State:        &storage.ContractStateManager{Mutable: mu},
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
