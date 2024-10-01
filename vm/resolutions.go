@@ -199,8 +199,9 @@ func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
+	executedBlock := b.ExecutedBlock()
 	for _, subscription := range vm.blockSubscriptions {
-		if err := subscription.Accept(b.ExecutedBlock()); err != nil {
+		if err := subscription.Accept(executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
 	}
