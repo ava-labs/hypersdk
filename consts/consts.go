@@ -33,7 +33,3 @@ const (
 	MaxFloat64            = math.MaxFloat64
 	MillisecondsPerSecond = 1000
 )
-
-func LowestAvailablePrefix() byte {
-	return 0x3
-}
