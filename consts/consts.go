@@ -3,9 +3,7 @@
 
 package consts
 
-import (
-	"math"
-)
+import "math"
 
 const (
 	// These `codec` consts are defined here to avoid a circular dependency
