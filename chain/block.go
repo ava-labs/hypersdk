@@ -21,13 +21,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	publicfees "github.com/ava-labs/hypersdk/fees"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -165,7 +165,7 @@ type StatefulBlock struct {
 	txsSet   set.Set[ids.ID]
 
 	results    []*Result
-	feeManager *fees.Manager
+	feeManager *internalfees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -292,7 +292,7 @@ func (b *StatefulBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
@@ -481,7 +481,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentFeeManager := fees.NewManager(feeRaw)
+	parentFeeManager := internalfees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -892,7 +892,7 @@ func (b *StatefulBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) FeeManager() *fees.Manager {
+func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 	return b.feeManager
 }
 
@@ -901,24 +901,21 @@ func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
 		StatelessBlock: b.StatelessBlock,
 		Results:        b.results,
 		UnitPrices:     b.feeManager.UnitPrices(),
-		blockBytes:     b.Bytes(),
 		id:             b.ID(),
 	}
 }
 
 type ExecutedBlock struct {
 	*StatelessBlock `json:"block"`
-	Results         []*Result             `json:"results"`
-	UnitPrices      publicfees.Dimensions `json:"unitPrices"`
-
-	blockBytes []byte
+	Results         []*Result       `json:"results"`
+	UnitPrices      fees.Dimensions `json:"unitPrices"`
 	id         ids.ID
 }
 
 func (b *ExecutedBlock) ID() ids.ID { return b.id }
 
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	size := codec.BytesLen(b.blockBytes) + codec.CummSize(b.Results) + publicfees.DimensionsLen
+	size := codec.BytesLen(b.blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	writer.PackBytes(b.blockBytes)
@@ -947,9 +944,9 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if err != nil {
 		return nil, err
 	}
-	unitPricesBytes := make([]byte, publicfees.DimensionsLen)
-	reader.UnpackFixedBytes(publicfees.DimensionsLen, &unitPricesBytes)
-	prices, err := publicfees.UnpackDimensions(unitPricesBytes)
+	unitPricesBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &unitPricesBytes)
+	prices, err := fees.UnpackDimensions(unitPricesBytes)
 	if err != nil {
 		return nil, err
 	}
