@@ -969,11 +969,7 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
 	}
-	return &ExecutedBlock{
-		Block:      blk,
-		Results:    results,
-		UnitPrices: prices,
-	}, nil
+	return NewExecutedBlock(blk, results, prices)
 }
 
 type SyncableBlock struct {
