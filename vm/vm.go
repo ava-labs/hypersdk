@@ -49,6 +49,7 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
+
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
@@ -98,7 +99,7 @@ type VM struct {
 	authRegistry          chain.AuthRegistry
 	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
-	p2pNetwork            *p2p.Network
+	network               *p2p.Network
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -211,12 +212,10 @@ func (vm *VM) Initialize(
 	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 
-	p2pNetwork, err := p2p.NewNetwork(vm.snowCtx.Log, appSender, defaultRegistry, "p2p")
+	vm.network, err = p2p.NewNetwork(vm.snowCtx.Log, appSender, defaultRegistry, "p2p")
 	if err != nil {
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
-
-	vm.p2pNetwork = p2pNetwork
 
 	pebbleConfig := pebble.NewDefaultConfig()
 	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
@@ -432,21 +431,21 @@ func (vm *VM) Initialize(
 	// Setup state syncing
 	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
 
-	if err := vm.p2pNetwork.AddHandler(
+	if err := vm.network.AddHandler(
 		rangeProofHandlerID,
 		avasync.NewGetRangeProofHandler(vm.snowCtx.Log, vm.stateDB),
 	); err != nil {
 		return err
 	}
 
-	if err := vm.p2pNetwork.AddHandler(
+	if err := vm.network.AddHandler(
 		changeProofHandlerID,
 		avasync.NewGetChangeProofHandler(vm.snowCtx.Log, vm.stateDB),
 	); err != nil {
 		return err
 	}
 
-	if err := vm.p2pNetwork.AddHandler(
+	if err := vm.network.AddHandler(
 		txGossipHandlerID,
 		NewTxGossipHandler(vm),
 	); err != nil {
@@ -455,7 +454,7 @@ func (vm *VM) Initialize(
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
-	go vm.gossiper.Run(vm.p2pNetwork.NewClient(txGossipHandlerID))
+	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -1000,7 +999,7 @@ func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) erro
 	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
 	defer span.End()
 
-	return vm.p2pNetwork.AppGossip(ctx, nodeID, msg)
+	return vm.network.AppGossip(ctx, nodeID, msg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -1014,7 +1013,7 @@ func (vm *VM) AppRequest(
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequest")
 	defer span.End()
 
-	return vm.p2pNetwork.AppRequest(ctx, nodeID, requestID, deadline, request)
+	return vm.network.AppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -1022,7 +1021,7 @@ func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
 	defer span.End()
 
-	return vm.p2pNetwork.AppRequestFailed(ctx, nodeID, requestID, err)
+	return vm.network.AppRequestFailed(ctx, nodeID, requestID, err)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -1035,7 +1034,7 @@ func (vm *VM) AppResponse(
 	ctx, span := vm.tracer.Start(ctx, "VM.AppResponse")
 	defer span.End()
 
-	return vm.p2pNetwork.AppResponse(ctx, nodeID, requestID, response)
+	return vm.network.AppResponse(ctx, nodeID, requestID, response)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
@@ -1043,7 +1042,7 @@ func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Appli
 	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
 	defer span.End()
 
-	return vm.p2pNetwork.Connected(ctx, nodeID, v)
+	return vm.network.Connected(ctx, nodeID, v)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
@@ -1051,7 +1050,7 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Disconnected")
 	defer span.End()
 
-	return vm.p2pNetwork.Disconnected(ctx, nodeID)
+	return vm.network.Disconnected(ctx, nodeID)
 }
 
 // VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM

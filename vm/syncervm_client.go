@@ -128,8 +128,8 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
-		RangeProofClient:      s.vm.p2pNetwork.NewClient(rangeProofHandlerID),
-		ChangeProofClient:     s.vm.p2pNetwork.NewClient(changeProofHandlerID),
+		RangeProofClient:      s.vm.network.NewClient(rangeProofHandlerID),
+		ChangeProofClient:     s.vm.network.NewClient(changeProofHandlerID),
 		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,
 		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,
