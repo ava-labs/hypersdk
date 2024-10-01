@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
@@ -21,7 +22,7 @@ import (
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 var (
-	balancePrefix = consts.LowestAvailablePrefix()
+	balancePrefix = layout.LowestAvailablePrefix()
 
 	VMSpecificPrefixes = []byte{balancePrefix}
 )

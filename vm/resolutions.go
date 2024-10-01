@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
@@ -385,10 +386,6 @@ func (vm *VM) BalanceHandler() chain.BalanceHandler {
 	return vm.balanceHandler
 }
 
-func (vm *VM) StateLayout() state.Layout {
-	return vm.stateLayout
-}
-
 func (vm *VM) RecordRootCalculated(t time.Duration) {
 	vm.metrics.rootCalculated.Observe(float64(t))
 }
@@ -470,7 +467,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateLayout().FeeKey()))
+	v, err := vm.stateDB.Get(chain.FeeKey(layout.FeePrefix()))
 	if err != nil {
 		return fees.Dimensions{}, err
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -422,7 +423,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Fetch parent height key and ensure block height is valid
-	heightKey := b.vm.StateLayout().HeightKey()
+	heightKey := HeightKey(layout.HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
 		return err
@@ -439,7 +440,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := b.vm.StateLayout().TimestampKey()
+	timestampKey := TimestampKey(layout.TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
 		return err
@@ -482,7 +483,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Compute next unit prices to use
-	feeKey := b.vm.StateLayout().FeeKey()
+	feeKey := FeeKey(layout.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return err
@@ -735,7 +736,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeightRaw, err := acceptedState.Get(b.vm.StateLayout().HeightKey())
+		acceptedHeightRaw, err := acceptedState.Get(HeightKey(layout.HeightPrefix()))
 		if err != nil {
 			return nil, err
 		}
@@ -857,7 +858,8 @@ func (b *StatefulBlock) IsRepeat(
 }
 
 func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
-	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
+	// If [blockHeight] is 0, we throw an error because there is no pre-genesis
+	// verification context.
 	if blockHeight == 0 {
 		return nil, errors.New("cannot get context of genesis block")
 	}

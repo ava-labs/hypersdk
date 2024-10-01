@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -92,7 +93,7 @@ func BuildBlock(
 	}
 
 	// Compute next unit prices to use
-	feeKey := vm.StateLayout().FeeKey()
+	feeKey := FeeKey(layout.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -372,9 +373,9 @@ func BuildBlock(
 	}
 
 	// Update chain metadata
-	heightKey := b.vm.StateLayout().HeightKey()
+	heightKey := HeightKey(layout.HeightPrefix())
 	heightKeyStr := string(heightKey)
-	timestampKey := b.vm.StateLayout().TimestampKey()
+	timestampKey := TimestampKey(layout.TimestampPrefix())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 

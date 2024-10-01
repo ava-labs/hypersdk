@@ -72,7 +72,6 @@ type VM interface {
 
 	State() (merkledb.MerkleDB, error)
 	BalanceHandler() BalanceHandler
-	StateLayout() state.Layout
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits

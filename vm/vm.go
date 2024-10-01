@@ -42,6 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -59,12 +60,6 @@ const (
 
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
-)
-
-const (
-	defaultHeightStatePrefix byte = 0x0  
-	defaultTimestampStatePrefix byte = 0x1
-	defaultFeeStatePrefix byte = 0x2
 )
 
 type VM struct {
@@ -95,12 +90,11 @@ type VM struct {
 	stateDB               merkledb.MerkleDB
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
-	balanceHandler chain.BalanceHandler
+	balanceHandler        chain.BalanceHandler
 	actionRegistry        chain.ActionRegistry
 	authRegistry          chain.AuthRegistry
 	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
-	stateLayout state.Layout
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -172,21 +166,13 @@ func New(
 		allocatedNamespaces.Add(option.Namespace)
 	}
 
-	stateLayout, err := state.NewLayout(
-		defaultHeightStatePrefix,
-		defaultTimestampStatePrefix,
-		defaultFeeStatePrefix,
-		vmSpecificPrefixes,
-	)
-
-	if err != nil {
+	if err := layout.IsValidLayout(vmSpecificPrefixes); err != nil {
 		return nil, err
 	}
 
 	return &VM{
 		v:                     v,
-		balanceHandler: balanceHandler,
-		stateLayout: stateLayout,
+		balanceHandler:        balanceHandler,
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
@@ -400,10 +386,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.stateLayout.HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(layout.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.stateLayout.TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(layout.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
@@ -413,7 +399,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.stateLayout.FeeKey()), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(layout.FeePrefix()), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -897,7 +883,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.stateLayout.FeeKey()))
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(layout.FeePrefix()))
 	if err != nil {
 		return []error{err}
 	}
