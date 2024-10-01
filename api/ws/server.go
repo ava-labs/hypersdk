@@ -72,8 +72,8 @@ func OptionFunc(v *vm.VM, config Config) error {
 		},
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
-		AcceptF: func(event *chain.StatefulBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
+		AcceptF: func(event *chain.ExecutedBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
@@ -195,9 +195,9 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 	if w.blockListeners.Len() > 0 {
-		bytes, err := PackBlockMessage(b)
+		bytes, err := b.Marshal()
 		if err != nil {
 			return err
 		}
@@ -209,8 +209,8 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	results := b.Results()
-	for i, tx := range b.Txs {
+	results := b.Results
+	for i, tx := range b.Block.Txs {
 		txID := tx.ID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
@@ -227,7 +227,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return w.setMinTx(b.Tmstmp)
+	return w.setMinTx(b.Block.Tmstmp)
 }
 
 func (w *WebSocketServer) MessageCallback() pubsub.Callback {

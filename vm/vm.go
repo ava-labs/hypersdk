@@ -78,8 +78,8 @@ type VM struct {
 	options                    []Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
-	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatefulBlock]
-	blockSubscriptions         []event.Subscription[*chain.StatefulBlock]
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
 	// TODO remove by returning an verification error from the submit tx api
 	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
 	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]

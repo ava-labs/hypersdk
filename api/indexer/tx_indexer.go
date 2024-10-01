@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	_ event.SubscriptionFactory[*chain.StatefulBlock] = (*subscriptionFactory)(nil)
-	_ event.Subscription[*chain.StatefulBlock]        = (*txDBIndexer)(nil)
+	_ event.SubscriptionFactory[*chain.ExecutedBlock] = (*subscriptionFactory)(nil)
+	_ event.Subscription[*chain.ExecutedBlock]        = (*txDBIndexer)(nil)
 )
 
 type Config struct {
@@ -47,7 +47,7 @@ func OptionFunc(v *vm.VM, config Config) error {
 	if !config.Enabled {
 		return nil
 	}
-	dbPath := filepath.Join(v.DataDir, "indexer", "db")
+	dbPath := filepath.Join(v.DataDir, Namespace)
 	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ type subscriptionFactory struct {
 	indexer *txDBIndexer
 }
 
-func (s *subscriptionFactory) New() (event.Subscription[*chain.StatefulBlock], error) {
+func (s *subscriptionFactory) New() (event.Subscription[*chain.ExecutedBlock], error) {
 	return s.indexer, nil
 }
 
@@ -85,18 +85,16 @@ type txDBIndexer struct {
 	db database.Database
 }
 
-func (t *txDBIndexer) Accept(blk *chain.StatefulBlock) error {
+func (t *txDBIndexer) Accept(blk *chain.ExecutedBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
-	timestamp := blk.GetTimestamp()
-	results := blk.Results()
-	for j, tx := range blk.Txs {
-		result := results[j]
+	for j, tx := range blk.Block.Txs {
+		result := blk.Results[j]
 		if err := t.storeTransaction(
 			batch,
 			tx.ID(),
-			timestamp,
+			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
 			result.Fee,
