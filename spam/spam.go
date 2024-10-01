@@ -48,6 +48,40 @@ type Spammer struct {
 	PrivateKey *cli.PrivateKey
 }
 
+func (s *Spammer) ValidateInputs() error {
+	// Distribute funds
+	if s.NumAccounts <= 0 {
+		_, err := s.H.PromptInt("number of accounts", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.TxsPerSecond <= 0 {
+		_, err := s.H.PromptInt("txs to try and issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.MinCapacity <= 0 {
+		_, err := s.H.PromptInt("minimum txs to issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.StepSize <= 0 {
+		_, err := s.H.PromptInt("amount to periodically increase tps by", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.NumClients <= 0 {
+		_, err := s.H.PromptInt("number of clients per node", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (s *Spammer) Spam(
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
@@ -58,8 +92,14 @@ func (s *Spammer) Spam(
 	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *cli.PrivateKey) func(context.Context, uint64) error,
 ) error {
+
 	// Plot Zipf
 	s.Zipf.Plot()
+	// validate inputs
+	err := s.ValidateInputs()
+	if err != nil {
+		return err
+	}
 
 	// Log Zipf participants
 	zz := rand.NewZipf(rand.New(rand.NewSource(0)), s.Zipf.s, s.Zipf.v, uint64(s.NumAccounts)-1) //nolint:gosec
@@ -71,7 +111,6 @@ func (s *Spammer) Spam(
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 
 	// Select chain
-	var err error
 	if len(s.ClusterInfo) == 0 {
 		chainID, uris, err = s.H.PromptChain("select chainID", nil)
 	} else {
@@ -150,37 +189,6 @@ func (s *Spammer) Spam(
 	}
 	validityWindow = rules.GetValidityWindow()
 
-	// Distribute funds
-	if s.NumAccounts <= 0 {
-		s.NumAccounts, err = s.H.PromptInt("number of accounts", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.TxsPerSecond <= 0 {
-		s.TxsPerSecond, err = s.H.PromptInt("txs to try and issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.MinCapacity <= 0 {
-		s.MinCapacity, err = s.H.PromptInt("minimum txs to issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.StepSize <= 0 {
-		s.StepSize, err = s.H.PromptInt("amount to periodically increase tps by", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.NumClients <= 0 {
-		s.NumClients, err = s.H.PromptInt("number of clients per node", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
 	unitPrices, err := client.UnitPrices(ctx, false)
 	if err != nil {
 		return err
