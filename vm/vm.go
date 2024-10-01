@@ -138,8 +138,7 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient        *stateSyncerClient
-	stateSyncNetworkClient *p2p.Client
+	stateSyncClient *stateSyncerClient
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
