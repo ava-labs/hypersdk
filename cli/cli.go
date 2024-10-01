@@ -21,3 +21,11 @@ func New(c Controller) (*Handler, error) {
 	}
 	return &Handler{c, db}, nil
 }
+
+func (h *Handler) Controller() Controller {
+	return h.c
+}
+
+func (h *Handler) Database() database.Database {
+	return h.db
+}

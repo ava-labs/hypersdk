@@ -21,6 +21,7 @@ import (
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/spam"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
@@ -71,10 +72,26 @@ var runSpamCmd = &cobra.Command{
 				Bytes:   b,
 			}
 		}
-		return handler.Root().Spam(
-			numAccounts, txsPerSecond, minCapacity, stepSize,
-			sZipf, vZipf, plotZipf,
-			connsPerHost, clusterInfo, consts.HRP, pk,
+
+		zipf := spam.NewZipfDistribution(sZipf, vZipf, plotZipf)
+
+		spammer := spam.Spammer{
+			H: handler.Root(),
+			NumAccounts: numAccounts,
+			TxsPerSecond: txsPerSecond,
+			MinCapacity: minCapacity,
+			StepSize: stepSize,
+
+			NumClients: connsPerHost,
+			ClusterInfo: clusterInfo,
+			Hrp: consts.HRP,
+			PrivateKey: pk,
+
+			Zipf: zipf,
+
+		}
+
+		return spammer.Spam(
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 				ws, err := rpc.NewWebSocketClient(
