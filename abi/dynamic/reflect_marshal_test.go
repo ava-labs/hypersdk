@@ -64,6 +64,29 @@ func TestDynamicMarshal(t *testing.T) {
 		})
 	}
 }
+func TestDynamicMarshalErrors(t *testing.T) {
+	require := require.New(t)
+
+	abiJSON := mustReadFile(t, "../testdata/abi.json")
+	var abi abi.ABI
+
+	err := json.Unmarshal(abiJSON, &abi)
+	require.NoError(err)
+
+	t.Run("malformed JSON", func(t *testing.T) {
+		malformedJSON := `{"uint8": 42, "uint16": 1000, "uint32": 100000, "uint64": 10000000000, "int8": -42, "int16": -1000, "int32": -100000, "int64": -10000000000,`
+		_, err := Marshal(abi, "MockObjectAllNumbers", malformedJSON)
+		require.Error(err)
+		require.Contains(err.Error(), "unexpected end of JSON input")
+	})
+
+	t.Run("wrong struct name", func(t *testing.T) {
+		jsonData := mustReadFile(t, "../testdata/numbers.json")
+		_, err := Marshal(abi, "NonExistentObject", string(jsonData))
+		require.Error(err)
+		require.Contains(err.Error(), "type NonExistentObject not found in ABI")
+	})
+}
 
 func mustReadFile(t *testing.T, path string) []byte {
 	t.Helper()
