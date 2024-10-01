@@ -37,6 +37,19 @@ func (k Keys) Add(key string, permission Permissions) bool {
 	return true
 }
 
+// Returns the chunk sizes of each key
+func (k Keys) ChunkSizes() ([]uint16, bool) {
+	chunks := make([]uint16, 0, len(k))
+	for key := range k {
+		chunk, ok := keys.DecodeChunks([]byte(key))
+		if !ok {
+			return nil, false
+		}
+		chunks = append(chunks, chunk)
+	}
+	return chunks, true
+}
+
 // Has returns true if [p] has all the permissions that are contained in require
 func (p Permissions) Has(require Permissions) bool {
 	return require&^p == 0

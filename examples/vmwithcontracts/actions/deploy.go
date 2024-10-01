@@ -33,7 +33,7 @@ func (*Deploy) GetTypeID() uint8 {
 	return mconsts.DeployID
 }
 
-func (d *Deploy) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+func (d *Deploy) StateKeys(_ codec.Address) state.Keys {
 	if d.address == codec.EmptyAddress {
 		d.address = storage.GetAddressForDeploy(0, d.CreationInfo)
 	}
@@ -41,10 +41,6 @@ func (d *Deploy) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(stateKey): state.All,
 	}
-}
-
-func (*Deploy) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks}
 }
 
 func (d *Deploy) Execute(
