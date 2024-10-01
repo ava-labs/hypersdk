@@ -896,18 +896,21 @@ func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 	return b.feeManager
 }
 
-func (b *StatefulBlock) ExecutedBlock() *ExecutedBlock {
+type ExecutedBlock struct {
+	Block      *StatelessBlock `json:"block"`
+	Results    []*Result       `json:"results"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
+}
+
+// NewExecutedBlock returns the execution results of a stateful block.
+// This should only be called on a StatefulBlock that has already been
+// executed.
+func NewExecutedBlock(b *StatefulBlock) *ExecutedBlock {
 	return &ExecutedBlock{
 		Block:      b.StatelessBlock,
 		Results:    b.results,
 		UnitPrices: b.feeManager.UnitPrices(),
 	}
-}
-
-type ExecutedBlock struct {
-	Block      *StatelessBlock `json:"block"`
-	Results    []*Result       `json:"results"`
-	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
