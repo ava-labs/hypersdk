@@ -61,6 +61,12 @@ const (
 	MinAcceptedBlockWindow = 1024
 )
 
+const (
+	defaultHeightStatePrefix byte = 0x0  
+	defaultTimestampStatePrefix byte = 0x1
+	defaultFeeStatePrefix byte = 0x2
+)
+
 type VM struct {
 	DataDir string
 	v       *version.Semantic
@@ -89,11 +95,12 @@ type VM struct {
 	stateDB               merkledb.MerkleDB
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
-	stateManager          chain.StateManager
+	balanceHandler chain.BalanceHandler
 	actionRegistry        chain.ActionRegistry
 	authRegistry          chain.AuthRegistry
 	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
+	stateLayout state.Layout
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -149,7 +156,8 @@ type VM struct {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
+	balanceHandler chain.BalanceHandler,
+	vmSpecificPrefixes []byte,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
@@ -164,9 +172,21 @@ func New(
 		allocatedNamespaces.Add(option.Namespace)
 	}
 
+	stateLayout, err := state.NewLayout(
+		defaultHeightStatePrefix,
+		defaultTimestampStatePrefix,
+		defaultFeeStatePrefix,
+		vmSpecificPrefixes,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &VM{
 		v:                     v,
-		stateManager:          stateManager,
+		balanceHandler: balanceHandler,
+		stateLayout: stateLayout,
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
@@ -351,7 +371,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.stateManager); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.balanceHandler); err != nil {
 			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
@@ -380,10 +400,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(vm.stateLayout.HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.stateLayout.TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
@@ -393,7 +413,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(vm.stateLayout.FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -877,7 +897,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.stateLayout.FeeKey()))
 	if err != nil {
 		return []error{err}
 	}
@@ -914,7 +934,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.stateManager)
+		_, err := tx.StateKeys(vm.balanceHandler)
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -957,7 +977,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.stateManager, r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.balanceHandler, r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

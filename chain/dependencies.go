@@ -71,7 +71,8 @@ type VM interface {
 	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
 	State() (merkledb.MerkleDB, error)
-	StateManager() StateManager
+	BalanceHandler() BalanceHandler
+	StateLayout() state.Layout
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
@@ -154,12 +155,6 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
-type MetadataManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
-}
-
 type BalanceHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
@@ -177,17 +172,6 @@ type BalanceHandler interface {
 
 	// AddBalance adds [amount] to [addr].
 	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
-}
-
-// StateManager allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateManager], we may overwrite
-// state written by actions or auth.
-//
-// None of these keys should be suffixed with the max amount of chunks they will
-// use. This will be handled by the hypersdk.
-type StateManager interface {
-	BalanceHandler
-	MetadataManager
 }
 
 type Object interface {

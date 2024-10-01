@@ -422,7 +422,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(b.vm.StateManager().HeightKey())
+	heightKey := b.vm.StateLayout().HeightKey()
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
 		return err
@@ -439,7 +439,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKey := b.vm.StateLayout().TimestampKey()
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
 		return err
@@ -482,7 +482,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(b.vm.StateManager().FeeKey())
+	feeKey := b.vm.StateLayout().FeeKey()
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return err
@@ -735,7 +735,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.StateManager().HeightKey()))
+		acceptedHeightRaw, err := acceptedState.Get(b.vm.StateLayout().HeightKey())
 		if err != nil {
 			return nil, err
 		}

@@ -3,7 +3,9 @@
 
 package consts
 
-import "math"
+import (
+	"math"
+)
 
 const (
 	// These `codec` consts are defined here to avoid a circular dependency
@@ -31,3 +33,7 @@ const (
 	MaxFloat64            = math.MaxFloat64
 	MillisecondsPerSecond = 1000
 )
+
+func LowestAvailablePrefix() byte {
+	return 0x3
+}
