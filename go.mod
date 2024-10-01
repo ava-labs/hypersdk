@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk
 go 1.21.12
 
 require (
-	github.com/ava-labs/avalanchego v1.11.12-rc.2
+	github.com/ava-labs/avalanchego v1.11.11
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
