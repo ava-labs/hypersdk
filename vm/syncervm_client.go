@@ -121,31 +121,19 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 
 	// Initialize metrics for sync client
 	r := prometheus.NewRegistry()
-	metrics, err := avasync.NewMetrics("sync_client", r)
-	if err != nil {
-		return block.StateSyncSkipped, err
-	}
 	if err := s.gatherer.Register("syncer", r); err != nil {
 		return block.StateSyncSkipped, err
 	}
-	syncClient, err := avasync.NewClient(&avasync.ClientConfig{
-		BranchFactor:     s.vm.genesis.GetStateBranchFactor(),
-		NetworkClient:    s.vm.stateSyncNetworkClient,
-		Log:              s.vm.snowCtx.Log,
-		Metrics:          metrics,
-		StateSyncNodeIDs: nil, // pull from all
-	})
-	if err != nil {
-		return block.StateSyncSkipped, err
-	}
+
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
-		Client:                syncClient,
+		RangeProofClient:      s.vm.p2pNetwork.NewClient(rangeProofHandlerID),
+		ChangeProofClient:     s.vm.p2pNetwork.NewClient(changeProofHandlerID),
 		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,
 		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,
-	})
+	}, r)
 	if err != nil {
 		return block.StateSyncSkipped, err
 	}
