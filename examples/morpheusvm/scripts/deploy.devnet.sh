@@ -34,6 +34,7 @@ if ! command -v go >/dev/null 2>&1 ; then
     echo -e "${RED}golang is not installed. exiting...${NC}"
     exit 1
 fi
+
 if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
     echo -e "${RED}aws credentials not set. exiting...${NC}"
     exit 1
@@ -48,8 +49,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=bd174d7620be44dc91dee9415c71142f59fa9df2
-REMOTE_CLI_COMMIT=v1.6.2
+LOCAL_CLI_COMMIT=61860a1346d08796d46a149e2a99694243970822
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
@@ -194,7 +194,7 @@ trap cleanup SIGINT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 10,10,10,10,10 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 10,10,10,10,10 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
