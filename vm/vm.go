@@ -389,7 +389,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.HeightKey(layout.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(layout.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(layout.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
