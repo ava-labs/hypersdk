@@ -48,41 +48,6 @@ type Spammer struct {
 	PrivateKey *cli.PrivateKey
 }
 
-func (s *Spammer) ValidateInputs() error {
-	// Distribute funds
-	if s.NumAccounts <= 0 {
-		_, err := s.H.PromptInt("number of accounts", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.TxsPerSecond <= 0 {
-		_, err := s.H.PromptInt("txs to try and issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.MinCapacity <= 0 {
-		_, err := s.H.PromptInt("minimum txs to issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.StepSize <= 0 {
-		_, err := s.H.PromptInt("amount to periodically increase tps by", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	if s.NumClients <= 0 {
-		_, err := s.H.PromptInt("number of clients per node", consts.MaxInt)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s *Spammer) Spam(
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*cli.PrivateKey) (chain.AuthFactory, error),
@@ -92,23 +57,15 @@ func (s *Spammer) Spam(
 	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *cli.PrivateKey) func(context.Context, uint64) error,
 ) error {
-
 	// Plot Zipf
 	s.Zipf.Plot()
+	s.Zipf.ExpectedParticipants(s.NumAccounts, s.TxsPerSecond)
+	
 	// validate inputs
 	err := s.ValidateInputs()
 	if err != nil {
 		return err
 	}
-
-	// Log Zipf participants
-	zz := rand.NewZipf(rand.New(rand.NewSource(0)), s.Zipf.s, s.Zipf.v, uint64(s.NumAccounts)-1) //nolint:gosec
-	trials := s.TxsPerSecond * 60 * 2                                                      /* sender/receiver */
-	unique := set.NewSet[uint64](trials)
-	for i := 0; i < trials; i++ {
-		unique.Add(zz.Uint64())
-	}
-	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 
 	// Select chain
 	if len(s.ClusterInfo) == 0 {
@@ -131,48 +88,15 @@ func (s *Spammer) Spam(
 	if err := createClient(uris[baseName], networkID, chainID); err != nil {
 		return err
 	}
-	var (
-		key     *cli.PrivateKey
-		balance uint64
-	)
-	if s.PrivateKey == nil {
-		keys, err := s.H.GetKeys()
-		if err != nil {
-			return err
-		}
-		if len(keys) == 0 {
-			return ErrNoKeys
-		}
-		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-		balances := make([]uint64, len(keys))
-		for i := 0; i < len(keys); i++ {
-			address := s.H.Controller().Address(keys[i].Address)
-			balance, err := lookupBalance(i, address)
-			if err != nil {
-				return err
-			}
-			balances[i] = balance
-		}
-		keyIndex, err := s.H.PromptChoice("select root key", len(keys))
-		if err != nil {
-			return err
-		}
-		key = keys[keyIndex]
-		balance = balances[keyIndex]
-	} else {
-		balance, err = lookupBalance(-1, s.H.Controller().Address(s.PrivateKey.Address))
-		if err != nil {
-			return err
-		}
-		key = s.PrivateKey
-	}
-	factory, err := getFactory(key)
+	
+	// initialize root key and balance
+	key, balance, err := s.InitializeRootKey(lookupBalance)
 	if err != nil {
 		return err
 	}
 
-	// No longer using db, so we close
-	if err := s.H.CloseDatabase(); err != nil {
+	factory, err := getFactory(key)
+	if err != nil {
 		return err
 	}
 
@@ -582,5 +506,92 @@ func (s *Spammer) Spam(
 		utils.FormatBalance(returnedBalance, s.H.Controller().Decimals()),
 		s.H.Controller().Symbol(),
 	)
+	return nil
+}
+
+// InitializeKey returns the root key and its balance
+// If the private key is not set, the user is prompted to select a key
+// If the private key is set, the balance is looked up
+// The spam script only uses the database here, could do some more decoupling
+func (s *Spammer) InitializeRootKey(
+	lookupBalance func(int, string) (uint64, error),
+) (*cli.PrivateKey, uint64, error) {
+	var (
+		key     *cli.PrivateKey
+		balance uint64
+	)
+	if s.PrivateKey == nil {
+		keys, err := s.H.GetKeys()
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(keys) == 0 {
+			return nil, 0, ErrNoKeys
+		}
+		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
+		balances := make([]uint64, len(keys))
+		for i := 0; i < len(keys); i++ {
+			address := s.H.Controller().Address(keys[i].Address)
+			balance, err := lookupBalance(i, address)
+			if err != nil {
+				return nil, 0, err
+			}
+			balances[i] = balance
+		}
+		keyIndex, err := s.H.PromptChoice("select root key", len(keys))
+		if err != nil {
+			return nil, 0, err
+		}
+		key = keys[keyIndex]
+		balance = balances[keyIndex]
+	} else {
+		balanceLookup, err := lookupBalance(-1, s.H.Controller().Address(s.PrivateKey.Address))
+		if err != nil {
+			return nil, 0, err
+		}
+		key = s.PrivateKey
+		balance = balanceLookup
+	}
+	
+	// No longer using db, so we close
+	if err := s.H.CloseDatabase(); err != nil {
+		return nil, 0, err
+	}
+
+	return key, balance, nil
+}
+
+func (s *Spammer) ValidateInputs() error {
+	// Distribute funds
+	if s.NumAccounts <= 0 {
+		_, err := s.H.PromptInt("number of accounts", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.TxsPerSecond <= 0 {
+		_, err := s.H.PromptInt("txs to try and issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.MinCapacity <= 0 {
+		_, err := s.H.PromptInt("minimum txs to issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.StepSize <= 0 {
+		_, err := s.H.PromptInt("amount to periodically increase tps by", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if s.NumClients <= 0 {
+		_, err := s.H.PromptInt("number of clients per node", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
