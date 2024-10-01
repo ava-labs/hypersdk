@@ -16,9 +16,18 @@ func TestLayoutPrefixConflicts(t *testing.T) {
 	require.NoError(IsValidLayout([]byte{LowestAvailablePrefix}))
 
 	// Test that a conflicting prefix raises an error
-	require.Error(IsValidLayout([]byte{defaultHeightStatePrefix}))
-	require.Error(IsValidLayout([]byte{defaultFeeStatePrefix}))
-	require.Error(IsValidLayout([]byte{defaultTimestampStatePrefix}))
+	require.ErrorIs(
+		IsValidLayout([]byte{defaultHeightStatePrefix}),
+		ErrConflictingPrefix,
+	)
+	require.ErrorIs(
+		IsValidLayout([]byte{defaultFeeStatePrefix}),
+		ErrConflictingPrefix,
+	)
+	require.ErrorIs(
+		IsValidLayout([]byte{defaultTimestampStatePrefix}),
+		ErrConflictingPrefix,
+	)
 }
 
 func TestIsConflictingPrefix(t *testing.T) {
