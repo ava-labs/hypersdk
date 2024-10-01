@@ -4,6 +4,7 @@
 package jsonrpc
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -242,9 +243,14 @@ type SimulatActionArgs struct {
 	Actor  codec.Address `json:"actor"`
 }
 
+type SimulateStateKey struct {
+	HexKey      string `json:"hex"`
+	Permissions byte   `json:"perm"`
+}
+
 type SimulateActionReply struct {
-	Output codec.Bytes `json:"output"`
-	Keys   state.Keys  `json:"keys"`
+	Output    codec.Bytes        `json:"output"`
+	StateKeys []SimulateStateKey `json:"stateKeys"`
 }
 
 func (j *JSONRPCServer) SimulateAction(
@@ -294,6 +300,8 @@ func (j *JSONRPCServer) SimulateAction(
 			return err
 		}
 	}
-	reply.Keys = recorder.GetStateKeys()
+	for key, permission := range recorder.GetStateKeys() {
+		reply.StateKeys = append(reply.StateKeys, SimulateStateKey{HexKey: hex.EncodeToString([]byte(key)), Permissions: byte(permission)})
+	}
 	return nil
 }

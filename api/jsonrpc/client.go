@@ -5,6 +5,7 @@ package jsonrpc
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -236,10 +238,10 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Action, actor codec.Address) (*SimulateActionReply, error) {
+func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Action, actor codec.Address) (state.Keys, codec.Bytes, error) {
 	marshaledAction, err := chain.MarshalTyped(action)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	args := &SimulatActionArgs{
 		Action: marshaledAction,
@@ -254,8 +256,17 @@ func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Actio
 		resp,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return resp, nil
+	stateKeys := state.Keys{}
+	for _, entry := range resp.StateKeys {
+		hexBytes, err := hex.DecodeString(entry.HexKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stateKeys.Add(string(hexBytes), state.Permissions(entry.Permissions))
+	}
+	return stateKeys, resp.Output, nil
 }
