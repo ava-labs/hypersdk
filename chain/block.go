@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -426,7 +427,10 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return err
+	}
 	if b.Hght != parentHeight+1 {
 		return ErrInvalidBlockHeight
 	}
@@ -440,7 +444,11 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
+	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return err
+	}
+	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
 	}
@@ -731,7 +739,10 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
+		acceptedHeight, err := database.ParseUInt64(acceptedHeightRaw)
+		if err != nil {
+			return nil, err
+		}
 		if acceptedHeight == b.Hght {
 			b.vm.Logger().Info("accepted block not processed but found post-execution state on-disk",
 				zap.Uint64("height", b.Hght),

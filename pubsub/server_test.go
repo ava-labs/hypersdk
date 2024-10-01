@@ -49,8 +49,6 @@ func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) {
 // a msg to be sent to all connections. Checks the message was delivered properly
 // and the connection is properly handled when closed.
 func TestServerPublish(t *testing.T) {
-	t.Skip("FLAKY")
-
 	require := require.New(t)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
@@ -194,8 +192,6 @@ func TestServerRead(t *testing.T) {
 // a msg to be sent to only one of the connections. Checks the message was
 // delivered properly and the connection is properly handled when closed.
 func TestServerPublishSpecific(t *testing.T) {
-	t.Skip("FLAKY")
-
 	require := require.New(t)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
