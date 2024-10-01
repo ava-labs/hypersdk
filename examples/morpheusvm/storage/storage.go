@@ -22,7 +22,7 @@ import (
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 var (
-	balancePrefix = layout.LowestAvailablePrefix()
+	balancePrefix = layout.LowestAvailablePrefix
 
 	VMSpecificPrefixes = []byte{balancePrefix}
 )

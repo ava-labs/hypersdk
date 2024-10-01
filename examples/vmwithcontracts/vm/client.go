@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/state"
@@ -119,10 +118,6 @@ func (*Parser) OutputRegistry() chain.OutputRegistry {
 
 func (*Parser) AuthRegistry() chain.AuthRegistry {
 	return AuthParser
-}
-
-func (*Parser) StateManager() chain.StateManager {
-	return &storage.StateManager{}
 }
 
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {

@@ -14,7 +14,8 @@ const (
 	defaultHeightStatePrefix    byte = 0x0
 	defaultTimestampStatePrefix byte = 0x1
 	defaultFeeStatePrefix       byte = 0x2
-	lowestAvailablePrefix       byte = 0x3
+	
+	LowestAvailablePrefix       byte = 0x3
 )
 
 var ErrConflictingKey = errors.New("conflicting key")
@@ -61,6 +62,6 @@ func IsConflictingPrefix(prefix byte) bool {
 	return defaultHeightStatePrefix == prefix || defaultTimestampStatePrefix == prefix || defaultFeeStatePrefix == prefix
 }
 
-func LowestAvailablePrefix() byte {
-	return lowestAvailablePrefix
+func LAvailablePrefix() byte {
+	return LowestAvailablePrefix
 }
