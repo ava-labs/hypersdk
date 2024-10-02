@@ -29,12 +29,6 @@ func GetBalanceFromState(
 This function is almost identical to `getBalance()` except that we are passing
 along `f` of type `ReadState` instead of `im` of type `state.Immutable`. 
 
-We also need to specify the precision of our VM token. To do this, go to
-`consts/consts.go` and add the following constant:
-
-```golang
-const Decimals = 9
-```
 
 ## Getting Started
 
@@ -233,7 +227,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 		if !shouldExit {
 			utils.Outf(
 				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min, consts.Decimals),
+				utils.FormatBalance(min),
 				addr,
 			)
 		}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
@@ -29,7 +30,7 @@ var _ Gossiper = (*Proposer)(nil)
 type Proposer struct {
 	vm         VM
 	cfg        *ProposerConfig
-	appSender  common.AppSender
+	client     *p2p.Client
 	doneGossip chan struct{}
 
 	lastVerified int64
@@ -293,8 +294,8 @@ func (g *Proposer) Queue(context.Context) {
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer) Run(appSender common.AppSender) {
-	g.appSender = appSender
+func (g *Proposer) Run(client *p2p.Client) {
+	g.client = client
 	defer close(g.doneGossip)
 
 	// Timer blocks until stopped
@@ -376,5 +377,5 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		}
 		recipients.Add(proposer)
 	}
-	return g.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, b)
+	return g.client.AppGossip(ctx, common.SendConfig{NodeIDs: recipients}, b)
 }
