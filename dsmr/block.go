@@ -7,6 +7,7 @@ import (
 )
 
 type Block struct {
+	ID          ids.ID `serialize:"true"`
 	ParentID    ids.ID `serialize:"true"`
 	BlockHeight uint64 `serialize:"true"`
 	Time        int64  `serialize:"true"`
@@ -14,7 +15,6 @@ type Block struct {
 	Chunks []*ChunkCertificate `serialize:"true"`
 
 	bytes []byte
-	id    ids.ID
 }
 
 type ExecutionBlock struct {
