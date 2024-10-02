@@ -132,12 +132,10 @@ func setInstances() {
 	instances = make([]instance, numVMs)
 
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
-	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*externalsubscriber.ExternalSubscriberSubscriptionData]{
-		event.SubscriptionFunc[*externalsubscriber.ExternalSubscriberSubscriptionData]{
-			AcceptF: func(data *externalsubscriber.ExternalSubscriberSubscriptionData) error {
-				blkID, err := data.Blk.ID()
-				require.NoError(err)
-				externalSubscriberAcceptedBlocksCh <- blkID
+	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
+		event.SubscriptionFunc[*chain.ExecutedBlock]{
+			AcceptF: func(blk *chain.ExecutedBlock) error {
+				externalSubscriberAcceptedBlocksCh <- blk.BlockID
 				return nil
 			},
 		},

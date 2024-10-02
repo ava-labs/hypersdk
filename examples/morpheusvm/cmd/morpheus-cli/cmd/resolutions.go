@@ -70,7 +70,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			actor,
 			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
-			utils.FormatBalance(result.Fee, consts.Decimals),
+			utils.FormatBalance(result.Fee),
 			consts.Symbol,
 			result.Units,
 		)
@@ -81,7 +81,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		var summaryStr string
 		switch act := action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, actor)
+			summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value), consts.Symbol, actor)
 		}
 		utils.Outf(
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
@@ -91,7 +91,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			reflect.TypeOf(action),
 			summaryStr,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
-			utils.FormatBalance(result.Fee, consts.Decimals),
+			utils.FormatBalance(result.Fee),
 			consts.Symbol,
 			result.Units,
 		)

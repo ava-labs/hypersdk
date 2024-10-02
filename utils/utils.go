@@ -65,16 +65,16 @@ func GetPort(uri string) (string, error) {
 	return purl.Port(), err
 }
 
-func FormatBalance(bal uint64, decimals uint8) string {
-	return strconv.FormatFloat(float64(bal)/math.Pow10(int(decimals)), 'f', int(decimals), 64)
+func FormatBalance(bal uint64) string {
+	return strconv.FormatFloat(float64(bal)/math.Pow10(int(consts.Decimals)), 'f', int(consts.Decimals), 64)
 }
 
-func ParseBalance(bal string, decimals uint8) (uint64, error) {
+func ParseBalance(bal string) (uint64, error) {
 	f, err := strconv.ParseFloat(bal, 64)
 	if err != nil {
 		return 0, err
 	}
-	return uint64(f * math.Pow10(int(decimals))), nil
+	return uint64(f * math.Pow10(int(consts.Decimals))), nil
 }
 
 func Repeat[T any](v T, n int) []T {
