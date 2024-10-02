@@ -54,6 +54,6 @@ func BuildChunkBlock(
 	}
 
 	block.bytes = writer.Bytes()
-	block.id = utils.ToID(block.bytes)
+	block.ID = utils.ToID(block.bytes)
 	return block, nil
 }
