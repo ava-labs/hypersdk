@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -19,8 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/spam"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -60,7 +57,6 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		var bclient *brpc.JSONRPCClient
-		var wclient *rpc.WebSocketClient
 		var pk *cli.PrivateKey
 		if len(privateKey) > 0 {
 			b, err := hex.DecodeString(privateKey)
@@ -74,7 +70,7 @@ var runSpamCmd = &cobra.Command{
 		}
 
 		zipf := spam.NewZipfDistribution(sZipf, vZipf, plotZipf)
-
+		keyEncodingType := args[0]
 		spammer := spam.Spammer{
 			H: handler.Root(),
 			NumAccounts: numAccounts,
@@ -94,22 +90,11 @@ var runSpamCmd = &cobra.Command{
 		return spammer.Spam(
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
-				ws, err := rpc.NewWebSocketClient(
-					uri,
-					rpc.DefaultHandshakeTimeout,
-					pubsub.MaxPendingMessages,
-					hconsts.MTU,
-					pubsub.MaxReadMessageSize,
-				)
-				if err != nil {
-					return err
-				}
-				wclient = ws
-				return nil
+				return nil 
 			},
 			getFactory,
 			func() (*cli.PrivateKey, error) { // createAccount
-				return generatePrivateKey(args[0])
+				return generatePrivateKey(keyEncodingType)
 			},
 			func(choice int, address string) (uint64, error) { // lookupBalance
 				balance, err := bclient.Balance(context.TODO(), address)

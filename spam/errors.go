@@ -15,5 +15,6 @@ var (
 	// ErrNoChains            = errors.New("no available chains")
 	ErrNoKeys              = errors.New("no available keys")
 	ErrInvalidInputs	   = errors.New("invalid inputs")
+	ErrInvalidKeyType    = errors.New("invalid key type")
 	// ErrTxFailed            = errors.New("tx failed on-chain")
 )

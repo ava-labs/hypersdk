@@ -58,7 +58,6 @@ func (s *Spammer) Spam(
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
 	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
-	submitDummy func(*rpc.JSONRPCClient, *cli.PrivateKey) func(context.Context, uint64) error,
 ) error {
 	// Plot Zipf
 	s.Zipf.Plot()
