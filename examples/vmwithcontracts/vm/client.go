@@ -134,29 +134,3 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	}
 	return NewParser(&genesis), nil
 }
-
-/*
-func (cli *JSONRPCClient) Simulate(ctx context.Context, callTx actions.Call, actor codec.Address) (state.Keys, uint64, error) {
-	jsonrpc.NewJSONRPCClient(cli.requester.uri)
-
-	resp := new(SimulateCallTxReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"simulateCallContractTx",
-		&SimulateCallTxArgs{CallTx: callTx, Actor: actor},
-		resp,
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-	result := state.Keys{}
-	for _, entry := range resp.StateKeys {
-		hexBytes, err := hex.DecodeString(entry.HexKey)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		result.Add(string(hexBytes), state.Permissions(entry.Permissions))
-	}
-	return result, resp.FuelConsumed, nil
-}*/
