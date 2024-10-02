@@ -36,7 +36,7 @@ func BuildChunkBlock(
 	height uint64,
 	timestamp int64,
 	chunkPool ChunkPool,
-	backend Backend,
+	backend VM,
 ) (*ExecutionBlock, error) {
 	chunks := GatherChunkCerts(timestamp, timestamp, chunkPool)
 	block := &ExecutionBlock{
@@ -46,7 +46,7 @@ func BuildChunkBlock(
 			Time:        timestamp,
 			Chunks:      chunks,
 		},
-		backend: backend,
+		vm: backend,
 	}
 	writer := codec.NewWriter(len(chunks)*ChunkCertificateSize, consts.NetworkSizeLimit)
 	if err := codec.LinearCodec.MarshalInto(block, writer.Packer); err != nil {

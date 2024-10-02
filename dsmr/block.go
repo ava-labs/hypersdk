@@ -20,7 +20,7 @@ type Block struct {
 type ExecutionBlock struct {
 	Block
 
-	backend Backend
+	vm VM
 }
 
 func (e *ExecutionBlock) Verify(ctx context.Context) error {
@@ -30,13 +30,13 @@ func (e *ExecutionBlock) Verify(ctx context.Context) error {
 		}
 	}
 
-	return e.backend.Verify(ctx, e)
+	return e.vm.Verify(ctx, e)
 }
 
 func (e *ExecutionBlock) Accept(ctx context.Context) error {
-	return e.backend.Accept(ctx, e)
+	return e.vm.Accept(ctx, e)
 }
 
 func (e *ExecutionBlock) Reject(ctx context.Context) error {
-	return e.backend.Reject(ctx, e)
+	return e.vm.Reject(ctx, e)
 }
