@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
@@ -19,28 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/layout"
 )
-func map2fields(m map[string][]byte) []zap.Field {
-	fields := make([]zap.Field, 0, len(m))
-	for k, v := range m {
-		fields = append(fields, zap.Any(k, v))
-	}
-	return fields
-}
 
 func TestTransferAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
 	layout := layout.Default()
-
-	s := chaintest.NewInMemoryStore()
-	_, err := storage.AddBalance(
-		context.Background(),
-		layout,
-		s,
-		codec.EmptyAddress,
-		0,
-		true,
-	)
-	require.NoError(t, err)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -156,7 +137,6 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	setupRequire := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
-
 	layout := layout.Default()
 
 	transferActionTest := &chaintest.ActionBenchmark{
