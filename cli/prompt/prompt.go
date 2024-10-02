@@ -124,7 +124,6 @@ func Asset(label string, symbol string, allowNative bool) (ids.ID, error) {
 
 func Amount(
 	label string,
-	decimals uint8,
 	balance uint64,
 	f func(input uint64) error,
 ) (uint64, error) {
@@ -134,7 +133,7 @@ func Amount(
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			amount, err := utils.ParseBalance(input, decimals)
+			amount, err := utils.ParseBalance(input)
 			if err != nil {
 				return err
 			}
@@ -152,7 +151,7 @@ func Amount(
 		return 0, err
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
-	return utils.ParseBalance(rawAmount, decimals)
+	return utils.ParseBalance(rawAmount)
 }
 
 func Int(

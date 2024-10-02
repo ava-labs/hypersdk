@@ -204,7 +204,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	distAmount := (balance - withholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-		utils.FormatBalance(distAmount, h.c.Decimals()),
+		utils.FormatBalance(distAmount),
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
@@ -455,7 +455,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
-		utils.FormatBalance(returnedBalance, h.c.Decimals()),
+		utils.FormatBalance(returnedBalance),
 		h.c.Symbol(),
 	)
 	return nil

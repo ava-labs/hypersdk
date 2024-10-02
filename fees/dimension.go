@@ -24,6 +24,8 @@ const (
 	FeeDimensions = 5
 
 	DimensionsLen = consts.Uint64Len * FeeDimensions
+
+	dimensionsFormatter = "(Bandwidth=%d, Compute=%d, Storage(Read)=%d, Storage(Allocate)=%d, Storage(Write)=%d)"
 )
 
 var ErrWrongDimensionSize = errors.New("wrong dimensions size")
@@ -106,13 +108,36 @@ func (d Dimensions) Greater(o Dimensions) bool {
 
 func (d Dimensions) String() string {
 	return fmt.Sprintf(
-		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
+		dimensionsFormatter,
 		d[Bandwidth],
 		d[Compute],
 		d[StorageRead],
 		d[StorageAllocate],
 		d[StorageWrite],
 	)
+}
+
+func (d Dimensions) MarshalText() ([]byte, error) {
+	return []byte(d.String()), nil
+}
+
+func (d *Dimensions) UnmarshalText(b []byte) error {
+	n, err := fmt.Sscanf(
+		string(b),
+		dimensionsFormatter,
+		&d[Bandwidth],
+		&d[Compute],
+		&d[StorageRead],
+		&d[StorageAllocate],
+		&d[StorageWrite],
+	)
+	if err != nil {
+		return err
+	}
+	if n != FeeDimensions {
+		return fmt.Errorf("failed to parse %d successive dimensions, found %d", FeeDimensions, n)
+	}
+	return nil
 }
 
 func UnpackDimensions(raw []byte) (Dimensions, error) {
