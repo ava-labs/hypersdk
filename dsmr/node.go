@@ -1,5 +1,7 @@
 package dsmr
 
+import "context"
+
 func New[T Tx](mempool Mempool[T], client Client[T]) *Node[T] {
 	return &Node[T]{
 		mempool:      mempool,
@@ -16,11 +18,13 @@ type Node[T Tx] struct {
 	blockBuilder     blockBuilder[T]
 }
 
-func (n Node[_]) Run(blks chan<- *Block) error {
+func (n Node[_]) Run(ctx context.Context, blks chan<- *Block) error {
 	txs := n.mempool.GetTxsChan()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case tx := <-txs:
 			chunk, err := n.chunkBuilder.Add(tx, 0)
 			if err != nil {
