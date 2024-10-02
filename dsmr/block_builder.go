@@ -2,6 +2,7 @@ package dsmr
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -36,9 +37,9 @@ func BuildChunkBlock(
 	timestamp int64,
 	chunkPool ChunkPool,
 	backend Backend,
-) (*Block, error) {
+) (*ExecutionBlock, error) {
 	chunks := GatherChunkCerts(timestamp, timestamp, chunkPool)
-	block := &Block{
+	block := &ExecutionBlock{
 		StatelessChunkBlock: StatelessChunkBlock{
 			ParentID:    parentID,
 			BlockHeight: height,
