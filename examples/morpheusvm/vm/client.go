@@ -106,7 +106,7 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() *codec.TypeParser[chain.Action]{
+func (*Parser) ActionRegistry() *codec.TypeParser[chain.Action] {
 	return ActionParser
 }
 
