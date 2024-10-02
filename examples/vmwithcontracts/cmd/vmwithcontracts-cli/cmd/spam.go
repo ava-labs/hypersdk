@@ -73,7 +73,7 @@ func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, 
 		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
 		address,
-		utils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance),
 		consts.Symbol,
 	)
 	return balance, err
