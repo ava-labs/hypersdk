@@ -6,11 +6,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-const (
-	estimatedChunkSize             = 1024
-	restorableItemsPreallocateSize = 256
-)
-
 type Tx interface {
 	GetID() ids.ID
 	GetExpiry() time.Time
