@@ -40,7 +40,7 @@ func BuildChunkBlock(
 ) (*ExecutionBlock, error) {
 	chunks := GatherChunkCerts(timestamp, timestamp, chunkPool)
 	block := &ExecutionBlock{
-		StatelessChunkBlock: StatelessChunkBlock{
+		Block: Block{
 			ParentID:    parentID,
 			BlockHeight: height,
 			Time:        timestamp,
