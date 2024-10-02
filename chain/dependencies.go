@@ -294,5 +294,5 @@ type Registry struct {
 	Output OutputRegistry
 }
 
-// RegistryFactory is the factory function, provided to the VM initializer that provides the registries for teh actions, auth and output.
+// RegistryFactory is the factory function, provided to the VM initializer that provides the registries for the actions, auth and output.
 type RegistryFactory func() Registry
