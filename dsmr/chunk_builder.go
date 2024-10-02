@@ -17,7 +17,7 @@ type Tx interface {
 	GetExpiry() time.Time
 }
 
-type LocalChunkMempool[T any] interface {
+type Mempool[T any] interface {
 	StartStreaming(context.Context)
 	Stream(context.Context, int) []T
 	FinishStreaming(context.Context, []T) int
@@ -29,7 +29,7 @@ func BuildChunk[VerifyContext any, T any](
 	buildDuration time.Duration,
 	verifier Verifier[VerifyContext, T],
 	verificationContext VerifyContext,
-	mempool LocalChunkMempool[T],
+	mempool Mempool[T],
 ) (*Chunk[T], error) {
 	items := make([]T, 0, estimatedChunkSize)
 	restorableItems := make([]T, 0, restorableItemsPreallocateSize)

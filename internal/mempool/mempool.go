@@ -21,7 +21,7 @@ import (
 
 const maxPrealloc = 4_096
 
-var _ dsmr.LocalChunkMempool[Item] = (*Mempool[Item])(nil)
+var _ dsmr.Mempool[Item] = (*Mempool[Item])(nil)
 
 type Item interface {
 	eheap.Item
