@@ -23,9 +23,9 @@ import (
 
 type Parser interface {
 	Rules(int64) Rules
-	ActionRegistry() *codec.TypeParser[Action]
-	OutputRegistry() *codec.TypeParser[codec.Typed]
-	AuthRegistry() *codec.TypeParser[Auth]
+	ActionCodec() *codec.TypeParser[Action]
+	OutputCodec() *codec.TypeParser[codec.Typed]
+	AuthCodec() *codec.TypeParser[Auth]
 }
 
 type Metrics interface {

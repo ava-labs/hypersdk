@@ -51,16 +51,16 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionRegistry() *codec.TypeParser[chain.Action] {
-	return vm.actionRegistry
+func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
+	return vm.actionCodec
 }
 
-func (vm *VM) OutputRegistry() *codec.TypeParser[codec.Typed] {
-	return vm.outputRegistry
+func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return vm.outputCodec
 }
 
-func (vm *VM) AuthRegistry() *codec.TypeParser[chain.Auth] {
-	return vm.authRegistry
+func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return vm.authCodec
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {

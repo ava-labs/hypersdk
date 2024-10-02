@@ -25,9 +25,9 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	ActionRegistry() *codec.TypeParser[chain.Action]
-	OutputRegistry() *codec.TypeParser[codec.Typed]
-	AuthRegistry() *codec.TypeParser[chain.Auth]
+	ActionCodec() *codec.TypeParser[chain.Action]
+	OutputCodec() *codec.TypeParser[codec.Typed]
+	AuthCodec() *codec.TypeParser[chain.Auth]
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,

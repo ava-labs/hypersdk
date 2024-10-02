@@ -88,9 +88,9 @@ func (j *JSONRPCServer) SubmitTx(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
+	actionCodec, authCodec := j.vm.ActionCodec(), j.vm.AuthCodec()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
+	tx, err := chain.UnmarshalTx(rtx, actionCodec, authCodec)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -151,8 +151,8 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
-	vmABI, err := abi.NewABI(actionRegistry.GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
+	actionCodec, outputCodec := j.vm.ActionCodec(), j.vm.OutputCodec()
+	vmABI, err := abi.NewABI(actionCodec.GetRegisteredTypes(), (*outputCodec).GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
@@ -178,8 +178,8 @@ func (j *JSONRPCServer) Execute(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	actionRegistry := j.vm.ActionRegistry()
-	action, err := actionRegistry.Unmarshal(codec.NewReader(args.Action, len(args.Action)))
+	actionCodec := j.vm.ActionCodec()
+	action, err := actionCodec.Unmarshal(codec.NewReader(args.Action, len(args.Action)))
 	if err != nil {
 		return fmt.Errorf("failed to unmashal action: %w", err)
 	}

@@ -91,9 +91,9 @@ type VM struct {
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
 	stateManager          chain.StateManager
-	actionRegistry        *codec.TypeParser[chain.Action]
-	authRegistry          *codec.TypeParser[chain.Auth]
-	outputRegistry        *codec.TypeParser[codec.Typed]
+	actionCodec           *codec.TypeParser[chain.Action]
+	authCodec             *codec.TypeParser[chain.Auth]
+	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
@@ -151,9 +151,9 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry *codec.TypeParser[chain.Action],
-	authRegistry *codec.TypeParser[chain.Auth],
-	outputRegistry *codec.TypeParser[codec.Typed],
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
+	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -169,9 +169,9 @@ func New(
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
-		actionRegistry:        actionRegistry,
-		authRegistry:          authRegistry,
-		outputRegistry:        outputRegistry,
+		actionCodec:           actionCodec,
+		authCodec:             authCodec,
+		outputCodec:           outputCodec,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
