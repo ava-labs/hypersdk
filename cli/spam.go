@@ -23,11 +23,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/loadgen"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -52,78 +54,67 @@ var (
 	sent     atomic.Int64
 )
 
-type SpamHelper interface {
-	// CreateAccount generates a new account and returns the [PrivateKey].
-	//
-	// The spammer tracks all created accounts and orchestrates the return of funds
-	// sent to any created accounts on shutdown. If the spammer exits ungracefully,
-	// any funds sent to created accounts will be lost unless they are persisted by
-	// the [SpamHelper] implementation.
-	CreateAccount() (*PrivateKey, error)
-	// GetFactory returns the [chain.AuthFactory] for a given private key.
-	//
-	// A [chain.AuthFactory] signs transactions and provides a unit estimate
-	// for using a given private key (needed to estimate fees for a transaction).
-	GetFactory(pk *PrivateKey) (chain.AuthFactory, error)
-
-	// CreateClient instructs the [SpamHelper] to create and persist a VM-specific
-	// JSONRPC client.
-	//
-	// This client is used to retrieve the [chain.Parser] and the balance
-	// of arbitrary addresses.
-	//
-	// TODO: consider making these functions part of the required JSONRPC
-	// interface for the HyperSDK.
-	CreateClient(uri string) error
-	GetParser(ctx context.Context) (chain.Parser, error)
-	LookupBalance(choice int, address codec.Address) (uint64, error)
-
-	// GetTransfer returns a list of actions that sends [amount] to a given [address].
-	//
-	// Memo is used to ensure that each transaction is unique (even if between the same
-	// sender and receiver for the same amount).
-	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+type SpamConfig struct {
+	uris    []string
+	key     *auth.PrivateKey
+	balance uint64
 }
 
-func (h *Handler) Spam(sh SpamHelper) error {
-	ctx := context.Background()
-
+func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, uris, err := prompt.SelectChain("select chainID", chains)
 	if err != nil {
-		return err
-	}
-	cli := jsonrpc.NewJSONRPCClient(uris[0])
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Select root key
 	keys, err := h.GetKeys()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	balances := make([]uint64, len(keys))
 	if err := sh.CreateClient(uris[0]); err != nil {
-		return err
+		return nil, err
 	}
 	for i := 0; i < len(keys); i++ {
 		balance, err := sh.LookupBalance(i, keys[i].Address)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		balances[i] = balance
 	}
+
 	keyIndex, err := prompt.Choice("select root key", len(keys))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
+
+	return &SpamConfig{
+		uris,
+		key,
+		balance,
+	}, nil
+}
+
+func (h *Handler) Spam(sh loadgen.SpamHelper) error {
+	ctx := context.Background()
+
+	config, err := h.SpamConfigPrompter(sh)
+	uris := config.uris
+	key := config.key
+	balance := config.balance
+
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	if err != nil {
+		return err
+	}
+
 	factory, err := sh.GetFactory(key)
 	if err != nil {
 		return err
@@ -139,7 +130,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(keys[0].Address, 0, uniqueBytes())
+	actions := sh.GetTransfer(key.Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -207,7 +198,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		utils.FormatBalance(distAmount, h.c.Decimals()),
 		h.c.Symbol(),
 	)
-	accounts := make([]*PrivateKey, numAccounts)
+	accounts := make([]*auth.PrivateKey, numAccounts)
 	webSocketClient, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err

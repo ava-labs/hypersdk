@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -29,11 +28,11 @@ type SpamHelper struct {
 	ws      *ws.WebSocketClient
 }
 
-func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
+func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return generatePrivateKey(sh.keyType)
 }
 
-func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
+func (*SpamHelper) GetFactory(pk *auth.PrivateKey) (chain.AuthFactory, error) {
 	switch pk.Address[0] {
 	case auth.ED25519ID:
 		return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
