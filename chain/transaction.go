@@ -119,8 +119,8 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	for i, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
+	for _, action := range t.Actions {
+		for k, v := range action.StateKeys(t.Auth.Actor()) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
@@ -213,8 +213,13 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 			return fees.Dimensions{}, err
 		}
 
+		actor := authFactory.Address()
+		stateKeys := action.StateKeys(actor)
+		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
+		if !ok {
+			return fees.Dimensions{}, ErrInvalidKeyValue
+		}
 		bandwidth += consts.ByteLen + uint64(actionSize)
-		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
 	}

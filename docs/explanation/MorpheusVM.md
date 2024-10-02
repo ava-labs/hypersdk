@@ -39,7 +39,6 @@ Actions implement the following interface:
 ```golang
 ComputeUnits(Rules) uint64
 StateKeys(actor codec.Address, actionID ids.ID) state.Keys
-StateKeysMaxChunks() []uint16
 GetTypeID() uint8
 ValidRange(Rules) (start int64, end int64)
 Execute(
@@ -56,16 +55,12 @@ We break this interface down by organizing functions into different categories:
 
 #### Fees and Pessimistic Concurrency Control
 
-`StateKeys()` and `StateKeysMaxChunks()` provide a description of exactly how
-key-value pairs in the state will be manipulated during the action’s execution.
-
-`StateKeys()` returns the set of keys and the set of permissions that are
+`StateKeys()` provides a description of exactly how
+key-value pairs in the state will be manipulated during the action’s
+execution. This method returns the set of keys and the set of permissions that are
 required to operate on them (ie. Read/Write/Allocate).
 
-`StateKeysMaxChunks()` returns the maximum size measured in 64 byte chunks of
-the value that will be stored in the corresponding key index.
-
-For example, `Transfer` implements these as:
+For example, `Transfer` implements this method as:
 
 ```golang
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
@@ -74,19 +69,11 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
   string(storage.BalanceKey(t.To)):  state.All,
  }
 }
-
-func (*Transfer) StateKeysMaxChunks() []uint16 {
- return []uint16{storage.BalanceChunks, storage.BalanceChunks}
-}
 ```
 
 This indicates that the actor’s balance key can be read or written, but will not
 be allocated during execution. The `To` address may be read, written, or
 allocated, since transferring may allocate a new account in storage.
-
-Additionally, returning `[]uint16{storage.BalanceChunks, storage.BalanceChunks}`
-or `[]uint16{1, 1}` means that both keys will store a value that takes up at
-most 64 bytes.
 
 `ComputeUnits()` returns a measure of the units of compute required to execute
 the action.

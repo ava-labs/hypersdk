@@ -150,10 +150,12 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 
 	// TODO: limit max number of tx listeners a single connection can create
 	txID := tx.ID()
-	if _, ok := w.txListeners[txID]; !ok {
-		w.txListeners[txID] = pubsub.NewConnections()
+	connections, ok := w.txListeners[txID]
+	if !ok {
+		connections = pubsub.NewConnections()
+		w.txListeners[txID] = connections
 	}
-	w.txListeners[txID].Add(c)
+	connections.Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
@@ -219,7 +221,9 @@ func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 		if err != nil {
 			return err
 		}
-		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+		// Skip clearing inactive connections because they'll be deleted
+		// regardless.
+		_ = w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
@@ -274,7 +278,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			}
 			w.AddTxListener(tx, c)
 
-			// Submit will remove from [txWaiters] if it is not added
+			// Submit will remove from [txListeners] if it is not added
 			txID := tx.ID()
 			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",
