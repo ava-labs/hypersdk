@@ -1,7 +1,6 @@
 package dsmr
 
 import (
-	"context"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -21,30 +20,23 @@ type Mempool[T Tx] interface {
 	GetTxsChan() <-chan T
 }
 
-func BuildChunk[VerifyContext any, T any](
-	ctx context.Context,
-	slot int64,
-	buildDuration time.Duration,
-	verifier Verifier[VerifyContext, T],
-	verificationContext VerifyContext,
-	mempool Mempool[T],
-) (*Chunk[T], error) {
-	items := make([]T, 0, estimatedChunkSize)
-	restorableItems := make([]T, 0, restorableItemsPreallocateSize)
+type chunkBuilder[T Tx] struct {
+	threshold int
+	txs       []T //TODO dedup txs?
+}
 
-	start := time.Now()
-	mempool.StartStreaming(ctx)
-	defer mempool.FinishStreaming(ctx, restorableItems)
+// Add returns a chunk if one was built
+// TODO why int64?
+// TODO why error?
+// TODO does not perform verification and assumes mempool is responsible for
+// verifying txs
+func (c *chunkBuilder[T]) Add(tx T, slot int64) (*Chunk[T], error) {
+	c.txs = append(c.txs, tx)
 
-	for time.Since(start) < buildDuration {
-		items := mempool.Stream(ctx, 1)
-		for _, item := range items {
-			if err := verifier.Verify(verificationContext, item); err != nil {
-				continue
-			}
-			items = append(items, item)
-		}
+	if len(c.txs) == c.threshold {
+		// TODO handle error
+		return NewChunk[T](c.txs, slot)
 	}
 
-	return NewChunk(items, slot)
+	return nil, nil
 }
