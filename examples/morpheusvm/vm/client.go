@@ -110,7 +110,7 @@ func (*Parser) ActionCodec() *codec.TypeParser[chain.Action] {
 	return ActionParser
 }
 
-func (*Parser) OutputCodec() *codec.TypeParser[chain.Output] {
+func (*Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 	return OutputParser
 }
 
