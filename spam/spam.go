@@ -45,6 +45,9 @@ type Spammer struct {
 	NumClients int
 	ClusterInfo string
 	Hrp string
+
+	// The private key of the root account
+	// The root account is the account that will distribute funds to the other accounts
 	PrivateKey *cli.PrivateKey
 }
 
@@ -68,11 +71,7 @@ func (s *Spammer) Spam(
 	}
 
 	// Select chain
-	if len(s.ClusterInfo) == 0 {
-		chainID, uris, err = s.H.PromptChain("select chainID", nil)
-	} else {
-		chainID, uris, err = cli.ReadCLIFile(s.ClusterInfo)
-	}
+	chainID, uris, err = cli.ReadCLIFile(s.ClusterInfo)
 	if err != nil {
 		return err
 	}
@@ -88,14 +87,8 @@ func (s *Spammer) Spam(
 	if err := createClient(uris[baseName], networkID, chainID); err != nil {
 		return err
 	}
-	
-	// initialize root key and balance
-	key, _, err := s.InitializeRootKey(lookupBalance)
-	if err != nil {
-		return err
-	}
 
-	factory, err := getFactory(key)
+	factory, err := getFactory(s.PrivateKey)
 	if err != nil {
 		return err
 	}
@@ -105,7 +98,7 @@ func (s *Spammer) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(key.Address, true, 0, uniqueBytes())
+	action := getTransfer(s.PrivateKey.Address, true, 0, uniqueBytes())
 	rules := parser.Rules(time.Now().UnixMilli())
 	maxUnits, err := chain.EstimateUnits(rules, action, factory, nil)
 	if err != nil {
@@ -135,7 +128,7 @@ func (s *Spammer) Spam(
 	}
 	
 	// Distribute funds (never more than 10x step size outstanding)
-	funds, accounts, factories, err := s.distributeFunds(key, feePerTx, client, dcli, factory, createAccount, lookupBalance, getFactory, getTransfer)
+	funds, accounts, factories, err := s.distributeFunds(feePerTx, client, dcli, factory, createAccount, lookupBalance, getFactory, getTransfer)
 	if err != nil {
 		return err
 	}
@@ -443,7 +436,7 @@ func (s *Spammer) Spam(
 	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}returning funds to base:{{/}} %s\n", s.H.Controller().Address(key.Address))
+	utils.Outf("{{yellow}}returning funds to base:{{/}} %s\n", s.H.Controller().Address(s.PrivateKey.Address))
 	var (
 		accountsWithBalance = map[int]uint64{}
 		returnedBalance     = uint64(0)
@@ -460,7 +453,7 @@ func (s *Spammer) Spam(
 	for i, balance := range accountsWithBalance {
 		// Send funds
 		returnAmt := balance - feePerTx
-		returner.Send(factories[i], getTransfer(key.Address, false, returnAmt, uniqueBytes()))
+		returner.Send(factories[i], getTransfer(s.PrivateKey.Address, false, returnAmt, uniqueBytes()))
 	}
 	if err := returner.Wait(context.Background()); err != nil {
 		return err
@@ -475,75 +468,34 @@ func (s *Spammer) Spam(
 	return nil
 }
 
-// InitializeKey returns the root key and its balance
-// If the private key is not set, the user is prompted to select a key
-// If the private key is set, the balance is looked up
-// The spam script only uses the database here, could do some more decoupling
-func (s *Spammer) InitializeRootKey(
-	lookupBalance func(int, string) (uint64, error),
-) (*cli.PrivateKey, uint64, error) {
-	var (
-		key     *cli.PrivateKey
-	)
-	if s.PrivateKey == nil {
-		keys, err := s.H.GetKeys()
-		if err != nil {
-			return nil, 0, err
-		}
-		if len(keys) == 0 {
-			return nil, 0, ErrNoKeys
-		}
-		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-		keyIndex, err := s.H.PromptChoice("select root key", len(keys))
-		if err != nil {
-			return nil, 0, err
-		}
-		key = keys[keyIndex]
-	} else {
-		key = s.PrivateKey
-	}
-
-	return key, 0, nil
-}
-
 func (s *Spammer) ValidateInputs() error {
 	// Distribute funds
 	if s.NumAccounts <= 0 {
-		_, err := s.H.PromptInt("number of accounts", consts.MaxInt)
-		if err != nil {
-			return err
-		}
+			return ErrInvalidInputs
 	}
 	if s.TxsPerSecond <= 0 {
-		_, err := s.H.PromptInt("txs to try and issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
+			return ErrInvalidInputs
 	}
 	if s.MinCapacity <= 0 {
-		_, err := s.H.PromptInt("minimum txs to issue per second", consts.MaxInt)
-		if err != nil {
-			return err
-		}
+			return ErrInvalidInputs
 	}
 	if s.StepSize <= 0 {
-		_, err := s.H.PromptInt("amount to periodically increase tps by", consts.MaxInt)
-		if err != nil {
-			return err
-		}
+			return ErrInvalidInputs
 	}
 	if s.NumClients <= 0 {
-		_, err := s.H.PromptInt("number of clients per node", consts.MaxInt)
-		if err != nil {
-			return err
-		}
+			return ErrInvalidInputs
+	}
+	if len(s.ClusterInfo) == 0 {
+			return ErrInvalidInputs
+	}
+	if s.PrivateKey == nil {
+		return ErrInvalidInputs
 	}
 	return nil
 }
 
 // distributes the funds from the root key to the accounts
 func (s *Spammer) distributeFunds(
-	key *cli.PrivateKey,
 	feePerTx uint64,
 	client *rpc.JSONRPCClient,
 	dcli *rpc.WebSocketClient,
@@ -555,7 +507,7 @@ func (s *Spammer) distributeFunds(
 ) (map[codec.Address]uint64, []*cli.PrivateKey, []chain.AuthFactory, error) {
 	accounts := make([]*cli.PrivateKey, s.NumAccounts)
 	factories := make([]chain.AuthFactory, s.NumAccounts)
-	balance, err := lookupBalance(-1, s.H.Controller().Address(key.Address))
+	balance, err := lookupBalance(-1, s.H.Controller().Address(s.PrivateKey.Address))
 	if err != nil {
 		return nil, nil, nil, err
 	}

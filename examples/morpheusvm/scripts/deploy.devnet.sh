@@ -190,7 +190,7 @@ function cleanup {
 trap showcleanup EXIT
 trap cleanup SIGINT
 
-NUM_VALIDATORS="10,10,10,10,10"
+NUM_VALIDATORS="1,1,1,1,1"
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 #
 # It is not recommended to use an instance with burstable network performance.
