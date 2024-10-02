@@ -6,7 +6,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-type StatelessChunkBlock struct {
+type Block struct {
 	ParentID    ids.ID `serialize:"true"`
 	BlockHeight uint64 `serialize:"true"`
 	Time        int64  `serialize:"true"`
@@ -17,28 +17,28 @@ type StatelessChunkBlock struct {
 	id    ids.ID
 }
 
-func (b *StatelessChunkBlock) ID() ids.ID {
+func (b *Block) ID() ids.ID {
 	return b.id
 }
 
-func (b *StatelessChunkBlock) Bytes() []byte {
+func (b *Block) Bytes() []byte {
 	return b.bytes
 }
 
-func (b *StatelessChunkBlock) Height() uint64 {
+func (b *Block) Height() uint64 {
 	return b.BlockHeight
 }
 
-func (b *StatelessChunkBlock) Timestamp() int64 {
+func (b *Block) Timestamp() int64 {
 	return b.Time
 }
 
-func (b *StatelessChunkBlock) Parent() ids.ID {
+func (b *Block) Parent() ids.ID {
 	return b.ParentID
 }
 
 type ExecutionBlock struct {
-	StatelessChunkBlock
+	Block
 
 	backend Backend
 }
