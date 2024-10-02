@@ -771,7 +771,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
 )
 
-func newRegistryFactory() chain.RegistryFactory {
+func newRegistryFactory() (chain.RegistryFactory, error) {
 	actionParser := codec.NewTypeParser[chain.Action]()
 	authParser := codec.NewTypeParser[chain.Auth]()
 	outputParser := codec.NewTypeParser[codec.Typed]()
@@ -790,11 +790,11 @@ func newRegistryFactory() chain.RegistryFactory {
 		outputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
-		panic(errs.Err)
+		return nil, errs.Err
 	}
 	return func() (actionRegistry chain.ActionRegistry, authRegistry chain.AuthRegistry, outputRegistry chain.OutputRegistry) {
 		return actionParser, authParser, outputParser
-	}
+	}, nil
 }
 
 ```
@@ -808,11 +808,15 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
+	registryFactory, err := newRegistryFactory()
+	if err != nil {
+		return nil, err
+	}
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		newRegistryFactory(),
+		registryFactory,
 		auth.Engines(),
 		options...,
 	)
