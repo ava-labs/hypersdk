@@ -17,7 +17,7 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-VERSION=v1.11.12-rc.2
+VERSION=f03745d187d0c33b927121d4c8da977789b929ac
 
 ############################
 # build avalanchego

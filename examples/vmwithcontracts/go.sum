@@ -58,10 +58,10 @@ github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah4HI848JfFxHt+iPb26b4zyfspmqY0/8=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
-github.com/ava-labs/avalanchego v1.11.12-rc.2 h1:H1C0gsTOtwMD3qrouEqry0hfoBIC//9lEiDh/AvpaaY=
-github.com/ava-labs/avalanchego v1.11.12-rc.2/go.mod h1:yFx3V31Jy9NFa8GZlgGnwiVf8KGjeF2+Uc99l9Scd/8=
-github.com/ava-labs/coreth v0.13.8-fixed-genesis-upgrade.0.20240815193440-a96bc921e732 h1:wlhGJbmb7s3bU2QWtxKjscGjfHknQiq+cVhhUjONsB8=
-github.com/ava-labs/coreth v0.13.8-fixed-genesis-upgrade.0.20240815193440-a96bc921e732/go.mod h1:RkQLaQ961Xe/sUb3ycn4Qi18vPPuEetTqDf2eDcquAs=
+github.com/ava-labs/avalanchego v1.11.12-rc.2.0.20241001202925-f03745d187d0 h1:r/vgyq3kfRwHbaBbVRZUcS5WZPHdpWODvZNLvw5udKc=
+github.com/ava-labs/avalanchego v1.11.12-rc.2.0.20241001202925-f03745d187d0/go.mod h1:yFlG98ykZzMHSXazQzbpfTw1D0pt/p/WEjvuZ045W1I=
+github.com/ava-labs/coreth v0.13.8 h1:f14X3KgwHl9LwzfxlN6S4bbn5VA2rhEsNnHaRLSTo/8=
+github.com/ava-labs/coreth v0.13.8/go.mod h1:t3BSv/eQv0AlDPMfEDCMMoD/jq1RkUsbFzQAFg5qBcE=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
@@ -186,8 +186,6 @@ github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072/go.mod 
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=
-github.com/fjl/memsize v0.0.2 h1:27txuSD9or+NZlnOWdKUxeBzTAUkWCVh+4Gf2dWFOzA=
-github.com/fjl/memsize v0.0.2/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
 github.com/frankban/quicktest v1.14.4 h1:g2rn0vABPOOXmZUj+vbmUp0lPoXEMuhTpIluN0XL9UY=
 github.com/frankban/quicktest v1.14.4/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=

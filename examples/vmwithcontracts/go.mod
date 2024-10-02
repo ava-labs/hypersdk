@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/vmwithcontracts
 go 1.21.12
 
 require (
-	github.com/ava-labs/avalanchego v1.11.12-rc.2
+	github.com/ava-labs/avalanchego v1.11.12-rc.2.0.20241001202925-f03745d187d0
 	github.com/ava-labs/hypersdk v0.0.16
 	github.com/fatih/color v1.13.0
 	github.com/near/borsh-go v0.3.1
@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.13.8-fixed-genesis-upgrade.0.20240815193440-a96bc921e732 // indirect
+	github.com/ava-labs/coreth v0.13.8 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
@@ -44,7 +44,6 @@ require (
 	github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127 // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/ethereum/go-ethereum v1.13.14 // indirect
-	github.com/fjl/memsize v0.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
