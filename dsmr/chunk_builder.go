@@ -24,7 +24,7 @@ type chunkBuilder[T Tx] struct {
 // TODO why int64?
 // TODO why error?
 // TODO does not perform verification and assumes mempool is responsible for
-// verifying txs
+// verifying tx
 func (c *chunkBuilder[T]) Add(tx T, slot int64) (*Chunk[T], error) {
 	c.txs = append(c.txs, tx)
 
