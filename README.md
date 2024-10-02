@@ -51,11 +51,15 @@ Services are created by adding an [Option](./vm/option.go) to the VM. They can b
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
+	registryFactory, err := newRegistryFactory()
+	if err != nil {
+		return nil, err
+	}
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		newRegistryFactory(),
+		registryFactory,
 		auth.Engines(),
 		options...,
 	)
