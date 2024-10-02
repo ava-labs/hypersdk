@@ -90,7 +90,7 @@ func (s *Spammer) Spam(
 	}
 	
 	// initialize root key and balance
-	key, balance, err := s.InitializeRootKey(lookupBalance)
+	key, _, err := s.InitializeRootKey(lookupBalance)
 	if err != nil {
 		return err
 	}
@@ -121,18 +121,7 @@ func (s *Spammer) Spam(
 	if err != nil {
 		return err
 	}
-	witholding := feePerTx * uint64(s.NumAccounts)
-	if balance < witholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
-	}
-	distAmount := (balance - witholding) / uint64(s.NumAccounts)
-	utils.Outf(
-		"{{yellow}}distributing funds to accounts (1k batch):{{/}} %s %s\n",
-		utils.FormatBalance(distAmount, s.H.Controller().Decimals()),
-		s.H.Controller().Symbol(),
-	)
-	accounts := make([]*cli.PrivateKey, s.NumAccounts)
-	factories := make([]chain.AuthFactory, s.NumAccounts)
+	
 	maxPendingMessages = max(pubsub.MaxPendingMessages, s.TxsPerSecond*2) // ensure we don't block
 	dcli, err := rpc.NewWebSocketClient(
 		uris[baseName],
@@ -144,36 +133,13 @@ func (s *Spammer) Spam(
 	if err != nil {
 		return err
 	}
-
+	
 	// Distribute funds (never more than 10x step size outstanding)
-	var (
-		funds  = map[codec.Address]uint64{}
-		fundsL sync.Mutex
-	)
-	distributor := NewReliableSender(s.NumAccounts, client, dcli, parser, s.MinCapacity, maxPendingMessages, feePerTx)
-	for i := 0; i < s.NumAccounts; i++ {
-		// Create account
-		pk, err := createAccount()
-		if err != nil {
-			return err
-		}
-		accounts[i] = pk
-
-		// Create Factory
-		f, err := getFactory(pk)
-		if err != nil {
-			return err
-		}
-		factories[i] = f
-
-		// Send funds
-		funds[pk.Address] = distAmount
-		distributor.Send(factory, getTransfer(pk.Address, true, distAmount, uniqueBytes()))
-	}
-	if err := distributor.Wait(context.Background()); err != nil {
+	funds, accounts, factories, err := s.distributeFunds(key, feePerTx, client, dcli, factory, createAccount, lookupBalance, getFactory, getTransfer)
+	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", s.NumAccounts)
+	fundsL := sync.Mutex{}
 
 	// Kickoff txs
 	utils.Outf("{{yellow}}starting load test...{{/}}\n")
@@ -518,7 +484,6 @@ func (s *Spammer) InitializeRootKey(
 ) (*cli.PrivateKey, uint64, error) {
 	var (
 		key     *cli.PrivateKey
-		balance uint64
 	)
 	if s.PrivateKey == nil {
 		keys, err := s.H.GetKeys()
@@ -529,36 +494,16 @@ func (s *Spammer) InitializeRootKey(
 			return nil, 0, ErrNoKeys
 		}
 		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-		balances := make([]uint64, len(keys))
-		for i := 0; i < len(keys); i++ {
-			address := s.H.Controller().Address(keys[i].Address)
-			balance, err := lookupBalance(i, address)
-			if err != nil {
-				return nil, 0, err
-			}
-			balances[i] = balance
-		}
 		keyIndex, err := s.H.PromptChoice("select root key", len(keys))
 		if err != nil {
 			return nil, 0, err
 		}
 		key = keys[keyIndex]
-		balance = balances[keyIndex]
 	} else {
-		balanceLookup, err := lookupBalance(-1, s.H.Controller().Address(s.PrivateKey.Address))
-		if err != nil {
-			return nil, 0, err
-		}
 		key = s.PrivateKey
-		balance = balanceLookup
-	}
-	
-	// No longer using db, so we close
-	if err := s.H.CloseDatabase(); err != nil {
-		return nil, 0, err
 	}
 
-	return key, balance, nil
+	return key, 0, nil
 }
 
 func (s *Spammer) ValidateInputs() error {
@@ -594,4 +539,69 @@ func (s *Spammer) ValidateInputs() error {
 		}
 	}
 	return nil
+}
+
+// distributes the funds from the root key to the accounts
+func (s *Spammer) distributeFunds(
+	key *cli.PrivateKey,
+	feePerTx uint64,
+	client *rpc.JSONRPCClient,
+	dcli *rpc.WebSocketClient,
+	factory chain.AuthFactory,
+	createAccount func() (*cli.PrivateKey, error),
+	lookupBalance func(int, string) (uint64, error),
+	getFactory func(*cli.PrivateKey) (chain.AuthFactory, error),
+	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
+) (map[codec.Address]uint64, []*cli.PrivateKey, []chain.AuthFactory, error) {
+	accounts := make([]*cli.PrivateKey, s.NumAccounts)
+	factories := make([]chain.AuthFactory, s.NumAccounts)
+	balance, err := lookupBalance(-1, s.H.Controller().Address(key.Address))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	witholding := feePerTx * uint64(s.NumAccounts)
+	if balance < witholding {
+		return nil, nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
+	}
+	
+	distAmount := (balance - witholding) / uint64(s.NumAccounts)
+	utils.Outf(
+		"{{yellow}}distributing funds to accounts (1k batch):{{/}} %s %s\n",
+		utils.FormatBalance(distAmount, s.H.Controller().Decimals()),
+		s.H.Controller().Symbol(),
+	)
+
+	var	funds  = map[codec.Address]uint64{}
+	distributor := NewReliableSender(s.NumAccounts, client, dcli, parser, s.MinCapacity, maxPendingMessages, feePerTx)
+	for i := 0; i < s.NumAccounts; i++ {
+		// Create account
+		pk, err := createAccount()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		accounts[i] = pk
+
+		// Create Factory
+		f, err := getFactory(pk)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		factories[i] = f
+
+		// Send funds
+		funds[pk.Address] = distAmount
+		distributor.Send(factory, getTransfer(pk.Address, true, distAmount, uniqueBytes()))
+	}
+	if err := distributor.Wait(context.Background()); err != nil {
+		return nil, nil, nil, err
+	}
+	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", s.NumAccounts)
+
+
+	// No longer using db, so we close
+	if err := s.H.CloseDatabase(); err != nil {
+		return nil, nil, nil, err
+	}
+	return funds, accounts, factories, nil
 }
