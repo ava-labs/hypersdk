@@ -42,7 +42,10 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	parser, err := vm.CreateParser(genesisBytes)
+	require.NoError(err)
+
+	expectedABI, err := abi.NewABI((*parser.ActionRegistry()).GetRegisteredTypes(), (*parser.OutputRegistry()).GetRegisteredTypes())
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject VMWithContracts name

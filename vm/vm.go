@@ -150,12 +150,12 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
-	outputRegistry chain.OutputRegistry,
+	registryFactory chain.RegistryFactory,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
+	actionRegistry, authRegistry, outputRegistry := registryFactory()
+
 	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
 		if allocatedNamespaces.Contains(option.Namespace) {

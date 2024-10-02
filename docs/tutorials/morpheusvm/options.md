@@ -254,22 +254,26 @@ var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
 	genesis *genesis.DefaultGenesis
+	registryFactory chain.RegistryFactory
 }
 
 func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() chain.ActionRegistry {
-	return ActionParser
-}
-
-func (*Parser) OutputRegistry() chain.OutputRegistry {
-	return OutputParser
+func (p *Parser) ActionRegistry() chain.ActionRegistry {
+	actionRegistry, _, _ := p.registryFactory()
+	return actionRegistry
 }
 
 func (*Parser) AuthRegistry() chain.AuthRegistry {
-	return AuthParser
+	_, authRegistry, _ := p.registryFactory()
+	return authRegistry
+}
+
+func (*Parser) OutputRegistry() chain.OutputRegistry {
+	_, _, outputRegistry := p.registryFactory()
+	return outputRegistry
 }
 
 func (*Parser) StateManager() chain.StateManager {
@@ -277,7 +281,7 @@ func (*Parser) StateManager() chain.StateManager {
 }
 
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
-	return &Parser{genesis: genesis}
+	return &Parser{genesis: genesis, registryFactory: newRegistryFactory()}
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser

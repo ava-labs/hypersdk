@@ -287,3 +287,5 @@ type AuthFactory interface {
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
 }
+
+type RegistryFactory func() (actionRegistry ActionRegistry, authRegistry AuthRegistry, outputRegistry OutputRegistry)

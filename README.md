@@ -51,13 +51,11 @@ Services are created by adding an [Option](./vm/option.go) to the VM. They can b
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With(), indexer.With()) // Add MorpheusVM API and Indexer
-	return vm.New(
+	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		ActionParser,
-		AuthParser,
+		newRegistryFactory(),
 		auth.Engines(),
 		options...,
 	)

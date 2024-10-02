@@ -771,36 +771,35 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
 )
 
-var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
-	OutputParser *codec.TypeParser[codec.Typed]
-)
-
-// Setup types
-func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
-	OutputParser = codec.NewTypeParser[codec.Typed]()
+func newRegistryFactory() chain.RegistryFactory {
+	actionParser := codec.NewTypeParser[chain.Action]()
+	authParser := codec.NewTypeParser[chain.Auth]()
+	outputParser := codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		// When registering new actions, ALWAYS make sure to append at the end.
+		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
+		actionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
-		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		// When registering new auth, ALWAYS make sure to append at the end.
+		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		authParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		authParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		outputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
+	}
+	return func() (actionRegistry chain.ActionRegistry, authRegistry chain.AuthRegistry, outputRegistry chain.OutputRegistry) {
+		return actionParser, authParser, outputParser
 	}
 }
 
 ```
 
-By “registry”, we mean the `ActionParser` and `AuthParser` which tell our VM
+By “registry”, we mean the `actionParser` and `authParser` which tell our VM
 which actions and cryptographic functions that it’ll support.
 
 Finally, we create a `New()` function that allows for the VM we’ve worked on to
@@ -813,9 +812,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		ActionParser,
-		AuthParser,
-		OutputParser,
+		newRegistryFactory(),
 		auth.Engines(),
 		options...,
 	)

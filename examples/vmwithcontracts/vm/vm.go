@@ -21,38 +21,35 @@ import (
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
-var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
-	OutputParser *codec.TypeParser[codec.Typed]
-	wasmRuntime  *runtime.WasmRuntime
-)
+var wasmRuntime *runtime.WasmRuntime
 
-// Setup types
-func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
-	OutputParser = codec.NewTypeParser[codec.Typed]()
+func newRegistryFactory() chain.RegistryFactory {
+	actionParser := codec.NewTypeParser[chain.Action]()
+	authParser := codec.NewTypeParser[chain.Auth]()
+	outputParser := codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-		ActionParser.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
-		ActionParser.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
-		ActionParser.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
+		actionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		actionParser.Register(&actions.Call{}, actions.UnmarshalCallContract(wasmRuntime)),
+		actionParser.Register(&actions.Publish{}, actions.UnmarshalPublishContract),
+		actionParser.Register(&actions.Deploy{}, actions.UnmarshalDeployContract),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		authParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		authParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.Result{}, nil),
-		OutputParser.Register(&actions.AddressOutput{}, nil),
+		outputParser.Register(&actions.Result{}, nil),
+		outputParser.Register(&actions.AddressOutput{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
+	}
+	return func() (actionRegistry chain.ActionRegistry, authRegistry chain.AuthRegistry, outputRegistry chain.OutputRegistry) {
+		return actionParser, authParser, outputParser
 	}
 }
 
@@ -78,9 +75,7 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		ActionParser,
-		AuthParser,
-		OutputParser,
+		newRegistryFactory(),
 		auth.Engines(),
 		opts...,
 	)
