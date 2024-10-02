@@ -808,12 +808,11 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With(), indexer.With()) // Add MorpheusVM API and Indexer
 	registryFactory, err := newRegistryFactory()
 	if err != nil {
 		return nil, err
 	}
-	return vm.New(
+	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},

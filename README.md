@@ -55,7 +55,8 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	if err != nil {
 		return nil, err
 	}
-	return defaultvm.New(
+	options = append(options, With(), indexer.With()) // Add MorpheusVM API and Indexer
+	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
