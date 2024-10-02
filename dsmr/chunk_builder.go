@@ -34,8 +34,10 @@ func (c *chunkBuilder[T]) Add(tx T, slot int64) (*Chunk[T], error) {
 	c.txs = append(c.txs, tx)
 
 	if len(c.txs) == c.threshold {
-		// TODO handle error
-		return NewChunk[T](c.txs, slot)
+		chunk, err := NewChunk[T](c.txs, slot)
+		c.txs = c.txs[:0]
+
+		return chunk, err
 	}
 
 	return nil, nil
