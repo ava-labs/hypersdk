@@ -799,7 +799,7 @@ func newRegistryFactory() (chain.RegistryFactory, error) {
 
 ```
 
-By “registry”, we mean the `actionParser` and `authParser` which tell our VM
+By “registry”, we mean the `actionParser`, `authParser` and `outputParser` which tell our VM
 which actions and cryptographic functions that it’ll support.
 
 Finally, we create a `New()` function that allows for the VM we’ve worked on to
@@ -808,11 +808,12 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
+	options = append(options, With(), indexer.With()) // Add MorpheusVM API and Indexer
 	registryFactory, err := newRegistryFactory()
 	if err != nil {
 		return nil, err
 	}
-	return defaultvm.New(
+	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
