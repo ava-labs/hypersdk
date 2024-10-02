@@ -17,26 +17,6 @@ type Block struct {
 	id    ids.ID
 }
 
-func (b *Block) ID() ids.ID {
-	return b.id
-}
-
-func (b *Block) Bytes() []byte {
-	return b.bytes
-}
-
-func (b *Block) Height() uint64 {
-	return b.BlockHeight
-}
-
-func (b *Block) Timestamp() int64 {
-	return b.Time
-}
-
-func (b *Block) Parent() ids.ID {
-	return b.ParentID
-}
-
 type ExecutionBlock struct {
 	Block
 
