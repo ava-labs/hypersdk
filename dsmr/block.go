@@ -37,26 +37,26 @@ func (b *StatelessChunkBlock) Parent() ids.ID {
 	return b.ParentID
 }
 
-type Block struct {
+type ExecutionBlock struct {
 	StatelessChunkBlock
 
 	backend Backend
 }
 
-func (b *Block) Verify(ctx context.Context) error {
-	for _, chunkCertificate := range b.Chunks {
+func (e *ExecutionBlock) Verify(ctx context.Context) error {
+	for _, chunkCertificate := range e.Chunks {
 		if err := chunkCertificate.Verify(ctx); err != nil {
 			return err
 		}
 	}
 
-	return b.backend.Verify(ctx, b)
+	return e.backend.Verify(ctx, e)
 }
 
-func (b *Block) Accept(ctx context.Context) error {
-	return b.backend.Accept(ctx, b)
+func (e *ExecutionBlock) Accept(ctx context.Context) error {
+	return e.backend.Accept(ctx, e)
 }
 
-func (b *Block) Reject(ctx context.Context) error {
-	return b.backend.Reject(ctx, b)
+func (e *ExecutionBlock) Reject(ctx context.Context) error {
+	return e.backend.Reject(ctx, e)
 }
