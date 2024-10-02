@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -84,7 +85,7 @@ func TestMarshalSpecs(t *testing.T) {
 			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
 			// Unmarshal the object
-			err = codec.LinearCodec.Unmarshal(objectBytes, unmarshaledFromBytes)
+			err = codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: objectBytes}, unmarshaledFromBytes)
 			require.NoError(err)
 
 			// Compare unmarshaled object with the original

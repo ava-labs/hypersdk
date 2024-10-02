@@ -1035,44 +1035,6 @@ func (vm *VM) AppResponse(
 	return vm.networkManager.AppResponse(ctx, nodeID, requestID, response)
 }
 
-func (vm *VM) CrossChainAppRequest(
-	ctx context.Context,
-	nodeID ids.ID,
-	requestID uint32,
-	deadline time.Time,
-	request []byte,
-) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppRequest")
-	defer span.End()
-
-	return vm.networkManager.CrossChainAppRequest(ctx, nodeID, requestID, deadline, request)
-}
-
-func (vm *VM) CrossChainAppRequestFailed(
-	ctx context.Context,
-	nodeID ids.ID,
-	requestID uint32,
-	_ *common.AppError,
-) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppRequestFailed")
-	defer span.End()
-
-	// TODO: add support for handling common.AppError
-	return vm.networkManager.CrossChainAppRequestFailed(ctx, nodeID, requestID)
-}
-
-func (vm *VM) CrossChainAppResponse(
-	ctx context.Context,
-	nodeID ids.ID,
-	requestID uint32,
-	response []byte,
-) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppResponse")
-	defer span.End()
-
-	return vm.networkManager.CrossChainAppResponse(ctx, nodeID, requestID, response)
-}
-
 // implements "block.ChainVM.commom.VM.validators.Connector"
 func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
