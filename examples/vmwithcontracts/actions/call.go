@@ -21,7 +21,10 @@ import (
 
 var _ chain.Action = (*Call)(nil)
 
-const MaxCallDataSize = units.MiB
+const (
+	MaxCallDataSize    = units.MiB
+	MaxResultSizeLimit = units.MiB
+)
 
 type StateKeyPermission struct {
 	Key        string
@@ -68,7 +71,7 @@ func (t *Call) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	resutBytes, err := t.r.CallContract(ctx, &runtime.CallInfo{
+	callInfo := &runtime.CallInfo{
 		Contract:     t.ContractAddress,
 		Actor:        actor,
 		State:        &storage.ContractStateManager{Mutable: mu},
@@ -77,11 +80,13 @@ func (t *Call) Execute(
 		Timestamp:    uint64(timestamp),
 		Fuel:         t.Fuel,
 		Value:        t.Value,
-	})
+	}
+	resultBytes, err := t.r.CallContract(ctx, callInfo)
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Value: resutBytes}, nil
+	consumedFuel := t.Fuel - callInfo.RemainingFuel()
+	return &Result{Value: resultBytes, ConsumedFuel: consumedFuel}, nil
 }
 
 func (t *Call) ComputeUnits(chain.Rules) uint64 {
@@ -134,9 +139,32 @@ func (*Call) ValidRange(chain.Rules) (int64, int64) {
 }
 
 type Result struct {
-	Value []byte `serialize:"true" json:"value"`
+	Value        []byte `serialize:"true" json:"value"`
+	ConsumedFuel uint64 `serialize:"true" json:"consumedfuel"`
 }
 
 func (*Result) GetTypeID() uint8 {
 	return mconsts.ResultOutputID
+}
+
+// Marshal encodes a type as bytes.
+func (r *Result) Marshal(p *codec.Packer) {
+	p.PackBytes(r.Value)
+	p.PackUint64(r.ConsumedFuel)
+}
+
+// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
+// memory during encoding and to charge bandwidth fees.
+func (r *Result) Size() int {
+	return consts.Uint64Len + consts.Uint32Len + len(r.Value)
+}
+
+func UnmarshalResult(p *codec.Packer) (*Result, error) {
+	var result Result
+	p.UnpackBytes(MaxResultSizeLimit, true, &result.Value)
+	p.UnpackUint64(true)
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

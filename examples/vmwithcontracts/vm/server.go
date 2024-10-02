@@ -4,18 +4,13 @@
 package vm
 
 import (
-	"context"
-	"encoding/hex"
 	"net/http"
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 const JSONRPCEndpoint = "/vmwithcontractsapi"
@@ -69,6 +64,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	return err
 }
 
+/*
 type SimulateCallTxArgs struct {
 	CallTx actions.Call  `json:"callTx"`
 	Actor  codec.Address `json:"actor"`
@@ -114,4 +110,4 @@ func (j *JSONRPCServer) simulate(ctx context.Context, t actions.Call, actor code
 	}
 	_, err = wasmRuntime.CallContract(ctx, callInfo)
 	return recorder.GetStateKeys(), startFuel - callInfo.RemainingFuel(), err
-}
+}*/

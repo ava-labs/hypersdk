@@ -142,9 +142,16 @@ var callCmd = &cobra.Command{
 			ContractAddress: contractAddress,
 			Value:           amount,
 			Function:        function,
+			Fuel:            uint64(1000000000),
 		}
 
-		specifiedStateKeysSet, fuel, err := bcli.Simulate(ctx, *action, priv.Address)
+		specifiedStateKeysSet, encodedActionResults, err := cli.SimulateAction(ctx, action, priv.Address)
+		if err != nil {
+			return err
+		}
+
+		rtx := codec.NewReader(encodedActionResults, actions.MaxResultSizeLimit) // will likely be much smaller than this
+		simulationResult, err := actions.UnmarshalResult(rtx)
 		if err != nil {
 			return err
 		}
@@ -153,7 +160,7 @@ var callCmd = &cobra.Command{
 		for key, value := range specifiedStateKeysSet {
 			action.SpecifiedStateKeys = append(action.SpecifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
 		}
-		action.Fuel = fuel
+		action.Fuel = simulationResult.ConsumedFuel
 
 		// Confirm action
 		cont, err := prompt.Continue()
