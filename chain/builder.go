@@ -93,7 +93,7 @@ func BuildBlock(
 	}
 
 	// Compute next unit prices to use
-	feeKey := vm.StateLayout().FeeKey()
+	feeKey := vm.StateLayout().FeePrefix()
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -374,9 +374,9 @@ func BuildBlock(
 	}
 
 	// Update chain metadata
-	heightKey := vm.StateLayout().HeightKey()
+	heightKey := vm.StateLayout().HeightPrefix()
 	heightKeyStr := string(heightKey)
-	timestampKey := vm.StateLayout().TimestampKey()
+	timestampKey := vm.StateLayout().TimestampPrefix()
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 

@@ -8,19 +8,39 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 )
+func map2fields(m map[string][]byte) []zap.Field {
+	fields := make([]zap.Field, 0, len(m))
+	for k, v := range m {
+		fields = append(fields, zap.Any(k, v))
+	}
+	return fields
+}
 
 func TestTransferAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
+	layout := layout.Default()
+
+	s := chaintest.NewInMemoryStore()
+	_, err := storage.AddBalance(
+		context.Background(),
+		layout,
+		s,
+		codec.EmptyAddress,
+		0,
+		true,
+	)
+	require.NoError(t, err)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -44,17 +64,18 @@ func TestTransferAction(t *testing.T) {
 		},
 		{
 			Name:  "NotEnoughBalance",
-			Actor: codec.EmptyAddress,
+			Actor: addr,
 			Action: &Transfer{
-				To:    codec.EmptyAddress,
+				To:    addr,
 				Value: 1,
 			},
 			State: func() state.Mutable {
 				s := chaintest.NewInMemoryStore()
 				_, err := storage.AddBalance(
 					context.Background(),
+					layout,
 					s,
-					codec.EmptyAddress,
+					addr,
 					0,
 					true,
 				)
@@ -72,11 +93,11 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+				balance, err := storage.GetBalance(ctx, layout, store, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
@@ -94,7 +115,7 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
@@ -108,14 +129,14 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, store, addr)
+				receiverBalance, err := storage.GetBalance(ctx, layout, store, addr)
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, layout, store, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -136,6 +157,8 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
 
+	layout := layout.Default()
+
 	transferActionTest := &chaintest.ActionBenchmark{
 		Name:  "SimpleTransferBenchmark",
 		Actor: from,
@@ -149,17 +172,17 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 		},
 		CreateState: func() state.Mutable {
 			store := chaintest.NewInMemoryStore()
-			err := storage.SetBalance(context.Background(), store, from, 1)
+			err := storage.SetBalance(context.Background(), layout, store, from, 1)
 			setupRequire.NoError(err)
 			return store
 		},
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
 			require := require.New(b)
-			toBalance, err := storage.GetBalance(ctx, store, to)
+			toBalance, err := storage.GetBalance(ctx, layout, store, to)
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)
 
-			fromBalance, err := storage.GetBalance(ctx, store, from)
+			fromBalance, err := storage.GetBalance(ctx, layout, store, from)
 			require.NoError(err)
 			require.Equal(uint64(0), fromBalance)
 		},

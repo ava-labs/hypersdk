@@ -9,21 +9,22 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 )
 
 var _ (chain.BalanceHandler) = (*BalanceHandler)(nil)
 
 type BalanceHandler struct{}
 
-func (*BalanceHandler) SponsorStateKeys(stateLayout state.Layout, addr codec.Address) state.Keys {
+func (*BalanceHandler) SponsorStateKeys(stateLayout layout.Layout, addr codec.Address) state.Keys {
 	return state.Keys{
-		string(BalanceKey(stateLayout, addr)): state.Read | state.Write,
+		string(stateLayout.NewBalanceKey(addr)): state.Read | state.Write,
 	}
 }
 
 func (*BalanceHandler) CanDeduct(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	addr codec.Address,
 	im state.Immutable,
 	amount uint64,
@@ -40,7 +41,7 @@ func (*BalanceHandler) CanDeduct(
 
 func (*BalanceHandler) Deduct(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	addr codec.Address,
 	mu state.Mutable,
 	amount uint64,
@@ -51,7 +52,7 @@ func (*BalanceHandler) Deduct(
 
 func (*BalanceHandler) AddBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	addr codec.Address,
 	mu state.Mutable,
 	amount uint64,

@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package state
+package layout
 
 import (
 	"errors"
@@ -13,11 +13,15 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 )
 
+const balanceKeyChunks   uint16 = 1
+
 const (
-	heightKeyChunks           = 1
-	timestampKeyChunks        = 1
-	feeKeyChunks              = 8 // 96 (per dimension) * 5 (num dimensions)
-	balanceKeyChunks   uint16 = 1
+	DefaultHeightPrefix byte = iota
+	DefaultTimestampPrefix
+	DefaultFeePrefix
+
+	DefaultBalancePrefix
+	DefaultActionPrefix
 )
 
 var (
@@ -26,29 +30,7 @@ var (
 	ErrInvalidKeyPrefix = errors.New("invalid key prefix")
 	ErrDuplicateKey     = errors.New("duplicate key")
 	ErrConflictingKey   = errors.New("conflicting key")
-
-	heightKeyName    = "height"
-	timestampKeyName = "timestamp"
-	feeKeyName       = "fee"
 )
-
-// TODO test user writing to managed key (balance prefix + account collides with
-// reserved key)
-func NewLayout(
-	heightKey []byte,
-	timestampKey []byte,
-	feeKey []byte,
-	balanceKeyPrefix []byte,
-	actionKeyPrefix []byte,
-) Layout {
-	return Layout{
-		heightKey:        keys.EncodeChunks(heightKey, heightKeyChunks),
-		timestampKey:     keys.EncodeChunks(timestampKey, timestampKeyChunks),
-		feeKey:           keys.EncodeChunks(feeKey, feeKeyChunks),
-		balanceKeyPrefix: balanceKeyPrefix,
-		actionPrefix:     actionKeyPrefix,
-	}
-}
 
 // Layout defines hypersdk-manged state keys
 // TODO unit tests
@@ -61,15 +43,43 @@ type Layout struct {
 	actionPrefix     []byte
 }
 
-func (l Layout) HeightKey() []byte {
+// TODO test user writing to managed key (balance prefix + account collides with
+// reserved key)
+func New(
+	heightPrefix []byte,
+	timestampPrefix []byte,
+	feePrefix []byte,
+	balanceKeyPrefix []byte,
+	actionKeyPrefix []byte,
+) Layout {
+	return Layout{
+		heightKey:        heightPrefix,
+		timestampKey:     timestampPrefix,
+		feeKey:           feePrefix,
+		balanceKeyPrefix: balanceKeyPrefix,
+		actionPrefix:     actionKeyPrefix,
+	}
+}
+
+func Default() Layout {
+	return New(
+		[]byte{DefaultHeightPrefix}, 
+		[]byte{DefaultTimestampPrefix}, 
+		[]byte{DefaultFeePrefix}, 
+		[]byte{DefaultBalancePrefix}, 
+		[]byte{DefaultActionPrefix},
+	)
+}
+
+func (l Layout) HeightPrefix() []byte {
 	return l.heightKey
 }
 
-func (l Layout) TimestampKey() []byte {
+func (l Layout) TimestampPrefix() []byte {
 	return l.timestampKey
 }
 
-func (l Layout) FeeKey() []byte {
+func (l Layout) FeePrefix() []byte {
 	return l.feeKey
 }
 

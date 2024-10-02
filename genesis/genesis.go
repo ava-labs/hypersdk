@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
@@ -31,7 +32,7 @@ type Genesis interface {
 	InitializeState(
 		ctx context.Context,
 		tracer trace.Tracer,
-		stateLayout state.Layout,
+		stateLayout layout.Layout,
 		bh chain.BalanceHandler,
 		mu state.Mutable,
 	) error
@@ -64,7 +65,7 @@ func NewDefaultGenesis(customAllocations []*CustomAllocation) *DefaultGenesis {
 func (g *DefaultGenesis) InitializeState(
 	ctx context.Context,
 	tracer trace.Tracer,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	balanceHandler chain.BalanceHandler,
 	mu state.Mutable,
 ) error {

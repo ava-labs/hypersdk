@@ -8,12 +8,14 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
-	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
+
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
@@ -43,7 +45,7 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(stateLayout state.Layout, actor codec.Address) state.Keys {
+func (t *Transfer) StateKeys(stateLayout layout.Layout, actor codec.Address) state.Keys {
 	return state.Keys{
 		string(stateLayout.NewBalanceKey(actor)): state.Read | state.Write,
 		string(stateLayout.NewBalanceKey(t.To)):  state.All,
@@ -53,7 +55,7 @@ func (t *Transfer) StateKeys(stateLayout state.Layout, actor codec.Address) stat
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	_ state.Layout,
+	layout layout.Layout,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -65,11 +67,12 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	senderBalance, err := storage.SubBalance(ctx, layout, mu, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+
+	receiverBalance, err := storage.AddBalance(ctx, layout, mu, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}

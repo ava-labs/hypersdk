@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 )
 
 var _ state.Mutable = (*InMemoryStore)(nil)
@@ -56,7 +57,7 @@ type ActionTest struct {
 	Action chain.Action
 
 	Rules       chain.Rules
-	StateLayout state.Layout
+	StateLayout layout.Layout
 	State       state.Mutable
 	Timestamp   int64
 	Actor       codec.Address
@@ -92,7 +93,7 @@ type ActionBenchmark struct {
 	Action chain.Action
 
 	Rules       chain.Rules
-	StateLayout state.Layout
+	StateLayout layout.Layout
 	CreateState func() state.Mutable
 	Timestamp   int64
 	Actor       codec.Address

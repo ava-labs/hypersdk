@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/vm"
 
 	staterpc "github.com/ava-labs/hypersdk/api/state"
@@ -35,6 +36,7 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
+	layout layout.Layout,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
@@ -46,6 +48,7 @@ func New(
 		v,
 		genesisFactory,
 		balanceHandler,
+		layout,
 		actionRegistry,
 		authRegistry,
 		outputRegistry,

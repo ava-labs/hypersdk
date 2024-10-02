@@ -29,7 +29,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -141,7 +141,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	actions := sh.GetTransfer(keys[0].Address, 0, uniqueBytes())
-	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), state.Layout{}, actions, factory)
+	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), layout.Layout{}, actions, factory)
 	if err != nil {
 		return err
 	}

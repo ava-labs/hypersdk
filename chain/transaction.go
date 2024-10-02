@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -112,7 +113,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(stateLayout state.Layout, bh BalanceHandler) (state.Keys, error) {
+func (t *Transaction) StateKeys(stateLayout layout.Layout, bh BalanceHandler) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -141,7 +142,7 @@ func (t *Transaction) StateKeys(stateLayout state.Layout, bh BalanceHandler) (st
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(sm state.Layout, bh BalanceHandler, r Rules) (fees.Dimensions, error) {
+func (t *Transaction) Units(sm layout.Layout, bh BalanceHandler, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
@@ -195,7 +196,7 @@ func (t *Transaction) Units(sm state.Layout, bh BalanceHandler, r Rules) (fees.D
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, stateLayout state.Layout, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, stateLayout layout.Layout, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -265,7 +266,7 @@ func EstimateUnits(r Rules, stateLayout state.Layout, actions []Action, authFact
 func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	bh BalanceHandler,
 	r Rules,
 	im state.Immutable,
@@ -311,7 +312,7 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	bh BalanceHandler,
 	r Rules,
 	ts *tstate.TStateView,

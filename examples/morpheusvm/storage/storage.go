@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
@@ -22,7 +23,7 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	im state.Immutable,
 	addr codec.Address,
 ) (uint64, error) {
@@ -32,7 +33,7 @@ func GetBalance(
 
 func getBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	im state.Immutable,
 	addr codec.Address,
 ) ([]byte, uint64, bool, error) {
@@ -44,7 +45,7 @@ func getBalance(
 // Used to serve RPC queries
 func GetBalanceFromState(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	f ReadState,
 	addr codec.Address,
 ) (uint64, error) {
@@ -73,7 +74,7 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	mu state.Mutable,
 	addr codec.Address,
 	balance uint64,
@@ -93,7 +94,7 @@ func setBalance(
 
 func AddBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
@@ -123,7 +124,7 @@ func AddBalance(
 
 func SubBalance(
 	ctx context.Context,
-	stateLayout state.Layout,
+	stateLayout layout.Layout,
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 )
 
 var (
@@ -29,11 +30,11 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Layout, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ layout.Layout, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) StateKeys(_ state.Layout, _ codec.Address) state.Keys {
+func (*abstractMockAction) StateKeys(_ layout.Layout, _ codec.Address) state.Keys {
 	panic("unimplemented")
 }
 

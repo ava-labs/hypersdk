@@ -43,6 +43,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -109,7 +110,7 @@ type VM struct {
 	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
-	stateLayout           state.Layout
+	stateLayout           layout.Layout
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -161,6 +162,7 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
+	layout layout.Layout,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
@@ -178,6 +180,7 @@ func New(
 	return &VM{
 		v:                     v,
 		balanceHandler:        balanceHandler,
+		stateLayout: 		 layout,
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
@@ -267,14 +270,6 @@ func (vm *VM) Initialize(
 	// Set defaults
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
-
-	vm.stateLayout = state.NewLayout(
-		defaultHeightStateKey,
-		defaultTimestampStateKey,
-		defaultFeeStateKey,
-		defaultBalanceStateKeyPrefix,
-		defaultActionStateKeyPrefix,
-	)
 
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
@@ -403,10 +398,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, vm.stateLayout.HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.HeightPrefix(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, vm.stateLayout.TimestampKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.TimestampPrefix(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
@@ -416,7 +411,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, vm.stateLayout.FeeKey(), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.FeePrefix(), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -898,7 +893,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, vm.stateLayout.FeeKey())
+	feeRaw, err := view.GetValue(ctx, vm.stateLayout.FeePrefix())
 	if err != nil {
 		return []error{err}
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/layout"
 )
 
 type VM interface {
@@ -41,5 +42,5 @@ type VM interface {
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
-	StateLayout() state.Layout
+	StateLayout() layout.Layout
 }
