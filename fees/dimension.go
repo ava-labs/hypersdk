@@ -5,6 +5,7 @@ package fees
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -137,6 +138,38 @@ func (d *Dimensions) UnmarshalText(b []byte) error {
 	if n != FeeDimensions {
 		return fmt.Errorf("failed to parse %d successive dimensions, found %d", FeeDimensions, n)
 	}
+	return nil
+}
+
+type DimensionJSON struct {
+	Bandwidth       uint64 `json:"bandwidth"`
+	Compute         uint64 `json:"compute"`
+	StorageRead     uint64 `json:"storageRead"`
+	StorageAllocate uint64 `json:"storageAllocate"`
+	StorageWrite    uint64 `json:"storageWrite"`
+}
+
+func (d Dimensions) MarshalJSON() ([]byte, error) {
+	dimensionJSON := DimensionJSON{
+		Bandwidth:       d[Bandwidth],
+		Compute:         d[Compute],
+		StorageRead:     d[StorageRead],
+		StorageAllocate: d[StorageAllocate],
+		StorageWrite:    d[StorageWrite],
+	}
+	return json.Marshal(dimensionJSON)
+}
+
+func (d *Dimensions) UnmarshalJSON(b []byte) error {
+	dimensionJSON := DimensionJSON{}
+	if err := json.Unmarshal(b, &dimensionJSON); err != nil {
+		return err
+	}
+	d[Bandwidth] = dimensionJSON.Bandwidth
+	d[Compute] = dimensionJSON.Compute
+	d[StorageRead] = dimensionJSON.StorageRead
+	d[StorageAllocate] = dimensionJSON.StorageAllocate
+	d[StorageWrite] = dimensionJSON.StorageWrite
 	return nil
 }
 
