@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
@@ -58,6 +58,19 @@ type SpamConfig struct {
 	uris    []string
 	key     *auth.PrivateKey
 	balance uint64
+
+	// Zipf distribution parameters
+	sZipf float64
+	vZipf float64
+
+	// TPS parameters
+	txsPerSecond     int
+	minTxsPerSecond  int
+	txsPerSecondStep int
+	numClients       int
+
+	// Number of accounts
+	numAccounts int
 }
 
 func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error) {
@@ -95,10 +108,51 @@ func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error)
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
 
+	// Collect parameters
+	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	if numAccounts < 2 {
+		return nil, ErrInsufficientAccounts
+	}
+	sZipf, err := prompt.Float("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+	if err != nil {
+		return nil, err
+	}
+	vZipf, err := prompt.Float("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+	if err != nil {
+		return nil, err
+	}
+		
+	txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+
 	return &SpamConfig{
 		uris,
 		key,
 		balance,
+		sZipf,
+		vZipf,
+		txsPerSecond,
+		minTxsPerSecond,
+		txsPerSecondStep,
+		numClients,
+		numAccounts,
 	}, nil
 }
 
@@ -109,6 +163,17 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	uris := config.uris
 	key := config.key
 	balance := config.balance
+	sZipf := config.sZipf
+	vZipf := config.vZipf
+	txsPerSecond := config.txsPerSecond
+	minTxsPerSecond := config.minTxsPerSecond
+	txsPerSecondStep := config.txsPerSecondStep
+	numClients := config.numClients
+	numAccounts := config.numAccounts
+	
+	// Log Zipf participants
+	zipfSeed := rand.New(rand.NewSource(0))
+	config.logZipf(zipfSeed)
 
 	cli := jsonrpc.NewJSONRPCClient(uris[0])
 	if err != nil {
@@ -135,49 +200,6 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	if err != nil {
 		return err
 	}
-
-	// Collect parameters
-	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-	if numAccounts < 2 {
-		return ErrInsufficientAccounts
-	}
-	sZipf, err := prompt.Float("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
-	if err != nil {
-		return err
-	}
-	vZipf, err := prompt.Float("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
-	if err != nil {
-		return err
-	}
-	txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-	txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-	numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-
-	// Log Zipf participants
-	zipfSeed := rand.New(rand.NewSource(0))
-	zz := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
-	trials := txsPerSecond * 60 * 2 // sender/receiver
-	unique := set.NewSet[uint64](trials)
-	for i := 0; i < trials; i++ {
-		unique.Add(zz.Uint64())
-	}
-	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 
 	// Distribute funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
@@ -618,4 +640,14 @@ func getRandomIssuer(issuers []*issuer) *issuer {
 
 func uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1)))
+}
+
+func (c *SpamConfig) logZipf(zipfSeed *rand.Rand) {
+	zz := rand.NewZipf(zipfSeed, c.sZipf, c.vZipf, uint64(c.numAccounts)-1)
+	trials := c.txsPerSecond * 60 * 2 // sender/receiver
+	unique := set.NewSet[uint64](trials)
+	for i := 0; i < trials; i++ {
+		unique.Add(zz.Uint64())
+	}
+	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 }
