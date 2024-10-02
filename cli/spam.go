@@ -73,7 +73,7 @@ type SpamConfig struct {
 	numAccounts int
 }
 
-func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error) {
+func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper, defaults bool) (*SpamConfig, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
@@ -108,6 +108,20 @@ func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error)
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
 
+	if defaults {
+		return &SpamConfig{
+			uris,
+			key,
+			balance,
+			1.01,
+			2.7,
+			10,
+			10,
+			10,
+			10,
+			10,
+		}, nil
+	}
 	// Collect parameters
 	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
 	if err != nil {
@@ -159,28 +173,18 @@ func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper) (*SpamConfig, error)
 func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	ctx := context.Background()
 
-	config, err := h.SpamConfigPrompter(sh)
-	uris := config.uris
-	key := config.key
-	balance := config.balance
-	sZipf := config.sZipf
-	vZipf := config.vZipf
-	txsPerSecond := config.txsPerSecond
-	minTxsPerSecond := config.minTxsPerSecond
-	txsPerSecondStep := config.txsPerSecondStep
-	numClients := config.numClients
-	numAccounts := config.numAccounts
-	
+	c, err := h.SpamConfigPrompter(sh, true)
+
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0))
-	config.logZipf(zipfSeed)
+	c.logZipf(zipfSeed)
 
-	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient(c.uris[0])
 	if err != nil {
 		return err
 	}
 
-	factory, err := sh.GetFactory(key)
+	factory, err := sh.GetFactory(c.key)
 	if err != nil {
 		return err
 	}
@@ -195,7 +199,7 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(key.Address, 0, uniqueBytes())
+	actions := sh.GetTransfer(c.key.Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -210,27 +214,27 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	withholding := feePerTx * uint64(numAccounts)
-	if balance < withholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, withholding)
+	withholding := feePerTx * uint64(c.numAccounts)
+	if c.balance < withholding {
+		return fmt.Errorf("insufficient funds (have=%d need=%d)", c.balance, withholding)
 	}
-	distAmount := (balance - withholding) / uint64(numAccounts)
+	distAmount := (c.balance - withholding) / uint64(c.numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
 		utils.FormatBalance(distAmount, h.c.Decimals()),
 		h.c.Symbol(),
 	)
-	accounts := make([]*auth.PrivateKey, numAccounts)
-	webSocketClient, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	accounts := make([]*auth.PrivateKey, c.numAccounts)
+	webSocketClient, err := ws.NewWebSocketClient(c.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
 	funds := map[codec.Address]uint64{}
-	factories := make([]chain.AuthFactory, numAccounts)
+	factories := make([]chain.AuthFactory, c.numAccounts)
 	var fundsL sync.Mutex
 	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, minTxsPerSecond)
-	for i := 0; i < numAccounts; i++ {
+	go p.Run(ctx, c.minTxsPerSecond)
+	for i := 0; i < c.numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
 		if err != nil {
@@ -262,18 +266,18 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	if err := p.Wait(); err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
+	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", c.numAccounts)
 
 	// Kickoff txs
 	issuers := []*issuer{}
-	for i := 0; i < len(uris); i++ {
-		for j := 0; j < numClients; j++ {
-			cli := jsonrpc.NewJSONRPCClient(uris[i])
-			webSocketClient, err := ws.NewWebSocketClient(uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	for i := 0; i < len(c.uris); i++ {
+		for j := 0; j < c.numClients; j++ {
+			cli := jsonrpc.NewJSONRPCClient(c.uris[i])
+			webSocketClient, err := ws.NewWebSocketClient(c.uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: uris[i]}
+			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: c.uris[i]}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -326,10 +330,10 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	// Broadcast txs
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
-		z = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+		z = rand.NewZipf(zipfSeed, c.sZipf, c.vZipf, uint64(c.numAccounts)-1)
 
 		it                      = time.NewTimer(0)
-		currentTarget           = min(txsPerSecond, minTxsPerSecond)
+		currentTarget           = min(c.txsPerSecond, c.minTxsPerSecond)
 		consecutiveUnderBacklog int
 		consecutiveAboveBacklog int
 
@@ -346,8 +350,8 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
-					if currentTarget > txsPerSecondStep {
-						currentTarget -= txsPerSecondStep
+					if currentTarget > c.txsPerSecondStep {
+						currentTarget -= c.txsPerSecondStep
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 					} else {
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
@@ -365,7 +369,7 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
 				sender := accounts[senderIndex]
 				if recipientIndex == senderIndex {
-					if recipientIndex == uint64(numAccounts-1) {
+					if recipientIndex == uint64(c.numAccounts-1) {
 						recipientIndex--
 					} else {
 						recipientIndex++
@@ -407,8 +411,8 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
 			consecutiveUnderBacklog++
-			if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
-				currentTarget = min(currentTarget+txsPerSecondStep, txsPerSecond)
+			if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < c.txsPerSecond {
+				currentTarget = min(currentTarget+c.txsPerSecondStep, c.txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
@@ -427,7 +431,7 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	issuerWg.Wait()
 
 	// Return funds
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", key.Address)
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", c.key.Address)
 	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -438,8 +442,8 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	}
 	var returnedBalance uint64
 	p = &pacer{ws: webSocketClient}
-	go p.Run(ctx, minTxsPerSecond)
-	for i := 0; i < numAccounts; i++ {
+	go p.Run(ctx, c.minTxsPerSecond)
+	for i := 0; i < c.numAccounts; i++ {
 		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
@@ -448,7 +452,7 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(key.Address, returnAmt, uniqueBytes())
+		actions := sh.GetTransfer(c.key.Address, returnAmt, uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
@@ -461,6 +465,8 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 		if i%250 == 0 && i > 0 {
 			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
 		}
+		// this breaks if we dont have this line
+		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt, h.c.Decimals()), h.c.Symbol())
 	}
 	if err := p.Wait(); err != nil {
 		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
