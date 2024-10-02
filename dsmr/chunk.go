@@ -3,13 +3,14 @@ package dsmr
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 const InitialChunkSize = 250 * 1024
 
-type Chunk[T any] struct {
+type Chunk[T Tx] struct {
 	Items []T   `serialize:"true"`
 	Slot  int64 `serialize:"true"`
 
@@ -17,7 +18,7 @@ type Chunk[T any] struct {
 	id    ids.ID
 }
 
-func NewChunk[T any](items []T, slot int64) (*Chunk[T], error) {
+func NewChunk[T Tx](items []T, slot int64) (*Chunk[T], error) {
 	c := &Chunk[T]{
 		Items: items,
 		Slot:  slot,

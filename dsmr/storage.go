@@ -5,20 +5,21 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-type ChunkWithSignature[T any] struct {
+type ChunkWithSignature[T Tx] struct {
 	Chunk     *Chunk[T]
 	Signature ChunkSignatureShare
 }
 
-type ChunkWithAggregateSignature[T any] struct {
+type ChunkWithAggregateSignature[T Tx] struct {
 	Chunk     *Chunk[T]
 	Signature ChunkSignature
 }
 
-type Storage[T any] struct {
+type Storage[T Tx] struct {
 	chunkEMap    *emap.EMap[*Chunk[T]]
 	storedChunks map[ids.ID]*ChunkWithSignature[T]
 
@@ -27,7 +28,7 @@ type Storage[T any] struct {
 	chunkDB database.Database
 }
 
-func NewStorage[T any](db database.Database) *Storage[T] {
+func NewStorage[T Tx](db database.Database) *Storage[T] {
 	return &Storage[T]{
 		chunkEMap:    emap.NewEMap[*Chunk[T]](),
 		storedChunks: make(map[ids.ID]*ChunkWithSignature[T]),
