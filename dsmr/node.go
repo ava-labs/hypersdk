@@ -1,14 +1,16 @@
 package dsmr
 
-func New[T Tx](mempool Mempool[T]) *Node[T] {
+func New[T Tx](mempool Mempool[T], client Client[T]) *Node[T] {
 	return &Node[T]{
 		mempool:      mempool,
+		client:       client,
 		chunkBuilder: chunkBuilder[T]{},
 	}
 }
 
 type Node[T Tx] struct {
 	mempool          Mempool[T]
+	client           Client[T]
 	chunkBuilder     chunkBuilder[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
