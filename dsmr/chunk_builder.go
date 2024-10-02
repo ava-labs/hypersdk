@@ -17,10 +17,8 @@ type Tx interface {
 	GetExpiry() time.Time
 }
 
-type Mempool[T any] interface {
-	StartStreaming(context.Context)
-	Stream(context.Context, int) []T
-	FinishStreaming(context.Context, []T) int
+type Mempool[T Tx] interface {
+	GetTxsChan() <-chan T
 }
 
 func BuildChunk[VerifyContext any, T any](
