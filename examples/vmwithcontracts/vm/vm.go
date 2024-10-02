@@ -48,8 +48,12 @@ func newRegistryFactory() (chain.RegistryFactory, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return func() (actionRegistry chain.ActionRegistry, authRegistry chain.AuthRegistry, outputRegistry chain.OutputRegistry) {
-		return actionParser, authParser, outputParser
+	return func() chain.Registry {
+		return chain.Registry{
+			Action: actionParser,
+			Auth:   authParser,
+			Output: outputParser,
+		}
 	}, nil
 }
 

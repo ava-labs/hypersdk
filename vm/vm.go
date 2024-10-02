@@ -154,7 +154,7 @@ func New(
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
-	actionRegistry, authRegistry, outputRegistry := registryFactory()
+	registries := registryFactory()
 
 	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
@@ -168,9 +168,9 @@ func New(
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
-		actionRegistry:        actionRegistry,
-		authRegistry:          authRegistry,
-		outputRegistry:        outputRegistry,
+		actionRegistry:        registries.Action,
+		authRegistry:          registries.Auth,
+		outputRegistry:        registries.Output,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
