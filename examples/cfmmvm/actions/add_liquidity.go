@@ -115,6 +115,7 @@ func (a *AddLiquidity) StateKeys(actor codec.Address) state.Keys {
 		string(storage.TokenInfoKey(lpToken)):                            state.All,
 		string(storage.TokenAccountBalanceKey(lpToken, actor)):           state.All,
 		string(storage.TokenAccountBalanceKey(lpToken, a.LiquidityPool)): state.All,
+		string(storage.TokenAccountBalanceKey(lpToken, codec.EmptyAddress)): state.All,
 
 		string(storage.TokenAccountBalanceKey(a.TokenX, actor)):           state.All,
 		string(storage.TokenAccountBalanceKey(a.TokenY, actor)):           state.All,
