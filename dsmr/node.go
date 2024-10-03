@@ -62,6 +62,7 @@ func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) 
 	return ChunkCertificate{}, nil
 }
 
+//TODO can this share impl w/ chunkBuilder?
 type blockBuilder[T Tx] struct{}
 
 // Add returns if a block was built
