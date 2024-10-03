@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -27,12 +28,14 @@ import (
 var (
 	vmName            string
 	txWorkloadFactory workload.TxWorkloadFactory
+	parser            chain.Parser
 	expectedABI       abi.ABI
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, chainParser chain.Parser, abi abi.ABI) {
 	vmName = name
 	txWorkloadFactory = factory
+	parser = chainParser
 	expectedABI = abi
 }
 
@@ -92,11 +95,17 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 
-		txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
-		require.NoError(err)
-		for _, txWorkload := range txWorkloads {
-			workload.ExecuteWorkload(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
-		}
+		ginkgo.By("Tx workloads", func() {
+			txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
+			require.NoError(err)
+			for _, txWorkload := range txWorkloads {
+				workload.ExecuteWorkload(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
+			}
+		})
+
+		ginkgo.By("Confirm accepted blocks indexed", func() {
+			workload.GetBlocks(tc.DefaultContext(), require, parser, getE2EURIs(tc, blockchainID))
+		})
 	})
 })
 
