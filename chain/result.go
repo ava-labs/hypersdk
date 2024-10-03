@@ -10,8 +10,8 @@ import (
 )
 
 type Result struct {
-	Success bool   `json:"success"`
-	Error   []byte `json:"error"`
+	Success bool               `json:"success"`
+	Error   codec.UnicodeBytes `json:"error"`
 
 	Outputs [][]byte `json:"outputs"`
 
@@ -57,7 +57,9 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-	p.UnpackBytes(consts.MaxInt, false, &result.Error)
+	var errorBytes []byte
+	p.UnpackBytes(consts.MaxInt, false, &errorBytes)
+	result.Error = errorBytes
 	outputs := [][]byte{}
 	numActions := p.UnpackByte()
 	for i := uint8(0); i < numActions; i++ {
