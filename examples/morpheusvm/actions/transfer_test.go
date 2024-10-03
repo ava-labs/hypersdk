@@ -64,6 +64,7 @@ func TestTransferAction(t *testing.T) {
 				return s
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
+			StateLayout: layout,
 		},
 		{
 			Name:  "SelfTransfer",
@@ -77,6 +78,7 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
+			StateLayout: layout,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				balance, err := storage.GetBalance(ctx, layout, store, codec.EmptyAddress)
 				require.NoError(t, err)
@@ -99,6 +101,7 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
+			StateLayout: layout,
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
 		{
@@ -113,6 +116,7 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
+			StateLayout: layout,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				receiverBalance, err := storage.GetBalance(ctx, layout, store, addr)
 				require.NoError(t, err)
@@ -156,6 +160,7 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			setupRequire.NoError(err)
 			return store
 		},
+		StateLayout: layout,
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
 			require := require.New(b)
 			toBalance, err := storage.GetBalance(ctx, layout, store, to)

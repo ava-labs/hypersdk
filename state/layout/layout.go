@@ -92,9 +92,9 @@ func (l Layout) NewActionKey(key []byte, chunks uint16) []byte {
 }
 
 func newKeyWithPrefix(prefix []byte, key []byte, chunks uint16) []byte {
-	k := make([]byte, len(prefix)+len(key))
+	k := make([]byte, 0)
 	k = append(k, prefix...)
-	k = append(k, key[:]...)
+	k = append(k, key...)
 
 	return keys.EncodeChunks(k, chunks)
 }
