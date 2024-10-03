@@ -1,6 +1,8 @@
 package loadgen
 
 import (
+	"encoding/binary"
+
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/bls"
@@ -27,4 +29,8 @@ func GetFactory(pk *auth.PrivateKey) (chain.AuthFactory, error) {
 	default:
 		return nil, ErrInvalidKeyType
 	}
+}
+
+func uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1)))
 }

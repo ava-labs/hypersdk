@@ -2,7 +2,6 @@ package loadgen
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
@@ -117,68 +116,27 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 		return err
 	}
 
-	// Distribute funds
+	// TODO: unit prices and fees could be calculated with a helper method?
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}
+
 	feePerTx, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return err
 	}
-	withholding := feePerTx * uint64(s.numAccounts)
-	if s.balance < withholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
-	}
-	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
-	utils.Outf(
-		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-		utils.FormatBalance(distAmount, decimals),
-		symbol,
-	)
-	accounts := make([]*auth.PrivateKey, s.numAccounts)
+
 	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
-	funds := map[codec.Address]uint64{}
-	factories := make([]chain.AuthFactory, s.numAccounts)
+
 	var fundsL sync.Mutex
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	for i := 0; i < s.numAccounts; i++ {
-		// Create account
-		pk, err := sh.CreateAccount()
-		if err != nil {
-			return err
-		}
-		accounts[i] = pk
-		f, err := GetFactory(pk)
-		if err != nil {
-			return err
-		}
-		factories[i] = f
-
-		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
-		if err != nil {
-			return err
-		}
-		if err := p.Add(tx); err != nil {
-			return fmt.Errorf("%w: failed to register tx", err)
-		}
-		funds[pk.Address] = distAmount
-
-		// Log progress
-		if i%250 == 0 && i > 0 {
-			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
-		}
-	}
-	if err := p.Wait(); err != nil {
+	accounts, funds, factories, err := s.distributeFunds(ctx, webSocketClient, cli, parser, feePerTx, sh)
+	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
 
 	// create issuers
 	issuers, err := s.createIssuers(parser)
@@ -347,7 +305,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 		return err
 	}
 	var returnedBalance uint64
-	p = &pacer{ws: webSocketClient}
+	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
 	time.Sleep(1 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
@@ -386,57 +344,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 	return nil
 }
 
-type pacer struct {
-	ws *ws.WebSocketClient
-
-	inflight chan struct{}
-	done     chan error
-}
-
-func (p *pacer) Run(ctx context.Context, max int) {
-	p.inflight = make(chan struct{}, max)
-	p.done = make(chan error)
-
-	for range p.inflight {
-		_, wsErr, result, err := p.ws.ListenTx(ctx)
-		if err != nil {
-			p.done <- err
-			return
-		}
-		if wsErr != nil {
-			p.done <- wsErr
-			return
-		}
-		if !result.Success {
-			// Should never happen
-			p.done <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
-			return
-		}
-	}
-	p.done <- nil
-}
-
-func (p *pacer) Add(tx *chain.Transaction) error {
-	if err := p.ws.RegisterTx(tx); err != nil {
-		return err
-	}
-	select {
-	case p.inflight <- struct{}{}:
-		return nil
-	case err := <-p.done:
-		return err
-	}
-}
-
-func (p *pacer) Wait() error {
-	close(p.inflight)
-	return <-p.done
-}
-
-func uniqueBytes() []byte {
-	return binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1)))
-}
-
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 	zz := rand.NewZipf(zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
 	trials := s.txsPerSecond * 60 * 2 // sender/receiver
@@ -447,6 +354,7 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 }
 
+// createIssuer creates an [numClients] transaction issuers for each URI in [uris]
 func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
 	for i := 0; i < len(s.uris); i++ {
@@ -461,4 +369,63 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 		}
 	}
 	return issuers, nil
+}
+
+func (s *Spammer) distributeFunds(ctx context.Context, webSocketClient *ws.WebSocketClient, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, map[codec.Address]uint64, []chain.AuthFactory, error) {
+	withholding := feePerTx * uint64(s.numAccounts)
+	if s.balance < withholding {
+		return nil, nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
+	}
+	
+	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
+	
+	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n",)
+	
+	funds := map[codec.Address]uint64{}
+	accounts := make([]*auth.PrivateKey, s.numAccounts)
+	factories := make([]chain.AuthFactory, s.numAccounts)
+
+	factory, err := GetFactory(s.key)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	p := &pacer{ws: webSocketClient}
+	go p.Run(ctx, s.minTxsPerSecond)
+	for i := 0; i < s.numAccounts; i++ {
+		// Create account
+		pk, err := sh.CreateAccount()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		accounts[i] = pk
+		f, err := GetFactory(pk)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		factories[i] = f
+
+		// Send funds
+		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
+		// TODO: shouldn't this be using the factory from the account? rather the root key factory?
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if err := p.Add(tx); err != nil {
+			return nil, nil, nil, fmt.Errorf("%w: failed to register tx", err)
+		}
+		funds[pk.Address] = distAmount
+
+		// Log progress
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
+		}
+	}
+	if err := p.Wait(); err != nil {
+		return nil, nil, nil, err
+	}
+	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
+
+	return accounts, funds, factories, nil
 }
