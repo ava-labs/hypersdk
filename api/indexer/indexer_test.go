@@ -42,7 +42,7 @@ func checkBlocks(
 	// Confirm blocks outside the window are not retrievable
 	for i := 0; i <= len(expectedBlocks)-blockWindow; i++ {
 		_, err := indexer.GetBlockByHeight(uint64(i))
-		require.ErrorIs(err, errBlockNotFound)
+		require.ErrorIs(err, errBlockNotFound, "height=%d", i)
 	}
 }
 
@@ -50,6 +50,7 @@ func TestBlockIndex(t *testing.T) {
 	require := require.New(t)
 
 	tempDir := t.TempDir()
+	numExecutedBlocks := 4
 	blockWindow := 2
 	indexer, err := NewIndexer(tempDir, chaintest.NewEmptyParser(), uint64(blockWindow))
 	require.NoError(err)
@@ -60,7 +61,7 @@ func TestBlockIndex(t *testing.T) {
 		0,
 		0,
 		1,
-		blockWindow*2,
+		numExecutedBlocks,
 	)
 	for _, blk := range executedBlocks {
 		err = indexer.Accept(blk)
