@@ -9,10 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/state"
 )

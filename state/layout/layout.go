@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 )
 
-const balanceKeyChunks   uint16 = 1
+const balanceKeyChunks uint16 = 1
 
 const (
 	DefaultHeightPrefix byte = iota
@@ -25,7 +26,7 @@ const (
 )
 
 var (
-	//TODO fix errors
+	// TODO fix errors
 	ErrInvalidKey       = errors.New("invalid key")
 	ErrInvalidKeyPrefix = errors.New("invalid key prefix")
 	ErrDuplicateKey     = errors.New("duplicate key")
@@ -63,10 +64,10 @@ func New(
 
 func Default() Layout {
 	return New(
-		[]byte{DefaultHeightPrefix}, 
-		[]byte{DefaultTimestampPrefix}, 
-		[]byte{DefaultFeePrefix}, 
-		[]byte{DefaultBalancePrefix}, 
+		[]byte{DefaultHeightPrefix},
+		[]byte{DefaultTimestampPrefix},
+		[]byte{DefaultFeePrefix},
+		[]byte{DefaultBalancePrefix},
 		[]byte{DefaultActionPrefix},
 	)
 }

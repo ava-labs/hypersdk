@@ -13,9 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -27,6 +24,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
@@ -51,7 +50,6 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
-
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
@@ -66,14 +64,6 @@ const (
 	rangeProofHandlerID  = 0x0
 	changeProofHandlerID = 0x1
 	txGossipHandlerID    = 0x2
-)
-
-var (
-	defaultHeightStateKey        = []byte{0x0}
-	defaultTimestampStateKey     = []byte{0x1}
-	defaultFeeStateKey           = []byte{0x2}
-	defaultBalanceStateKeyPrefix = []byte{0x3}
-	defaultActionStateKeyPrefix  = []byte{0x4}
 )
 
 type VM struct {
@@ -180,7 +170,7 @@ func New(
 	return &VM{
 		v:                     v,
 		balanceHandler:        balanceHandler,
-		stateLayout: 		 stateLayout,
+		stateLayout:           stateLayout,
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,
