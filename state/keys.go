@@ -3,7 +3,13 @@
 
 package state
 
-import "github.com/ava-labs/hypersdk/keys"
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+
+	"github.com/ava-labs/hypersdk/keys"
+)
 
 const (
 	Read     Permissions = 1
@@ -48,6 +54,40 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 		chunks = append(chunks, chunk)
 	}
 	return chunks, true
+}
+
+type permsJSON []string
+
+type keysJSON struct {
+	Perms [8]permsJSON
+}
+
+func (k Keys) MarshalJSON() ([]byte, error) {
+	var keysJSON keysJSON
+	for key, perm := range k {
+		keysJSON.Perms[perm] = append(keysJSON.Perms[perm], hex.EncodeToString([]byte(key)))
+	}
+	return json.Marshal(keysJSON)
+}
+
+func (k Keys) UnmarshalJSON(b []byte) error {
+	var keysJSON keysJSON
+	if err := json.Unmarshal(b, &keysJSON); err != nil {
+		return err
+	}
+	for perm, keyList := range keysJSON.Perms {
+		if perm < int(None) || perm > int(All) {
+			return fmt.Errorf("invalid permission encoded in json %d", perm)
+		}
+		for _, encodedKey := range keyList {
+			key, err := hex.DecodeString(encodedKey)
+			if err != nil {
+				return err
+			}
+			k[string(key)] = Permissions(perm)
+		}
+	}
+	return nil
 }
 
 // Has returns true if [p] has all the permissions that are contained in require
