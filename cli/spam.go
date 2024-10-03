@@ -107,7 +107,12 @@ func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper, defaults bool) (*Spa
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-
+	
+	// No longer using db, so we close
+	if err := h.CloseDatabase(); err != nil {
+		return nil, err
+	}
+	
 	if defaults {
 		return &SpamConfig{
 			uris,
@@ -172,7 +177,6 @@ func (h *Handler) SpamConfigPrompter(sh loadgen.SpamHelper, defaults bool) (*Spa
 
 func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	ctx := context.Background()
-
 	c, err := h.SpamConfigPrompter(sh, true)
 
 	// Log Zipf participants
@@ -186,11 +190,6 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 
 	factory, err := sh.GetFactory(c.key)
 	if err != nil {
-		return err
-	}
-
-	// No longer using db, so we close
-	if err := h.CloseDatabase(); err != nil {
 		return err
 	}
 
@@ -443,6 +442,7 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 	var returnedBalance uint64
 	p = &pacer{ws: webSocketClient}
 	go p.Run(ctx, c.minTxsPerSecond)
+	time.Sleep(1 * time.Second)
 	for i := 0; i < c.numAccounts; i++ {
 		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
@@ -465,7 +465,6 @@ func (h *Handler) Spam(sh loadgen.SpamHelper) error {
 		if i%250 == 0 && i > 0 {
 			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
 		}
-		// this breaks if we dont have this line
 		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt, h.c.Decimals()), h.c.Symbol())
 	}
 	if err := p.Wait(); err != nil {
