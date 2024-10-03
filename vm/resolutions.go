@@ -472,7 +472,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(vm.stateLayout.FeePrefix())
+	v, err := vm.stateDB.Get(vm.stateLayout.FeeKey())
 	if err != nil {
 		return fees.Dimensions{}, err
 	}

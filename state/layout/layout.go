@@ -4,13 +4,17 @@
 package layout
 
 import (
-	"errors"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 )
 
-const balanceKeyChunks uint16 = 1
+const (
+	balanceKeyChunks uint16 = 1
+
+	heightKeyChunks    = 1
+	timestampKeyChunks = 1
+	feeKeyChunks       = 8 // 96 (per dimension) * 5 (num dimensions)
+)
 
 const (
 	DefaultHeightPrefix byte = iota
@@ -21,17 +25,7 @@ const (
 	DefaultActionPrefix
 )
 
-var (
-	// TODO fix errors
-	ErrInvalidKey       = errors.New("invalid key")
-	ErrInvalidKeyPrefix = errors.New("invalid key prefix")
-	ErrDuplicateKey     = errors.New("duplicate key")
-	ErrConflictingKey   = errors.New("conflicting key")
-)
-
 // Layout defines hypersdk-manged state keys
-// TODO unit tests
-// TODO rename Schema/Factory/Keys
 type Layout struct {
 	heightKey        []byte
 	timestampKey     []byte
@@ -40,8 +34,6 @@ type Layout struct {
 	actionPrefix     []byte
 }
 
-// TODO test user writing to managed key (balance prefix + account collides with
-// reserved key)
 func New(
 	heightPrefix []byte,
 	timestampPrefix []byte,
@@ -50,9 +42,9 @@ func New(
 	actionKeyPrefix []byte,
 ) Layout {
 	return Layout{
-		heightKey:        heightPrefix,
-		timestampKey:     timestampPrefix,
-		feeKey:           feePrefix,
+		heightKey: keys.EncodeChunks(heightPrefix, heightKeyChunks), 
+		timestampKey: keys.EncodeChunks(timestampPrefix, timestampKeyChunks), 
+		feeKey: keys.EncodeChunks(feePrefix, feeKeyChunks),
 		balanceKeyPrefix: balanceKeyPrefix,
 		actionPrefix:     actionKeyPrefix,
 	}
@@ -68,15 +60,15 @@ func Default() Layout {
 	)
 }
 
-func (l Layout) HeightPrefix() []byte {
+func (l Layout) HeightKey() []byte {
 	return l.heightKey
 }
 
-func (l Layout) TimestampPrefix() []byte {
+func (l Layout) TimestampKey() []byte {
 	return l.timestampKey
 }
 
-func (l Layout) FeePrefix() []byte {
+func (l Layout) FeeKey() []byte {
 	return l.feeKey
 }
 

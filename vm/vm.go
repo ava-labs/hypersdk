@@ -388,10 +388,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, vm.stateLayout.HeightPrefix(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, vm.stateLayout.TimestampPrefix(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.TimestampKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
@@ -401,7 +401,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, vm.stateLayout.FeePrefix(), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, vm.stateLayout.FeeKey(), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -883,7 +883,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, vm.stateLayout.FeePrefix())
+	feeRaw, err := view.GetValue(ctx, vm.stateLayout.FeeKey())
 	if err != nil {
 		return []error{err}
 	}
