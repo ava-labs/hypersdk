@@ -21,7 +21,7 @@ import (
 
 func TestTransferAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
-	layout := layout.Default()
+	stateLayout := layout.Default()
 
 	tests := []chaintest.ActionTest{
 		{
@@ -54,7 +54,7 @@ func TestTransferAction(t *testing.T) {
 				s := chaintest.NewInMemoryStore()
 				_, err := storage.AddBalance(
 					context.Background(),
-					layout,
+					stateLayout,
 					s,
 					addr,
 					0,
@@ -64,7 +64,7 @@ func TestTransferAction(t *testing.T) {
 				return s
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
-			StateLayout: layout,
+			StateLayout: stateLayout,
 		},
 		{
 			Name:  "SelfTransfer",
@@ -75,12 +75,12 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), stateLayout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
-			StateLayout: layout,
+			StateLayout: stateLayout,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				balance, err := storage.GetBalance(ctx, layout, store, codec.EmptyAddress)
+				balance, err := storage.GetBalance(ctx, stateLayout, store, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
@@ -98,10 +98,10 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), stateLayout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
-			StateLayout: layout,
+			StateLayout: stateLayout,
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
 		{
@@ -113,15 +113,15 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), layout, store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), stateLayout, store, codec.EmptyAddress, 1))
 				return store
 			}(),
-			StateLayout: layout,
+			StateLayout: stateLayout,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, layout, store, addr)
+				receiverBalance, err := storage.GetBalance(ctx, stateLayout, store, addr)
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, layout, store, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, stateLayout, store, codec.EmptyAddress)
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -141,7 +141,7 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 	setupRequire := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
-	layout := layout.Default()
+	stateLayout := layout.Default()
 
 	transferActionTest := &chaintest.ActionBenchmark{
 		Name:  "SimpleTransferBenchmark",
@@ -156,18 +156,18 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 		},
 		CreateState: func() state.Mutable {
 			store := chaintest.NewInMemoryStore()
-			err := storage.SetBalance(context.Background(), layout, store, from, 1)
+			err := storage.SetBalance(context.Background(), stateLayout, store, from, 1)
 			setupRequire.NoError(err)
 			return store
 		},
-		StateLayout: layout,
+		StateLayout: stateLayout,
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
 			require := require.New(b)
-			toBalance, err := storage.GetBalance(ctx, layout, store, to)
+			toBalance, err := storage.GetBalance(ctx, stateLayout, store, to)
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)
 
-			fromBalance, err := storage.GetBalance(ctx, layout, store, from)
+			fromBalance, err := storage.GetBalance(ctx, stateLayout, store, from)
 			require.NoError(err)
 			require.Equal(uint64(0), fromBalance)
 		},

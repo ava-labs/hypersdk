@@ -55,7 +55,7 @@ func (t *Transfer) StateKeys(stateLayout layout.Layout, actor codec.Address) sta
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	layout layout.Layout,
+	stateLayout layout.Layout,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -67,12 +67,12 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	senderBalance, err := storage.SubBalance(ctx, layout, mu, actor, t.Value)
+	senderBalance, err := storage.SubBalance(ctx, stateLayout, mu, actor, t.Value)
 	if err != nil {
 		return nil, err
 	}
 
-	receiverBalance, err := storage.AddBalance(ctx, layout, mu, t.To, t.Value, true)
+	receiverBalance, err := storage.AddBalance(ctx, stateLayout, mu, t.To, t.Value, true)
 	if err != nil {
 		return nil, err
 	}

@@ -162,7 +162,7 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
-	layout layout.Layout,
+	stateLayout layout.Layout,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
@@ -180,7 +180,7 @@ func New(
 	return &VM{
 		v:                     v,
 		balanceHandler:        balanceHandler,
-		stateLayout: 		 layout,
+		stateLayout: 		 stateLayout,
 		config:                NewConfig(),
 		actionRegistry:        actionRegistry,
 		authRegistry:          authRegistry,

@@ -142,7 +142,7 @@ func (t *Transaction) StateKeys(stateLayout layout.Layout, bh BalanceHandler) (s
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(sm layout.Layout, bh BalanceHandler, r Rules) (fees.Dimensions, error) {
+func (t *Transaction) Units(stateLayout layout.Layout, bh BalanceHandler, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
@@ -155,7 +155,7 @@ func (t *Transaction) Units(sm layout.Layout, bh BalanceHandler, r Rules) (fees.
 	}
 
 	// Calculate storage usage
-	stateKeys, err := t.StateKeys(sm, bh)
+	stateKeys, err := t.StateKeys(stateLayout, bh)
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
