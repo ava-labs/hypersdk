@@ -271,7 +271,6 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 func (s *Spammer) logStats(cctx context.Context, txIssuer *issuer) *time.Ticker {
 	// Log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
-	defer t.Stop()
 	var psent int64
 	go func() {
 		for {
