@@ -11,10 +11,6 @@ type Tx interface {
 	GetExpiry() time.Time
 }
 
-type Mempool[T Tx] interface {
-	GetTxsChan() <-chan T
-}
-
 type chunkBuilder[T Tx] struct {
 	threshold int
 	txs       []T //TODO dedup txs?
@@ -25,7 +21,7 @@ type chunkBuilder[T Tx] struct {
 // TODO why error?
 // TODO does not perform verification and assumes mempool is responsible for
 // verifying tx
-func (c *chunkBuilder[T]) Add(tx T, slot int64) (*Chunk[T], error) {
+func (c *chunkBuilder[T]) Add(tx T, slot int64) (Chunk[T], error) {
 	c.txs = append(c.txs, tx)
 
 	if len(c.txs) == c.threshold {
@@ -35,5 +31,5 @@ func (c *chunkBuilder[T]) Add(tx T, slot int64) (*Chunk[T], error) {
 		return chunk, err
 	}
 
-	return nil, nil
+	return Chunk[T]{}, nil
 }

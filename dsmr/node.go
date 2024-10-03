@@ -1,43 +1,40 @@
 package dsmr
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
-func New[T Tx](mempool Mempool[T], client Client[T]) *Node[T] {
+func New[T Tx](client Client[T]) *Node[T] {
 	return &Node[T]{
-		mempool:      mempool,
 		client:       client,
 		chunkBuilder: chunkBuilder[T]{},
+		chunks:       make(chan Chunk[T]),
 	}
 }
 
 type Node[T Tx] struct {
-	mempool          Mempool[T]
 	client           Client[T]
 	chunkBuilder     chunkBuilder[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
+
+	chunks chan Chunk[T]
 }
 
 func (n Node[_]) Run(ctx context.Context, blks chan<- *Block) error {
-	txs := n.mempool.GetTxsChan()
-
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case tx := <-txs:
-			chunk, err := n.chunkBuilder.Add(tx, 0)
+		case chunk := <-n.chunks:
+			chunkCert, err := n.chunkCertBuilder.NewCert(chunk)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to generate chunk cert: %w", err)
 			}
 
-			if chunk == nil {
-				continue
-			}
-
-			chunkCert := n.chunkCertBuilder.NewCert(chunk)
-			blk := n.blockBuilder.Add(chunkCert)
-			if blk == nil {
+			blk, ok := n.blockBuilder.Add(chunkCert)
+			if !ok {
 				continue
 			}
 
@@ -46,16 +43,28 @@ func (n Node[_]) Run(ctx context.Context, blks chan<- *Block) error {
 	}
 }
 
+// TODO why return error
+func (n Node[T]) AddTx(tx T) error {
+	chunk, err := n.chunkBuilder.Add(tx, 0)
+	if err != nil {
+		return err
+	}
+
+	n.chunks <- chunk
+	return nil
+}
+
 // consumes chunks and aggregates signtures to generate chunk certs
 type chunkCertBuilder[T Tx] struct{}
 
 // TODO implement
-func (c *chunkCertBuilder[T]) NewCert(chunk *Chunk[T]) ChunkCertificate {
-	return ChunkCertificate{}
+func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) {
+	return ChunkCertificate{}, nil
 }
 
 type blockBuilder[T Tx] struct{}
 
-func (b *blockBuilder[T]) Add(chunk ChunkCertificate) *Block {
-	return &Block{}
+// Add returns if a block was built
+func (b *blockBuilder[T]) Add(chunk ChunkCertificate) (Block, bool) {
+	return Block{}, false
 }
