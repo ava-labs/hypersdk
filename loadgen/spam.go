@@ -148,38 +148,10 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 		issuer.Start(cctx)
 	}
 
-	// Log stats
-	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
+	// set logging 
+	t := s.logStats(cctx, issuers[0])
 	defer t.Stop()
-	var psent int64
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				current := sent.Load()
-				l.Lock()
-				if totalTxs > 0 {
-					unitPrices, err = issuers[0].cli.UnitPrices(ctx, false)
-					if err != nil {
-						continue
-					}
-					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
-						inflight.Load(),
-						current-psent,
-						unitPrices,
-					)
-				}
-				l.Unlock()
-				psent = current
-			case <-cctx.Done():
-				return
-			}
-		}
-	}()
-
+	
 	// Broadcast txs
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
@@ -294,6 +266,42 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 		unique.Add(zz.Uint64())
 	}
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
+}
+
+func (s *Spammer) logStats(cctx context.Context, txIssuer *issuer) *time.Ticker {
+	// Log stats
+	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
+	defer t.Stop()
+	var psent int64
+	go func() {
+		for {
+			select {
+			case <-t.C:
+				current := sent.Load()
+				l.Lock()
+				if totalTxs > 0 {
+					unitPrices, err := txIssuer.cli.UnitPrices(cctx, false)
+					if err != nil {
+						continue
+					}
+					utils.Outf(
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						totalTxs,
+						float64(confirmedTxs)/float64(totalTxs)*100,
+						inflight.Load(),
+						current-psent,
+						unitPrices,
+					)
+				}
+				l.Unlock()
+				psent = current
+			case <-cctx.Done():
+				return 
+			}
+		}
+	}()
+
+	return t
 }
 
 // createIssuer creates an [numClients] transaction issuers for each URI in [uris]
