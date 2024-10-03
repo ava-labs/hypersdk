@@ -10,15 +10,15 @@ import (
 )
 
 type Result struct {
-	Success bool
-	Error   []byte
+	Success bool   `json:"success"`
+	Error   []byte `json:"error"`
 
-	Outputs [][]byte
+	Outputs [][]byte `json:"outputs"`
 
 	// Computing [Units] requires access to [StateManager], so it is returned
 	// to make life easier for indexers.
-	Units fees.Dimensions
-	Fee   uint64
+	Units fees.Dimensions `json:"units"`
+	Fee   uint64          `json:"fee"`
 }
 
 func (r *Result) Size() int {
