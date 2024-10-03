@@ -117,7 +117,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, _, success, units, fee, outputs, err := s.indexer.GetTransaction(args.TxID)
+	found, _, success, units, fee, outputs, errBytes, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -129,5 +129,6 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	reply.Units = units
 	reply.Fee = fee
 	reply.Outputs = outputs
+	reply.Error = errBytes
 	return nil
 }

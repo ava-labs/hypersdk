@@ -174,6 +174,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 			result.Units,
 			result.Fee,
 			result.Outputs,
+			result.Error,
 		); err != nil {
 			return err
 		}
@@ -190,6 +191,7 @@ func (*Indexer) storeTransaction(
 	units fees.Dimensions,
 	fee uint64,
 	outputs [][]byte,
+	errorBytes []byte,
 ) error {
 	outputLength := consts.ByteLen // Single byte containing number of outputs
 	for _, output := range outputs {
@@ -206,19 +208,20 @@ func (*Indexer) storeTransaction(
 	for _, output := range outputs {
 		writer.PackBytes(output)
 	}
+	writer.PackBytes(errorBytes)
 	if err := writer.Err(); err != nil {
 		return err
 	}
 	return batch.Put(txID[:], writer.Bytes())
 }
 
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
+func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, []byte, error) {
 	v, err := i.txDB.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil
+		return false, 0, false, fees.Dimensions{}, 0, nil, nil, nil
 	}
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
 	}
 	reader := codec.NewReader(v, consts.NetworkSizeLimit)
 	timestamp := reader.UnpackUint64(true)
@@ -231,14 +234,19 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 	for i := range outputs {
 		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
 	}
+
+	var errorBytes []byte = nil
+	errorBytes = make([]byte, consts.NetworkSizeLimit)
+	reader.UnpackBytes(int(consts.NetworkSizeLimit), false, &errorBytes)
+
 	if err := reader.Err(); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
 	}
 	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
 	}
-	return true, int64(timestamp), success, dimensions, fee, outputs, nil
+	return true, int64(timestamp), success, dimensions, fee, outputs, errorBytes, nil
 }
 
 func (i *Indexer) Close() error {
