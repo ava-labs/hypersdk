@@ -50,18 +50,6 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionRegistry() chain.ActionRegistry {
-	return vm.actionRegistry
-}
-
-func (vm *VM) OutputRegistry() chain.OutputRegistry {
-	return vm.outputRegistry
-}
-
-func (vm *VM) AuthRegistry() chain.AuthRegistry {
-	return vm.authRegistry
-}
-
 func (vm *VM) AuthVerifiers() workers.Workers {
 	return vm.authVerifiers
 }

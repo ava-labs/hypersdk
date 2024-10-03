@@ -768,10 +768,15 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
-func newRegistryFactory() (chain.RegistryFactory, error) {
+func newRegistry() (chain.Registry, error) {
 	actionParser := codec.NewTypeParser[chain.Action]()
 	authParser := codec.NewTypeParser[chain.Auth]()
 	outputParser := codec.NewTypeParser[codec.Typed]()
@@ -792,15 +797,8 @@ func newRegistryFactory() (chain.RegistryFactory, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return func() chain.Registry {
-		return chain.Registry{
-			Action: actionParser,
-			Auth:   authParser,
-			Output: outputParser,
-		}
-	}, nil
+	return vm.NewRegistry(actionParser, authParser, outputParser), nil
 }
-
 ```
 
 By “registry”, we mean the `actionParser`, `authParser` and `outputParser` which tell our VM
@@ -812,7 +810,8 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	registryFactory, err := newRegistryFactory()
+	options = append(options, With()) // Add MorpheusVM API
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}
@@ -820,7 +819,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		registryFactory,
+		registry,
 		auth.Engines(),
 		options...,
 	)

@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
-func newRegistryFactory() (chain.RegistryFactory, error) {
+func newRegistry() (chain.Registry, error) {
 	actionParser := codec.NewTypeParser[chain.Action]()
 	authParser := codec.NewTypeParser[chain.Auth]()
 	outputParser := codec.NewTypeParser[codec.Typed]()
@@ -38,19 +38,13 @@ func newRegistryFactory() (chain.RegistryFactory, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return func() chain.Registry {
-		return chain.Registry{
-			Action: actionParser,
-			Auth:   authParser,
-			Output: outputParser,
-		}
-	}, nil
+	return vm.NewRegistry(actionParser, authParser, outputParser), nil
 }
 
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
 	options = append(options, With()) // Add MorpheusVM API
-	registryFactory, err := newRegistryFactory()
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +52,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		registryFactory,
+		registry,
 		auth.Engines(),
 		options...,
 	)

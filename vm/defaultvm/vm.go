@@ -35,7 +35,7 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	registryFactory chain.RegistryFactory,
+	registry chain.Registry,
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
 ) (*vm.VM, error) {
@@ -44,7 +44,7 @@ func New(
 		v,
 		genesisFactory,
 		stateManager,
-		registryFactory,
+		registry,
 		authEngine,
 		options...,
 	)

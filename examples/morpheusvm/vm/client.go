@@ -93,18 +93,18 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	registryFactory, err := newRegistryFactory()
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}
-	return NewParser(g, registryFactory), nil
+	return NewParser(g, registry), nil
 }
 
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	genesis         *genesis.DefaultGenesis
-	registryFactory chain.RegistryFactory
+	genesis  *genesis.DefaultGenesis
+	registry chain.Registry
 }
 
 func (p *Parser) Rules(_ int64) chain.Rules {
@@ -112,23 +112,23 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 }
 
 func (p *Parser) ActionRegistry() chain.ActionRegistry {
-	return p.registryFactory().Action
+	return p.registry.ActionRegistry()
 }
 
 func (p *Parser) AuthRegistry() chain.AuthRegistry {
-	return p.registryFactory().Auth
+	return p.registry.AuthRegistry()
 }
 
 func (p *Parser) OutputRegistry() chain.OutputRegistry {
-	return p.registryFactory().Output
+	return p.registry.OutputRegistry()
 }
 
 func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func NewParser(genesis *genesis.DefaultGenesis, registryFactory chain.RegistryFactory) chain.Parser {
-	return &Parser{genesis: genesis, registryFactory: registryFactory}
+func NewParser(genesis *genesis.DefaultGenesis, registry chain.Registry) chain.Parser {
+	return &Parser{genesis: genesis, registry: registry}
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
@@ -137,9 +137,9 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
 	}
-	registryFactory, err := newRegistryFactory()
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}
-	return NewParser(&genesis, registryFactory), nil
+	return NewParser(&genesis, registry), nil
 }

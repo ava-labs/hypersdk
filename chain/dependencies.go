@@ -288,11 +288,8 @@ type AuthFactory interface {
 	Address() codec.Address
 }
 
-type Registry struct {
-	Action ActionRegistry
-	Auth   AuthRegistry
-	Output OutputRegistry
+type Registry interface {
+	ActionRegistry() ActionRegistry
+	AuthRegistry() AuthRegistry
+	OutputRegistry() OutputRegistry
 }
-
-// RegistryFactory is the factory function, provided to the VM initializer that provides the registries for the actions, auth and output.
-type RegistryFactory func() Registry

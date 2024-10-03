@@ -23,7 +23,7 @@ import (
 
 var wasmRuntime *runtime.WasmRuntime
 
-func newRegistryFactory() (chain.RegistryFactory, error) {
+func newRegistry() (chain.Registry, error) {
 	actionParser := codec.NewTypeParser[chain.Action]()
 	authParser := codec.NewTypeParser[chain.Auth]()
 	outputParser := codec.NewTypeParser[codec.Typed]()
@@ -48,13 +48,7 @@ func newRegistryFactory() (chain.RegistryFactory, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return func() chain.Registry {
-		return chain.Registry{
-			Action: actionParser,
-			Auth:   authParser,
-			Output: outputParser,
-		}
-	}, nil
+	return vm.NewRegistry(actionParser, authParser, outputParser), nil
 }
 
 // New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
@@ -75,7 +69,7 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	opts := append([]vm.Option{
 		WithRuntime(),
 	}, options...)
-	registryFactory, err := newRegistryFactory()
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +77,7 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
-		registryFactory,
+		registry,
 		auth.Engines(),
 		opts...,
 	)
