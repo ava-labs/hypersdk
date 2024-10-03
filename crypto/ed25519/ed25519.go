@@ -8,6 +8,7 @@ import (
 
 	"github.com/hdevalence/ed25519consensus"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
@@ -97,4 +98,30 @@ func (b *Batch) VerifyAsync() func() error {
 		}
 		return nil
 	}
+}
+
+func (p PublicKey) MarshalText() ([]byte, error) {
+	return []byte(codec.ToHex(p[:])), nil
+}
+
+func (p *PublicKey) UnmarshalText(text []byte) error {
+	bytes, err := codec.LoadHex(string(text), PublicKeyLen)
+	if err != nil {
+		return err
+	}
+	copy(p[:], bytes)
+	return nil
+}
+
+func (s Signature) MarshalText() ([]byte, error) {
+	return []byte(codec.ToHex(s[:])), nil
+}
+
+func (s *Signature) UnmarshalText(text []byte) error {
+	bytes, err := codec.LoadHex(string(text), SignatureLen)
+	if err != nil {
+		return err
+	}
+	copy(s[:], bytes)
+	return nil
 }
