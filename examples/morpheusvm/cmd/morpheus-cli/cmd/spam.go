@@ -32,6 +32,7 @@ func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return generatePrivateKey(sh.keyType)
 }
 
+// todo: this does not need to be part of the interface
 func (*SpamHelper) GetFactory(pk *auth.PrivateKey) (chain.AuthFactory, error) {
 	switch pk.Address[0] {
 	case auth.ED25519ID:
@@ -102,6 +103,7 @@ var runSpamCmd = &cobra.Command{
 		return checkKeyType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().Spam(&SpamHelper{keyType: args[0]})
+		ctx := context.Background()
+		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]})
 	},
 }
