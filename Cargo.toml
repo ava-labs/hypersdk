@@ -10,6 +10,7 @@ members = [
   "x/contracts/test/contracts/*",
   "x/contracts/simulator",
   "x/contracts/examples/tutorial",
+  "x/contracts/examples/multisig",
 ]
 resolver = "2"
 
