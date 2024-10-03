@@ -5,11 +5,13 @@ import (
 	"fmt"
 )
 
-func New[T Tx](client Client[T]) *Node[T] {
+func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 	return &Node[T]{
-		client:       client,
-		chunkBuilder: chunkBuilder[T]{},
-		chunks:       make(chan Chunk[T]),
+		client: client,
+		chunkBuilder: chunkBuilder[T]{
+			threshold: txsPerChunk,
+		},
+		chunks: make(chan Chunk[T]),
 	}
 }
 
@@ -22,7 +24,7 @@ type Node[T Tx] struct {
 	chunks chan Chunk[T]
 }
 
-func (n Node[_]) Run(ctx context.Context, blks chan<- *Block) error {
+func (n Node[_]) Run(ctx context.Context, blks chan<- Block) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -62,7 +64,7 @@ func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) 
 	return ChunkCertificate{}, nil
 }
 
-//TODO can this share impl w/ chunkBuilder?
+// TODO can this share impl w/ chunkBuilder?
 type blockBuilder[T Tx] struct{}
 
 // Add returns if a block was built
