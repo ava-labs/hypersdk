@@ -45,9 +45,9 @@ func TestTransferAction(t *testing.T) {
 		},
 		{
 			Name:  "NotEnoughBalance",
-			Actor: addr,
+			Actor: codec.EmptyAddress,
 			Action: &Transfer{
-				To:    addr,
+				To:    codec.EmptyAddress,
 				Value: 1,
 			},
 			State: func() state.Mutable {
@@ -56,7 +56,7 @@ func TestTransferAction(t *testing.T) {
 					context.Background(),
 					stateLayout,
 					s,
-					addr,
+					codec.EmptyAddress,
 					0,
 					true,
 				)
