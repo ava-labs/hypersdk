@@ -12,9 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/bls"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
@@ -30,24 +27,6 @@ type SpamHelper struct {
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return generatePrivateKey(sh.keyType)
-}
-
-// todo: this does not need to be part of the interface
-func (*SpamHelper) GetFactory(pk *auth.PrivateKey) (chain.AuthFactory, error) {
-	switch pk.Address[0] {
-	case auth.ED25519ID:
-		return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
-	case auth.SECP256R1ID:
-		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(pk.Bytes)), nil
-	case auth.BLSID:
-		p, err := bls.PrivateKeyFromBytes(pk.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		return auth.NewBLSFactory(p), nil
-	default:
-		return nil, ErrInvalidKeyType
-	}
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {

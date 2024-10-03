@@ -101,8 +101,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 	// new JSONRPC client
 	cli := jsonrpc.NewJSONRPCClient(s.uris[0])
 
-	// TODO: clean up
-	factory, err := sh.GetFactory(s.key)
+	factory, err := GetFactory(s.key)
 	if err != nil {
 		return err
 	}
@@ -154,7 +153,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 			return err
 		}
 		accounts[i] = pk
-		f, err := sh.GetFactory(pk)
+		f, err := GetFactory(pk)
 		if err != nil {
 			return err
 		}

@@ -16,11 +16,6 @@ type SpamHelper interface {
 	// any funds sent to created accounts will be lost unless they are persisted by
 	// the [SpamHelper] implementation.
 	CreateAccount() (*auth.PrivateKey, error)
-	// GetFactory returns the [chain.AuthFactory] for a given private key.
-	//
-	// A [chain.AuthFactory] signs transactions and provides a unit estimate
-	// for using a given private key (needed to estimate fees for a transaction).
-	GetFactory(pk *auth.PrivateKey) (chain.AuthFactory, error)
 
 	// CreateClient instructs the [SpamHelper] to create and persist a VM-specific
 	// JSONRPC client.

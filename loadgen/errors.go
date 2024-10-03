@@ -13,4 +13,6 @@ var (
 	// ErrNoKeys               = errors.New("no available keys")
 	ErrTxFailed = errors.New("tx failed on-chain")
 	// ErrInsufficientAccounts = errors.New("insufficient accounts")
+	ErrInvalidKeyType    = errors.New("invalid key type")
+
 )
