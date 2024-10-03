@@ -299,7 +299,7 @@ func (s *Spammer) logStats(cctx context.Context, txIssuer *issuer) *time.Ticker 
 			}
 		}
 	}()
-
+	// ensure to stop the ticker when done
 	return t
 }
 
@@ -384,7 +384,6 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 }
 
 func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, funds map[codec.Address]uint64, factories []chain.AuthFactory, symbol string, decimals uint8) error {
-	
 	// Return funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
