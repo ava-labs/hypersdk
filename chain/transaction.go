@@ -28,48 +28,49 @@ var (
 	_ mempool.Item = (*Transaction)(nil)
 )
 
-type Transaction struct {
-	Base *Base `json:"base"`
+type (
+	Actions     []Action
+	Transaction struct {
+		Base *Base `json:"base"`
 
-	Actions []Action `json:"actions"`
-	Auth    Auth     `json:"auth"`
+		Actions Actions `json:"actions"`
+		Auth    Auth    `json:"auth"`
 
-	digest    []byte
-	bytes     []byte
-	size      int
-	id        ids.ID
-	stateKeys state.Keys
-}
+		digest    []byte
+		bytes     []byte
+		size      int
+		id        ids.ID
+		stateKeys state.Keys
+	}
+)
 
-func NewTx(base *Base, actions []Action) *Transaction {
+func NewTx(base *Base, actions Actions) *Transaction {
 	return &Transaction{
 		Base:    base,
 		Actions: actions,
 	}
 }
 
+// Digest returns a byte slice containing the marshaled transaction without the auth.
+// method name might be misleading, as it returns the preimage of what typically
+// considered to be "the message digest"
 func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
 	size := t.Base.Size() + consts.Uint8Len
-	for _, action := range t.Actions {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return nil, err
-		}
-		size += consts.ByteLen + actionSize
+
+	if actionsSize, err := t.Actions.Size(); err != nil {
+		return nil, err
+	} else {
+		size += actionsSize
 	}
+
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	t.Base.Marshal(p)
-	p.PackByte(uint8(len(t.Actions)))
-	for _, action := range t.Actions {
-		p.PackByte(action.GetTypeID())
-		err := marshalInto(action, p)
-		if err != nil {
-			return nil, err
-		}
+	if err := t.marshal(p, false); err != nil {
+		return nil, err
 	}
+
 	return p.Bytes(), p.Err()
 }
 
@@ -78,14 +79,17 @@ func (t *Transaction) Sign(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
+	// grab the preimage of the transaction we would want to sign.
 	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
 	}
+	// sign the preimage
 	auth, err := factory.Sign(msg)
 	if err != nil {
 		return nil, err
 	}
+	// fill in the auth
 	t.Auth = auth
 
 	// Ensure transaction is fully initialized and correct by reloading it from
@@ -195,7 +199,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -377,25 +381,45 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
 	}
-
-	return t.marshalActions(p)
+	return t.marshal(p, true)
 }
 
-func (t *Transaction) marshalActions(p *codec.Packer) error {
+func (t *Transaction) marshal(p *codec.Packer, marshalSignature bool) error {
 	t.Base.Marshal(p)
-	p.PackByte(uint8(len(t.Actions)))
-	for _, action := range t.Actions {
-		actionID := action.GetTypeID()
-		p.PackByte(actionID)
+	if err := t.Actions.marshalInto(p); err != nil {
+		return err
+	}
+
+	if marshalSignature {
+		authID := t.Auth.GetTypeID()
+		p.PackByte(authID)
+		t.Auth.Marshal(p)
+	}
+	return p.Err()
+}
+
+func (a Actions) Size() (int, error) {
+	var size int
+	for _, action := range a {
+		actionSize, err := GetSize(action)
+		if err != nil {
+			return 0, err
+		}
+		size += consts.ByteLen + actionSize
+	}
+	return size, nil
+}
+
+func (a Actions) marshalInto(p *codec.Packer) error {
+	p.PackByte(uint8(len(a)))
+	for _, action := range a {
+		p.PackByte(action.GetTypeID())
 		err := marshalInto(action, p)
 		if err != nil {
 			return err
 		}
 	}
-	authID := t.Auth.GetTypeID()
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
-	return p.Err()
+	return nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -448,7 +472,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := unmarshalActions(p, actionRegistry)
+	actions, err := UnmarshalActions(p, actionRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
@@ -481,15 +505,15 @@ func UnmarshalTx(
 	return &tx, nil
 }
 
-func unmarshalActions(
+func UnmarshalActions(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],
-) ([]Action, error) {
+) (Actions, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {
 		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
 	}
-	actions := []Action{}
+	actions := Actions{}
 	for i := uint8(0); i < actionCount; i++ {
 		action, err := actionRegistry.Unmarshal(p)
 		if err != nil {
