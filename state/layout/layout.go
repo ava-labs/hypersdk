@@ -42,9 +42,9 @@ func New(
 	actionKeyPrefix []byte,
 ) Layout {
 	return Layout{
-		heightKey: keys.EncodeChunks(heightPrefix, heightKeyChunks), 
-		timestampKey: keys.EncodeChunks(timestampPrefix, timestampKeyChunks), 
-		feeKey: keys.EncodeChunks(feePrefix, feeKeyChunks),
+		heightKey:        keys.EncodeChunks(heightPrefix, heightKeyChunks),
+		timestampKey:     keys.EncodeChunks(timestampPrefix, timestampKeyChunks),
+		feeKey:           keys.EncodeChunks(feePrefix, feeKeyChunks),
 		balanceKeyPrefix: balanceKeyPrefix,
 		actionPrefix:     actionKeyPrefix,
 	}
