@@ -18,15 +18,15 @@ type Chunk[T Tx] struct {
 	id    ids.ID
 }
 
-func NewChunk[T Tx](items []T, slot int64) (*Chunk[T], error) {
-	c := &Chunk[T]{
+func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
+	c := Chunk[T]{
 		Items: items,
 		Slot:  slot,
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize)}
 	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
-		return nil, err
+		return Chunk[T]{}, err
 	}
 	c.bytes = packer.Bytes
 	c.id = utils.ToID(c.bytes)
