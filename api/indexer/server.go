@@ -105,7 +105,8 @@ type GetTxRequest struct {
 }
 
 type GetTxResponse struct {
-	chain.Result
+	Result      chain.Result       `json:"result"`
+	Transaction *chain.Transaction `json:"transaction"`
 }
 
 type Server struct {
@@ -117,7 +118,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, _, success, units, fee, outputs, errBytes, err := s.indexer.GetTransaction(args.TxID)
+	found, tx, result, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -125,10 +126,8 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	if !found {
 		return ErrTxNotFound
 	}
-	reply.Success = success
-	reply.Units = units
-	reply.Fee = fee
-	reply.Outputs = outputs
-	reply.Error = errBytes
+
+	reply.Result = *result
+	reply.Transaction = tx
 	return nil
 }

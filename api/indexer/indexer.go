@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
@@ -165,88 +164,50 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 	defer batch.Reset()
 
 	for j, tx := range blk.Block.Txs {
-		result := blk.Results[j]
-		if err := i.storeTransaction(
-			batch,
-			tx.ID(),
-			blk.Block.Tmstmp,
-			result.Success,
-			result.Units,
-			result.Fee,
-			result.Outputs,
-			result.Error,
-		); err != nil {
-			return err
+		p := codec.NewWriter(tx.Size(), consts.NetworkSizeLimit)
+		err := tx.Marshal(p)
+		if err != nil {
+			return fmt.Errorf("failed to marshal transaction: %w", err)
 		}
+
+		result := blk.Results[j]
+		err = result.Marshal(p)
+		if err != nil {
+			return fmt.Errorf("failed to marshal result: %w", err)
+		}
+
+		if p.Err() != nil {
+			return fmt.Errorf("failed to marshal transaction: %w", p.Err())
+		}
+
+		txID := tx.ID()
+		batch.Put(txID[:], p.Bytes())
 	}
 
 	return batch.Write()
 }
 
-func (*Indexer) storeTransaction(
-	batch database.KeyValueWriter,
-	txID ids.ID,
-	timestamp int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-	outputs [][]byte,
-	errorBytes []byte,
-) error {
-	outputLength := consts.ByteLen // Single byte containing number of outputs
-	for _, output := range outputs {
-		outputLength += consts.Uint32Len + len(output)
-	}
-	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
-
-	writer := codec.NewWriter(txResultLength, consts.NetworkSizeLimit)
-	writer.PackUint64(uint64(timestamp))
-	writer.PackBool(success)
-	writer.PackFixedBytes(units.Bytes())
-	writer.PackUint64(fee)
-	writer.PackByte(byte(len(outputs)))
-	for _, output := range outputs {
-		writer.PackBytes(output)
-	}
-	writer.PackBytes(errorBytes)
-	if err := writer.Err(); err != nil {
-		return err
-	}
-	return batch.Put(txID[:], writer.Bytes())
-}
-
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, []byte, error) {
+func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, *chain.Result, error) {
 	v, err := i.txDB.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil, nil
+		return false, nil, nil, nil
 	}
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
+		return false, nil, nil, err
 	}
 	reader := codec.NewReader(v, consts.NetworkSizeLimit)
-	timestamp := reader.UnpackUint64(true)
-	success := reader.UnpackBool()
-	dimensionsBytes := make([]byte, fees.DimensionsLen)
-	reader.UnpackFixedBytes(fees.DimensionsLen, &dimensionsBytes)
-	fee := reader.UnpackUint64(true)
-	numOutputs := int(reader.UnpackByte())
-	outputs := make([][]byte, numOutputs)
-	for i := range outputs {
-		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
-	}
 
-	var errorBytes []byte = nil
-	errorBytes = make([]byte, consts.NetworkSizeLimit)
-	reader.UnpackBytes(int(consts.NetworkSizeLimit), false, &errorBytes)
-
-	if err := reader.Err(); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
-	}
-	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
+	tx, err := chain.UnmarshalTx(reader, i.parser.ActionRegistry(), i.parser.AuthRegistry())
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil, err
+		return false, nil, nil, err
 	}
-	return true, int64(timestamp), success, dimensions, fee, outputs, errorBytes, nil
+
+	result, err := chain.UnmarshalResult(reader)
+	if err != nil {
+		return false, nil, nil, err
+	}
+
+	return true, tx, result, nil
 }
 
 func (i *Indexer) Close() error {
