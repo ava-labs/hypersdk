@@ -8,7 +8,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-
 type pacer struct {
 	ws *ws.WebSocketClient
 

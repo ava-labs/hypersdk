@@ -53,8 +53,8 @@ type Spammer struct {
 
 	// Zipf distribution parameters
 	zipfSeed *rand.Rand
-	sZipf float64
-	vZipf float64
+	sZipf    float64
+	vZipf    float64
 
 	// TPS parameters
 	txsPerSecond     int
@@ -116,24 +116,18 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 		return err
 	}
 
-	// TODO: unit prices and fees could be calculated with a helper method?
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}
-
 	feePerTx, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return err
 	}
 
-	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-	if err != nil {
-		return err
-	}
-
 	var fundsL sync.Mutex
-	accounts, funds, factories, err := s.distributeFunds(ctx, webSocketClient, cli, parser, feePerTx, sh)
+	// distribute funds
+	accounts, funds, factories, err := s.distributeFunds(ctx, cli, parser, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -148,11 +142,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start issuers
-	unitPrices, err = issuers[0].cli.UnitPrices(ctx, false)
-	if err != nil {
-		return err
-	}
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, issuer := range issuers {
@@ -294,54 +283,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	issuerWg.Wait()
 
-	// Return funds
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", s.key.Address)
-	unitPrices, err = cli.UnitPrices(ctx, false)
-	if err != nil {
-		return err
-	}
-	feePerTx, err = fees.MulSum(unitPrices, maxUnits)
-	if err != nil {
-		return err
-	}
-	var returnedBalance uint64
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	time.Sleep(1 * time.Second)
-	for i := 0; i < s.numAccounts; i++ {
-		// Determine if we should return funds
-		balance := funds[accounts[i].Address]
-		if feePerTx > balance {
-			continue
-		}
-
-		// Send funds
-		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.key.Address, returnAmt, uniqueBytes())
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
-		if err != nil {
-			return err
-		}
-		if err := p.Add(tx); err != nil {
-			return err
-		}
-		returnedBalance += returnAmt
-
-		if i%250 == 0 && i > 0 {
-			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
-		}
-		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt, decimals), symbol)
-	}
-	if err := p.Wait(); err != nil {
-		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
-		return err
-	}
-	utils.Outf(
-		"{{yellow}}returned funds:{{/}} %s %s\n",
-		utils.FormatBalance(returnedBalance, decimals),
-		symbol,
-	)
-	return nil
+	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, funds, factories, symbol, decimals)
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -371,16 +313,16 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	return issuers, nil
 }
 
-func (s *Spammer) distributeFunds(ctx context.Context, webSocketClient *ws.WebSocketClient, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, map[codec.Address]uint64, []chain.AuthFactory, error) {
+func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, map[codec.Address]uint64, []chain.AuthFactory, error) {
 	withholding := feePerTx * uint64(s.numAccounts)
 	if s.balance < withholding {
 		return nil, nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
-	
+
 	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
-	
-	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n",)
-	
+
+	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
+
 	funds := map[codec.Address]uint64{}
 	accounts := make([]*auth.PrivateKey, s.numAccounts)
 	factories := make([]chain.AuthFactory, s.numAccounts)
@@ -390,6 +332,10 @@ func (s *Spammer) distributeFunds(ctx context.Context, webSocketClient *ws.WebSo
 		return nil, nil, nil, err
 	}
 
+	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
 	for i := 0; i < s.numAccounts; i++ {
@@ -428,4 +374,62 @@ func (s *Spammer) distributeFunds(ctx context.Context, webSocketClient *ws.WebSo
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
 
 	return accounts, funds, factories, nil
+}
+
+func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, funds map[codec.Address]uint64, factories []chain.AuthFactory, symbol string, decimals uint8) error {
+	
+	// Return funds
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return err
+	}
+	feePerTx, err := fees.MulSum(unitPrices, maxUnits)
+	if err != nil {
+		return err
+	}
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", s.key.Address)
+	var returnedBalance uint64
+
+	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	if err != nil {
+		return err
+	}
+	p := &pacer{ws: webSocketClient}
+	go p.Run(ctx, s.minTxsPerSecond)
+	// This helps from hanging
+	time.Sleep(1 * time.Second)
+	for i := 0; i < s.numAccounts; i++ {
+		// Determine if we should return funds
+		balance := funds[accounts[i].Address]
+		if feePerTx > balance {
+			continue
+		}
+
+		// Send funds
+		returnAmt := balance - feePerTx
+		actions := sh.GetTransfer(s.key.Address, returnAmt, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
+		if err != nil {
+			return err
+		}
+		if err := p.Add(tx); err != nil {
+			return err
+		}
+		returnedBalance += returnAmt
+
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
+		}
+		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt, decimals), symbol)
+	}
+	if err := p.Wait(); err != nil {
+		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
+		return err
+	}
+	utils.Outf(
+		"{{yellow}}returned funds:{{/}} %s %s\n",
+		utils.FormatBalance(returnedBalance, decimals),
+		symbol,
+	)
+	return nil
 }
