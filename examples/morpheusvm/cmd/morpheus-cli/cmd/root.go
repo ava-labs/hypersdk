@@ -147,6 +147,70 @@ func init() {
 		runSpamCmd,
 	)
 
+
+	// // spam
+	// runSpamCmd.PersistentFlags().Float64Var(
+	// 	&sZipf,
+	// 	"s-zipf",
+	// 	1.01,
+	// 	"Zipf distribution = [(v+k)^(-s)]",
+	// )
+	// runSpamCmd.PersistentFlags().Float64Var(
+	// 	&vZipf,
+	// 	"v-zipf",
+	// 	2.7,
+	// 	"Zipf distribution = [(v+k)^(-s)]",
+	// )
+	// runSpamCmd.PersistentFlags().BoolVar(
+	// 	&plotZipf,
+	// 	"plot-zipf",
+	// 	false,
+	// 	"plot zipf distribution",
+	// )
+	// runSpamCmd.PersistentFlags().IntVar(
+	// 	&numAccounts,
+	// 	"accounts",
+	// 	-1,
+	// 	"number of accounts submitting txs",
+	// )
+	// runSpamCmd.PersistentFlags().IntVar(
+	// 	&txsPerSecond,
+	// 	"txs-per-second",
+	// 	-1,
+	// 	"number of txs issued per second (under backlog)",
+	// )
+	// runSpamCmd.PersistentFlags().IntVar(
+	// 	&minCapacity,
+	// 	"min-capacity",
+	// 	-1,
+	// 	"minimum txs per second chain can handle",
+	// )
+	// runSpamCmd.PersistentFlags().IntVar(
+	// 	&stepSize,
+	// 	"step-size",
+	// 	-1,
+	// 	"amount to increase TPS target",
+	// )
+	// runSpamCmd.PersistentFlags().IntVar(
+	// 	&connsPerHost,
+	// 	"conns-per-host",
+	// 	-1,
+	// 	"number of connections to create per host",
+	// )
+	// runSpamCmd.PersistentFlags().StringVar(
+	// 	&clusterInfo,
+	// 	"cluster-info",
+	// 	"",
+	// 	"output from avalanche-cli with cluster info",
+	// )
+	// runSpamCmd.PersistentFlags().StringVar(
+	// 	&privateKey,
+	// 	"private-key",
+	// 	"",
+	// 	"ed25519 private key for root account (hex)",
+	// )
+	
+
 	// prometheus
 	generatePrometheusCmd.PersistentFlags().StringVar(
 		&prometheusBaseURI,
