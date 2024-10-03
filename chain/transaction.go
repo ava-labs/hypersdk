@@ -74,6 +74,8 @@ func (t *Transaction) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
+// Sign sign the transaction using the provided AuthFactory. The pointer receiver is not being modified by this method,
+// and a new Transaction object would be returned. On success, the returned transaction is the signed transaction.
 func (t *Transaction) Sign(
 	factory AuthFactory,
 	actionRegistry ActionRegistry,
@@ -89,14 +91,19 @@ func (t *Transaction) Sign(
 	if err != nil {
 		return nil, err
 	}
-	// fill in the auth
-	t.Auth = auth
+
+	// fill in the auth on the signed transaction
+	signedTransaction := Transaction{
+		Base:    t.Base,
+		Actions: t.Actions,
+		Auth:    auth,
+	}
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	size := len(msg) + consts.ByteLen + t.Auth.Size()
+	size := len(msg) + consts.ByteLen + auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := t.Marshal(p); err != nil {
+	if err := signedTransaction.Marshal(p); err != nil {
 		return nil, err
 	}
 	if err := p.Err(); err != nil {

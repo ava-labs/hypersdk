@@ -117,7 +117,8 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
-
+	require.Nil(tx.Auth)
+	require.NotNil(signedTx.Auth)
 	require.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
