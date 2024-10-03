@@ -181,7 +181,10 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 		}
 
 		txID := tx.ID()
-		batch.Put(txID[:], p.Bytes())
+		err = batch.Put(txID[:], p.Bytes())
+		if err != nil {
+			return fmt.Errorf("failed to store transaction: %w", err)
+		}
 	}
 
 	return batch.Write()
