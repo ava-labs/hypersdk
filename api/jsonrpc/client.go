@@ -5,7 +5,6 @@ package jsonrpc
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -238,20 +237,21 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Action, actor codec.Address) (state.Keys, codec.Bytes, error) {
-	marshaledAction, err := chain.MarshalTyped(action)
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) (state.Keys, []codec.Bytes, error) {
+	args := &SimulatActionArgs{
+		Actions: marshaledActions,
+		Actor:   actor,
+	}
+
+	marshaledActions, err := chain.MarshalTyped(actions)
 	if err != nil {
 		return nil, nil, err
-	}
-	args := &SimulatActionArgs{
-		Action: marshaledAction,
-		Actor:  actor,
 	}
 
 	resp := new(SimulateActionReply)
 	err = cli.requester.SendRequest(
 		ctx,
-		"simulateAction",
+		"simulateActions",
 		args,
 		resp,
 	)
@@ -259,14 +259,5 @@ func (cli *JSONRPCClient) SimulateAction(ctx context.Context, action chain.Actio
 		return nil, nil, err
 	}
 
-	stateKeys := state.Keys{}
-	for _, entry := range resp.StateKeys {
-		hexBytes, err := hex.DecodeString(entry.HexKey)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		stateKeys.Add(string(hexBytes), state.Permissions(entry.Permissions))
-	}
-	return stateKeys, resp.Output, nil
+	return resp.StateKeys, resp.Outputs, nil
 }

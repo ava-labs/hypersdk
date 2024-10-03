@@ -4,7 +4,6 @@
 package jsonrpc
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -239,43 +238,34 @@ func (j *JSONRPCServer) Execute(
 }
 
 type SimulatActionArgs struct {
-	Action codec.Bytes   `json:"action"`
-	Actor  codec.Address `json:"actor"`
-}
-
-type SimulateStateKey struct {
-	HexKey      string `json:"hex"`
-	Permissions byte   `json:"perm"`
+	Actions codec.Bytes   `json:"actions"`
+	Actor   codec.Address `json:"actor"`
 }
 
 type SimulateActionReply struct {
-	Output    codec.Bytes        `json:"output"`
-	StateKeys []SimulateStateKey `json:"stateKeys"`
+	Outputs   []codec.Bytes `json:"outputs"`
+	StateKeys state.Keys    `json:"stateKeys"`
 }
 
-func (j *JSONRPCServer) SimulateAction(
+func (j *JSONRPCServer) SimulateActions(
 	req *http.Request,
 	args *SimulatActionArgs,
 	reply *SimulateActionReply,
 ) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateAction")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
-	if reply == nil {
-		return errors.New("SimulateAction was called with a nil reply object")
-	}
-
 	actionRegistry := j.vm.ActionRegistry()
-	rtx := codec.NewReader(args.Action, consts.NetworkSizeLimit) // will likely be much smaller than this
-	actions, err := chain.UnmarshalActions(rtx, actionRegistry)
+	actionsReader := codec.NewReader(args.Actions, len(args.Actions)) // will likely be much smaller than this
+	actions, err := chain.UnmarshalActions(actionsReader, actionRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
-	if !rtx.Empty() {
+	if !actionsReader.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	if len(actions) != 1 {
-		return fmt.Errorf("simulateAction expects a single action, %d found", len(actions))
+	if len(actions) == 0 {
+		return errors.New("simulateAction expects at least a single action, none found")
 	}
 	currentState, err := j.vm.ImmutableState(ctx)
 	if err != nil {
@@ -289,19 +279,18 @@ func (j *JSONRPCServer) SimulateAction(
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
 
 		if actionOutput == nil {
-			reply.Output = []byte{}
+			reply.Outputs = append(reply.Outputs, []byte{})
 		} else {
-			reply.Output, err = chain.MarshalTyped(actionOutput)
+			output, err := chain.MarshalTyped(actionOutput)
 			if err != nil {
 				return fmt.Errorf("failed to marshal output: %w", err)
 			}
+			reply.Outputs = append(reply.Outputs, output)
 		}
 		if err != nil {
 			return err
 		}
 	}
-	for key, permission := range recorder.GetStateKeys() {
-		reply.StateKeys = append(reply.StateKeys, SimulateStateKey{HexKey: hex.EncodeToString([]byte(key)), Permissions: byte(permission)})
-	}
+	reply.StateKeys = recorder.GetStateKeys()
 	return nil
 }
