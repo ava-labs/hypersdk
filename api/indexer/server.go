@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
 const Endpoint = "/indexer"
@@ -106,11 +105,7 @@ type GetTxRequest struct {
 }
 
 type GetTxResponse struct {
-	Timestamp int64           `json:"timestamp"`
-	Success   bool            `json:"success"`
-	Units     fees.Dimensions `json:"units"`
-	Fee       uint64          `json:"fee"`
-	Outputs   []codec.Bytes   `json:"result"`
+	chain.Result
 }
 
 type Server struct {
@@ -122,7 +117,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, t, success, units, fee, outputs, err := s.indexer.GetTransaction(args.TxID)
+	found, _, success, units, fee, outputs, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -130,14 +125,9 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	if !found {
 		return ErrTxNotFound
 	}
-	reply.Timestamp = t
 	reply.Success = success
 	reply.Units = units
 	reply.Fee = fee
-	wrappedOutputs := make([]codec.Bytes, len(outputs))
-	for i, output := range outputs {
-		wrappedOutputs[i] = codec.Bytes(output)
-	}
-	reply.Outputs = wrappedOutputs
+	reply.Outputs = outputs
 	return nil
 }
