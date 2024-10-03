@@ -37,7 +37,7 @@ type Transaction struct {
 	digest    []byte
 	bytes     []byte
 	size      int
-	id        ids.ID
+	Id        ids.ID `json:"id"`
 	stateKeys state.Keys
 }
 
@@ -106,7 +106,7 @@ func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() int { return t.size }
 
-func (t *Transaction) ID() ids.ID { return t.id }
+func (t *Transaction) ID() ids.ID { return t.Id }
 
 func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
@@ -477,7 +477,7 @@ func UnmarshalTx(
 	tx.digest = codecBytes[start:digest]
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
-	tx.id = utils.ToID(tx.bytes)
+	tx.Id = utils.ToID(tx.bytes)
 	return &tx, nil
 }
 
