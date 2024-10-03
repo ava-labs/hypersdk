@@ -5,10 +5,6 @@ package layout
 
 import (
 	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
@@ -98,29 +94,4 @@ func newKeyWithPrefix(prefix []byte, key []byte, chunks uint16) []byte {
 	k = append(k, key...)
 
 	return keys.EncodeChunks(k, chunks)
-}
-
-func (l Layout) Verify() error {
-	prefixes := [][]byte{
-		l.heightKey,
-		l.timestampKey,
-		l.feeKey,
-		l.balanceKeyPrefix,
-		l.actionPrefix,
-	}
-	verifiedPrefixes := set.Set[string]{}
-
-	for _, k := range prefixes {
-		keyString := string(k)
-
-		for prefix := range verifiedPrefixes {
-			if !strings.HasPrefix(prefix, keyString) {
-				return fmt.Errorf("invalid state key %s: %w", k, ErrConflictingKey)
-			}
-		}
-
-		verifiedPrefixes.Add(keyString)
-	}
-
-	return nil
 }
