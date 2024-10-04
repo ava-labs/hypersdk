@@ -100,7 +100,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 	// new JSONRPC client
 	cli := jsonrpc.NewJSONRPCClient(s.uris[0])
 
-	factory, err := GetFactory(s.key)
+	factory, err := auth.GetFactory(s.key)
 	if err != nil {
 		return err
 	}
@@ -334,7 +334,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	accounts := make([]*auth.PrivateKey, s.numAccounts)
 	factories := make([]chain.AuthFactory, s.numAccounts)
 
-	factory, err := GetFactory(s.key)
+	factory, err := auth.GetFactory(s.key)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -354,7 +354,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 			return nil, nil, nil, err
 		}
 		accounts[i] = pk
-		f, err := GetFactory(pk)
+		f, err := auth.GetFactory(pk)
 		if err != nil {
 			return nil, nil, nil, err
 		}

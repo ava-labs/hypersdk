@@ -25,5 +25,6 @@ func Engines() map[uint8]vm.AuthEngine {
 // Used for testing purposes
 type PrivateKey struct {
 	Address codec.Address
+	// Bytes is the raw private key bytes
 	Bytes   []byte
 }
