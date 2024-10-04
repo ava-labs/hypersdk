@@ -26,9 +26,9 @@ var (
 	vmName            string
 	txWorkloadFactory workload.TxWorkloadFactory
 	expectedABI       abi.ABI
-	spamKey		      *auth.PrivateKey
-	spamKeyBalance	  uint64
-	spamHelper 		  throughput.SpamHelper
+	spamKey           *auth.PrivateKey
+	spamKeyBalance    uint64
+	spamHelper        throughput.SpamHelper
 )
 
 func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey, keyBalance uint64) {
@@ -110,7 +110,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		
+
 		// Spam Args
 		uris := getE2EURIs(tc, blockchainID)
 		key := spamKey
@@ -122,10 +122,10 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		txsPerSecondStep := 200
 		numClients := 10
 		numAccounts := 25
-		
+
 		// run spammer
 		spammer := throughput.NewSpammer(uris, key, balance, sZipf, vZipf, txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts)
-		err := spamHelper.CreateClient(uris[0]); 
+		err := spamHelper.CreateClient(uris[0])
 		require.NoError(err)
 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX", 9)
 		require.NoError(err)

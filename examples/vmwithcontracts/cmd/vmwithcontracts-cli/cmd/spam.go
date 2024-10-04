@@ -103,7 +103,6 @@ var runSpamCmd = &cobra.Command{
 		return checkKeyType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		ctx := context.Background()
-		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]}, false)
+		return handler.Root().Spam(&SpamHelper{keyType: args[0]})
 	},
 }

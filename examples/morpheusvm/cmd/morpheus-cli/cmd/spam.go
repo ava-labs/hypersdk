@@ -31,4 +31,3 @@ var runSpamCmd = &cobra.Command{
 		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamDefaults)
 	},
 }
- 

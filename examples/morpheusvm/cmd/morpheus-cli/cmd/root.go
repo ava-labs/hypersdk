@@ -30,7 +30,7 @@ var (
 	minBlockGap           int64
 	hideTxs               bool
 	checkAllChains        bool
-	spamDefaults		  bool
+	spamDefaults          bool
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
