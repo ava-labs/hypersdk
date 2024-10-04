@@ -10,11 +10,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 type SpamHelper struct {
@@ -49,13 +47,7 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-
-	utils.Outf(
-		"%{{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-		address,
-		utils.FormatBalance(balance),
-		consts.Symbol,
-	)
+	
 	return balance, err
 }
 

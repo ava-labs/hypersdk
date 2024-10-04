@@ -261,12 +261,14 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 			cancel()
 		}
 	}
-
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	issuerWg.Wait()
-
-	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, funds, factories, symbol)
+	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
+	if err != nil {
+		return err
+	}
+	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, symbol)
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -396,7 +398,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	return accounts, funds, factories, nil
 }
 
-func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, funds map[codec.Address]uint64, factories []chain.AuthFactory, symbol string) error {
+func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, factories []chain.AuthFactory, symbol string) error {
 	// Return funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
@@ -419,7 +421,10 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
-		balance := funds[accounts[i].Address]
+		balance, err := sh.LookupBalance(accounts[i].Address)
+		if err != nil {
+			return err
+		}
 		if feePerTx > balance {
 			continue
 		}
