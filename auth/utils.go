@@ -4,15 +4,22 @@ import (
 	"errors"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 )
 
 var (
-	// ErrInvalidKeyType is returned when an invalid key type is provided
 	ErrInvalidKeyType = errors.New("invalid key type")
 )
+
+// Used for testing & CLI purposes
+type PrivateKey struct {
+	Address codec.Address
+	// Bytes is the raw private key bytes
+	Bytes []byte
+}
 
 // GetFactory returns the [chain.AuthFactory] for a given private key.
 //

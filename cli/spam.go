@@ -12,6 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/loadgen"
 )
 
+// BuildSpammer prompts the user for the spammer parameters. If [defaults], the default values are used once the
+// chain and root key are selected. Otherwise, the user is prompted for all parameters.
 func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.Spammer, error) {
 	// Select chain
 	chains, err := h.GetChains()
@@ -61,7 +63,7 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 			100000, // tx per second
 			15000, // min tx per second
 			1000, // tx per second step
-			10,
+			10, // num clients
 			10000000, // num accounts 
 		), nil
 	}
@@ -113,8 +115,8 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 	), nil
 }
 
-func (h *Handler) Spam(ctx context.Context, sh loadgen.SpamHelper) error {
-	spammer, err := h.BuildSpammer(sh, true)
+func (h *Handler) Spam(ctx context.Context, sh loadgen.SpamHelper, defaults bool) error {
+	spammer, err := h.BuildSpammer(sh, defaults)
 	if err != nil {
 		return err
 	}
