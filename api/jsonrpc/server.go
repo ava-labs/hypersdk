@@ -192,7 +192,7 @@ func (j *JSONRPCServer) Execute(
 	now := time.Now().UnixMilli()
 
 	storage := make(map[string][]byte)
-	ts := tstate.New(1) //TODO: optimize if needed
+	ts := tstate.New(1)
 
 	for _, action := range actions {
 		// Get expected state keys
