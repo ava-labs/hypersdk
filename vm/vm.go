@@ -924,7 +924,7 @@ func (vm *VM) Submit(
 
 		// Verify auth if not already verified by caller
 		if verifyAuth && vm.config.VerifyAuth {
-			msg, err := tx.Digest()
+			msg, err := tx.Preimage()
 			if err != nil {
 				// Should never fail
 				errs = append(errs, err)

@@ -264,7 +264,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 
 			// Verify tx
 			if w.vm.GetVerifyAuth() {
-				msg, err := tx.Digest()
+				msg, err := tx.Preimage()
 				if err != nil {
 					// Should never occur because populated during unmarshal
 					return

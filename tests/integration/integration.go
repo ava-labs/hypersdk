@@ -363,7 +363,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest()
+			msg, err := tx.Preimage()
 			require.NoError(err)
 			auth, err := authFactory.Sign(msg)
 			require.NoError(err)

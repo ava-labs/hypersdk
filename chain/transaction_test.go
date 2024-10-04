@@ -115,18 +115,20 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionRegistry.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
+	txBeforeSign := tx
+	require.Nil(tx.Auth)
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
-	require.Nil(tx.Auth)
+	require.Equal(txBeforeSign, tx)
 	require.NotNil(signedTx.Auth)
 	require.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	signedDigest, err := signedTx.Digest()
+	signedDigest, err := signedTx.Preimage()
 	require.NoError(err)
-	txDigest, err := tx.Digest()
+	txDigest, err := tx.Preimage()
 	require.NoError(err)
 
 	require.Equal(signedDigest, txDigest)

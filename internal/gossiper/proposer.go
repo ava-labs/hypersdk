@@ -193,7 +193,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	var seen int
 	for _, tx := range txs {
 		// Verify signature async
-		txDigest, err := tx.Digest()
+		txDigest, err := tx.Preimage()
 		if err != nil {
 			g.vm.Logger().Warn(
 				"unable to compute tx digest",

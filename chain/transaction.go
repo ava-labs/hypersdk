@@ -28,21 +28,18 @@ var (
 	_ mempool.Item = (*Transaction)(nil)
 )
 
-type (
-	Actions     []Action
-	Transaction struct {
-		Base *Base `json:"base"`
+type Transaction struct {
+	Base *Base `json:"base"`
 
-		Actions Actions `json:"actions"`
-		Auth    Auth    `json:"auth"`
+	Actions Actions `json:"actions"`
+	Auth    Auth    `json:"auth"`
 
-		digest    []byte
-		bytes     []byte
-		size      int
-		id        ids.ID
-		stateKeys state.Keys
-	}
-)
+	preimage  []byte
+	bytes     []byte
+	size      int
+	id        ids.ID
+	stateKeys state.Keys
+}
 
 func NewTx(base *Base, actions Actions) *Transaction {
 	return &Transaction{
@@ -51,20 +48,18 @@ func NewTx(base *Base, actions Actions) *Transaction {
 	}
 }
 
-// Digest returns a byte slice containing the marshaled transaction without the auth.
-// method name might be misleading, as it returns the preimage of what typically
-// considered to be "the message digest"
-func (t *Transaction) Digest() ([]byte, error) {
-	if len(t.digest) > 0 {
-		return t.digest, nil
+// Digest returns the byte slice representation of the unsigned tx
+func (t *Transaction) Preimage() ([]byte, error) {
+	if len(t.preimage) > 0 {
+		return t.preimage, nil
 	}
 	size := t.Base.Size() + consts.Uint8Len
 
-	if actionsSize, err := t.Actions.Size(); err != nil {
+	actionsSize, err := t.Actions.Size()
+	if err != nil {
 		return nil, err
-	} else {
-		size += actionsSize
 	}
+	size += actionsSize
 
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	if err := t.marshal(p, false); err != nil {
@@ -74,25 +69,22 @@ func (t *Transaction) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-// Sign sign the transaction using the provided AuthFactory. The pointer receiver is not being modified by this method,
-// and a new Transaction object would be returned. On success, the returned transaction is the signed transaction.
+// Sign returns a new signed transaction with the unsigned tx copied from
+// the original and a signature provided by the authFactory
 func (t *Transaction) Sign(
 	factory AuthFactory,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
-	// grab the preimage of the transaction we would want to sign.
-	msg, err := t.Digest()
+	msg, err := t.Preimage()
 	if err != nil {
 		return nil, err
 	}
-	// sign the preimage
 	auth, err := factory.Sign(msg)
 	if err != nil {
 		return nil, err
 	}
 
-	// fill in the auth on the signed transaction
 	signedTransaction := Transaction{
 		Base:    t.Base,
 		Actions: t.Actions,
@@ -405,6 +397,8 @@ func (t *Transaction) marshal(p *codec.Packer, marshalSignature bool) error {
 	return p.Err()
 }
 
+type Actions []Action
+
 func (a Actions) Size() (int, error) {
 	var size int
 	for _, action := range a {
@@ -505,7 +499,7 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 	codecBytes := p.Bytes()
-	tx.digest = codecBytes[start:digest]
+	tx.preimage = codecBytes[start:digest]
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)

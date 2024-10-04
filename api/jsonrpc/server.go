@@ -97,7 +97,7 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	msg, err := tx.Digest()
+	msg, err := tx.Preimage()
 	if err != nil {
 		// Should never occur because populated during unmarshal
 		return err
