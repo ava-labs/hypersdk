@@ -39,7 +39,7 @@ var (
 		"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 	}
 	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
-	Ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
+	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
 	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
 )
 
@@ -53,7 +53,7 @@ func init() {
 		ed25519PrivKeys[i] = priv
 		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
 		addr := auth.NewED25519Address(priv.PublicKey())
-		Ed25519Addrs[i] = addr
+		ed25519Addrs[i] = addr
 	}
 }
 
@@ -62,16 +62,16 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, *auth.PrivateKey, error) {
-	customAllocs := make([]*genesis.CustomAllocation, 0, len(Ed25519Addrs))
-	for _, prefundedAddr := range Ed25519Addrs {
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, *auth.PrivateKey, uint64, error) {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
+	for _, prefundedAddr := range ed25519Addrs {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
 			Address: prefundedAddr,
 			Balance: initialBalance,
 		})
 	}
-	key := &auth.PrivateKey{
-		Address: Ed25519Addrs[0],
+	spamKey := &auth.PrivateKey{
+		Address: ed25519Addrs[0],
 		Bytes:  ed25519PrivKeys[0][:],
 	}
 	genesis := genesis.NewDefaultGenesis(customAllocs)
@@ -84,8 +84,8 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 
 	return genesis, &workloadFactory{
 		factories: ed25519AuthFactories,
-		addrs:     Ed25519Addrs,
-	}, key, nil
+		addrs:     ed25519Addrs,
+	}, spamKey, initialBalance, nil
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {

@@ -26,17 +26,18 @@ var (
 	vmName            string
 	txWorkloadFactory workload.TxWorkloadFactory
 	expectedABI       abi.ABI
-	rootKey		      *auth.PrivateKey
-	balance 		  uint64 = 10_000_000_000_000
+	spamKey		      *auth.PrivateKey
+	spamKeyBalance	  uint64
 	spamHelper 		  loadgen.SpamHelper
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, key *auth.PrivateKey, abi abi.ABI, sh loadgen.SpamHelper) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, sh loadgen.SpamHelper, key *auth.PrivateKey, keyBalance uint64) {
 	vmName = name
 	txWorkloadFactory = factory
 	expectedABI = abi
-	rootKey = key
 	spamHelper = sh
+	spamKey = key
+	spamKeyBalance = keyBalance
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -108,8 +109,11 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		
+		// Spam Args
 		uris := getE2EURIs(tc, blockchainID)
-		key := rootKey
+		key := spamKey
+		balance := spamKeyBalance
 		sZipf := 1.01
 		vZipf := 2.7
 		txsPerSecond := 500

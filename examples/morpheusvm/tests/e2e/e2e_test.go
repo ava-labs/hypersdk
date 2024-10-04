@@ -37,7 +37,7 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, addr, err := workload.New(100 /* minBlockGap: 100ms */)
+	gen, workloadFactory, spamKey, spamKeyBalance, err := workload.New(100 /* minBlockGap: 100ms */)
 	require.NoError(err)
 
 	genesisBytes, err := json.Marshal(gen)
@@ -52,7 +52,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: "ed25519",
 	}
 
-	he2e.SetWorkload(consts.Name, workloadFactory, addr, expectedABI, &spamHelper)
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, &spamHelper,  spamKey, spamKeyBalance)
 
 	tc := e2e.NewTestContext()
 	
