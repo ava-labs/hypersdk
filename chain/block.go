@@ -980,6 +980,9 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
 	}
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
 	return NewExecutedBlock(blk, results, prices)
 }
 
