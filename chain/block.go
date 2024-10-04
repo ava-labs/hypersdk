@@ -236,11 +236,11 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.UnsignedBytes()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			if err != nil {
 				return err
 			}
-			batchVerifier.Add(txDigest, tx.Auth)
+			batchVerifier.Add(unsignedTxBytes, tx.Auth)
 		}
 	}
 	return nil

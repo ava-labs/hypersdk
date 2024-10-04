@@ -149,11 +149,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	signedDigest, err := signedTx.UnsignedBytes()
+	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
-	txDigest, err := tx.UnsignedBytes()
+	originalUnsignedTxBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
 
-	require.Equal(signedDigest, txDigest)
-	require.Len(signedDigest, 168)
+	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
+	require.Len(unsignedTxBytes, 168)
 }
