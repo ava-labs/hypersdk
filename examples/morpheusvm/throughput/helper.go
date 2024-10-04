@@ -11,6 +11,7 @@ import (
 	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/loadgen"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -20,6 +21,9 @@ type SpamHelper struct {
 	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
 }
+
+var _ loadgen.SpamHelper = &SpamHelper{}
+
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return mauth.GeneratePrivateKey(sh.KeyType)

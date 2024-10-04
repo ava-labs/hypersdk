@@ -148,10 +148,10 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 		issuer.Start(cctx)
 	}
 
-	// set logging 
+	// set logging
 	t := s.logStats(cctx, issuers[0])
 	defer t.Stop()
-	
+
 	// Broadcast txs
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
@@ -295,7 +295,7 @@ func (s *Spammer) logStats(cctx context.Context, txIssuer *issuer) *time.Ticker 
 				l.Unlock()
 				psent = current
 			case <-cctx.Done():
-				return 
+				return
 			}
 		}
 	}()
@@ -345,6 +345,8 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
+	// This helps from hanging
+	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -403,7 +405,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
 	// This helps from hanging
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
