@@ -73,7 +73,7 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 	}
 	spamKey := &auth.PrivateKey{
 		Address: ed25519Addrs[0],
-		Bytes:  ed25519PrivKeys[0][:],
+		Bytes:   ed25519PrivKeys[0][:],
 	}
 	genesis := genesis.NewDefaultGenesis(customAllocs)
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.

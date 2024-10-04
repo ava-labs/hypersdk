@@ -56,8 +56,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper,  spamKey)
-	
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper, spamKey)
+
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package auth
 
 import (
@@ -17,9 +20,7 @@ const (
 	blsKey       = "bls"
 )
 
-var (
-	ErrInvalidKeyType    = errors.New("invalid key type")
-)
+var ErrInvalidKeyType = errors.New("invalid key type")
 
 func CheckKeyType(k string) error {
 	switch k {

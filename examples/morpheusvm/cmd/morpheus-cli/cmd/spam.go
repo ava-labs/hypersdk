@@ -6,9 +6,10 @@ package cmd
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/throughput"
-	"github.com/spf13/cobra"
 )
 
 var spamCmd = &cobra.Command{

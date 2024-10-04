@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package throughput
 
 import (
@@ -12,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"

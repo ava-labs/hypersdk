@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package throughput
 
 import (
@@ -8,11 +11,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
-
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
+
+	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
 )
 
 type SpamHelper struct {
@@ -22,7 +25,6 @@ type SpamHelper struct {
 }
 
 var _ throughput.SpamHelper = &SpamHelper{}
-
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return mauth.GeneratePrivateKey(sh.KeyType)
@@ -47,7 +49,7 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return balance, err
 }
 

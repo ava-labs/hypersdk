@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package throughput
 
 import (
@@ -7,12 +10,13 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/rand"
+
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
-	"golang.org/x/exp/rand"
 )
 
 type issuer struct {

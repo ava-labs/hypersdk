@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package auth
 
 import (
@@ -10,9 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 )
 
-var (
-	ErrInvalidKeyType = errors.New("invalid key type")
-)
+var ErrInvalidKeyType = errors.New("invalid key type")
 
 // Used for testing & CLI purposes
 type PrivateKey struct {

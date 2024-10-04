@@ -112,7 +112,6 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		ginkgo.By("Confirm accepted blocks indexed", func() {
 			workload.GetBlocks(tc.DefaultContext(), require, parser, getE2EURIs(tc, blockchainID))
 		})
-
 	})
 })
 
