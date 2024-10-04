@@ -91,9 +91,14 @@ func NewSpammer(
 	}
 }
 
-// symbol and decimal used for logging
-// TODO: move output to STDOUT into logger
-func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decimals uint8) error {
+// Spam tests the throughput of the network by sending transactions using
+// multiple accounts and clients. It first distributes funds to the accounts
+// and then sends transactions between the accounts. It returns the funds to
+// the original account after the test is complete.
+// [sh] injects the necessary functions to interact with the network.
+// [terminate] if true, the spammer will stop after reaching the target TPS.
+// [symbol] and [decimals] are used to format the output.
+func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string, decimals uint8) error {
 	// log distribution
 	s.logZipf(s.zipfSeed)
 
@@ -240,6 +245,12 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, symbol string, decima
 				currentTarget = min(currentTarget+s.txsPerSecondStep, s.txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
+			} else if currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
+				if terminate {
+					utils.Outf("{{green}}reached target tps:{{/}} %d\n", currentTarget)
+					// Cancel the context to stop the issuers
+					cancel()
+				}
 			}
 		case <-cctx.Done():
 			stop = true

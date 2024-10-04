@@ -60,11 +60,11 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 			balance,
 			1.01,
 			2.7,
-			100000, // tx per second
-			15000, // min tx per second
-			1000, // tx per second step
-			10, // num clients
-			10000000, // num accounts 
+			100000,   // tx per second
+			15000,    // min tx per second
+			1000,     // tx per second step
+			10,       // num clients
+			10000000, // num accounts
 		), nil
 	}
 	// Collect parameters
@@ -121,5 +121,5 @@ func (h *Handler) Spam(ctx context.Context, sh loadgen.SpamHelper, defaults bool
 		return err
 	}
 
-	return spammer.Spam(ctx, sh, h.c.Symbol(), h.c.Decimals())
+	return spammer.Spam(ctx, sh, false, h.c.Symbol(), h.c.Decimals())
 }

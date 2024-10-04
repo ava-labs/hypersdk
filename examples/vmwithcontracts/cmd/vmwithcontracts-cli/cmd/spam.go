@@ -104,6 +104,6 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
-		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]})
+		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]}, false)
 	},
 }

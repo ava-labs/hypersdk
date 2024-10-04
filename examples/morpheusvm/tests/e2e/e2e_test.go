@@ -52,9 +52,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: "ed25519",
 	}
 
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, &spamHelper,  spamKey, spamKeyBalance)
-
 	tc := e2e.NewTestContext()
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, &spamHelper,  spamKey, spamKeyBalance)
 	
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
