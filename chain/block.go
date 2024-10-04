@@ -236,7 +236,7 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Preimage()
+			txDigest, err := tx.UnsignedBytes()
 			if err != nil {
 				return err
 			}

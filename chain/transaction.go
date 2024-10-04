@@ -34,11 +34,11 @@ type Transaction struct {
 	Actions Actions `json:"actions"`
 	Auth    Auth    `json:"auth"`
 
-	preimage  []byte
-	bytes     []byte
-	size      int
-	id        ids.ID
-	stateKeys state.Keys
+	unsignedBytes []byte
+	bytes         []byte
+	size          int
+	id            ids.ID
+	stateKeys     state.Keys
 }
 
 func NewTx(base *Base, actions Actions) *Transaction {
@@ -48,10 +48,10 @@ func NewTx(base *Base, actions Actions) *Transaction {
 	}
 }
 
-// Digest returns the byte slice representation of the unsigned tx
-func (t *Transaction) Preimage() ([]byte, error) {
-	if len(t.preimage) > 0 {
-		return t.preimage, nil
+// UnsignedBytes returns the byte slice representation of the unsigned tx
+func (t *Transaction) UnsignedBytes() ([]byte, error) {
+	if len(t.unsignedBytes) > 0 {
+		return t.unsignedBytes, nil
 	}
 	size := t.Base.Size() + consts.Uint8Len
 
@@ -76,7 +76,7 @@ func (t *Transaction) Sign(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
-	msg, err := t.Preimage()
+	msg, err := t.UnsignedBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +103,16 @@ func (t *Transaction) Sign(
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
 	return UnmarshalTx(p, actionRegistry, authRegistry)
+}
+
+// Verify that the transaction was signed correctly.
+func (t *Transaction) Verify(ctx context.Context) error {
+	msg, err := t.UnsignedBytes()
+	if err != nil {
+		// Should never occur because populated during unmarshal
+		return err
+	}
+	return t.Auth.Verify(ctx, msg)
 }
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
@@ -499,7 +509,7 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 	codecBytes := p.Bytes()
-	tx.preimage = codecBytes[start:digest]
+	tx.unsignedBytes = codecBytes[start:digest]
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)

@@ -115,7 +115,30 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionRegistry.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
-	txBeforeSign := tx
+	txBeforeSign := chain.Transaction{
+		Base: &chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		Actions: []chain.Action{
+			&mockTransferAction{
+				To:    codec.Address{1, 2, 3, 4},
+				Value: 4,
+				Memo:  []byte("hello"),
+			},
+			&mockTransferAction{
+				To:    codec.Address{4, 5, 6, 7},
+				Value: 123,
+				Memo:  []byte("world"),
+			},
+			&action2{
+				A: 2,
+				B: 4,
+			},
+		},
+	}
+
 	require.Nil(tx.Auth)
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
@@ -126,9 +149,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	signedDigest, err := signedTx.Preimage()
+	signedDigest, err := signedTx.UnsignedBytes()
 	require.NoError(err)
-	txDigest, err := tx.Preimage()
+	txDigest, err := tx.UnsignedBytes()
 	require.NoError(err)
 
 	require.Equal(signedDigest, txDigest)
