@@ -49,14 +49,9 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	utils.Outf(
-		"{{cyan}}balance:{{/}} %s %s\n",
-		balance,
-		consts.Symbol,
-	)
 
 	utils.Outf(
-		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
+		"%{{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		address,
 		utils.FormatBalance(balance),
 		consts.Symbol,
