@@ -1,4 +1,4 @@
-package loadgen
+package throughput
 
 import "errors"
 

@@ -9,12 +9,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/loadgen"
+	"github.com/ava-labs/hypersdk/throughput"
 )
 
 // BuildSpammer prompts the user for the spammer parameters. If [defaults], the default values are used once the
 // chain and root key are selected. Otherwise, the user is prompted for all parameters.
-func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.Spammer, error) {
+func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throughput.Spammer, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
@@ -54,7 +54,7 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 	}
 
 	if defaults {
-		return loadgen.NewSpammer(
+		return throughput.NewSpammer(
 			uris,
 			key,
 			balance,
@@ -101,7 +101,7 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 		return nil, err
 	}
 
-	return loadgen.NewSpammer(
+	return throughput.NewSpammer(
 		uris,
 		key,
 		balance,
@@ -115,7 +115,7 @@ func (h *Handler) BuildSpammer(sh loadgen.SpamHelper, defaults bool) (*loadgen.S
 	), nil
 }
 
-func (h *Handler) Spam(ctx context.Context, sh loadgen.SpamHelper, defaults bool) error {
+func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults bool) error {
 	spammer, err := h.BuildSpammer(sh, defaults)
 	if err != nil {
 		return err

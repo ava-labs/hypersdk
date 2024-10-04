@@ -19,8 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/loadgen"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -32,10 +32,10 @@ var (
 	expectedABI       abi.ABI
 	spamKey		      *auth.PrivateKey
 	spamKeyBalance	  uint64
-	spamHelper 		  loadgen.SpamHelper
+	spamHelper 		  throughput.SpamHelper
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, sh loadgen.SpamHelper, key *auth.PrivateKey, keyBalance uint64) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey, keyBalance uint64) {
 	vmName = name
 	txWorkloadFactory = factory
 	expectedABI = abi
@@ -128,7 +128,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		numAccounts := 25
 		
 		// run spammer
-		spammer := loadgen.NewSpammer(uris, key, balance, sZipf, vZipf, txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts)
+		spammer := throughput.NewSpammer(uris, key, balance, sZipf, vZipf, txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts)
 		err := spamHelper.CreateClient(uris[0]); 
 		require.NoError(err)
 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX", 9)
