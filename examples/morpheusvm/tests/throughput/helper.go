@@ -8,7 +8,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
+
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
