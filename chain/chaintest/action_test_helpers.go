@@ -95,8 +95,8 @@ type ActionBenchmark struct {
 	Actor       codec.Address
 	ActionID    ids.ID
 
-	ExpectedOutputs []codec.Typed
-	ExpectedErr     error
+	ExpectedOutput codec.Typed
+	ExpectedErr    error
 
 	Assertion func(context.Context, *testing.B, state.Mutable)
 }
@@ -115,7 +115,7 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
 		require.NoError(err)
-		require.Equal(test.ExpectedOutputs[i], output)
+		require.Equal(test.ExpectedOutput, output)
 	}
 
 	b.StopTimer()

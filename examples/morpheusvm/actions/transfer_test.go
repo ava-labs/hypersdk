@@ -131,7 +131,7 @@ func TestTransferAction(t *testing.T) {
 }
 
 func BenchmarkSimpleTransfer(b *testing.B) {
-	require := require.New(b)
+	setupRequire := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())
 	from := codec.CreateAddress(0, ids.GenerateTestID())
 
@@ -142,23 +142,18 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 			To:    to,
 			Value: 1,
 		},
-		ExpectedOutputs: func() []codec.Typed {
-			outputs := make([]codec.Typed, 0)
-			for i := 0; i < b.N; i++ {
-				outputs = append(outputs, &TransferResult{
-					SenderBalance:   0,
-					ReceiverBalance: 1,
-				})
-			}
-			return outputs
-		}(),
+		ExpectedOutput: &TransferResult{
+			SenderBalance:   0,
+			ReceiverBalance: 1,
+		},
 		CreateState: func() state.Mutable {
 			store := chaintest.NewInMemoryStore()
 			err := storage.SetBalance(context.Background(), store, from, 1)
-			require.NoError(err)
+			setupRequire.NoError(err)
 			return store
 		},
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
+			require := require.New(b)
 			toBalance, err := storage.GetBalance(ctx, store, to)
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)

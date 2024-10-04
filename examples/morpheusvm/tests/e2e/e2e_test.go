@@ -37,13 +37,16 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, spamKey, spamKeyBalance, err := workload.New(100 /* minBlockGap: 100ms */)
+	gen, workloadFactory, spamKey, err := workload.New(100 /* minBlockGap: 100ms */)
 	require.NoError(err)
 
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	require.NoError(err)
+
+	parser, err := vm.CreateParser(genesisBytes)
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
@@ -53,7 +56,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, &spamHelper,  spamKey, spamKeyBalance)
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper,  spamKey)
 	
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {

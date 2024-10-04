@@ -98,7 +98,7 @@ func NewSpammer(
 // [sh] injects the necessary functions to interact with the network.
 // [terminate] if true, the spammer will stop after reaching the target TPS.
 // [symbol] and [decimals] are used to format the output.
-func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string, decimals uint8) error {
+func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
 	// log distribution
 	s.logZipf(s.zipfSeed)
 
@@ -266,7 +266,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	issuerWg.Wait()
 
-	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, funds, factories, symbol, decimals)
+	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, funds, factories, symbol)
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -396,7 +396,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	return accounts, funds, factories, nil
 }
 
-func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, funds map[codec.Address]uint64, factories []chain.AuthFactory, symbol string, decimals uint8) error {
+func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, funds map[codec.Address]uint64, factories []chain.AuthFactory, symbol string) error {
 	// Return funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
@@ -439,7 +439,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 		if i%250 == 0 && i > 0 {
 			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
 		}
-		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt, decimals), symbol)
+		utils.Outf("{{yellow}}returning funds to %s:{{/}} %s %s\n", accounts[i].Address, utils.FormatBalance(returnAmt), symbol)
 	}
 	if err := p.Wait(); err != nil {
 		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
@@ -447,7 +447,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
-		utils.FormatBalance(returnedBalance, decimals),
+		utils.FormatBalance(returnedBalance),
 		symbol,
 	)
 	return nil

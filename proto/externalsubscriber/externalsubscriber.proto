@@ -20,5 +20,4 @@ message InitializeRequest {
 
 message BlockRequest {
   bytes block_data = 1;
-  bytes results = 2;
 }

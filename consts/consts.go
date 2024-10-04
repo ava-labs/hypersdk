@@ -30,4 +30,5 @@ const (
 	MaxUint64             = ^uint64(0)
 	MaxFloat64            = math.MaxFloat64
 	MillisecondsPerSecond = 1000
+	Decimals              = 9
 )

@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -48,7 +47,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)
+		amount, err := prompt.Amount("amount", balance, nil)
 		if err != nil {
 			return err
 		}
@@ -127,7 +126,7 @@ var callCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := prompt.Amount("amount", consts.Decimals, balance, nil)
+		amount, err := prompt.Amount("amount", balance, nil)
 		if err != nil {
 			return err
 		}
@@ -174,7 +173,7 @@ var callCmd = &cobra.Command{
 					if err != nil {
 						return err
 					}
-					utils.Outf("%s\n", utils.FormatBalance(intValue, consts.Decimals))
+					utils.Outf("%s\n", utils.FormatBalance(intValue))
 				}
 			case "get_value":
 				{

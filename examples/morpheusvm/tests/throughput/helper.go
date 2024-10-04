@@ -44,16 +44,21 @@ func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
-func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, error) {
+func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	balance, err := sh.cli.Balance(context.TODO(), address)
 	if err != nil {
 		return 0, err
 	}
 	utils.Outf(
+		"{{cyan}}balance:{{/}} %s %s\n",
+		balance,
+		consts.Symbol,
+	)
+
+	utils.Outf(
 		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-		choice,
 		address,
-		utils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance),
 		consts.Symbol,
 	)
 	return balance, err

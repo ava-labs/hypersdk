@@ -99,7 +99,7 @@ func (*Handler) GetBalance(
 	}
 	utils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		utils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -119,10 +119,6 @@ func (c *Controller) DatabasePath() string {
 
 func (*Controller) Symbol() string {
 	return consts.Symbol
-}
-
-func (*Controller) Decimals() uint8 {
-	return consts.Decimals
 }
 
 func (*Controller) GetParser(uri string) (chain.Parser, error) {

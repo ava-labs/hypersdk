@@ -5,79 +5,30 @@ package vm
 
 import (
 	"context"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"go.uber.org/zap"
 )
 
+var _ p2p.Handler = (*TxGossipHandler)(nil)
+
 type TxGossipHandler struct {
+	p2p.NoOpHandler
 	vm *VM
 }
 
 func NewTxGossipHandler(vm *VM) *TxGossipHandler {
-	return &TxGossipHandler{vm}
+	return &TxGossipHandler{vm: vm}
 }
 
-func (*TxGossipHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
-	return nil
-}
-
-func (*TxGossipHandler) Disconnected(context.Context, ids.NodeID) error {
-	return nil
-}
-
-func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) {
 	if !t.vm.isReady() {
 		t.vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
-		return nil
+		return
 	}
 
-	return t.vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
-}
-
-func (*TxGossipHandler) AppRequest(
-	context.Context,
-	ids.NodeID,
-	uint32,
-	time.Time,
-	[]byte,
-) error {
-	return nil
-}
-
-func (*TxGossipHandler) AppRequestFailed(
-	context.Context,
-	ids.NodeID,
-	uint32,
-) error {
-	return nil
-}
-
-func (*TxGossipHandler) AppResponse(
-	context.Context,
-	ids.NodeID,
-	uint32,
-	[]byte,
-) error {
-	return nil
-}
-
-func (*TxGossipHandler) CrossChainAppRequest(
-	context.Context,
-	ids.ID,
-	uint32,
-	time.Time,
-	[]byte,
-) error {
-	return nil
-}
-
-func (*TxGossipHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
-	return nil
-}
-
-func (*TxGossipHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
-	return nil
+	if err := t.vm.gossiper.HandleAppGossip(ctx, nodeID, msg); err != nil {
+		t.vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(err))
+	}
 }

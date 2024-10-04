@@ -27,7 +27,7 @@ type SpamHelper interface {
 	// interface for the HyperSDK.
 	CreateClient(uri string) error
 	GetParser(ctx context.Context) (chain.Parser, error)
-	LookupBalance(choice int, address codec.Address) (uint64, error)
+	LookupBalance(address codec.Address) (uint64, error)
 
 	// GetTransfer returns a list of actions that sends [amount] to a given [address].
 	//

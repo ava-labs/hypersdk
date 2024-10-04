@@ -14,7 +14,6 @@ import (
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
-	Decimals() uint8
 	GetParser(string) (chain.Parser, error)
 	HandleTx(*chain.Transaction, *chain.Result)
 	LookupBalance(address codec.Address, uri string) (uint64, error)

@@ -96,7 +96,11 @@ func innerGetBalance(
 	if err != nil {
 		return 0, false, err
 	}
-	return binary.BigEndian.Uint64(v), true, nil
+	val, err := database.ParseUInt64(v)
+	if err != nil {
+		return 0, false, err
+	}
+	return val, true, nil
 }
 
 func SetBalance(

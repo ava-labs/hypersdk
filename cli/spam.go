@@ -35,7 +35,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 	for i := 0; i < len(keys); i++ {
-		balance, err := sh.LookupBalance(i, keys[i].Address)
+		balance, err := sh.LookupBalance(keys[i].Address)
 		if err != nil {
 			return nil, err
 		}
@@ -121,5 +121,5 @@ func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults b
 		return err
 	}
 
-	return spammer.Spam(ctx, sh, false, h.c.Symbol(), h.c.Decimals())
+	return spammer.Spam(ctx, sh, false, h.c.Symbol())
 }
