@@ -47,12 +47,12 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		return nil, fmt.Errorf("failed to create block DB: %w", err)
 	}
 
-	REMOVEME_blockIDDB, _, err := pebble.New(filepath.Join(path, "REMOVEME_blockID"), pebble.NewDefaultConfig())
+	REMOVEME_blockIDDB, _, err := pebble.New(filepath.Join(path, "blockID"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blockID DB: %w", err)
 	}
 
-	REMOVEME_txDB, _, err := pebble.New(filepath.Join(path, "REMOVEME_tx"), pebble.NewDefaultConfig())
+	REMOVEME_txDB, _, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx DB: %w", err)
 	}
@@ -94,6 +94,8 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	if err != nil {
 		return err
 	}
+
+	//TODO: batch
 
 	if err := i.blockDB.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
@@ -227,6 +229,7 @@ func (i *Indexer) Close() error {
 	errs.Add(
 		i.REMOVEME_txDB.Close(),
 		i.blockDB.Close(),
+		i.REMOVEME_blockIDDB.Close(),
 	)
 	return errs.Err
 }
