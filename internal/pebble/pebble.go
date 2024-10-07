@@ -58,7 +58,7 @@ func NewDefaultConfig() Config {
 }
 
 // TODO: replace with AvalancheGo implementation (if still used for Vryx)
-func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
+func New(file string, cfg Config) (*Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
 	d := &Database{closing: make(chan struct{})}
 	opts := &pebble.Options{
@@ -150,6 +150,11 @@ func (db *Database) Put(key []byte, value []byte) error {
 // Delete removes the key from the database
 func (db *Database) Delete(key []byte) error {
 	return updateError(db.db.Delete(key, pebble.Sync))
+}
+
+// DeleteRange deletes all the point keys (and values) in the range [start, end)
+func (db *Database) DeleteRange(start, end []byte) error {
+	return updateError(db.db.DeleteRange(start, end, pebble.Sync))
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {

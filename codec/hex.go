@@ -25,9 +25,13 @@ func LoadHex(s string, expectedSize int) ([]byte, error) {
 
 type Bytes []byte
 
+func (b Bytes) String() string {
+	return ToHex(b)
+}
+
 // MarshalText returns the hex representation of b.
 func (b Bytes) MarshalText() ([]byte, error) {
-	return []byte(ToHex(b)), nil
+	return []byte(b.String()), nil
 }
 
 // UnmarshalText sets b to the bytes represented by text.

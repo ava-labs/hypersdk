@@ -67,7 +67,6 @@ var (
 	vmID                  ids.ID
 	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
 	parser                chain.Parser
-	customJSONRPCEndpoint string
 	txWorkloadFactory     workload.TxWorkloadFactory
 	authFactory           chain.AuthFactory
 
@@ -75,16 +74,15 @@ var (
 )
 
 type instance struct {
-	chainID                 ids.ID
-	nodeID                  ids.NodeID
-	vm                      *vm.VM
-	toEngine                chan common.Message
-	routerServer            *httptest.Server
-	JSONRPCServer           *httptest.Server
-	ControllerJSONRPCServer *httptest.Server
-	WebSocketServer         *httptest.Server
-	cli                     *jsonrpc.JSONRPCClient // clients for embedded VMs
-	onAccept                func(snowman.Block)
+	chainID         ids.ID
+	nodeID          ids.NodeID
+	vm              *vm.VM
+	toEngine        chan common.Message
+	routerServer    *httptest.Server
+	JSONRPCServer   *httptest.Server
+	WebSocketServer *httptest.Server
+	cli             *jsonrpc.JSONRPCClient // clients for embedded VMs
+	onAccept        func(snowman.Block)
 }
 
 func init() {
@@ -103,7 +101,6 @@ func Setup(
 	genesis []byte,
 	id ids.ID,
 	createParser func(genesisBytes []byte) (chain.Parser, error),
-	customEndpoint string,
 	workloadFactory workload.TxWorkloadFactory,
 	authF chain.AuthFactory,
 ) {
@@ -112,7 +109,6 @@ func Setup(
 	genesisBytes = genesis
 	vmID = id
 	createParserFromBytes = createParser
-	customJSONRPCEndpoint = customEndpoint
 	txWorkloadFactory = workloadFactory
 	authFactory = authF
 
@@ -238,18 +234,16 @@ func setInstances() {
 
 		routerServer := httptest.NewServer(router)
 		jsonRPCServer := httptest.NewServer(hd[jsonrpc.Endpoint])
-		ljsonRPCServer := httptest.NewServer(hd[customJSONRPCEndpoint])
 		webSocketServer := httptest.NewServer(hd[ws.Endpoint])
 		instances[i] = instance{
-			chainID:                 snowCtx.ChainID,
-			nodeID:                  snowCtx.NodeID,
-			vm:                      v,
-			toEngine:                toEngine,
-			routerServer:            routerServer,
-			JSONRPCServer:           jsonRPCServer,
-			ControllerJSONRPCServer: ljsonRPCServer,
-			WebSocketServer:         webSocketServer,
-			cli:                     jsonrpc.NewJSONRPCClient(jsonRPCServer.URL),
+			chainID:         snowCtx.ChainID,
+			nodeID:          snowCtx.NodeID,
+			vm:              v,
+			toEngine:        toEngine,
+			routerServer:    routerServer,
+			JSONRPCServer:   jsonRPCServer,
+			WebSocketServer: webSocketServer,
+			cli:             jsonrpc.NewJSONRPCClient(jsonRPCServer.URL),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -282,7 +276,6 @@ var _ = ginkgo.AfterSuite(func() {
 	for _, iv := range instances {
 		iv.routerServer.Close()
 		iv.JSONRPCServer.Close()
-		iv.ControllerJSONRPCServer.Close()
 		iv.WebSocketServer.Close()
 		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
@@ -363,9 +356,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			require.NoError(err)
-			auth, err := authFactory.Sign(msg)
+			auth, err := authFactory.Sign(unsignedTxBytes)
 			require.NoError(err)
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -464,17 +457,17 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	ginkgo.It("Test processing block handling", func() {
 		var accept, accept2 func(bool) []*chain.Result
 
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
+		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
 		require.NoError(err)
 		ginkgo.By("create processing tip", func() {
-			tx, _, err := workload.GenerateTxWithAssertion(ctx)
+			tx, _, err := txWorkload.GenerateTxWithAssertion(ctx)
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
 			accept = expectBlk(instances[1])
 
-			tx, _, err = workload.GenerateTxWithAssertion(ctx)
+			tx, _, err = txWorkload.GenerateTxWithAssertion(ctx)
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
@@ -488,6 +481,10 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results = accept2(true)
 			require.Len(results, 1)
 			require.True(results[0].Success)
+		})
+
+		ginkgo.By("Confirm accepted blocks indexed", func() {
+			workload.GetBlocks(ctx, require, parser, []string{uris[1]})
 		})
 	})
 
