@@ -1,6 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//nolint:gosec
 package throughput
 
 import (
@@ -157,7 +158,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// set logging
-	t := s.logStats(cctx, issuers[0])
+	t := issuers[0].logStats(cctx)
 	defer t.Stop()
 
 	// Broadcast txs
@@ -282,41 +283,6 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 		unique.Add(zz.Uint64())
 	}
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
-}
-
-func (s *Spammer) logStats(cctx context.Context, txIssuer *issuer) *time.Ticker {
-	// Log stats
-	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
-	var psent int64
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				current := sent.Load()
-				l.Lock()
-				if totalTxs > 0 {
-					unitPrices, err := txIssuer.cli.UnitPrices(cctx, false)
-					if err != nil {
-						continue
-					}
-					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
-						inflight.Load(),
-						current-psent,
-						unitPrices,
-					)
-				}
-				l.Unlock()
-				psent = current
-			case <-cctx.Done():
-				return
-			}
-		}
-	}()
-	// ensure to stop the ticker when done
-	return t
 }
 
 // createIssuer creates an [numClients] transaction issuers for each URI in [uris]

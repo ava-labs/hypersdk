@@ -135,3 +135,38 @@ func getRandomIssuer(issuers []*issuer) *issuer {
 	index := rand.Int() % len(issuers)
 	return issuers[index]
 }
+
+func (i *issuer) logStats(cctx context.Context) *time.Ticker {
+	// Log stats
+	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
+	var psent int64
+	go func() {
+		for {
+			select {
+			case <-t.C:
+				current := sent.Load()
+				l.Lock()
+				if totalTxs > 0 {
+					unitPrices, err := i.cli.UnitPrices(cctx, false)
+					if err != nil {
+						continue
+					}
+					utils.Outf(
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						totalTxs,
+						float64(confirmedTxs)/float64(totalTxs)*100,
+						inflight.Load(),
+						current-psent,
+						unitPrices,
+					)
+				}
+				l.Unlock()
+				psent = current
+			case <-cctx.Done():
+				return
+			}
+		}
+	}()
+	// ensure to stop the ticker when done
+	return t
+}
