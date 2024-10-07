@@ -70,9 +70,21 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 }
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
-	if err := i.storeTransactions(blk); err != nil {
+	batch := i.txLookupDB.NewBatch()
+	defer batch.Reset()
+
+	for j, tx := range blk.Block.Txs {
+		txID := tx.ID()
+		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
+		if err := batch.Put(txID[:], txLookupInfo); err != nil {
+			return err
+		}
+	}
+
+	if err := batch.Write(); err != nil {
 		return err
 	}
+
 	return i.storeBlock(blk)
 }
 
@@ -124,21 +136,6 @@ func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 	}
 	height := unpackUint64(heightBytes)
 	return i.GetBlockByHeight(height)
-}
-
-func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
-	batch := i.txLookupDB.NewBatch()
-	defer batch.Reset()
-
-	for j, tx := range blk.Block.Txs {
-		txID := tx.ID()
-		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
-		if err := batch.Put(txID[:], txLookupInfo); err != nil {
-			return err
-		}
-	}
-
-	return batch.Write()
 }
 
 func (i *Indexer) GetTransaction(txID ids.ID) (*chain.Transaction, *chain.Result, error) {

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"math/rand/v2"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,44 +28,31 @@ func must[T any](v T, err error) T {
 const PARENT_TEST_DIR = "/var/tmp/indexer-bench"
 
 func main() {
-	// Clean up and create the parent directory if it doesn't exist
-	err := os.RemoveAll(PARENT_TEST_DIR)
-	if err != nil {
-		panic(err)
-	}
-	err = os.MkdirAll(PARENT_TEST_DIR, 0755)
-	if err != nil {
-		panic(err)
-	}
-	tempDir := must(os.MkdirTemp(PARENT_TEST_DIR, "bench")) //not tmp to be on the main file system
-
 	parser := chaintest.NewEmptyParser()
 	(*parser.ActionRegistry()).Register(&actions.Transfer{}, nil)
 	(*parser.OutputRegistry()).Register(&actions.TransferResult{}, nil)
 	(*parser.AuthRegistry()).Register(&auth.ED25519{}, nil)
 
-	indexer := must(indexer.NewIndexer(tempDir, parser))
+	indexer := must(indexer.NewIndexer(PARENT_TEST_DIR, parser))
 
-	for i := 0; i < 100; i++ {
-		const blockCount = 100000
+	lastBlocks, err := indexer.GetLatestBlock()
+	if err != nil {
+		panic(err)
+	}
+
+	lastBlockHeight := lastBlocks.Block.Hght
+
+	for i := 0; i < 1000; i++ {
+		const blockCount = 1000
 		const txPerBlock = 1000
 
 		start := time.Now()
-		executedBlocks := GenerateExecutedBlocks(parser, ids.Empty, 0, 0, 1, blockCount, txPerBlock)
+		executedBlocks := GenerateExecutedBlocks(parser, ids.Empty, lastBlockHeight, 0, 1, blockCount, txPerBlock)
+		lastBlockHeight += uint64(blockCount)
 
-		// Create a channel to collect results
-		results := make(chan error, blockCount)
-
-		// Parallelize the acceptance of blocks
+		// Sequentially accept blocks
 		for _, blk := range executedBlocks {
-			go func(blk *chain.ExecutedBlock) {
-				results <- indexer.Accept(blk)
-			}(blk)
-		}
-
-		// Wait for all results
-		for i := 0; i < blockCount; i++ {
-			if err := <-results; err != nil {
+			if err := indexer.Accept(blk); err != nil {
 				panic(err)
 			}
 		}
@@ -73,45 +60,61 @@ func main() {
 		fmt.Printf("Processed %s blocks with %s transactions in %s\n", formatNumberWithSuffix(blockCount), formatNumberWithSuffix(txPerBlock*blockCount), time.Since(start))
 
 		start = time.Now()
-		for _, blk := range executedBlocks {
-			retrievedBlk, err := indexer.GetBlockByHeight(blk.Block.Hght)
-			if err != nil {
-				panic(err)
-			}
-			if retrievedBlk.BlockID != blk.BlockID {
-				panic("block id mismatch")
-			}
+		randomHeights := make([]uint64, blockCount)
+		for i := range randomHeights {
+			randomHeights[i] = uint64(rand.IntN(int(lastBlockHeight + 1)))
 		}
-		fmt.Printf("Retrieved %s blocks by height in %s\n", formatNumberWithSuffix(blockCount), time.Since(start))
 
-		start = time.Now()
-		for _, blk := range executedBlocks {
-			retrievedBlk, err := indexer.GetBlock(blk.BlockID)
+		blockIDs := make([]ids.ID, 0, blockCount)
+
+		// Retrieve and check random blocks by height
+		for _, height := range randomHeights {
+			retrievedBlk, err := indexer.GetBlockByHeight(height)
 			if err != nil {
 				panic(err)
 			}
-			if retrievedBlk.BlockID != blk.BlockID {
+			// Store block ID for later use
+			blockIDs = append(blockIDs, retrievedBlk.BlockID)
+		}
+		fmt.Printf("Retrieved %s random blocks by height in %s\n", formatNumberWithSuffix(blockCount), time.Since(start))
+
+		// Retrieve and check the same blocks by ID
+		start = time.Now()
+		for _, blockID := range blockIDs {
+			retrievedBlk, err := indexer.GetBlock(blockID)
+			if err != nil {
+				panic(err)
+			}
+			if retrievedBlk.BlockID != blockID {
 				panic("block id mismatch")
 			}
 		}
 		fmt.Printf("Retrieved %s blocks by id in %s\n", formatNumberWithSuffix(blockCount), time.Since(start))
 
+		// Retrieve and check a random transaction from each block
 		start = time.Now()
-		for _, blk := range executedBlocks {
-			txs := blk.Block.Txs
-			for _, tx := range txs {
-				retrievedTx, _, err := indexer.GetTransaction(tx.ID())
+		for _, blockID := range blockIDs {
+			retrievedBlk, err := indexer.GetBlock(blockID)
+			if err != nil {
+				panic(err)
+			}
+			if len(retrievedBlk.Block.Txs) > 0 {
+				randomTxIndex := rand.IntN(len(retrievedBlk.Block.Txs))
+				randomTx := retrievedBlk.Block.Txs[randomTxIndex]
+				retrievedTx, _, err := indexer.GetTransaction(randomTx.ID())
 				if err != nil {
 					panic(err)
 				}
-				if retrievedTx.ID() != tx.ID() {
+				if retrievedTx.ID() != randomTx.ID() {
 					panic("transaction id mismatch")
 				}
 			}
 		}
-		fmt.Printf("Retrieved %s transactions by id in %s\n", formatNumberWithSuffix(txPerBlock*blockCount), time.Since(start))
+		fmt.Printf("Retrieved and checked %s random transactions in %s\n", formatNumberWithSuffix(blockCount), time.Since(start))
 
-		fmt.Printf("Database size: %s\n", must(getHumanReadableDirSize(tempDir)))
+		fmt.Printf("Database size: %s\n", must(getHumanReadableDirSize(PARENT_TEST_DIR)))
+		fmt.Printf("Last block height: %d\n", lastBlockHeight)
+
 	}
 }
 
@@ -163,9 +166,11 @@ func generateTestTx(parser *chaintest.Parser) *chain.Transaction {
 	privKey := must(ed25519.GeneratePrivateKey())
 	factory := auth.NewED25519Factory(privKey)
 
+	ts := int64(1234567+rand.IntN(100)) * 1000
+
 	tx := chain.NewTx(
 		&chain.Base{
-			Timestamp: 1234567000,
+			Timestamp: ts,
 			ChainID:   ids.GenerateTestID(),
 			MaxFee:    1234567,
 		},
