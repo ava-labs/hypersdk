@@ -356,9 +356,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			require.NoError(err)
-			auth, err := authFactory.Sign(msg)
+			auth, err := authFactory.Sign(unsignedTxBytes)
 			require.NoError(err)
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
