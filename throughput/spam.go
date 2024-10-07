@@ -274,7 +274,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, symbol)
+	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, funds, symbol)
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -369,7 +369,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	return accounts, funds, factories, nil
 }
 
-func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, factories []chain.AuthFactory, symbol string) error {
+func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, factories []chain.AuthFactory, funds map[codec.Address]uint64, symbol string) error {
 	// Return funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
@@ -392,10 +392,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
-		balance, err := sh.LookupBalance(accounts[i].Address)
-		if err != nil {
-			return err
-		}
+		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
