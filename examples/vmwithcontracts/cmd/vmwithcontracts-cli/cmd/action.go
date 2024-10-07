@@ -149,7 +149,7 @@ var callCmd = &cobra.Command{
 			return err
 		}
 
-		rtx := codec.NewReader(encodedActionResults, actions.MaxResultSizeLimit) // will likely be much smaller than this
+		rtx := codec.NewReader(encodedActionResults, len(encodedActionResults))
 		simulationResult, err := actions.UnmarshalResult(rtx)
 		if err != nil {
 			return err
