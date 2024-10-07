@@ -100,7 +100,7 @@ func TestBlockIndexRestart(t *testing.T) {
 	require.NoError(indexer.Close())
 
 	// Confirm we have indexed the expected window of blocks after restart
-	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser(), uint64(blockWindow))
+	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser())
 	require.NoError(err)
 	checkBlocks(t, restartedIndexer, executedBlocks, blockWindow)
 	require.NoError(restartedIndexer.Close())

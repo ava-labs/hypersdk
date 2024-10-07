@@ -15,15 +15,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
-const maxBlockWindow uint64 = 1_000_000
-
+// TODO: implement database cleanup
 var errBlockNotFound = errors.New("block not found")
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
@@ -31,17 +28,12 @@ var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 type Indexer struct {
 	blockDB            *pebble.Database
 	REMOVEME_blockIDDB *pebble.Database
-	REMOVEME_txDB      *pebble.Database
-	blockWindow        uint64 // Maximum window of blocks to retain
+	txLookupDB         *pebble.Database
 	lastHeight         atomic.Uint64
 	parser             chain.Parser
 }
 
-func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
-	if blockWindow > maxBlockWindow {
-		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
-	}
-
+func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 	blockDB, _, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block DB: %w", err)
@@ -52,7 +44,7 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		return nil, fmt.Errorf("failed to create blockID DB: %w", err)
 	}
 
-	REMOVEME_txDB, _, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig())
+	txLookupDB, _, err := pebble.New(filepath.Join(path, "txLookup"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx DB: %w", err)
 	}
@@ -69,8 +61,7 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 	indexer := &Indexer{
 		blockDB:            blockDB,
 		REMOVEME_blockIDDB: REMOVEME_blockIDDB,
-		REMOVEME_txDB:      REMOVEME_txDB,
-		blockWindow:        blockWindow,
+		txLookupDB:         txLookupDB,
 		parser:             parser,
 	}
 	indexer.lastHeight.Store(lastHeightValue)
@@ -86,10 +77,6 @@ func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 }
 
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
-	if i.blockWindow == 0 {
-		return nil
-	}
-
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
 		return err
@@ -98,10 +85,6 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	//TODO: batch
 
 	if err := i.blockDB.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
-		return err
-	}
-	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(packUint64(blk.Block.Hght - i.blockWindow)); err != nil {
 		return err
 	}
 
@@ -144,20 +127,13 @@ func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 }
 
 func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
-	batch := i.REMOVEME_txDB.NewBatch()
+	batch := i.txLookupDB.NewBatch()
 	defer batch.Reset()
 
 	for j, tx := range blk.Block.Txs {
-		result := blk.Results[j]
-		if err := i.storeTransaction(
-			batch,
-			tx.ID(),
-			blk.Block.Tmstmp,
-			result.Success,
-			result.Units,
-			result.Fee,
-			result.Outputs,
-		); err != nil {
+		txID := tx.ID()
+		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
+		if err := batch.Put(txID[:], txLookupInfo); err != nil {
 			return err
 		}
 	}
@@ -165,69 +141,41 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 	return batch.Write()
 }
 
-func (*Indexer) storeTransaction(
-	batch database.KeyValueWriter,
-	txID ids.ID,
-	timestamp int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-	outputs [][]byte,
-) error {
-	outputLength := consts.ByteLen // Single byte containing number of outputs
-	for _, output := range outputs {
-		outputLength += consts.Uint32Len + len(output)
-	}
-	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
-
-	writer := codec.NewWriter(txResultLength, consts.NetworkSizeLimit)
-	writer.PackUint64(uint64(timestamp))
-	writer.PackBool(success)
-	writer.PackFixedBytes(units.Bytes())
-	writer.PackUint64(fee)
-	writer.PackByte(byte(len(outputs)))
-	for _, output := range outputs {
-		writer.PackBytes(output)
-	}
-	if err := writer.Err(); err != nil {
-		return err
-	}
-	return batch.Put(txID[:], writer.Bytes())
-}
-
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
-	v, err := i.REMOVEME_txDB.Get(txID[:])
-	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil
-	}
+func (i *Indexer) GetTransaction(txID ids.ID) (*chain.Transaction, *chain.Result, error) {
+	txLookupBytes, err := i.txLookupDB.Get(txID[:])
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, nil, ErrTxNotFound
+		}
+		return nil, nil, err
 	}
-	reader := codec.NewReader(v, consts.NetworkSizeLimit)
-	timestamp := reader.UnpackUint64(true)
-	success := reader.UnpackBool()
-	dimensionsBytes := make([]byte, fees.DimensionsLen)
-	reader.UnpackFixedBytes(fees.DimensionsLen, &dimensionsBytes)
-	fee := reader.UnpackUint64(true)
-	numOutputs := int(reader.UnpackByte())
-	outputs := make([][]byte, numOutputs)
-	for i := range outputs {
-		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
+
+	if len(txLookupBytes) != consts.Uint64Len+consts.Uint32Len {
+		return nil, nil, fmt.Errorf("invalid tx lookup info")
 	}
-	if err := reader.Err(); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
-	}
-	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
+
+	blockHeight := unpackUint64(txLookupBytes[:consts.Uint64Len])
+	txIndex := unpackUint32(txLookupBytes[consts.Uint64Len:])
+
+	executedBlock, err := i.GetBlockByHeight(blockHeight)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		return nil, nil, err
 	}
-	return true, int64(timestamp), success, dimensions, fee, outputs, nil
+
+	if int(txIndex) >= len(executedBlock.Block.Txs) {
+		return nil, nil, fmt.Errorf("tx index out of range")
+	}
+
+	tx := executedBlock.Block.Txs[txIndex]
+	result := executedBlock.Results[txIndex]
+
+	return tx, result, nil
 }
 
 func (i *Indexer) Close() error {
 	errs := wrappers.Errs{}
 	errs.Add(
-		i.REMOVEME_txDB.Close(),
+		i.txLookupDB.Close(),
 		i.blockDB.Close(),
 		i.REMOVEME_blockIDDB.Close(),
 	)
@@ -242,4 +190,14 @@ func packUint64(v uint64) []byte {
 
 func unpackUint64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
+}
+
+func packUint32(v uint32) []byte {
+	b := make([]byte, consts.Uint32Len)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func unpackUint32(b []byte) uint32 {
+	return binary.BigEndian.Uint32(b)
 }

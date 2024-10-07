@@ -39,7 +39,7 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return nil
 	}
 	indexerPath := filepath.Join(v.DataDir, Namespace)
-	indexer, err := NewIndexer(indexerPath, v, config.BlockWindow)
+	indexer, err := NewIndexer(indexerPath, v)
 	if err != nil {
 		return err
 	}
