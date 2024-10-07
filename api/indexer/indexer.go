@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
@@ -30,82 +29,53 @@ var errBlockNotFound = errors.New("block not found")
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
-	blockDB            *pebble.Database // height -> block bytes
-	blockIDToHeight    *cache.FIFO[ids.ID, uint64]
-	blockHeightToBlock *cache.FIFO[uint64, *chain.ExecutedBlock]
+	blockDB            *pebble.Database
+	REMOVEME_blockIDDB *pebble.Database
+	REMOVEME_txDB      *pebble.Database
 	blockWindow        uint64 // Maximum window of blocks to retain
 	lastHeight         atomic.Uint64
 	parser             chain.Parser
-
-	// ID -> timestamp, success, units, fee, outputs
-	txDB *pebble.Database
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
 	if blockWindow > maxBlockWindow {
 		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
 	}
-	txDB, _, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig())
-	if err != nil {
-		return nil, err
-	}
+
 	blockDB, _, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create block DB: %w", err)
 	}
 
-	blockIDCache, err := cache.NewFIFO[ids.ID, uint64](int(blockWindow))
+	REMOVEME_blockIDDB, _, err := pebble.New(filepath.Join(path, "REMOVEME_blockID"), pebble.NewDefaultConfig())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create blockID DB: %w", err)
 	}
-	blockCache, err := cache.NewFIFO[uint64, *chain.ExecutedBlock](int(blockWindow))
+
+	REMOVEME_txDB, _, err := pebble.New(filepath.Join(path, "REMOVEME_tx"), pebble.NewDefaultConfig())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create tx DB: %w", err)
 	}
-	i := &Indexer{
+
+	lastHeightValue := uint64(0)
+	lastHeightBytes, err := REMOVEME_blockIDDB.Get([]byte("latest"))
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get latest block height: %w", err)
+	}
+	if err == nil {
+		lastHeightValue = unpackUint64(lastHeightBytes)
+	}
+
+	indexer := &Indexer{
 		blockDB:            blockDB,
-		blockIDToHeight:    blockIDCache,
-		blockHeightToBlock: blockCache,
+		REMOVEME_blockIDDB: REMOVEME_blockIDDB,
+		REMOVEME_txDB:      REMOVEME_txDB,
 		blockWindow:        blockWindow,
 		parser:             parser,
-		txDB:               txDB,
 	}
-	return i, i.initBlocks()
-}
+	indexer.lastHeight.Store(lastHeightValue)
 
-func (i *Indexer) initBlocks() error {
-	// Load blockID <-> height mapping
-	iter := i.blockDB.NewIterator()
-	defer iter.Release()
-
-	var lastHeight uint64
-	for iter.Next() {
-		value := iter.Value()
-		blk, err := chain.UnmarshalExecutedBlock(value, i.parser)
-		if err != nil {
-			return err
-		}
-
-		i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
-		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-		lastHeight = blk.Block.Hght
-	}
-	if err := iter.Error(); err != nil {
-		return err
-	}
-	iter.Release()
-
-	i.lastHeight.Store(lastHeight)
-
-	if lastHeight > i.blockWindow {
-		lastRetainedHeight := lastHeight - i.blockWindow
-		lastRetainedHeightBytes := binary.BigEndian.AppendUint64(nil, lastRetainedHeight)
-		if err := i.blockDB.DeleteRange(nil, lastRetainedHeightBytes); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return indexer, nil
 }
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
@@ -125,43 +95,54 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
+	if err := i.blockDB.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
 	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
+	if err := i.blockDB.Delete(packUint64(blk.Block.Hght - i.blockWindow)); err != nil {
 		return err
 	}
 
-	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
-	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+	if err := i.REMOVEME_blockIDDB.Put(blk.BlockID[:], packUint64(blk.Block.Hght)); err != nil {
+		return err
+	}
+
+	if err := i.REMOVEME_blockIDDB.Put([]byte("latest"), packUint64(blk.Block.Hght)); err != nil {
+		return err
+	}
+
 	i.lastHeight.Store(blk.Block.Hght)
 
 	return nil
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
-	return i.GetBlockByHeight(i.lastHeight.Load())
+	height := i.lastHeight.Load()
+	return i.GetBlockByHeight(height)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
-	blk, ok := i.blockHeightToBlock.Get(height)
-	if !ok {
-		return nil, fmt.Errorf("%w: height=%d", errBlockNotFound, height)
+	blkBytes, err := i.blockDB.Get(packUint64(height))
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, errBlockNotFound
+		}
+		return nil, err
 	}
-	return blk, nil
+	return chain.UnmarshalExecutedBlock(blkBytes, i.parser)
 }
 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
-	height, ok := i.blockIDToHeight.Get(blkID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)
+	heightBytes, err := i.REMOVEME_blockIDDB.Get(blkID[:])
+	if err != nil {
+		return nil, err
 	}
+	height := unpackUint64(heightBytes)
 	return i.GetBlockByHeight(height)
 }
 
 func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
-	batch := i.txDB.NewBatch()
+	batch := i.REMOVEME_txDB.NewBatch()
 	defer batch.Reset()
 
 	for j, tx := range blk.Block.Txs {
@@ -213,7 +194,7 @@ func (*Indexer) storeTransaction(
 }
 
 func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
-	v, err := i.txDB.Get(txID[:])
+	v, err := i.REMOVEME_txDB.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil, nil
 	}
@@ -244,8 +225,18 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 func (i *Indexer) Close() error {
 	errs := wrappers.Errs{}
 	errs.Add(
-		i.txDB.Close(),
+		i.REMOVEME_txDB.Close(),
 		i.blockDB.Close(),
 	)
 	return errs.Err
+}
+
+func packUint64(v uint64) []byte {
+	b := make([]byte, consts.Uint64Len)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func unpackUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
 }

@@ -41,11 +41,14 @@ func createTestIndexer(
 
 // checkBlocks confirms that all blocks are retrievable/not retrievable as expected
 func checkBlocks(
-	require *require.Assertions,
+	t *testing.T,
 	indexer *Indexer,
 	expectedBlocks []*chain.ExecutedBlock,
 	blockWindow int,
 ) {
+	t.Helper()
+	require := require.New(t)
+
 	// Confirm we retrieve the correct latest block
 	expectedLatestBlk := expectedBlocks[len(expectedBlocks)-1]
 	latestBlk, err := indexer.GetLatestBlock()
@@ -80,7 +83,7 @@ func TestBlockIndex(t *testing.T) {
 	)
 	indexer, executedBlocks, _ := createTestIndexer(t, numExecutedBlocks, blockWindow)
 	// Confirm we have indexed the expected window of blocks
-	checkBlocks(require, indexer, executedBlocks, blockWindow)
+	checkBlocks(t, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
 }
 
@@ -93,19 +96,19 @@ func TestBlockIndexRestart(t *testing.T) {
 	indexer, executedBlocks, indexerDir := createTestIndexer(t, numExecutedBlocks, blockWindow)
 
 	// Confirm we have indexed the expected window of blocks
-	checkBlocks(require, indexer, executedBlocks, blockWindow)
+	checkBlocks(t, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
 
 	// Confirm we have indexed the expected window of blocks after restart
 	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser(), uint64(blockWindow))
 	require.NoError(err)
-	checkBlocks(require, indexer, executedBlocks, blockWindow)
+	checkBlocks(t, indexer, executedBlocks, blockWindow)
 	require.NoError(restartedIndexer.Close())
 
 	// Confirm we have indexed the expected window of blocks after restart and a window
 	// change
 	restartedIndexerSingleBlockWindow, err := NewIndexer(indexerDir, chaintest.NewEmptyParser(), 1)
 	require.NoError(err)
-	checkBlocks(require, restartedIndexerSingleBlockWindow, executedBlocks, 1)
+	checkBlocks(t, restartedIndexerSingleBlockWindow, executedBlocks, 1)
 	require.NoError(restartedIndexerSingleBlockWindow.Close())
 }
