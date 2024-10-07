@@ -8,61 +8,92 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/utils/set"
 )
 
+// The Recorder struct wraps an [Immutable] state object and tracks the permissions used
+// agains the various keys. The Recorder struct implements the [Mutable] interface, allowing
+// it to act as a direct replacement for a database view.
+// The Recorder struct maintain the same semantics as tstate_view in regards to the various
+// required access permissions.
 type Recorder struct {
-	State         Immutable
+	// State is the underlying [Immutable] object
+	state     Immutable
+	stateKeys map[string][]byte
+
 	changedValues map[string][]byte
-	ReadState     set.Set[string]
-	WriteState    set.Set[string]
+	keys          Keys
 }
 
 func NewRecorder(db Immutable) *Recorder {
-	return &Recorder{State: db, changedValues: map[string][]byte{}}
+	return &Recorder{state: db, changedValues: map[string][]byte{}, stateKeys: map[string][]byte{}, keys: Keys{}}
 }
 
-func (r *Recorder) Insert(_ context.Context, key []byte, value []byte) error {
+func (r *Recorder) checkState(ctx context.Context, key []byte) error {
+	if _, has := r.stateKeys[string(key)]; has {
+		return nil
+	}
+	value, err := r.state.GetValue(ctx, key)
+	if err == nil {
+		// no error, key found.
+		r.stateKeys[string(key)] = value
+		return nil
+	}
+
+	if errors.Is(err, database.ErrNotFound) {
+		r.stateKeys[string(key)] = nil
+		err = nil
+	}
+	return err
+}
+
+func (r *Recorder) Insert(ctx context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
-	r.WriteState.Add(stringKey)
+
+	if err := r.checkState(ctx, key); err != nil {
+		return err
+	}
+	stateKeyVal, inStateKeys := r.stateKeys[stringKey]
+
+	if inStateKeys && stateKeyVal != nil {
+		// underlying storage already has that key.
+		r.keys[stringKey] |= Write
+	} else {
+		// underlying storage doesn't have that key.
+		r.keys[stringKey] |= Allocate | Write
+	}
+
+	// save the updated value.
 	r.changedValues[stringKey] = value
 	return nil
 }
 
 func (r *Recorder) Remove(_ context.Context, key []byte) error {
 	stringKey := string(key)
-	r.WriteState.Add(stringKey)
+	r.keys[stringKey] |= Write
 	r.changedValues[stringKey] = nil
 	return nil
 }
 
 func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	stringKey := string(key)
-	r.ReadState.Add(stringKey)
+
+	if err := r.checkState(ctx, key); err != nil {
+		return nil, err
+	}
+	r.keys[stringKey] |= Read
 	if value, ok := r.changedValues[stringKey]; ok {
-		if value == nil {
+		if value == nil { // value was removed.
 			return nil, database.ErrNotFound
 		}
 		return value, nil
 	}
-	return r.State.GetValue(ctx, key)
+	value = r.stateKeys[stringKey]
+	if value == nil { // no such key exist.
+		return nil, database.ErrNotFound
+	}
+	return value, nil
 }
 
 func (r *Recorder) GetStateKeys() Keys {
-	result := Keys{}
-	for key := range r.ReadState {
-		result.Add(key, Read)
-	}
-	for key := range r.WriteState {
-		if _, err := r.State.GetValue(context.Background(), []byte(key)); err != nil && errors.Is(err, database.ErrNotFound) {
-			if r.changedValues[key] == nil {
-				// not a real write since the key was not already present and is being deleted
-				continue
-			}
-			// wasn't found so needs to be allocated
-			result.Add(key, Allocate)
-		}
-		result.Add(key, Write)
-	}
-	return result
+	return r.keys
 }
