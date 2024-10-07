@@ -31,6 +31,7 @@ import (
 )
 
 const (
+	amountToTransfer               = 1
 	pendingTargetMultiplier        = 10
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
@@ -220,11 +221,12 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
 						return fmt.Errorf("%s has insufficient funds", sender.Address)
 					}
-					funds[sender.Address] = balance - feePerTx
+					funds[sender.Address] = balance - feePerTx - amountToTransfer
+					funds[recipient] += amountToTransfer
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := sh.GetTransfer(recipient, 1, uniqueBytes())
+					actions := sh.GetTransfer(recipient, amountToTransfer, uniqueBytes())
 					return issuer.Send(cctx, actions, factory, feePerTx)
 				})
 			}
