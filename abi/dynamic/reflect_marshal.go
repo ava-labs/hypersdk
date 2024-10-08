@@ -14,6 +14,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -66,7 +67,11 @@ func Unmarshal(inputABI abi.ABI, typeName string, data []byte) (string, error) {
 
 	dynamicValue := reflect.New(dynamicType).Interface()
 
-	err = codec.LinearCodec.Unmarshal(data, dynamicValue)
+	packer := wrappers.Packer{
+		Bytes:   data,
+		MaxSize: consts.NetworkSizeLimit,
+	}
+	err = codec.LinearCodec.UnmarshalFrom(&packer, dynamicValue)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal data: %w", err)
 	}
