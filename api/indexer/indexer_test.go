@@ -13,6 +13,41 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
 
+func TestBlockIndex(t *testing.T) {
+	require := require.New(t)
+	var (
+		numExecutedBlocks = 4
+	)
+	indexer, executedBlocks, _ := createTestIndexer(t, numExecutedBlocks)
+	// Confirm we have indexed the expected window of blocks
+	checkBlocks(t, indexer, executedBlocks)
+	require.NoError(indexer.Close())
+}
+
+func TestBlockIndexRestart(t *testing.T) {
+	require := require.New(t)
+	var (
+		numExecutedBlocks = 4
+	)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, numExecutedBlocks)
+
+	// Confirm we have indexed the expected window of blocks
+	checkBlocks(t, indexer, executedBlocks)
+	require.NoError(indexer.Close())
+
+	// Confirm we have indexed the expected window of blocks after restart
+	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser())
+	require.NoError(err)
+	checkBlocks(t, restartedIndexer, executedBlocks)
+	require.NoError(restartedIndexer.Close())
+
+	// Confirm we have indexed the expected window of blocks after restart
+	restartedIndexerSingleBlockWindow, err := NewIndexer(indexerDir, chaintest.NewEmptyParser())
+	require.NoError(err)
+	checkBlocks(t, restartedIndexerSingleBlockWindow, executedBlocks)
+	require.NoError(restartedIndexerSingleBlockWindow.Close())
+}
+
 func createTestIndexer(
 	t *testing.T,
 	numExecutedBlocks int,
@@ -63,39 +98,4 @@ func checkBlocks(
 		require.NoError(err)
 		require.Equal(expectedBlk.BlockID, blkByID.BlockID)
 	}
-}
-
-func TestBlockIndex(t *testing.T) {
-	require := require.New(t)
-	var (
-		numExecutedBlocks = 4
-	)
-	indexer, executedBlocks, _ := createTestIndexer(t, numExecutedBlocks)
-	// Confirm we have indexed the expected window of blocks
-	checkBlocks(t, indexer, executedBlocks)
-	require.NoError(indexer.Close())
-}
-
-func TestBlockIndexRestart(t *testing.T) {
-	require := require.New(t)
-	var (
-		numExecutedBlocks = 4
-	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, numExecutedBlocks)
-
-	// Confirm we have indexed the expected window of blocks
-	checkBlocks(t, indexer, executedBlocks)
-	require.NoError(indexer.Close())
-
-	// Confirm we have indexed the expected window of blocks after restart
-	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser())
-	require.NoError(err)
-	checkBlocks(t, restartedIndexer, executedBlocks)
-	require.NoError(restartedIndexer.Close())
-
-	// Confirm we have indexed the expected window of blocks after restart
-	restartedIndexerSingleBlockWindow, err := NewIndexer(indexerDir, chaintest.NewEmptyParser())
-	require.NoError(err)
-	checkBlocks(t, restartedIndexerSingleBlockWindow, executedBlocks)
-	require.NoError(restartedIndexerSingleBlockWindow.Close())
 }

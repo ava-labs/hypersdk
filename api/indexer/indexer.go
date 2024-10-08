@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -21,7 +20,7 @@ import (
 )
 
 // TODO: implement database cleanup
-var errBlockNotFound = errors.New("block not found")
+var ErrBlockNotFound = errors.New("block not found")
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
@@ -29,7 +28,6 @@ type Indexer struct {
 	blockDB         *pebble.Database
 	blockIDLookupDB *pebble.Database
 	txLookupDB      *pebble.Database
-	lastHeight      atomic.Uint64
 	parser          chain.Parser
 }
 
@@ -49,27 +47,34 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 		return nil, fmt.Errorf("failed to create tx DB: %w", err)
 	}
 
-	lastHeightValue := uint64(0)
-	lastHeightBytes, err := blockIDLookupDB.Get([]byte("latest"))
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return nil, fmt.Errorf("failed to get latest block height: %w", err)
-	}
-	if err == nil {
-		lastHeightValue = unpackUint64(lastHeightBytes)
-	}
-
 	indexer := &Indexer{
 		blockDB:         blockDB,
 		blockIDLookupDB: blockIDLookupDB,
 		txLookupDB:      txLookupDB,
 		parser:          parser,
 	}
-	indexer.lastHeight.Store(lastHeightValue)
 
 	return indexer, nil
 }
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
+	errChan := make(chan error, 3)
+
+	go func() { errChan <- i.saveTransactionIDs(blk) }()
+	go func() { errChan <- i.saveBlock(blk) }()
+	go func() { errChan <- i.saveBlockHeight(blk) }()
+
+	for j := 0; j < 3; j++ {
+		if err := <-errChan; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Indexer) saveTransactionIDs(blk *chain.ExecutedBlock) error {
+	//save trasnsaction IDs
 	txBatch := i.txLookupDB.NewBatch()
 	defer txBatch.Reset()
 
@@ -85,19 +90,32 @@ func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	return i.storeBlock(blk)
+	return nil
 }
 
-func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
+func (i *Indexer) saveBlock(blk *chain.ExecutedBlock) error {
+	blockBatch := i.blockDB.NewBatch()
+	defer blockBatch.Reset()
+
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
 		return err
 	}
 
-	if err := i.blockDB.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
+	if err := blockBatch.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
 
+	if err := blockBatch.Write(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *Indexer) saveBlockHeight(blk *chain.ExecutedBlock) error {
+
+	//save block height
 	blockIdBatch := i.blockIDLookupDB.NewBatch()
 
 	if err := blockIdBatch.Put(blk.BlockID[:], packUint64(blk.Block.Hght)); err != nil {
@@ -112,21 +130,27 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	i.lastHeight.Store(blk.Block.Hght)
-
 	return nil
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
-	height := i.lastHeight.Load()
-	return i.GetBlockByHeight(height)
+	lastHeightValue := uint64(0)
+	lastHeightBytes, err := i.blockIDLookupDB.Get([]byte("latest"))
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get latest block height: %w", err)
+	}
+	if err == nil {
+		lastHeightValue = unpackUint64(lastHeightBytes)
+	}
+
+	return i.GetBlockByHeight(lastHeightValue)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
 	blkBytes, err := i.blockDB.Get(packUint64(height))
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			return nil, errBlockNotFound
+			return nil, ErrBlockNotFound
 		}
 		return nil, err
 	}
