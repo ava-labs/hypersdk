@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
 

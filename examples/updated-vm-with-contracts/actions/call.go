@@ -6,8 +6,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
@@ -45,7 +45,7 @@ func (c *Call) StateKeysMaxChunks() []uint16 {
 }
 
 // Specify all statekeys Execute can touch
-func (c *Call) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (c *Call) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{}
 }
 

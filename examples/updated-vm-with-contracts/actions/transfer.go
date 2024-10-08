@@ -8,14 +8,12 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	contractConsts "github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
-
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 const (
@@ -41,18 +39,14 @@ type Transfer struct {
 }
 
 func (*Transfer) GetTypeID() uint8 {
-	return mconsts.TransferID
+	return contractConsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (t *Transfer) StateKeys(actor codec.Address) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To)):  state.All,
 	}
-}
-
-func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
 func (t *Transfer) Execute(
@@ -122,5 +116,5 @@ type TransferResult struct {
 }
 
 func (*TransferResult) GetTypeID() uint8 {
-	return mconsts.TransferID // Common practice is to use the action ID
+	return contractConsts.TransferID // Common practice is to use the action ID
 }

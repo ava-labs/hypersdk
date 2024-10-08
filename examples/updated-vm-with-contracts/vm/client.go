@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
@@ -80,7 +80,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 		if !shouldExit {
 			utils.Outf(
 				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min, consts.Decimals),
+				utils.FormatBalance(min),
 				addr,
 			)
 		}

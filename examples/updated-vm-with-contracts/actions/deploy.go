@@ -7,8 +7,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
@@ -29,14 +29,8 @@ func (*Deploy) ComputeUnits(chain.Rules) uint64 {
 	return consts.DeployUnits
 }
 
-func (d *Deploy) StateKeysMaxChunks() []uint16 {
-	byteChunks := storage.MaxContractSize / consts.ChunkSize
-	accountKeyChunks := uint16(1)
-	return []uint16{uint16(byteChunks), accountKeyChunks}
-}
-
 // Specify all statekeys Execute can touch
-func (d *Deploy) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (d *Deploy) StateKeys(actor codec.Address) state.Keys {
 	contractID := sha256.Sum256(d.ContractBytes)
 	contractBytesKey := storage.ContractBytesKey(contractID[:])
 	account := storage.GetAccountAddress(contractID[:], d.CreationData)
