@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"

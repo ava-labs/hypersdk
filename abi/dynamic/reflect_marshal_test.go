@@ -64,6 +64,7 @@ func TestDynamicMarshal(t *testing.T) {
 		})
 	}
 }
+
 func TestDynamicMarshalErrors(t *testing.T) {
 	require := require.New(t)
 
