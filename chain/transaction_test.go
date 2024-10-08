@@ -138,6 +138,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 			},
 		},
 	}
+	// call Bytes so that the "bytes" field would get populated.
+	_, err = txBeforeSign.Bytes()
+	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
