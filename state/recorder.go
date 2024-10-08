@@ -11,7 +11,7 @@ import (
 )
 
 // The Recorder struct wraps an [Immutable] state object and tracks the permissions used
-// agains the various keys. The Recorder struct implements the [Mutable] interface, allowing
+// against the various keys. The Recorder struct implements the [Mutable] interface, allowing
 // it to act as a direct replacement for a database view.
 // The Recorder struct maintain the same semantics as tstate_view in regards to the various
 // required access permissions.

@@ -139,7 +139,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
-	require.Equal(keys["key1"], Read)
+	require.Equal(Read, keys["key1"])
 
 	// test with read+write permission.
 	keys = Keys{}
@@ -150,7 +150,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
-	require.Equal(keys["key2"], Read|Write)
+	require.Equal(Read|Write, keys["key2"])
 }
 
 func (k Keys) compare(k2 Keys) bool {
@@ -167,7 +167,7 @@ func (k Keys) compare(k2 Keys) bool {
 
 func TestKeysMarshalingFuzz(t *testing.T) {
 	require := require.New(t)
-	rand := rand.New(rand.NewSource(0))
+	rand := rand.New(rand.NewSource(0)) //nolint:gosec
 	for fuzzIteration := 0; fuzzIteration < 1000; fuzzIteration++ {
 		keys := Keys{}
 		for keyIdx := 0; keyIdx < rand.Int()%32; keyIdx++ {

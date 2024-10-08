@@ -9,15 +9,18 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
-
-	"github.com/stretchr/testify/require"
 )
 
 func randomNewKey() []byte {
 	randNewKey := make([]byte, 32)
-	rand.Read(randNewKey)
+	_, err := rand.Read(randNewKey)
+	if err != nil {
+		panic(err)
+	}
 	randNewKey[30] = 0
 	randNewKey[31] = 1
 	return randNewKey
@@ -30,9 +33,12 @@ func randomizeView(tstate *tstate.TState, keyCount int) (*tstate.TStateView, [][
 	scope := map[string]state.Permissions{}
 	for i := 0; i < keyCount; i++ {
 		keys[i] = randomNewKey()
-		rand.Read(values[i][:])
-		storage[string(keys[i][:])] = values[i][:]
-		scope[string(keys[i][:])] = state.All
+		_, err := rand.Read(values[i][:])
+		if err != nil {
+			panic(err)
+		}
+		storage[string(keys[i])] = values[i][:]
+		scope[string(keys[i])] = state.All
 	}
 	// create new view
 	return tstate.NewView(scope, storage), keys, scope, storage
@@ -51,11 +57,13 @@ func TestRecorderInnerFuzz(t *testing.T) {
 
 	randomKey := func() []byte {
 		randKey := make([]byte, 1)
-		rand.Read(randKey)
-		randKey[0] = randKey[0] % byte(len(keys))
+		_, err := rand.Read(randKey)
+		require.NoError(err)
+		randKey[0] %= byte(len(keys))
 		for removedKeys[string(keys[randKey[0]])] {
-			rand.Read(randKey)
-			randKey[0] = randKey[0] % byte(len(keys))
+			_, err := rand.Read(randKey)
+			randKey[0] %= byte(len(keys))
+			require.NoError(err)
 		}
 		return keys[randKey[0]]
 	}
@@ -66,7 +74,8 @@ func TestRecorderInnerFuzz(t *testing.T) {
 		recorder := state.NewRecorder(stateView)
 		for j := 0; j <= 32; j++ {
 			op := make([]byte, 1)
-			rand.Read(op)
+			_, err := rand.Read(op)
+			require.NoError(err)
 			switch op[0] % 6 {
 			case 0: // insert into existing entry
 				randKey := randomKey()
@@ -103,7 +112,7 @@ func TestRecorderInnerFuzz(t *testing.T) {
 				// add the new key to the scope
 				scope[string(randKey)] = state.Read
 				value, err := recorder.GetValue(context.Background(), randKey)
-				require.Error(err)
+				require.ErrorIs(err, database.ErrNotFound)
 				require.Empty(value)
 				require.True(recorder.GetStateKeys()[string(randKey)].Has(state.Read))
 			}
@@ -115,7 +124,7 @@ type testingReadonlyDatasource struct {
 	storage map[string][]byte
 }
 
-func (c *testingReadonlyDatasource) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (c *testingReadonlyDatasource) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	if v, has := c.storage[string(key)]; has {
 		return v, nil
 	}
@@ -136,17 +145,20 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 
 	randomKey := func() []byte {
 		randKey := make([]byte, 1)
-		rand.Read(randKey)
-		randKey[0] = randKey[0] % byte(len(keys))
+		_, err := rand.Read(randKey)
+		require.NoError(err)
+		randKey[0] %= byte(len(keys))
 		for removedKeys[string(keys[randKey[0]])] {
-			rand.Read(randKey)
-			randKey[0] = randKey[0] % byte(len(keys))
+			_, err := rand.Read(randKey)
+			randKey[0] %= byte(len(keys))
+			require.NoError(err)
 		}
 		return keys[randKey[0]]
 	}
 	randomValue := func() []byte {
 		randVal := make([]byte, 32)
-		rand.Read(randVal)
+		_, err := rand.Read(randVal)
+		require.NoError(err)
 		return randVal
 	}
 
@@ -157,7 +169,8 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 		recorder := state.NewRecorder(&testingReadonlyDatasource{storage})
 		for j := 0; j <= 32; j++ {
 			op := make([]byte, 1)
-			rand.Read(op)
+			_, err := rand.Read(op)
+			require.NoError(err)
 			switch op[0] % 6 {
 			case 0: // insert into existing entry
 				randKey := randomKey()
@@ -220,14 +233,14 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 				randKey := randomNewKey()
 
 				value, err := recorder.GetValue(context.Background(), randKey)
-				require.Error(err)
+				require.ErrorIs(err, database.ErrNotFound)
 				require.Empty(value)
 				require.True(recorder.GetStateKeys()[string(randKey)].Has(state.Read))
 
 				// add the new key to the scope
 				scope[string(randKey)] = state.Read
 				value, err = stateView.GetValue(context.Background(), randKey)
-				require.Error(err)
+				require.ErrorIs(err, database.ErrNotFound)
 				require.Empty(value)
 			}
 		}
