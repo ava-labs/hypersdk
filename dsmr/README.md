@@ -44,8 +44,46 @@ Block processing occurs only AFTER we have already verified and accepted a block
 
 ### Breakdown
 
-- Implement network handlers (`requestChunkSignatureShare`, `chunkSignature`, `requestChunk`, `chunk`)
-- Implement chunk + local verification context + chunk builder
-- Implement chunk storage / signer / aggregate signer
-- Implement chunk block builder
-- Implement chunk block executor
+#### P2P Client/Server w/ ACP-118 and Chunk Builder
+
+- Implement P2P client/server functions for: `getChunk`, `putChunk`, `getSignatureShare`, `putSignatureShare`, and `putChunkCertificate`.
+- Implement chunk builder that triggers chunk building and distribution via a channel (can be triggered via either sufficient transactions or timer)
+- Migrate testing from storage to P2P layer, so that the tests run against the interface exported by DSMR
+
+#### Block Builder
+
+- Implement `BuildBlock` that uses `GatherChunkCerts() []*ChunkCertificate` from the storage struct
+- Return a `ChunkBlock` type that implements `snowman.Block`
+- Verify verifies every chunk certificate
+- Reject is a no-op that abandons the block (will need to handle duplicate chunks across processing chain of blocks)
+- Accept should be a no-op until we've implemented the chunk block executor in the next stage
+
+#### Chunk Block Executor
+
+- fetch and store any chunks that are not stored locally
+- Filter duplicate transactions
+- define block assembler interface to assemble an executable block
+
+```golang
+type Assembler[T Tx] interface {
+    AssembleBlock(parentID ids.ID, blockID ids.ID, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
+}
+
+type Executor[Block any, Result any] interface {
+    ExecuteBlock(b Block) (Result, error)
+}
+```
+
+Future TODOs:
+- backpressure if the chain is moving faster than we can backfill chunks from accepted blocks
+- apply fortification fees
+
+#### Block Assembler + Executor / Integrate into HyperSDK w/ *chain.Block type
+
+Define the `Assembler` and `Executor` types for the current `*chain.Block` type. The `Result` should be `*chain.ExecutedBlock`, so that we can pipe the result through to our current APIs that require `event.Subscription[*chain.ExecutedBlock]`.
+
+#### Swap Ghost Signatures / Certs for Warp Verification
+
+- Switch from using empty implementations of `ChunkSignatureShare` and `ChunkCertificate` to using Warp signatures
+- Add epoch'ed validator sets to improve stability
+
