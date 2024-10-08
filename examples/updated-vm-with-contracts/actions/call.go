@@ -14,6 +14,11 @@ import (
 
 var _ chain.Action = (*Call)(nil)
 
+type StateKeyPermission struct {
+	Key        string
+	Permission state.Permissions
+}
+
 // Deploy, deploys a contract to the chain with the given bytes
 type Call struct {
 	// address of the contract
@@ -31,6 +36,9 @@ type Call struct {
 	// amount of gas to use
 	Fuel uint64 `json:"fuel"`
 
+	// state keys that will be accessed during the execution
+	SpecifiedStateKeys []StateKeyPermission `json:"statekeys"`
+	
 	// runtime
 	r *runtime.WasmRuntime
 }
@@ -40,13 +48,12 @@ func (*Call) ComputeUnits(chain.Rules) uint64 {
 	return consts.CallUnits
 }
 
-func (c *Call) StateKeysMaxChunks() []uint16 {
-	return []uint16{}
-}
-
-// Specify all statekeys Execute can touch
-func (c *Call) StateKeys(actor codec.Address) state.Keys {
-	return state.Keys{}
+func (t *Call) StateKeys(_ codec.Address) state.Keys {
+	result := state.Keys{}
+	for _, stateKeyPermission := range t.SpecifiedStateKeys {
+		result.Add(stateKeyPermission.Key, stateKeyPermission.Permission)
+	}
+	return result
 }
 
 // Execute deploys the contract to the chain, returning {deploy contract ID, deployed contract address}

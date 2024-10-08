@@ -4,16 +4,21 @@
 package vm
 
 import (
+	"context"
+	"encoding/hex"
 	"net/http"
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/actions"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
+	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
-const JSONRPCEndpoint = "/morpheusapi"
+const JSONRPCEndpoint = "/updatedvmwithcontractsapi"
 
 var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
 
@@ -62,4 +67,52 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	}
 	reply.Amount = balance
 	return err
+}
+
+
+// Contract endpoints
+type SimulateCallTxArgs struct {
+	CallTx actions.Call  `json:"callTx"`
+	Actor  codec.Address `json:"actor"`
+}
+
+type SimulateStateKey struct {
+	HexKey      string `json:"hex"`
+	Permissions byte   `json:"perm"`
+}
+type SimulateCallTxReply struct {
+	StateKeys    []SimulateStateKey `json:"stateKeys"`
+	FuelConsumed uint64             `json:"fuel"`
+}
+
+func (j *JSONRPCServer) SimulateCallContractTx(req *http.Request, args *SimulateCallTxArgs, reply *SimulateCallTxReply) (err error) {
+	stateKeys, fuelConsumed, err := j.simulate(req.Context(), args.CallTx, args.Actor)
+	if err != nil {
+		return err
+	}
+	reply.StateKeys = make([]SimulateStateKey, 0, len(stateKeys))
+	for key, permission := range stateKeys {
+		reply.StateKeys = append(reply.StateKeys, SimulateStateKey{HexKey: hex.EncodeToString([]byte(key)), Permissions: byte(permission)})
+	}
+	reply.FuelConsumed = fuelConsumed
+	return nil
+}
+
+func (j *JSONRPCServer) simulate(ctx context.Context, callAction actions.Call, actor codec.Address) (state.Keys, uint64, error) {
+	currentState, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	recorder := storage.NewRecorder(currentState)
+	callInfo := &runtime.CallInfo{
+		Contract:     callAction.ContractAddress,
+		Actor:        actor,
+		State:        &storage.ContractStateManager{Mutable: recorder},
+		FunctionName: callAction.FunctionName,
+		Params:       callAction.Args,
+		Fuel:         callAction.Fuel,
+		Value:        callAction.Value,
+	}
+	_, err = wasmRuntime.CallContract(ctx, callInfo)
+	return recorder.GetStateKeys(), callAction.Fuel - callInfo.RemainingFuel(), err
 }

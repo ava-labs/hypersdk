@@ -15,12 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
 var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
+	// global runtime which doesn't work in parallel. 
+	// Better to spawn a pool of runtimes and sequence them accordingly
+	wasmRuntime  *runtime.WasmRuntime
 )
 
 // Setup types

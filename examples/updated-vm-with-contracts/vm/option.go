@@ -3,7 +3,10 @@
 
 package vm
 
-import "github.com/ava-labs/hypersdk/vm"
+import (
+	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/x/contracts/runtime"
+)
 
 const Namespace = "controller"
 
@@ -23,6 +26,13 @@ func With() vm.Option {
 			return nil
 		}
 		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
+		return nil
+	})
+}
+
+func WithRuntime() vm.Option {
+	return vm.NewOption(Namespace+"runtime", *runtime.NewConfig(), func(v *vm.VM, cfg runtime.Config) error {
+		wasmRuntime = runtime.NewRuntime(&cfg, v.Logger())
 		return nil
 	})
 }
