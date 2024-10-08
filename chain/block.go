@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -21,11 +22,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -163,7 +166,7 @@ type StatefulBlock struct {
 	txsSet   set.Set[ids.ID]
 
 	results    []*Result
-	feeManager *fees.Manager
+	feeManager *internalfees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -233,11 +236,11 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			if err != nil {
 				return err
 			}
-			batchVerifier.Add(txDigest, tx.Auth)
+			batchVerifier.Add(unsignedTxBytes, tx.Auth)
 		}
 	}
 	return nil
@@ -290,7 +293,7 @@ func (b *StatefulBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
@@ -426,7 +429,10 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return err
+	}
 	if b.Hght != parentHeight+1 {
 		return ErrInvalidBlockHeight
 	}
@@ -440,7 +446,11 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
+	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return err
+	}
+	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
 	}
@@ -479,7 +489,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	if err != nil {
 		return err
 	}
-	parentFeeManager := fees.NewManager(feeRaw)
+	parentFeeManager := internalfees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -731,7 +741,10 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
+		acceptedHeight, err := database.ParseUInt64(acceptedHeightRaw)
+		if err != nil {
+			return nil, err
+		}
 		if acceptedHeight == b.Hght {
 			b.vm.Logger().Info("accepted block not processed but found post-execution state on-disk",
 				zap.Uint64("height", b.Hght),
@@ -890,8 +903,87 @@ func (b *StatefulBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) FeeManager() *fees.Manager {
+func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 	return b.feeManager
+}
+
+type ExecutedBlock struct {
+	BlockID    ids.ID          `json:"blockID"`
+	Block      *StatelessBlock `json:"block"`
+	Results    []*Result       `json:"results"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
+}
+
+func NewExecutedBlockFromStateful(b *StatefulBlock) *ExecutedBlock {
+	return &ExecutedBlock{
+		BlockID:    b.ID(),
+		Block:      b.StatelessBlock,
+		Results:    b.results,
+		UnitPrices: b.feeManager.UnitPrices(),
+	}
+}
+
+func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions) (*ExecutedBlock, error) {
+	blkID, err := statelessBlock.ID()
+	if err != nil {
+		return nil, err
+	}
+	return &ExecutedBlock{
+		BlockID:    blkID,
+		Block:      statelessBlock,
+		Results:    results,
+		UnitPrices: unitPrices,
+	}, nil
+}
+
+func (b *ExecutedBlock) Marshal() ([]byte, error) {
+	blockBytes, err := b.Block.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
+	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	writer.PackBytes(blockBytes)
+	resultBytes, err := MarshalResults(b.Results)
+	if err != nil {
+		return nil, err
+	}
+	writer.PackBytes(resultBytes)
+	writer.PackFixedBytes(b.UnitPrices.Bytes())
+
+	return writer.Bytes(), writer.Err()
+}
+
+func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
+	reader := codec.NewReader(bytes, consts.NetworkSizeLimit)
+
+	var blkMsg []byte
+	reader.UnpackBytes(-1, true, &blkMsg)
+	blk, err := UnmarshalBlock(blkMsg, parser)
+	if err != nil {
+		return nil, err
+	}
+	var resultsMsg []byte
+	reader.UnpackBytes(-1, true, &resultsMsg)
+	results, err := UnmarshalResults(resultsMsg)
+	if err != nil {
+		return nil, err
+	}
+	unitPricesBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &unitPricesBytes)
+	prices, err := fees.UnpackDimensions(unitPricesBytes)
+	if err != nil {
+		return nil, err
+	}
+	if !reader.Empty() {
+		return nil, ErrInvalidObject
+	}
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
+	return NewExecutedBlock(blk, results, prices)
 }
 
 type SyncableBlock struct {

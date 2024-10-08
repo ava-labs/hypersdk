@@ -36,7 +36,7 @@ func (h *Handler) SetKey() error {
 			"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 			i,
 			addrStr,
-			utils.FormatBalance(balance, h.c.Decimals()),
+			utils.FormatBalance(balance),
 			h.c.Symbol(),
 		)
 	}
@@ -73,7 +73,7 @@ func (h *Handler) Balance(checkAllChains bool) error {
 		utils.Outf(
 			"{{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 			addr,
-			utils.FormatBalance(balance, h.c.Decimals()),
+			utils.FormatBalance(balance),
 			h.c.Symbol(),
 		)
 	}
