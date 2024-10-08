@@ -236,10 +236,7 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			unsignedTxBytes, err := tx.Transaction.Bytes()
-			if err != nil {
-				return err
-			}
+			unsignedTxBytes := tx.UnsignedTxnBytes()
 			batchVerifier.Add(unsignedTxBytes, tx.Auth)
 		}
 	}

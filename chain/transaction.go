@@ -18,7 +18,6 @@ type Transaction struct {
 	Actions Actions `json:"actions"`
 
 	bytes []byte
-	size  int
 }
 
 func NewTx(base *Base, actions Actions) *Transaction {
@@ -85,8 +84,6 @@ func (t *Transaction) Sign(
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
 	return UnmarshalSignedTx(p, actionRegistry, authRegistry)
 }
-
-func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
@@ -228,7 +225,6 @@ func UnmarshalTx(
 	}
 	codecBytes := p.Bytes()
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	tx.size = len(tx.bytes)
 	return &tx, nil
 }
 

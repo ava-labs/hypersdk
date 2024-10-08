@@ -193,16 +193,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	var seen int
 	for _, tx := range txs {
 		// Verify signature async
-		unsignedTxBytes, err := tx.Transaction.Bytes()
-		if err != nil {
-			g.vm.Logger().Warn(
-				"unable to compute tx digest",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			batchVerifier.Done(nil)
-			return nil
-		}
+		unsignedTxBytes := tx.UnsignedTxnBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 
 		// Add incoming txs to the cache to make

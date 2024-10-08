@@ -148,8 +148,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	unsignedTxBytes, err := signedTx.Transaction.Bytes()
-	require.NoError(err)
+	unsignedTxBytes := signedTx.UnsignedTxnBytes()
 	originalUnsignedTxBytes, err := tx.Bytes()
 	require.NoError(err)
 

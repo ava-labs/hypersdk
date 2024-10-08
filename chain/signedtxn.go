@@ -39,6 +39,8 @@ type SignedTransaction struct {
 	stateKeys state.Keys
 }
 
+func (t *SignedTransaction) UnsignedTxnBytes() []byte { return t.Transaction.bytes }
+
 func (t *SignedTransaction) Bytes() []byte { return t.bytes }
 
 func (t *SignedTransaction) Size() int { return t.size }
