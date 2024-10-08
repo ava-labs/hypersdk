@@ -147,24 +147,8 @@ func (*Result) GetTypeID() uint8 {
 	return mconsts.ResultOutputID
 }
 
-// Marshal encodes a type as bytes.
-func (r *Result) Marshal(p *codec.Packer) {
-	p.PackBytes(r.Value)
-	p.PackUint64(r.ConsumedFuel)
-}
-
 // Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
 // memory during encoding and to charge bandwidth fees.
 func (r *Result) Size() int {
 	return consts.Uint64Len + consts.Uint32Len + len(r.Value)
-}
-
-func UnmarshalResult(p *codec.Packer) (*Result, error) {
-	var result Result
-	p.UnpackBytes(MaxResultSizeLimit, true, &result.Value)
-	p.UnpackUint64(true)
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }

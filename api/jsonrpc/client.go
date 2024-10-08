@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -237,27 +236,29 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) (state.Keys, []codec.Bytes, error) {
-	args := &SimulatActionArgs{
-		Actions: marshaledActions,
-		Actor:   actor,
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+	args := &SimulatActionsArgs{
+		Actor: actor,
 	}
 
-	marshaledActions, err := chain.MarshalTyped(actions)
-	if err != nil {
-		return nil, nil, err
+	for _, action := range actions {
+		marshaledAction, err := chain.MarshalTyped(action)
+		if err != nil {
+			return nil, err
+		}
+		args.Actions = append(args.Actions, marshaledAction)
 	}
 
-	resp := new(SimulateActionReply)
-	err = cli.requester.SendRequest(
+	resp := new(SimulateActionsReply)
+	err := cli.requester.SendRequest(
 		ctx,
 		"simulateActions",
 		args,
 		resp,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return resp.StateKeys, resp.Outputs, nil
+	return resp.ActionResults, nil
 }

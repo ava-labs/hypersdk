@@ -232,32 +232,40 @@ func (j *JSONRPCServer) Execute(
 	return nil
 }
 
-type SimulatActionArgs struct {
-	Actions codec.Bytes   `json:"actions"`
+type SimulatActionsArgs struct {
+	Actions []codec.Bytes `json:"actions"`
 	Actor   codec.Address `json:"actor"`
 }
 
-type SimulateActionReply struct {
-	Outputs   []codec.Bytes `json:"outputs"`
-	StateKeys state.Keys    `json:"stateKeys"`
+type SimulateActionResult struct {
+	Output    codec.Bytes `json:"output"`
+	StateKeys state.Keys  `json:"stateKeys"`
+}
+
+type SimulateActionsReply struct {
+	ActionResults []SimulateActionResult `json:"actionresults"`
 }
 
 func (j *JSONRPCServer) SimulateActions(
 	req *http.Request,
-	args *SimulatActionArgs,
-	reply *SimulateActionReply,
+	args *SimulatActionsArgs,
+	reply *SimulateActionsReply,
 ) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
 	actionRegistry := j.vm.ActionRegistry()
-	actionsReader := codec.NewReader(args.Actions, len(args.Actions)) // will likely be much smaller than this
-	actions, err := chain.UnmarshalActions(actionsReader, actionRegistry)
-	if err != nil {
-		return fmt.Errorf("%w: unable to unmarshal on public service", err)
-	}
-	if !actionsReader.Empty() {
-		return errors.New("tx has extra bytes")
+	var actions chain.Actions
+	for _, actionBytes := range args.Actions {
+		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
+		action, err := (*actionRegistry).Unmarshal(actionsReader)
+		if err != nil {
+			return err
+		}
+		if !actionsReader.Empty() {
+			return errors.New("tx has extra bytes")
+		}
+		actions = append(actions, action)
 	}
 	if len(actions) == 0 {
 		return errors.New("simulateAction expects at least a single action, none found")
@@ -273,19 +281,22 @@ func (j *JSONRPCServer) SimulateActions(
 	for _, action := range actions {
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
 
+		var actionResult SimulateActionResult
 		if actionOutput == nil {
-			reply.Outputs = append(reply.Outputs, []byte{})
+			actionResult.Output = []byte{}
 		} else {
-			output, err := chain.MarshalTyped(actionOutput)
+			actionResult.Output, err = chain.MarshalTyped(actionOutput)
 			if err != nil {
 				return fmt.Errorf("failed to marshal output: %w", err)
 			}
-			reply.Outputs = append(reply.Outputs, output)
 		}
 		if err != nil {
 			return err
 		}
+		actionResult.StateKeys = recorder.GetStateKeys()
+		reply.ActionResults = append(reply.ActionResults, actionResult)
+		// create another recorder to recored the next action.
+		recorder = state.NewRecorder(recorder)
 	}
-	reply.StateKeys = recorder.GetStateKeys()
 	return nil
 }

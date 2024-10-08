@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/near/borsh-go"
@@ -15,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -144,19 +147,28 @@ var callCmd = &cobra.Command{
 			Fuel:            uint64(1000000000),
 		}
 
-		specifiedStateKeysSet, encodedActionResults, err := cli.SimulateAction(ctx, action, priv.Address)
+		actionSimulationResults, err := cli.SimulateActions(ctx, chain.Actions{action}, priv.Address)
 		if err != nil {
 			return err
 		}
+		if len(actionSimulationResults) != 1 {
+			return fmt.Errorf("unexpected number of returned actions. One action expected, %d returned", len(actionSimulationResults))
+		}
+		actionSimulationResult := actionSimulationResults[0]
 
-		rtx := codec.NewReader(encodedActionResults, len(encodedActionResults))
-		simulationResult, err := actions.UnmarshalResult(rtx)
+		rtx := codec.NewReader(actionSimulationResult.Output, len(actionSimulationResult.Output))
+
+		simulationResultOutput, err := (*vm.OutputParser).Unmarshal(rtx)
 		if err != nil {
 			return err
 		}
+		simulationResult, ok := simulationResultOutput.(*actions.Result)
+		if !ok {
+			return errors.New("returned output from SimulateActions was not actions.Result")
+		}
 
-		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(specifiedStateKeysSet))
-		for key, value := range specifiedStateKeysSet {
+		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(actionSimulationResult.StateKeys))
+		for key, value := range actionSimulationResult.StateKeys {
 			action.SpecifiedStateKeys = append(action.SpecifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
 		}
 		action.Fuel = simulationResult.ConsumedFuel
