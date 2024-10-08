@@ -14,14 +14,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/dsmr"
 	"github.com/ava-labs/hypersdk/internal/eheap"
 	"github.com/ava-labs/hypersdk/internal/list"
 )
 
 const maxPrealloc = 4_096
 
-var _ dsmr.Mempool[Item] = (*Mempool[Item])(nil)
+// var _ dsmr.Mempool[Item] = (*Mempool[Item])(nil)
 
 type Item interface {
 	eheap.Item
