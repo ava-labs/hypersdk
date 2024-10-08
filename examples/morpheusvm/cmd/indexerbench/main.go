@@ -45,27 +45,23 @@ func main() {
 		log.Fatalf("filling indexer: %s", err)
 	}
 
-	log.Printf("## Benchmarking indexer without restart")
+	for i := 0; i < 10; i++ {
+		if i == 6 {
+			log.Println("restarting indexer")
+			err = idxer.Close()
+			if err != nil {
+				log.Fatalf("closing indexer: %s", err)
+			}
 
-	err = bench(idxer, itemsToBenchmark, blockCount)
-	if err != nil {
-		log.Fatalf("benchmarking indexer without restart: %s", err)
-	}
-
-	log.Println("## Benchmarking indexer with restart")
-	err = idxer.Close()
-	if err != nil {
-		log.Fatalf("closing indexer: %s", err)
-	}
-
-	idxer, err = indexer.NewIndexer(TEST_DIR, parser)
-	if err != nil {
-		log.Fatalf("creating indexer: %s", err)
-	}
-
-	err = bench(idxer, itemsToBenchmark, blockCount)
-	if err != nil {
-		log.Fatalf("benchmarking indexer with restart: %s", err)
+			idxer, err = indexer.NewIndexer(TEST_DIR, parser)
+			if err != nil {
+				log.Fatalf("creating indexer: %s", err)
+			}
+		}
+		err = bench(idxer, itemsToBenchmark, blockCount)
+		if err != nil {
+			log.Fatalf("benchmarking indexer without restart: %s", err)
+		}
 	}
 
 	log.Println("done")
