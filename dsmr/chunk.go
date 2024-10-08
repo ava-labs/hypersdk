@@ -5,6 +5,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -24,13 +25,21 @@ func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
 		Slot:  slot,
 	}
 
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize)}
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
 		return Chunk[T]{}, err
 	}
 	c.bytes = packer.Bytes
 	c.id = utils.ToID(c.bytes)
 	return c, nil
+}
+
+func ParseChunk[T Tx](chunkBytes []byte) (*Chunk[T], error) {
+	chunk := &Chunk[T]{}
+	if err := codec.LinearCodec.Unmarshal(chunkBytes, chunk); err != nil {
+		return nil, err
+	}
+	return chunk, nil
 }
 
 func (c *Chunk[T]) ID() ids.ID {
