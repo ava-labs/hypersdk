@@ -28,9 +28,6 @@ const (
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 
-// TODO:
-// upper bound memory consumption
-// consider switching emap to uint64 and use consistent type everywhere
 
 type ContextProvider[Context any] interface {
 	Context() Context
