@@ -1,7 +1,6 @@
 package dsmr
 
 import (
-	"context"
 	"fmt"
 )
 
@@ -24,24 +23,21 @@ type Node[T Tx] struct {
 	chunks chan Chunk[T]
 }
 
-func (n Node[_]) Run(ctx context.Context, blks chan<- Block) error {
+func (n Node[_]) Run(blks chan<- Block) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case chunk := <-n.chunks:
-			chunkCert, err := n.chunkCertBuilder.NewCert(chunk)
-			if err != nil {
-				return fmt.Errorf("failed to generate chunk cert: %w", err)
-			}
+		chunk := <-n.chunks
 
-			blk, ok := n.blockBuilder.Add(chunkCert)
-			if !ok {
-				continue
-			}
-
-			blks <- blk
+		chunkCert, err := n.chunkCertBuilder.NewCert(chunk)
+		if err != nil {
+			return fmt.Errorf("failed to generate chunk cert: %w", err)
 		}
+
+		blk, ok := n.blockBuilder.Add(chunkCert)
+		if !ok {
+			continue
+		}
+
+		blks <- blk
 	}
 }
 
