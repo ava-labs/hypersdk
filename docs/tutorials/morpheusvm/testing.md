@@ -196,7 +196,7 @@ func (g *simpleTxWorkload) Next() bool {
 	return g.count < g.size
 }
 
-func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.SignedTransaction, workload.TxAssertion, error) {
 	g.count++
 	other, err := ed25519.GeneratePrivateKey()
 	if err != nil {
@@ -292,7 +292,7 @@ func (g *mixedAuthWorkload) Next() bool {
 	return g.count < len(g.addressAndFactories)-1
 }
 
-func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.SignedTransaction, workload.TxAssertion, error) {
 	defer func() { g.count++ }()
 
 	sender := g.addressAndFactories[g.count]

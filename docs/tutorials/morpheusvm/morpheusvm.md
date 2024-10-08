@@ -107,7 +107,7 @@ go get github.com/ava-labs/avalanchego && go mod tidy
 ## Creating `Transfer` Pt. 1
 
 We'll implement a single `Transfer` action to handle payments in a native token.
-Actions are wrapped into the HyperSDK `chain.Transaction` type and executed on-chain.
+Actions are wrapped into the HyperSDK `chain.SignedTransaction` type and executed on-chain.
 
 A HyperSDK transaction includes a slice of actions. When the transaction is executed, it verifies
 the transaction validity and then executes each action included in the transaction sequentially. If any
