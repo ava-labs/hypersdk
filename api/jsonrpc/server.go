@@ -90,7 +90,7 @@ func (j *JSONRPCServer) SubmitTx(
 
 	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
+	tx, err := chain.UnmarshalSignedTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -102,7 +102,7 @@ func (j *JSONRPCServer) SubmitTx(
 	}
 	txID := tx.ID()
 	reply.TxID = txID
-	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, false, []*chain.SignedTransaction{tx})[0]
 }
 
 type LastAcceptedReply struct {

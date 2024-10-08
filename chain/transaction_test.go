@@ -139,7 +139,6 @@ func TestMarshalUnmarshal(t *testing.T) {
 		},
 	}
 
-	require.Nil(tx.Auth)
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(err)
 	require.Equal(txBeforeSign, tx)
@@ -149,9 +148,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	unsignedTxBytes, err := signedTx.UnsignedBytes()
+	unsignedTxBytes, err := signedTx.Transaction.Bytes()
 	require.NoError(err)
-	originalUnsignedTxBytes, err := tx.UnsignedBytes()
+	originalUnsignedTxBytes, err := tx.Bytes()
 	require.NoError(err)
 
 	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)

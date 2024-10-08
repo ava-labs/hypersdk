@@ -125,7 +125,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
 	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, uint64, error) {
+) (func(context.Context) error, *chain.SignedTransaction, uint64, error) {
 	// Get latest fee info
 	unitPrices, err := cli.UnitPrices(ctx, true)
 	if err != nil {
@@ -153,7 +153,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	authFactory chain.AuthFactory,
 	maxFee uint64,
 	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, error) {
+) (func(context.Context) error, *chain.SignedTransaction, error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
@@ -170,8 +170,8 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 
 	// Build transaction
 	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
-	tx := chain.NewTx(base, actions)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	unsignedTx := chain.NewTx(base, actions)
+	tx, err := unsignedTx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}

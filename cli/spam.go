@@ -491,7 +491,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 	p.done <- nil
 }
 
-func (p *pacer) Add(tx *chain.Transaction) error {
+func (p *pacer) Add(tx *chain.SignedTransaction) error {
 	if err := p.ws.RegisterTx(tx); err != nil {
 		return err
 	}

@@ -25,7 +25,7 @@ func GenerateEmptyExecutedBlocks(
 			Prnt:   parentID,
 			Tmstmp: parentTimestamp + timestampOffset*int64(i),
 			Hght:   parentHeight + 1 + uint64(i),
-			Txs:    []*chain.Transaction{},
+			Txs:    []*chain.SignedTransaction{},
 		}
 		blkID, err := statelessBlock.ID()
 		require.NoError(err)

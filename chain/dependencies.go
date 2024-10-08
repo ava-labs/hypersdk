@@ -74,7 +74,7 @@ type VM interface {
 	StateManager() StateManager
 
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
+	IsRepeat(context.Context, []*SignedTransaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
@@ -97,24 +97,24 @@ type VerifyContext interface {
 	// [oldestAllowed].
 	// If [stop] is true, the search will stop at the first repeat transaction. This supports early termination
 	// during verification when any invalid transaction will cause the block to fail verification.
-	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
+	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*SignedTransaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
 type Mempool interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
-	Add(context.Context, []*Transaction)
+	Add(context.Context, []*SignedTransaction)
 
 	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
+		func(context.Context, *SignedTransaction) (cont bool, rest bool, err error),
 	) error
 
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context, int) []*SignedTransaction
+	FinishStreaming(context.Context, []*SignedTransaction) int
 }
 
 // TODO: add fixed rules as a subset of this interface

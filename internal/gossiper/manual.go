@@ -41,14 +41,14 @@ func (g *Manual) Run(client *p2p.Client) {
 func (g *Manual) Force(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
-		txs  = []*chain.Transaction{}
+		txs  = []*chain.SignedTransaction{}
 		size = 0
 		now  = time.Now().UnixMilli()
 	)
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.SignedTransaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -70,7 +70,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	b, err := chain.MarshalTxs(txs)
+	b, err := chain.MarshalSignedTxs(txs)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (g *Manual) Force(ctx context.Context) error {
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
-	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	_, txs, err := chain.UnmarshalSignedTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"AppGossip provided invalid txs",

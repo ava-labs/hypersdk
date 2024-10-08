@@ -24,7 +24,7 @@ func (p *PendingVerifyContext) View(ctx context.Context, verify bool) (state.Vie
 	return p.blk.View(ctx, verify)
 }
 
-func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*SignedTransaction, marker set.Bits, stop bool) (set.Bits, error) {
 	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
@@ -38,7 +38,7 @@ func (a *AcceptedVerifyContext) View(context.Context, bool) (state.View, error) 
 	return a.vm.State()
 }
 
-func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*SignedTransaction, marker set.Bits, stop bool) (set.Bits, error) {
 	bits := a.vm.IsRepeat(ctx, txs, marker, stop)
 	return bits, nil
 }

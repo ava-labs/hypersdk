@@ -107,7 +107,7 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
+func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.SignedTransaction, marker set.Bits, stop bool) set.Bits {
 	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
 	defer span.End()
 

@@ -110,7 +110,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	// that increases the probability they'll be accepted
 	// before they expire.
 	var (
-		txs   = []*chain.Transaction{}
+		txs   = []*chain.SignedTransaction{}
 		size  = 0
 		start = time.Now()
 		now   = start.UnixMilli()
@@ -118,7 +118,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.SignedTransaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -164,7 +164,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
-	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	authCounts, txs, err := chain.UnmarshalSignedTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
@@ -193,7 +193,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	var seen int
 	for _, tx := range txs {
 		// Verify signature async
-		unsignedTxBytes, err := tx.UnsignedBytes()
+		unsignedTxBytes, err := tx.Transaction.Bytes()
 		if err != nil {
 			g.vm.Logger().Warn(
 				"unable to compute tx digest",
@@ -347,12 +347,12 @@ func (g *Proposer) Done() {
 	<-g.doneGossip
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.SignedTransaction) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
 	// Marshal gossip
-	b, err := chain.MarshalTxs(txs)
+	b, err := chain.MarshalSignedTxs(txs)
 	if err != nil {
 		return err
 	}

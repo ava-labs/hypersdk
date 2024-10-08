@@ -49,7 +49,7 @@ type TxWorkloadIterator interface {
 	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
 	// 1. The tx was accepted on the provided URI
 	// 2. The state was updated as expected according to the provided URI
-	GenerateTxWithAssertion(context.Context) (*chain.Transaction, TxAssertion, error)
+	GenerateTxWithAssertion(context.Context) (*chain.SignedTransaction, TxAssertion, error)
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {

@@ -41,7 +41,7 @@ type StatelessBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	Txs []*Transaction `json:"txs"`
+	Txs []*SignedTransaction `json:"txs"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -116,10 +116,10 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.Txs = []*SignedTransaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalSignedTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +236,7 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			unsignedTxBytes, err := tx.UnsignedBytes()
+			unsignedTxBytes, err := tx.Transaction.Bytes()
 			if err != nil {
 				return err
 			}
@@ -818,7 +818,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 func (b *StatefulBlock) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,
-	txs []*Transaction,
+	txs []*SignedTransaction,
 	marker set.Bits,
 	stop bool,
 ) (set.Bits, error) {
@@ -891,7 +891,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 	return &AcceptedVerifyContext{b.vm}, nil
 }
 
-func (b *StatefulBlock) GetTxs() []*Transaction {
+func (b *StatefulBlock) GetTxs() []*SignedTransaction {
 	return b.Txs
 }
 

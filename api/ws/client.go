@@ -164,7 +164,7 @@ func (c *WebSocketClient) ListenBlock(
 }
 
 // IssueTx sends [tx] to the streaming rpc server.
-func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+func (c *WebSocketClient) RegisterTx(tx *chain.SignedTransaction) error {
 	if c.closed {
 		return ErrClosed
 	}
