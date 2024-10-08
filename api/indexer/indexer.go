@@ -26,11 +26,11 @@ var errBlockNotFound = errors.New("block not found")
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
-	blockDB            *pebble.Database
-	REMOVEME_blockIDDB *pebble.Database
-	txLookupDB         *pebble.Database
-	lastHeight         atomic.Uint64
-	parser             chain.Parser
+	blockDB         *pebble.Database
+	blockIDLookupDB *pebble.Database
+	txLookupDB      *pebble.Database
+	lastHeight      atomic.Uint64
+	parser          chain.Parser
 }
 
 func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
@@ -39,7 +39,7 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 		return nil, fmt.Errorf("failed to create block DB: %w", err)
 	}
 
-	REMOVEME_blockIDDB, _, err := pebble.New(filepath.Join(path, "blockID"), pebble.NewDefaultConfig())
+	blockIDLookupDB, _, err := pebble.New(filepath.Join(path, "blockID"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blockID DB: %w", err)
 	}
@@ -50,7 +50,7 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 	}
 
 	lastHeightValue := uint64(0)
-	lastHeightBytes, err := REMOVEME_blockIDDB.Get([]byte("latest"))
+	lastHeightBytes, err := blockIDLookupDB.Get([]byte("latest"))
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, fmt.Errorf("failed to get latest block height: %w", err)
 	}
@@ -59,10 +59,10 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 	}
 
 	indexer := &Indexer{
-		blockDB:            blockDB,
-		REMOVEME_blockIDDB: REMOVEME_blockIDDB,
-		txLookupDB:         txLookupDB,
-		parser:             parser,
+		blockDB:         blockDB,
+		blockIDLookupDB: blockIDLookupDB,
+		txLookupDB:      txLookupDB,
+		parser:          parser,
 	}
 	indexer.lastHeight.Store(lastHeightValue)
 
@@ -70,18 +70,18 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 }
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
-	batch := i.txLookupDB.NewBatch()
-	defer batch.Reset()
+	txBatch := i.txLookupDB.NewBatch()
+	defer txBatch.Reset()
 
 	for j, tx := range blk.Block.Txs {
 		txID := tx.ID()
 		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
-		if err := batch.Put(txID[:], txLookupInfo); err != nil {
+		if err := txBatch.Put(txID[:], txLookupInfo); err != nil {
 			return err
 		}
 	}
 
-	if err := batch.Write(); err != nil {
+	if err := txBatch.Write(); err != nil {
 		return err
 	}
 
@@ -94,17 +94,21 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	//TODO: batch
-
 	if err := i.blockDB.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
 
-	if err := i.REMOVEME_blockIDDB.Put(blk.BlockID[:], packUint64(blk.Block.Hght)); err != nil {
+	blockIdBatch := i.blockIDLookupDB.NewBatch()
+
+	if err := blockIdBatch.Put(blk.BlockID[:], packUint64(blk.Block.Hght)); err != nil {
 		return err
 	}
 
-	if err := i.REMOVEME_blockIDDB.Put([]byte("latest"), packUint64(blk.Block.Hght)); err != nil {
+	if err := blockIdBatch.Put([]byte("latest"), packUint64(blk.Block.Hght)); err != nil {
+		return err
+	}
+
+	if err := blockIdBatch.Write(); err != nil {
 		return err
 	}
 
@@ -130,7 +134,7 @@ func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) 
 }
 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
-	heightBytes, err := i.REMOVEME_blockIDDB.Get(blkID[:])
+	heightBytes, err := i.blockIDLookupDB.Get(blkID[:])
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +178,7 @@ func (i *Indexer) Close() error {
 	errs.Add(
 		i.txLookupDB.Close(),
 		i.blockDB.Close(),
-		i.REMOVEME_blockIDDB.Close(),
+		i.blockIDLookupDB.Close(),
 	)
 	return errs.Err
 }

@@ -105,7 +105,7 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				if retrievedTx.ID() != randomTx.ID() {
+				if retrievedTx.Auth.Actor() != randomTx.Auth.Actor() {
 					panic("transaction id mismatch")
 				}
 			}
@@ -114,7 +114,6 @@ func main() {
 
 		fmt.Printf("Database size: %s\n", must(getHumanReadableDirSize(PARENT_TEST_DIR)))
 		fmt.Printf("Last block height: %d\n", lastBlockHeight)
-
 	}
 }
 
