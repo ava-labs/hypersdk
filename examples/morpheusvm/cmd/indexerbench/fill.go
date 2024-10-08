@@ -2,16 +2,19 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/fees"
@@ -19,7 +22,7 @@ import (
 
 func fillIndexerAsync(idxer *indexer.Indexer, parser *chaintest.Parser, blockCount int, txPerBlock int, blocksPerCycle int) error {
 	parentID := ids.Empty
-	parentHeight := int64(-1)
+	parentHeight := int64(0)
 	parentTimestamp := int64(1234567000)
 
 	for remainingBlocks := blockCount; remainingBlocks > 0; {
@@ -65,7 +68,7 @@ func fillIndexerAsync(idxer *indexer.Indexer, parser *chaintest.Parser, blockCou
 		if err != nil {
 			return fmt.Errorf("getting directory size: %w", err)
 		}
-		fmt.Printf("accepted %s blocks containing %s txs in %s. Database occupies %s on disk with %s blocks total\n",
+		log.Printf("accepted %s blocks containing %s txs in %s. Database occupies %s on disk with %s blocks total\n",
 			formatNumberWithSuffix(cycleBlocks),
 			formatNumberWithSuffix(cycleBlocks*txPerBlock),
 			elapsed,
@@ -116,12 +119,32 @@ func generateExecutedBlocks(params generateExecutedBlocksParams) ([]*chain.Execu
 
 		executedBlock, err := chain.NewExecutedBlock(
 			statelessBlock,
-			[]*chain.Result{},
+			make([]*chain.Result, params.TxPerBlock),
 			fees.Dimensions{},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("creating executed block: %w", err)
 		}
+
+		resultPacker := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
+		err = codec.LinearCodec.MarshalInto(actions.TransferResult{
+			ReceiverBalance: uint64(statelessBlock.Hght),
+			SenderBalance:   uint64(statelessBlock.Hght),
+		}, resultPacker)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling sample result: %w", err)
+		}
+
+		for j := range statelessBlock.Txs {
+			executedBlock.Results[j] = &chain.Result{
+				Success: true,
+				Error:   []byte{},
+				Outputs: [][]byte{resultPacker.Bytes},
+				Units:   [5]uint64{0, 0, 0, 0, 0},
+				Fee:     uint64(statelessBlock.Hght),
+			}
+		}
+
 		executedBlocks[i] = executedBlock
 	}
 	return executedBlocks, nil
@@ -156,10 +179,17 @@ func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int6
 	}
 	return signedTx, nil
 }
-
 func getHumanReadableDirSize(path string) (string, error) {
-	cmd := exec.Command("du", "-sh", path)
-	output, err := cmd.Output()
+	var output []byte
+	var err error
+	for i := 0; i < 3; i++ {
+		cmd := exec.Command("du", "-sh", path)
+		output, err = cmd.Output()
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if err != nil {
 		return "", fmt.Errorf("executing du command: %w", err)
 	}
