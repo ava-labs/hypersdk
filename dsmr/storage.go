@@ -193,12 +193,18 @@ func (s *Storage[V, T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	defer s.lock.Unlock()
 
 	s.minSlot = updatedMin
+	minSlotBytes := make([]byte, consts.Uint64Len)
+	binary.BigEndian.PutUint64(minSlotBytes, uint64(s.minSlot))
+	batch := s.chunkDB.NewBatch()
+	if err := batch.Put(minSlotKey, minSlotBytes); err != nil {
+		return fmt.Errorf("failed to update persistent min slot: %w", err)
+	}
 	for _, saveChunkID := range saveChunks {
 		chunk, ok := s.chunkMap[saveChunkID]
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		if err := s.chunkDB.Put(acceptedChunkKey(chunk.Chunk.Slot, chunk.Chunk.ID()), chunk.Chunk.Bytes()); err != nil {
+		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Slot, chunk.Chunk.ID()), chunk.Chunk.Bytes()); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
 	}
@@ -211,9 +217,13 @@ func (s *Storage[V, T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		delete(s.chunkMap, chunkID)
 		// TODO: switch to using DeleteRange(nil, pendingChunkKey(updatedMin, ids.Empty)) after
 		// merging main
-		if err := s.chunkDB.Delete(pendingChunkKey(chunk.Chunk.Slot, chunk.Chunk.ID())); err != nil {
+		if err := batch.Delete(pendingChunkKey(chunk.Chunk.Slot, chunk.Chunk.ID())); err != nil {
 			return err
 		}
+	}
+
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("failed to write SetMin batch: %w", err)
 	}
 	return nil
 }

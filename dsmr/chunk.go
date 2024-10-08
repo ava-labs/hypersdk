@@ -35,11 +35,13 @@ func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
 }
 
 func ParseChunk[T Tx](chunkBytes []byte) (*Chunk[T], error) {
-	chunk := &Chunk[T]{}
-	if err := codec.LinearCodec.Unmarshal(chunkBytes, chunk); err != nil {
+	c := &Chunk[T]{}
+	if err := codec.LinearCodec.Unmarshal(chunkBytes, c); err != nil {
 		return nil, err
 	}
-	return chunk, nil
+	c.bytes = chunkBytes
+	c.id = utils.ToID(c.bytes)
+	return c, nil
 }
 
 func (c *Chunk[T]) ID() ids.ID {

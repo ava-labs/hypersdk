@@ -53,6 +53,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	*Storage[testContextProvider, testTx],
 	[]Chunk[testTx],
 	[]Chunk[testTx],
+	func() *Storage[testContextProvider, testTx],
 ) {
 	require := require.New(t)
 
@@ -82,21 +83,37 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	for _, chunk := range validChunks {
 		validChunkIDs = append(validChunkIDs, chunk.ID())
 	}
+	pebbleDB := db.(*pebble.Database)
 
 	testVerifier := testVerifier[*Chunk[testTx]]{correctIDs: set.Of(validChunkIDs...)}
 	storage, err := NewStorage(
 		testContextProvider{},
 		testVerifier,
-		db.(*pebble.Database),
+		pebbleDB,
 	)
 	require.NoError(err)
-	return storage, validChunks, invalidChunks
+
+	restart := func() *Storage[testContextProvider, testTx] {
+		require.NoError(pebbleDB.Close())
+		db, _, err = pebble.New(tempDir, pebble.NewDefaultConfig())
+		require.NoError(err)
+
+		pebbleDB = db.(*pebble.Database)
+		storage, err := NewStorage(
+			testContextProvider{},
+			testVerifier,
+			pebbleDB,
+		)
+		require.NoError(err)
+		return storage
+	}
+	return storage, validChunks, invalidChunks, restart
 }
 
 func TestStoreAndSaveValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _ := createTestStorage(t, 1, 0)
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(&chunk)
@@ -131,7 +148,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 func TestStoreAndExpireValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _ := createTestStorage(t, 1, 0)
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(&chunk)
@@ -165,7 +182,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 func TestStoreInvalidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, _, invalidChunks := createTestStorage(t, 0, 1)
+	storage, _, invalidChunks, _ := createTestStorage(t, 0, 1)
 	chunk := invalidChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(&chunk)
@@ -181,7 +198,7 @@ func TestStoreInvalidChunk(t *testing.T) {
 func TestStoreAndSaveLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _ := createTestStorage(t, 1, 0)
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.ID(),
@@ -211,7 +228,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 func TestStoreAndExpireLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _ := createTestStorage(t, 1, 0)
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.ID(),
@@ -237,12 +254,80 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 	require.Empty(chunkCerts)
 }
 
-// TODO:
-// TestRestartSavedChunks
-// Write interface / function signatures for p2p client/server w/ ACP-118 and chunk builder - getChunk, putChunk, getSignatureShare, putSignatureShare, putChunkCertificate
-// Implement chunk block builder based off of storage - implement BuildBlock function that takes in storage decision: what ordering to use for adding chunks to a block?
-// Implement chunk executor (fetch and re-assemble as needed) - given a chunk block, filter and create new block type with assembler interface
-// Implement block re-assembler and executor - define block assembler and execute functions for existing chain.Block type and make into an interface
-// Integrate into HyperSDK w/ ghost signature shares / certificates
-// Inject Avalanche verification (Warp)
-// Implement fortification
+func TestRestartSavedChunks(t *testing.T) {
+	require := require.New(t)
+
+	// Test persistent chunk storage for each of the following cases:
+	// 1. Accepted local chunk
+	// 2. Accepted remote chunk
+	// 3. Expired local chunk
+	// 4. Expired remote chunk
+	// 5. Pending local chunk
+	// 6. Pending remote chunk
+	numChunks := 6
+	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0)
+	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
+	for _, chunk := range validChunks {
+		chunkCert := &ChunkCertificate{
+			ChunkID:   chunk.ID(),
+			Slot:      chunk.Slot,
+			Signature: ChunkSignature{},
+		}
+		chunkCerts = append(chunkCerts, chunkCert)
+	}
+
+	// Case 1
+	require.NoError(storage.AddLocalChunkWithCert(&validChunks[0], chunkCerts[0]))
+
+	// Case 2
+	_, err := storage.VerifyRemoteChunk(&validChunks[1])
+	require.NoError(err)
+	require.NoError(storage.SetChunkCert(validChunks[1].ID(), chunkCerts[1]))
+
+	// Case 3
+	require.NoError(storage.AddLocalChunkWithCert(&validChunks[2], chunkCerts[2]))
+
+	// Case 4
+	_, err = storage.VerifyRemoteChunk(&validChunks[3])
+	require.NoError(err)
+
+	// Case 5
+	require.NoError(storage.AddLocalChunkWithCert(&validChunks[4], chunkCerts[4]))
+
+	// Case 6
+	_, err = storage.VerifyRemoteChunk(&validChunks[5])
+	require.NoError(err)
+	require.NoError(storage.SetChunkCert(validChunks[5].ID(), chunkCerts[5]))
+
+	// Set the minimum to 5 and mark cases 1 and 2 as saved
+	require.NoError(storage.SetMin(5, []ids.ID{
+		validChunks[0].ID(),
+		validChunks[1].ID(),
+	}))
+
+	confirmChunkStorage := func(storage *Storage[testContextProvider, testTx]) {
+		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
+		for i, expectedChunk := range []Chunk[testTx]{
+			validChunks[0],
+			validChunks[1],
+			validChunks[4],
+			validChunks[5],
+		} {
+			foundChunkBytes, err := storage.GetChunkBytes(expectedChunk.Slot, expectedChunk.ID())
+			require.NoError(err, i)
+			require.Equal(expectedChunk.Bytes(), foundChunkBytes, i)
+		}
+
+		// Confirm the expired chunks are garbage collected
+		for _, expectedChunk := range []Chunk[testTx]{
+			validChunks[2],
+			validChunks[3],
+		} {
+			_, err = storage.GetChunkBytes(expectedChunk.Slot, expectedChunk.ID())
+			require.ErrorIs(err, database.ErrNotFound)
+		}
+	}
+	confirmChunkStorage(storage)
+	storage = restart()
+	confirmChunkStorage(storage)
+}
