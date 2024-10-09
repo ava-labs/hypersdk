@@ -236,11 +236,11 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			if err != nil {
 				return err
 			}
-			batchVerifier.Add(txDigest, tx.Auth)
+			batchVerifier.Add(unsignedTxBytes, tx.Auth)
 		}
 	}
 	return nil
@@ -979,6 +979,9 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	}
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
+	}
+	if err := reader.Err(); err != nil {
+		return nil, err
 	}
 	return NewExecutedBlock(blk, results, prices)
 }

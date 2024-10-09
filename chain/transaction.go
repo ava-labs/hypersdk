@@ -31,54 +31,52 @@ var (
 type Transaction struct {
 	Base *Base `json:"base"`
 
-	Actions []Action `json:"actions"`
-	Auth    Auth     `json:"auth"`
+	Actions Actions `json:"actions"`
+	Auth    Auth    `json:"auth"`
 
-	digest    []byte
-	bytes     []byte
-	size      int
-	id        ids.ID
-	stateKeys state.Keys
+	unsignedBytes []byte
+	bytes         []byte
+	size          int
+	id            ids.ID
+	stateKeys     state.Keys
 }
 
-func NewTx(base *Base, actions []Action) *Transaction {
+func NewTx(base *Base, actions Actions) *Transaction {
 	return &Transaction{
 		Base:    base,
 		Actions: actions,
 	}
 }
 
-func (t *Transaction) Digest() ([]byte, error) {
-	if len(t.digest) > 0 {
-		return t.digest, nil
+// UnsignedBytes returns the byte slice representation of the unsigned tx
+func (t *Transaction) UnsignedBytes() ([]byte, error) {
+	if len(t.unsignedBytes) > 0 {
+		return t.unsignedBytes, nil
 	}
 	size := t.Base.Size() + consts.Uint8Len
-	for _, action := range t.Actions {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return nil, err
-		}
-		size += consts.ByteLen + actionSize
+
+	actionsSize, err := t.Actions.Size()
+	if err != nil {
+		return nil, err
 	}
+	size += actionsSize
+
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	t.Base.Marshal(p)
-	p.PackByte(uint8(len(t.Actions)))
-	for _, action := range t.Actions {
-		p.PackByte(action.GetTypeID())
-		err := marshalInto(action, p)
-		if err != nil {
-			return nil, err
-		}
+	if err := t.marshal(p, false); err != nil {
+		return nil, err
 	}
+
 	return p.Bytes(), p.Err()
 }
 
+// Sign returns a new signed transaction with the unsigned tx copied from
+// the original and a signature provided by the authFactory
 func (t *Transaction) Sign(
 	factory AuthFactory,
 	actionCodec *codec.TypeParser[Action],
 	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
-	msg, err := t.Digest()
+	msg, err := t.UnsignedBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +84,18 @@ func (t *Transaction) Sign(
 	if err != nil {
 		return nil, err
 	}
-	t.Auth = auth
+
+	signedTransaction := Transaction{
+		Base:    t.Base,
+		Actions: t.Actions,
+		Auth:    auth,
+	}
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	size := len(msg) + consts.ByteLen + t.Auth.Size()
+	size := len(msg) + consts.ByteLen + auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := t.Marshal(p); err != nil {
+	if err := signedTransaction.Marshal(p); err != nil {
 		return nil, err
 	}
 	if err := p.Err(); err != nil {
@@ -100,6 +103,16 @@ func (t *Transaction) Sign(
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
 	return UnmarshalTx(p, actionCodec, authCodec)
+}
+
+// Verify that the transaction was signed correctly.
+func (t *Transaction) Verify(ctx context.Context) error {
+	msg, err := t.UnsignedBytes()
+	if err != nil {
+		// Should never occur because populated during unmarshal
+		return err
+	}
+	return t.Auth.Verify(ctx, msg)
 }
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
@@ -195,7 +208,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -377,25 +390,47 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
 	}
-
-	return t.marshalActions(p)
+	return t.marshal(p, true)
 }
 
-func (t *Transaction) marshalActions(p *codec.Packer) error {
+func (t *Transaction) marshal(p *codec.Packer, marshalSignature bool) error {
 	t.Base.Marshal(p)
-	p.PackByte(uint8(len(t.Actions)))
-	for _, action := range t.Actions {
-		actionID := action.GetTypeID()
-		p.PackByte(actionID)
+	if err := t.Actions.marshalInto(p); err != nil {
+		return err
+	}
+
+	if marshalSignature {
+		authID := t.Auth.GetTypeID()
+		p.PackByte(authID)
+		t.Auth.Marshal(p)
+	}
+	return p.Err()
+}
+
+type Actions []Action
+
+func (a Actions) Size() (int, error) {
+	var size int
+	for _, action := range a {
+		actionSize, err := GetSize(action)
+		if err != nil {
+			return 0, err
+		}
+		size += consts.ByteLen + actionSize
+	}
+	return size, nil
+}
+
+func (a Actions) marshalInto(p *codec.Packer) error {
+	p.PackByte(uint8(len(a)))
+	for _, action := range a {
+		p.PackByte(action.GetTypeID())
 		err := marshalInto(action, p)
 		if err != nil {
 			return err
 		}
 	}
-	authID := t.Auth.GetTypeID()
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
-	return p.Err()
+	return nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -448,7 +483,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := unmarshalActions(p, actionCodec)
+	actions, err := UnmarshalActions(p, actionCodec)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
@@ -474,22 +509,22 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 	codecBytes := p.Bytes()
-	tx.digest = codecBytes[start:digest]
+	tx.unsignedBytes = codecBytes[start:digest]
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return &tx, nil
 }
 
-func unmarshalActions(
+func UnmarshalActions(
 	p *codec.Packer,
 	actionCodec *codec.TypeParser[Action],
-) ([]Action, error) {
+) (Actions, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {
 		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
 	}
-	actions := []Action{}
+	actions := Actions{}
 	for i := uint8(0); i < actionCount; i++ {
 		action, err := actionCodec.Unmarshal(p)
 		if err != nil {

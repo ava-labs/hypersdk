@@ -15,6 +15,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -37,7 +38,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
-	"github.com/ava-labs/hypersdk/internal/network"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
@@ -60,6 +60,10 @@ const (
 
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
+
+	rangeProofHandlerID  = 0x0
+	changeProofHandlerID = 0x1
+	txGossipHandlerID    = 0x2
 )
 
 type VM struct {
@@ -95,6 +99,7 @@ type VM struct {
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
+	network               *p2p.Network
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -133,12 +138,7 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient        *stateSyncerClient
-	stateSyncNetworkClient avasync.NetworkClient
-	stateSyncNetworkServer *avasync.NetworkServer
-
-	// Network manager routes p2p messages to pre-registered handlers
-	networkManager *network.Manager
+	stateSyncClient *stateSyncerClient
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -211,7 +211,11 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
-	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
+
+	vm.network, err = p2p.NewNetwork(vm.snowCtx.Log, appSender, defaultRegistry, "p2p")
+	if err != nil {
+		return fmt.Errorf("failed to initialize p2p: %w", err)
+	}
 
 	pebbleConfig := pebble.NewDefaultConfig()
 	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
@@ -425,34 +429,32 @@ func (vm *VM) Initialize(
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
-	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	syncRegistry := prometheus.NewRegistry()
-	vm.stateSyncNetworkClient, err = avasync.NewNetworkClient(
-		stateSyncSender,
-		vm.snowCtx.NodeID,
-		int64(vm.config.StateSyncParallelism),
-		vm.Logger(),
-		"",
-		syncRegistry,
-		nil, // TODO: populate minimum version
-	)
-	if err != nil {
-		return err
-	}
-	if err := vm.snowCtx.Metrics.Register("sync", syncRegistry); err != nil {
-		return err
-	}
 	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
-	vm.stateSyncNetworkServer = avasync.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
-	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Setup gossip networking
-	gossipHandler, gossipSender := vm.networkManager.Register()
-	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
+	if err := vm.network.AddHandler(
+		rangeProofHandlerID,
+		avasync.NewGetRangeProofHandler(vm.snowCtx.Log, vm.stateDB),
+	); err != nil {
+		return err
+	}
+
+	if err := vm.network.AddHandler(
+		changeProofHandlerID,
+		avasync.NewGetChangeProofHandler(vm.snowCtx.Log, vm.stateDB),
+	); err != nil {
+		return err
+	}
+
+	if err := vm.network.AddHandler(
+		txGossipHandlerID,
+		NewTxGossipHandler(vm),
+	); err != nil {
+		return err
+	}
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
-	go vm.gossiper.Run(gossipSender)
+	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -923,13 +925,13 @@ func (vm *VM) Submit(
 
 		// Verify auth if not already verified by caller
 		if verifyAuth && vm.config.VerifyAuth {
-			msg, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			if err != nil {
 				// Should never fail
 				errs = append(errs, err)
 				continue
 			}
-			if err := tx.Auth.Verify(ctx, msg); err != nil {
+			if err := tx.Auth.Verify(ctx, unsignedTxBytes); err != nil {
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
@@ -997,7 +999,7 @@ func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) erro
 	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
 	defer span.End()
 
-	return vm.networkManager.AppGossip(ctx, nodeID, msg)
+	return vm.network.AppGossip(ctx, nodeID, msg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -1011,16 +1013,15 @@ func (vm *VM) AppRequest(
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequest")
 	defer span.End()
 
-	return vm.networkManager.AppRequest(ctx, nodeID, requestID, deadline, request)
+	return vm.network.AppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, _ *common.AppError) error {
+func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, err *common.AppError) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
 	defer span.End()
 
-	// TODO: add support for handling common.AppError
-	return vm.networkManager.AppRequestFailed(ctx, nodeID, requestID)
+	return vm.network.AppRequestFailed(ctx, nodeID, requestID, err)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -1033,7 +1034,7 @@ func (vm *VM) AppResponse(
 	ctx, span := vm.tracer.Start(ctx, "VM.AppResponse")
 	defer span.End()
 
-	return vm.networkManager.AppResponse(ctx, nodeID, requestID, response)
+	return vm.network.AppResponse(ctx, nodeID, requestID, response)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
@@ -1041,7 +1042,7 @@ func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Appli
 	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
 	defer span.End()
 
-	return vm.networkManager.Connected(ctx, nodeID, v)
+	return vm.network.Connected(ctx, nodeID, v)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
@@ -1049,7 +1050,7 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Disconnected")
 	defer span.End()
 
-	return vm.networkManager.Disconnected(ctx, nodeID)
+	return vm.network.Disconnected(ctx, nodeID)
 }
 
 // VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM

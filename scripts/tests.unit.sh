@@ -20,4 +20,4 @@ while IFS= read -r line; do
     file_args+=("$line")
 done < <(find "$subdir" -type f -name "*.go" | grep -v "./examples/" | xargs -n1 dirname | sort -u)
 
-go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" "${file_args[@]}"
+go test -race -timeout="6m" -coverprofile="coverage.out" -covermode="atomic" "${file_args[@]}"

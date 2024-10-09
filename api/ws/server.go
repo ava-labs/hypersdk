@@ -264,12 +264,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 
 			// Verify tx
 			if w.vm.GetVerifyAuth() {
-				msg, err := tx.Digest()
-				if err != nil {
-					// Should never occur because populated during unmarshal
-					return
-				}
-				if err := tx.Auth.Verify(ctx, msg); err != nil {
+				if err := tx.Verify(ctx); err != nil {
 					w.logger.Error("failed to verify sig",
 						zap.Error(err),
 					)

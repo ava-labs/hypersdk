@@ -115,19 +115,45 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
+	txBeforeSign := chain.Transaction{
+		Base: &chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		Actions: []chain.Action{
+			&mockTransferAction{
+				To:    codec.Address{1, 2, 3, 4},
+				Value: 4,
+				Memo:  []byte("hello"),
+			},
+			&mockTransferAction{
+				To:    codec.Address{4, 5, 6, 7},
+				Value: 123,
+				Memo:  []byte("world"),
+			},
+			&action2{
+				A: 2,
+				B: 4,
+			},
+		},
+	}
+
+	require.Nil(tx.Auth)
 	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
 	require.NoError(err)
-
+	require.Equal(txBeforeSign, tx)
+	require.NotNil(signedTx.Auth)
 	require.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
 
-	signedDigest, err := signedTx.Digest()
+	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
-	txDigest, err := tx.Digest()
+	originalUnsignedTxBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
 
-	require.Equal(signedDigest, txDigest)
-	require.Len(signedDigest, 168)
+	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
+	require.Len(unsignedTxBytes, 168)
 }
