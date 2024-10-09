@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
-	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
 const (
@@ -27,7 +26,6 @@ const (
 )
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
-
 
 type ContextProvider[Context any] interface {
 	Context() Context
@@ -63,7 +61,7 @@ type Storage[VerificationContext any, T Tx] struct {
 	minSlot   int64
 	// pendingByte | slot | chunkID -> chunkBytes
 	// acceptedByte | slot | chunkID -> chunkBytes
-	chunkDB *pebble.Database
+	chunkDB database.Database
 
 	// Chunk + signature + cert
 	chunkMap map[ids.ID]*StoredChunkSignature[T]
@@ -72,7 +70,7 @@ type Storage[VerificationContext any, T Tx] struct {
 func NewStorage[VerificationContext any, T Tx](
 	contextProvider ContextProvider[VerificationContext],
 	remoteChunkVerifier Verifier[VerificationContext, *Chunk[T]],
-	db *pebble.Database,
+	db database.Database,
 ) (*Storage[VerificationContext, T], error) {
 	minSlot := int64(0)
 	minSlotBytes, err := db.Get(minSlotKey)
