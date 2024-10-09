@@ -146,9 +146,3 @@ type Result struct {
 func (*Result) GetTypeID() uint8 {
 	return mconsts.ResultOutputID
 }
-
-// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
-// memory during encoding and to charge bandwidth fees.
-func (r *Result) Size() int {
-	return consts.Uint64Len + consts.Uint32Len + len(r.Value)
-}

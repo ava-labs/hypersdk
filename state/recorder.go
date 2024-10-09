@@ -13,7 +13,7 @@ import (
 // The Recorder struct wraps an [Immutable] state object and tracks the permissions used
 // against the various keys. The Recorder struct implements the [Mutable] interface, allowing
 // it to act as a direct replacement for a database view.
-// The Recorder struct maintain the same semantics as tstate_view in regards to the various
+// The Recorder struct maintains the same semantics as TStateView in regards to the various
 // required access permissions.
 type Recorder struct {
 	// State is the underlying [Immutable] object
@@ -28,33 +28,34 @@ func NewRecorder(db Immutable) *Recorder {
 	return &Recorder{state: db, changedValues: map[string][]byte{}, stateKeys: map[string][]byte{}, keys: Keys{}}
 }
 
-func (r *Recorder) checkState(ctx context.Context, key []byte) error {
-	if _, has := r.stateKeys[string(key)]; has {
-		return nil
+func (r *Recorder) checkState(ctx context.Context, key []byte) ([]byte, error) {
+	if val, has := r.stateKeys[string(key)]; has {
+		return val, nil
 	}
 	value, err := r.state.GetValue(ctx, key)
 	if err == nil {
 		// no error, key found.
 		r.stateKeys[string(key)] = value
-		return nil
+		return value, nil
 	}
 
 	if errors.Is(err, database.ErrNotFound) {
 		r.stateKeys[string(key)] = nil
 		err = nil
 	}
-	return err
+	return nil, err
 }
 
 func (r *Recorder) Insert(ctx context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
 
-	if err := r.checkState(ctx, key); err != nil {
+	var stateKeyVal []byte
+	var err error
+	if stateKeyVal, err = r.checkState(ctx, key); err != nil {
 		return err
 	}
-	stateKeyVal, inStateKeys := r.stateKeys[stringKey]
 
-	if inStateKeys && stateKeyVal != nil {
+	if stateKeyVal != nil {
 		// underlying storage already has that key.
 		r.keys[stringKey] |= Write
 	} else {
@@ -77,7 +78,9 @@ func (r *Recorder) Remove(_ context.Context, key []byte) error {
 func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	stringKey := string(key)
 
-	if err := r.checkState(ctx, key); err != nil {
+	var stateKeyVal []byte
+
+	if stateKeyVal, err = r.checkState(ctx, key); err != nil {
 		return nil, err
 	}
 	r.keys[stringKey] |= Read
@@ -87,11 +90,10 @@ func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err 
 		}
 		return value, nil
 	}
-	value = r.stateKeys[stringKey]
-	if value == nil { // no such key exist.
+	if stateKeyVal == nil { // no such key exist.
 		return nil, database.ErrNotFound
 	}
-	return value, nil
+	return stateKeyVal, nil
 }
 
 func (r *Recorder) GetStateKeys() Keys {

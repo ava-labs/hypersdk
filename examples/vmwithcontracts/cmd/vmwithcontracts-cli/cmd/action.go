@@ -21,6 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+var errUnexpectedSimulateActionsOutput = errors.New("returned output from SimulateActions was not actions.Result")
+
 var actionCmd = &cobra.Command{
 	Use: "action",
 	RunE: func(*cobra.Command, []string) error {
@@ -164,7 +166,7 @@ var callCmd = &cobra.Command{
 		}
 		simulationResult, ok := simulationResultOutput.(*actions.Result)
 		if !ok {
-			return errors.New("returned output from SimulateActions was not actions.Result")
+			return errUnexpectedSimulateActionsOutput
 		}
 
 		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(actionSimulationResult.StateKeys))

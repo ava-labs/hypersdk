@@ -11,19 +11,18 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 func randomNewKey() []byte {
-	randNewKey := make([]byte, 32)
+	randNewKey := make([]byte, 30, 32)
 	_, err := rand.Read(randNewKey)
 	if err != nil {
 		panic(err)
 	}
-	randNewKey[30] = 0
-	randNewKey[31] = 1
-	return randNewKey
+	return keys.EncodeChunks(randNewKey, 1)
 }
 
 func randomizeView(tstate *tstate.TState, keyCount int) (*tstate.TStateView, [][]byte, map[string]state.Permissions, map[string][]byte) {
@@ -55,7 +54,7 @@ func TestRecorderInnerFuzz(t *testing.T) {
 		removedKeys map[string]bool
 	)
 
-	randomKey := func() []byte {
+	pickExistingKeyAtRandom := func() []byte {
 		randKey := make([]byte, 1)
 		_, err := rand.Read(randKey)
 		require.NoError(err)
@@ -78,7 +77,7 @@ func TestRecorderInnerFuzz(t *testing.T) {
 			require.NoError(err)
 			switch op[0] % 6 {
 			case 0: // insert into existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 				err := recorder.Insert(context.Background(), randKey, []byte{1, 2, 3, 4})
 				require.NoError(err)
 				require.True(recorder.GetStateKeys()[string(randKey)].Has(state.Write))
@@ -91,7 +90,7 @@ func TestRecorderInnerFuzz(t *testing.T) {
 				require.True(recorder.GetStateKeys()[string(randNewKey)].Has(state.Allocate | state.Write))
 				keys = append(keys, randNewKey)
 			case 2: // remove existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 				err := recorder.Remove(context.Background(), randKey)
 				require.NoError(err)
 				removedKeys[string(randKey)] = true
@@ -102,7 +101,7 @@ func TestRecorderInnerFuzz(t *testing.T) {
 				require.NoError(err)
 				require.True(recorder.GetStateKeys()[string(randKey)].Has(state.Write))
 			case 4: // get value of existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 				val, err := recorder.GetValue(context.Background(), randKey)
 				require.NoError(err)
 				require.NotEmpty(val)
@@ -143,7 +142,7 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 		storage     map[string][]byte
 	)
 
-	randomKey := func() []byte {
+	pickExistingKeyAtRandom := func() []byte {
 		randKey := make([]byte, 1)
 		_, err := rand.Read(randKey)
 		require.NoError(err)
@@ -173,7 +172,7 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 			require.NoError(err)
 			switch op[0] % 6 {
 			case 0: // insert into existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 				randVal := randomValue()
 
 				err := recorder.Insert(context.Background(), randKey, randVal)
@@ -197,7 +196,7 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 
 				keys = append(keys, randNewKey)
 			case 2: // remove existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 
 				err := recorder.Remove(context.Background(), randKey)
 				require.NoError(err)
@@ -219,7 +218,7 @@ func TestRecorderSideBySideFuzz(t *testing.T) {
 				err = stateView.Remove(context.Background(), randKey)
 				require.NoError(err)
 			case 4: // get value of existing entry
-				randKey := randomKey()
+				randKey := pickExistingKeyAtRandom()
 
 				val, err := recorder.GetValue(context.Background(), randKey)
 				require.NoError(err)

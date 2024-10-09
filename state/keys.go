@@ -70,7 +70,7 @@ func (k Keys) MarshalJSON() ([]byte, error) {
 	return json.Marshal(keysJSON)
 }
 
-func (k Keys) UnmarshalJSON(b []byte) error {
+func (k *Keys) UnmarshalJSON(b []byte) error {
 	var keysJSON keysJSON
 	if err := json.Unmarshal(b, &keysJSON); err != nil {
 		return err
@@ -84,7 +84,7 @@ func (k Keys) UnmarshalJSON(b []byte) error {
 			if err != nil {
 				return err
 			}
-			k[string(key)] = Permissions(perm)
+			(*k)[string(key)] = Permissions(perm)
 		}
 	}
 	return nil

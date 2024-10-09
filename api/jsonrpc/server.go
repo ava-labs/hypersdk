@@ -28,6 +28,11 @@ const (
 
 var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
 
+var (
+	errSimulateZeroActions   = errors.New("simulateAction expects at least a single action, none found")
+	errTransactionExtraBytes = errors.New("transaction has extra bytes")
+)
+
 type JSONRPCServerFactory struct{}
 
 func (JSONRPCServerFactory) New(vm api.VM) (api.Handler, error) {
@@ -96,7 +101,7 @@ func (j *JSONRPCServer) SubmitTx(
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
 	if !rtx.Empty() {
-		return errors.New("tx has extra bytes")
+		return errTransactionExtraBytes
 	}
 	if err := tx.Verify(ctx); err != nil {
 		return err
@@ -263,22 +268,21 @@ func (j *JSONRPCServer) SimulateActions(
 			return err
 		}
 		if !actionsReader.Empty() {
-			return errors.New("tx has extra bytes")
+			return errTransactionExtraBytes
 		}
 		actions = append(actions, action)
 	}
 	if len(actions) == 0 {
-		return errors.New("simulateAction expects at least a single action, none found")
+		return errSimulateZeroActions
 	}
 	currentState, err := j.vm.ImmutableState(ctx)
 	if err != nil {
 		return err
 	}
 
-	recorder := state.NewRecorder(currentState)
-
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
+		recorder := state.NewRecorder(currentState)
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
 
 		var actionResult SimulateActionResult
@@ -295,8 +299,7 @@ func (j *JSONRPCServer) SimulateActions(
 		}
 		actionResult.StateKeys = recorder.GetStateKeys()
 		reply.ActionResults = append(reply.ActionResults, actionResult)
-		// create another recorder to recored the next action.
-		recorder = state.NewRecorder(recorder)
+		currentState = recorder
 	}
 	return nil
 }
