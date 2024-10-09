@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
@@ -87,27 +86,6 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-// Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
-var _ chain.Marshaler = (*Transfer)(nil)
-
-func (t *Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
-}
-
-func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
-	p.PackLong(t.Value)
-	p.PackBytes(t.Memo)
-}
-
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-	var transfer Transfer
-	p.UnpackAddress(&transfer.To)
-	transfer.Value = p.UnpackUint64(true)
-	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
-	return &transfer, p.Err()
 }
 
 var _ codec.Typed = (*TransferResult)(nil)
