@@ -55,7 +55,7 @@ TODO
 
 ```golang
 type Assembler[T Tx] interface {
-    AssembleBlock(parentID ids.ID, blockID ids.ID, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
+    AssembleBlock(parentID ids.ID, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
 }
 
 type Executor[Block any, Result any] interface {
@@ -63,9 +63,24 @@ type Executor[Block any, Result any] interface {
 }
 ```
 
+The chunk block executor's only dependency is the ability to fetch chunks by ID. Since the client/server will wrap the storage backend, it should provide at least this interface:
+
+```golang
+type Backend interface {
+    GetChunks(chunkID []ids.ID) ([]*Chunk[T], error)
+}
+```
+
+If `GetChunk` fails, it should be considered a fatal error since we must be able to fetch chunks for already accepted blocks. This means that the client implementation will need provide its own retry logic to fetch the chunk from the network.
+
 Future TODOs:
 - backpressure if the chain is moving faster than we can backfill chunks from accepted blocks
 - apply fortification fees
+
+Qs
+- Should the assembled block use the parentID of the last assembled block (internal block) or the chunk block (wrapper block)?
+- How should we handled failed chunk requests for an accepted block?
+- Can the chunk certificate provide a hint to the p2p client/server to indicate where it can fetch the chunks from?
 
 ### Block Assembler + Executor / Integrate into HyperSDK w/ *chain.Block type
 
@@ -74,5 +89,5 @@ Define the `Assembler` and `Executor` types for the current `*chain.Block` type.
 ### Swap Ghost Signatures / Certs for Warp Verification
 
 - Switch from using empty implementations of `ChunkSignatureShare` and `ChunkCertificate` to using Warp signatures
-- Add epoch'ed validator sets to improve stability
+- Add epoch'ed validator sets to improve stability (might be added directly to ProposerVM)
 
