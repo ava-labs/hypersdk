@@ -147,7 +147,7 @@ type GetABIReply struct {
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
 	actionCodec, outputCodec := j.vm.ActionCodec(), j.vm.OutputCodec()
-	vmABI, err := abi.NewABI(actionCodec.GetRegisteredTypes(), (*outputCodec).GetRegisteredTypes())
+	vmABI, err := abi.NewABI(actionCodec.GetRegisteredTypes(), outputCodec.GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
