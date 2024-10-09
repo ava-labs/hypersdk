@@ -34,7 +34,8 @@ func NewDefaultOptions() []vm.Option {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
+	balanceHandler chain.BalanceHandler,
+	vmSpecificPrefixes []byte,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	outputRegistry chain.OutputRegistry,
@@ -45,7 +46,8 @@ func New(
 	return vm.New(
 		v,
 		genesisFactory,
-		stateManager,
+		balanceHandler,
+		vmSpecificPrefixes,
 		actionRegistry,
 		authRegistry,
 		outputRegistry,

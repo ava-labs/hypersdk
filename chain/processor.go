@@ -34,7 +34,7 @@ func (b *StatefulBlock) Execute(
 	defer span.End()
 
 	var (
-		sm     = b.vm.StateManager()
+		bh     = b.vm.BalanceHandler()
 		numTxs = len(b.Txs)
 		t      = b.GetTimestamp()
 
@@ -49,7 +49,7 @@ func (b *StatefulBlock) Execute(
 		i := li
 		tx := ltx
 
-		stateKeys, err := tx.StateKeys(sm)
+		stateKeys, err := tx.StateKeys(bh)
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -57,7 +57,7 @@ func (b *StatefulBlock) Execute(
 		}
 
 		// Ensure we don't consume too many units
-		units, err := tx.Units(sm, r)
+		units, err := tx.Units(bh, r)
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -88,11 +88,11 @@ func (b *StatefulBlock) Execute(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, bh, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, bh, r, tsv, t)
 			if err != nil {
 				return err
 			}

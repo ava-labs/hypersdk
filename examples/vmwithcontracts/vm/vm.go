@@ -77,7 +77,8 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
-		&storage.StateManager{},
+		&storage.BalanceHandler{},
+		storage.VMSpecificPrefixes,
 		ActionParser,
 		AuthParser,
 		OutputParser,
