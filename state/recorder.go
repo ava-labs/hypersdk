@@ -10,11 +10,9 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 )
 
-// The Recorder struct wraps an [Immutable] state object and tracks the permissions used
-// against the various keys. The Recorder struct implements the [Mutable] interface, allowing
-// it to act as a direct replacement for a database view.
-// The Recorder struct maintains the same semantics as TStateView in regards to the various
-// required access permissions.
+// The Recorder wraps an [Immutable] state and records what keys are accessed
+// and what permissions are required.
+// Maintains same definition of required permissions as TStateView
 type Recorder struct {
 	// State is the underlying [Immutable] object
 	state     Immutable
