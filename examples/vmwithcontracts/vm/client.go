@@ -96,37 +96,42 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewParser(g), nil
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
+	return NewParser(g, registry), nil
 }
 
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	genesis *genesis.DefaultGenesis
+	genesis  *genesis.DefaultGenesis
+	registry chain.Registry
 }
 
 func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionRegistry() chain.ActionRegistry {
-	return ActionParser
+func (p *Parser) ActionRegistry() chain.ActionRegistry {
+	return p.registry.ActionRegistry()
 }
 
-func (*Parser) OutputRegistry() chain.OutputRegistry {
-	return OutputParser
+func (p *Parser) AuthRegistry() chain.AuthRegistry {
+	return p.registry.AuthRegistry()
 }
 
-func (*Parser) AuthRegistry() chain.AuthRegistry {
-	return AuthParser
+func (p *Parser) OutputRegistry() chain.OutputRegistry {
+	return p.registry.OutputRegistry()
 }
 
 func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
-	return &Parser{genesis: genesis}
+func NewParser(genesis *genesis.DefaultGenesis, registry chain.Registry) chain.Parser {
+	return &Parser{genesis: genesis, registry: registry}
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
@@ -135,7 +140,11 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
 	}
-	return NewParser(&genesis), nil
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
+	return NewParser(&genesis, registry), nil
 }
 
 func (cli *JSONRPCClient) Simulate(ctx context.Context, callTx actions.Call, actor codec.Address) (state.Keys, uint64, error) {

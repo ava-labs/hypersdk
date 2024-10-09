@@ -287,3 +287,9 @@ type AuthFactory interface {
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
 }
+
+type Registry interface {
+	ActionRegistry() ActionRegistry
+	AuthRegistry() AuthRegistry
+	OutputRegistry() OutputRegistry
+}

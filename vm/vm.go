@@ -66,6 +66,8 @@ const (
 )
 
 type VM struct {
+	Registry
+
 	DataDir string
 	v       *version.Semantic
 
@@ -94,9 +96,6 @@ type VM struct {
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
 	stateManager          chain.StateManager
-	actionRegistry        chain.ActionRegistry
-	authRegistry          chain.AuthRegistry
-	outputRegistry        chain.OutputRegistry
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
 
@@ -150,9 +149,7 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
-	outputRegistry chain.OutputRegistry,
+	registry chain.Registry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -165,12 +162,13 @@ func New(
 	}
 
 	return &VM{
+		Registry: *NewRegistry(
+			registry.ActionRegistry(),
+			registry.AuthRegistry(),
+			registry.OutputRegistry()),
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
-		actionRegistry:        actionRegistry,
-		authRegistry:          authRegistry,
-		outputRegistry:        outputRegistry,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
