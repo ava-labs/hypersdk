@@ -169,9 +169,9 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
+	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
 	tx := chain.NewTx(base, actions)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	tx, err := tx.Sign(authFactory, actionCodec, authCodec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}
@@ -194,21 +194,25 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	return resp.ABI, err
 }
 
-func (cli *JSONRPCClient) Execute(ctx context.Context, actor codec.Address, action chain.Action) ([]byte, error) {
-	actionBytes, err := chain.MarshalTyped(action)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal action: %w", err)
+func (cli *JSONRPCClient) Execute(ctx context.Context, actor codec.Address, actions []chain.Action) ([][]byte, error) {
+	actionsMarshaled := make([][]byte, 0)
+	for _, action := range actions {
+		actionBytes, err := chain.MarshalTyped(action)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal action: %w", err)
+		}
+		actionsMarshaled = append(actionsMarshaled, actionBytes)
 	}
 
 	args := &ExecuteActionArgs{
-		Actor:  actor,
-		Action: actionBytes,
+		Actor:   actor,
+		Actions: actionsMarshaled,
 	}
 
 	resp := new(ExecuteActionReply)
-	err = cli.requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
-		"executeAction",
+		"execute",
 		args,
 		resp,
 	)
@@ -219,7 +223,7 @@ func (cli *JSONRPCClient) Execute(ctx context.Context, actor codec.Address, acti
 		return nil, fmt.Errorf("failed to execute action: %s", resp.Error)
 	}
 
-	return resp.Output, nil
+	return resp.Outputs, nil
 }
 
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {

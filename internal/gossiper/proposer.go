@@ -163,8 +163,8 @@ func (g *Proposer) Force(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
-	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	actionCodec, authCodec := g.vm.ActionCodec(), g.vm.AuthCodec()
+	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionCodec, authCodec)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
