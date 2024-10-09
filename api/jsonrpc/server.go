@@ -163,13 +163,13 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 }
 
 type ExecuteActionArgs struct {
-	Actor  codec.Address `json:"actor"`
-	Action []byte        `json:"action"`
+	Actor   codec.Address `json:"actor"`
+	Actions [][]byte      `json:"actions"`
 }
 
 type ExecuteActionReply struct {
-	Output []byte `json:"output"`
-	Error  string `json:"error"`
+	Outputs [][]byte `json:"outputs"`
+	Error   string   `json:"error"`
 }
 
 func (j *JSONRPCServer) Execute(
@@ -181,59 +181,67 @@ func (j *JSONRPCServer) Execute(
 	defer span.End()
 
 	actionRegistry := j.vm.ActionRegistry()
-	action, err := (*actionRegistry).Unmarshal(codec.NewReader(args.Action, len(args.Action)))
-	if err != nil {
-		return fmt.Errorf("failed to unmashal action: %w", err)
+	actions := make([]chain.Action, 0)
+	for _, action := range args.Actions {
+		action, err := (*actionRegistry).Unmarshal(codec.NewReader(action, len(action)))
+		if err != nil {
+			return fmt.Errorf("failed to unmashal action: %w", err)
+		}
+		actions = append(actions, action)
 	}
 
 	now := time.Now().UnixMilli()
 
-	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(args.Actor)
-
-	// flatten the map to a slice of keys
-	storageKeysToRead := make([][]byte, 0)
-	for key := range stateKeysWithPermissions {
-		storageKeysToRead = append(storageKeysToRead, []byte(key))
-	}
-
 	storage := make(map[string][]byte)
-	values, errs := j.vm.ReadState(ctx, storageKeysToRead)
-	for _, err := range errs {
-		if err != nil && !errors.Is(err, database.ErrNotFound) {
-			return fmt.Errorf("failed to read state: %w", err)
-		}
-	}
-	for i, value := range values {
-		if value == nil {
-			continue
-		}
-		storage[string(storageKeysToRead[i])] = value
-	}
-
 	ts := tstate.New(1)
-	tsv := ts.NewView(stateKeysWithPermissions, storage)
 
-	output, err := action.Execute(
-		ctx,
-		j.vm.Rules(now),
-		tsv,
-		now,
-		args.Actor,
-		ids.Empty,
-	)
-	if err != nil {
-		reply.Error = fmt.Sprintf("failed to execute action: %s", err)
-		return nil
+	for _, action := range actions {
+		// Get expected state keys
+		stateKeysWithPermissions := action.StateKeys(args.Actor)
+
+		// flatten the map to a slice of keys
+		storageKeysToRead := make([][]byte, 0)
+		for key := range stateKeysWithPermissions {
+			storageKeysToRead = append(storageKeysToRead, []byte(key))
+		}
+
+		values, errs := j.vm.ReadState(ctx, storageKeysToRead)
+		for _, err := range errs {
+			if err != nil && !errors.Is(err, database.ErrNotFound) {
+				return fmt.Errorf("failed to read state: %w", err)
+			}
+		}
+		for i, value := range values {
+			if value == nil {
+				continue
+			}
+			storage[string(storageKeysToRead[i])] = value
+		}
+
+		tsv := ts.NewView(stateKeysWithPermissions, storage)
+
+		output, err := action.Execute(
+			ctx,
+			j.vm.Rules(now),
+			tsv,
+			now,
+			args.Actor,
+			ids.Empty,
+		)
+		if err != nil {
+			reply.Error = fmt.Sprintf("failed to execute action: %s", err)
+			return nil
+		}
+
+		tsv.Commit()
+
+		encodedOutput, err := chain.MarshalTyped(output)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output: %w", err)
+		}
+
+		reply.Outputs = append(reply.Outputs, encodedOutput)
 	}
-
-	encodedOutput, err := chain.MarshalTyped(output)
-	if err != nil {
-		return fmt.Errorf("failed to marshal output: %w", err)
-	}
-
-	reply.Output = encodedOutput
-
 	return nil
 }
 
