@@ -49,9 +49,8 @@ func (r *Recorder) checkState(ctx context.Context, key []byte) ([]byte, error) {
 func (r *Recorder) Insert(ctx context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
 
-	var stateKeyVal []byte
-	var err error
-	if stateKeyVal, err = r.checkState(ctx, key); err != nil {
+	stateKeyVal, err := r.checkState(ctx, key)
+	if err != nil {
 		return err
 	}
 
