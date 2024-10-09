@@ -169,9 +169,9 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
+	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
 	tx := chain.NewTx(base, actions)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	tx, err := tx.Sign(authFactory, actionCodec, authCodec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}
