@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
 var errInvalidTestItem = errors.New("invalid test item")
@@ -34,14 +34,6 @@ type IDer interface {
 	ID() ids.ID
 }
 
-type testTx struct {
-	ID     ids.ID `serialize:"true"`
-	Expiry int64  `serialize:"true"`
-}
-
-func (t testTx) GetID() ids.ID        { return t.ID }
-func (t testTx) GetExpiry() time.Time { return time.Unix(0, t.Expiry) }
-
 func (t testVerifier[T]) Verify(_ testContextProvider, item T) error {
 	if t.correctIDs.Contains(item.ID()) {
 		return nil
@@ -50,25 +42,25 @@ func (t testVerifier[T]) Verify(_ testContextProvider, item T) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*Storage[testContextProvider, testTx],
-	[]Chunk[testTx],
-	[]Chunk[testTx],
-	func() *Storage[testContextProvider, testTx],
+	*Storage[testContextProvider, tx],
+	[]Chunk[tx],
+	[]Chunk[tx],
+	func() *Storage[testContextProvider, tx],
 ) {
 	require := require.New(t)
 
-	validChunks := make([]Chunk[testTx], 0, numValidChunks)
+	validChunks := make([]Chunk[tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := NewChunk([]testTx{
+		chunk, err := NewChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
 		}, int64(i))
 		require.NoError(err)
 		validChunks = append(validChunks, chunk)
 	}
 
-	invalidChunks := make([]Chunk[testTx], 0, numInvalidChunks)
+	invalidChunks := make([]Chunk[tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := NewChunk([]testTx{
+		chunk, err := NewChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
 		}, int64(i))
 		require.NoError(err)
@@ -83,26 +75,24 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	for _, chunk := range validChunks {
 		validChunkIDs = append(validChunkIDs, chunk.ID())
 	}
-	pebbleDB := db.(*pebble.Database)
 
-	testVerifier := testVerifier[*Chunk[testTx]]{correctIDs: set.Of(validChunkIDs...)}
+	testVerifier := testVerifier[*Chunk[tx]]{correctIDs: set.Of(validChunkIDs...)}
 	storage, err := NewStorage(
 		testContextProvider{},
 		testVerifier,
-		pebbleDB,
+		db,
 	)
 	require.NoError(err)
 
-	restart := func() *Storage[testContextProvider, testTx] {
-		require.NoError(pebbleDB.Close())
+	restart := func() *Storage[testContextProvider, tx] {
+		require.NoError(db.Close())
 		db, _, err = pebble.New(tempDir, pebble.NewDefaultConfig())
 		require.NoError(err)
 
-		pebbleDB = db.(*pebble.Database)
 		storage, err := NewStorage(
 			testContextProvider{},
 			testVerifier,
-			pebbleDB,
+			db,
 		)
 		require.NoError(err)
 		return storage
@@ -305,9 +295,9 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].ID(),
 	}))
 
-	confirmChunkStorage := func(storage *Storage[testContextProvider, testTx]) {
+	confirmChunkStorage := func(storage *Storage[testContextProvider, tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
-		for i, expectedChunk := range []Chunk[testTx]{
+		for i, expectedChunk := range []Chunk[tx]{
 			validChunks[0],
 			validChunks[1],
 			validChunks[4],
@@ -319,7 +309,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		}
 
 		// Confirm the expired chunks are garbage collected
-		for _, expectedChunk := range []Chunk[testTx]{
+		for _, expectedChunk := range []Chunk[tx]{
 			validChunks[2],
 			validChunks[3],
 		} {
