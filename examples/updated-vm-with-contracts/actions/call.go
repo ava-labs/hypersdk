@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
+
+	hyperConsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*Call)(nil)
@@ -71,6 +73,7 @@ func (c *Call) Execute(ctx context.Context, rules chain.Rules, mu state.Mutable,
 		// pass in the timestamp as the height
 		Height:    uint64(timestamp),
 		Timestamp: uint64(timestamp),
+		ActionID: actionID,
 	}
 
 	result, err := c.r.CallContract(ctx, runtimeCallInfo)
@@ -101,8 +104,7 @@ func (*CallOutput) GetTypeID() uint8 {
 var _ chain.Marshaler = (*Call)(nil)
 
 func (c *Call) Size() int {
-	// TODO: don't hardcode uint sizes
-	return codec.AddressLen + 8 + len(c.FunctionName) + len(c.Args) + 8
+	return codec.AddressLen + hyperConsts.Uint64Len + len(c.FunctionName) + len(c.Args) + hyperConsts.Uint64Len
 }
 
 func (c *Call) Marshal(p *codec.Packer) {
@@ -111,7 +113,6 @@ func (c *Call) Marshal(p *codec.Packer) {
 	p.PackString(c.FunctionName)
 	p.PackBytes(c.Args)
 	p.PackUint64(c.Fuel)
-
 }
 
 func UnmarshalCall(p *codec.Packer) (chain.Action, error) {

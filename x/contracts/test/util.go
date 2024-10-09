@@ -6,10 +6,33 @@ package test
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/near/borsh-go"
 )
+
+// CompileContract compiles the contract with the given name and returns the compiled contract bytes
+func CompileContract(contractName string) ([]byte, error) {
+	if err := CompileTest(contractName); err != nil {
+		return nil, err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	contractName = strings.ReplaceAll(contractName, "-", "_")
+	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
+	if err != nil {
+		return nil, err
+	}
+
+	return contractBytes, nil
+}
+
 
 func CompileTest(contractName string) error {
 	cmd := exec.Command("cargo", "rustc", "-p", contractName, "--release", "--target-dir=./target", "--target=wasm32-unknown-unknown", "--crate-type=cdylib")

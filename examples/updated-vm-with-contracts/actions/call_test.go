@@ -12,12 +12,15 @@ import (
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/test"
 	"github.com/stretchr/testify/require"
 )
 
+const fuel = 1_000_000_000
+
 func TestCallAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
-	counterBytes, err := LoadBytes("counter.wasm")
+	counterBytes, err := test.CompileContract("counter")
 	require.NoError(t, err)
 
 	// this will be the same when the contract is deployed
@@ -27,7 +30,7 @@ func TestCallAction(t *testing.T) {
 	config := runtime.NewConfig()
 	config.SetDebugInfo(true)
 	rt := runtime.NewRuntime(config, logging.NewLogger("test"))
-	fuel := uint64(1000000000)
+	fuel := uint64(fuel)
 	
 	getValueArgs, err := SerializeArgs(addr)
 	require.NoError(t, err)
@@ -124,4 +127,8 @@ func TestCallAction(t *testing.T) {
 	for _, tt := range tests {
 		tt.Run(context.Background(), t)
 	}
+}
+
+func TestCallActionMarshal(t *testing.T) {
+	
 }

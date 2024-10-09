@@ -130,8 +130,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			uris = append(uris, bootstrapNodeURI)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
-			require.NoError(err)
+		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
+		require.NoError(err)
 			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
 		})
 		ginkgo.By("Restart the node", func() {
