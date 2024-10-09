@@ -75,9 +75,8 @@ func (r *Recorder) Remove(_ context.Context, key []byte) error {
 func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	stringKey := string(key)
 
-	var stateKeyVal []byte
-
-	if stateKeyVal, err = r.checkState(ctx, key); err != nil {
+	stateKeyVal, err = r.checkState(ctx, key)
+	if err != nil {
 		return nil, err
 	}
 	r.keys[stringKey] |= Read
