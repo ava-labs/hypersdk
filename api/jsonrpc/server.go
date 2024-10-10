@@ -26,6 +26,8 @@ const (
 	Endpoint = "/coreapi"
 )
 
+var errNoActionsToExecute = errors.New("no actions to execute")
+
 var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
 
 var (
@@ -171,7 +173,7 @@ type ExecuteActionReply struct {
 	Error   string   `json:"error"`
 }
 
-func (j *JSONRPCServer) Execute(
+func (j *JSONRPCServer) ExecuteActions(
 	req *http.Request,
 	args *ExecuteActionArgs,
 	reply *ExecuteActionReply,
@@ -180,7 +182,13 @@ func (j *JSONRPCServer) Execute(
 	defer span.End()
 
 	actionCodec := j.vm.ActionCodec()
-	actions := make([]chain.Action, 0)
+	if len(args.Actions) == 0 {
+		return errNoActionsToExecute
+	}
+	if maxActionsPerTx := int(j.vm.Rules(time.Now().Unix()).GetMaxActionsPerTx()); len(args.Actions) > maxActionsPerTx {
+		return fmt.Errorf("exceeded max actions per simulation: %d", maxActionsPerTx)
+	}
+	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, action := range args.Actions {
 		action, err := actionCodec.Unmarshal(codec.NewReader(action, len(action)))
 		if err != nil {
@@ -194,12 +202,12 @@ func (j *JSONRPCServer) Execute(
 	storage := make(map[string][]byte)
 	ts := tstate.New(1)
 
-	for _, action := range actions {
+	for actionIndex, action := range actions {
 		// Get expected state keys
 		stateKeysWithPermissions := action.StateKeys(args.Actor)
 
 		// flatten the map to a slice of keys
-		storageKeysToRead := make([][]byte, 0)
+		storageKeysToRead := make([][]byte, 0, len(stateKeysWithPermissions))
 		for key := range stateKeysWithPermissions {
 			storageKeysToRead = append(storageKeysToRead, []byte(key))
 		}
@@ -225,7 +233,7 @@ func (j *JSONRPCServer) Execute(
 			tsv,
 			now,
 			args.Actor,
-			ids.Empty,
+			chain.CreateActionID(ids.Empty, uint8(actionIndex)),
 		)
 		if err != nil {
 			reply.Error = fmt.Sprintf("failed to execute action: %s", err)
