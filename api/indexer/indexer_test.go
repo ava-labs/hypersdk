@@ -127,3 +127,5 @@ func TestBlockIndexRestart(t *testing.T) {
 	checkBlocks(t, restartedIndexerSingleBlockWindow, executedBlocks, 1)
 	require.NoError(restartedIndexerSingleBlockWindow.Close())
 }
+
+//TODO: check if indexer cleans up transactions and blockIds

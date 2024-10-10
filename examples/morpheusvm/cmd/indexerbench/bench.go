@@ -116,6 +116,10 @@ func benchBlocksById(idxer *indexer.Indexer, blocksToRetrieve int, blockWindow i
 
 	elapsed := time.Since(start)
 	rps := float64(blocksToRetrieve) / elapsed.Seconds()
+
+	// firstBlockHeight := blocks[0].Block.Hght
+	// lastBlockHeight := blocks[len(blocks)-1].Block.Hght
+	// log.Printf("Blocks range: %d - %d were used for benchmarking", firstBlockHeight, lastBlockHeight)
 	log.Printf("Retrieved %d blocks by ID in %s (%.2f RPS)\n", blocksToRetrieve, elapsed, rps)
 
 	for i, randomBlock := range randomBlocks {

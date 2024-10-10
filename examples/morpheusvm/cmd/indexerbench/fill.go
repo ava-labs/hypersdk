@@ -72,12 +72,13 @@ func fillIndexerAsync(idxer *indexer.Indexer, parser *chaintest.Parser, blockCou
 	if err != nil {
 		return fmt.Errorf("getting directory size: %w", err)
 	}
-	log.Printf("accepted %s blocks containing %s txs (height=%s) in %s. Database occupies %s on disk.\n",
+	log.Printf("accepted %s blocks containing %s txs (height=%s) in %s. Database occupies %s on disk. %s TPS\n",
 		formatNumberWithSuffix(blockCount),
 		formatNumberWithSuffix(blockCount*txPerBlock),
 		formatNumberWithSuffix(int(parentHeight)),
 		elapsed,
 		dirSize,
+		formatNumberWithSuffix(int(float64(blockCount*txPerBlock)/elapsed.Seconds())),
 	)
 
 	return nil
@@ -104,11 +105,11 @@ func generateExecutedBlocks(params generateExecutedBlocksParams) ([]*chain.Execu
 			Txs:    make([]*chain.Transaction, params.TxPerBlock),
 		}
 
-		sampleTx, err := generateTestTx(params.Parser, statelessBlock.Hght, statelessBlock.Tmstmp)
-		if err != nil {
-			return nil, fmt.Errorf("generating test transaction: %w", err)
-		}
 		for j := range statelessBlock.Txs {
+			sampleTx, err := generateTestTx(params.Parser, statelessBlock.Hght, statelessBlock.Tmstmp, j)
+			if err != nil {
+				return nil, fmt.Errorf("generating test transaction: %w", err)
+			}
 			statelessBlock.Txs[j] = sampleTx
 		}
 
@@ -151,7 +152,16 @@ func generateExecutedBlocks(params generateExecutedBlocksParams) ([]*chain.Execu
 	return executedBlocks, nil
 }
 
-func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int64) (*chain.Transaction, error) {
+var sampleTx *chain.Transaction
+
+func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int64, idx int) (*chain.Transaction, error) {
+	if sampleTx != nil {
+		// Copy the sample transaction
+		copiedTx := sampleTx
+
+		return copiedTx, nil
+	}
+
 	privKey, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating private key: %w", err)
@@ -162,7 +172,7 @@ func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int6
 		&chain.Base{
 			Timestamp: timestamp,
 			ChainID:   ids.GenerateTestID(),
-			MaxFee:    1234567,
+			MaxFee:    100 + uint64(idx),
 		},
 
 		[]chain.Action{
@@ -180,6 +190,7 @@ func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int6
 	}
 	return signedTx, nil
 }
+
 func getHumanReadableDirSize(path string) (string, error) {
 	var output []byte
 	var err error

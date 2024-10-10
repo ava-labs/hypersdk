@@ -13,15 +13,16 @@ import (
 
 const TEST_DIR = "/var/tmp/indexer-bench"
 
-const CLEANUP_ON_START = false
+const CLEANUP_ON_START = true
 
 func main() {
 	var err error
 	if CLEANUP_ON_START {
 		err := os.RemoveAll(TEST_DIR)
 		if err != nil {
-			log.Fatalf("removing test dir: %s", err)
+			log.Fatalf("removin g test dir: %s", err)
 		}
+		fmt.Println(" - - - - - - ")
 	}
 
 	err = os.MkdirAll(TEST_DIR, 0o755)
@@ -34,10 +35,10 @@ func main() {
 	(*parser.OutputCodec()).Register(&actions.TransferResult{}, nil)
 	(*parser.AuthCodec()).Register(&auth.ED25519{}, nil)
 
-	const blockCount = 1_000
-	const txPerBlock = 1_000
-	const itemsToBenchmark = 1_000
-	const blockWindow = 1_000
+	const txPerBlock = 10000
+	const blockCount = 100_000 / txPerBlock
+	const itemsToBenchmark = 100
+	const blockWindow = 10_000_000
 
 	idxer, err := indexer.NewIndexer(TEST_DIR, parser, blockWindow)
 	if err != nil {
