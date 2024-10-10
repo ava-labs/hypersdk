@@ -82,12 +82,12 @@ func NewSpammer(sc *SpamConfig,
 	}
 
 	return &Spammer{
-		uris:             sc.uris,
-		key:              sc.key,
-		balance:          balance,
-		zipfSeed:         zipfSeed,
-		sZipf:            sc.sZipf,
-		vZipf:            sc.vZipf,
+		uris:     sc.uris,
+		key:      sc.key,
+		balance:  balance,
+		zipfSeed: zipfSeed,
+		sZipf:    sc.sZipf,
+		vZipf:    sc.vZipf,
 
 		txsPerSecond:     sc.txsPerSecond,
 		minTxsPerSecond:  sc.minTxsPerSecond,

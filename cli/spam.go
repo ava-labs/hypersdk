@@ -32,7 +32,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	if err := sh.CreateClient(uris[0]); err != nil {
 		return nil, err
 	}
-	
+
 	keyIndex, err := prompt.Choice("select root key", len(keys))
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	if err != nil {
 		return nil, err
 	}
-	
+
 	sc := throughput.NewSpamConfig(
 		uris,
 		key,
