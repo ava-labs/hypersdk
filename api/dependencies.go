@@ -31,7 +31,7 @@ type VM interface {
 	Submit(
 		ctx context.Context,
 		verifySig bool,
-		txs []*chain.SignedTransaction,
+		txs []*chain.Transaction,
 	) (errs []error)
 	LastAcceptedBlock() *chain.StatefulBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)

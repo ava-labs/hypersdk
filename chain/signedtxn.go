@@ -24,12 +24,12 @@ import (
 )
 
 var (
-	_ emap.Item    = (*SignedTransaction)(nil)
-	_ mempool.Item = (*SignedTransaction)(nil)
+	_ emap.Item    = (*Transaction)(nil)
+	_ mempool.Item = (*Transaction)(nil)
 )
 
-type SignedTransaction struct {
-	Transaction
+type Transaction struct {
+	TransactionData
 
 	Auth Auth `json:"auth"`
 
@@ -39,54 +39,52 @@ type SignedTransaction struct {
 	stateKeys state.Keys
 }
 
-func (t *SignedTransaction) UnsignedTxnBytes() []byte { return t.Transaction.bytes }
+func (s *Transaction) Bytes() []byte { return s.bytes }
 
-func (t *SignedTransaction) Bytes() []byte { return t.bytes }
+func (s *Transaction) Size() int { return s.size }
 
-func (t *SignedTransaction) Size() int { return t.size }
+func (s *Transaction) ID() ids.ID { return s.id }
 
-func (t *SignedTransaction) ID() ids.ID { return t.id }
-
-func (t *SignedTransaction) StateKeys(sm StateManager) (state.Keys, error) {
-	if t.stateKeys != nil {
-		return t.stateKeys, nil
+func (s *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
+	if s.stateKeys != nil {
+		return s.stateKeys, nil
 	}
 	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	for _, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor()) {
+	for _, action := range s.Actions {
+		for k, v := range action.StateKeys(s.Auth.Actor()) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
 		}
 	}
-	for k, v := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+	for k, v := range sm.SponsorStateKeys(s.Auth.Sponsor()) {
 		if !stateKeys.Add(k, v) {
 			return nil, ErrInvalidKeyValue
 		}
 	}
 
 	// Cache keys if called again
-	t.stateKeys = stateKeys
+	s.stateKeys = stateKeys
 	return stateKeys, nil
 }
 
 // Units is charged whether or not a transaction is successful.
-func (t *SignedTransaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
+func (s *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	for _, action := range t.Actions {
+	for _, action := range s.Actions {
 		computeOp.Add(action.ComputeUnits(r))
 	}
-	computeOp.Add(t.Auth.ComputeUnits(r))
+	computeOp.Add(s.Auth.ComputeUnits(r))
 	maxComputeUnits, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
 
 	// Calculate storage usage
-	stateKeys, err := t.StateKeys(sm)
+	stateKeys, err := s.StateKeys(sm)
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
@@ -120,24 +118,24 @@ func (t *SignedTransaction) Units(sm StateManager, r Rules) (fees.Dimensions, er
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{uint64(s.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
-func (t *SignedTransaction) PreExecute(
+func (s *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	s StateManager,
+	sm StateManager,
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r, timestamp); err != nil {
+	if err := s.Base.Execute(r, timestamp); err != nil {
 		return err
 	}
-	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
+	if len(s.Actions) > int(r.GetMaxActionsPerTx()) {
 		return ErrTooManyActions
 	}
-	for i, action := range t.Actions {
+	for i, action := range s.Actions {
 		start, end := action.ValidRange(r)
 		if start >= 0 && timestamp < start {
 			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
@@ -146,14 +144,14 @@ func (t *SignedTransaction) PreExecute(
 			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
 		}
 	}
-	start, end := t.Auth.ValidRange(r)
+	start, end := s.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
 		return ErrAuthNotActivated
 	}
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
 	}
-	units, err := t.Units(s, r)
+	units, err := s.Units(sm, r)
 	if err != nil {
 		return err
 	}
@@ -161,23 +159,23 @@ func (t *SignedTransaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
+	return sm.CanDeduct(ctx, s.Auth.Sponsor(), im, fee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
 // to charge the fee in as many cases as possible.
 //
 // Invariant: [PreExecute] is called just before [Execute]
-func (t *SignedTransaction) Execute(
+func (s *Transaction) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
-	s StateManager,
+	sm StateManager,
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
 	// Always charge fee first
-	units, err := t.Units(s, r)
+	units, err := s.Units(sm, r)
 	if err != nil {
 		// Should never happen
 		return nil, err
@@ -187,7 +185,7 @@ func (t *SignedTransaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
+	if err := sm.Deduct(ctx, s.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -201,8 +199,8 @@ func (t *SignedTransaction) Execute(
 		actionStart   = ts.OpIndex()
 		actionOutputs = [][]byte{}
 	)
-	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+	for i, action := range s.Actions {
+		actionOutput, err := action.Execute(ctx, r, ts, timestamp, s.Auth.Actor(), CreateActionID(s.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
@@ -234,39 +232,39 @@ func (t *SignedTransaction) Execute(
 }
 
 // Sponsor is the [codec.Address] that pays fees for this transaction.
-func (t *SignedTransaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
+func (s *Transaction) Sponsor() codec.Address { return s.Auth.Sponsor() }
 
-func (t *SignedTransaction) Marshal(p *codec.Packer) error {
-	if len(t.bytes) > 0 {
-		p.PackFixedBytes(t.bytes)
+func (s *Transaction) Marshal(p *codec.Packer) error {
+	if len(s.bytes) > 0 {
+		p.PackFixedBytes(s.bytes)
 		return p.Err()
 	}
-	return t.marshal(p)
+	return s.marshal(p)
 }
 
-func (t *SignedTransaction) marshal(p *codec.Packer) error {
-	if err := t.Transaction.marshal(p); err != nil {
+func (s *Transaction) marshal(p *codec.Packer) error {
+	if err := s.TransactionData.marshal(p); err != nil {
 		return err
 	}
 
-	authID := t.Auth.GetTypeID()
+	authID := s.Auth.GetTypeID()
 	p.PackByte(authID)
-	t.Auth.Marshal(p)
+	s.Auth.Marshal(p)
 
 	return p.Err()
 }
 
 // Verify that the transaction was signed correctly.
-func (t *SignedTransaction) Verify(ctx context.Context) error {
-	msg, err := t.Transaction.Bytes()
+func (s *Transaction) Verify(ctx context.Context) error {
+	msg, err := s.UnsignedBytes()
 	if err != nil {
 		// Should never occur because populated during unmarshal
 		return err
 	}
-	return t.Auth.Verify(ctx, msg)
+	return s.Auth.Verify(ctx, msg)
 }
 
-func MarshalSignedTxs(txs []*SignedTransaction) ([]byte, error) {
+func MarshalSignedTxs(txs []*Transaction) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
@@ -286,11 +284,11 @@ func UnmarshalSignedTxs(
 	initialCapacity int,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
-) (map[uint8]int, []*SignedTransaction, error) {
+) (map[uint8]int, []*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
-	txs := make([]*SignedTransaction, 0, initialCapacity) // DoS to set size to txCount
+	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
 	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalSignedTx(p, actionRegistry, authRegistry)
 		if err != nil {
@@ -310,7 +308,7 @@ func UnmarshalSignedTx(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],
 	authRegistry *codec.TypeParser[Auth],
-) (*SignedTransaction, error) {
+) (*Transaction, error) {
 	start := p.Offset()
 	unsignedTransaction, err := UnmarshalTx(p, actionRegistry)
 	if err != nil {
@@ -329,8 +327,8 @@ func UnmarshalSignedTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx SignedTransaction
-	tx.Transaction = *unsignedTransaction
+	var tx Transaction
+	tx.TransactionData = *unsignedTransaction
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()

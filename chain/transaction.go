@@ -12,27 +12,28 @@ import (
 	"github.com/ava-labs/hypersdk/internal/math"
 )
 
-type Transaction struct {
+type TransactionData struct {
 	Base *Base `json:"base"`
 
 	Actions Actions `json:"actions"`
 
-	bytes []byte
+	unsignedBytes []byte
 }
 
-func NewTx(base *Base, actions Actions) *Transaction {
-	return &Transaction{
+func NewTx(base *Base, actions Actions) *TransactionData {
+	return &TransactionData{
 		Base:    base,
 		Actions: actions,
 	}
 }
 
-// Bytes returns the byte slice representation of the tx
-func (t *Transaction) Bytes() ([]byte, error) {
-	if len(t.bytes) > 0 {
-		return t.bytes, nil
+// UnsignedBytes returns the byte slice representation of the tx
+func (t *TransactionData) UnsignedBytes() ([]byte, error) {
+	if len(t.unsignedBytes) > 0 {
+		return t.unsignedBytes, nil
 	}
 	size := t.Base.Size() + consts.Uint8Len
+
 	actionsSize, err := t.Actions.Size()
 	if err != nil {
 		return nil, err
@@ -43,18 +44,18 @@ func (t *Transaction) Bytes() ([]byte, error) {
 	if err := t.marshal(p); err != nil {
 		return nil, err
 	}
-	t.bytes = p.Bytes()
-	return t.bytes, p.Err()
+	t.unsignedBytes = p.Bytes()
+	return t.unsignedBytes, p.Err()
 }
 
 // Sign returns a new signed transaction with the unsigned tx copied from
 // the original and a signature provided by the authFactory
-func (t *Transaction) Sign(
+func (t *TransactionData) Sign(
 	factory AuthFactory,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
-) (*SignedTransaction, error) {
-	msg, err := t.Bytes()
+) (*Transaction, error) {
+	msg, err := t.UnsignedBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +64,8 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 
-	signedTransaction := SignedTransaction{
-		Transaction: Transaction{
+	signedTransaction := Transaction{
+		TransactionData: TransactionData{
 			Base:    t.Base,
 			Actions: t.Actions,
 		},
@@ -85,9 +86,9 @@ func (t *Transaction) Sign(
 	return UnmarshalSignedTx(p, actionRegistry, authRegistry)
 }
 
-func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
+func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
 
-func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
+func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
 
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost
 // to execute a transaction.
@@ -160,15 +161,15 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
-func (t *Transaction) Marshal(p *codec.Packer) error {
-	if len(t.bytes) > 0 {
-		p.PackFixedBytes(t.bytes)
+func (t *TransactionData) Marshal(p *codec.Packer) error {
+	if len(t.unsignedBytes) > 0 {
+		p.PackFixedBytes(t.unsignedBytes)
 		return p.Err()
 	}
 	return t.marshal(p)
 }
 
-func (t *Transaction) marshal(p *codec.Packer) error {
+func (t *TransactionData) marshal(p *codec.Packer) error {
 	t.Base.Marshal(p)
 	if err := p.Err(); err != nil {
 		return err
@@ -206,7 +207,7 @@ func (a Actions) marshalInto(p *codec.Packer) error {
 func UnmarshalTx(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],
-) (*Transaction, error) {
+) (*TransactionData, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
 	if err != nil {
@@ -217,14 +218,14 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 
-	var tx Transaction
+	var tx TransactionData
 	tx.Base = base
 	tx.Actions = actions
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
 	codecBytes := p.Bytes()
-	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
+	tx.unsignedBytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	return &tx, nil
 }
 

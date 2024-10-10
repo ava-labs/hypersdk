@@ -101,10 +101,10 @@ type VM struct {
 	network               *p2p.Network
 
 	tracer  avatrace.Tracer
-	mempool *mempool.Mempool[*chain.SignedTransaction]
+	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seen                   *emap.EMap[*chain.SignedTransaction]
+	seen                   *emap.EMap[*chain.Transaction]
 	startSeenTime          int64
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
@@ -196,7 +196,7 @@ func (vm *VM) Initialize(
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.SignedTransaction]()
+	vm.seen = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -323,7 +323,7 @@ func (vm *VM) Initialize(
 	vm.acceptedQueue = make(chan *chain.StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
-	vm.mempool = mempool.New[*chain.SignedTransaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -856,7 +856,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifyAuth bool,
-	txs []*chain.SignedTransaction,
+	txs []*chain.Transaction,
 ) (errs []error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
@@ -898,7 +898,7 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 
-	validTxs := []*chain.SignedTransaction{}
+	validTxs := []*chain.Transaction{}
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {

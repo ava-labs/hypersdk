@@ -317,7 +317,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	var (
-		initialTx          *chain.SignedTransaction
+		initialTx          *chain.Transaction
 		initialTxAssertion workload.TxAssertion
 	)
 	ginkgo.It("Gossip TransferTx to a different node", func() {
@@ -356,13 +356,13 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			unsignedTxBytes, err := tx.Bytes()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			require.NoError(err)
 			auth, err := authFactory.Sign(unsignedTxBytes)
 			require.NoError(err)
-			signedTxn := chain.SignedTransaction{
-				Transaction: *tx,
-				Auth:        auth,
+			signedTxn := chain.Transaction{
+				TransactionData: *tx,
+				Auth:            auth,
 			}
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
 			require.NoError(signedTxn.Marshal(p))

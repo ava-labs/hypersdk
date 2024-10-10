@@ -130,7 +130,7 @@ func (*Controller) GetParser(uri string) (chain.Parser, error) {
 	return cli.Parser(context.TODO())
 }
 
-func (*Controller) HandleTx(tx *chain.SignedTransaction, result *chain.Result) {
+func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
 	handleTx(tx, result)
 }
 

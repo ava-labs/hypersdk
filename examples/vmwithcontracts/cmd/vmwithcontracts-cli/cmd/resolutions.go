@@ -57,7 +57,7 @@ func sendAndWait(
 	return result, nil
 }
 
-func handleTx(tx *chain.SignedTransaction, result *chain.Result) {
+func handleTx(tx *chain.Transaction, result *chain.Result) {
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(

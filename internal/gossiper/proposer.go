@@ -110,7 +110,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	// that increases the probability they'll be accepted
 	// before they expire.
 	var (
-		txs   = []*chain.SignedTransaction{}
+		txs   = []*chain.Transaction{}
 		size  = 0
 		start = time.Now()
 		now   = start.UnixMilli()
@@ -118,7 +118,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.SignedTransaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -193,7 +193,16 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	var seen int
 	for _, tx := range txs {
 		// Verify signature async
-		unsignedTxBytes := tx.UnsignedTxnBytes()
+		unsignedTxBytes, err := tx.UnsignedBytes()
+		if err != nil {
+			g.vm.Logger().Warn(
+				"unable to compute tx digest",
+				zap.Stringer("peerID", nodeID),
+				zap.Error(err),
+			)
+			batchVerifier.Done(nil)
+			return nil
+		}
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 
 		// Add incoming txs to the cache to make
@@ -338,7 +347,7 @@ func (g *Proposer) Done() {
 	<-g.doneGossip
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.SignedTransaction) error {
+func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 

@@ -116,7 +116,7 @@ func BuildBlock(
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
-		restorable     = []*SignedTransaction{}
+		restorable     = []*Transaction{}
 
 		// cache contains keys already fetched from state that can be
 		// used during prefetching.
@@ -140,7 +140,7 @@ func BuildBlock(
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
-	b.Txs = []*SignedTransaction{}
+	b.Txs = []*Transaction{}
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -161,7 +161,7 @@ func BuildBlock(
 		}
 
 		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
-		pending := make(map[ids.ID]*SignedTransaction, streamBatch)
+		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
 		for li, ltx := range txs {
 			txsAttempted++

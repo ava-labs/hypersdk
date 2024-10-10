@@ -15,7 +15,7 @@ type Controller interface {
 	DatabasePath() string
 	Symbol() string
 	GetParser(string) (chain.Parser, error)
-	HandleTx(*chain.SignedTransaction, *chain.Result)
+	HandleTx(*chain.Transaction, *chain.Result)
 	LookupBalance(address codec.Address, uri string) (uint64, error)
 }
 

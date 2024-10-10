@@ -102,7 +102,7 @@ func (j *JSONRPCServer) SubmitTx(
 	}
 	txID := tx.ID()
 	reply.TxID = txID
-	return j.vm.Submit(ctx, false, []*chain.SignedTransaction{tx})[0]
+	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
 }
 
 type LastAcceptedReply struct {

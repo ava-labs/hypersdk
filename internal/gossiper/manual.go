@@ -41,14 +41,14 @@ func (g *Manual) Run(client *p2p.Client) {
 func (g *Manual) Force(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
-		txs  = []*chain.SignedTransaction{}
+		txs  = []*chain.Transaction{}
 		size = 0
 		now  = time.Now().UnixMilli()
 	)
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.SignedTransaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil

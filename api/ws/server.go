@@ -115,7 +115,7 @@ type WebSocketServer struct {
 
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
-	expiringTxs *emap.EMap[*chain.SignedTransaction] // ensures all tx listeners are eventually responded to
+	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }
 
 func NewWebSocketServer(
@@ -134,7 +134,7 @@ func NewWebSocketServer(
 		authRegistry:   authRegistry,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
-		expiringTxs:    emap.NewEMap[*chain.SignedTransaction](),
+		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
@@ -144,7 +144,7 @@ func NewWebSocketServer(
 
 // Note: no need to have a tx listener removal, this will happen when all
 // submitted transactions are cleared.
-func (w *WebSocketServer) AddTxListener(tx *chain.SignedTransaction, c *pubsub.Connection) {
+func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
@@ -156,7 +156,7 @@ func (w *WebSocketServer) AddTxListener(tx *chain.SignedTransaction, c *pubsub.C
 		w.txListeners[txID] = connections
 	}
 	connections.Add(c)
-	w.expiringTxs.Add([]*chain.SignedTransaction{tx})
+	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
 // If never possible for a tx to enter mempool, call this
@@ -275,7 +275,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 
 			// Submit will remove from [txListeners] if it is not added
 			txID := tx.ID()
-			if err := w.vm.Submit(ctx, false, []*chain.SignedTransaction{tx})[0]; err != nil {
+			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),

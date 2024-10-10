@@ -48,8 +48,8 @@ func TestBlockCache(t *testing.T) {
 		acceptedBlocksByHeight: bByHeight,
 
 		verifiedBlocks: make(map[ids.ID]*chain.StatefulBlock),
-		seen:           emap.NewEMap[*chain.SignedTransaction](),
-		mempool:        mempool.New[*chain.SignedTransaction](tracer, 100, 32),
+		seen:           emap.NewEMap[*chain.Transaction](),
+		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatefulBlock, 1024), // don't block on queue
 		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
 	}
