@@ -27,6 +27,7 @@ type Context struct {
 	Actor     codec.Address
 	Height    uint64
 	Timestamp uint64
+	Value     uint64
 	ActionID  ids.ID
 }
 
@@ -54,10 +55,11 @@ type CallInfo struct {
 	// the timestamp of the chain at the time this call was made
 	Timestamp uint64
 
+	// the value that is passed to the call context
+	Value uint64
+
 	// the action id that triggered this call
 	ActionID ids.ID
-
-	Value uint64
 
 	inst *ContractInstance
 }
@@ -104,6 +106,7 @@ func (p *ContractInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte
 		Actor:     callInfo.Actor,
 		Height:    callInfo.Height,
 		Timestamp: callInfo.Timestamp,
+		Value:     callInfo.Value,
 		ActionID:  callInfo.ActionID,
 	}
 	paramsBytes, err := Serialize(contractCtx)
