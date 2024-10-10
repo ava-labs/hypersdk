@@ -42,7 +42,7 @@
         },
         {
             "id": 10,
-            "name": "Booleans"
+            "name": "Bools"
         }
     ],
     "outputs": [
@@ -236,7 +236,7 @@
             ]
         },
         {
-            "name": "Booleans",
+            "name": "Bools",
             "fields": [
                 {
                     "name": "bool1",
