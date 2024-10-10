@@ -93,7 +93,7 @@ func NewSpammer(sc *SpamConfig,
 		minTxsPerSecond:  sc.minTxsPerSecond,
 		txsPerSecondStep: sc.txsPerSecondStep,
 		numClients:       sc.numClients,
-		numAccounts: sc.numAccounts,
+		numAccounts:      sc.numAccounts,
 	}, nil
 }
 
