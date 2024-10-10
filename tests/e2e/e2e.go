@@ -124,25 +124,16 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-
-		// Spam Args
 		uris := getE2EURIs(tc, blockchainID)
 		key := spamKey
-		sZipf := 1.01
-		vZipf := 2.7
-		txsPerSecond := 500
-		minTxsPerSecond := 100
-		txsPerSecondStep := 200
-		numClients := 10
-		numAccounts := 25
 
-		// run spammer
 		err := spamHelper.CreateClient(uris[0])
 		require.NoError(err)
-		balance, err := spamHelper.LookupBalance(key.Address)
+		
+		spamConfig := throughput.DefaultSpamConfig(uris, key)
+		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
 		require.NoError(err)
 
-		spammer := throughput.NewSpammer(uris, key, balance, sZipf, vZipf, txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts)
 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
 		require.NoError(err)
 	})

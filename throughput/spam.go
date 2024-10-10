@@ -71,29 +71,29 @@ type Spammer struct {
 	numAccounts int
 }
 
-func NewSpammer(
-	uris []string,
-	key *auth.PrivateKey,
-	balance uint64,
-	sZipf, vZipf float64,
-	txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts int,
-) *Spammer {
+func NewSpammer(sc *SpamConfig,
+	sh SpamHelper,
+) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	balance, err := sh.LookupBalance(sc.key.Address)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Spammer{
-		uris,
-		key,
-		balance,
-		zipfSeed,
-		sZipf,
-		vZipf,
-		txsPerSecond,
-		minTxsPerSecond,
-		txsPerSecondStep,
-		numClients,
-		numAccounts,
-	}
+		uris:             sc.uris,
+		key:              sc.key,
+		balance:          balance,
+		zipfSeed:         zipfSeed,
+		sZipf:            sc.sZipf,
+		vZipf:            sc.vZipf,
+
+		txsPerSecond:     sc.txsPerSecond,
+		minTxsPerSecond:  sc.minTxsPerSecond,
+		txsPerSecondStep: sc.txsPerSecondStep,
+		numClients:       sc.numClients,
+	}, nil
 }
 
 // Spam tests the throughput of the network by sending transactions using
