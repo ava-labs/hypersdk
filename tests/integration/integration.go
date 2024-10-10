@@ -346,7 +346,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
-			tx := chain.NewTx(
+			tx := chain.NewTxnData(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
 					Timestamp: 1,
@@ -360,9 +360,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(err)
 			auth, err := authFactory.Sign(unsignedTxBytes)
 			require.NoError(err)
-			tx.Auth = auth
+			signedTxn := chain.Transaction{
+				TransactionData: *tx,
+				Auth:            auth,
+			}
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-			require.NoError(tx.Marshal(p))
+			require.NoError(signedTxn.Marshal(p))
 			require.NoError(p.Err())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),
