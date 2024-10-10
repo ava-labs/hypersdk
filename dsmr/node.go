@@ -6,11 +6,8 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 )
-
-var _ p2p.Handler = (*Node)(nil)
 
 func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 	return &Node[T]{
@@ -18,7 +15,7 @@ func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 		chunkBuilder: chunkBuilder[T]{
 			threshold: txsPerChunk,
 		},
-		chunks: make(chan Chunk[T]),
+		chunks: make(chan Chunk[T], 1),
 	}
 }
 
@@ -58,6 +55,7 @@ func (n Node[_]) Run(blks chan<- Block) error {
 }
 
 // TODO why return error
+// Caller is assumed to de-dup transactions
 func (n Node[T]) AddTx(tx T) error {
 	chunk, err := n.chunkBuilder.Add(tx, 0)
 	if err != nil {
@@ -81,5 +79,5 @@ type blockBuilder[T Tx] struct{}
 
 // Add returns if a block was built
 func (b *blockBuilder[T]) Add(chunk ChunkCertificate) (Block, bool) {
-	return Block{}, false
+	return Block{}, true
 }
