@@ -73,8 +73,8 @@ func (t *Transaction) UnsignedBytes() ([]byte, error) {
 // the original and a signature provided by the authFactory
 func (t *Transaction) Sign(
 	factory AuthFactory,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionCodec *codec.TypeParser[Action],
+	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	msg, err := t.UnsignedBytes()
 	if err != nil {
@@ -102,7 +102,7 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
+	return UnmarshalTx(p, actionCodec, authCodec)
 }
 
 // Verify that the transaction was signed correctly.
@@ -451,15 +451,15 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 func UnmarshalTxs(
 	raw []byte,
 	initialCapacity int,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionCodec *codec.TypeParser[Action],
+	authCodec *codec.TypeParser[Auth],
 ) (map[uint8]int, []*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx(p, actionCodec, authCodec)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -475,20 +475,20 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
+	actionCodec *codec.TypeParser[Action],
+	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := UnmarshalActions(p, actionRegistry)
+	actions, err := UnmarshalActions(p, actionCodec)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
-	auth, err := authRegistry.Unmarshal(p)
+	auth, err := authCodec.Unmarshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
 	}
@@ -518,7 +518,7 @@ func UnmarshalTx(
 
 func UnmarshalActions(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
+	actionCodec *codec.TypeParser[Action],
 ) (Actions, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {
@@ -526,7 +526,7 @@ func UnmarshalActions(
 	}
 	actions := Actions{}
 	for i := uint8(0); i < actionCount; i++ {
-		action, err := actionRegistry.Unmarshal(p)
+		action, err := actionCodec.Unmarshal(p)
 		if err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal action", err)
 		}

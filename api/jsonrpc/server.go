@@ -90,9 +90,9 @@ func (j *JSONRPCServer) SubmitTx(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	actionRegistry, authRegistry := j.vm.ActionRegistry(), j.vm.AuthRegistry()
+	actionCodec, authCodec := j.vm.ActionCodec(), j.vm.AuthCodec()
 	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
+	tx, err := chain.UnmarshalTx(rtx, actionCodec, authCodec)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -148,9 +148,8 @@ type GetABIReply struct {
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
-	actionRegistry, outputRegistry := j.vm.ActionRegistry(), j.vm.OutputRegistry()
-	// Must dereference aliased type to call GetRegisteredTypes
-	vmABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
+	actionCodec, outputCodec := j.vm.ActionCodec(), j.vm.OutputCodec()
+	vmABI, err := abi.NewABI(actionCodec.GetRegisteredTypes(), outputCodec.GetRegisteredTypes())
 	if err != nil {
 		return err
 	}
@@ -176,7 +175,7 @@ func (j *JSONRPCServer) ExecuteActions(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.ExecuteAction")
 	defer span.End()
 
-	actionRegistry := j.vm.ActionRegistry()
+	actionCodec := j.vm.ActionCodec()
 	if len(args.Actions) == 0 {
 		return errNoActionsToExecute
 	}
@@ -185,7 +184,7 @@ func (j *JSONRPCServer) ExecuteActions(
 	}
 	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, action := range args.Actions {
-		action, err := (*actionRegistry).Unmarshal(codec.NewReader(action, len(action)))
+		action, err := actionCodec.Unmarshal(codec.NewReader(action, len(action)))
 		if err != nil {
 			return fmt.Errorf("failed to unmashal action: %w", err)
 		}
