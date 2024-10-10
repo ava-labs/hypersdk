@@ -1,8 +1,16 @@
 package dsmr
 
 import (
+	"context"
 	"fmt"
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 )
+
+var _ p2p.Handler = (*Node)(nil)
 
 func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 	return &Node[T]{
@@ -21,6 +29,14 @@ type Node[T Tx] struct {
 	blockBuilder     blockBuilder[T]
 
 	chunks chan Chunk[T]
+}
+
+func (Node[_]) AppGossip(context.Context, ids.NodeID, []byte) {
+	return
+}
+
+func (n Node[_]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
+	return nil, nil
 }
 
 func (n Node[_]) Run(blks chan<- Block) error {
