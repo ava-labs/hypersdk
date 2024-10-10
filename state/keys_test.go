@@ -4,6 +4,9 @@
 package state
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"math/rand"
 	"slices"
 	"testing"
 
@@ -121,5 +124,60 @@ func TestHasPermissions(t *testing.T) {
 			expectedHas := slices.Contains(tt.has, perm)
 			require.Equal(expectedHas, tt.perm.Has(perm), "expected %s has %s to be %t", tt.perm, perm, expectedHas)
 		}
+	}
+}
+
+func TestKeysMarshalingSimple(t *testing.T) {
+	require := require.New(t)
+
+	// test with read permission.
+	keys := Keys{}
+	require.True(keys.Add("key1", Read))
+	bytes, err := keys.MarshalJSON()
+	require.NoError(err)
+	require.Equal([]byte{0x7b, 0x22, 0x50, 0x65, 0x72, 0x6d, 0x73, 0x22, 0x3a, 0x5b, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x5b, 0x22, 0x36, 0x62, 0x36, 0x35, 0x37, 0x39, 0x33, 0x31, 0x22, 0x5d, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x5d, 0x7d}, bytes)
+	keys = Keys{}
+	require.NoError(keys.UnmarshalJSON(bytes))
+	require.Len(keys, 1)
+	require.Equal(Read, keys["key1"])
+
+	// test with read+write permission.
+	keys = Keys{}
+	require.True(keys.Add("key2", Read|Write))
+	bytes, err = keys.MarshalJSON()
+	require.NoError(err)
+	require.Equal([]byte{0x7b, 0x22, 0x50, 0x65, 0x72, 0x6d, 0x73, 0x22, 0x3a, 0x5b, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x5b, 0x22, 0x36, 0x62, 0x36, 0x35, 0x37, 0x39, 0x33, 0x32, 0x22, 0x5d, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x2c, 0x6e, 0x75, 0x6c, 0x6c, 0x5d, 0x7d}, bytes)
+	keys = Keys{}
+	require.NoError(keys.UnmarshalJSON(bytes))
+	require.Len(keys, 1)
+	require.Equal(Read|Write, keys["key2"])
+}
+
+func (k Keys) compare(k2 Keys) bool {
+	if len(k) != len(k2) {
+		return false
+	}
+	for k1, v1 := range k {
+		if v2, has := k2[k1]; !has || v1 != v2 {
+			return false
+		}
+	}
+	return true
+}
+
+func TestKeysMarshalingFuzz(t *testing.T) {
+	require := require.New(t)
+	rand := rand.New(rand.NewSource(0)) //nolint:gosec
+	for fuzzIteration := 0; fuzzIteration < 1000; fuzzIteration++ {
+		keys := Keys{}
+		for keyIdx := 0; keyIdx < rand.Int()%32; keyIdx++ {
+			key := sha256.Sum256(binary.BigEndian.AppendUint64(nil, uint64(keyIdx)))
+			keys.Add(string(key[:]), Permissions(rand.Int()%(int(All)+1)))
+		}
+		bytes, err := keys.MarshalJSON()
+		require.NoError(err)
+		decodedKeys := Keys{}
+		require.NoError(decodedKeys.UnmarshalJSON(bytes))
+		require.True(keys.compare(decodedKeys))
 	}
 }
