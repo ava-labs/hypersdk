@@ -116,10 +116,6 @@ func (t *TransactionData) Marshal(p *codec.Packer) error {
 
 func (t *TransactionData) marshal(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	if err := p.Err(); err != nil {
-		return err
-	}
-
 	return t.Actions.marshalInto(p)
 }
 
