@@ -5,6 +5,7 @@ package dynamic
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -20,13 +21,11 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-// Matches fixed-size arrays like [32]uint8
-var fixedSizeArrayRegex = regexp.MustCompile(`^\[(\d+)\](.+)$`)
+var ErrTypeNotFound = errors.New("type not found in ABI")
 
 func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error) {
-	_, ok := findABIType(inputABI, typeName)
-	if !ok {
-		return nil, fmt.Errorf("type %s not found in ABI", typeName)
+	if _, ok := findABIType(inputABI, typeName); !ok {
+		return nil, fmt.Errorf("marshalling %s: %w", typeName, ErrTypeNotFound)
 	}
 
 	typeCache := make(map[string]reflect.Type)
@@ -38,14 +37,12 @@ func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error)
 
 	value := reflect.New(typ).Interface()
 
-	err = json.Unmarshal([]byte(jsonData), value)
-	if err != nil {
+	if err := json.Unmarshal([]byte(jsonData), value); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 	}
 
 	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(value, writer.Packer)
-	if err != nil {
+	if err := codec.LinearCodec.MarshalInto(value, writer.Packer); err != nil {
 		return nil, fmt.Errorf("failed to marshal struct: %w", err)
 	}
 
@@ -53,36 +50,37 @@ func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error)
 }
 
 func Unmarshal(inputABI abi.ABI, typeName string, data []byte) (string, error) {
-	_, ok := findABIType(inputABI, typeName)
-	if !ok {
-		return "", fmt.Errorf("type %s not found in ABI", typeName)
+	if _, ok := findABIType(inputABI, typeName); !ok {
+		return "", fmt.Errorf("unmarshalling %s: %w", typeName, ErrTypeNotFound)
 	}
 
 	typeCache := make(map[string]reflect.Type)
 
-	dynamicType, err := getReflectType(typeName, inputABI, typeCache)
+	typ, err := getReflectType(typeName, inputABI, typeCache)
 	if err != nil {
 		return "", fmt.Errorf("failed to get reflect type: %w", err)
 	}
 
-	dynamicValue := reflect.New(dynamicType).Interface()
+	value := reflect.New(typ).Interface()
 
 	packer := wrappers.Packer{
 		Bytes:   data,
 		MaxSize: consts.NetworkSizeLimit,
 	}
-	err = codec.LinearCodec.UnmarshalFrom(&packer, dynamicValue)
-	if err != nil {
+	if err := codec.LinearCodec.UnmarshalFrom(&packer, value); err != nil {
 		return "", fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
-	jsonData, err := json.Marshal(dynamicValue)
+	jsonData, err := json.Marshal(value)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal struct to JSON: %w", err)
 	}
 
 	return string(jsonData), nil
 }
+
+// Matches fixed-size arrays like [32]uint8
+var fixedSizeArrayRegex = regexp.MustCompile(`^\[(\d+)\](.+)$`)
 
 func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]reflect.Type) (reflect.Type, error) {
 	switch abiTypeName {
@@ -117,8 +115,8 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 		}
 
 		// golang arrays
-		match := fixedSizeArrayRegex.FindStringSubmatch(abiTypeName) // ^\[(\d+)\](.+)$
-		if match != nil {
+
+		if match := fixedSizeArrayRegex.FindStringSubmatch(abiTypeName); match != nil {
 			sizeStr := match[1]
 			size, err := strconv.Atoi(sizeStr)
 			if err != nil {
@@ -132,8 +130,7 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 		}
 
 		// For custom types, recursively construct the struct type
-		cachedType, ok := typeCache[abiTypeName]
-		if ok {
+		if cachedType, ok := typeCache[abiTypeName]; ok {
 			return cachedType, nil
 		}
 

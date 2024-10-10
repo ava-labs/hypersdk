@@ -74,19 +74,15 @@ func TestDynamicMarshalErrors(t *testing.T) {
 	err := json.Unmarshal(abiJSON, &abi)
 	require.NoError(err)
 
-	t.Run("malformed JSON", func(t *testing.T) {
-		malformedJSON := `{"uint8": 42, "uint16": 1000, "uint32": 100000, "uint64": 10000000000, "int8": -42, "int16": -1000, "int32": -100000, "int64": -10000000000,`
-		_, err := Marshal(abi, "MockObjectAllNumbers", malformedJSON)
-		require.Error(err)
-		require.Contains(err.Error(), "unexpected end of JSON input")
-	})
+	// Test malformed JSON
+	malformedJSON := `{"uint8": 42, "uint16": 1000, "uint32": 100000, "uint64": 10000000000, "int8": -42, "int16": -1000, "int32": -100000, "int64": -10000000000,`
+	_, err = Marshal(abi, "MockObjectAllNumbers", malformedJSON)
+	require.Contains(err.Error(), "failed to unmarshal JSON data")
 
-	t.Run("wrong struct name", func(t *testing.T) {
-		jsonData := mustReadFile(t, "../testdata/numbers.json")
-		_, err := Marshal(abi, "NonExistentObject", string(jsonData))
-		require.Error(err)
-		require.Contains(err.Error(), "type NonExistentObject not found in ABI")
-	})
+	// Test wrong struct name
+	jsonData := mustReadFile(t, "../testdata/numbers.json")
+	_, err = Marshal(abi, "NonExistentObject", string(jsonData))
+	require.ErrorIs(err, ErrTypeNotFound)
 }
 
 func mustReadFile(t *testing.T, path string) []byte {
