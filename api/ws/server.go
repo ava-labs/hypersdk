@@ -55,13 +55,13 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return nil
 	}
 
-	actionRegistry, authRegistry := v.ActionRegistry(), v.AuthRegistry()
+	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
 		v.Tracer(),
-		actionRegistry,
-		authRegistry,
+		actionCodec,
+		authCodec,
 		config.MaxPendingMessages,
 	)
 
@@ -103,11 +103,11 @@ func (w WebSocketServerFactory) New(api.VM) (api.Handler, error) {
 }
 
 type WebSocketServer struct {
-	vm             api.VM
-	logger         logging.Logger
-	tracer         trace.Tracer
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
+	vm          api.VM
+	logger      logging.Logger
+	tracer      trace.Tracer
+	actionCodec *codec.TypeParser[chain.Action]
+	authCodec   *codec.TypeParser[chain.Auth]
 
 	s *pubsub.Server
 
@@ -122,16 +122,16 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
 		vm:             vm,
 		logger:         log,
 		tracer:         tracer,
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
+		actionCodec:    actionCodec,
+		authCodec:      authCodec,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
@@ -253,7 +253,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
 			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, w.actionRegistry, w.authRegistry)
+			tx, err := chain.UnmarshalTx(p, w.actionCodec, w.authCodec)
 			if err != nil {
 				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),

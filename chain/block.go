@@ -115,11 +115,11 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry := parser.ActionRegistry(), parser.AuthRegistry()
+	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx(p, actionCodec, authCodec)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +153,7 @@ func NewGenesisBlock(root ids.ID) *StatelessBlock {
 	}
 }
 
-// Stateless is defined separately from "Block"
+// StatefulBlock is defined separately from "StatelessBlock"
 // in case external packages need to use the stateless block
 // without mocking VM or parent block
 type StatefulBlock struct {
@@ -200,7 +200,7 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatelessBlock(ctx, blk, source, accepted, vm)
+	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
@@ -246,14 +246,14 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 	return nil
 }
 
-func ParseStatelessBlock(
+func ParseStatefulBlock(
 	ctx context.Context,
 	blk *StatelessBlock,
 	source []byte,
 	accepted bool,
 	vm VM,
 ) (*StatefulBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatelessBlock")
+	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
