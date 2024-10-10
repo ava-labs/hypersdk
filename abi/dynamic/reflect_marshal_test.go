@@ -77,7 +77,7 @@ func TestDynamicMarshalErrors(t *testing.T) {
 	// Test malformed JSON
 	malformedJSON := `{"uint8": 42, "uint16": 1000, "uint32": 100000, "uint64": 10000000000, "int8": -42, "int16": -1000, "int32": -100000, "int64": -10000000000,`
 	_, err = Marshal(abi, "MockObjectAllNumbers", malformedJSON)
-	require.Contains(err.Error(), "failed to unmarshal JSON data")
+	require.Contains(err.Error(), "unexpected end of JSON input")
 
 	// Test wrong struct name
 	jsonData := mustReadFile(t, "../testdata/numbers.json")
