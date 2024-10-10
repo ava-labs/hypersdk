@@ -253,7 +253,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
 			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalSignedTx(p, w.actionRegistry, w.authRegistry)
+			tx, err := chain.UnmarshalTx(p, w.actionRegistry, w.authRegistry)
 			if err != nil {
 				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),

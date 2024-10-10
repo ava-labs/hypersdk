@@ -346,7 +346,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
-			tx := chain.NewTx(
+			tx := chain.NewTxnData(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
 					Timestamp: 1,

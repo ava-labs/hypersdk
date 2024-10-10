@@ -119,7 +119,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalSignedTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}

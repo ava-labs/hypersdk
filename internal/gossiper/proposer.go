@@ -164,7 +164,7 @@ func (g *Proposer) Force(ctx context.Context) error {
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.ActionRegistry(), g.vm.AuthRegistry()
-	authCounts, txs, err := chain.UnmarshalSignedTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
@@ -352,7 +352,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 	defer span.End()
 
 	// Marshal gossip
-	b, err := chain.MarshalSignedTxs(txs)
+	b, err := chain.MarshalTxs(txs)
 	if err != nil {
 		return err
 	}
