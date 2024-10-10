@@ -55,10 +55,6 @@ func (n Node[T]) AddTx(tx T) error {
 	return nil
 }
 
-func (n Node[T]) Verify(b Block) error {
-
-}
-
 // consumes chunks and aggregates signtures to generate chunk certs
 type chunkCertBuilder[T Tx] struct{}
 

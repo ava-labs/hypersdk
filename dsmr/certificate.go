@@ -21,7 +21,7 @@ func (c ChunkSignature) Verify() error { return nil }
 
 type ChunkCertificate struct {
 	ChunkID ids.ID `serialize:"true"`
-	Slot    int64  `serialize:"true"`
+	Expiry  int64  `serialize:"true"`
 
 	Signature ChunkSignature `serialize:"true"`
 }
