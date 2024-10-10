@@ -1,6 +1,9 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+// Package throughput implements the SpamHelper interface. This package is not
+// required to be implemented by the VM developer.
+
 package throughput
 
 import (
@@ -15,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
 
-	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
+	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 )
 
 type SpamHelper struct {

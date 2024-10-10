@@ -136,11 +136,12 @@ func getRandomIssuer(issuers []*issuer) *issuer {
 	return issuers[index]
 }
 
-func (i *issuer) logStats(cctx context.Context) *time.Ticker {
+func (i *issuer) logStats(cctx context.Context) {
 	// Log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	var psent int64
 	go func() {
+		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
@@ -167,6 +168,4 @@ func (i *issuer) logStats(cctx context.Context) *time.Ticker {
 			}
 		}
 	}()
-	// ensure to stop the ticker when done
-	return t
 }

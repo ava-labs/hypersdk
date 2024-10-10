@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/auth"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/throughput"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 )
 
 var spamCmd = &cobra.Command{

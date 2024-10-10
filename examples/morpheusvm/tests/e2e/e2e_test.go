@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
@@ -52,7 +53,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
 	spamHelper := throughput.SpamHelper{
-		KeyType: "ed25519",
+		KeyType: auth.ED25519Key,
 	}
 
 	tc := e2e.NewTestContext()

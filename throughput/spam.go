@@ -1,7 +1,6 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-//nolint:gosec
 package throughput
 
 import (
@@ -39,6 +38,7 @@ const (
 	issuerShutdownTimeout = 60 * time.Second
 )
 
+// TODO: remove the use of global variables
 var (
 	maxConcurrency = runtime.NumCPU()
 	issuerWg       sync.WaitGroup
@@ -79,7 +79,7 @@ func NewSpammer(
 	txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts int,
 ) *Spammer {
 	// Log Zipf participants
-	zipfSeed := rand.New(rand.NewSource(0))
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 
 	return &Spammer{
 		uris,
@@ -159,8 +159,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// set logging
-	t := issuers[0].logStats(cctx)
-	defer t.Stop()
+	issuers[0].logStats(cctx)
 
 	// Broadcast txs
 	var (
@@ -247,16 +246,15 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
 			consecutiveUnderBacklog++
-			if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < s.txsPerSecond {
+			// once desired TPS is reached, stop the spammer
+			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
+				utils.Outf("{{green}}reached target tps:{{/}} %d\n", currentTarget)
+				// Cancel the context to stop the issuers
+				cancel()
+			} else if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < s.txsPerSecond {
 				currentTarget = min(currentTarget+s.txsPerSecondStep, s.txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
-			} else if currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
-				if terminate {
-					utils.Outf("{{green}}reached target tps:{{/}} %d\n", currentTarget)
-					// Cancel the context to stop the issuers
-					cancel()
-				}
 			}
 		case <-cctx.Done():
 			stop = true
@@ -329,7 +327,8 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
-	// This helps from hanging
+	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
+	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
 	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Create account
@@ -346,7 +345,6 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
-		// TODO: shouldn't this be using the factory from the account? rather the root key factory?
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -388,7 +386,8 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
-	// This helps from hanging
+	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
+	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
 	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
