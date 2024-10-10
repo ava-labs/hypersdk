@@ -18,8 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -30,13 +32,17 @@ var (
 	txWorkloadFactory workload.TxWorkloadFactory
 	parser            chain.Parser
 	expectedABI       abi.ABI
+	spamKey           *auth.PrivateKey
+	spamHelper        throughput.SpamHelper
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, chainParser chain.Parser, abi abi.ABI) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
 	vmName = name
 	txWorkloadFactory = factory
 	parser = chainParser
 	expectedABI = abi
+	spamHelper = sh
+	spamKey = key
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -106,6 +112,39 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		ginkgo.By("Confirm accepted blocks indexed", func() {
 			workload.GetBlocks(tc.DefaultContext(), require, parser, getE2EURIs(tc, blockchainID))
 		})
+	})
+})
+
+var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
+	ginkgo.It("Spam Workload", func() {
+		if spamKey == nil || spamHelper == nil {
+			return
+		}
+
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+
+		// Spam Args
+		uris := getE2EURIs(tc, blockchainID)
+		key := spamKey
+		sZipf := 1.01
+		vZipf := 2.7
+		txsPerSecond := 500
+		minTxsPerSecond := 100
+		txsPerSecondStep := 200
+		numClients := 10
+		numAccounts := 25
+
+		// run spammer
+		err := spamHelper.CreateClient(uris[0])
+		require.NoError(err)
+		balance, err := spamHelper.LookupBalance(key.Address)
+		require.NoError(err)
+
+		spammer := throughput.NewSpammer(uris, key, balance, sZipf, vZipf, txsPerSecond, minTxsPerSecond, txsPerSecondStep, numClients, numAccounts)
+		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+		require.NoError(err)
 	})
 })
 

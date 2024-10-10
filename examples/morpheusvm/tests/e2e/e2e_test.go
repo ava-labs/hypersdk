@@ -11,8 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
@@ -36,7 +38,7 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, err := workload.New(100 /* minBlockGap: 100ms */)
+	gen, workloadFactory, spamKey, err := workload.New(100 /* minBlockGap: 100ms */)
 	require.NoError(err)
 
 	genesisBytes, err := json.Marshal(gen)
@@ -50,9 +52,12 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
-	he2e.SetWorkload(consts.Name, workloadFactory, parser, expectedABI)
+	spamHelper := throughput.SpamHelper{
+		KeyType: auth.ED25519Key,
+	}
 
 	tc := e2e.NewTestContext()
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {

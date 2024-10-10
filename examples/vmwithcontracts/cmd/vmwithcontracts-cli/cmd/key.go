@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -31,14 +30,14 @@ func checkKeyType(k string) error {
 	}
 }
 
-func generatePrivateKey(k string) (*cli.PrivateKey, error) {
+func generatePrivateKey(k string) (*auth.PrivateKey, error) {
 	switch k {
 	case ed25519Key:
 		p, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			return nil, err
 		}
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewED25519Address(p.PublicKey()),
 			Bytes:   p[:],
 		}, nil
@@ -47,7 +46,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewSECP256R1Address(p.PublicKey()),
 			Bytes:   p[:],
 		}, nil
@@ -56,7 +55,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(p)),
 			Bytes:   bls.PrivateKeyToBytes(p),
 		}, nil
@@ -65,7 +64,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 	}
 }
 
-func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
+func loadPrivateKey(k string, path string) (*auth.PrivateKey, error) {
 	switch k {
 	case ed25519Key:
 		p, err := utils.LoadBytes(path, ed25519.PrivateKeyLen)
@@ -73,7 +72,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		pk := ed25519.PrivateKey(p)
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewED25519Address(pk.PublicKey()),
 			Bytes:   p,
 		}, nil
@@ -83,7 +82,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		pk := secp256r1.PrivateKey(p)
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewSECP256R1Address(pk.PublicKey()),
 			Bytes:   p,
 		}, nil
@@ -97,7 +96,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &cli.PrivateKey{
+		return &auth.PrivateKey{
 			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
 			Bytes:   p,
 		}, nil
