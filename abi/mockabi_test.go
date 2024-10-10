@@ -70,6 +70,12 @@ type FixedBytes struct {
 	ThirtyTwoBytes [32]uint8 `serialize:"true" json:"thirtyTwoBytes"`
 }
 
+type Booleans struct {
+	Bool1     bool   `serialize:"true" json:"bool1"`
+	Bool2     bool   `serialize:"true" json:"bool2"`
+	BoolArray []bool `serialize:"true" json:"boolArray"`
+}
+
 type ActionOutput struct {
 	Field1 uint16 `serialize:"true" json:"field1"`
 }
@@ -112,6 +118,10 @@ func (ActionWithOutput) GetTypeID() uint8 {
 
 func (FixedBytes) GetTypeID() uint8 {
 	return 9
+}
+
+func (Booleans) GetTypeID() uint8 {
+	return 10
 }
 
 func (ActionOutput) GetTypeID() uint8 {

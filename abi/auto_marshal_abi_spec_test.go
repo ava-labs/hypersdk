@@ -60,6 +60,7 @@ func TestMarshalSpecs(t *testing.T) {
 		{"strOnly", &MockObjectStringAndBytes{}},
 		{"outer", &Outer{}},
 		{"fixedBytes", &FixedBytes{}},
+		{"booleans", &Booleans{}},
 	}
 
 	for _, tc := range testCases {
