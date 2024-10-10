@@ -46,13 +46,11 @@ type StoredChunkSignature[T Tx] struct {
 // If a valid chunk certificate is included in a block, we already have it.
 // If a valid chunk certificate is dropped, the network may drop the chunk.
 type Storage[T Tx] struct {
+	verifier Verifier[T]
+
 	lock sync.RWMutex
-
-	// Remote chunk verification
-	remoteChunkVerifier Verifier[T]
-
 	// Chunk storage
-	chunkEMap *emap.EMap[*Chunk[T]]
+	chunkEMap *emap.EMap[emapChunk[T]]
 	// TODO rename slot -> expiry
 	minSlot int64
 	// pendingByte | slot | chunkID -> chunkBytes
@@ -81,11 +79,11 @@ func NewStorage[T Tx](
 	}
 
 	storage := &Storage[T]{
-		minSlot:             minSlot,
-		chunkEMap:           emap.NewEMap[*Chunk[T]](),
-		chunkMap:            make(map[ids.ID]*StoredChunkSignature[T]),
-		chunkDB:             db,
-		remoteChunkVerifier: remoteChunkVerifier,
+		minSlot:   minSlot,
+		chunkEMap: emap.NewEMap[emapChunk[T]](),
+		chunkMap:  make(map[ids.ID]*StoredChunkSignature[T]),
+		chunkDB:   db,
+		verifier:  remoteChunkVerifier,
 	}
 	return storage, storage.init()
 }
@@ -150,7 +148,7 @@ func (s *Storage[T]) VerifyRemoteChunk(c *Chunk[T]) (ChunkSignatureShare, error)
 	if ok {
 		return chunkCertInfo.LocalSignature, nil
 	}
-	if err := s.remoteChunkVerifier.Verify(c); err != nil {
+	if err := s.verifier.Verify(c); err != nil {
 		return ChunkSignatureShare{}, err
 	}
 	if err := s.putVerifiedChunk(c, nil); err != nil {
@@ -160,10 +158,10 @@ func (s *Storage[T]) VerifyRemoteChunk(c *Chunk[T]) (ChunkSignatureShare, error)
 }
 
 func (s *Storage[T]) putVerifiedChunk(c *Chunk[T], cert *ChunkCertificate) error {
-	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry(), c.ID()), c.Bytes()); err != nil {
+	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.ID()), c.Bytes()); err != nil {
 		return err
 	}
-	s.chunkEMap.Add([]*Chunk[T]{c})
+	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
 	chunkCert := &StoredChunkSignature[T]{
 		Chunk:          c,
@@ -192,7 +190,7 @@ func (s *Storage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry(), chunk.Chunk.ID()), chunk.Chunk.Bytes()); err != nil {
+		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.ID()), chunk.Chunk.Bytes()); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
 	}
@@ -205,7 +203,7 @@ func (s *Storage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		delete(s.chunkMap, chunkID)
 		// TODO: switch to using DeleteRange(nil, pendingChunkKey(updatedMin, ids.Empty)) after
 		// merging main
-		if err := batch.Delete(pendingChunkKey(chunk.Chunk.Expiry(), chunk.Chunk.ID())); err != nil {
+		if err := batch.Delete(pendingChunkKey(chunk.Chunk.Expiry, chunk.Chunk.ID())); err != nil {
 			return err
 		}
 	}
@@ -295,4 +293,18 @@ func parsePendingChunkKey(key []byte) (slot int64, chunkID ids.ID, err error) {
 
 func acceptedChunkKey(slot int64, chunkID ids.ID) []byte {
 	return createChunkKey(acceptedByte, slot, chunkID)
+}
+
+var _ emap.Item = (*emapChunk[Tx])(nil)
+
+type emapChunk[T Tx] struct {
+	chunk *Chunk[T]
+}
+
+func (e emapChunk[_]) ID() ids.ID {
+	return e.chunk.ID()
+}
+
+func (e emapChunk[_]) Expiry() int64 {
+	return e.chunk.Expiry
 }
