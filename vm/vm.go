@@ -371,7 +371,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatelessBlock(
+		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
 			chain.NewGenesisBlock(root),
 			nil,
