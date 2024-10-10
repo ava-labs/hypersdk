@@ -1,30 +1,36 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package cmd
+// Package throughput implements the SpamHelper interface. This package is not
+// required to be implemented by the VM developer.
+
+package throughput
 
 import (
 	"context"
-
-	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/throughput"
+
+	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 )
 
 type SpamHelper struct {
-	keyType string
+	KeyType string
 	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
 }
 
+var _ throughput.SpamHelper = &SpamHelper{}
+
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
-	return generatePrivateKey(sh.keyType)
+	return mauth.GeneratePrivateKey(sh.KeyType)
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
@@ -56,25 +62,4 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 		Value: amount,
 		Memo:  memo,
 	}}
-}
-
-var spamCmd = &cobra.Command{
-	Use: "spam",
-	RunE: func(*cobra.Command, []string) error {
-		return ErrMissingSubcommand
-	},
-}
-
-var runSpamCmd = &cobra.Command{
-	Use: "run [ed25519/secp256r1/bls]",
-	PreRunE: func(_ *cobra.Command, args []string) error {
-		if len(args) != 1 {
-			return ErrInvalidArgs
-		}
-		return checkKeyType(args[0])
-	},
-	RunE: func(_ *cobra.Command, args []string) error {
-		ctx := context.Background()
-		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]}, false)
-	},
 }
