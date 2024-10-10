@@ -13,9 +13,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 )
 
-func benchBlockByHeight(idxer *indexer.Indexer, blocksToRetrieve int, maxHeight int) error {
+func benchBlockByHeight(idxer *indexer.Indexer, blocksToRetrieve int, blockWindow int) error {
 	start := time.Now()
-	blocks, err := retrieveRandomBlocks(idxer, blocksToRetrieve, maxHeight)
+	blocks, err := retrieveRandomBlocks(idxer, blocksToRetrieve, blockWindow)
 	if err != nil {
 		return fmt.Errorf("retrieving blocks by height: %w", err)
 	}
@@ -39,8 +39,8 @@ func benchBlockByHeight(idxer *indexer.Indexer, blocksToRetrieve int, maxHeight 
 	return nil
 }
 
-func benchTransactionsByID(idxer *indexer.Indexer, transactionsToRetrieve int, maxHeight int) error {
-	randomBlocks, err := retrieveRandomBlocks(idxer, transactionsToRetrieve, maxHeight)
+func benchTransactionsByID(idxer *indexer.Indexer, transactionsToRetrieve int, blockWindow int) error {
+	randomBlocks, err := retrieveRandomBlocks(idxer, transactionsToRetrieve, blockWindow)
 	if err != nil {
 		return fmt.Errorf("retrieving blocks by height: %w", err)
 	}
@@ -79,8 +79,8 @@ func benchTransactionsByID(idxer *indexer.Indexer, transactionsToRetrieve int, m
 	return nil
 }
 
-func benchBlocksById(idxer *indexer.Indexer, blocksToRetrieve int, maxHeight int) error {
-	randomBlocks, err := retrieveRandomBlocks(idxer, blocksToRetrieve, maxHeight)
+func benchBlocksById(idxer *indexer.Indexer, blocksToRetrieve int, blockWindow int) error {
+	randomBlocks, err := retrieveRandomBlocks(idxer, blocksToRetrieve, blockWindow)
 	if err != nil {
 		return fmt.Errorf("retrieving blocks by height: %w", err)
 	}
@@ -133,10 +133,18 @@ func benchBlocksById(idxer *indexer.Indexer, blocksToRetrieve int, maxHeight int
 	return nil
 }
 
-func retrieveRandomBlocks(idxer *indexer.Indexer, blocksToRetrieve int, maxHeight int) ([]*chain.ExecutedBlock, error) {
+func retrieveRandomBlocks(idxer *indexer.Indexer, blocksToRetrieve int, blockWindow int) ([]*chain.ExecutedBlock, error) {
+	latestBlock, err := idxer.GetLatestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("getting latest block: %w", err)
+	}
+
+	maxHeight := int(latestBlock.Block.Hght)
+
 	randomHeights := make([]uint64, blocksToRetrieve)
 	for i := 0; i < blocksToRetrieve; i++ {
-		randomHeights[i] = uint64(rand.IntN(maxHeight-1) + 1) // blocks start with height 1
+		minHeight := max(1, int(maxHeight-(blockWindow)+1))
+		randomHeights[i] = uint64(rand.IntN(maxHeight-minHeight) + minHeight)
 	}
 
 	blocks := make([]*chain.ExecutedBlock, blocksToRetrieve)

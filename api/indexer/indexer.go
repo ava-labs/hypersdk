@@ -94,20 +94,23 @@ func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 
 	// Update earliest block if necessary
 	earliestBytes, err := i.blockIDLookupDB.Get([]byte("earliest"))
+	earliestHeight := uint64(0)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			// If earliest doesn't exist, this is the first block
 			if err := blockIdBatch.Put([]byte("earliest"), packUint64(blk.Block.Hght)); err != nil {
 				return fmt.Errorf("failed to set earliest block height: %w", err)
 			}
+			earliestBytes = packUint64(blk.Block.Hght)
 		} else {
 			return fmt.Errorf("failed to get earliest block height: %w", err)
 		}
 	}
 
+	earliestHeight = unpackUint64(earliestBytes)
+
 	// Delete old blocks
 	if blk.Block.Hght >= i.blockWindow {
-		earliestHeight := unpackUint64(earliestBytes)
 		for earliestHeight <= blk.Block.Hght-i.blockWindow {
 			oldBlockHeightBytes := packUint64(earliestHeight)
 
@@ -118,7 +121,6 @@ func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 					return fmt.Errorf("failed to retrieve old block: %w", err)
 				}
 			} else {
-				fmt.Printf("deleting block %d\n", earliestHeight)
 				oldBlock, err := chain.UnmarshalExecutedBlock(oldBlockBytes, i.parser)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal old block: %w", err)

@@ -111,11 +111,12 @@ func TestBlockIndexRestart(t *testing.T) {
 	require.NoError(err)
 
 	//add a block - trim runs on Accept
+	parent := executedBlocks[len(executedBlocks)-1]
 	executedBlocks = append(executedBlocks, chaintest.GenerateEmptyExecutedBlocks(
 		require,
-		ids.GenerateTestID(),
-		0,
-		0,
+		parent.BlockID,
+		parent.Block.Hght,
+		parent.Block.Tmstmp,
 		1,
 		1,
 	)[0])

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -20,64 +21,64 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-func fillIndexerAsync(idxer *indexer.Indexer, parser *chaintest.Parser, blockCount int, txPerBlock int, blocksPerCycle int) error {
+func fillIndexerAsync(idxer *indexer.Indexer, parser *chaintest.Parser, blockCount int, txPerBlock int) error {
 	parentID := ids.Empty
 	parentHeight := int64(0)
 	parentTimestamp := int64(1234567000)
 
-	for remainingBlocks := blockCount; remainingBlocks > 0; {
-		cycleBlocks := blocksPerCycle
-		if remainingBlocks < cycleBlocks {
-			cycleBlocks = remainingBlocks
+	latestBlock, err := idxer.GetLatestBlock()
+	if err != nil {
+		if !errors.Is(err, indexer.ErrBlockNotFound) {
+			return fmt.Errorf("getting latest block: %w", err)
 		}
-
-		executedBlocks, err := generateExecutedBlocks(generateExecutedBlocksParams{
-			Parser:          parser,
-			ParentID:        parentID,
-			ParentHeight:    parentHeight,
-			ParentTimestamp: parentTimestamp,
-			TimestampOffset: 1,
-			NumBlocks:       cycleBlocks,
-			TxPerBlock:      txPerBlock,
-		})
-		if err != nil {
-			return fmt.Errorf("generating executed blocks: %w", err)
-		}
-
-		start := time.Now()
-		errChan := make(chan error, len(executedBlocks))
-		for _, blk := range executedBlocks {
-			go func(b *chain.ExecutedBlock) {
-				errChan <- idxer.Accept(b)
-			}(blk)
-		}
-
-		for range executedBlocks {
-			if err := <-errChan; err != nil {
-				return fmt.Errorf("accepting block: %w", err)
-			}
-		}
-
-		lastBlock := executedBlocks[len(executedBlocks)-1]
-		parentID = lastBlock.BlockID
-		parentHeight = int64(lastBlock.Block.Hght)
-		parentTimestamp = lastBlock.Block.Tmstmp
-
-		elapsed := time.Since(start)
-		dirSize, err := getHumanReadableDirSize(TEST_DIR)
-		if err != nil {
-			return fmt.Errorf("getting directory size: %w", err)
-		}
-		log.Printf("accepted %s blocks containing %s txs in %s. Database occupies %s on disk with %s blocks total\n",
-			formatNumberWithSuffix(cycleBlocks),
-			formatNumberWithSuffix(cycleBlocks*txPerBlock),
-			elapsed,
-			dirSize,
-			formatNumberWithSuffix(int(parentHeight)+1),
-		)
-
-		remainingBlocks -= cycleBlocks
 	}
+	if err == nil {
+		parentID = latestBlock.BlockID
+		parentHeight = int64(latestBlock.Block.Hght)
+		parentTimestamp = latestBlock.Block.Tmstmp
+	}
+
+	executedBlocks, err := generateExecutedBlocks(generateExecutedBlocksParams{
+		Parser:          parser,
+		ParentID:        parentID,
+		ParentHeight:    parentHeight,
+		ParentTimestamp: parentTimestamp,
+		TimestampOffset: 1,
+		NumBlocks:       blockCount,
+		TxPerBlock:      txPerBlock,
+	})
+	if err != nil {
+		return fmt.Errorf("generating executed blocks: %w", err)
+	}
+
+	start := time.Now()
+	lastReport := time.Now()
+
+	for i, blk := range executedBlocks {
+		if err := idxer.Accept(blk); err != nil {
+			return fmt.Errorf("accepting block: %w", err)
+		}
+		if time.Since(lastReport) > time.Second {
+			log.Printf("accepted %d blocks", i)
+			lastReport = time.Now()
+		}
+	}
+
+	lastBlock := executedBlocks[len(executedBlocks)-1]
+	parentHeight = int64(lastBlock.Block.Hght)
+
+	elapsed := time.Since(start)
+	dirSize, err := getHumanReadableDirSize(TEST_DIR)
+	if err != nil {
+		return fmt.Errorf("getting directory size: %w", err)
+	}
+	log.Printf("accepted %s blocks containing %s txs (height=%s) in %s. Database occupies %s on disk.\n",
+		formatNumberWithSuffix(blockCount),
+		formatNumberWithSuffix(blockCount*txPerBlock),
+		formatNumberWithSuffix(int(parentHeight)),
+		elapsed,
+		dirSize,
+	)
 
 	return nil
 }
@@ -173,7 +174,7 @@ func generateTestTx(parser *chaintest.Parser, blockHeight uint64, timestamp int6
 		},
 	)
 
-	signedTx, err := tx.Sign(factory, parser.ActionRegistry(), parser.AuthRegistry())
+	signedTx, err := tx.Sign(factory, parser.ActionCodec(), parser.AuthCodec())
 	if err != nil {
 		return nil, fmt.Errorf("signing transaction: %w", err)
 	}

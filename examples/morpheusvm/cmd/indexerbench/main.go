@@ -13,70 +13,62 @@ import (
 
 const TEST_DIR = "/var/tmp/indexer-bench"
 
+const CLEANUP_ON_START = false
+
 func main() {
-	//clean up dir
-	err := os.RemoveAll(TEST_DIR)
-	if err != nil {
-		log.Fatalf("removing test dir: %s", err)
+	var err error
+	if CLEANUP_ON_START {
+		err := os.RemoveAll(TEST_DIR)
+		if err != nil {
+			log.Fatalf("removing test dir: %s", err)
+		}
 	}
-	log.Println("creating test dir")
+
 	err = os.MkdirAll(TEST_DIR, 0o755)
 	if err != nil {
 		log.Fatalf("creating test dir: %s", err)
 	}
 
 	parser := chaintest.NewEmptyParser()
-	(*parser.ActionRegistry()).Register(&actions.Transfer{}, nil)
-	(*parser.OutputRegistry()).Register(&actions.TransferResult{}, nil)
-	(*parser.AuthRegistry()).Register(&auth.ED25519{}, nil)
+	(*parser.ActionCodec()).Register(&actions.Transfer{}, nil)
+	(*parser.OutputCodec()).Register(&actions.TransferResult{}, nil)
+	(*parser.AuthCodec()).Register(&auth.ED25519{}, nil)
 
-	idxer, err := indexer.NewIndexer(TEST_DIR, parser)
+	const blockCount = 1_000
+	const txPerBlock = 1_000
+	const itemsToBenchmark = 1_000
+	const blockWindow = 1_000
+
+	idxer, err := indexer.NewIndexer(TEST_DIR, parser, blockWindow)
 	if err != nil {
 		log.Fatalf("creating indexer: %s", err)
 	}
 
-	const blockCount = 100_000
-	const txPerBlock = 1_000
-	const blocksPerCycle = 1_000
-	const itemsToBenchmark = 2_000
-
-	err = fillIndexerAsync(idxer, parser, blockCount, txPerBlock, blocksPerCycle)
-	if err != nil {
-		log.Fatalf("filling indexer: %s", err)
-	}
-
-	for i := 0; i < 10; i++ {
-		if i == 6 {
-			log.Println("restarting indexer")
-			err = idxer.Close()
-			if err != nil {
-				log.Fatalf("closing indexer: %s", err)
-			}
-
-			idxer, err = indexer.NewIndexer(TEST_DIR, parser)
-			if err != nil {
-				log.Fatalf("creating indexer: %s", err)
-			}
-		}
-		err = bench(idxer, itemsToBenchmark, blockCount)
+	for i := 0; i < 1000; i++ {
+		err = fillIndexerAsync(idxer, parser, blockCount, txPerBlock)
 		if err != nil {
-			log.Fatalf("benchmarking indexer without restart: %s", err)
+			log.Fatalf("filling indexer: %s", err)
+		}
+
+		err = bench(idxer, itemsToBenchmark, blockWindow)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 
 	log.Println("done")
 }
 
-func bench(idxer *indexer.Indexer, itemsToBenchmark int, blockCount int) error {
-	if err := benchBlocksById(idxer, itemsToBenchmark, blockCount); err != nil {
+func bench(idxer *indexer.Indexer, itemsToBenchmark int, blockWindow int) error {
+	if err := benchBlocksById(idxer, itemsToBenchmark, blockWindow); err != nil {
 		return fmt.Errorf("benchmarking blocks by id: %w", err)
 	}
 
-	if err := benchBlockByHeight(idxer, itemsToBenchmark, blockCount); err != nil {
+	if err := benchBlockByHeight(idxer, itemsToBenchmark, blockWindow); err != nil {
 		return fmt.Errorf("benchmarking block by height: %w", err)
 	}
 
-	if err := benchTransactionsByID(idxer, itemsToBenchmark, blockCount); err != nil {
+	if err := benchTransactionsByID(idxer, itemsToBenchmark, blockWindow); err != nil {
 		return fmt.Errorf("benchmarking transactions by id: %w", err)
 	}
 
