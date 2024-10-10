@@ -29,9 +29,10 @@ type Indexer struct {
 	blockIDLookupDB *pebble.Database
 	txLookupDB      *pebble.Database
 	parser          chain.Parser
+	blockWindow     uint64
 }
 
-func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
+func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
 	blockDB, _, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block DB: %w", err)
@@ -52,82 +53,114 @@ func NewIndexer(path string, parser chain.Parser) (*Indexer, error) {
 		blockIDLookupDB: blockIDLookupDB,
 		txLookupDB:      txLookupDB,
 		parser:          parser,
+		blockWindow:     blockWindow,
 	}
 
 	return indexer, nil
 }
-
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
-	errChan := make(chan error, 3)
-
-	go func() { errChan <- i.saveTransactionIDs(blk) }()
-	go func() { errChan <- i.saveBlock(blk) }()
-	go func() { errChan <- i.saveBlockHeight(blk) }()
-
-	for j := 0; j < 3; j++ {
-		if err := <-errChan; err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (i *Indexer) saveTransactionIDs(blk *chain.ExecutedBlock) error {
-	//save trasnsaction IDs
 	txBatch := i.txLookupDB.NewBatch()
+	blockBatch := i.blockDB.NewBatch()
+	blockIdBatch := i.blockIDLookupDB.NewBatch()
 	defer txBatch.Reset()
+	defer blockBatch.Reset()
+	defer blockIdBatch.Reset()
 
+	// Save transaction IDs
 	for j, tx := range blk.Block.Txs {
 		txID := tx.ID()
 		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
 		if err := txBatch.Put(txID[:], txLookupInfo); err != nil {
-			return err
+			return fmt.Errorf("failed to save transaction ID: %w", err)
 		}
 	}
 
-	if err := txBatch.Write(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (i *Indexer) saveBlock(blk *chain.ExecutedBlock) error {
-	blockBatch := i.blockDB.NewBatch()
-	defer blockBatch.Reset()
-
+	// Save block
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal executed block: %w", err)
 	}
-
 	if err := blockBatch.Put(packUint64(blk.Block.Hght), executedBlkBytes); err != nil {
-		return err
+		return fmt.Errorf("failed to save block: %w", err)
 	}
 
-	if err := blockBatch.Write(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (i *Indexer) saveBlockHeight(blk *chain.ExecutedBlock) error {
-
-	//save block height
-	blockIdBatch := i.blockIDLookupDB.NewBatch()
-
+	// Save block height
 	if err := blockIdBatch.Put(blk.BlockID[:], packUint64(blk.Block.Hght)); err != nil {
-		return err
+		return fmt.Errorf("failed to save block ID: %w", err)
 	}
-
 	if err := blockIdBatch.Put([]byte("latest"), packUint64(blk.Block.Hght)); err != nil {
-		return err
+		return fmt.Errorf("failed to update latest block height: %w", err)
 	}
 
+	// Update earliest block if necessary
+	earliestBytes, err := i.blockIDLookupDB.Get([]byte("earliest"))
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			// If earliest doesn't exist, this is the first block
+			if err := blockIdBatch.Put([]byte("earliest"), packUint64(blk.Block.Hght)); err != nil {
+				return fmt.Errorf("failed to set earliest block height: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to get earliest block height: %w", err)
+		}
+	}
+
+	// Delete old blocks
+	if blk.Block.Hght >= i.blockWindow {
+		earliestHeight := unpackUint64(earliestBytes)
+		for earliestHeight <= blk.Block.Hght-i.blockWindow {
+			oldBlockHeightBytes := packUint64(earliestHeight)
+
+			// Retrieve old block
+			oldBlockBytes, err := i.blockDB.Get(oldBlockHeightBytes)
+			if err != nil {
+				if !errors.Is(err, database.ErrNotFound) {
+					return fmt.Errorf("failed to retrieve old block: %w", err)
+				}
+			} else {
+				fmt.Printf("deleting block %d\n", earliestHeight)
+				oldBlock, err := chain.UnmarshalExecutedBlock(oldBlockBytes, i.parser)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal old block: %w", err)
+				}
+
+				// Remove old block from blockDB
+				if err := blockBatch.Delete(oldBlockHeightBytes); err != nil {
+					return fmt.Errorf("failed to delete old block: %w", err)
+				}
+
+				// Remove old block ID from blockIDLookupDB
+				if err := blockIdBatch.Delete(oldBlockHeightBytes); err != nil {
+					return fmt.Errorf("failed to delete old block ID: %w", err)
+				}
+
+				// Remove old transactions from txLookupDB
+				for _, tx := range oldBlock.Block.Txs {
+					txID := tx.ID()
+					if err := txBatch.Delete(txID[:]); err != nil {
+						return fmt.Errorf("failed to delete old transaction: %w", err)
+					}
+				}
+			}
+
+			earliestHeight++
+		}
+
+		// Update earliest block height
+		if err := blockIdBatch.Put([]byte("earliest"), packUint64(earliestHeight)); err != nil {
+			return fmt.Errorf("failed to update earliest block height: %w", err)
+		}
+	}
+
+	// Write all batches
+	if err := txBatch.Write(); err != nil {
+		return fmt.Errorf("failed to write transaction batch: %w", err)
+	}
+	if err := blockBatch.Write(); err != nil {
+		return fmt.Errorf("failed to write block batch: %w", err)
+	}
 	if err := blockIdBatch.Write(); err != nil {
-		return err
+		return fmt.Errorf("failed to write block ID batch: %w", err)
 	}
 
 	return nil
