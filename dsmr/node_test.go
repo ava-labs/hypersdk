@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
 // TODO
@@ -24,25 +25,38 @@ import (
 func TestNode(t *testing.T) {
 	t.Skip()
 
-	n := New[tx](client{}, 3)
+	require := require.New(T)
+
 	blks := make(chan Block)
 
+	node := New[tx](client{}, 3)
 	go func() {
-		_ = n.Run(blks)
+		_ = node.Run(blks)
 	}()
 
-	go func() {
-		require.NoError(t, n.AddTx(tx{}))
-		require.NoError(t, n.AddTx(tx{}))
-		require.NoError(t, n.AddTx(tx{}))
-	}()
+	require.NoError(node.AddTx(tx{}))
+	require.NoError(node.AddTx(tx{}))
+	require.NoError(node.AddTx(tx{}))
 
 	<-blks
 }
 
 func TestP2P(t *testing.T) {
-	p2ptest.NewClient()
+	require := require.New(t)
 
+	node := New[tx](client{}, 1)
+	client := p2ptest.NewClient(t, context.Background(), node, ids.EmptyNodeID, ids.EmptyNodeID)
+
+	onResponse := func(ctx context.Context, nodeID ids.NodeID, appResponseBytes []byte, err error) {
+
+	}
+
+	require.NoError(client.AppRequest(
+		context.Background(),
+		set.Of(ids.EmptyNodeID),
+		[]byte("request"),
+		onResponse,
+	))
 }
 
 var _ Tx = (*tx)(nil)
