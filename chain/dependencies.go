@@ -21,17 +21,11 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type (
-	ActionRegistry *codec.TypeParser[Action]
-	OutputRegistry *codec.TypeParser[codec.Typed]
-	AuthRegistry   *codec.TypeParser[Auth]
-)
-
 type Parser interface {
 	Rules(int64) Rules
-	ActionRegistry() ActionRegistry
-	OutputRegistry() OutputRegistry
-	AuthRegistry() AuthRegistry
+	ActionCodec() *codec.TypeParser[Action]
+	OutputCodec() *codec.TypeParser[codec.Typed]
+	AuthCodec() *codec.TypeParser[Auth]
 }
 
 type Metrics interface {

@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/near/borsh-go"
@@ -15,8 +17,11 @@ import (
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
+	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/utils"
 )
+
+var errUnexpectedSimulateActionsOutput = errors.New("returned output from SimulateActions was not actions.Result")
 
 var actionCmd = &cobra.Command{
 	Use: "action",
@@ -141,18 +146,34 @@ var callCmd = &cobra.Command{
 			ContractAddress: contractAddress,
 			Value:           amount,
 			Function:        function,
+			Fuel:            uint64(1000000000),
 		}
 
-		specifiedStateKeysSet, fuel, err := bcli.Simulate(ctx, *action, priv.Address)
+		actionSimulationResults, err := cli.SimulateActions(ctx, chain.Actions{action}, priv.Address)
 		if err != nil {
 			return err
 		}
+		if len(actionSimulationResults) != 1 {
+			return fmt.Errorf("unexpected number of returned actions. One action expected, %d returned", len(actionSimulationResults))
+		}
+		actionSimulationResult := actionSimulationResults[0]
 
-		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(specifiedStateKeysSet))
-		for key, value := range specifiedStateKeysSet {
+		rtx := codec.NewReader(actionSimulationResult.Output, len(actionSimulationResult.Output))
+
+		simulationResultOutput, err := (*vm.OutputParser).Unmarshal(rtx)
+		if err != nil {
+			return err
+		}
+		simulationResult, ok := simulationResultOutput.(*actions.Result)
+		if !ok {
+			return errUnexpectedSimulateActionsOutput
+		}
+
+		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(actionSimulationResult.StateKeys))
+		for key, value := range actionSimulationResult.StateKeys {
 			action.SpecifiedStateKeys = append(action.SpecifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
 		}
-		action.Fuel = fuel
+		action.Fuel = simulationResult.ConsumedFuel
 
 		// Confirm action
 		cont, err := prompt.Continue()
