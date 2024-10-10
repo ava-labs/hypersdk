@@ -266,7 +266,7 @@ func (j *JSONRPCServer) SimulateActions(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
-	actionRegistry := j.vm.ActionRegistry()
+	actionRegistry := j.vm.ActionCodec()
 	var actions chain.Actions
 	for _, actionBytes := range args.Actions {
 		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
