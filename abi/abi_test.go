@@ -26,6 +26,7 @@ func TestNewABI(t *testing.T) {
 		Outer{},
 		ActionWithOutput{},
 		FixedBytes{},
+		Bools{},
 	}, []codec.Typed{
 		ActionOutput{},
 	})

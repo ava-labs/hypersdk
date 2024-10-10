@@ -68,8 +68,8 @@ func (t *TransactionData) UnsignedBytes() ([]byte, error) {
 // the original and a signature provided by the authFactory
 func (t *TransactionData) Sign(
 	factory AuthFactory,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionCodec *codec.TypeParser[Action],
+	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	msg, err := t.UnsignedBytes()
 	if err != nil {
@@ -99,7 +99,7 @@ func (t *TransactionData) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
+	return UnmarshalTx(p, actionCodec, authCodec)
 }
 
 func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
@@ -432,8 +432,8 @@ func UnmarshalActions(
 func UnmarshalTxs(
 	raw []byte,
 	initialCapacity int,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
 ) (map[uint8]int, []*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)

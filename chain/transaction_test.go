@@ -105,14 +105,14 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
-	actionRegistry := codec.NewTypeParser[chain.Action]()
-	authRegistry := codec.NewTypeParser[chain.Auth]()
+	actionCodec := codec.NewTypeParser[chain.Action]()
+	authCodec := codec.NewTypeParser[chain.Auth]()
 
-	err = authRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519)
+	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
-	err = actionRegistry.Register(&mockTransferAction{}, unmarshalTransfer)
+	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
 	require.NoError(err)
-	err = actionRegistry.Register(&action2{}, unmarshalAction2)
+	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
 	txBeforeSign := chain.TransactionData{
@@ -142,7 +142,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	_, err = txBeforeSign.UnsignedBytes()
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
+	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
 	require.NoError(err)
 	require.Equal(txBeforeSign, tx)
 	require.NotNil(signedTx.Auth)
