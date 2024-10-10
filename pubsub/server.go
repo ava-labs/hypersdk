@@ -59,7 +59,7 @@ type Server struct {
 	conns    *Connections
 }
 
-// New returns a new Server instance. The callback function [f] is called
+// New returns a new Server instance. [callback] is called
 // by the server in response to messages if not nil.
 func New(
 	log logging.Logger,

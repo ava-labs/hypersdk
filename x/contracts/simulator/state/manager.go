@@ -55,7 +55,7 @@ func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Add
 		return 0, err
 	}
 
-	return binary.BigEndian.Uint64(v), nil
+	return database.ParseUInt64(v)
 }
 
 func (p *ContractStateManager) SetBalance(ctx context.Context, address codec.Address, amount uint64) error {

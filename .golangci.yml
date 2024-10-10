@@ -89,8 +89,6 @@ linters-settings:
         deny:
           - pkg: "container/list"
             desc: github.com/ava-labs/avalanchego/utils/linked should be used instead.
-          - pkg: "github.com/golang/mock/gomock"
-            desc: go.uber.org/mock/gomock should be used instead.
           - pkg: "github.com/stretchr/testify/assert"
             desc: github.com/stretchr/testify/require should be used instead.
           - pkg: "io/ioutil"

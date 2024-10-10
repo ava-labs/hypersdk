@@ -24,35 +24,18 @@ var (
 	ErrParserAlreadyInitialized = errors.New("parser already initialized")
 )
 
-// TODO: switch to eventually using chain.Stateless block
-// Wrapper to pass blocks + results to subscribers
-type ExternalSubscriberSubscriptionData struct {
-	Blk     *chain.StatelessBlock
-	Results []*chain.Result
-}
-
-func NewExternalSubscriberSubscriptionData(
-	blk *chain.StatelessBlock,
-	results []*chain.Result,
-) *ExternalSubscriberSubscriptionData {
-	return &ExternalSubscriberSubscriptionData{
-		Blk:     blk,
-		Results: results,
-	}
-}
-
 type ExternalSubscriberServer struct {
 	pb.ExternalSubscriberServer
 	parser              chain.Parser
 	createParser        CreateParser
-	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData]
+	acceptedSubscribers []event.Subscription[*chain.ExecutedBlock]
 	log                 logging.Logger
 }
 
 func NewExternalSubscriberServer(
 	logger logging.Logger,
 	createParser CreateParser,
-	acceptedSubscribers []event.Subscription[*ExternalSubscriberSubscriptionData],
+	acceptedSubscribers []event.Subscription[*chain.ExecutedBlock],
 ) *ExternalSubscriberServer {
 	return &ExternalSubscriberServer{
 		log:                 logger,
@@ -80,24 +63,18 @@ func (e *ExternalSubscriberServer) AcceptBlock(_ context.Context, b *pb.BlockReq
 	if e.parser == nil {
 		return &emptypb.Empty{}, ErrParserNotInitialized
 	}
-	blk, err := chain.UnmarshalBlock(b.BlockData, e.parser)
-	if err != nil {
-		return &emptypb.Empty{}, err
-	}
-
-	results, err := chain.UnmarshalResults(b.Results)
+	blk, err := chain.UnmarshalExecutedBlock(b.BlockData, e.parser)
 	if err != nil {
 		return &emptypb.Empty{}, err
 	}
 
 	e.log.Info("external subscriber received accepted block",
-		zap.Uint64("height", blk.Hght),
+		zap.Uint64("height", blk.Block.Hght),
 	)
 
-	// Forward block + results
-	externalSubscriberSubscriptionData := NewExternalSubscriberSubscriptionData(blk, results)
+	// Forward to subscribers
 	for _, s := range e.acceptedSubscribers {
-		if err := s.Accept(externalSubscriberSubscriptionData); err != nil {
+		if err := s.Accept(blk); err != nil {
 			return &emptypb.Empty{}, err
 		}
 	}

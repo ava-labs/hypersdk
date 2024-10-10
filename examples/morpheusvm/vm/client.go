@@ -80,7 +80,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 		if !shouldExit {
 			utils.Outf(
 				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min, consts.Decimals),
+				utils.FormatBalance(min),
 				addr,
 			)
 		}

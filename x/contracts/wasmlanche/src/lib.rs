@@ -71,6 +71,12 @@ mod types;
 mod logging;
 #[cfg(not(feature = "debug"))]
 mod logging {
+    #[macro_export]
+    macro_rules! dbg {
+        // match anything
+        ($($token:tt)*) => {};
+    }
+
     pub fn log(_msg: &str) {}
     pub fn register_panic() {}
 }

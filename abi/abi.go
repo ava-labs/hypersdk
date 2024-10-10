@@ -168,13 +168,18 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 		} else {
 			arrayPrefix := ""
 
-			// Here we assume that all types without a name are slices.
+			// Here we assume that all types without a name are slices or arrays.
 			// We completely ignore the fact that maps exist as we don't support them.
-			// Types like `type Bytes = []byte` are slices technically, but they have a name
+			// Types like `type Address = [33]byte` are arrays technically, but they have a name
 			// and we need them to be named types instead of slices.
 			for fieldType.Name() == "" {
-				arrayPrefix += "[]"
-				fieldType = fieldType.Elem()
+				if fieldType.Kind() == reflect.Array {
+					arrayPrefix += fmt.Sprintf("[%d]", fieldType.Len())
+					fieldType = fieldType.Elem()
+				} else {
+					arrayPrefix += "[]"
+					fieldType = fieldType.Elem()
+				}
 			}
 
 			typeName := arrayPrefix + fieldType.Name()

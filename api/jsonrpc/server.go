@@ -97,12 +97,7 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	msg, err := tx.Digest()
-	if err != nil {
-		// Should never occur because populated during unmarshal
-		return err
-	}
-	if err := tx.Auth.Verify(ctx, msg); err != nil {
+	if err := tx.Verify(ctx); err != nil {
 		return err
 	}
 	txID := tx.ID()
@@ -163,7 +158,7 @@ func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIRepl
 
 type ExecuteActionArgs struct {
 	Actor  codec.Address `json:"actor"`
-	Action codec.Bytes   `json:"action"`
+	Action []byte        `json:"action"`
 }
 
 type ExecuteActionReply struct {
@@ -188,7 +183,7 @@ func (j *JSONRPCServer) Execute(
 	now := time.Now().UnixMilli()
 
 	// Get expected state keys
-	stateKeysWithPermissions := action.StateKeys(args.Actor, ids.Empty)
+	stateKeysWithPermissions := action.StateKeys(args.Actor)
 
 	// flatten the map to a slice of keys
 	storageKeysToRead := make([][]byte, 0)
