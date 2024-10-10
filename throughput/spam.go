@@ -149,6 +149,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	for _, issuer := range issuers {
 		issuer.Start(cctx)
 	}
@@ -157,7 +158,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	issuers[0].logStats(cctx)
 
 	// broadcast transactions
-	s.broadcast(cctx, sh, accounts, funds, factories, issuers, feePerTx, terminate)
+	s.broadcast(cctx, cancel, sh, accounts, funds, factories, issuers, feePerTx, terminate)
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
@@ -167,7 +168,8 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 }
 
 func (s Spammer) broadcast(
-	cctx context.Context,
+	ctx context.Context,
+	cancel context.CancelFunc,
 	sh SpamHelper,
 	accounts []*auth.PrivateKey,
 
@@ -247,7 +249,7 @@ func (s Spammer) broadcast(
 
 					// Send transaction
 					actions := sh.GetTransfer(recipient, amountToTransfer, uniqueBytes())
-					return issuer.Send(cctx, actions, factory, feePerTx)
+					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
 
@@ -271,19 +273,19 @@ func (s Spammer) broadcast(
 			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
 				utils.Outf("{{green}}reached target tps:{{/}} %d\n", currentTarget)
 				// Cancel the context to stop the issuers
-				cctx.Done()
+				cancel()
 			} else if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < s.txsPerSecond {
 				currentTarget = min(currentTarget+s.txsPerSecondStep, s.txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
-		case <-cctx.Done():
+		case <-ctx.Done():
 			stop = true
 			utils.Outf("{{yellow}}context canceled{{/}}\n")
 		case <-signals:
 			stop = true
 			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-			cctx.Done()
+			cancel()
 		}
 	}
 
