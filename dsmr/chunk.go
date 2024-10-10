@@ -12,17 +12,17 @@ import (
 const InitialChunkSize = 250 * 1024
 
 type Chunk[T Tx] struct {
-	Items []T   `serialize:"true"`
-	Slot  int64 `serialize:"true"`
+	Items   []T   `serialize:"true"`
+	ExpiryV int64 `serialize:"true"`
 
 	bytes []byte
 	id    ids.ID
 }
 
-func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
+func NewChunk[T Tx](items []T, expiry int64) (Chunk[T], error) {
 	c := Chunk[T]{
-		Items: items,
-		Slot:  slot,
+		Items:   items,
+		ExpiryV: expiry,
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
@@ -36,7 +36,7 @@ func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
 
 func ParseChunk[T Tx](chunkBytes []byte) (*Chunk[T], error) {
 	c := &Chunk[T]{}
-	if err := codec.LinearCodec.Unmarshal(chunkBytes, c); err != nil {
+	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: chunkBytes}, c); err != nil {
 		return nil, err
 	}
 	c.bytes = chunkBytes
@@ -53,5 +53,5 @@ func (c *Chunk[T]) Bytes() []byte {
 }
 
 func (c *Chunk[T]) Expiry() int64 {
-	return c.Slot
+	return c.ExpiryV
 }
