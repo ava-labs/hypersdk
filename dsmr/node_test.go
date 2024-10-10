@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 )
 
 // TODO
@@ -36,6 +38,11 @@ func TestNode(t *testing.T) {
 	}()
 
 	<-blks
+}
+
+func TestP2P(t *testing.T) {
+	p2ptest.NewClient()
+
 }
 
 var _ Tx = (*tx)(nil)
