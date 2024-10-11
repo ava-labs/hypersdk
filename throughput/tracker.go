@@ -28,14 +28,14 @@ type tracker struct {
 	sent atomic.Int64
 }
 
-func (tp *tracker) logResult(
+func (t *tracker) logResult(
 	result *chain.Result,
 	wsErr error,
 ) {
-	tp.l.Lock()
+	t.l.Lock()
 	if result != nil {
 		if result.Success {
-			tp.confirmedTxs++
+			t.confirmedTxs++
 		} else {
 			utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
 		}
@@ -45,8 +45,8 @@ func (tp *tracker) logResult(
 			utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 		}
 	}
-	tp.totalTxs++
-	tp.l.Unlock()
+	t.totalTxs++
+	t.l.Unlock()
 }
 
 func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
