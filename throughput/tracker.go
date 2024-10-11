@@ -11,12 +11,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-type txProcessor struct {
+type tracker struct {
 	issuerWg sync.WaitGroup
 	inflight atomic.Int64
 
@@ -27,7 +28,7 @@ type txProcessor struct {
 	sent atomic.Int64
 }
 
-func (tp *txProcessor) logResult(
+func (tp *tracker) logResult(
 	result *chain.Result,
 	wsErr error,
 ) {
@@ -48,32 +49,32 @@ func (tp *txProcessor) logResult(
 	tp.l.Unlock()
 }
 
-func (tp *txProcessor) logIssuerState(ctx context.Context, issuer *issuer) {
+func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
-	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
+	tick := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	var psent int64
 	go func() {
-		defer t.Stop()
+		defer tick.Stop()
 		for {
 			select {
-			case <-t.C:
-				current := tp.sent.Load()
-				tp.l.Lock()
-				if tp.totalTxs > 0 {
-					unitPrices, err := issuer.cli.UnitPrices(ctx, false)
+			case <-tick.C:
+				current := t.sent.Load()
+				t.l.Lock()
+				if t.totalTxs > 0 {
+					unitPrices, err := cli.UnitPrices(ctx, false)
 					if err != nil {
 						continue
 					}
 					utils.Outf(
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-						tp.totalTxs,
-						float64(tp.confirmedTxs)/float64(tp.totalTxs)*100,
-						tp.inflight.Load(),
+						t.totalTxs,
+						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
+						t.inflight.Load(),
 						current-psent,
 						unitPrices,
 					)
 				}
-				tp.l.Unlock()
+				t.l.Unlock()
 				psent = current
 			case <-ctx.Done():
 				return
@@ -82,6 +83,6 @@ func (tp *txProcessor) logIssuerState(ctx context.Context, issuer *issuer) {
 	}()
 }
 
-func (tp *txProcessor) uniqueBytes() []byte {
-	return binary.BigEndian.AppendUint64(nil, uint64(tp.sent.Add(1)))
+func (t *tracker) uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(t.sent.Add(1)))
 }

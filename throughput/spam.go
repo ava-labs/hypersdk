@@ -62,13 +62,13 @@ type Spammer struct {
 	numAccounts int
 
 	// keep track of variables shared across issuers
-	txProcessor *txProcessor
+	tracker *tracker
 }
 
 func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
-	txProcessor := txProcessor{}
+	tracker := &tracker{}
 	balance, err := sh.LookupBalance(sc.key.Address)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 		numClients:       sc.numClients,
 		numAccounts:      sc.numAccounts,
 
-		txProcessor: &txProcessor,
+		tracker: tracker,
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(s.key.Address, 0, s.txProcessor.uniqueBytes())
+	actions := sh.GetTransfer(s.key.Address, 0, s.tracker.uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// set logging
-	s.txProcessor.logIssuerState(cctx, issuers[0])
+	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
 	s.broadcast(cctx, cancel, sh, accounts, funds, factories, issuers, feePerTx, terminate)
@@ -199,7 +199,7 @@ func (s Spammer) broadcast(
 			start := time.Now()
 
 			// Check to see if we should wait for pending txs
-			if int64(currentTarget)+s.txProcessor.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
@@ -244,7 +244,7 @@ func (s Spammer) broadcast(
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, s.txProcessor.uniqueBytes())
+					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
@@ -287,7 +287,7 @@ func (s Spammer) broadcast(
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	s.txProcessor.issuerWg.Wait()
+	s.tracker.issuerWg.Wait()
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -312,12 +312,12 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 				return nil, err
 			}
 			issuer := &issuer{
-				i:           len(issuers),
-				cli:         cli,
-				ws:          webSocketClient,
-				parser:      parser,
-				uri:         s.uris[i],
-				txProcessor: s.txProcessor,
+				i:       len(issuers),
+				cli:     cli,
+				ws:      webSocketClient,
+				parser:  parser,
+				uri:     s.uris[i],
+				tracker: s.tracker,
 			}
 			issuers = append(issuers, issuer)
 		}
@@ -367,7 +367,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, s.txProcessor.uniqueBytes())
+		actions := sh.GetTransfer(pk.Address, distAmount, s.tracker.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -421,7 +421,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.key.Address, returnAmt, s.txProcessor.uniqueBytes())
+		actions := sh.GetTransfer(s.key.Address, returnAmt, s.tracker.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err

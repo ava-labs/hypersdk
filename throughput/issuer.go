@@ -31,11 +31,11 @@ type issuer struct {
 	abandoned      error
 
 	// injected from the spammer
-	txProcessor *txProcessor
+	tracker *tracker
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	i.txProcessor.issuerWg.Add(1)
+	i.tracker.issuerWg.Add(1)
 	go func() {
 		for {
 			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
@@ -45,14 +45,14 @@ func (i *issuer) Start(ctx context.Context) {
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
-			i.txProcessor.inflight.Add(-1)
-			i.txProcessor.logResult(result, wsErr)
+			i.tracker.inflight.Add(-1)
+			i.tracker.logResult(result, wsErr)
 		}
 	}()
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			i.txProcessor.issuerWg.Done()
+			i.tracker.issuerWg.Done()
 		}()
 
 		<-ctx.Done()
@@ -86,7 +86,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	i.l.Lock()
 	i.outstandingTxs++
 	i.l.Unlock()
-	i.txProcessor.inflight.Add(1)
+	i.tracker.inflight.Add(1)
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {
