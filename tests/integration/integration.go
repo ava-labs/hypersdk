@@ -296,8 +296,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	ginkgo.It("GetABI", func() {
 		ginkgo.By("Gets ABI")
 
-		actionRegistry, outputRegistry := instances[0].vm.ActionRegistry(), instances[0].vm.OutputRegistry()
-		expectedABI, err := abi.NewABI((*actionRegistry).GetRegisteredTypes(), (*outputRegistry).GetRegisteredTypes())
+		actionCodec, outputCodec := instances[0].vm.ActionCodec(), instances[0].vm.OutputCodec()
+		expectedABI, err := abi.NewABI(actionCodec.GetRegisteredTypes(), (*outputCodec).GetRegisteredTypes())
 		require.NoError(err)
 
 		workload.GetABI(ctx, require, uris, expectedABI)
@@ -346,7 +346,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
-			tx := chain.NewTx(
+			tx := chain.NewTxData(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
 					Timestamp: 1,
@@ -360,9 +360,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(err)
 			auth, err := authFactory.Sign(unsignedTxBytes)
 			require.NoError(err)
-			tx.Auth = auth
+			signedTx := chain.Transaction{
+				TransactionData: *tx,
+				Auth:            auth,
+			}
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-			require.NoError(tx.Marshal(p))
+			require.NoError(signedTx.Marshal(p))
 			require.NoError(p.Err())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),

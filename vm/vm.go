@@ -29,6 +29,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -94,9 +95,9 @@ type VM struct {
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
 	stateManager          chain.StateManager
-	actionRegistry        chain.ActionRegistry
-	authRegistry          chain.AuthRegistry
-	outputRegistry        chain.OutputRegistry
+	actionCodec           *codec.TypeParser[chain.Action]
+	authCodec             *codec.TypeParser[chain.Auth]
+	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
 
@@ -150,9 +151,9 @@ func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
-	outputRegistry chain.OutputRegistry,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
+	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -168,9 +169,9 @@ func New(
 		v:                     v,
 		stateManager:          stateManager,
 		config:                NewConfig(),
-		actionRegistry:        actionRegistry,
-		authRegistry:          authRegistry,
-		outputRegistry:        outputRegistry,
+		actionCodec:           actionCodec,
+		authCodec:             authCodec,
+		outputCodec:           outputCodec,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
@@ -370,7 +371,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatelessBlock(
+		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
 			chain.NewGenesisBlock(root),
 			nil,
@@ -924,13 +925,7 @@ func (vm *VM) Submit(
 
 		// Verify auth if not already verified by caller
 		if verifyAuth && vm.config.VerifyAuth {
-			unsignedTxBytes, err := tx.UnsignedBytes()
-			if err != nil {
-				// Should never fail
-				errs = append(errs, err)
-				continue
-			}
-			if err := tx.Auth.Verify(ctx, unsignedTxBytes); err != nil {
+			if err := tx.VerifyAuth(ctx); err != nil {
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.

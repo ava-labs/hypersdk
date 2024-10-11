@@ -30,6 +30,7 @@ var (
 	minBlockGap           int64
 	hideTxs               bool
 	checkAllChains        bool
+	spamDefaults          bool
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
@@ -140,6 +141,13 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+	)
+
+	runSpamCmd.PersistentFlags().BoolVar(
+		&spamDefaults,
+		"defaults",
+		false,
+		"use default spam parameters",
 	)
 
 	// spam
