@@ -130,7 +130,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 		err := spamHelper.CreateClient(uris[0])
 		require.NoError(err)
 
-		spamConfig := throughput.DefaultSpamConfig(uris, key)
+		spamConfig := throughput.NewDefaultConfig(uris, key)
 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
 		require.NoError(err)
 

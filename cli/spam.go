@@ -44,7 +44,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	}
 
 	if defaults {
-		sc := throughput.DefaultSpamConfig(uris, key)
+		sc := throughput.NewDefaultConfig(uris, key)
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
@@ -81,7 +81,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
-	sc := throughput.NewSpamConfig(
+	sc := throughput.NewConfig(
 		uris,
 		key,
 		sZipf,

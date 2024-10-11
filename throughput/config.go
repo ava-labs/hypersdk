@@ -5,7 +5,7 @@ package throughput
 
 import "github.com/ava-labs/hypersdk/auth"
 
-type SpamConfig struct {
+type Config struct {
 	uris             []string
 	key              *auth.PrivateKey
 	sZipf            float64
@@ -17,11 +17,11 @@ type SpamConfig struct {
 	numAccounts      int
 }
 
-func DefaultSpamConfig(
+func NewDefaultConfig(
 	uris []string,
 	key *auth.PrivateKey,
-) *SpamConfig {
-	return &SpamConfig{
+) *Config {
+	return &Config{
 		uris:             uris,
 		key:              key,
 		sZipf:            1.01,
@@ -34,7 +34,7 @@ func DefaultSpamConfig(
 	}
 }
 
-func NewSpamConfig(
+func NewConfig(
 	uris []string,
 	key *auth.PrivateKey,
 	sZipf float64,
@@ -44,8 +44,8 @@ func NewSpamConfig(
 	txsPerSecondStep int,
 	numClients int,
 	numAccounts int,
-) *SpamConfig {
-	return &SpamConfig{
+) *Config {
+	return &Config{
 		uris,
 		key,
 		sZipf,

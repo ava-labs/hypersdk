@@ -71,9 +71,7 @@ type Spammer struct {
 	numAccounts int
 }
 
-func NewSpammer(sc *SpamConfig,
-	sh SpamHelper,
-) (*Spammer, error) {
+func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	balance, err := sh.LookupBalance(sc.key.Address)
