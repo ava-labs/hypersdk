@@ -138,7 +138,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 			},
 		},
 	}
-	// call Bytes so that the "bytes" field would get populated.
+	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
 	_, err = txBeforeSign.UnsignedBytes()
 	require.NoError(err)
 

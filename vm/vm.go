@@ -925,7 +925,7 @@ func (vm *VM) Submit(
 
 		// Verify auth if not already verified by caller
 		if verifyAuth && vm.config.VerifyAuth {
-			if err := tx.Verify(ctx); err != nil {
+			if err := tx.VerifyAuth(ctx); err != nil {
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
