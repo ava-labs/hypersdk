@@ -79,17 +79,17 @@ func NewSpammer(
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	return &Spammer{
-		uris: uris,
-		key : key,
-		balance: balance,
-		zipfSeed : zipfSeed,
-		sZipf: sZipf,
-		vZipf : vZipf,
-		txsPerSecond: txsPerSecond,
-		minTxsPerSecond: minTxsPerSecond,
+		uris:             uris,
+		key:              key,
+		balance:          balance,
+		zipfSeed:         zipfSeed,
+		sZipf:            sZipf,
+		vZipf:            vZipf,
+		txsPerSecond:     txsPerSecond,
+		minTxsPerSecond:  minTxsPerSecond,
 		txsPerSecondStep: txsPerSecond,
-		numClients: numClients,
-		numAccounts: numAccounts,
+		numClients:       numClients,
+		numAccounts:      numAccounts,
 	}
 }
 
