@@ -77,7 +77,7 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
-	tx := chain.Transaction{
+	tx := chain.TransactionData{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -115,7 +115,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
-	txBeforeSign := chain.Transaction{
+	txBeforeSign := chain.TransactionData{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -138,8 +138,10 @@ func TestMarshalUnmarshal(t *testing.T) {
 			},
 		},
 	}
+	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
+	_, err = txBeforeSign.UnsignedBytes()
+	require.NoError(err)
 
-	require.Nil(tx.Auth)
 	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
 	require.NoError(err)
 	require.Equal(txBeforeSign, tx)

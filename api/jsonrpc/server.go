@@ -105,7 +105,7 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errTransactionExtraBytes
 	}
-	if err := tx.Verify(ctx); err != nil {
+	if err := tx.VerifyAuth(ctx); err != nil {
 		return err
 	}
 	txID := tx.ID()
