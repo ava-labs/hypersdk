@@ -29,16 +29,8 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	if err != nil {
 		return nil, err
 	}
-	balances := make([]uint64, len(keys))
 	if err := sh.CreateClient(uris[0]); err != nil {
 		return nil, err
-	}
-	for i := 0; i < len(keys); i++ {
-		balance, err := sh.LookupBalance(keys[i].Address)
-		if err != nil {
-			return nil, err
-		}
-		balances[i] = balance
 	}
 
 	keyIndex, err := prompt.Choice("select root key", len(keys))
@@ -46,25 +38,14 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 	key := keys[keyIndex]
-	balance := balances[keyIndex]
 	// No longer using db, so we close
 	if err := h.CloseDatabase(); err != nil {
 		return nil, err
 	}
 
 	if defaults {
-		return throughput.NewSpammer(
-			uris,
-			key,
-			balance,
-			1.01,
-			2.7,
-			100000,   // tx per second
-			15000,    // min tx per second
-			1000,     // tx per second step
-			10,       // num clients
-			10000000, // num accounts
-		), nil
+		sc := throughput.NewDefaultConfig(uris, key)
+		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
 	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
@@ -100,10 +81,9 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
-	return throughput.NewSpammer(
+	sc := throughput.NewConfig(
 		uris,
 		key,
-		balance,
 		sZipf,
 		vZipf,
 		txsPerSecond,
@@ -111,7 +91,9 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		txsPerSecondStep,
 		numClients,
 		numAccounts,
-	), nil
+	)
+
+	return throughput.NewSpammer(sc, sh)
 }
 
 func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults bool) error {
