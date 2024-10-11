@@ -17,8 +17,8 @@ import (
 )
 
 type txProcessor struct {
-	issuerWg *sync.WaitGroup
-	inflight *atomic.Int64
+	issuerWg sync.WaitGroup
+	inflight atomic.Int64
 
 	l            sync.Mutex
 	confirmedTxs int

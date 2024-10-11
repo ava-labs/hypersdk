@@ -74,7 +74,7 @@ func NewSpammer(
 ) *Spammer {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
-	txProcessor := &txProcessor{}
+	txProcessor := txProcessor{}
 
 	return &Spammer{
 		uris:             uris,
@@ -88,7 +88,7 @@ func NewSpammer(
 		txsPerSecondStep: txsPerSecond,
 		numClients:       numClients,
 		numAccounts:      numAccounts,
-		txProcessor:      txProcessor,
+		txProcessor:      &txProcessor,
 	}
 }
 
