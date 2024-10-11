@@ -37,8 +37,8 @@ func init() {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Deploy{}, actions.UnmarshalDeploy),
-		ActionParser.Register(&actions.Call{}, actions.UnmarshalCall),
+		ActionParser.Register(&actions.Deploy{}, nil),
+		ActionParser.Register(&actions.Call{}, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),

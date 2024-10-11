@@ -50,7 +50,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
-	he2e.SetWorkload(consts.Name, workloadFactory, parser, expectedABI)
+	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, nil, nil)
 
 	tc := e2e.NewTestContext()
 

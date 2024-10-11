@@ -83,23 +83,3 @@ type DeployOutput struct {
 func (*DeployOutput) GetTypeID() uint8 {
 	return consts.DeployOutputId
 }
-
-var _ chain.Marshaler = (*Deploy)(nil)
-
-func (d *Deploy) Size() int {
-	return len(d.ContractBytes) + len(d.CreationData)
-}
-
-func (d *Deploy) Marshal(p *codec.Packer) {
-	p.PackBytes(d.ContractBytes)
-	p.PackBytes(d.CreationData)
-}
-
-func UnmarshalDeploy(p *codec.Packer) (chain.Action, error) {
-	var deployContract Deploy
-	contractBytes := p.Packer.UnpackBytes()
-	contractCreationData := p.Packer.UnpackBytes()
-	deployContract.ContractBytes = contractBytes
-	deployContract.CreationData = contractCreationData
-	return &deployContract, nil
-}
