@@ -33,7 +33,8 @@ type VM interface {
 	Rules(int64) chain.Rules
 	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
-	StateManager() chain.StateManager
+	BalanceHandler() chain.BalanceHandler
+	MetadataManager() chain.MetadataManager
 
 	RecordTxsGossiped(int)
 	RecordSeenTxsReceived(int)
