@@ -19,7 +19,7 @@ const (
 	DefaultMinimumPrefix byte = 0x3
 )
 
-var _ chain.MetadataManager = &MetadataManager{}
+var _ chain.MetadataManager = (*MetadataManager)(nil)
 
 type MetadataManager struct {
 	heightPrefix    []byte
