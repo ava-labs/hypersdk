@@ -39,6 +39,10 @@
         {
             "id": 9,
             "name": "FixedBytes"
+        },
+        {
+            "id": 10,
+            "name": "Bools"
         }
     ],
     "outputs": [
@@ -210,15 +214,16 @@
             ]
         },
         {
+            "name": "ActionWithOutput",
             "fields": [
                 {
                     "name": "field1",
                     "type": "uint8"
                 }
-            ],
-            "name": "ActionWithOutput"
+            ]
         },
         {
+            "name": "FixedBytes",
             "fields": [
                 {
                     "name": "twoBytes",
@@ -228,17 +233,33 @@
                     "name": "thirtyTwoBytes",
                     "type": "[32]uint8"
                 }
-            ],
-            "name": "FixedBytes"
+            ]
         },
         {
+            "name": "Bools",
+            "fields": [
+                {
+                    "name": "bool1",
+                    "type": "bool"
+                },
+                {
+                    "name": "bool2",
+                    "type": "bool"
+                },
+                {
+                    "name": "boolArray",
+                    "type": "[]bool"
+                }
+            ]
+        },
+        {
+            "name": "ActionOutput",
             "fields": [
                 {
                     "name": "field1",
                     "type": "uint16"
                 }
-            ],
-            "name": "ActionOutput"
+            ]
         }
     ]
 }

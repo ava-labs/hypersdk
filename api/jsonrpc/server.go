@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -25,7 +26,14 @@ const (
 	Endpoint = "/coreapi"
 )
 
+var errNoActionsToExecute = errors.New("no actions to execute")
+
 var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
+
+var (
+	errSimulateZeroActions   = errors.New("simulateAction expects at least a single action, none found")
+	errTransactionExtraBytes = errors.New("transaction has extra bytes")
+)
 
 type JSONRPCServerFactory struct{}
 
@@ -95,7 +103,7 @@ func (j *JSONRPCServer) SubmitTx(
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
 	if !rtx.Empty() {
-		return errors.New("tx has extra bytes")
+		return errTransactionExtraBytes
 	}
 	if err := tx.Verify(ctx); err != nil {
 		return err
@@ -165,7 +173,7 @@ type ExecuteActionReply struct {
 	Error   string   `json:"error"`
 }
 
-func (j *JSONRPCServer) Execute(
+func (j *JSONRPCServer) ExecuteActions(
 	req *http.Request,
 	args *ExecuteActionArgs,
 	reply *ExecuteActionReply,
@@ -174,7 +182,13 @@ func (j *JSONRPCServer) Execute(
 	defer span.End()
 
 	actionCodec := j.vm.ActionCodec()
-	actions := make([]chain.Action, 0)
+	if len(args.Actions) == 0 {
+		return errNoActionsToExecute
+	}
+	if maxActionsPerTx := int(j.vm.Rules(time.Now().Unix()).GetMaxActionsPerTx()); len(args.Actions) > maxActionsPerTx {
+		return fmt.Errorf("exceeded max actions per simulation: %d", maxActionsPerTx)
+	}
+	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, action := range args.Actions {
 		action, err := actionCodec.Unmarshal(codec.NewReader(action, len(action)))
 		if err != nil {
@@ -188,12 +202,12 @@ func (j *JSONRPCServer) Execute(
 	storage := make(map[string][]byte)
 	ts := tstate.New(1)
 
-	for _, action := range actions {
+	for actionIndex, action := range actions {
 		// Get expected state keys
 		stateKeysWithPermissions := action.StateKeys(args.Actor)
 
 		// flatten the map to a slice of keys
-		storageKeysToRead := make([][]byte, 0)
+		storageKeysToRead := make([][]byte, 0, len(stateKeysWithPermissions))
 		for key := range stateKeysWithPermissions {
 			storageKeysToRead = append(storageKeysToRead, []byte(key))
 		}
@@ -219,7 +233,7 @@ func (j *JSONRPCServer) Execute(
 			tsv,
 			now,
 			args.Actor,
-			ids.Empty,
+			chain.CreateActionID(ids.Empty, uint8(actionIndex)),
 		)
 		if err != nil {
 			reply.Error = fmt.Sprintf("failed to execute action: %s", err)
@@ -234,6 +248,73 @@ func (j *JSONRPCServer) Execute(
 		}
 
 		reply.Outputs = append(reply.Outputs, encodedOutput)
+	}
+	return nil
+}
+
+type SimulatActionsArgs struct {
+	Actions []codec.Bytes `json:"actions"`
+	Actor   codec.Address `json:"actor"`
+}
+
+type SimulateActionResult struct {
+	Output    codec.Bytes `json:"output"`
+	StateKeys state.Keys  `json:"stateKeys"`
+}
+
+type SimulateActionsReply struct {
+	ActionResults []SimulateActionResult `json:"actionresults"`
+}
+
+func (j *JSONRPCServer) SimulateActions(
+	req *http.Request,
+	args *SimulatActionsArgs,
+	reply *SimulateActionsReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
+	defer span.End()
+
+	actionRegistry := j.vm.ActionCodec()
+	var actions chain.Actions
+	for _, actionBytes := range args.Actions {
+		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
+		action, err := (*actionRegistry).Unmarshal(actionsReader)
+		if err != nil {
+			return err
+		}
+		if !actionsReader.Empty() {
+			return errTransactionExtraBytes
+		}
+		actions = append(actions, action)
+	}
+	if len(actions) == 0 {
+		return errSimulateZeroActions
+	}
+	currentState, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+
+	currentTime := time.Now().UnixMilli()
+	for _, action := range actions {
+		recorder := state.NewRecorder(currentState)
+		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+
+		var actionResult SimulateActionResult
+		if actionOutput == nil {
+			actionResult.Output = []byte{}
+		} else {
+			actionResult.Output, err = chain.MarshalTyped(actionOutput)
+			if err != nil {
+				return fmt.Errorf("failed to marshal output: %w", err)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		actionResult.StateKeys = recorder.GetStateKeys()
+		reply.ActionResults = append(reply.ActionResults, actionResult)
+		currentState = recorder
 	}
 	return nil
 }
