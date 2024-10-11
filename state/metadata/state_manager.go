@@ -27,6 +27,18 @@ type MetadataManager struct {
 	timestampPrefix []byte
 }
 
+func NewManager(
+	heightPrefix []byte,
+	feePrefix []byte,
+	timestampPrefix []byte,
+) MetadataManager {
+	return MetadataManager{
+		heightPrefix:    heightPrefix,
+		feePrefix:       feePrefix,
+		timestampPrefix: timestampPrefix,
+	}
+}
+
 func NewDefaultManager() MetadataManager {
 	return MetadataManager{
 		heightPrefix:    []byte{defaultHeightPrefix},
