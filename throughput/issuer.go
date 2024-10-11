@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/exp/rand"
@@ -32,13 +31,11 @@ type issuer struct {
 	abandoned      error
 
 	// injected from the spammer
-	issuerWg *sync.WaitGroup
-	inflight *atomic.Int64
-	logger   *logger
+	txProcessor *txProcessor
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	i.issuerWg.Add(1)
+	i.txProcessor.issuerWg.Add(1)
 	go func() {
 		for {
 			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
@@ -48,14 +45,14 @@ func (i *issuer) Start(ctx context.Context) {
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
-			i.inflight.Add(-1)
-			i.logger.Log(result, wsErr)
+			i.txProcessor.inflight.Add(-1)
+			i.txProcessor.logResult(result, wsErr)
 		}
 	}()
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			i.issuerWg.Done()
+			i.txProcessor.issuerWg.Done()
 		}()
 
 		<-ctx.Done()
@@ -89,7 +86,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	i.l.Lock()
 	i.outstandingTxs++
 	i.l.Unlock()
-	i.inflight.Add(1)
+	i.txProcessor.inflight.Add(1)
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {

@@ -5,14 +5,12 @@ package throughput
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -64,9 +62,7 @@ type Spammer struct {
 	numAccounts int
 
 	// keep track of variables shared across issuers
-	sent     atomic.Int64
-	inflight atomic.Int64
-	issuerWg sync.WaitGroup
+	txProcessor *txProcessor
 }
 
 func NewSpammer(
@@ -78,6 +74,8 @@ func NewSpammer(
 ) *Spammer {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	txProcessor := &txProcessor{}
+
 	return &Spammer{
 		uris:             uris,
 		key:              key,
@@ -90,6 +88,7 @@ func NewSpammer(
 		txsPerSecondStep: txsPerSecond,
 		numClients:       numClients,
 		numAccounts:      numAccounts,
+		txProcessor:      txProcessor,
 	}
 }
 
@@ -101,8 +100,6 @@ func NewSpammer(
 // [terminate] if true, the spammer will stop after reaching the target TPS.
 // [symbol] and [decimals] are used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
-	logger := &logger{}
-
 	// log distribution
 	s.logZipf(s.zipfSeed)
 
@@ -119,7 +116,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(s.key.Address, 0, s.uniqueBytes())
+	actions := sh.GetTransfer(s.key.Address, 0, s.txProcessor.uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -142,7 +139,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// create issuers
-	issuers, err := s.createIssuers(parser, logger)
+	issuers, err := s.createIssuers(parser)
 	if err != nil {
 		return err
 	}
@@ -158,7 +155,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// set logging
-	logger.logStats(cctx, issuers[0], &s.inflight, &s.sent)
+	s.txProcessor.logIssuerState(cctx, issuers[0])
 
 	// Broadcast txs
 	var (
@@ -179,7 +176,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 			start := time.Now()
 
 			// Check to see if we should wait for pending txs
-			if int64(currentTarget)+s.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+			if int64(currentTarget)+s.txProcessor.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
@@ -224,7 +221,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, s.uniqueBytes())
+					actions := sh.GetTransfer(recipient, amountToTransfer, s.txProcessor.uniqueBytes())
 					return issuer.Send(cctx, actions, factory, feePerTx)
 				})
 			}
@@ -266,7 +263,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	s.issuerWg.Wait()
+	s.txProcessor.issuerWg.Wait()
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
@@ -286,7 +283,7 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 }
 
 // createIssuer creates an [numClients] transaction issuers for each URI in [uris]
-func (s *Spammer) createIssuers(parser chain.Parser, logger *logger) ([]*issuer, error) {
+func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
 
 	for i := 0; i < len(s.uris); i++ {
@@ -297,10 +294,12 @@ func (s *Spammer) createIssuers(parser chain.Parser, logger *logger) ([]*issuer,
 				return nil, err
 			}
 			issuer := &issuer{
-				i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: s.uris[i],
-				logger:   logger,
-				issuerWg: &s.issuerWg,
-				inflight: &s.inflight,
+				i:           len(issuers),
+				cli:         cli,
+				ws:          webSocketClient,
+				parser:      parser,
+				uri:         s.uris[i],
+				txProcessor: s.txProcessor,
 			}
 			issuers = append(issuers, issuer)
 		}
@@ -350,7 +349,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, s.uniqueBytes())
+		actions := sh.GetTransfer(pk.Address, distAmount, s.txProcessor.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -404,7 +403,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.key.Address, returnAmt, s.uniqueBytes())
+		actions := sh.GetTransfer(s.key.Address, returnAmt, s.txProcessor.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
@@ -429,8 +428,4 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 		symbol,
 	)
 	return nil
-}
-
-func (s *Spammer) uniqueBytes() []byte {
-	return binary.BigEndian.AppendUint64(nil, uint64(s.sent.Add(1)))
 }

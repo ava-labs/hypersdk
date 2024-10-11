@@ -5,6 +5,7 @@ package throughput
 
 import (
 	"context"
+	"encoding/binary"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,21 +16,25 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-type logger struct {
-	l sync.Mutex
+type txProcessor struct {
+	issuerWg *sync.WaitGroup
+	inflight *atomic.Int64
 
+	l            sync.Mutex
 	confirmedTxs int
 	totalTxs     int
+
+	sent atomic.Int64
 }
 
-func (l *logger) Log(
+func (tp *txProcessor) logResult(
 	result *chain.Result,
 	wsErr error,
 ) {
-	l.l.Lock()
+	tp.l.Lock()
 	if result != nil {
 		if result.Success {
-			l.confirmedTxs++
+			tp.confirmedTxs++
 		} else {
 			utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
 		}
@@ -39,11 +44,11 @@ func (l *logger) Log(
 			utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 		}
 	}
-	l.totalTxs++
-	l.l.Unlock()
+	tp.totalTxs++
+	tp.l.Unlock()
 }
 
-func (l *logger) logStats(ctx context.Context, issuer *issuer, inflight *atomic.Int64, sent *atomic.Int64) {
+func (tp *txProcessor) logIssuerState(ctx context.Context, issuer *issuer) {
 	// Log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	var psent int64
@@ -52,27 +57,31 @@ func (l *logger) logStats(ctx context.Context, issuer *issuer, inflight *atomic.
 		for {
 			select {
 			case <-t.C:
-				current := sent.Load()
-				l.l.Lock()
-				if l.totalTxs > 0 {
+				current := tp.sent.Load()
+				tp.l.Lock()
+				if tp.totalTxs > 0 {
 					unitPrices, err := issuer.cli.UnitPrices(ctx, false)
 					if err != nil {
 						continue
 					}
 					utils.Outf(
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-						l.totalTxs,
-						float64(l.confirmedTxs)/float64(l.totalTxs)*100,
-						inflight.Load(),
+						tp.totalTxs,
+						float64(tp.confirmedTxs)/float64(tp.totalTxs)*100,
+						tp.inflight.Load(),
 						current-psent,
 						unitPrices,
 					)
 				}
-				l.l.Unlock()
+				tp.l.Unlock()
 				psent = current
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+}
+
+func (tp *txProcessor) uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(tp.sent.Add(1)))
 }
