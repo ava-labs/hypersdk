@@ -63,7 +63,7 @@ type Spammer struct {
 	// Number of accounts
 	numAccounts int
 
-	// variables for tracking tx sent
+	// keep track of variables shared across issuers
 	sent     atomic.Int64
 	inflight atomic.Int64
 	issuerWg sync.WaitGroup
@@ -154,7 +154,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, issuer := range issuers {
-		s.issuerWg.Add(1)
 		issuer.Start(cctx)
 	}
 

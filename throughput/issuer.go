@@ -31,12 +31,14 @@ type issuer struct {
 	outstandingTxs int
 	abandoned      error
 
+	// injected from the spammer
 	issuerWg *sync.WaitGroup
 	inflight *atomic.Int64
 	logger   *logger
 }
 
 func (i *issuer) Start(ctx context.Context) {
+	i.issuerWg.Add(1)
 	go func() {
 		for {
 			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
