@@ -37,6 +37,7 @@ func init() {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
+		ActionParser.Register(&actions.Transfer{}, nil),
 		ActionParser.Register(&actions.Deploy{}, nil),
 		ActionParser.Register(&actions.Call{}, nil),
 
@@ -48,6 +49,7 @@ func init() {
 		// OutputParser.Register(&actions.TransferResult{}, nil),
 		OutputParser.Register(&actions.DeployOutput{}, nil),
 		OutputParser.Register(&actions.CallOutput{}, nil),
+		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

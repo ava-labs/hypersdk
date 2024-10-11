@@ -8,6 +8,7 @@ require (
 	github.com/ava-labs/hypersdk/examples/morpheusvm v0.0.0-20241004152358-fee360ff9631
 	github.com/near/borsh-go v0.3.1
 	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 )
 
@@ -70,6 +71,7 @@ require (
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackpal/gateway v1.0.6 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
