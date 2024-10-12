@@ -4,12 +4,7 @@
 package dsmr
 
 import (
-	"context"
 	"fmt"
-	"time"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 )
 
 func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
@@ -23,20 +18,13 @@ func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 }
 
 type Node[T Tx] struct {
+	//TODO chunk handler
 	client           Client[T]
 	chunkBuilder     chunkBuilder[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
 
 	chunks chan Chunk[T]
-}
-
-func (Node[_]) AppGossip(context.Context, ids.NodeID, []byte) {
-	return
-}
-
-func (n Node[_]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
-	return nil, nil
 }
 
 func (n Node[_]) Run(blks chan<- Block) error {
@@ -58,7 +46,8 @@ func (n Node[_]) Run(blks chan<- Block) error {
 }
 
 // TODO why return error
-// Caller is assumed to de-dup transactions
+// TODO handle frozen sponsor + validator assignments
+// Caller is assumed to de-dup transactions?
 func (n Node[T]) AddTx(tx T) error {
 	chunk, err := n.chunkBuilder.Add(tx, 0)
 	if err != nil {

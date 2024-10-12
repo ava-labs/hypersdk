@@ -1,12 +1,62 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+use crate::{
+    borsh::{self, BorshSerialize},
+    Address, Gas,
+};
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(feature = "test")] {
+        pub use test_wrappers::*;
+    } else {
+        pub use external_wrappers::*;
+    }
+}
+
 pub struct StateAccessor;
+
+pub(crate) struct CallContractArgs<'a> {
+    pub(crate) address: Address,
+    pub(crate) function_name: &'a str,
+    pub(crate) args: &'a [u8],
+    pub(crate) max_units: Gas,
+    pub(crate) value: u64,
+}
+
+impl BorshSerialize for CallContractArgs<'_> {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        let Self {
+            address,
+            function_name,
+            args,
+            max_units,
+            value,
+        } = self;
+
+        address.serialize(writer)?;
+        function_name.serialize(writer)?;
+        args.serialize(writer)?;
+
+        cfg_if! {
+            if #[cfg(feature = "test")] {
+                let _ = max_units;
+            } else {
+                max_units.serialize(writer)?;
+            }
+        }
+
+        value.serialize(writer)?;
+
+        Ok(())
+    }
+}
 
 #[cfg(feature = "test")]
 mod test_wrappers {
-    use crate::host::StateAccessor;
-    use crate::{Address, Gas, HostPtr};
+    use super::CallContractArgs;
+    use crate::{host::StateAccessor, Address, Gas, HostPtr};
     use core::cell::{Cell, RefCell};
 
     pub const BALANCE_PREFIX: u8 = 0;
@@ -29,7 +79,7 @@ mod test_wrappers {
     #[derive(Clone)]
     #[cfg_attr(feature = "debug", derive(Debug))]
     pub struct Accessor {
-        pub state: MockState,
+        state: MockState,
     }
 
     impl Default for Accessor {
@@ -70,12 +120,15 @@ mod test_wrappers {
             val
         }
 
-        pub fn call_contract(&self, args: &[u8]) -> HostPtr {
-            let key = [CALL_FUNCTION_PREFIX]
-                .iter()
-                .chain(args.iter())
-                .copied()
-                .collect::<Vec<u8>>();
+        pub fn call_contract(&self, args: &CallContractArgs) -> HostPtr {
+            let key = {
+                // same default as borsh::to_vec uses
+                let mut key = Vec::with_capacity(1024);
+                key.push(CALL_FUNCTION_PREFIX);
+                borsh::to_writer(&mut key, args).expect("failed to serialize call-contract args");
+                key
+            };
+
             let val = self.state.get(&key);
 
             assert!(
@@ -199,6 +252,7 @@ mod test_wrappers {
 
 #[cfg(not(feature = "test"))]
 mod external_wrappers {
+    use super::CallContractArgs;
     use crate::host::StateAccessor;
     use crate::HostPtr;
 
@@ -248,12 +302,14 @@ mod external_wrappers {
             unsafe { deploy(args.as_ptr(), args.len()) }
         }
 
-        pub fn call_contract(&self, args: &[u8]) -> HostPtr {
+        pub fn call_contract(&self, args: &CallContractArgs) -> HostPtr {
             #[link(wasm_import_module = "contract")]
             extern "C" {
                 #[link_name = "call_contract"]
                 fn call_contract(ptr: *const u8, len: usize) -> HostPtr;
             }
+
+            let args = borsh::to_vec(args).expect("failed to serialize args");
 
             unsafe { call_contract(args.as_ptr(), args.len()) }
         }
@@ -289,9 +345,3 @@ mod external_wrappers {
         }
     }
 }
-
-#[cfg(feature = "test")]
-pub use test_wrappers::*;
-
-#[cfg(not(feature = "test"))]
-pub use external_wrappers::*;

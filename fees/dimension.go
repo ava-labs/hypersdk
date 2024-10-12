@@ -5,6 +5,7 @@ package fees
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -24,6 +25,8 @@ const (
 	FeeDimensions = 5
 
 	DimensionsLen = consts.Uint64Len * FeeDimensions
+
+	dimensionsFormatter = "(Bandwidth=%d, Compute=%d, Storage(Read)=%d, Storage(Allocate)=%d, Storage(Write)=%d)"
 )
 
 var ErrWrongDimensionSize = errors.New("wrong dimensions size")
@@ -106,13 +109,68 @@ func (d Dimensions) Greater(o Dimensions) bool {
 
 func (d Dimensions) String() string {
 	return fmt.Sprintf(
-		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
+		dimensionsFormatter,
 		d[Bandwidth],
 		d[Compute],
 		d[StorageRead],
 		d[StorageAllocate],
 		d[StorageWrite],
 	)
+}
+
+func (d Dimensions) MarshalText() ([]byte, error) {
+	return []byte(d.String()), nil
+}
+
+func (d *Dimensions) UnmarshalText(b []byte) error {
+	n, err := fmt.Sscanf(
+		string(b),
+		dimensionsFormatter,
+		&d[Bandwidth],
+		&d[Compute],
+		&d[StorageRead],
+		&d[StorageAllocate],
+		&d[StorageWrite],
+	)
+	if err != nil {
+		return err
+	}
+	if n != FeeDimensions {
+		return fmt.Errorf("failed to parse %d successive dimensions, found %d", FeeDimensions, n)
+	}
+	return nil
+}
+
+type DimensionJSON struct {
+	Bandwidth       uint64 `json:"bandwidth"`
+	Compute         uint64 `json:"compute"`
+	StorageRead     uint64 `json:"storageRead"`
+	StorageAllocate uint64 `json:"storageAllocate"`
+	StorageWrite    uint64 `json:"storageWrite"`
+}
+
+func (d Dimensions) MarshalJSON() ([]byte, error) {
+	dimensionJSON := DimensionJSON{
+		Bandwidth:       d[Bandwidth],
+		Compute:         d[Compute],
+		StorageRead:     d[StorageRead],
+		StorageAllocate: d[StorageAllocate],
+		StorageWrite:    d[StorageWrite],
+	}
+	return json.Marshal(dimensionJSON)
+}
+
+func (d *Dimensions) UnmarshalJSON(b []byte) error {
+	dimensionJSON := DimensionJSON{}
+	if err := json.Unmarshal(b, &dimensionJSON); err != nil {
+		return err
+	}
+	d[Bandwidth] = dimensionJSON.Bandwidth
+	d[Compute] = dimensionJSON.Compute
+	d[StorageRead] = dimensionJSON.StorageRead
+	d[StorageAllocate] = dimensionJSON.StorageAllocate
+	d[StorageWrite] = dimensionJSON.StorageWrite
+	return nil
 }
 
 func UnpackDimensions(raw []byte) (Dimensions, error) {

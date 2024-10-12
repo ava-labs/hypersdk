@@ -22,3 +22,24 @@ func LoadHex(s string, expectedSize int) ([]byte, error) {
 	}
 	return bytes, nil
 }
+
+type Bytes []byte
+
+func (b Bytes) String() string {
+	return ToHex(b)
+}
+
+// MarshalText returns the hex representation of b.
+func (b Bytes) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+// UnmarshalText sets b to the bytes represented by text.
+func (b *Bytes) UnmarshalText(text []byte) error {
+	bytes, err := LoadHex(string(text), -1)
+	if err != nil {
+		return err
+	}
+	*b = bytes
+	return nil
+}

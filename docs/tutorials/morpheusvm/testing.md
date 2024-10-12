@@ -380,7 +380,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		genesisBytes,
 		lconsts.ID,
 		vm.CreateParser,
-		vm.JSONRPCEndpoint,
 		workloadFactory,
 		randomEd25519AuthFactory,
 	)

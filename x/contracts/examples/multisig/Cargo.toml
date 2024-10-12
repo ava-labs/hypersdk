@@ -1,0 +1,17 @@
+[package]
+name = "multisig"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmlanche.workspace = true
+
+[dev-dependencies]
+counter = { path = "../counter", features = ["bindings"] }
+wasmlanche = { workspace = true, features = ["debug", "test"] }
+
+[build-dependencies]
+wasmlanche = { workspace = true, features = ["build"] }
+
+[features]
+debug = ["wasmlanche/debug"]

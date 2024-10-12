@@ -1,0 +1,51 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+syntax = "proto3";
+
+package dsmr;
+
+option go_package = "github.com/ava-labs/hypersdk/proto/pb/dsmr";
+
+message Chunk {
+  bytes producer = 1;
+  int64 expiry = 2;
+  bytes beneficiary = 3;
+  repeated Transaction transactions = 4;
+  bytes signer = 5;
+  bytes signature = 6;
+}
+
+message ChunkSignature {
+  bytes chunk_id = 1;
+  bytes producer = 2;
+  int64 expiry = 3;
+  bytes signer = 4; // bls public key
+  bytes signature = 5;
+}
+
+
+message Transaction {
+  bytes bytes = 1;
+}
+
+message ChunkCertificate {
+  bytes chunk_id = 1;
+  bytes producer = 2;
+  int64 expiry = 3;
+  bytes signers = 4; // bitset
+  bytes signature = 5;
+}
+
+message ExecutedChunk {
+  bytes chunk_id = 1;
+  bytes beneficiary = 2;
+  repeated Transaction transactions = 3;
+  bytes warp_results = 4; // bitset
+}
+
+message GetChunkRequest {
+  bytes chunk_id = 1;
+}
+
+//TODO chunk fault

@@ -43,17 +43,17 @@ func TestNode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 
-			blks := make(chan Block)
+			builtBlk := make(chan Block)
 			node := New[tx](client{}, tt.txsPerChunk)
 			go func() {
-				_ = node.Run(blks)
+				_ = node.Run(builtBlk)
 			}()
 
 			for _, tx := range tt.txs {
 				require.NoError(node.AddTx(tx))
 			}
 
-			<-blks
+			<-builtBlk
 		})
 	}
 }

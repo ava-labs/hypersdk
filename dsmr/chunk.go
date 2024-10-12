@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -15,17 +16,22 @@ import (
 const InitialChunkSize = 250 * 1024
 
 type Chunk[T Tx] struct {
-	Items []T   `serialize:"true"`
-	Slot  int64 `serialize:"true"`
+	Producer    ids.NodeID    `serialize:"true"`
+	Expiry      int64         `serialize:"true"`
+	Beneficiary codec.Address `serialize:"true"`
+	//TODO define serialization
+	Txs       []T           `serialize:"true"`
+	Signer    bls.PublicKey `serialize:"true"`
+	Signature bls.Signature `serialize:"true"`
 
 	bytes []byte
 	id    ids.ID
 }
 
-func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
+func NewChunk[T Tx](txs []T, expiry int64) (Chunk[T], error) {
 	c := Chunk[T]{
-		Items: items,
-		Slot:  slot,
+		Txs:    txs,
+		Expiry: expiry,
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
@@ -39,7 +45,7 @@ func NewChunk[T Tx](items []T, slot int64) (Chunk[T], error) {
 
 func ParseChunk[T Tx](chunkBytes []byte) (*Chunk[T], error) {
 	c := &Chunk[T]{}
-	if err := codec.LinearCodec.Unmarshal(chunkBytes, c); err != nil {
+	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: chunkBytes}, c); err != nil {
 		return nil, err
 	}
 	c.bytes = chunkBytes
@@ -53,8 +59,4 @@ func (c *Chunk[T]) ID() ids.ID {
 
 func (c *Chunk[T]) Bytes() []byte {
 	return c.bytes
-}
-
-func (c *Chunk[T]) Expiry() int64 {
-	return c.Slot
 }
