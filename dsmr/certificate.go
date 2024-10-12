@@ -68,7 +68,7 @@ type NoVerifyChunkCertificate struct {
 
 func (n *NoVerifyChunkCertificate) GetChunkID() ids.ID { return n.ChunkID }
 
-func (n *NoVerifyChunkCertificate) GetSlot() int64 { return n.Slot }
+func (n *NoVerifyChunkCertificate) GetSlot() int64 { return n.Expiry }
 
 func (n *NoVerifyChunkCertificate) Bytes() []byte {
 	bytes, err := Codec.Marshal(CodecVersion, n)
