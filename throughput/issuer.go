@@ -6,7 +6,6 @@ package throughput
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,10 +29,13 @@ type issuer struct {
 	ws             *ws.WebSocketClient
 	outstandingTxs int
 	abandoned      error
+
+	// injected from the spammer
+	tracker *tracker
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	issuerWg.Add(1)
+	i.tracker.issuerWg.Add(1)
 	go func() {
 		for {
 			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
@@ -43,28 +45,14 @@ func (i *issuer) Start(ctx context.Context) {
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
-			inflight.Add(-1)
-			l.Lock()
-			if result != nil {
-				if result.Success {
-					confirmedTxs++
-				} else {
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
-				}
-			} else {
-				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(wsErr.Error(), ws.ErrExpired.Error()) {
-					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
-				}
-			}
-			totalTxs++
-			l.Unlock()
+			i.tracker.inflight.Add(-1)
+			i.tracker.logResult(result, wsErr)
 		}
 	}()
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			issuerWg.Done()
+			i.tracker.issuerWg.Done()
 		}()
 
 		<-ctx.Done()
@@ -98,7 +86,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	i.l.Lock()
 	i.outstandingTxs++
 	i.l.Unlock()
-	inflight.Add(1)
+	i.tracker.inflight.Add(1)
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {
@@ -134,38 +122,4 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 func getRandomIssuer(issuers []*issuer) *issuer {
 	index := rand.Int() % len(issuers)
 	return issuers[index]
-}
-
-func (i *issuer) logStats(cctx context.Context) {
-	// Log stats
-	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
-	var psent int64
-	go func() {
-		defer t.Stop()
-		for {
-			select {
-			case <-t.C:
-				current := sent.Load()
-				l.Lock()
-				if totalTxs > 0 {
-					unitPrices, err := i.cli.UnitPrices(cctx, false)
-					if err != nil {
-						continue
-					}
-					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
-						inflight.Load(),
-						current-psent,
-						unitPrices,
-					)
-				}
-				l.Unlock()
-				psent = current
-			case <-cctx.Done():
-				return
-			}
-		}
-	}()
 }
