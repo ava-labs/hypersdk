@@ -6,8 +6,6 @@ package metadata
 import (
 	"bytes"
 
-	"github.com/ava-labs/avalanchego/utils/set"
-
 	"github.com/ava-labs/hypersdk/chain"
 )
 
@@ -71,16 +69,16 @@ func HasConflictingPrefixes(
 	}
 
 	prefixes = append(prefixes, vmPrefixes...)
-	verifiedPrefixes := set.Set[string]{}
+	verifiedPrefixes := make([][]byte, 0)
 
 	for _, p := range prefixes {
-		for vp := range verifiedPrefixes {
-			if bytes.HasPrefix(p, []byte(vp)) || bytes.HasPrefix([]byte(vp), p) {
+		for _, vp := range verifiedPrefixes {
+			if bytes.HasPrefix(p, vp) || bytes.HasPrefix(vp, p) {
 				return true
 			}
 		}
 
-		verifiedPrefixes.Add(string(p))
+		verifiedPrefixes = append(verifiedPrefixes, p)
 	}
 
 	return false
