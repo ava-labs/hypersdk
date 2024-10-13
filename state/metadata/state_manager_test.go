@@ -9,12 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConflictingPrefixes(t *testing.T) {
+func TestCompatiblePrefixes(t *testing.T) {
 	require := require.New(t)
-
 	metadataManager := NewDefaultManager()
 
-	// Test no conflicts
 	require.False(
 		HasConflictingPrefixes(
 			metadataManager,
@@ -23,48 +21,62 @@ func TestConflictingPrefixes(t *testing.T) {
 			},
 		),
 	)
-	// Test identical prefixes
-	require.True(
-		HasConflictingPrefixes(
-			metadataManager,
-			[][]byte{
+}
+
+func TestConflictingPrefixes(t *testing.T) {
+	metadataManager := NewDefaultManager()
+
+	tests := []struct {
+		name            string
+		metadataManager MetadataManager
+		vmPrefixes      [][]byte
+	}{
+		{
+			name:            "identical prefixes",
+			metadataManager: metadataManager,
+			vmPrefixes: [][]byte{
 				metadataManager.HeightPrefix(),
 			},
-		),
-	)
-	// Test that prefixes (from metadataManager) contains a prefix of one of the vm prefixes
-	require.True(
-		HasConflictingPrefixes(
-			metadataManager,
-			[][]byte{
+		},
+		{
+			name:            "metadataManager prefixes contains a prefix of one of the vm prefixes",
+			metadataManager: metadataManager,
+			vmPrefixes: [][]byte{
 				{0x1, 0x1},
 			},
-		),
-	)
-
-	customMetadataManager := NewManager(
-		[]byte{0x0, 0x1},
-		[]byte{0x1, 0x1},
-		[]byte{0x2, 0x1},
-	)
-
-	// Test that vmPrefix contains prefix of one of metadataPrefixes
-	require.True(
-		HasConflictingPrefixes(
-			customMetadataManager,
-			[][]byte{
+		},
+		{
+			name: "vmPrefix contains a prefix of one of metadataManager prefixes",
+			metadataManager: func() MetadataManager {
+				return NewManager(
+					[]byte{0x0, 0x1},
+					[]byte{0x1, 0x1},
+					[]byte{0x2, 0x1},
+				)
+			}(),
+			vmPrefixes: [][]byte{
 				{0x1},
 			},
-		),
-	)
-	// Test that vmPrefixes contains a duplicate
-	require.True(
-		HasConflictingPrefixes(
-			metadataManager,
-			[][]byte{
+		},
+		{
+			name:            "vmPrefixes contains a duplicate",
+			metadataManager: metadataManager,
+			vmPrefixes: [][]byte{
 				{DefaultMinimumPrefix},
 				{DefaultMinimumPrefix},
 			},
-		),
-	)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			require.True(
+				HasConflictingPrefixes(
+					tt.metadataManager,
+					tt.vmPrefixes,
+				),
+			)
+		})
+	}
 }
