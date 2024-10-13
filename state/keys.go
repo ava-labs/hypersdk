@@ -6,10 +6,13 @@ package state
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/hypersdk/keys"
 )
+
+var errInvalidHexadecimalString = errors.New("invalid hexadecimal string")
 
 const (
 	Read     Permissions = 1
@@ -59,13 +62,15 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 type permsJSON []string
 
 type keysJSON struct {
-	Perms [8]permsJSON
+	Perms map[string]permsJSON
 }
 
 func (k Keys) MarshalJSON() ([]byte, error) {
-	var keysJSON keysJSON
+	keysJSON := keysJSON{
+		Perms: make(map[string]permsJSON),
+	}
 	for key, perm := range k {
-		keysJSON.Perms[perm] = append(keysJSON.Perms[perm], hex.EncodeToString([]byte(key)))
+		keysJSON.Perms[perm.String()] = append(keysJSON.Perms[perm.String()], hex.EncodeToString([]byte(key)))
 	}
 	return json.Marshal(keysJSON)
 }
@@ -75,8 +80,12 @@ func (k *Keys) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &keysJSON); err != nil {
 		return err
 	}
-	for perm, keyList := range keysJSON.Perms {
-		if perm < int(None) || perm > int(All) {
+	for strPerm, keyList := range keysJSON.Perms {
+		perm, err := newPermissionFromString(strPerm)
+		if err != nil {
+			return err
+		}
+		if perm < None || perm > All {
 			return fmt.Errorf("invalid permission encoded in json %d", perm)
 		}
 		for _, encodedKey := range keyList {
@@ -84,10 +93,33 @@ func (k *Keys) UnmarshalJSON(b []byte) error {
 			if err != nil {
 				return err
 			}
-			(*k)[string(key)] = Permissions(perm)
+			(*k)[string(key)] = perm
 		}
 	}
 	return nil
+}
+
+func newPermissionFromString(s string) (Permissions, error) {
+	var perm Permissions
+	switch s {
+	case "read":
+		perm = Read
+	case "write":
+		perm = Write
+	case "allocate":
+		perm = Allocate
+	case "all":
+		perm = All
+	case "none":
+		perm = None
+	default:
+		res, err := hex.DecodeString(s)
+		if err != nil || len(res) != 1 {
+			return 0, fmt.Errorf("permission %s: %w", s, errInvalidHexadecimalString)
+		}
+		perm = Permissions(res[0])
+	}
+	return perm, nil
 }
 
 // Has returns true if [p] has all the permissions that are contained in require
@@ -108,6 +140,6 @@ func (p Permissions) String() string {
 	case None:
 		return "none"
 	default:
-		return "unknown"
+		return hex.EncodeToString([]byte{byte(p)})
 	}
 }
