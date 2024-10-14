@@ -45,10 +45,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	parser, err := vm.CreateParser(genesisBytes)
 	require.NoError(err)
 
-	expectedABI, err := abi.NewABI((*parser.ActionRegistry()).GetRegisteredTypes(), (*parser.OutputRegistry()).GetRegisteredTypes())
-	require.NoError(err)
-
-	parser, err := vm.CreateParser(genesisBytes)
+	expectedABI, err := abi.NewABI((*parser.ActionCodec()).GetRegisteredTypes(), (*parser.OutputCodec()).GetRegisteredTypes())
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject VMWithContracts name

@@ -250,7 +250,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
 	parser, err := lcli.Parser(context.Background())
 	require.NoError(err)
-	transferOutputTyped, err := (*parser.OutputRegistry()).Unmarshal(reader)
+	transferOutputTyped, err := (*parser.OutputCodec()).Unmarshal(reader)
 	require.NoError(err)
 	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
 	require.True(ok)

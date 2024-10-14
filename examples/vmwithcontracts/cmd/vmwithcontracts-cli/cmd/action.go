@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -160,7 +161,12 @@ var callCmd = &cobra.Command{
 
 		rtx := codec.NewReader(actionSimulationResult.Output, len(actionSimulationResult.Output))
 
-		simulationResultOutput, err := (*vm.OutputParser).Unmarshal(rtx)
+		parser, err := vm.NewParser(genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}))
+		if err != nil {
+			return err
+		}
+
+		simulationResultOutput, err := (*parser.OutputCodec()).Unmarshal(rtx)
 		if err != nil {
 			return err
 		}

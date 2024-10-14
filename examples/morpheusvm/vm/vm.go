@@ -37,7 +37,7 @@ func newRegistry() (chain.Registry, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return vm.NewRegistry(actionParser, authParser, outputParser), nil
+	return chain.NewRegistry(actionParser, authParser, outputParser), nil
 }
 
 // NewWithOptions returns a VM with the specified options

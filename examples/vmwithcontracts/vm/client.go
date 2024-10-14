@@ -93,11 +93,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	registry, err := newRegistry()
-	if err != nil {
-		return nil, err
-	}
-	return NewParser(g, registry), nil
+	return NewParser(g)
 }
 
 var _ chain.Parser = (*Parser)(nil)
@@ -127,8 +123,12 @@ func (*Parser) StateManager() chain.StateManager {
 	return &storage.StateManager{}
 }
 
-func NewParser(genesis *genesis.DefaultGenesis, registry chain.Registry) chain.Parser {
-	return &Parser{genesis: genesis, registry: registry}
+func NewParser(genesis *genesis.DefaultGenesis) (chain.Parser, error) {
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
+	return &Parser{genesis: genesis, registry: registry}, nil
 }
 
 // Used as a lambda function for creating ExternalSubscriberServer parser
@@ -137,9 +137,5 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
 		return nil, err
 	}
-	registry, err := newRegistry()
-	if err != nil {
-		return nil, err
-	}
-	return NewParser(&genesis, registry), nil
+	return NewParser(&genesis)
 }

@@ -48,7 +48,7 @@ func newRegistry() (chain.Registry, error) {
 	if errs.Errored() {
 		return nil, errs.Err
 	}
-	return vm.NewRegistry(actionParser, authParser, outputParser), nil
+	return chain.NewRegistry(actionParser, authParser, outputParser), nil
 }
 
 // New returns a VM with the indexer, websocket, rpc, and external subscriber apis enabled.
