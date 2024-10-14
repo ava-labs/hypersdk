@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var keyAddressCmd = &cobra.Command{
+var addressCmd = &cobra.Command{
 	Use:   "address",
 	Short: "Print current key address",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -27,9 +27,9 @@ var keyAddressCmd = &cobra.Command{
 			return fmt.Errorf("failed to marshal address: %w", err)
 		}
 
-		return printValue(keyAddressCmdResponse{
+		return printValue(cmd, keyAddressCmdResponse{
 			Address: string(addrString),
-		}, cmd)
+		})
 	},
 }
 
@@ -42,5 +42,5 @@ func (r keyAddressCmdResponse) String() string {
 }
 
 func init() {
-	keyCmd.AddCommand(keySetCmd, keyGenerateCmd)
+	rootCmd.AddCommand(addressCmd)
 }

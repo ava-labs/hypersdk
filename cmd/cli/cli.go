@@ -25,9 +25,6 @@ func init() {
 	rootCmd.PersistentFlags().StringP("output", "o", "human", "Output format (human or json)")
 	rootCmd.PersistentFlags().String("endpoint", "", "Override the default endpoint")
 	rootCmd.PersistentFlags().String("key", "", "Private ED25519 key as hex string")
-
-	// Add key commands
-	rootCmd.AddCommand(keyCmd)
 }
 
 func main() {

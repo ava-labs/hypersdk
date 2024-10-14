@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func printValue(v fmt.Stringer, cmd *cobra.Command) error {
+func printValue(cmd *cobra.Command, v fmt.Stringer) error {
 	output, err := getConfigValue(cmd, "output")
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to get output format: %w", err)

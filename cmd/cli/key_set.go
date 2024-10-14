@@ -57,13 +57,13 @@ func checkAndSavePrivateKey(keyString string, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to marshal address: %w", err)
 	}
 
-	return printValue(keySetCmdResponse{
+	return printValue(cmd, keySetCmdResponse{
 		Address: string(addrString),
-	}, cmd)
+	})
 }
 
 func privateKeyFromString(keyStr string) (ed25519.PrivateKey, error) {
-	keyBytes, err := hex.DecodeString(keyStr)
+	keyBytes, err := decodeWhatever(keyStr)
 	if err != nil {
 		return ed25519.EmptyPrivateKey, fmt.Errorf("failed to decode key: %w", err)
 	}

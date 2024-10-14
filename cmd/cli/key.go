@@ -9,14 +9,6 @@ var keyCmd = &cobra.Command{
 	Short: "Manage keys",
 }
 
-var keyBalanceCmd = &cobra.Command{
-	Use:   "balance",
-	Short: "Print current key balance",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return nil
-	},
-}
-
 func init() {
-	keyCmd.AddCommand(keyAddressCmd, keyBalanceCmd)
+	rootCmd.AddCommand(keyCmd)
 }
