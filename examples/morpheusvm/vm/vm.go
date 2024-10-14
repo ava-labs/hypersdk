@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 func newRegistry() (chain.Registry, error) {
@@ -47,7 +46,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	if err != nil {
 		return nil, err
 	}
-	return defaultvm.New(
+	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.StateManager{},
