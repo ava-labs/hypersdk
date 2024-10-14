@@ -13,7 +13,7 @@ API:
 ✅ `key generate` - generates a new address
 `balance` - balance
 ✅ `key set` set private key from file, base64 string or hex string presented in the first argument
-`endpoint` - prints URL of the current endpoint
+✅ `endpoint` - prints URL of the current endpoint
 ✅ `ping` - checks connectivity with the current endpoing
 ✅ `endpoint set --endpoint=https://hello.world:1234` sets endpoint
 ✅ `actions` - print the list of actions available in the ABI, for JSON it prints ABI JSON
