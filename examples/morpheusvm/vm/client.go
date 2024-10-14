@@ -111,16 +111,16 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (p *Parser) ActionRegistry() chain.ActionRegistry {
+func (p *Parser) ActionCodec() *codec.TypeParser[chain.Action] {
 	return p.registry.ActionRegistry()
 }
 
-func (p *Parser) AuthRegistry() chain.AuthRegistry {
-	return p.registry.AuthRegistry()
+func (p *Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return p.registry.OutputRegistry()
 }
 
-func (p *Parser) OutputRegistry() chain.OutputRegistry {
-	return p.registry.OutputRegistry()
+func (p *Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return p.registry.AuthRegistry()
 }
 
 func (*Parser) StateManager() chain.StateManager {

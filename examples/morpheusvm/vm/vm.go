@@ -26,8 +26,7 @@ func newRegistry() (chain.Registry, error) {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		actionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-
+		actionParser.Register(&actions.Transfer{}, nil),
 		// When registering new auth, ALWAYS make sure to append at the end.
 		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		authParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),

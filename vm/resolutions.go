@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
@@ -60,6 +61,18 @@ func (vm *VM) Tracer() trace.Tracer {
 
 func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
+}
+
+func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
+	return vm.Registry.ActionRegistry()
+}
+
+func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return vm.Registry.AuthRegistry()
+}
+
+func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return vm.Registry.OutputRegistry()
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {

@@ -63,7 +63,7 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
+func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, *auth.PrivateKey, error) {
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
 	for _, prefundedAddr := range ed25519Addrs {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
@@ -71,7 +71,10 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 			Balance: initialBalance,
 		})
 	}
-
+	spamKey := &auth.PrivateKey{
+		Address: ed25519Addrs[0],
+		Bytes:   ed25519PrivKeys[0][:],
+	}
 	genesis := genesis.NewDefaultGenesis(customAllocs)
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
 	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
@@ -83,7 +86,7 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 	return genesis, &workloadFactory{
 		factories: ed25519AuthFactories,
 		addrs:     ed25519Addrs,
-	}, nil
+	}, spamKey, nil
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {

@@ -11,16 +11,10 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/bls"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 type SpamHelper struct {
@@ -29,25 +23,8 @@ type SpamHelper struct {
 	ws      *ws.WebSocketClient
 }
 
-func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
+func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	return generatePrivateKey(sh.keyType)
-}
-
-func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
-	switch pk.Address[0] {
-	case auth.ED25519ID:
-		return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
-	case auth.SECP256R1ID:
-		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(pk.Bytes)), nil
-	case auth.BLSID:
-		p, err := bls.PrivateKeyFromBytes(pk.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		return auth.NewBLSFactory(p), nil
-	default:
-		return nil, ErrInvalidKeyType
-	}
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
@@ -64,18 +41,12 @@ func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
-func (sh *SpamHelper) LookupBalance(choice int, address codec.Address) (uint64, error) {
+func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	balance, err := sh.cli.Balance(context.TODO(), address)
 	if err != nil {
 		return 0, err
 	}
-	utils.Outf(
-		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-		choice,
-		address,
-		utils.FormatBalance(balance),
-		consts.Symbol,
-	)
+
 	return balance, err
 }
 
@@ -103,6 +74,7 @@ var runSpamCmd = &cobra.Command{
 		return checkKeyType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().Spam(&SpamHelper{keyType: args[0]})
+		ctx := context.Background()
+		return handler.Root().Spam(ctx, &SpamHelper{keyType: args[0]}, false)
 	},
 }

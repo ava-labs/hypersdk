@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"time"
@@ -13,12 +12,10 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -114,16 +111,16 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (p *Parser) ActionRegistry() chain.ActionRegistry {
+func (p *Parser) ActionCodec() *codec.TypeParser[chain.Action] {
 	return p.registry.ActionRegistry()
 }
 
-func (p *Parser) AuthRegistry() chain.AuthRegistry {
-	return p.registry.AuthRegistry()
+func (p *Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return p.registry.OutputRegistry()
 }
 
-func (p *Parser) OutputRegistry() chain.OutputRegistry {
-	return p.registry.OutputRegistry()
+func (p *Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return p.registry.AuthRegistry()
 }
 
 func (*Parser) StateManager() chain.StateManager {
@@ -145,27 +142,4 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 		return nil, err
 	}
 	return NewParser(&genesis, registry), nil
-}
-
-func (cli *JSONRPCClient) Simulate(ctx context.Context, callTx actions.Call, actor codec.Address) (state.Keys, uint64, error) {
-	resp := new(SimulateCallTxReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"simulateCallContractTx",
-		&SimulateCallTxArgs{CallTx: callTx, Actor: actor},
-		resp,
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-	result := state.Keys{}
-	for _, entry := range resp.StateKeys {
-		hexBytes, err := hex.DecodeString(entry.HexKey)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		result.Add(string(hexBytes), state.Permissions(entry.Permissions))
-	}
-	return result, resp.FuelConsumed, nil
 }
