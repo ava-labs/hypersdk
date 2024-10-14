@@ -19,24 +19,27 @@ var endpointPingCmd = &cobra.Command{
 		client := jsonrpc.NewJSONRPCClient(endpoint)
 
 		success, err := client.Ping(context.Background())
+		pingErr := ""
 		if err != nil {
-			return fmt.Errorf("failed to ping: %w", err)
+			pingErr = err.Error()
 		}
 		return printValue(cmd, pingResponse{
-			Success: success,
+			PingSucceed: success,
+			PingError:   pingErr,
 		})
 	},
 }
 
 type pingResponse struct {
-	Success bool `json:"success"`
+	PingSucceed bool   `json:"ping_succeed"`
+	PingError   string `json:"ping_error"`
 }
 
 func (r pingResponse) String() string {
-	if r.Success {
+	if r.PingSucceed {
 		return "✅ Ping succeeded"
 	}
-	return "❌ Ping failed"
+	return "❌ Ping failed with error: " + r.PingError
 }
 
 func init() {
