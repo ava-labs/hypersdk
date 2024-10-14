@@ -9,20 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCompatiblePrefixes(t *testing.T) {
-	require := require.New(t)
-	metadataManager := NewDefaultManager()
-
-	require.False(
-		HasConflictingPrefixes(
-			metadataManager,
-			[][]byte{
-				{DefaultMinimumPrefix},
-			},
-		),
-	)
-}
-
 func TestConflictingPrefixes(t *testing.T) {
 	metadataManager := NewDefaultManager()
 
@@ -30,13 +16,22 @@ func TestConflictingPrefixes(t *testing.T) {
 		name            string
 		metadataManager MetadataManager
 		vmPrefixes      [][]byte
+		hasConflict     bool
 	}{
+		{
+			name:            "no conflicts",
+			metadataManager: metadataManager,
+			vmPrefixes: [][]byte{
+				{DefaultMinimumPrefix},
+			},
+		},
 		{
 			name:            "identical prefixes",
 			metadataManager: metadataManager,
 			vmPrefixes: [][]byte{
 				metadataManager.HeightPrefix(),
 			},
+			hasConflict: true,
 		},
 		{
 			name:            "metadataManager prefixes contains a prefix of one of the vm prefixes",
@@ -44,6 +39,7 @@ func TestConflictingPrefixes(t *testing.T) {
 			vmPrefixes: [][]byte{
 				{0x1, 0x1},
 			},
+			hasConflict: true,
 		},
 		{
 			name: "vmPrefix contains a prefix of one of metadataManager prefixes",
@@ -57,6 +53,7 @@ func TestConflictingPrefixes(t *testing.T) {
 			vmPrefixes: [][]byte{
 				{0x1},
 			},
+			hasConflict: true,
 		},
 		{
 			name:            "vmPrefixes contains a duplicate",
@@ -65,13 +62,15 @@ func TestConflictingPrefixes(t *testing.T) {
 				{DefaultMinimumPrefix},
 				{DefaultMinimumPrefix},
 			},
+			hasConflict: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			require.True(
+			require.Equal(
+				tt.hasConflict,
 				HasConflictingPrefixes(
 					tt.metadataManager,
 					tt.vmPrefixes,
