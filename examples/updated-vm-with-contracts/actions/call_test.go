@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
@@ -31,7 +34,7 @@ func TestCallAction(t *testing.T) {
 	config.SetDebugInfo(true)
 	rt := runtime.NewRuntime(config, logging.NewLogger("test"))
 	fuel := uint64(fuel)
-	
+
 	getValueArgs, err := SerializeArgs(addr)
 	require.NoError(t, err)
 
@@ -40,7 +43,7 @@ func TestCallAction(t *testing.T) {
 
 	trueResult, err := SerializeArgs(true)
 	require.NoError(t, err)
-	
+
 	tests := []chaintest.ActionTest{
 		{
 			Name:  "CallCounterGetValue",
@@ -130,5 +133,4 @@ func TestCallAction(t *testing.T) {
 }
 
 func TestCallActionMarshal(t *testing.T) {
-	
 }

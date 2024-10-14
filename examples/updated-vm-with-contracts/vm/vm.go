@@ -22,9 +22,9 @@ var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
-	// global runtime which doesn't work in parallel. 
+	// global runtime which doesn't work in parallel.
 	// Better to spawn a pool of runtimes and sequence them accordingly
-	wasmRuntime  *runtime.WasmRuntime
+	wasmRuntime *runtime.WasmRuntime
 )
 
 // Setup types

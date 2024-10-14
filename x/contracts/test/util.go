@@ -33,7 +33,6 @@ func CompileContract(contractName string) ([]byte, error) {
 	return contractBytes, nil
 }
 
-
 func CompileTest(contractName string) error {
 	cmd := exec.Command("cargo", "rustc", "-p", contractName, "--release", "--target-dir=./target", "--target=wasm32-unknown-unknown", "--crate-type=cdylib")
 	var out bytes.Buffer

@@ -69,7 +69,6 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	return err
 }
 
-
 // Contract endpoints
 type SimulateCallTxArgs struct {
 	CallTx actions.Call  `json:"callTx"`

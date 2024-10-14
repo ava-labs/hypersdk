@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package storage
 
 import (
@@ -20,8 +23,8 @@ var (
 )
 
 const (
-	AccountTypeID = 0
-	MaxKeySize    = 36
+	AccountTypeID   = 0
+	MaxKeySize      = 36
 	MaxContractSize = units.MiB * 4
 )
 

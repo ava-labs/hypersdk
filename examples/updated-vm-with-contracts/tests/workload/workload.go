@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -20,16 +19,18 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/actions"
-	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/consts"
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/contracts/test"
 )
 
 const (
 	initialBalance  uint64 = 10_000_000_000_000
 	txCheckInterval        = 100 * time.Millisecond
+	fuel                   = 100_000_000
 )
 
 var (
@@ -42,6 +43,9 @@ var (
 	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
 	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
+
+	// counter Bytes
+	counterBytes []byte
 )
 
 func init() {
@@ -56,11 +60,24 @@ func init() {
 		addr := auth.NewED25519Address(priv.PublicKey())
 		ed25519Addrs[i] = addr
 	}
+
+	// config := runtime.NewConfig()
+	// config.SetDebugInfo(true)
+	// rt = runtime.NewRuntime(config, logging.NewLogger("test"))
+
+	cb, err := test.CompileContract("counter")
+	if err != nil {
+		utils.Outf("{{red}} something went wrong!!!!*******")
+	}
+	utils.Outf("{{cyan}} uploaded bytes!!1")
+	counterBytes = cb;
+	
 }
 
 type workloadFactory struct {
 	factories []*auth.ED25519Factory
 	addrs     []codec.Address
+
 }
 
 func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, *auth.PrivateKey, error) {
@@ -106,6 +123,9 @@ type simpleTxWorkload struct {
 	lcli    *vm.JSONRPCClient
 	count   int
 	size    int
+
+	// address we will be sending to
+	counterAddess codec.Address
 }
 
 func (g *simpleTxWorkload) Next() bool {
@@ -113,24 +133,30 @@ func (g *simpleTxWorkload) Next() bool {
 }
 
 func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+	utils.Outf("{{green}}GENERATING:{{/}} %s\n", "callll increment")
+	
 	g.count++
-	other, err := ed25519.GeneratePrivateKey()
+	privKey, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	aother := auth.NewED25519Address(other.PublicKey())
+	pubKey := auth.NewED25519Address(privKey.PublicKey())
 	parser, err := g.lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	id := ids.GenerateTestID()
+	deployAction := &actions.Deploy{
+		ContractBytes: counterBytes,
+		CreationData: id[:],
+	}
+
 	_, tx, _, err := g.cli.GenerateTransaction(
 		ctx,
 		parser,
-		[]chain.Action{&actions.Transfer{
-			To:    aother,
-			Value: 1,
-		}},
+		[]chain.Action{deployAction},
 		g.factory,
 	)
 	if err != nil {
@@ -138,9 +164,73 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), aother, 1)
+		confirmIncrement(ctx, require, uri, tx.ID(), pubKey, 1)
 	}, nil
 }
+
+// func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+// 	utils.Outf("{{green}}GENERATING:{{/}} %s\n", "callll increment")
+	
+// 	g.count++
+// 	privKey, err := ed25519.GeneratePrivateKey()
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
+
+// 	pubKey := auth.NewED25519Address(privKey.PublicKey())
+// 	parser, err := g.lcli.Parser(ctx)
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
+
+// 	// serialize args. We plan to inc the pubKey by 1
+// 	args, err := actions.SerializeArgs(pubKey, 1)
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
+
+// 	callAction := &actions.Call{
+// 		ContractAddress: g.counterAddess,
+// 		Value:           0,
+// 		FunctionName:    "inc",
+// 		Args:            args,
+// 		Fuel:            fuel,
+// 	}
+// 	utils.Outf("{{green}}Simulating:{{/}} %s\n", "call increment")
+// 	simResult, err := g.cli.SimulateActions(ctx, chain.Actions{callAction}, pubKey)
+// 	utils.Outf("{{green}}Simulated:{{/}} %s\n", "call increment")
+// 	if err != nil {
+// 		utils.Outf("{{red}} ERROR HERE \n")
+// 		return nil, nil, err
+// 	}
+
+// 	if len(simResult) != 1 {
+// 		return nil, nil, fmt.Errorf("unexpected number of returned actions. One action expected, %d returned", len(simResult))
+// 	}
+// 	simRes := simResult[0]
+// 	stateKeys := simRes.StateKeys
+// 	callAction.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(stateKeys))
+// 	for key, value := range simRes.StateKeys {
+// 		utils.Outf("{{yellow}}StateKey %s\n", key)
+// 		callAction.SpecifiedStateKeys = append(callAction.SpecifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
+// 	}
+// 	utils.Outf("{{blue}}StateKey %s\n", "i guess no statekeys")
+// 	// utils.Outf("StateKeys: %v", callAction.SpecifiedStateKeys)
+
+// 	_, tx, _, err := g.cli.GenerateTransaction(
+// 		ctx,
+// 		parser,
+// 		[]chain.Action{callAction},
+// 		g.factory,
+// 	)
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
+
+// 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
+// 		confirmIncrement(ctx, require, uri, tx.ID(), pubKey, 1)
+// 	}, nil
+// }
 
 func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
 	blsPriv, err := bls.GeneratePrivateKey()
@@ -212,6 +302,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	if err != nil {
 		return nil, nil, err
 	}
+
 	_, tx, _, err := g.cli.GenerateTransaction(
 		ctx,
 		parser,
@@ -229,28 +320,4 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		confirmTx(ctx, require, uri, tx.ID(), receiver.address, expectedBalance)
 	}, nil
-}
-
-func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	indexerCli := indexer.NewClient(uri)
-	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
-	require.NoError(err)
-	require.True(success)
-	lcli := vm.NewJSONRPCClient(uri)
-	balance, err := lcli.Balance(ctx, receiverAddr)
-	require.NoError(err)
-	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, err := indexerCli.GetTx(ctx, txID)
-	require.NoError(err)
-	// TODO: perform exact expected fee, units check, and output check
-	require.NotZero(txRes.Fee)
-	require.Len(txRes.Outputs, 1)
-	transferOutputBytes := []byte(txRes.Outputs[0])
-	require.Equal(consts.TransferID, transferOutputBytes[0])
-	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
-	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
-	require.NoError(err)
-	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
-	require.True(ok)
-	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
 }
