@@ -31,6 +31,7 @@ var (
 	_ ChunkCertificate[WarpChunkVerificationContext] = (*WarpChunkCertificate)(nil)
 )
 
+// TODO remove
 func init() {
 	Codec = acodec.NewManager(MaxMessageSize)
 	lc := linearcodec.NewDefault()
