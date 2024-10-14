@@ -25,7 +25,7 @@ func TestIntegration(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
-	genesis, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
+	genesis, workloadFactory, _, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
 	genesisBytes, err := json.Marshal(genesis)
