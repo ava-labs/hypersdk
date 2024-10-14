@@ -6,7 +6,6 @@ package state
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"slices"
@@ -137,7 +136,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	require.True(keys.Add("key1", Read))
 	bytes, err := keys.MarshalJSON()
 	require.NoError(err)
-	require.Equal(`{"Perms":{"read":["6b657931"]}}`, string(bytes))
+	require.Equal(`{"6b657931":"read"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
@@ -148,7 +147,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	require.True(keys.Add("key2", Read|Write))
 	bytes, err = keys.MarshalJSON()
 	require.NoError(err)
-	require.Equal(`{"Perms":{"write":["6b657932"]}}`, string(bytes))
+	require.Equal(`{"6b657932":"write"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
@@ -214,15 +213,17 @@ func TestNewPermissionFromString(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			perm, err := newPermissionFromString(test.strPerm)
+			var perm Permissions
+			err := perm.UnmarshalText([]byte(test.strPerm))
 			require.NoError(err)
 			require.Equal(test.perm, perm)
 		})
 	}
 
 	t.Run("InvalidString", func(t *testing.T) {
-		_, err := newPermissionFromString(hex.EncodeToString([]byte{byte(1), byte(10)}))
-		require.Error(err)
+		var perm Permissions
+		err := perm.UnmarshalText([]byte{byte(1), byte(10)})
+		require.ErrorIs(err, errInvalidHexadecimalString)
 	})
 }
 

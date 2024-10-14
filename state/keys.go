@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 )
 
@@ -59,67 +61,64 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 	return chunks, true
 }
 
-type permsJSON []string
+type keysJSON map[string]Permissions
 
-type keysJSON struct {
-	Perms map[string]permsJSON
-}
-
+// MarshalJSON marshals Keys has readable JSON.
+// Keys are hex encoded strings and permissions
+// are either valid named strings or unknown hex encoded strings.
 func (k Keys) MarshalJSON() ([]byte, error) {
-	keysJSON := keysJSON{
-		Perms: make(map[string]permsJSON),
-	}
+	kJSON := make(keysJSON)
 	for key, perm := range k {
-		keysJSON.Perms[perm.String()] = append(keysJSON.Perms[perm.String()], hex.EncodeToString([]byte(key)))
+		hexKey, err := codec.Bytes(key).MarshalText()
+		if err != nil {
+			return nil, err
+		}
+		kJSON[string(hexKey)] = perm
 	}
-	return json.Marshal(keysJSON)
+	return json.Marshal(kJSON)
 }
 
+// UnmarshalJSON unmarshals readable JSON.
 func (k *Keys) UnmarshalJSON(b []byte) error {
 	var keysJSON keysJSON
 	if err := json.Unmarshal(b, &keysJSON); err != nil {
 		return err
 	}
-	for strPerm, keyList := range keysJSON.Perms {
-		perm, err := newPermissionFromString(strPerm)
+	for hexKey, perm := range keysJSON {
+		var key codec.Bytes
+		err := key.UnmarshalText([]byte(hexKey))
 		if err != nil {
 			return err
 		}
-		if perm < None || perm > All {
-			return fmt.Errorf("invalid permission encoded in json %d", perm)
-		}
-		for _, encodedKey := range keyList {
-			key, err := hex.DecodeString(encodedKey)
-			if err != nil {
-				return err
-			}
-			(*k)[string(key)] = perm
-		}
+		(*k)[string(key)] = perm
 	}
 	return nil
 }
 
-func newPermissionFromString(s string) (Permissions, error) {
-	var perm Permissions
-	switch s {
+func (p *Permissions) UnmarshalText(in []byte) error {
+	switch str := strings.ToLower(string(in)); str {
 	case "read":
-		perm = Read
+		*p = Read
 	case "write":
-		perm = Write
+		*p = Write
 	case "allocate":
-		perm = Allocate
+		*p = Allocate
 	case "all":
-		perm = All
+		*p = All
 	case "none":
-		perm = None
+		*p = None
 	default:
-		res, err := hex.DecodeString(s)
+		res, err := hex.DecodeString(str)
 		if err != nil || len(res) != 1 {
-			return 0, fmt.Errorf("permission %s: %w", s, errInvalidHexadecimalString)
+			return fmt.Errorf("permission %s: %w", str, errInvalidHexadecimalString)
 		}
-		perm = Permissions(res[0])
+		*p = Permissions(res[0])
 	}
-	return perm, nil
+	return nil
+}
+
+func (p Permissions) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
 }
 
 // Has returns true if [p] has all the permissions that are contained in require
