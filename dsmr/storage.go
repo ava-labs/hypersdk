@@ -33,8 +33,8 @@ type Verifier[T Tx] interface {
 
 type StoredChunkSignature[T Tx] struct {
 	Chunk          *Chunk[T]
-	LocalSignature ChunkSignatureShare // Decouple signature share / certificate types
-	Cert           *ChunkCertificate
+	LocalSignature NoVerifyChunkSignatureShare // Decouple signature share / certificate types
+	Cert           *NoVerifyChunkCertificate
 }
 
 // Storage provides chunk, signature share, and chunk certificate storage
@@ -114,7 +114,7 @@ func (s *Storage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
-func (s *Storage[T]) AddLocalChunkWithCert(c *Chunk[T], cert *ChunkCertificate) error {
+func (s *Storage[T]) AddLocalChunkWithCert(c *Chunk[T], cert *NoVerifyChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -123,7 +123,7 @@ func (s *Storage[T]) AddLocalChunkWithCert(c *Chunk[T], cert *ChunkCertificate) 
 
 // SetChunkCert sets the chunk certificate for the given chunkID
 // Assumes the caller has already verified the cert references the provided chunkID
-func (s *Storage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
+func (s *Storage[T]) SetChunkCert(chunkID ids.ID, cert *NoVerifyChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -140,7 +140,7 @@ func (s *Storage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error 
 // 2. Verify the chunk
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
-func (s *Storage[T]) VerifyRemoteChunk(c *Chunk[T]) (ChunkSignatureShare, error) {
+func (s *Storage[T]) VerifyRemoteChunk(c *Chunk[T]) (NoVerifyChunkSignatureShare, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -149,15 +149,15 @@ func (s *Storage[T]) VerifyRemoteChunk(c *Chunk[T]) (ChunkSignatureShare, error)
 		return chunkCertInfo.LocalSignature, nil
 	}
 	if err := s.verifier.Verify(c); err != nil {
-		return ChunkSignatureShare{}, err
+		return NoVerifyChunkSignatureShare{}, err
 	}
 	if err := s.putVerifiedChunk(c, nil); err != nil {
-		return ChunkSignatureShare{}, err
+		return NoVerifyChunkSignatureShare{}, err
 	}
-	return ChunkSignatureShare{}, nil
+	return NoVerifyChunkSignatureShare{}, nil
 }
 
-func (s *Storage[T]) putVerifiedChunk(c *Chunk[T], cert *ChunkCertificate) error {
+func (s *Storage[T]) putVerifiedChunk(c *Chunk[T], cert *NoVerifyChunkCertificate) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.ID()), c.Bytes()); err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (s *Storage[T]) putVerifiedChunk(c *Chunk[T], cert *ChunkCertificate) error
 
 	chunkCert := &StoredChunkSignature[T]{
 		Chunk:          c,
-		LocalSignature: ChunkSignatureShare{}, // TODO: add signer to generate actual signature share
+		LocalSignature: NoVerifyChunkSignatureShare{}, // TODO: add signer to generate actual signature share
 		Cert:           cert,
 	}
 	s.chunkMap[c.ID()] = chunkCert
@@ -217,11 +217,11 @@ func (s *Storage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 // GatherChunkCerts provides a slice of chunk certificates to build
 // a chunk based block.
 // TODO: switch from returning random chunk certs to ordered by expiry
-func (s *Storage[T]) GatherChunkCerts() []*ChunkCertificate {
+func (s *Storage[T]) GatherChunkCerts() []*NoVerifyChunkCertificate {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
+	chunkCerts := make([]*NoVerifyChunkCertificate, 0, len(s.chunkMap))
 	for _, chunk := range s.chunkMap {
 		if chunk.Cert == nil {
 			continue

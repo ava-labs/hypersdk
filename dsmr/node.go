@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package dsmr
 
 import (
@@ -59,14 +62,14 @@ func (n Node[T]) AddTx(tx T) error {
 type chunkCertBuilder[T Tx] struct{}
 
 // TODO implement
-func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) {
-	return ChunkCertificate{}, nil
+func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (NoVerifyChunkCertificate, error) {
+	return NoVerifyChunkCertificate{}, nil
 }
 
 // TODO can this share impl w/ chunkBuilder?
 type blockBuilder[T Tx] struct{}
 
 // Add returns if a block was built
-func (b *blockBuilder[T]) Add(chunk ChunkCertificate) (Block, bool) {
+func (b *blockBuilder[T]) Add(chunk NoVerifyChunkCertificate) (Block, bool) {
 	return Block{}, true
 }

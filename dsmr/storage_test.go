@@ -105,10 +105,10 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &ChunkCertificate{
+	chunkCert := &NoVerifyChunkCertificate{
 		ChunkID:   chunk.ID(),
 		Expiry:    chunk.Expiry,
-		Signature: ChunkSignature{},
+		Signature: NoVerifyChunkSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.ID(), chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -140,10 +140,10 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &ChunkCertificate{
+	chunkCert := &NoVerifyChunkCertificate{
 		ChunkID:   chunk.ID(),
 		Expiry:    chunk.Expiry,
-		Signature: ChunkSignature{},
+		Signature: NoVerifyChunkSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.ID(), chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -179,10 +179,10 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &ChunkCertificate{
+	chunkCert := &NoVerifyChunkCertificate{
 		ChunkID:   chunk.ID(),
 		Expiry:    chunk.Expiry,
-		Signature: ChunkSignature{},
+		Signature: NoVerifyChunkSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(&chunk, chunkCert))
@@ -209,10 +209,10 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &ChunkCertificate{
+	chunkCert := &NoVerifyChunkCertificate{
 		ChunkID:   chunk.ID(),
 		Expiry:    chunk.Expiry,
-		Signature: ChunkSignature{},
+		Signature: NoVerifyChunkSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(&chunk, chunkCert))
@@ -245,12 +245,12 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 6. Pending remote chunk
 	numChunks := 6
 	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0)
-	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
+	chunkCerts := make([]*NoVerifyChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
-		chunkCert := &ChunkCertificate{
+		chunkCert := &NoVerifyChunkCertificate{
 			ChunkID:   chunk.ID(),
 			Expiry:    chunk.Expiry,
-			Signature: ChunkSignature{},
+			Signature: NoVerifyChunkSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}

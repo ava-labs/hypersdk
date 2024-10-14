@@ -1,10 +1,13 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package dsmr
 
 import "context"
 
 // TODO: implement VM
-type VM interface {
-	Verify(context.Context, *ExecutionBlock) error
-	Accept(context.Context, *ExecutionBlock) error
-	Reject(context.Context, *ExecutionBlock) error
+type VM[VerificationContext any] interface {
+	Verify(context.Context, *ExecutionBlock[VerificationContext]) error
+	Accept(context.Context, *ExecutionBlock[VerificationContext]) error
+	Reject(context.Context, *ExecutionBlock[VerificationContext]) error
 }
