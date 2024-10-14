@@ -14,10 +14,8 @@ API:
 `balance` - balance
 ✅ `key set` set private key from file, base64 string or hex string presented in the first argument
 `endpoint` - prints URL of the current endpoint
-`ping` - checks connectivity with the current endpoing
-`endpoint set --endpoint=https://hello.world:1234` sets endpoint
-`actions` - print the list of actions available in the ABI
-`tx send [action name] [action params]` - sends a transaction with a single action
-`tx read [action name] [action params]` - simulates a single action transaction
-`abi` - prints current ABI (list of actions and data types)
-
+✅ `ping` - checks connectivity with the current endpoing
+✅ `endpoint set --endpoint=https://hello.world:1234` sets endpoint
+✅ `actions` - print the list of actions available in the ABI, for JSON it prints ABI JSON
+`tx [action name] [action params]` - sends a transaction with a single action
+`read [action name] [action params]` - simulates a single action transaction
