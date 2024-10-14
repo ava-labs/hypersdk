@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package dsmr
 
 import (
@@ -13,7 +16,7 @@ type Tx interface {
 
 type chunkBuilder[T Tx] struct {
 	threshold int
-	txs       []T //TODO dedup txs?
+	txs       []T // TODO dedup txs?
 }
 
 // Add returns a chunk if one was built
