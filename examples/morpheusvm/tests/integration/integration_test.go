@@ -14,8 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/proc"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	tvm "github.com/ava-labs/hypersdk/tests/vm"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -26,7 +26,7 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := proc.NewVM()
+	testVM := tvm.NewVM(0)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 

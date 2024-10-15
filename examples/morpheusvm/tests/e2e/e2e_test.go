@@ -12,13 +12,13 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/proc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	tvm "github.com/ava-labs/hypersdk/tests/vm"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -38,7 +38,7 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := proc.NewVM()
+	testVM := tvm.NewVM(workload.TxCheckInterval)
 	workloadFactory := workload.NewWorkloadFactory(testVM.Keys)
 	spamKey := testVM.Keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()

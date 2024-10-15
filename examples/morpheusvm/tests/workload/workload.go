@@ -20,21 +20,21 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/proc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/workload"
+
+	tvm "github.com/ava-labs/hypersdk/tests/vm"
 )
 
 const (
-	txCheckInterval        = 100 * time.Millisecond
-	initialBalance uint64 = 1_000_000_000
+	TxCheckInterval = 100 * time.Millisecond
 )
 
 type workloadFactory struct {
-	keys []*proc.Ed25519TestKey
+	keys []*tvm.Ed25519TestKey
 }
 
-func NewWorkloadFactory(keys []*proc.Ed25519TestKey) *workloadFactory {
+func NewWorkloadFactory(keys []*tvm.Ed25519TestKey) *workloadFactory {
 	return &workloadFactory{keys: keys}
 }
 
@@ -121,7 +121,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 			{address: blsAddr, authFactory: blsFactory},
 			{address: secpAddr, authFactory: secpFactory},
 		},
-		balance:   initialBalance,
+		balance:   tvm.DefaultInitialBalance,
 		cli:       cli,
 		lcli:      lcli,
 		networkID: networkID,
@@ -182,7 +182,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
 	indexerCli := indexer.NewClient(uri)
-	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+	success, _, err := indexerCli.WaitForTransaction(ctx, TxCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
 	lcli := vm.NewJSONRPCClient(uri)

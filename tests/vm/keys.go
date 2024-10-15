@@ -1,4 +1,7 @@
-package proc
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package vm
 
 import (
 	"github.com/ava-labs/hypersdk/auth"
@@ -7,8 +10,8 @@ import (
 )
 
 type Ed25519TestKey struct {
-	PrivKey ed25519.PrivateKey
-	Addr    codec.Address
+	PrivKey     ed25519.PrivateKey
+	Addr        codec.Address
 	AuthFactory *auth.ED25519Factory
 }
 
@@ -21,10 +24,10 @@ func newDefualtKeys() []*Ed25519TestKey {
 		}
 		priv := ed25519.PrivateKey(privBytes)
 		addr := auth.NewED25519Address(priv.PublicKey())
-		
+
 		testKey := &Ed25519TestKey{
-			PrivKey: priv,
-			Addr: addr,
+			PrivKey:     priv,
+			Addr:        addr,
 			AuthFactory: auth.NewED25519Factory(priv),
 		}
 		testKeys[i] = testKey
@@ -36,10 +39,6 @@ func newDefualtKeys() []*Ed25519TestKey {
 func (e *Ed25519TestKey) GetPrivateKey() *auth.PrivateKey {
 	return &auth.PrivateKey{
 		Address: e.Addr,
-		Bytes: e.PrivKey[:],
+		Bytes:   e.PrivKey[:],
 	}
 }
-// seperate into VM config struct later
-// type VMConfig struct {
-// 	Genesis *genesis.DefaultGenesis
-// }
