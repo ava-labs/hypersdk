@@ -20,12 +20,12 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-const owner = "morpheusvm-e2e-tests"
+const owner = "VM With Contracts"
 
 var flagVars *e2e.FlagVars
 
 func TestE2e(t *testing.T) {
-	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
+	ginkgo.RunSpecs(t, "Updated VM with Contracts e2e test suites")
 }
 
 func init() {
