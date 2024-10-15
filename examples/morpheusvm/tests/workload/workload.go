@@ -25,6 +25,11 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
+var (
+	_ workload.TxWorkloadFactory  = (*workloadFactory)(nil)
+	_ workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+)
+
 const (
 	TxCheckInterval = 100 * time.Millisecond
 )
