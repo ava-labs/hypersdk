@@ -17,7 +17,7 @@ func newDefaultGenesis(keys []*Ed25519TestKey, minBlockGap time.Duration) *genes
 	for _, key := range keys {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
 			Address: key.Addr,
-			Balance: DefaultInitialBalance,
+			Balance: InitialBalance,
 		})
 	}
 
