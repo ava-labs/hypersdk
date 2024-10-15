@@ -11,11 +11,11 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	tvm "github.com/ava-labs/hypersdk/tests/vm"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -26,11 +26,10 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := tvm.NewVM(0)
+	testVM := fixture.NewTestVM(0)
+	workloadFactory := morpheusWorkload.NewWorkloadFactory(testVM.GetKeys())
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
-
-	workloadFactory := morpheusWorkload.NewWorkloadFactory(testVM.Keys)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)

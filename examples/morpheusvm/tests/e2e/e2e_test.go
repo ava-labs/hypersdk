@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
-	tvm "github.com/ava-labs/hypersdk/tests/vm"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -38,9 +37,10 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := tvm.NewVM(workload.TxCheckInterval)
-	workloadFactory := workload.NewWorkloadFactory(testVM.Keys)
-	spamKey := testVM.Keys[0].GetPrivateKey()
+	testVM := fixture.NewTestVM(workload.TxCheckInterval)
+	keys := testVM.GetKeys()
+	workloadFactory := workload.NewWorkloadFactory(keys)
+	spamKey := keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 

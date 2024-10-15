@@ -1,37 +1,35 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package fixture
 
 import (
 	"encoding/json"
 	"time"
 
-	"github.com/ava-labs/hypersdk/abi"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
-type VM struct {
+type testVM struct {
 	// every VM has a genesis. We initialize the VM with a default genesis.
 	genesis *genesis.DefaultGenesis
 	// pre-set keys on the vm
-	Keys []*Ed25519TestKey
-	// expectedABI
-	expectedABI abi.ABI
-	// parser
-	parser chain.Parser
+	keys []*Ed25519TestKey
 }
 
-func NewVM(minBlockGap time.Duration) *VM {
+func NewTestVM(minBlockGap time.Duration) *testVM {
 	keys := newDefualtKeys()
 	genesis := newDefaultGenesis(keys, minBlockGap)
-	return &VM{
+	return &testVM{
 		genesis: genesis,
-		Keys:    keys,
+		keys:    keys,
 	}
 }
 
-func (v *VM) GetGenesisBytes() ([]byte, error) {
-	return json.Marshal(v.genesis)
+func (t *testVM) GetGenesisBytes() ([]byte, error) {
+	return json.Marshal(t.genesis)
+}
+
+func (t *testVM) GetKeys() []*Ed25519TestKey {
+	return t.keys
 }

@@ -21,9 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
-
-	tvm "github.com/ava-labs/hypersdk/tests/vm"
 )
 
 const (
@@ -31,10 +30,10 @@ const (
 )
 
 type workloadFactory struct {
-	keys []*tvm.Ed25519TestKey
+	keys []*fixture.Ed25519TestKey
 }
 
-func NewWorkloadFactory(keys []*tvm.Ed25519TestKey) *workloadFactory {
+func NewWorkloadFactory(keys []*fixture.Ed25519TestKey) *workloadFactory {
 	return &workloadFactory{keys: keys}
 }
 
@@ -121,7 +120,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 			{address: blsAddr, authFactory: blsFactory},
 			{address: secpAddr, authFactory: secpFactory},
 		},
-		balance:   tvm.DefaultInitialBalance,
+		balance:   fixture.DefaultInitialBalance,
 		cli:       cli,
 		lcli:      lcli,
 		networkID: networkID,
