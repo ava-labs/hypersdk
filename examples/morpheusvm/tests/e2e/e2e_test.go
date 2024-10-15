@@ -4,7 +4,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -13,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/proc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
@@ -38,10 +38,10 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, spamKey, err := workload.New(100 /* minBlockGap: 100ms */)
-	require.NoError(err)
-
-	genesisBytes, err := json.Marshal(gen)
+	testVM := proc.NewVM()
+	workloadFactory := workload.NewWorkloadFactory(testVM.Keys)
+	spamKey := testVM.Keys[0].GetPrivateKey()
+	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
