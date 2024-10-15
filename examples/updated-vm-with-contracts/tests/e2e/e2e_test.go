@@ -4,7 +4,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -36,12 +35,11 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, _, err := workload.New(100 /* minBlockGap: 100ms */)
+	testVM := fixture.NewTestVM(workload.TxCheckInterval)
+	genesisBytes, err := testVM.GetGenesisBytes()
+	workloadFactory := workload.NewWorkloadFactory(testVM.GetKeys())
 	require.NoError(err)
-
-	genesisBytes, err := json.Marshal(gen)
-	require.NoError(err)
-
+	
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 

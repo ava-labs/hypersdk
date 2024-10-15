@@ -17,7 +17,7 @@ import (
 
 func confirmIncrement(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
 	indexerCli := indexer.NewClient(uri)
-	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+	success, _, err := indexerCli.WaitForTransaction(ctx, TxCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
 	_ = vm.NewJSONRPCClient(uri)
@@ -27,7 +27,7 @@ func confirmIncrement(ctx context.Context, require *require.Assertions, uri stri
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
 	indexerCli := indexer.NewClient(uri)
-	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+	success, _, err := indexerCli.WaitForTransaction(ctx, TxCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
 	lcli := vm.NewJSONRPCClient(uri)

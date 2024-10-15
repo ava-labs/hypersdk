@@ -28,14 +28,17 @@ var (
 )
 
 const (
-	
-	txCheckInterval        = 100 * time.Millisecond
+	TxCheckInterval        = 100 * time.Millisecond
 	fuel                   = 100_000_000
 )
 
 
 type workloadFactory struct {
 	keys []*fixture.Ed25519TestKey
+}
+
+func NewWorkloadFactory(keys []*fixture.Ed25519TestKey) *workloadFactory {
+	return &workloadFactory{keys: keys}
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
