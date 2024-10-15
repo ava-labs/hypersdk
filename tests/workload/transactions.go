@@ -30,8 +30,14 @@ type TxGenerator interface {
 }
 
 type TxWorkload struct {
+	TxPerBlock int
 	Generator TxGenerator
 } 
+
+func (w *TxWorkload) WithTxPerBlock(txPerBlock int) *TxWorkload {
+	w.TxPerBlock = txPerBlock
+	return w
+}
 
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]
@@ -72,17 +78,22 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 
 }
 
-func GenerateTxs(ctx context.Context, require *require.Assertions, uris []string, generator TxGenerator) {
-	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
+// GenerateTxs generates transactions using the provided TxGenerator until the generator
+// can no longer generate transactions
+// ClientUri is the uri of the client that will generate the transactions
+// ConfirmUris is a list of uris to confirm the transactions
+func GenerateTxs(ctx context.Context, require *require.Assertions, clientUri string, confirmUris []string, generator TxGenerator) {
+	// TODO: why do we only use the first uri for submitting transactions when it differs from the confirmUris?
+	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
 
 	for generator.CanGenerate() {
-		tx, confirm, err := generator.GenerateTx(ctx, uris[0])
+		tx, confirm, err := generator.GenerateTx(ctx, clientUri)
 		require.NoError(err)
 
 		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		for _, uri := range uris {
+		for _, uri := range confirmUris {
 			confirm(ctx, require, uri)
 		}
 	}

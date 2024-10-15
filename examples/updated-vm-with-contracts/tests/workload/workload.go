@@ -11,12 +11,11 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
-	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var (
-	_              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
-	_              workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	// _              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
+	// _              workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
 )
 
 const (
