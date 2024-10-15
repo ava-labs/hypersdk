@@ -67,7 +67,7 @@ var (
 	vmID                  ids.ID
 	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
 	parser                chain.Parser
-	txWorkloadFactory     workload.TxWorkloadFactory
+	// txWorkloadFactory     workload.TxWorkloadFactory
 	authFactory           chain.AuthFactory
 
 	externalSubscriberAcceptedBlocksCh chan ids.ID

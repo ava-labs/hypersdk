@@ -15,14 +15,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var _ workload.TxGenerator = (*DeployTransaction)(nil)
+
 type DeployTransaction struct {
+	numGenerated int
+	maxGenerated int
 	// the factory to generate the signature from
 	from *auth.ED25519Factory
 }
 
+func (d *DeployTransaction) NewTxGenerator(maxToGenerate int) workload.TxGenerator {
+	return &DeployTransaction{
+		numGenerated: 0,
+		maxGenerated: maxToGenerate,
+		from: d.from,
+	}
+}
+
+func (d *DeployTransaction) CanGenerate() bool {
+	return d.numGenerated < d.maxGenerated
+}
+
 // generates a transaction deploying a contract to the VM. 
 // Returns the transaction, the assertion to check the transaction, and an error if there was an issue generating the transaction
-func (d *DeployTransaction) GenerateTransaction(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+// shouldn't be creating a new jsonrpc client every time, but keeping for simplicity for now
+func (d *DeployTransaction) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+	defer func() { d.numGenerated++ }()
+
 	// create a new jsonrpc client
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	vmCli := vm.NewJSONRPCClient(uri)

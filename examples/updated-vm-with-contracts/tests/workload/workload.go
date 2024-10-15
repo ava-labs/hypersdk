@@ -4,22 +4,14 @@
 package workload
 
 import (
-	"context"
 	"time"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/actions"
 	"github.com/ava-labs/hypersdk/examples/updated-vm-with-contracts/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -41,16 +33,16 @@ func NewWorkloadFactory(keys []*fixture.Ed25519TestKey) *workloadFactory {
 	return &workloadFactory{keys: keys}
 }
 
-func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
-	cli := jsonrpc.NewJSONRPCClient(uri)
-	lcli := vm.NewJSONRPCClient(uri)
-	return &simpleTxWorkload{
-		factory: f.keys[0].AuthFactory,
-		cli:     cli,
-		lcli:    lcli,
-		size:    size,
-	}, nil
-}
+// func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
+// 	cli := jsonrpc.NewJSONRPCClient(uri)
+// 	lcli := vm.NewJSONRPCClient(uri)
+// 	return &simpleTxWorkload{
+// 		factory: f.keys[0].AuthFactory,
+// 		cli:     cli,
+// 		lcli:    lcli,
+// 		size:    size,
+// 	}, nil
+// }
 
 type simpleTxWorkload struct {
 	factory *auth.ED25519Factory
@@ -63,45 +55,45 @@ type simpleTxWorkload struct {
 	counterAddess codec.Address
 }
 
-func (g *simpleTxWorkload) Next() bool {
-	return g.count < g.size
-}
+// func (g *simpleTxWorkload) Next() bool {
+// 	return g.count < g.size
+// }
 
-func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
-	utils.Outf("{{green}}GENERATING:{{/}} %s\n", "callll increment")
+// func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+// 	utils.Outf("{{green}}GENERATING:{{/}} %s\n", "callll increment")
 	
-	g.count++
-	privKey, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return nil, nil, err
-	}
+// 	g.count++
+// 	privKey, err := ed25519.GeneratePrivateKey()
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
 
-	pubKey := auth.NewED25519Address(privKey.PublicKey())
-	parser, err := g.lcli.Parser(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
+// 	pubKey := auth.NewED25519Address(privKey.PublicKey())
+// 	parser, err := g.lcli.Parser(ctx)
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
 
-	id := ids.GenerateTestID()
-	deployAction := &actions.Deploy{
-		ContractBytes: counterBytes,
-		CreationData: id[:],
-	}
+// 	id := ids.GenerateTestID()
+// 	deployAction := &actions.Deploy{
+// 		ContractBytes: counterBytes,
+// 		CreationData: id[:],
+// 	}
 
-	_, tx, _, err := g.cli.GenerateTransaction(
-		ctx,
-		parser,
-		[]chain.Action{deployAction},
-		g.factory,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
+// 	_, tx, _, err := g.cli.GenerateTransaction(
+// 		ctx,
+// 		parser,
+// 		[]chain.Action{deployAction},
+// 		g.factory,
+// 	)
+// 	if err != nil {
+// 		return nil, nil, err
+// 	}
 
-	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmIncrement(ctx, require, uri, tx.ID(), pubKey, 1)
-	}, nil
-}
+// 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
+// 		confirmIncrement(ctx, require, uri, tx.ID(), pubKey, 1)
+// 	}, nil
+// }
 
 // func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
 // 	utils.Outf("{{green}}GENERATING:{{/}} %s\n", "callll increment")
