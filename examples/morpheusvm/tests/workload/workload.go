@@ -120,7 +120,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 			{address: blsAddr, authFactory: blsFactory},
 			{address: secpAddr, authFactory: secpFactory},
 		},
-		balance:   fixture.DefaultInitialBalance,
+		balance:   fixture.InitialBalance,
 		cli:       cli,
 		lcli:      lcli,
 		networkID: networkID,
