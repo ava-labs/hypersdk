@@ -105,8 +105,8 @@ func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Du
 		if err != nil {
 			return false, err
 		}
-		success = response.Success
-		fee = response.Fee
+		success = response.Result.Success
+		fee = response.Result.Fee
 		return found, nil
 	}); err != nil {
 		return false, 0, err
