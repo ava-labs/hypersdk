@@ -24,7 +24,6 @@ message ChunkSignature {
   bytes signature = 5;
 }
 
-
 message Transaction {
   bytes bytes = 1;
 }
@@ -46,6 +45,18 @@ message ExecutedChunk {
 
 message GetChunkRequest {
   bytes chunk_id = 1;
+}
+
+message GetChunkResponse {
+  Chunk chunk = 1;
+}
+
+message GetChunkSignatureRequest {
+  Chunk chunk = 1;
+}
+
+message GetChunkSignatureResponse {
+  ChunkSignature signature = 1;
 }
 
 //TODO chunk fault

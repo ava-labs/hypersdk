@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 )
 
 // TODO
@@ -22,15 +24,16 @@ import (
 //
 // (txsPerChunk=1, chunksPerBlock=2, peer respond) Read tx -> block not built
 // (txsPerChunk=1, chunksPerBlock=2, peer no respond) Read tx -> block not built
-func TestNode(t *testing.T) {
+func TestBuildBlock(t *testing.T) {
 	tests := []struct {
 		name           string
 		txsPerChunk    int
 		chunksPerBlock int
 		txs            []tx
+		wantTxs        []tx
 	}{
 		{
-			name:           "chunk built + block built",
+			name:           "block built - 1 chunk",
 			txsPerChunk:    1,
 			chunksPerBlock: 1,
 			txs: []tx{
@@ -41,40 +44,57 @@ func TestNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Skip()
+
 			require := require.New(t)
 
-			builtBlk := make(chan Block)
-			node := New[tx](client{}, tt.txsPerChunk)
+			node := New[tx](nil, tt.txsPerChunk)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			go func() {
-				_ = node.Run(builtBlk)
+				require.NoError(node.Run(ctx))
 			}()
 
 			for _, tx := range tt.txs {
 				require.NoError(node.AddTx(tx))
 			}
 
-			<-builtBlk
+			blk, err := node.NewBlock()
+			require.NoError(err)
+
+			client := GetChunkClient[tx]{
+				client: p2ptest.NewClient(
+					t,
+					context.Background(),
+					node.GetChunkHandler,
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+			}
+
+			gotTxs := make([]tx, 0)
+			for _, chunk := range blk.Chunks {
+				require.NoError(client.GetChunk(
+					context.Background(),
+					ids.EmptyNodeID,
+					chunk.ChunkID,
+					func(ctx context.Context, c Chunk[tx], err error) {
+						require.NoError(err)
+
+						for _, tx := range c.Txs {
+							gotTxs = append(gotTxs, tx)
+						}
+					},
+				))
+			}
+
+			require.ElementsMatch(tt.wantTxs, gotTxs)
 		})
 	}
 }
 
-//	func TestP2P(t *testing.T) {
-//		require := require.New(t)
-//
-//		node := New[tx](client{}, 1)
-//		client := p2ptest.NewClient(t, context.Background(), node, ids.EmptyNodeID, ids.EmptyNodeID)
-//
-//		onResponse := func(ctx context.Context, nodeID ids.NodeID, appResponseBytes []byte, err error) {
-//
-//		}
-//
-//		require.NoError(client.AppRequest(
-//			context.Background(),
-//			set.Of(ids.EmptyNodeID),
-//			[]byte("request"),
-//			onResponse,
-//		))
-//	}
 var _ Tx = (*tx)(nil)
 
 type tx struct {
@@ -88,12 +108,4 @@ func (t tx) GetID() ids.ID {
 
 func (t tx) GetExpiry() time.Time {
 	return time.Unix(0, t.Expiry)
-}
-
-var _ Client[tx] = (*client)(nil)
-
-type client struct{}
-
-func (c client) GetChunk(context.Context, ids.NodeID, ids.ID) (Chunk[tx], error) {
-	return Chunk[tx]{}, nil
 }

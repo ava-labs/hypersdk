@@ -11,7 +11,7 @@ if ! [[ "$0" =~ scripts/protobuf_codegen.sh ]]; then
 fi
 
 ## ensure the correct version of "buf" is installed
-BUF_VERSION='1.37.0'
+BUF_VERSION='1.40.1'
 if [[ $(buf --version | cut -f2 -d' ') != "${BUF_VERSION}" ]]; then
   echo "could not find buf ${BUF_VERSION}, is it installed + in PATH?"
   exit 255
