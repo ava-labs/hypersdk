@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
@@ -19,12 +20,12 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-const owner = "VM With Contracts"
+const owner = "morpheusvm-e2e-tests"
 
 var flagVars *e2e.FlagVars
 
 func TestE2e(t *testing.T) {
-	ginkgo.RunSpecs(t, "Updated VM with Contracts e2e test suites")
+	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
 }
 
 func init() {
@@ -35,19 +36,23 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := fixture.NewTestVM(workload.TxCheckInterval)
+	txCheckInterval := 100 * time.Millisecond
+	testVM := fixture.NewTestVM(txCheckInterval)
+	keys := testVM.GetKeys()
+	generator := workload.NewDeployGenerator(keys[0])
 	genesisBytes, err := testVM.GetGenesisBytes()
-	workloadFactory := workload.NewWorkloadFactory(testVM.GetKeys())
 	require.NoError(err)
-	
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
 	parser, err := vm.CreateParser(genesisBytes)
 	require.NoError(err)
 
+	// Import HyperSDK e2e test coverage and inject MorpheusVM name
+	// and workload factory to orchestrate the test.
+
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, nil, nil)
+	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, nil, nil)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
