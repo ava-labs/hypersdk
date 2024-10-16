@@ -21,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 
@@ -55,15 +54,10 @@ func (f *simpleTxWorkload) NewTxGenerator(size int) workload.TxGenerator {
 	}
 }
 
-func (g *simpleTxWorkload) CanGenerate() bool {
-	return g.count < g.size
-}
-
 func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
-	g.count++
 	other, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
@@ -94,7 +88,6 @@ func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.T
 
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	utils.Outf("{{green}}CONFIRMING:{{/}} %s\n", "transfer")
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, TxCheckInterval, txID)
 	require.NoError(err)

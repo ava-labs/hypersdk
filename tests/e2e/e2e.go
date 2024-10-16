@@ -159,9 +159,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			uris = append(uris, bootstrapNodeURI)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			// TODO: pass in the bootstrapNodeURI into the workload rather that uris[0]
-			txGenerator := txWorkload.Generator.NewTxGenerator(1)
-			workload.GenerateTxs(tc.DefaultContext(), require, uris[0], uris, txGenerator)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, bootstrapNodeURI, uris)
 		})
 
 		ginkgo.By("Restart the node", func() {
@@ -184,8 +182,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			txGenerator := txWorkload.Generator.NewTxGenerator(1)
-			workload.GenerateTxs(tc.DefaultContext(), require, syncNodeURI, uris, txGenerator)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("Pause the node", func() {
 			// TODO: remove the need to call SaveAPIPort from the test
@@ -216,10 +213,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		})
 
 		ginkgo.By("Accept a transaction after resuming", func() {
-			txGenerator := txWorkload.Generator.NewTxGenerator(1)
-			txGenerator.GenerateTx(tc.DefaultContext(), syncNodeURI)
-			txGenerator = txWorkload.Generator.NewTxGenerator(1)
-			workload.GenerateTxs(tc.DefaultContext(), require, syncNodeURI, uris, txGenerator)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("State sync while broadcasting txs", func() {
 			stopChannel := make(chan struct{})
@@ -232,9 +226,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 				defer wg.Done()
 				// Recover failure if exits
 				defer ginkgo.GinkgoRecover()
-
-				txGenerator := txWorkload.Generator.NewTxGenerator(128)
-				workload.GenerateUntilStop(tc.DefaultContext(), require, uris, txGenerator, stopChannel)
+				txWorkload.GenerateUntilStop(tc.DefaultContext(), require, uris, 128, stopChannel)
 			}()
 
 			// Give time for transactions to start processing
@@ -248,8 +240,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after syncing", func() {
-			txGenerator := txWorkload.Generator.NewTxGenerator(1)
-			workload.GenerateTxs(tc.DefaultContext(), require, uris[0], uris, txGenerator)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, uris[0], uris)
 		})
 	})
 })

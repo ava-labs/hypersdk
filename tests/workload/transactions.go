@@ -22,9 +22,6 @@ type TxGenerator interface {
 	// the transaction was accepted by the network
 	GenerateTx(context.Context, string) (*chain.Transaction, TxAssertion, error)
 
-	// CanGenerate returns true if there are more transactions to generate
-	CanGenerate() bool
-
 	// NewTxGenerator returns a new TxGenerator with the same configuration as the current TxGenerator
 	NewTxGenerator(maxToGenerate int) TxGenerator
 }
@@ -34,6 +31,10 @@ type TxWorkload struct {
 	Generator TxGenerator
 } 
 
+func (w *TxWorkload) NewTxGenerator(maxToGenerate int) TxGenerator {
+	return w.Generator.NewTxGenerator(maxToGenerate)
+}
+
 func (w *TxWorkload) WithTxPerBlock(txPerBlock int) *TxWorkload {
 	w.TxPerBlock = txPerBlock
 	return w
@@ -42,7 +43,6 @@ func (w *TxWorkload) WithTxPerBlock(txPerBlock int) *TxWorkload {
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]
 	// generate [blocks] amount of txs
-	generator := w.Generator.NewTxGenerator(blocks)
 	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
@@ -50,8 +50,9 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 	height := startHeight
 	targetheight := startHeight + uint64(blocks)
 
-	for generator.CanGenerate() && height < targetheight {
-		tx, confirm, err := generator.GenerateTx(ctx, uri)
+	
+	for count := 0; count < blocks && height < targetheight; count++ {
+		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
 		require.NoError(err)
 
 		_, err = client.SubmitTx(ctx, tx.Bytes())
@@ -82,12 +83,12 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 // can no longer generate transactions
 // ClientUri is the uri of the client that will generate the transactions
 // ConfirmUris is a list of uris to confirm the transactions
-func GenerateTxs(ctx context.Context, require *require.Assertions, clientUri string, confirmUris []string, generator TxGenerator) {
+func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, amount int, clientUri string, confirmUris []string) {
 	// TODO: why do we only use the first uri for submitting transactions when it differs from the confirmUris?
 	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
 
-	for generator.CanGenerate() {
-		tx, confirm, err := generator.GenerateTx(ctx, clientUri)
+	for i := 0; i < amount; i++ {
+		tx, confirm, err := w.Generator.GenerateTx(ctx, clientUri)
 		require.NoError(err)
 
 		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
@@ -99,23 +100,20 @@ func GenerateTxs(ctx context.Context, require *require.Assertions, clientUri str
 	}
 }
 
-func GenerateUntilStop(
+func (w *TxWorkload) GenerateUntilStop(
 	ctx context.Context,
 	require *require.Assertions,
 	uris []string,
-	generator TxGenerator,
+	maxToGenerate int,
 	stopChannel <-chan struct{},
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
-	for {
+	for i := 0; i < maxToGenerate; i++ {
 		select {
 		case <-stopChannel:
 			return
 		default:
-			if !generator.CanGenerate() {
-				return
-			}
-			tx, confirm, err := generator.GenerateTx(ctx, uris[0])
+			tx, confirm, err := w.Generator.GenerateTx(ctx, uris[0])
 			if err != nil {
 				time.Sleep(1 * time.Second)
 				continue
