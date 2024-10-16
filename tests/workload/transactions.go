@@ -21,24 +21,12 @@ type TxGenerator interface {
 	// GenerateTx generates a new transaction and an assertion function that confirms
 	// the transaction was accepted by the network
 	GenerateTx(context.Context, string) (*chain.Transaction, TxAssertion, error)
-
-	// NewTxGenerator returns a new TxGenerator with the same configuration as the current TxGenerator
-	NewTxGenerator(maxToGenerate int) TxGenerator
 }
 
 type TxWorkload struct {
 	TxPerBlock int
 	Generator TxGenerator
 } 
-
-func (w *TxWorkload) NewTxGenerator(maxToGenerate int) TxGenerator {
-	return w.Generator.NewTxGenerator(maxToGenerate)
-}
-
-func (w *TxWorkload) WithTxPerBlock(txPerBlock int) *TxWorkload {
-	w.TxPerBlock = txPerBlock
-	return w
-}
 
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]

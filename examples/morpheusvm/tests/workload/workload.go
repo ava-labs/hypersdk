@@ -37,21 +37,10 @@ const (
 )
 
 
-type simpleTxWorkload struct {
-	count   int
-	size    int
-}
+type simpleTxWorkload struct {}
 
-func NewTxGenerator(size int) workload.TxGenerator {
-	return &simpleTxWorkload{
-		size:    size,
-	}
-}
-
-func (f *simpleTxWorkload) NewTxGenerator(size int) workload.TxGenerator {
-	return &simpleTxWorkload{
-		size:    size,
-	}
+func NewTxGenerator() workload.TxGenerator {
+	return &simpleTxWorkload{}
 }
 
 func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {

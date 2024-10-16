@@ -40,7 +40,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	testVM := fixture.NewTestVM(workload.TxCheckInterval)
 	keys := testVM.GetKeys()
 	workload.InitSimpleTx(testVM.GetKeys())
-	workloadFactory := workload.NewTxGenerator(100)
+	generator := workload.NewTxGenerator()
 	spamKey := keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
@@ -57,7 +57,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper, spamKey)
+	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
