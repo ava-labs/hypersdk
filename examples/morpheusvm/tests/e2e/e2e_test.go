@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
@@ -37,10 +38,10 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	testVM := fixture.NewTestVM(workload.TxCheckInterval)
+	txCheckInterval := 100 * time.Millisecond
+	testVM := fixture.NewTestVM(txCheckInterval)
 	keys := testVM.GetKeys()
-	workload.InitSimpleTx(testVM.GetKeys())
-	generator := workload.NewTxGenerator()
+	generator := workload.NewTxGenerator(keys[0], txCheckInterval)
 	spamKey := keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)

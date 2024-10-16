@@ -25,25 +25,21 @@ import (
 
 
 var _ workload.TxGenerator = (*simpleTxWorkload)(nil)
-var factory = &auth.ED25519Factory{}
 
-// we should be able to pass this into the tx generator for its own use. hardcoded for now
-func InitSimpleTx(key []*fixture.Ed25519TestKey) {
-	factory = auth.NewED25519Factory(key[0].PrivKey)
+type simpleTxWorkload struct {
+	factory *auth.ED25519Factory
+	txCheckInterval time.Duration
 }
 
-const (
-	TxCheckInterval = 100 * time.Millisecond
-)
-
-
-type simpleTxWorkload struct {}
-
-func NewTxGenerator() workload.TxGenerator {
-	return &simpleTxWorkload{}
+func NewTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
+	return &simpleTxWorkload{
+		factory: auth.NewED25519Factory(key.PrivKey),
+		txCheckInterval: txCheckInterval,
+	}
 }
 
 func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
@@ -64,21 +60,21 @@ func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.T
 			To:    aother,
 			Value: 1,
 		}},
-		factory,
+		g.factory,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), aother, 1)
+		confirmTx(ctx, require, uri, tx.ID(), aother, 1, g.txCheckInterval)
 	}, nil
 }
 
 
-func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64, txCheckInterval time.Duration) {
 	indexerCli := indexer.NewClient(uri)
-	success, _, err := indexerCli.WaitForTransaction(ctx, TxCheckInterval, txID)
+	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
 	lcli := vm.NewJSONRPCClient(uri)
