@@ -39,11 +39,11 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	testVM := fixture.NewTestVM(workload.TxCheckInterval)
 	keys := testVM.GetKeys()
-	workloadFactory := workload.NewWorkloadFactory(keys)
+	workload.InitSimpleTx(testVM.GetKeys())
+	workloadFactory := workload.NewTxGenerator(100)
 	spamKey := keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
-
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 

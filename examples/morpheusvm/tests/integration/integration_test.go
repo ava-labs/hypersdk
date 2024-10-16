@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -27,7 +28,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	testVM := fixture.NewTestVM(0)
-	workloadFactory := morpheusWorkload.NewWorkloadFactory(testVM.GetKeys())
+	workload.InitSimpleTx(testVM.GetKeys())
+	workloadFactory := morpheusWorkload.NewTxGenerator(100)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 
