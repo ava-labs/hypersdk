@@ -35,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -58,6 +59,8 @@ var (
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
+	testNetwork          workload.TestNetwork
+	testRegistry         registry.Registry
 
 	networkID uint32
 
@@ -116,7 +119,14 @@ func Setup(
 	require.NoError(err)
 	parser = createdParser
 
+	// find all callers named NetworkTest...(signature)
+
 	setInstances()
+}
+
+func RegisterTest(name string, f registry.TestFunc) bool {
+	testRegistry.Add(name, f)
+	return true
 }
 
 func setInstances() {
@@ -264,6 +274,8 @@ func setInstances() {
 	for i, inst := range instances {
 		uris[i] = inst.routerServer.URL
 	}
+
+	testNetwork = &Network{uris: uris}
 
 	blocks = []snowman.Block{}
 
@@ -646,6 +658,15 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			}
 		}
 	})
+})
+
+var _ = ginkgo.Describe("[Custom VM Tests]", func() {
+	require := require.New(ginkgo.GinkgoT())
+	for _, test := range testRegistry.List() {
+		ginkgo.It(test.Name, func() {
+			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+		})
+	}
 })
 
 func expectBlk(i instance) func(add bool) []*chain.Result {

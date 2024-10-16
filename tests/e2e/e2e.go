@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
@@ -34,6 +35,8 @@ var (
 	expectedABI       abi.ABI
 	spamKey           *auth.PrivateKey
 	spamHelper        throughput.SpamHelper
+	testRegistry      registry.Registry
+	testNetwork       workload.TestNetwork
 )
 
 func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
@@ -255,6 +258,24 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		})
 	})
 })
+
+var _ = ginkgo.Describe("[Custom VM Tests]", func() {
+	tc := e2e.NewTestContext()
+	require := require.New(tc)
+
+	for _, test := range testRegistry.List() {
+		ginkgo.It(test.Name, func() {
+			baseURIs := getE2EBaseURIs(tc)
+			testNetwork := &Network{uris: baseURIs}
+			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+		})
+	}
+})
+
+func RegisterTest(name string, f registry.TestFunc) bool {
+	testRegistry.Add(name, f)
+	return true
+}
 
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
 	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()

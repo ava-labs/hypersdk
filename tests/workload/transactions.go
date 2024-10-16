@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 )
 
@@ -24,6 +25,9 @@ type TxWorkloadFactory interface {
 	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
+
+	// GetSpendingKey returns a private key to an account whcih the test case spend money from.
+	GetSpendingKey() (*auth.PrivateKey, error)
 }
 
 type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
