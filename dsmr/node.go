@@ -4,12 +4,20 @@
 package dsmr
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/ava-labs/avalanchego/network/p2p"
 )
 
-func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
+func New[T Tx](
+	getChunkClient *p2p.Client,
+	txsPerChunk int,
+) *Node[T] {
 	return &Node[T]{
-		client: client,
+		client: GetChunkClient[T]{
+			client: getChunkClient,
+		},
 		chunkBuilder: chunkBuilder[T]{
 			threshold: txsPerChunk,
 		},
@@ -18,8 +26,10 @@ func New[T Tx](client Client[T], txsPerChunk int) *Node[T] {
 }
 
 type Node[T Tx] struct {
+	GetChunkHandler
+	GetChunkSignatureHandler[T]
 	//TODO chunk handler
-	client           Client[T]
+	client           GetChunkClient[T]
 	chunkBuilder     chunkBuilder[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
@@ -27,21 +37,19 @@ type Node[T Tx] struct {
 	chunks chan Chunk[T]
 }
 
-func (n Node[_]) Run(blks chan<- Block) error {
+func (n Node[_]) Run(ctx context.Context) error {
 	for {
-		chunk := <-n.chunks
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case chunk := <-n.chunks:
+			_, err := n.chunkCertBuilder.NewCert(chunk)
+			if err != nil {
+				return fmt.Errorf("failed to generate chunk cert: %w", err)
+			}
 
-		chunkCert, err := n.chunkCertBuilder.NewCert(chunk)
-		if err != nil {
-			return fmt.Errorf("failed to generate chunk cert: %w", err)
+			//TODO aggregate chunk cert
 		}
-
-		blk, ok := n.blockBuilder.Add(chunkCert)
-		if !ok {
-			continue
-		}
-
-		blks <- blk
 	}
 }
 
@@ -58,18 +66,25 @@ func (n Node[T]) AddTx(tx T) error {
 	return nil
 }
 
+// NewBlock TODO should we quiesce
+func (n Node[T]) NewBlock() (Block, error) {
+	return Block{}, nil
+}
+
 // consumes chunks and aggregates signtures to generate chunk certs
-type chunkCertBuilder[T Tx] struct{}
+type chunkCertBuilder[T Tx] struct {
+	client *p2p.Client
+}
 
 // TODO implement
-func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (NoVerifyChunkCertificate, error) {
-	return NoVerifyChunkCertificate{}, nil
+func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) {
+	return ChunkCertificate{}, nil
 }
 
 // TODO can this share impl w/ chunkBuilder?
 type blockBuilder[T Tx] struct{}
 
 // Add returns if a block was built
-func (b *blockBuilder[T]) Add(chunk NoVerifyChunkCertificate) (Block, bool) {
+func (b *blockBuilder[T]) Add(chunk ChunkCertificate) (Block, bool) {
 	return Block{}, true
 }

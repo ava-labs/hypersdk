@@ -24,14 +24,9 @@ const (
 	MaxMessageSize = units.KiB
 )
 
-var (
-	Codec acodec.Manager
+var Codec acodec.Manager
 
-	_ ChunkCertificate[interface{}]                  = (*NoVerifyChunkCertificate)(nil)
-	_ ChunkCertificate[WarpChunkVerificationContext] = (*WarpChunkCertificate)(nil)
-)
-
-// TODO remove
+// TODO remove init
 func init() {
 	Codec = acodec.NewManager(MaxMessageSize)
 	lc := linearcodec.NewDefault()
@@ -45,13 +40,6 @@ func init() {
 	}
 }
 
-type ChunkCertificate[VerificationContext any] interface {
-	GetChunkID() ids.ID
-	GetSlot() int64
-	Bytes() []byte
-	Verify(context.Context, VerificationContext) error
-}
-
 type NoVerifyChunkSignatureShare struct{}
 
 func (NoVerifyChunkSignatureShare) Verify(_ ids.ID) error { return nil }
@@ -60,27 +48,27 @@ type NoVerifyChunkSignature struct{}
 
 func (NoVerifyChunkSignature) Verify() error { return nil }
 
-type NoVerifyChunkCertificate struct {
+type ChunkCertificate struct {
 	ChunkID ids.ID `serialize:"true"`
 	Expiry  int64  `serialize:"true"`
 
 	Signature NoVerifyChunkSignature `serialize:"true"`
 }
 
-func (n *NoVerifyChunkCertificate) GetChunkID() ids.ID { return n.ChunkID }
+func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
 
-func (n *NoVerifyChunkCertificate) GetSlot() int64 { return n.Expiry }
+func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
 
-func (n *NoVerifyChunkCertificate) Bytes() []byte {
-	bytes, err := Codec.Marshal(CodecVersion, n)
+func (c *ChunkCertificate) Bytes() []byte {
+	bytes, err := Codec.Marshal(CodecVersion, c)
 	if err != nil {
 		panic(err)
 	}
 	return bytes
 }
 
-func (n *NoVerifyChunkCertificate) Verify(_ context.Context, _ interface{}) error {
-	return n.Signature.Verify()
+func (c *ChunkCertificate) Verify(_ context.Context, _ interface{}) error {
+	return c.Signature.Verify()
 }
 
 type WarpChunkPayload struct {

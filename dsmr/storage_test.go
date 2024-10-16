@@ -25,11 +25,11 @@ type testVerifier[T Tx] struct {
 	correctIDs set.Set[ids.ID]
 }
 
-func (t testVerifier[T]) Verify(chunk *Chunk[T]) error {
-	if t.correctIDs.Contains(chunk.ID()) {
+func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
+	if t.correctIDs.Contains(chunk.id) {
 		return nil
 	}
-	return fmt.Errorf("%w: %s", errInvalidTestItem, chunk.ID())
+	return fmt.Errorf("%w: %s", errInvalidTestItem, chunk.id)
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
@@ -64,7 +64,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	require.NoError(err)
 	validChunkIDs := make([]ids.ID, 0, numValidChunks)
 	for _, chunk := range validChunks {
-		validChunkIDs = append(validChunkIDs, chunk.ID())
+		validChunkIDs = append(validChunkIDs, chunk.id)
 	}
 
 	testVerifier := testVerifier[tx]{correctIDs: set.Of(validChunkIDs...)}
@@ -95,31 +95,31 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 
-	_, err := storage.VerifyRemoteChunk(&chunk)
+	_, err := storage.VerifyRemoteChunk(chunk)
 	require.NoError(err)
 
-	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundChunkBytes)
+	require.Equal(chunk.bytes, foundChunkBytes)
 
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &NoVerifyChunkCertificate{
-		ChunkID:   chunk.ID(),
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
-	require.NoError(storage.SetChunkCert(chunk.ID(), chunkCert))
+	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
 	require.Equal(chunkCert, chunkCerts[0])
 
-	require.NoError(storage.SetMin(chunk.Expiry+1, []ids.ID{chunk.ID()}))
+	require.NoError(storage.SetMin(chunk.Expiry+1, []ids.ID{chunk.id}))
 
-	foundAcceptedChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundAcceptedChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundAcceptedChunkBytes)
+	require.Equal(chunk.bytes, foundAcceptedChunkBytes)
 	chunkCerts = storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 }
@@ -130,29 +130,29 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 
-	_, err := storage.VerifyRemoteChunk(&chunk)
+	_, err := storage.VerifyRemoteChunk(chunk)
 	require.NoError(err)
 
-	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundChunkBytes)
+	require.Equal(chunk.bytes, foundChunkBytes)
 
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &NoVerifyChunkCertificate{
-		ChunkID:   chunk.ID(),
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
-	require.NoError(storage.SetChunkCert(chunk.ID(), chunkCert))
+	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
 	require.Equal(chunkCert, chunkCerts[0])
 
 	require.NoError(storage.SetMin(chunk.Expiry+1, nil))
 
-	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.ErrorIs(err, database.ErrNotFound)
 	chunkCerts = storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
@@ -164,10 +164,10 @@ func TestStoreInvalidChunk(t *testing.T) {
 	storage, _, invalidChunks, _ := createTestStorage(t, 0, 1)
 	chunk := invalidChunks[0]
 
-	_, err := storage.VerifyRemoteChunk(&chunk)
+	_, err := storage.VerifyRemoteChunk(chunk)
 	require.ErrorIs(err, errInvalidTestItem)
 
-	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.ErrorIs(err, database.ErrNotFound)
 
 	chunkCerts := storage.GatherChunkCerts()
@@ -179,27 +179,27 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &NoVerifyChunkCertificate{
-		ChunkID:   chunk.ID(),
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
 
-	require.NoError(storage.AddLocalChunkWithCert(&chunk, chunkCert))
+	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
 
-	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundChunkBytes)
+	require.Equal(chunk.bytes, foundChunkBytes)
 
 	chunkCerts := storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
 	require.Equal(chunkCert, chunkCerts[0])
 
-	require.NoError(storage.SetMin(chunk.Expiry+1, []ids.ID{chunk.ID()}))
+	require.NoError(storage.SetMin(chunk.Expiry+1, []ids.ID{chunk.id}))
 
-	foundAcceptedChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundAcceptedChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundAcceptedChunkBytes)
+	require.Equal(chunk.bytes, foundAcceptedChunkBytes)
 	chunkCerts = storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 }
@@ -209,17 +209,17 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &NoVerifyChunkCertificate{
-		ChunkID:   chunk.ID(),
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
 
-	require.NoError(storage.AddLocalChunkWithCert(&chunk, chunkCert))
+	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
 
-	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	foundChunkBytes, err := storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.NoError(err)
-	require.Equal(chunk.Bytes(), foundChunkBytes)
+	require.Equal(chunk.bytes, foundChunkBytes)
 
 	chunkCerts := storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
@@ -227,7 +227,7 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 
 	require.NoError(storage.SetMin(chunk.Expiry+1, nil))
 
-	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.ID())
+	_, err = storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	require.ErrorIs(err, database.ErrNotFound)
 	chunkCerts = storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
@@ -245,10 +245,10 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 6. Pending remote chunk
 	numChunks := 6
 	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0)
-	chunkCerts := make([]*NoVerifyChunkCertificate, 0, numChunks)
+	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
-		chunkCert := &NoVerifyChunkCertificate{
-			ChunkID:   chunk.ID(),
+		chunkCert := &ChunkCertificate{
+			ChunkID:   chunk.id,
 			Expiry:    chunk.Expiry,
 			Signature: NoVerifyChunkSignature{},
 		}
@@ -256,32 +256,32 @@ func TestRestartSavedChunks(t *testing.T) {
 	}
 
 	// Case 1
-	require.NoError(storage.AddLocalChunkWithCert(&validChunks[0], chunkCerts[0]))
+	require.NoError(storage.AddLocalChunkWithCert(validChunks[0], chunkCerts[0]))
 
 	// Case 2
-	_, err := storage.VerifyRemoteChunk(&validChunks[1])
+	_, err := storage.VerifyRemoteChunk(validChunks[1])
 	require.NoError(err)
-	require.NoError(storage.SetChunkCert(validChunks[1].ID(), chunkCerts[1]))
+	require.NoError(storage.SetChunkCert(validChunks[1].id, chunkCerts[1]))
 
 	// Case 3
-	require.NoError(storage.AddLocalChunkWithCert(&validChunks[2], chunkCerts[2]))
+	require.NoError(storage.AddLocalChunkWithCert(validChunks[2], chunkCerts[2]))
 
 	// Case 4
-	_, err = storage.VerifyRemoteChunk(&validChunks[3])
+	_, err = storage.VerifyRemoteChunk(validChunks[3])
 	require.NoError(err)
 
 	// Case 5
-	require.NoError(storage.AddLocalChunkWithCert(&validChunks[4], chunkCerts[4]))
+	require.NoError(storage.AddLocalChunkWithCert(validChunks[4], chunkCerts[4]))
 
 	// Case 6
-	_, err = storage.VerifyRemoteChunk(&validChunks[5])
+	_, err = storage.VerifyRemoteChunk(validChunks[5])
 	require.NoError(err)
-	require.NoError(storage.SetChunkCert(validChunks[5].ID(), chunkCerts[5]))
+	require.NoError(storage.SetChunkCert(validChunks[5].id, chunkCerts[5]))
 
 	// Set the minimum to 5 and mark cases 1 and 2 as saved
 	require.NoError(storage.SetMin(5, []ids.ID{
-		validChunks[0].ID(),
-		validChunks[1].ID(),
+		validChunks[0].id,
+		validChunks[1].id,
 	}))
 
 	confirmChunkStorage := func(storage *Storage[tx]) {
@@ -292,9 +292,9 @@ func TestRestartSavedChunks(t *testing.T) {
 			validChunks[4],
 			validChunks[5],
 		} {
-			foundChunkBytes, err := storage.GetChunkBytes(expectedChunk.Expiry, expectedChunk.ID())
+			foundChunkBytes, err := storage.GetChunkBytes(expectedChunk.Expiry, expectedChunk.id)
 			require.NoError(err, i)
-			require.Equal(expectedChunk.Bytes(), foundChunkBytes, i)
+			require.Equal(expectedChunk.bytes, foundChunkBytes, i)
 		}
 
 		// Confirm the expired chunks are garbage collected
@@ -302,7 +302,7 @@ func TestRestartSavedChunks(t *testing.T) {
 			validChunks[2],
 			validChunks[3],
 		} {
-			_, err = storage.GetChunkBytes(expectedChunk.Expiry, expectedChunk.ID())
+			_, err = storage.GetChunkBytes(expectedChunk.Expiry, expectedChunk.id)
 			require.ErrorIs(err, database.ErrNotFound)
 		}
 	}

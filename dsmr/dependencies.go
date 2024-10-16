@@ -5,6 +5,7 @@ package dsmr
 
 import "context"
 
+// TODO delete this file
 // TODO: implement VM
 type VM[VerificationContext any] interface {
 	Verify(context.Context, *ExecutionBlock[VerificationContext]) error
