@@ -10,32 +10,36 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 )
 
-func New[T Tx](
-	getChunkClient *p2p.Client,
-) (*Node[T], error) {
+func New[T Tx](getChunkClient *p2p.Client) (*Node[T], error) {
 	storage, err := newChunkStorage[T](&NoVerifier[T]{}, memdb.New())
 	if err != nil {
 		return nil, err
 	}
 
 	return &Node[T]{
-		GetChunkSignatureHandler: GetChunkSignatureHandler[T]{
+		GetChunkHandler: &GetChunkHandler[T]{
+			storage: storage,
+		},
+		GetChunkSignatureHandler: &GetChunkSignatureHandler[T]{
 			storage: storage,
 		},
 		client: GetChunkClient[T]{
 			client: getChunkClient,
 		},
-		chunks: make(chan Chunk[T], 1),
+		storage: storage,
+		chunks:  make(chan Chunk[T], 1),
 	}, nil
 }
 
 type Node[T Tx] struct {
-	GetChunkHandler
-	GetChunkSignatureHandler[T]
+	GetChunkHandler          *GetChunkHandler[T]
+	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
+
 	//TODO chunk handler
 	client           GetChunkClient[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
+	storage          *chunkStorage[T]
 
 	chunks chan Chunk[T]
 }
@@ -43,10 +47,10 @@ type Node[T Tx] struct {
 // BuildChunk adds a chunk to the node with the provided transactions
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
-func (n Node[T]) BuildChunk(txs []T) error {
-	chunk, err := NewChunk[T](txs, time.Now())
+func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
+	chunk, err := newChunk[T](txs, expiry)
 	if err != nil {
-		return nil
+		return Chunk[T]{}, nil
 	}
 
 	cert := &ChunkCertificate{
@@ -54,7 +58,8 @@ func (n Node[T]) BuildChunk(txs []T) error {
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
-	return n.storage.AddLocalChunkWithCert(chunk, cert)
+
+	return chunk, n.storage.AddLocalChunkWithCert(chunk, cert)
 }
 
 // NewBlock TODO should we quiesce

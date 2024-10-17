@@ -34,7 +34,7 @@ type Chunk[T Tx] struct {
 	id    ids.ID
 }
 
-func NewChunk[T Tx](txs []T, expiry time.Time) (Chunk[T], error) {
+func newChunk[T Tx](txs []T, expiry time.Time) (Chunk[T], error) {
 	c := Chunk[T]{
 		Txs:    txs,
 		Expiry: expiry.Unix(),

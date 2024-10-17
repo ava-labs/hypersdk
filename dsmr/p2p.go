@@ -19,18 +19,67 @@ import (
 )
 
 var (
-	_ p2p.Handler = (*GetChunkHandler)(nil)
+	_ p2p.Handler = (*GetChunkHandler[Tx])(nil)
 	_ p2p.Handler = (*GetChunkSignatureHandler[Tx])(nil)
 )
 
-type GetChunkHandler struct{}
+type GetChunkHandler[T Tx] struct {
+	storage *chunkStorage[T]
+}
 
-func (g GetChunkHandler) AppGossip(context.Context, ids.NodeID, []byte) {
+func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
 	return
 }
 
-func (g GetChunkHandler) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
-	return nil, nil
+func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
+	request := dsmr.GetChunkRequest{}
+	if err := proto.Unmarshal(requestBytes, &request); err != nil {
+		panic(err)
+	}
+
+	chunkID, err := ids.ToID(request.ChunkId)
+	if err != nil {
+		panic(err)
+	}
+
+	chunkBytes, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	if err != nil {
+		panic(err)
+	}
+
+	p := wrappers.Packer{Bytes: chunkBytes, MaxSize: consts.NetworkSizeLimit}
+	chunk := Chunk[T]{}
+	if err := codec.LinearCodec.MarshalInto(&chunk, &p); err != nil {
+		panic(err)
+	}
+
+	txs := make([]*dsmr.Transaction, len(chunk.Txs))
+	for _, tx := range chunk.Txs {
+		packer := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
+		if err := codec.LinearCodec.MarshalInto(tx, packer); err != nil {
+			panic(err)
+		}
+
+		txs = append(txs, &dsmr.Transaction{Bytes: packer.Bytes})
+	}
+
+	response := &dsmr.GetChunkResponse{
+		Chunk: &dsmr.Chunk{
+			Producer:     chunk.Producer[:],
+			Expiry:       chunk.Expiry,
+			Beneficiary:  chunk.Beneficiary[:],
+			Transactions: txs,
+			Signer:       chunk.Signer[:],
+			Signature:    chunk.Signature[:],
+		},
+	}
+
+	responseBytes, err := proto.Marshal(response)
+	if err != nil {
+		panic(err)
+	}
+
+	return responseBytes, nil
 }
 
 type GetChunkClient[T Tx] struct {
@@ -41,10 +90,12 @@ func (c GetChunkClient[T]) GetChunk(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	chunkID ids.ID,
+	expiry time.Time,
 	onChunkResponse func(context.Context, Chunk[T], error),
 ) error {
 	request := dsmr.GetChunkRequest{
 		ChunkId: chunkID[:],
+		Expiry:  expiry.Unix(),
 	}
 
 	requestBytes, err := proto.Marshal(&request)
@@ -59,18 +110,14 @@ func (c GetChunkClient[T]) GetChunk(
 		err error,
 	) {
 
-		response := dsmr.Chunk{}
+		response := dsmr.GetChunkResponse{}
 		if err := proto.Unmarshal(responseBytes, &response); err != nil {
-			//TODO log
+			panic(err)
 		}
 
-		chunk := Chunk[T]{
-			//Producer:    response.Producer,
-			//Expiry:      response.Expiry,
-			//Beneficiary: response.Beneficiary,
-			//Txs:         response.Transactions,
-			//Signer:    response.Signer,
-			//Signature: response.Signature,
+		chunk, err := parseChunkProto[T](response.Chunk)
+		if err != nil {
+			panic(err)
 		}
 
 		onChunkResponse(ctx, chunk, err)

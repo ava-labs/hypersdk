@@ -45,6 +45,7 @@ message ExecutedChunk {
 
 message GetChunkRequest {
   bytes chunk_id = 1;
+  int64 expiry = 2;
 }
 
 message GetChunkResponse {
