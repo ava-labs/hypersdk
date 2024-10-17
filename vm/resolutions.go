@@ -51,18 +51,6 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
-	return vm.actionCodec
-}
-
-func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
-	return vm.outputCodec
-}
-
-func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
-	return vm.authCodec
-}
-
 func (vm *VM) AuthVerifiers() workers.Workers {
 	return vm.authVerifiers
 }
@@ -73,6 +61,18 @@ func (vm *VM) Tracer() trace.Tracer {
 
 func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
+}
+
+func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
+	return vm.Registry.ActionRegistry()
+}
+
+func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return vm.Registry.AuthRegistry()
+}
+
+func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return vm.Registry.OutputRegistry()
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
