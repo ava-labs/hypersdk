@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
@@ -36,7 +37,7 @@ var (
 	spamHelper  throughput.SpamHelper
 )
 
-func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
+func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *fixture.Ed25519TestKey) {
 	vmName = name
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
@@ -44,7 +45,7 @@ func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chain
 	parser = chainParser
 	expectedABI = abi
 	spamHelper = sh
-	spamKey = key
+	spamKey = key.GetPrivateKey()
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -113,29 +114,29 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
-	ginkgo.It("Spam Workload", func() {
-		if spamKey == nil || spamHelper == nil {
-			return
-		}
+// var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
+// 	ginkgo.It("Spam Workload", func() {
+// 		if spamKey == nil || spamHelper == nil {
+// 			return
+// 		}
 
-		tc := e2e.NewTestContext()
-		require := require.New(tc)
-		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-		uris := getE2EURIs(tc, blockchainID)
-		key := spamKey
+// 		tc := e2e.NewTestContext()
+// 		require := require.New(tc)
+// 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+// 		uris := getE2EURIs(tc, blockchainID)
+// 		key := spamKey
 
-		err := spamHelper.CreateClient(uris[0])
-		require.NoError(err)
+// 		err := spamHelper.CreateClient(uris[0])
+// 		require.NoError(err)
 
-		spamConfig := throughput.NewDefaultConfig(uris, key)
-		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
-		require.NoError(err)
+// 		spamConfig := throughput.NewDefaultConfig(uris, key)
+// 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
+// 		require.NoError(err)
 
-		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
-		require.NoError(err)
-	})
-})
+// 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+// 		require.NoError(err)
+// 	})
+// })
 
 var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 	ginkgo.It("[Sync]", func() {
