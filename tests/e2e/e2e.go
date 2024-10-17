@@ -40,7 +40,6 @@ func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chain
 	vmName = name
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
-		TxPerBlock: 100,
 	}
 	parser = chainParser
 	expectedABI = abi

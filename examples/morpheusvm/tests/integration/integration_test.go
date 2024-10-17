@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -27,9 +27,10 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
+	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(0)
-	workload.InitSimpleTx(testVM.GetKeys())
-	workloadFactory := morpheusWorkload.NewTxGenerator(100)
+	keys := testVM.GetKeys()
+	generator := morpheusWorkload.NewTxGenerator(keys[0], txCheckInterval)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 
@@ -44,7 +45,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		genesisBytes,
 		lconsts.ID,
 		vm.CreateParser,
-		workloadFactory,
+		generator,
 		randomEd25519AuthFactory,
 	)
 })

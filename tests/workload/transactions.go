@@ -24,7 +24,6 @@ type TxGenerator interface {
 }
 
 type TxWorkload struct {
-	TxPerBlock int
 	Generator TxGenerator
 } 
 
