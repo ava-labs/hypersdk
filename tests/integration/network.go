@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -16,6 +16,7 @@ import (
 var (
 	ErrUnableToConfirmTx = errors.New("unable to confirm transaction")
 	ErrInvalidURI        = errors.New("invalid uri")
+	ErrTxNotFound        = errors.New("tx not found")
 )
 
 const (
@@ -34,17 +35,27 @@ func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Trans
 	}
 	expectBlk(instance)(false)
 
-	indexerCli := indexer.NewClient(uri)
-	for _, tx := range txs {
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
-		if err != nil {
+	for {
+		allFound := true
+		for _, tx := range txs {
+			err := n.confirmTx(ctx, instance, tx.ID())
+			if err == ErrTxNotFound {
+				allFound = false
+				break
+			}
 			return err
 		}
-		if !success {
-			return ErrUnableToConfirmTx
+		if allFound {
+			return nil
 		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.NewTimer(txCheckInterval).C:
+			// try again
+		}
+
 	}
-	return nil
 }
 
 func (n *Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
@@ -52,13 +63,44 @@ func (n *Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transa
 	if err != nil {
 		return err
 	}
-	for _, tx := range txs {
-		_, err := instance.cli.SubmitTx(ctx, tx.Bytes())
+	errs := instance.vm.Submit(ctx, true, txs)
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs[0]
+}
+
+func (n *Network) confirmTx(ctx context.Context, instance instance, txid ids.ID) error {
+	lastAcceptedHeight, err := instance.vm.GetLastAcceptedHeight()
+	if err != nil {
+		return err
+	}
+	lastAcceptedBlockID, err := instance.vm.GetBlockHeightID(lastAcceptedHeight)
+	if err != nil {
+		return err
+	}
+	blk, err := instance.vm.GetBlock(ctx, lastAcceptedBlockID)
+	if err != nil {
+		return err
+	}
+	for {
+		stflBlk, ok := blk.(*chain.StatefulBlock)
+		if !ok {
+			return ErrTxNotFound
+		}
+		for _, tx := range stflBlk.StatelessBlock.Txs {
+			if tx.ID() == txid {
+				// found.
+				return nil
+			}
+		}
+		// keep iterating backward.
+		lastAcceptedBlockID = blk.Parent()
+		blk, err = instance.vm.GetBlock(ctx, lastAcceptedBlockID)
 		if err != nil {
-			return err
+			return ErrTxNotFound
 		}
 	}
-	return nil
 }
 
 func (n *Network) URIs() []string {
