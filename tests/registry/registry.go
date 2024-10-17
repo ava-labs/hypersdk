@@ -4,8 +4,9 @@
 package registry
 
 import (
-	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/onsi/ginkgo/v2"
+
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork) error

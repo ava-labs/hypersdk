@@ -65,11 +65,11 @@ func (n *Network) URIs() []string {
 	return n.uris
 }
 
-func (n *Network) WorkloadFactory() workload.TxWorkloadFactory {
+func (*Network) WorkloadFactory() workload.TxWorkloadFactory {
 	return txWorkloadFactory
 }
 
-func (n *Network) getInstance(uri string) (instance, error) {
+func (*Network) getInstance(uri string) (instance, error) {
 	for _, instance := range instances {
 		if instance.routerServer.URL == uri {
 			return instance, nil

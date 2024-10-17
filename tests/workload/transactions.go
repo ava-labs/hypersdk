@@ -26,7 +26,7 @@ type TxWorkloadFactory interface {
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 
-	// GetSpendingKey returns a private key to an account whcih the test case spend money from.
+	// GetSpendingKey returns a private key to an account which the test case spend money from.
 	GetSpendingKey() (*auth.PrivateKey, error)
 }
 
