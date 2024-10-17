@@ -14,16 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 )
 
-// TODO
-// TODO block building heuristics other than # tx/chunks like time
-// (txsPerChunk=1, chunksPerBlock=1, peer respond) Read tx -> block built
-// (txsPerChunk=1, chunksPerBlock=1, peer no respond) Read tx -> block not built
-
-// (txsPerChunk=2, chunksPerBlock=1, peer respond) Read tx -> block not built
-// (txsPerChunk=2, chunksPerBlock=1, peer no respond) Read tx -> block not built
-//
-// (txsPerChunk=1, chunksPerBlock=2, peer respond) Read tx -> block not built
-// (txsPerChunk=1, chunksPerBlock=2, peer no respond) Read tx -> block not built
 func TestBuildBlock(t *testing.T) {
 	tests := []struct {
 		name           string
