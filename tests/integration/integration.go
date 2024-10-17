@@ -657,10 +657,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	require := require.New(ginkgo.GinkgoT())
-	testNetwork := &Network{uris: uris}
-
 	for _, test := range testRegistry.List() {
 		ginkgo.It(test.Name, func() {
+			testNetwork := &Network{uris: uris}
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 		})
 	}
