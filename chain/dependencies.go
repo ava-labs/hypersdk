@@ -65,7 +65,8 @@ type VM interface {
 	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
 	State() (merkledb.MerkleDB, error)
-	StateManager() StateManager
+	BalanceHandler() BalanceHandler
+	MetadataManager() MetadataManager
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
@@ -149,9 +150,9 @@ type Rules interface {
 }
 
 type MetadataManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
+	HeightPrefix() []byte
+	TimestampPrefix() []byte
+	FeePrefix() []byte
 }
 
 type BalanceHandler interface {
@@ -171,17 +172,6 @@ type BalanceHandler interface {
 
 	// AddBalance adds [amount] to [addr].
 	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
-}
-
-// StateManager allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateManager], we may overwrite
-// state written by actions or auth.
-//
-// None of these keys should be suffixed with the max amount of chunks they will
-// use. This will be handled by the hypersdk.
-type StateManager interface {
-	BalanceHandler
-	MetadataManager
 }
 
 type Object interface {

@@ -94,7 +94,8 @@ type VM struct {
 	stateDB               merkledb.MerkleDB
 	vmDB                  database.Database
 	handlers              map[string]http.Handler
-	stateManager          chain.StateManager
+	balanceHandler        chain.BalanceHandler
+	metadataManager       chain.MetadataManager
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
@@ -150,7 +151,8 @@ type VM struct {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
@@ -167,7 +169,8 @@ func New(
 
 	return &VM{
 		v:                     v,
-		stateManager:          stateManager,
+		balanceHandler:        balanceHandler,
+		metadataManager:       metadataManager,
 		config:                NewConfig(),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
@@ -356,7 +359,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.stateManager); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.balanceHandler); err != nil {
 			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
@@ -385,10 +388,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(vm.MetadataManager().HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.MetadataManager().TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.Rules(0)
@@ -398,7 +401,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -880,7 +883,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {
 		return []error{err}
 	}
@@ -917,7 +920,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.stateManager)
+		_, err := tx.StateKeys(vm.balanceHandler)
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -954,7 +957,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.stateManager, r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.balanceHandler, r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}
