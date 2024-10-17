@@ -60,7 +60,7 @@ type chunkStorage[T Tx] struct {
 	// Chunk storage
 	chunkEMap *emap.EMap[emapChunk[T]]
 	// TODO rename slot -> expiry
-	minSlot int64
+	minimumExpiry int64
 	// pendingByte | slot | chunkID -> chunkBytes
 	// acceptedByte | slot | chunkID -> chunkBytes
 	chunkDB database.Database
@@ -88,11 +88,11 @@ func newChunkStorage[T Tx](
 	}
 
 	storage := &chunkStorage[T]{
-		minSlot:   minSlot,
-		chunkEMap: emap.NewEMap[emapChunk[T]](),
-		chunkMap:  make(map[ids.ID]*StoredChunkSignature[T]),
-		chunkDB:   db,
-		verifier:  verifier,
+		minimumExpiry: minSlot,
+		chunkEMap:     emap.NewEMap[emapChunk[T]](),
+		chunkMap:      make(map[ids.ID]*StoredChunkSignature[T]),
+		chunkDB:       db,
+		verifier:      verifier,
 	}
 	return storage, storage.init()
 }
@@ -187,9 +187,9 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.minSlot = updatedMin
+	s.minimumExpiry = updatedMin
 	minSlotBytes := make([]byte, consts.Uint64Len)
-	binary.BigEndian.PutUint64(minSlotBytes, uint64(s.minSlot))
+	binary.BigEndian.PutUint64(minSlotBytes, uint64(s.minimumExpiry))
 	batch := s.chunkDB.NewBatch()
 	if err := batch.Put(minSlotKey, minSlotBytes); err != nil {
 		return fmt.Errorf("failed to update persistent min slot: %w", err)
@@ -243,7 +243,7 @@ func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 // GetChunkBytes returns the corresponding chunk bytes of the requested chunk
 // Both the slot and chunkID must be provided to create the relevant DB key, which
 // includes the slot to create a more sequential DB workload.
-func (s *chunkStorage[T]) GetChunkBytes(slot int64, chunkID ids.ID) ([]byte, error) {
+func (s *chunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -252,15 +252,15 @@ func (s *chunkStorage[T]) GetChunkBytes(slot int64, chunkID ids.ID) ([]byte, err
 		return chunk.Chunk.bytes, nil
 	}
 
-	if slot < s.minSlot { // Chunk can only be in accepted section of the DB
-		chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(slot, chunkID))
+	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB
+		chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
 		}
 		return chunkBytes, nil
 	}
 
-	chunkBytes, err := s.chunkDB.Get(pendingChunkKey(slot, chunkID))
+	chunkBytes, err := s.chunkDB.Get(pendingChunkKey(expiry, chunkID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch chunk bytes for %s: %w", chunkID, err)
 	}

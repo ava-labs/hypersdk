@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,53 +15,26 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 )
 
+// Tests that we can build chunks locally into blocks
+// TODO test chunks from the network
 func TestBuildBlock(t *testing.T) {
 	tests := []struct {
-		name           string
-		chunksPerBlock int
-		chunks         [][]tx
-		wantTxs        []tx
+		name   string
+		chunks [][]tx
 	}{
 		// TODO test empty chunks?
 		{
-			name:           "block not built",
-			chunksPerBlock: 1,
-			chunks:         [][]tx{},
-			wantTxs:        []tx{},
+			name:   "block not built",
+			chunks: [][]tx{},
 		},
 		{
-			name:           "block not built",
-			chunksPerBlock: 2,
+			name: "block built - 1 chunk with 1 tx",
 			chunks: [][]tx{
 				{
 					{
 						ID:     ids.ID{0},
 						Expiry: 0,
 					},
-				},
-			},
-			wantTxs: []tx{
-				{
-					ID:     ids.ID{0},
-					Expiry: 0,
-				},
-			},
-		},
-		{
-			name:           "block built - 1 chunk with 1 tx",
-			chunksPerBlock: 1,
-			chunks: [][]tx{
-				{
-					{
-						ID:     ids.ID{0},
-						Expiry: 0,
-					},
-				},
-			},
-			wantTxs: []tx{
-				{
-					ID:     ids.ID{0},
-					Expiry: 0,
 				},
 			},
 		},
@@ -73,12 +47,14 @@ func TestBuildBlock(t *testing.T) {
 			node, err := New[tx](nil)
 			require.NoError(err)
 
-			for _, chunk := range tt.chunks {
-				require.NoError(node.BuildChunk(chunk))
-			}
+			expiry := time.Now()
+			wantChunks := make([]Chunk[tx], 0)
+			for _, txs := range tt.chunks {
+				chunk, err := node.BuildChunk(txs, expiry)
+				require.NoError(err)
 
-			blk, err := node.NewBlock()
-			require.NoError(err)
+				wantChunks = append(wantChunks, chunk)
+			}
 
 			client := GetChunkClient[tx]{
 				client: p2ptest.NewClient(
@@ -90,23 +66,34 @@ func TestBuildBlock(t *testing.T) {
 				),
 			}
 
+			wg := &sync.WaitGroup{}
+			wg.Add(len(wantChunks))
+
 			gotTxs := make([]tx, 0)
-			for _, chunk := range blk.Chunks {
+			for _, chunk := range wantChunks {
 				require.NoError(client.GetChunk(
 					context.Background(),
 					ids.EmptyNodeID,
-					chunk.ChunkID,
+					chunk.id,
+					expiry,
 					func(ctx context.Context, c Chunk[tx], err error) {
+						defer wg.Done()
+
 						require.NoError(err)
 
-						for _, tx := range c.Txs {
-							gotTxs = append(gotTxs, tx)
-						}
+						gotTxs = append(gotTxs, c.Txs...)
 					},
 				))
 			}
 
-			require.ElementsMatch(tt.wantTxs, gotTxs)
+			wg.Wait()
+
+			wantTxs := make([]tx, 0)
+			for _, txs := range tt.chunks {
+				wantTxs = append(wantTxs, txs...)
+			}
+
+			require.ElementsMatch(wantTxs, gotTxs)
 		})
 	}
 }

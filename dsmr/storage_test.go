@@ -44,7 +44,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	validChunks := make([]Chunk[tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := NewChunk([]tx{
+		chunk, err := newChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
 		}, time.Now())
 		require.NoError(err)
@@ -53,7 +53,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	invalidChunks := make([]Chunk[tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := NewChunk([]tx{
+		chunk, err := newChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
 		}, time.Now())
 		require.NoError(err)
