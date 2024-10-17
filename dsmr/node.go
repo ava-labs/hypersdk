@@ -12,7 +12,6 @@ import (
 
 func New[T Tx](
 	getChunkClient *p2p.Client,
-	txsPerChunk int,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](&NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -41,7 +40,7 @@ type Node[T Tx] struct {
 	chunks chan Chunk[T]
 }
 
-// BuildChunk creates a chunk with the provided txs
+// BuildChunk adds a chunk to the node with the provided transactions
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n Node[T]) BuildChunk(txs []T) error {
