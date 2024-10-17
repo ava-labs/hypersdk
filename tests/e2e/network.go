@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -26,14 +27,7 @@ type Network struct {
 	uris []string
 }
 
-func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
-	// this is the wrong way. for integration, we wante to test the block content directly.
-	// instance, err := n.getInstance(uri)
-	// if err != nil {
-	//		return err
-	//	}
-	// expectBlk(instance)(false)
-
+func (*Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
 	indexerCli := indexer.NewClient(uri)
 	for _, tx := range txs {
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
@@ -47,17 +41,14 @@ func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Trans
 	return nil
 }
 
-func (n *Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
-	/*instance, err := n.getInstance(uri)
-	if err != nil {
-		return err
-	}
+func (*Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
+	c := jsonrpc.NewJSONRPCClient(uri)
 	for _, tx := range txs {
-		_, err := instance.cli.SubmitTx(ctx, tx.Bytes())
+		_, err := c.SubmitTx(ctx, tx.Bytes())
 		if err != nil {
 			return err
 		}
-	}*/
+	}
 	return nil
 }
 
@@ -65,17 +56,6 @@ func (n *Network) URIs() []string {
 	return n.uris
 }
 
-func (n *Network) WorkloadFactory() workload.TxWorkloadFactory {
+func (*Network) WorkloadFactory() workload.TxWorkloadFactory {
 	return txWorkloadFactory
 }
-
-/*
-func (n *Network) getInstance(uri string) (instance, error) {
-	for _, instance := range instances {
-		if instance.routerServer.URL == uri {
-			return instance, nil
-		}
-	}
-	return instance{}, ErrInvalidURI
-}
-*/

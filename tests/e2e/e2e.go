@@ -36,7 +36,6 @@ var (
 	spamKey           *auth.PrivateKey
 	spamHelper        throughput.SpamHelper
 	testRegistry      registry.Registry
-	testNetwork       workload.TestNetwork
 )
 
 func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
@@ -265,8 +264,8 @@ var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 
 	for _, test := range testRegistry.List() {
 		ginkgo.It(test.Name, func() {
-			baseURIs := getE2EBaseURIs(tc)
-			testNetwork := &Network{uris: baseURIs}
+			blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+			testNetwork := &Network{uris: getE2EURIs(tc, blockchainID)}
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 		})
 	}
