@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/generator"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
@@ -41,7 +41,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(txCheckInterval)
 	keys := testVM.GetKeys()
-	generator := workload.NewTxGenerator(keys[0], txCheckInterval)
+	generator := generator.NewSimpleTxGenerator(keys[0], txCheckInterval)
 	spamKey := keys[0].GetPrivateKey()
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)

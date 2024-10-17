@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	morpheusGenerator "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/generator"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -30,7 +30,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(0)
 	keys := testVM.GetKeys()
-	generator := morpheusWorkload.NewTxGenerator(keys[0], txCheckInterval)
+	generator := morpheusGenerator.NewSimpleTxGenerator(keys[0], txCheckInterval)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 

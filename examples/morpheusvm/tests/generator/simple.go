@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package workload
+package generator
 
 import (
 	"context"
@@ -23,21 +23,21 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-var _ workload.TxGenerator = (*simpleTxWorkload)(nil)
+var _ workload.TxGenerator = (*simpleTxGenerator)(nil)
 
-type simpleTxWorkload struct {
+type simpleTxGenerator struct {
 	factory         *auth.ED25519Factory
 	txCheckInterval time.Duration
 }
 
-func NewTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
-	return &simpleTxWorkload{
+func NewSimpleTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
+	return &simpleTxGenerator{
 		factory:         auth.NewED25519Factory(key.PrivKey),
 		txCheckInterval: txCheckInterval,
 	}
 }
 
-func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+func (g *simpleTxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
 	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
