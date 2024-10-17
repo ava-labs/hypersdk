@@ -85,7 +85,7 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 	}, nil
 }
 
-func (f *workloadFactory) GetSpendingKey() (*auth.PrivateKey, error) {
+func (*workloadFactory) GetSpendingKey() (*auth.PrivateKey, error) {
 	return &auth.PrivateKey{
 		Address: ed25519Addrs[0],
 		Bytes:   ed25519PrivKeys[0][:],
