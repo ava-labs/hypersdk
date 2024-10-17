@@ -25,7 +25,7 @@ type TxGenerator interface {
 
 type TxWorkload struct {
 	Generator TxGenerator
-} 
+}
 
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]
@@ -37,7 +37,6 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 	height := startHeight
 	targetheight := startHeight + uint64(blocks)
 
-	
 	for count := 0; count < blocks && height < targetheight; count++ {
 		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
 		require.NoError(err)
@@ -63,7 +62,6 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 		})
 		require.NoError(err)
 	}
-
 }
 
 // GenerateTxs generates transactions using the provided TxGenerator until the generator

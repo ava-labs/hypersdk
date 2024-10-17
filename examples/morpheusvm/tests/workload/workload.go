@@ -23,17 +23,16 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-
 var _ workload.TxGenerator = (*simpleTxWorkload)(nil)
 
 type simpleTxWorkload struct {
-	factory *auth.ED25519Factory
+	factory         *auth.ED25519Factory
 	txCheckInterval time.Duration
 }
 
 func NewTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
 	return &simpleTxWorkload{
-		factory: auth.NewED25519Factory(key.PrivKey),
+		factory:         auth.NewED25519Factory(key.PrivKey),
 		txCheckInterval: txCheckInterval,
 	}
 }
@@ -70,7 +69,6 @@ func (g *simpleTxWorkload) GenerateTx(ctx context.Context, uri string) (*chain.T
 		confirmTx(ctx, require, uri, tx.ID(), aother, 1, g.txCheckInterval)
 	}, nil
 }
-
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64, txCheckInterval time.Duration) {
 	indexerCli := indexer.NewClient(uri)

@@ -69,8 +69,8 @@ var (
 	parser                chain.Parser
 
 	// txWorkloadFactory     workload.TxWorkloadFactory
-	txWorkload  		workload.TxWorkload
-	authFactory           chain.AuthFactory
+	txWorkload  workload.TxWorkload
+	authFactory chain.AuthFactory
 
 	externalSubscriberAcceptedBlocksCh chan ids.ID
 )

@@ -28,12 +28,12 @@ import (
 )
 
 var (
-	vmName            string
-	txWorkload 		  workload.TxWorkload
-	parser            chain.Parser
-	expectedABI       abi.ABI
-	spamKey           *auth.PrivateKey
-	spamHelper        throughput.SpamHelper
+	vmName      string
+	txWorkload  workload.TxWorkload
+	parser      chain.Parser
+	expectedABI abi.ABI
+	spamKey     *auth.PrivateKey
+	spamHelper  throughput.SpamHelper
 )
 
 func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
@@ -104,7 +104,7 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 
 		ginkgo.By("Tx workloads", func() {
-			txWorkload.GenerateBlocks(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), 1);
+			txWorkload.GenerateBlocks(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), 1)
 		})
 
 		ginkgo.By("Confirm accepted blocks indexed", func() {
