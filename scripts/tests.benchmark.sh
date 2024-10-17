@@ -18,6 +18,6 @@ subdir=${1:-.}
 file_args=()
 while IFS= read -r line; do
     file_args+=("$line")
-done < <(find "$subdir" -type f -name "*.go" | grep -v "./examples/" | xargs -n1 dirname | sort -u)
+done < <(find "$subdir" -type f -name "*.go" | grep -v "./examples/" | grep -v "./x" | xargs -n1 dirname | sort -u)
 
 go test -benchmem -run=^$ -timeout="10m" -bench=. -benchtime=1x "${file_args[@]}"
