@@ -88,7 +88,7 @@ type ChunkSignature struct {
 // Receives a chunk, persists it, signs it, and replies w/ a signature
 // Producer sends chunks to peers for replication + collect signatures
 type GetChunkSignatureHandler[T Tx] struct {
-	storage Storage[T]
+	storage *chunkStorage[T]
 }
 
 func (c *GetChunkSignatureHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {

@@ -7,14 +7,23 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/network/p2p"
 )
 
 func New[T Tx](
 	getChunkClient *p2p.Client,
 	txsPerChunk int,
-) *Node[T] {
+) (*Node[T], error) {
+	storage, err := newChunkStorage[T](&NoVerifier[T]{}, memdb.New())
+	if err != nil {
+		return nil, err
+	}
+
 	return &Node[T]{
+		GetChunkSignatureHandler: GetChunkSignatureHandler[T]{
+			storage: storage,
+		},
 		client: GetChunkClient[T]{
 			client: getChunkClient,
 		},
@@ -22,7 +31,7 @@ func New[T Tx](
 			threshold: txsPerChunk,
 		},
 		chunks: make(chan Chunk[T], 1),
-	}
+	}, nil
 }
 
 type Node[T Tx] struct {
@@ -37,7 +46,7 @@ type Node[T Tx] struct {
 	chunks chan Chunk[T]
 }
 
-func (n Node[_]) Run(ctx context.Context) error {
+func (n Node[_]) BuildCert(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -68,7 +77,9 @@ func (n Node[T]) AddTx(tx T) error {
 
 // NewBlock TODO should we quiesce
 func (n Node[T]) NewBlock() (Block, error) {
-	return Block{}, nil
+	return Block{
+		Chunks: n.storage.GatherChunkCerts(),
+	}, nil
 }
 
 // consumes chunks and aggregates signtures to generate chunk certs
