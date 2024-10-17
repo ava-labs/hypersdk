@@ -41,8 +41,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(txCheckInterval)
 	keys := testVM.GetKeys()
-	generator, err := generator.NewMultiAuthTxGenerator(keys[0], txCheckInterval)
-	require.NoError(err)
+	generator := generator.NewSimpleTxGenerator(keys[0], txCheckInterval)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())

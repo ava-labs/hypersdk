@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -18,17 +20,15 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/stretchr/testify/require"
 )
 
 var _ workload.TxGenerator = (*multiAuthTxGenerator)(nil)
 
-
 type multiAuthTxGenerator struct {
-	txCheckInterval time.Duration
+	txCheckInterval     time.Duration
 	addressAndFactories []addressAndFactory
 	balance             uint64
-	count 			 int
+	count               int
 }
 
 func NewMultiAuthTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) (workload.TxGenerator, error) {
@@ -55,9 +55,9 @@ func NewMultiAuthTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.D
 	}
 
 	return &multiAuthTxGenerator{
-		txCheckInterval: txCheckInterval,
+		txCheckInterval:     txCheckInterval,
 		addressAndFactories: factories,
-		balance: fixture.InitialBalance,
+		balance:             fixture.InitialBalance,
 	}, nil
 }
 
