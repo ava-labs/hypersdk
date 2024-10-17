@@ -27,26 +27,44 @@ import (
 func TestBuildBlock(t *testing.T) {
 	tests := []struct {
 		name           string
-		txsPerChunk    int
 		chunksPerBlock int
-		txs            []tx
+		chunks         [][]tx
 		wantTxs        []tx
 	}{
+		// TODO test empty chunks?
 		{
 			name:           "block not built",
-			txsPerChunk:    1,
 			chunksPerBlock: 1,
-			txs:            []tx{},
+			chunks:         [][]tx{},
 			wantTxs:        []tx{},
 		},
 		{
-			name:           "block built - 1 chunk with 1 tx",
-			txsPerChunk:    1,
-			chunksPerBlock: 1,
-			txs: []tx{
+			name:           "block not built",
+			chunksPerBlock: 2,
+			chunks: [][]tx{
+				{
+					{
+						ID:     ids.ID{0},
+						Expiry: 0,
+					},
+				},
+			},
+			wantTxs: []tx{
 				{
 					ID:     ids.ID{0},
 					Expiry: 0,
+				},
+			},
+		},
+		{
+			name:           "block built - 1 chunk with 1 tx",
+			chunksPerBlock: 1,
+			chunks: [][]tx{
+				{
+					{
+						ID:     ids.ID{0},
+						Expiry: 0,
+					},
 				},
 			},
 			wantTxs: []tx{
@@ -62,10 +80,12 @@ func TestBuildBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 
-			node, err := New[tx](nil, tt.txsPerChunk)
+			node, err := New[tx](nil)
 			require.NoError(err)
 
-			require.NoError(node.BuildChunk(tt.txs))
+			for _, chunk := range tt.chunks {
+				require.NoError(node.BuildChunk(chunk))
+			}
 
 			blk, err := node.NewBlock()
 			require.NoError(err)
