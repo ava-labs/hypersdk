@@ -59,7 +59,6 @@ var (
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
-	testNetwork          workload.TestNetwork
 	testRegistry         registry.Registry
 
 	networkID uint32
@@ -118,8 +117,6 @@ func Setup(
 	createdParser, err := createParserFromBytes(genesisBytes)
 	require.NoError(err)
 	parser = createdParser
-
-	// find all callers named NetworkTest...(signature)
 
 	setInstances()
 }
@@ -274,8 +271,6 @@ func setInstances() {
 	for i, inst := range instances {
 		uris[i] = inst.routerServer.URL
 	}
-
-	testNetwork = &Network{uris: uris}
 
 	blocks = []snowman.Block{}
 
@@ -662,6 +657,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	require := require.New(ginkgo.GinkgoT())
+	testNetwork := &Network{uris: uris}
+
 	for _, test := range testRegistry.List() {
 		ginkgo.It(test.Name, func() {
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)

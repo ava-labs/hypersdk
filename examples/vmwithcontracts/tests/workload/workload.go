@@ -85,6 +85,13 @@ func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory
 	}, nil
 }
 
+func (f *workloadFactory) GetSpendingKey() (*auth.PrivateKey, error) {
+	return &auth.PrivateKey{
+		Address: ed25519Addrs[0],
+		Bytes:   ed25519PrivKeys[0][:],
+	}, nil
+}
+
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
