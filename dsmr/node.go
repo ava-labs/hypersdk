@@ -4,8 +4,7 @@
 package dsmr
 
 import (
-	"context"
-	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -27,9 +26,6 @@ func New[T Tx](
 		client: GetChunkClient[T]{
 			client: getChunkClient,
 		},
-		chunkBuilder: chunkBuilder[T]{
-			threshold: txsPerChunk,
-		},
 		chunks: make(chan Chunk[T], 1),
 	}, nil
 }
@@ -39,40 +35,27 @@ type Node[T Tx] struct {
 	GetChunkSignatureHandler[T]
 	//TODO chunk handler
 	client           GetChunkClient[T]
-	chunkBuilder     chunkBuilder[T]
 	chunkCertBuilder chunkCertBuilder[T]
 	blockBuilder     blockBuilder[T]
 
 	chunks chan Chunk[T]
 }
 
-func (n Node[_]) BuildCert(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case chunk := <-n.chunks:
-			_, err := n.chunkCertBuilder.NewCert(chunk)
-			if err != nil {
-				return fmt.Errorf("failed to generate chunk cert: %w", err)
-			}
-
-			//TODO aggregate chunk cert
-		}
-	}
-}
-
+// BuildChunk creates a chunk with the provided txs
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
-// Caller is assumed to de-dup transactions?
-func (n Node[T]) AddTx(tx T) error {
-	chunk, err := n.chunkBuilder.Add(tx, 0)
+func (n Node[T]) BuildChunk(txs []T) error {
+	chunk, err := NewChunk[T](txs, time.Now())
 	if err != nil {
-		return err
+		return nil
 	}
 
-	n.chunks <- chunk
-	return nil
+	cert := &ChunkCertificate{
+		ChunkID:   chunk.id,
+		Expiry:    chunk.Expiry,
+		Signature: NoVerifyChunkSignature{},
+	}
+	return n.storage.AddLocalChunkWithCert(chunk, cert)
 }
 
 // NewBlock TODO should we quiesce

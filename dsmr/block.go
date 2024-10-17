@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	avautils "github.com/ava-labs/avalanchego/utils"
@@ -33,10 +34,10 @@ type Chunk[T Tx] struct {
 	id    ids.ID
 }
 
-func NewChunk[T Tx](txs []T, expiry int64) (Chunk[T], error) {
+func NewChunk[T Tx](txs []T, expiry time.Time) (Chunk[T], error) {
 	c := Chunk[T]{
 		Txs:    txs,
-		Expiry: expiry,
+		Expiry: expiry.Unix(),
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
