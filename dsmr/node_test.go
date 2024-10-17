@@ -25,8 +25,6 @@ import (
 // (txsPerChunk=1, chunksPerBlock=2, peer respond) Read tx -> block not built
 // (txsPerChunk=1, chunksPerBlock=2, peer no respond) Read tx -> block not built
 func TestBuildBlock(t *testing.T) {
-	t.Skip()
-
 	tests := []struct {
 		name           string
 		txsPerChunk    int
@@ -35,7 +33,14 @@ func TestBuildBlock(t *testing.T) {
 		wantTxs        []tx
 	}{
 		{
-			name:           "block built - 1 chunk",
+			name:           "block not built",
+			txsPerChunk:    1,
+			chunksPerBlock: 1,
+			txs:            []tx{},
+			wantTxs:        []tx{},
+		},
+		{
+			name:           "block built - 1 chunk with 1 tx",
 			txsPerChunk:    1,
 			chunksPerBlock: 1,
 			txs: []tx{
@@ -60,16 +65,7 @@ func TestBuildBlock(t *testing.T) {
 			node, err := New[tx](nil, tt.txsPerChunk)
 			require.NoError(err)
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			go func() {
-				require.NoError(node.BuildCert(ctx))
-			}()
-
-			for _, tx := range tt.txs {
-				require.NoError(node.AddTx(tx))
-			}
+			require.NoError(node.BuildChunk(tt.txs))
 
 			blk, err := node.NewBlock()
 			require.NoError(err)

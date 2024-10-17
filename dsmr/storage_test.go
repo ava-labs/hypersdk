@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -45,7 +46,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
 		chunk, err := NewChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
-		}, int64(i))
+		}, time.Now())
 		require.NoError(err)
 		validChunks = append(validChunks, chunk)
 	}
@@ -54,7 +55,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
 		chunk, err := NewChunk([]tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
-		}, int64(i))
+		}, time.Now())
 		require.NoError(err)
 		invalidChunks = append(invalidChunks, chunk)
 	}
