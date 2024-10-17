@@ -24,11 +24,11 @@ type chunkBuilder[T Tx] struct {
 // TODO why error?
 // TODO does not perform verification and assumes mempool is responsible for
 // verifying tx
-func (c *chunkBuilder[T]) Add(tx T, slot int64) (Chunk[T], error) {
+func (c *chunkBuilder[T]) Add(tx T, expiry int64) (Chunk[T], error) {
 	c.txs = append(c.txs, tx)
 
 	if len(c.txs) == c.threshold {
-		chunk, err := NewChunk[T](c.txs, slot)
+		chunk, err := NewChunk[T](c.txs, expiry)
 		c.txs = c.txs[:0]
 
 		return chunk, err

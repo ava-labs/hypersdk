@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
+// TODO test through p2p client
 var errInvalidTestItem = errors.New("invalid test item")
 
 var _ Verifier[Tx] = testVerifier[Tx]{}
@@ -33,10 +34,10 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*Storage[tx],
+	*chunkStorage[tx],
 	[]Chunk[tx],
 	[]Chunk[tx],
-	func() *Storage[tx],
+	func() *chunkStorage[tx],
 ) {
 	require := require.New(t)
 
@@ -68,18 +69,18 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	}
 
 	testVerifier := testVerifier[tx]{correctIDs: set.Of(validChunkIDs...)}
-	storage, err := NewStorage[tx](
+	storage, err := newChunkStorage[tx](
 		testVerifier,
 		db,
 	)
 	require.NoError(err)
 
-	restart := func() *Storage[tx] {
+	restart := func() *chunkStorage[tx] {
 		require.NoError(db.Close())
 		db, _, err = pebble.New(tempDir, pebble.NewDefaultConfig())
 		require.NoError(err)
 
-		storage, err := NewStorage[tx](
+		storage, err := newChunkStorage[tx](
 			testVerifier,
 			db,
 		)
@@ -284,7 +285,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].id,
 	}))
 
-	confirmChunkStorage := func(storage *Storage[tx]) {
+	confirmChunkStorage := func(storage *chunkStorage[tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
 		for i, expectedChunk := range []Chunk[tx]{
 			validChunks[0],
