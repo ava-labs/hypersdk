@@ -68,12 +68,12 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 // can no longer generate transactions
 // ClientUri is the uri of the client that will generate the transactions
 // ConfirmUris is a list of uris to confirm the transactions
-func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, amount int, clientUri string, confirmUris []string) {
+func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, amount int, clientURI string, confirmUris []string) {
 	// TODO: why do we only use the first uri for submitting transactions when it differs from the confirmUris?
 	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
 
 	for i := 0; i < amount; i++ {
-		tx, confirm, err := w.Generator.GenerateTx(ctx, clientUri)
+		tx, confirm, err := w.Generator.GenerateTx(ctx, clientURI)
 		require.NoError(err)
 
 		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
