@@ -4,22 +4,20 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/tests/fixture"
-
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/require"
 )
 
 const owner = "morpheusvm-e2e-tests"
@@ -38,12 +36,13 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, spamKey, err := workload.New(100 /* minBlockGap: 100ms */)
+	txCheckInterval := 100 * time.Millisecond
+	testVM := fixture.NewTestVM(txCheckInterval)
+	keys := testVM.GetKeys()
+	generator := workload.NewTxGenerator(keys[0], txCheckInterval)
+	spamKey := keys[0].GetPrivateKey()
+	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
-
-	genesisBytes, err := json.Marshal(gen)
-	require.NoError(err)
-
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
@@ -57,7 +56,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper, spamKey)
+	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
