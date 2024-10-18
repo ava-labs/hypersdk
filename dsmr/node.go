@@ -9,11 +9,13 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
 func New[T Tx](
 	nodeID ids.NodeID,
+	sk *bls.SecretKey,
 	beneficiary codec.Address,
 	getChunkClient *p2p.Client,
 ) (*Node[T], error) {
@@ -24,6 +26,8 @@ func New[T Tx](
 
 	return &Node[T]{
 		nodeID:      nodeID,
+		sk:          sk,
+		pk:          bls.PublicFromSecretKey(sk),
 		beneficiary: beneficiary,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
@@ -35,12 +39,14 @@ func New[T Tx](
 			client: getChunkClient,
 		},
 		storage: storage,
-		chunks:  make(chan Chunk[T], 1),
 	}, nil
 }
 
 type Node[T Tx] struct {
+	//TODO cleanup struct
 	nodeID                   ids.NodeID
+	sk                       *bls.SecretKey
+	pk                       *bls.PublicKey
 	beneficiary              codec.Address
 	GetChunkHandler          *GetChunkHandler[T]
 	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
@@ -48,16 +54,14 @@ type Node[T Tx] struct {
 	//TODO chunk handler
 	client           GetChunkClient[T]
 	chunkCertBuilder chunkCertBuilder[T]
-	blockBuilder     blockBuilder[T]
 	storage          *chunkStorage[T]
-
-	chunks chan Chunk[T]
 }
 
 // BuildChunk adds a chunk to the node with the provided transactions
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
+	// TODO aggregate signatures + gossip
 	chunk, err := newChunk[T](
 		n.nodeID,
 		txs,
@@ -94,12 +98,4 @@ type chunkCertBuilder[T Tx] struct {
 // TODO implement
 func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) {
 	return ChunkCertificate{}, nil
-}
-
-// TODO can this share impl w/ chunkBuilder?
-type blockBuilder[T Tx] struct{}
-
-// Add returns if a block was built
-func (b *blockBuilder[T]) Add(chunk ChunkCertificate) (Block, bool) {
-	return Block{}, true
 }
