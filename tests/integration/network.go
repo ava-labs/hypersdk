@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -54,7 +55,6 @@ func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Trans
 		case <-time.NewTimer(txCheckInterval).C:
 			// try again
 		}
-
 	}
 }
 
@@ -70,7 +70,7 @@ func (n *Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transa
 	return errs[0]
 }
 
-func (n *Network) confirmTx(ctx context.Context, instance instance, txid ids.ID) error {
+func (*Network) confirmTx(ctx context.Context, instance instance, txid ids.ID) error {
 	lastAcceptedHeight, err := instance.vm.GetLastAcceptedHeight()
 	if err != nil {
 		return err
