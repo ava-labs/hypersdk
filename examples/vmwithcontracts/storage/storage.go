@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/metadata"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
@@ -23,36 +24,26 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // State
 // / (height) => store in root
 //   -> [heightPrefix] => height
-// 0x0/ (balance)
+// 0x0/ (hypersdk-height)
+// 0x1/ (hypersdk-timestamp)
+// 0x2/ (hypersdk-fee)
+// 0x3/ (balance)
 //   -> [owner] => balance
-// 0x1/ (hypersdk-height)
-// 0x2/ (hypersdk-timestamp)
-// 0x3/ (hypersdk-fee)
 // 0x4/ (account-storage)
 // 0x4/address/0x1 (address associated contract)
 // 0x4/address/0x1 (address associated state)
 // 0x5/ (contracts-storage)
 
 const (
-	// Active state
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
-	accountsPrefix  = 0x4
-	contractsPrefix = 0x5
+	balancePrefix byte = metadata.DefaultMinimumPrefix + iota
+	accountsPrefix
+	contractsPrefix
 
 	accountContractPrefix = 0x0
 	accountStatePrefix    = 0x1
 )
 
 const BalanceChunks uint16 = 1
-
-var (
-	heightKey    = []byte{heightPrefix}
-	timestampKey = []byte{timestampPrefix}
-	feeKey       = []byte{feePrefix}
-)
 
 // [balancePrefix] + [address]
 func BalanceKey(addr codec.Address) (k []byte) {
@@ -189,16 +180,4 @@ func SubBalance(
 		return 0, mu.Remove(ctx, key)
 	}
 	return nbal, setBalance(ctx, mu, key, nbal)
-}
-
-func HeightKey() (k []byte) {
-	return heightKey
-}
-
-func TimestampKey() (k []byte) {
-	return timestampKey
-}
-
-func FeeKey() (k []byte) {
-	return feeKey
 }

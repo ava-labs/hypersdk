@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
@@ -116,10 +115,6 @@ func (*Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 
 func (*Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
 	return AuthParser
-}
-
-func (*Parser) StateManager() chain.StateManager {
-	return &storage.StateManager{}
 }
 
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
