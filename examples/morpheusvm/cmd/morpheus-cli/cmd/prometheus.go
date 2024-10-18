@@ -17,7 +17,7 @@ var prometheusCmd = &cobra.Command{
 
 var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().GeneratePrometheus(prometheusBaseURI, prometheusOpenBrowser, startPrometheus, prometheusFile, prometheusData)
 	},
 }
