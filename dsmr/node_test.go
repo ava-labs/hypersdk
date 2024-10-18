@@ -15,9 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 )
 
-// Tests that we can build chunks locally into blocks
-// TODO test chunks from the network
-func TestBuildBlock(t *testing.T) {
+func TestGetChunk(t *testing.T) {
 	tests := []struct {
 		name   string
 		chunks [][]tx
@@ -69,6 +67,7 @@ func TestBuildBlock(t *testing.T) {
 			wg := &sync.WaitGroup{}
 			wg.Add(len(wantChunks))
 
+			//TODO check chunks instead of just txs?
 			gotTxs := make([]tx, 0)
 			for _, chunk := range wantChunks {
 				require.NoError(client.GetChunk(

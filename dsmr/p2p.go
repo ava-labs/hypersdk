@@ -47,13 +47,12 @@ func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, 
 		panic(err)
 	}
 
-	p := wrappers.Packer{Bytes: chunkBytes, MaxSize: consts.NetworkSizeLimit}
-	chunk := Chunk[T]{}
-	if err := codec.LinearCodec.MarshalInto(&chunk, &p); err != nil {
+	chunk, err := ParseChunk[T](chunkBytes)
+	if err != nil {
 		panic(err)
 	}
 
-	txs := make([]*dsmr.Transaction, len(chunk.Txs))
+	txs := make([]*dsmr.Transaction, 0, len(chunk.Txs))
 	for _, tx := range chunk.Txs {
 		packer := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
 		if err := codec.LinearCodec.MarshalInto(tx, packer); err != nil {
