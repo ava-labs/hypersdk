@@ -40,12 +40,9 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 	for count := 0; count < blocks && height < targetheight; count++ {
 		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
 		require.NoError(err)
-
 		_, err = client.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
-
 		confirm(ctx, require, uri)
-
 		_, acceptedHeight, _, err := client.Accepted(ctx)
 		require.NoError(err)
 		height = acceptedHeight

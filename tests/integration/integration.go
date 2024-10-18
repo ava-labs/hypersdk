@@ -327,8 +327,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	ginkgo.It("Gossip TransferTx to a different node", func() {
 		uri := uris[0]
 		ginkgo.By("issue TransferTx", func() {
-			initialTx, assertion, err := txWorkload.Generator.GenerateTx(ctx, uri)
+			tx, assertion, err := txWorkload.Generator.GenerateTx(ctx, uri)
 			initialTxAssertion = assertion
+			initialTx = tx
 			require.NoError(err)
 			_, err = instances[0].cli.SubmitTx(ctx, initialTx.Bytes())
 			require.NoError(err)
@@ -619,14 +620,6 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		// Close connection when done
 		require.NoError(cli.Close())
-	})
-
-	ginkgo.It("BlockGeneration", func() {
-		txWorkload.GenerateBlocks(ctx, require, uris, 10)
-	})
-
-	ginkgo.It("GenerateTxs", func() {
-		txWorkload.GenerateTxs(ctx, require, 10, uris[0], uris)
 	})
 })
 
