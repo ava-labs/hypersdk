@@ -6,6 +6,9 @@ package runtime
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -38,12 +41,30 @@ func (t TestStateManager) GetContractBytes(_ context.Context, contractID Contrac
 	return contractBytes, nil
 }
 
+func compileContract(contractName string) ([]byte, error) {
+	if err := test.CompileTest(contractName); err != nil {
+		return nil, err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	contractName = strings.ReplaceAll(contractName, "-", "_")
+	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
+	if err != nil {
+		return nil, err
+	}
+
+	return contractBytes, nil
+}
+
 func (t TestStateManager) SetContractBytes(contractID ContractID, contractBytes []byte) {
 	t.ContractsMap[string(contractID)] = contractBytes
 }
 
 func (t TestStateManager) CompileAndSetContract(contractID ContractID, contractName string) error {
-	contractBytes, err := test.CompileContract(contractName)
+	contractBytes, err := compileContract(contractName)
 	if err != nil {
 		return err
 	}
