@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -161,6 +162,8 @@ func (t *Transaction) Bytes() []byte { return t.bytes }
 func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) ID() ids.ID { return t.id }
+
+func (t *Transaction) SetID(id ids.ID) { t.id = id }
 
 func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
@@ -357,6 +360,92 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 	return t.marshal(p)
+}
+
+func (t *Transaction) MarshalJSON() ([]byte, error) {
+	type txJSON struct {
+		ID      ids.ID `json:"id"`
+		Actions []byte `json:"actions"`
+		Auth    []byte `json:"auth"`
+	}
+
+	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err := t.Actions.marshalInto(actionsPacker)
+	if err != nil {
+		return nil, err
+	}
+	if err := actionsPacker.Err(); err != nil {
+		return nil, err
+	}
+	authPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	authPacker.PackByte(t.Auth.GetTypeID())
+	t.Auth.Marshal(authPacker)
+	if err := authPacker.Err(); err != nil {
+		return nil, err
+	}
+
+	hexActions, err := codec.Bytes(actionsPacker.Bytes()).MarshalText()
+	if err != nil {
+		return nil, err
+	}
+	hexAuth, err := codec.Bytes(authPacker.Bytes()).MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(txJSON{
+		ID:      t.ID(),
+		Actions: hexActions,
+		Auth:    hexAuth,
+	})
+}
+
+func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
+	type txJSON struct {
+		ID      ids.ID `json:"id"`
+		Actions []byte `json:"actions"`
+		Auth    []byte `json:"auth"`
+	}
+
+	var tx txJSON
+	err := json.Unmarshal(data, &tx)
+	if err != nil {
+		return err
+	}
+
+	var actionsBytes, authBytes codec.Bytes
+	err = actionsBytes.UnmarshalText(tx.Actions)
+	if err != nil {
+		return fmt.Errorf("%w: cannot unmarshal actions text", err)
+	}
+	err = authBytes.UnmarshalText(tx.Auth)
+	if err != nil {
+		return fmt.Errorf("%w: cannot unmarshal auth text", err)
+	}
+
+	actionsReader := codec.NewReader(actionsBytes, consts.NetworkSizeLimit)
+	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
+	if err != nil {
+		return err
+	}
+	if err := actionsReader.Err(); err != nil {
+		return fmt.Errorf("%w: actions packer", err)
+	}
+	authReader := codec.NewReader(authBytes, consts.NetworkSizeLimit)
+	auth, err := parser.AuthCodec().Unmarshal(authReader)
+	if err != nil {
+		return fmt.Errorf("%w: cannot unmarshal auth", err)
+	}
+	if err := authReader.Err(); err != nil {
+		return fmt.Errorf("%w: auth packer", err)
+	}
+
+	t.id = tx.ID
+	t.TransactionData = TransactionData{
+		Actions: actions,
+	}
+	t.Auth = auth
+	return nil
 }
 
 func (t *Transaction) marshal(p *codec.Packer) error {
