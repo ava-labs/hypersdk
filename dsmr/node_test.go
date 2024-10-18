@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 func TestGetChunk(t *testing.T) {
@@ -20,18 +21,100 @@ func TestGetChunk(t *testing.T) {
 		name   string
 		chunks [][]tx
 	}{
-		// TODO test empty chunks?
 		{
-			name:   "block not built",
+			name:   "no chunks",
 			chunks: [][]tx{},
 		},
 		{
-			name: "block built - 1 chunk with 1 tx",
+			name: "1 chunk with 1 tx",
 			chunks: [][]tx{
 				{
 					{
 						ID:     ids.ID{0},
 						Expiry: 0,
+					},
+				},
+			},
+		},
+		{
+			name: "1 chunk with 3 txs",
+			chunks: [][]tx{
+				{
+					{
+						ID:     ids.ID{0},
+						Expiry: 0,
+					},
+					{
+						ID:     ids.ID{1},
+						Expiry: 1,
+					},
+					{
+						ID:     ids.ID{2},
+						Expiry: 2,
+					},
+				},
+			},
+		},
+		{
+			name: "3 chunks with 1 tx",
+			chunks: [][]tx{
+				{
+					{
+						ID:     ids.ID{0},
+						Expiry: 0,
+					},
+				},
+				{
+					{
+						ID:     ids.ID{1},
+						Expiry: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "3 chunks with 3 txs",
+			chunks: [][]tx{
+				{
+					{
+						ID:     ids.ID{0},
+						Expiry: 0,
+					},
+					{
+						ID:     ids.ID{1},
+						Expiry: 1,
+					},
+					{
+						ID:     ids.ID{2},
+						Expiry: 2,
+					},
+				},
+				{
+					{
+						ID:     ids.ID{3},
+						Expiry: 3,
+					},
+					{
+						ID:     ids.ID{4},
+						Expiry: 4,
+					},
+					{
+						ID:     ids.ID{5},
+						Expiry: 5,
+					},
+				},
+				{
+					{
+						ID:     ids.ID{6},
+						Expiry: 6,
+					},
+					{
+						ID:     ids.ID{7},
+						Expiry: 7,
+					},
+					{
+						ID:     ids.ID{8},
+						Expiry: 8,
 					},
 				},
 			},
@@ -42,7 +125,10 @@ func TestGetChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 
-			node, err := New[tx](nil)
+			nodeID := ids.GenerateTestNodeID()
+			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
+
+			node, err := New[tx](nodeID, beneficiary, nil)
 			require.NoError(err)
 
 			expiry := time.Now()
@@ -67,8 +153,7 @@ func TestGetChunk(t *testing.T) {
 			wg := &sync.WaitGroup{}
 			wg.Add(len(wantChunks))
 
-			//TODO check chunks instead of just txs?
-			gotTxs := make([]tx, 0)
+			gotChunks := make(map[ids.ID]Chunk[tx], 0)
 			for _, chunk := range wantChunks {
 				require.NoError(client.GetChunk(
 					context.Background(),
@@ -80,19 +165,22 @@ func TestGetChunk(t *testing.T) {
 
 						require.NoError(err)
 
-						gotTxs = append(gotTxs, c.Txs...)
+						gotChunks[c.id] = c
 					},
 				))
 			}
 
 			wg.Wait()
 
-			wantTxs := make([]tx, 0)
-			for _, txs := range tt.chunks {
-				wantTxs = append(wantTxs, txs...)
-			}
+			for _, chunk := range wantChunks {
+				require.Contains(gotChunks, chunk.id)
 
-			require.ElementsMatch(wantTxs, gotTxs)
+				gotChunk := gotChunks[chunk.id]
+				require.Equal(nodeID, gotChunk.Producer)
+				require.Equal(chunk.Expiry, gotChunk.Expiry)
+				require.Equal(beneficiary, gotChunk.Beneficiary)
+				require.ElementsMatch(chunk.Txs, gotChunk.Txs)
+			}
 		})
 	}
 }
