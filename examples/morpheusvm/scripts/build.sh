@@ -19,4 +19,10 @@ MORPHEUSVM_PATH=$(
   cd .. && pwd
 )
 
+# if there's exactly one argument use it as the output path to go build 
+if [[ $# -eq 1 ]]; then
+  go build -o "$1" ./cmd/morpheusvm
+  exit 0
+fi
+
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
