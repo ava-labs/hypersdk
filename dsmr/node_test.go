@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -127,8 +128,10 @@ func TestGetChunk(t *testing.T) {
 
 			nodeID := ids.GenerateTestNodeID()
 			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
+			sk, err := bls.NewSecretKey()
+			require.NoError(err)
 
-			node, err := New[tx](nodeID, beneficiary, nil)
+			node, err := New[tx](nodeID, sk, beneficiary, nil)
 			require.NoError(err)
 
 			expiry := time.Now()
@@ -180,6 +183,7 @@ func TestGetChunk(t *testing.T) {
 				require.Equal(chunk.Expiry, gotChunk.Expiry)
 				require.Equal(beneficiary, gotChunk.Beneficiary)
 				require.ElementsMatch(chunk.Txs, gotChunk.Txs)
+				//TODO check signature + aggregate public key
 			}
 		})
 	}
