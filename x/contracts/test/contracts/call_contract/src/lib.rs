@@ -26,6 +26,11 @@ pub fn actor_check_external(ctx: &mut Context, target: Address, max_units: Gas) 
 }
 
 #[public]
+pub fn value_check(context: &mut Context) -> u64 {
+    context.value()
+}
+
+#[public]
 pub fn call_with_param(_: &mut Context, value: i64) -> i64 {
     value
 }
