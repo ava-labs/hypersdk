@@ -34,10 +34,21 @@ type Chunk[T Tx] struct {
 	id    ids.ID
 }
 
-func newChunk[T Tx](txs []T, expiry time.Time) (Chunk[T], error) {
+func newChunk[T Tx](
+	producer ids.NodeID,
+	txs []T,
+	expiry time.Time,
+	beneficiary codec.Address,
+	signer [bls.PublicKeyLen]byte,
+	signature [bls.SignatureLen]byte,
+) (Chunk[T], error) {
 	c := Chunk[T]{
-		Txs:    txs,
-		Expiry: expiry.Unix(),
+		Producer:    producer,
+		Expiry:      expiry.Unix(),
+		Beneficiary: beneficiary,
+		Txs:         txs,
+		Signer:      signer,
+		Signature:   signature,
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
@@ -81,21 +92,19 @@ func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 		txs = append(txs, parsed)
 	}
 
-	c := Chunk[T]{
-		Producer:    producer,
-		Expiry:      chunkProto.Expiry,
-		Beneficiary: beneficiary,
-		Txs:         txs,
-		Signer:      [48]byte{},
-		Signature:   [96]byte{},
-		bytes:       nil,
-		id:          ids.ID{},
-	}
+	signer := [bls.PublicKeyLen]byte{}
+	signature := [bls.SignatureLen]byte{}
+	copy(signer[:], chunkProto.Signer)
+	copy(signature[:], chunkProto.Signature)
 
-	copy(c.Signer[:], chunkProto.Signer)
-	copy(c.Signature[:], chunkProto.Signature)
-
-	return c, nil
+	return newChunk[T](
+		producer,
+		txs,
+		time.Unix(chunkProto.Expiry, 0),
+		beneficiary,
+		signer,
+		signature,
+	)
 }
 
 // TODO implement

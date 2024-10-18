@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
@@ -44,18 +45,18 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	validChunks := make([]Chunk[tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newChunk([]tx{
+		chunk, err := newChunk(ids.EmptyNodeID, []tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
-		}, time.Now())
+		}, time.Now(), codec.Address{}, [48]byte{}, [96]byte{})
 		require.NoError(err)
 		validChunks = append(validChunks, chunk)
 	}
 
 	invalidChunks := make([]Chunk[tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newChunk([]tx{
+		chunk, err := newChunk(ids.EmptyNodeID, []tx{
 			{ID: ids.GenerateTestID(), Expiry: 1_000_000},
-		}, time.Now())
+		}, time.Now(), codec.Address{}, [48]byte{}, [96]byte{})
 		require.NoError(err)
 		invalidChunks = append(invalidChunks, chunk)
 	}

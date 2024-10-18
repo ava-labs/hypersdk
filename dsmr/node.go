@@ -7,16 +7,24 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
-func New[T Tx](getChunkClient *p2p.Client) (*Node[T], error) {
+func New[T Tx](
+	nodeID ids.NodeID,
+	beneficiary codec.Address,
+	getChunkClient *p2p.Client,
+) (*Node[T], error) {
 	storage, err := newChunkStorage[T](&NoVerifier[T]{}, memdb.New())
 	if err != nil {
 		return nil, err
 	}
 
 	return &Node[T]{
+		nodeID:      nodeID,
+		beneficiary: beneficiary,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
@@ -32,6 +40,8 @@ func New[T Tx](getChunkClient *p2p.Client) (*Node[T], error) {
 }
 
 type Node[T Tx] struct {
+	nodeID                   ids.NodeID
+	beneficiary              codec.Address
 	GetChunkHandler          *GetChunkHandler[T]
 	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
 
@@ -48,7 +58,14 @@ type Node[T Tx] struct {
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
-	chunk, err := newChunk[T](txs, expiry)
+	chunk, err := newChunk[T](
+		n.nodeID,
+		txs,
+		expiry,
+		n.beneficiary,
+		[48]byte{},
+		[96]byte{},
+	)
 	if err != nil {
 		return Chunk[T]{}, nil
 	}
