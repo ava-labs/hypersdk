@@ -70,11 +70,11 @@ func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 		return Chunk[T]{}, err
 	}
 
-	txs := make([]T, len(chunkProto.Transactions))
+	txs := make([]T, 0, len(chunkProto.Transactions))
 	for _, tx := range chunkProto.Transactions {
 		parsed := avautils.Zero[T]()
 		packer := &wrappers.Packer{Bytes: tx.Bytes, MaxSize: consts.NetworkSizeLimit}
-		if err := codec.LinearCodec.UnmarshalFrom(packer, parsed); err != nil {
+		if err := codec.LinearCodec.UnmarshalFrom(packer, &parsed); err != nil {
 			return Chunk[T]{}, err
 		}
 
