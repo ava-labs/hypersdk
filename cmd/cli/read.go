@@ -127,45 +127,54 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to marshal action: %w", err)
 		}
 
-		results, err := client.ExecuteActions(context.Background(), sender, [][]byte{actionBytes})
-		if err != nil {
-			return fmt.Errorf("failed to execute actions: %w", err)
-		}
-
-		if len(results) == 0 {
-			return fmt.Errorf("no results returned from action execution")
-		}
-
-		resultJSON, err := dynamic.UnmarshalOutput(abi, results[0])
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal result: %w", err)
-		}
-
+		results, executeErr := client.ExecuteActions(context.Background(), sender, [][]byte{actionBytes})
 		var resultStruct map[string]interface{}
-		err = json.Unmarshal([]byte(resultJSON), &resultStruct)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal result JSON: %w", err)
+
+		if len(results) == 1 {
+			resultJSON, err := dynamic.UnmarshalOutput(abi, results[0])
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal result: %w", err)
+			}
+
+			err = json.Unmarshal([]byte(resultJSON), &resultStruct)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal result JSON: %w", err)
+			}
+		}
+
+		errorString := ""
+		if executeErr != nil {
+			errorString = executeErr.Error()
 		}
 
 		return printValue(cmd, readResponse{
-			Result: resultStruct,
+			Result:  resultStruct,
+			Success: executeErr == nil,
+			Error:   errorString,
 		})
 	},
 }
 
 type readResponse struct {
-	Result map[string]interface{} `json:"result"`
+	Result  map[string]interface{} `json:"result"`
+	Success bool                   `json:"success"`
+	Error   string                 `json:"error"`
 }
 
 func (r readResponse) String() string {
 	var result strings.Builder
-	for key, value := range r.Result {
-		jsonValue, err := json.Marshal(value)
-		if err != nil {
-			// If marshaling fails, use the default string representation
-			jsonValue = []byte(fmt.Sprintf("%v", value))
+	if r.Success {
+		result.WriteString("✅ Read succeeded\n\n")
+		result.WriteString("Result:\n")
+		for key, value := range r.Result {
+			jsonValue, err := json.Marshal(value)
+			if err != nil {
+				jsonValue = []byte(fmt.Sprintf("%v", value))
+			}
+			result.WriteString(fmt.Sprintf("  %s: %s\n", key, string(jsonValue)))
 		}
-		result.WriteString(fmt.Sprintf("%s: %s\n", key, string(jsonValue)))
+	} else {
+		result.WriteString(fmt.Sprintf("❌ Read failed: %s\n", r.Error))
 	}
 	return result.String()
 }
