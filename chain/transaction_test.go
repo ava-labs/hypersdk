@@ -5,6 +5,7 @@ package chain_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
@@ -71,6 +73,58 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	var action action2
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 	return &action, err
+}
+
+func TestJSONMarshalUnmarshal(t *testing.T) {
+	require := require.New(t)
+
+	txID := ids.GenerateTestID()
+	pk, err := ed25519.GeneratePrivateKey()
+	require.NoError(err)
+
+	tx := &chain.Transaction{
+		TransactionData: chain.TransactionData{
+			Actions: []chain.Action{
+				&mockTransferAction{
+					To:    codec.Address{1, 2, 3, 4},
+					Value: 4,
+					Memo:  []byte("hello"),
+				},
+				&mockTransferAction{
+					To:    codec.Address{4, 5, 6, 7},
+					Value: 123,
+					Memo:  []byte("world"),
+				},
+				&action2{
+					A: 2,
+					B: 4,
+				},
+			},
+		},
+		Auth: &auth.ED25519{
+			Signer: pk.PublicKey(),
+		},
+	}
+	tx.SetID(txID)
+
+	b, err := json.Marshal(tx)
+	require.NoError(err)
+
+	actionCodec := codec.NewTypeParser[chain.Action]()
+	authCodec := codec.NewTypeParser[chain.Auth]()
+
+	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
+	require.NoError(err)
+	err = actionCodec.Register(&action2{}, unmarshalAction2)
+	require.NoError(err)
+	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
+	require.NoError(err)
+	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
+
+	var txout chain.Transaction
+	err = txout.UnmarshalJSON(b, parser)
+	require.NoError(err)
+	require.Equal(*tx, txout)
 }
 
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
