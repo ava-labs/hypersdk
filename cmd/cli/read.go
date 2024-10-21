@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -155,9 +154,9 @@ func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]inter
 			if value == "" {
 				kvPairs[field.Name] = []uint8{}
 			} else {
-				decodedValue, err := base64.StdEncoding.DecodeString(value)
+				decodedValue, err := codec.LoadHex(value, -1)
 				if err != nil {
-					return nil, fmt.Errorf("failed to decode base64 for %s: %w", field.Name, err)
+					return nil, fmt.Errorf("failed to decode hex for %s: %w", field.Name, err)
 				}
 				kvPairs[field.Name] = decodedValue
 			}
