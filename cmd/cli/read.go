@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/spf13/cobra"
 )
@@ -74,45 +76,23 @@ var readCmd = &cobra.Command{
 		}
 
 		//4. get key-value pairs
-		inputKV, err := cmd.Flags().GetStringToString("data")
+		inputData, err := cmd.Flags().GetStringToString("data")
 		if err != nil {
 			return fmt.Errorf("failed to get data key-value pairs: %w", err)
 		}
 
-		kvPairs := make(map[string]interface{})
-		for _, field := range typ.Fields {
-			if field.Type == "Address" {
-				value, ok := inputKV[field.Name]
-				if !ok {
-					return fmt.Errorf("missing required field: %s", field.Name)
-				}
-				kvPairs[field.Name] = value
-			} else if field.Type == "uint64" {
-				value, ok := inputKV[field.Name]
-				if !ok {
-					return fmt.Errorf("missing required field: %s", field.Name)
-				}
-				parsedValue, err := strconv.ParseUint(value, 10, 64)
-				if err != nil {
-					return fmt.Errorf("failed to parse %s as uint64: %w", field.Name, err)
-				}
-				kvPairs[field.Name] = parsedValue
-			} else if field.Type == "[]uint8" {
-				value, ok := inputKV[field.Name]
-				if !ok {
-					continue
-				}
-				if value == "" {
-					kvPairs[field.Name] = []uint8{}
-				} else {
-					decodedValue, err := base64.StdEncoding.DecodeString(value)
-					if err != nil {
-						return fmt.Errorf("failed to decode base64 for %s: %w", field.Name, err)
-					}
-					kvPairs[field.Name] = decodedValue
-				}
-			} else {
-				return fmt.Errorf("unsupported field type: %s", field.Type)
+		shouldAskForFlags := len(inputData) == 0
+
+		var kvPairs map[string]interface{}
+		if shouldAskForFlags {
+			kvPairs, err = askForFlags(typ)
+			if err != nil {
+				return fmt.Errorf("failed to ask for flags: %w", err)
+			}
+		} else {
+			kvPairs, err = fillFromInputData(typ, inputData)
+			if err != nil {
+				return fmt.Errorf("failed to fill from kvData: %w", err)
 			}
 		}
 
@@ -155,6 +135,62 @@ var readCmd = &cobra.Command{
 	},
 }
 
+func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]interface{}, error) {
+	kvPairs := make(map[string]interface{})
+	for _, field := range typ.Fields {
+		value, ok := kvData[field.Name]
+		if !ok {
+			continue
+		}
+		switch field.Type {
+		case "Address":
+			kvPairs[field.Name] = value
+		case "uint64":
+			parsedValue, err := strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse %s as uint64: %w", field.Name, err)
+			}
+			kvPairs[field.Name] = parsedValue
+		case "[]uint8":
+			if value == "" {
+				kvPairs[field.Name] = []uint8{}
+			} else {
+				decodedValue, err := base64.StdEncoding.DecodeString(value)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode base64 for %s: %w", field.Name, err)
+				}
+				kvPairs[field.Name] = decodedValue
+			}
+		default:
+			return nil, fmt.Errorf("unsupported field type: %s", field.Type)
+		}
+	}
+	return kvPairs, nil
+}
+
+func askForFlags(typ abi.Type) (map[string]interface{}, error) {
+	kvPairs := make(map[string]interface{})
+	for _, field := range typ.Fields {
+		var err error
+		var value interface{}
+		switch field.Type {
+		case "Address":
+			value, err = prompt.Address(field.Name)
+		case "uint64":
+			value, err = prompt.Amount(field.Name, ^uint64(0), nil)
+		case "[]uint8":
+			value, err = prompt.Bytes(field.Name)
+		default:
+			return nil, fmt.Errorf("unsupported field type: %s", field.Type)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to get input for %s field: %w", field.Name, err)
+		}
+		kvPairs[field.Name] = value
+	}
+	return kvPairs, nil
+}
+
 type readResponse struct {
 	Result  map[string]interface{} `json:"result"`
 	Success bool                   `json:"success"`
@@ -164,17 +200,16 @@ type readResponse struct {
 func (r readResponse) String() string {
 	var result strings.Builder
 	if r.Success {
-		result.WriteString("✅ Read succeeded\n\n")
-		result.WriteString("Result:\n")
+		result.WriteString("✅ Result:\n")
 		for key, value := range r.Result {
 			jsonValue, err := json.Marshal(value)
 			if err != nil {
 				jsonValue = []byte(fmt.Sprintf("%v", value))
 			}
-			result.WriteString(fmt.Sprintf("  %s: %s\n", key, string(jsonValue)))
+			result.WriteString(fmt.Sprintf("%s: %s\n", key, string(jsonValue)))
 		}
 	} else {
-		result.WriteString(fmt.Sprintf("❌ Read failed: %s\n", r.Error))
+		result.WriteString(fmt.Sprintf("❌ Error: %s\n", r.Error))
 	}
 	return result.String()
 }

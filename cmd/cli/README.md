@@ -19,3 +19,8 @@ API:
 ✅ `actions` - print the list of actions available in the ABI, for JSON it prints ABI JSON
 `tx [action name] [action params]` - sends a transaction with a single action
 `read [action name] [action params]` - simulates a single action transaction
+
+
+```bash
+go run ./cmd/cli/ read Transfer --key=./examples/morpheusvm/demo.pk --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12 
+```
