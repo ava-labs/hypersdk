@@ -7,6 +7,7 @@ Requirements:
 - Keeps the private key and the endpoint in the user's home folder in `~/.hypersdk-cli/config.cfg`
 - Argument `--endpoint` added to any request, overrides the request endpoint. If `--endpoint` is not set and `~/.hypersdk-cli/config.cfg` doesn't have endpoint field, errors
 - Supports ed25519 keys only (enforce default, this is a default opinionated CLI)
+- If --data supplied, or json selected as an output would not ask for the action arguments
 
 API:
 ✅ `address` - prints current key address

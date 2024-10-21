@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -74,28 +75,12 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to find type: %s", actionName)
 		}
 
-		//4. get key-value pairs
-		inputData, err := cmd.Flags().GetStringToString("data")
-		if err != nil {
-			return fmt.Errorf("failed to get data key-value pairs: %w", err)
-		}
-
-		shouldAskForFlags := len(inputData) == 0
-
-		var kvPairs map[string]interface{}
-		if shouldAskForFlags {
-			kvPairs, err = askForFlags(typ)
-			if err != nil {
-				return fmt.Errorf("failed to ask for flags: %w", err)
-			}
-		} else {
-			kvPairs, err = fillFromInputData(typ, inputData)
-			if err != nil {
-				return fmt.Errorf("failed to fill from kvData: %w", err)
-			}
-		}
-
 		//5. create action using kvPairs
+		kvPairs, err := fillAction(cmd, typ)
+		if err != nil {
+			return err
+		}
+
 		jsonPayload, err := json.Marshal(kvPairs)
 		if err != nil {
 			return fmt.Errorf("failed to marshal kvPairs: %w", err)
@@ -134,6 +119,36 @@ var readCmd = &cobra.Command{
 	},
 }
 
+func fillAction(cmd *cobra.Command, typ abi.Type) (map[string]interface{}, error) {
+	// get key-value pairs
+	inputData, err := cmd.Flags().GetStringToString("data")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data key-value pairs: %w", err)
+	}
+
+	isJSONOutput, err := isJSONOutputRequested(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get output format: %w", err)
+	}
+
+	isInteractive := len(inputData) == 0 && !isJSONOutput
+
+	var kvPairs map[string]interface{}
+	if isInteractive {
+		kvPairs, err = askForFlags(typ)
+		if err != nil {
+			return nil, fmt.Errorf("failed to ask for flags: %w", err)
+		}
+	} else {
+		kvPairs, err = fillFromInputData(typ, inputData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fill from kvData: %w", err)
+		}
+	}
+
+	return kvPairs, nil
+}
+
 func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]interface{}, error) {
 	kvPairs := make(map[string]interface{})
 	for _, field := range typ.Fields {
@@ -141,46 +156,69 @@ func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]inter
 		if !ok {
 			continue
 		}
+		var parsedValue interface{}
+		var err error
 		switch field.Type {
 		case "Address":
-			kvPairs[field.Name] = value
-		case "uint64":
-			parsedValue, err := strconv.ParseUint(value, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse %s as uint64: %w", field.Name, err)
-			}
-			kvPairs[field.Name] = parsedValue
+			parsedValue = value
+		case "uint8", "uint16", "uint32", "uint", "uint64":
+			parsedValue, err = strconv.ParseUint(value, 10, 64)
+		case "int8", "int16", "int32", "int", "int64":
+			parsedValue, err = strconv.ParseInt(value, 10, 64)
 		case "[]uint8":
 			if value == "" {
-				kvPairs[field.Name] = []uint8{}
+				parsedValue = []uint8{}
 			} else {
-				decodedValue, err := codec.LoadHex(value, -1)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode hex for %s: %w", field.Name, err)
-				}
-				kvPairs[field.Name] = decodedValue
+				parsedValue, err = codec.LoadHex(value, -1)
 			}
+		case "string":
+			parsedValue = value
+		case "bool":
+			parsedValue, err = strconv.ParseBool(value)
 		default:
 			return nil, fmt.Errorf("unsupported field type: %s", field.Type)
 		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", field.Name, err)
+		}
+		kvPairs[field.Name] = parsedValue
 	}
 	return kvPairs, nil
 }
 
 func askForFlags(typ abi.Type) (map[string]interface{}, error) {
 	kvPairs := make(map[string]interface{})
+
 	for _, field := range typ.Fields {
 		var err error
 		var value interface{}
 		switch field.Type {
 		case "Address":
 			value, err = prompt.Address(field.Name)
-		case "uint64":
-			value, err = prompt.Amount(field.Name, ^uint64(0), nil)
+		case "uint8":
+			value, err = prompt.Uint(field.Name, math.MaxUint8)
+		case "uint16":
+			value, err = prompt.Uint(field.Name, math.MaxUint16)
+		case "uint32":
+			value, err = prompt.Uint(field.Name, math.MaxUint32)
+		case "uint", "uint64":
+			value, err = prompt.Uint(field.Name, math.MaxUint64)
+		case "int8":
+			value, err = prompt.Int(field.Name, math.MaxInt8)
+		case "int16":
+			value, err = prompt.Int(field.Name, math.MaxInt16)
+		case "int32":
+			value, err = prompt.Int(field.Name, math.MaxInt32)
+		case "int", "int64":
+			value, err = prompt.Int(field.Name, math.MaxInt64)
 		case "[]uint8":
 			value, err = prompt.Bytes(field.Name)
+		case "string":
+			value, err = prompt.String(field.Name, 0, 1024)
+		case "bool":
+			value, err = prompt.Bool(field.Name)
 		default:
-			return nil, fmt.Errorf("unsupported field type: %s", field.Type)
+			return nil, fmt.Errorf("unsupported field type in CLI: %s", field.Type)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get input for %s field: %w", field.Name, err)
@@ -199,7 +237,7 @@ type readResponse struct {
 func (r readResponse) String() string {
 	var result strings.Builder
 	if r.Success {
-		result.WriteString("✅ Result:\n")
+		result.WriteString("✅ Read-only execution successful:\n")
 		for key, value := range r.Result {
 			jsonValue, err := json.Marshal(value)
 			if err != nil {
@@ -208,7 +246,7 @@ func (r readResponse) String() string {
 			result.WriteString(fmt.Sprintf("%s: %s\n", key, string(jsonValue)))
 		}
 	} else {
-		result.WriteString(fmt.Sprintf("❌ Error: %s\n", r.Error))
+		result.WriteString(fmt.Sprintf("❌ Read-only execution failed: %s\n", r.Error))
 	}
 	return result.String()
 }

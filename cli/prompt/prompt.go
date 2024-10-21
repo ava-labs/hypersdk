@@ -147,18 +147,17 @@ func Amount(
 	rawAmount = strings.TrimSpace(rawAmount)
 	return utils.ParseBalance(rawAmount)
 }
-
 func Int(
 	label string,
-	max int,
-) (int, error) {
+	max int64,
+) (int64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			amount, err := strconv.Atoi(input)
+			amount, err := strconv.ParseInt(input, 10, 64)
 			if err != nil {
 				return err
 			}
@@ -176,7 +175,35 @@ func Int(
 		return 0, err
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
-	return strconv.Atoi(rawAmount)
+	return strconv.ParseInt(rawAmount, 10, 64)
+}
+
+func Uint(
+	label string,
+	max uint64,
+) (uint64, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			amount, err := strconv.ParseUint(input, 10, 64)
+			if err != nil {
+				return err
+			}
+			if amount > max {
+				return fmt.Errorf("%d must be <= %d", amount, max)
+			}
+			return nil
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return 0, err
+	}
+	rawAmount = strings.TrimSpace(rawAmount)
+	return strconv.ParseUint(rawAmount, 10, 64)
 }
 
 func Float(

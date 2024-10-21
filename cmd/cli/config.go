@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,24 +12,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func printValue(cmd *cobra.Command, v fmt.Stringer) error {
+func isJSONOutputRequested(cmd *cobra.Command) (bool, error) {
 	output, err := getConfigValue(cmd, "output")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to get output format: %w", err)
+	if err != nil {
+		return false, fmt.Errorf("failed to get output format: %w", err)
+	}
+	return strings.ToLower(output) == "json", nil
+}
+
+func printValue(cmd *cobra.Command, v fmt.Stringer) error {
+	isJSON, err := isJSONOutputRequested(cmd)
+	if err != nil {
+		return err
 	}
 
-	if output == "json" {
+	if isJSON {
 		jsonBytes, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal JSON: %w", err)
 		}
 		fmt.Println(string(jsonBytes))
 		return nil
-	} else if output == "human" {
+	} else {
 		fmt.Println(v.String())
 		return nil
-	} else {
-		return fmt.Errorf("invalid output format: %s", output)
 	}
 }
 
