@@ -159,7 +159,7 @@ func SubBalance(
 ) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)
 	if !ok {
-		return 0, ErrInvalidAddress
+		return 0, ErrInvalidBalance
 	}
 	if err != nil {
 		return 0, err
