@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/generator"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
@@ -38,11 +39,9 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	txCheckInterval := 100 * time.Millisecond
-	testVM := fixture.NewTestVM(txCheckInterval)
-	keys := testVM.GetKeys()
-	generator := generator.NewTxGenerator(keys[0])
-	genesisBytes, err := testVM.GetGenesisBytes()
+	keys := workload.NewDefaultKeys()
+	genesis := workload.NewGenesis(keys, 100*time.Millisecond)
+	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
@@ -56,6 +55,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: auth.ED25519Key,
 	}
 
+	generator := workload.NewTxGenerator(keys[0])
 	tc := e2e.NewTestContext()
 	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, keys[0])
 
