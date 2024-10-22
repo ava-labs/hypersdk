@@ -70,6 +70,40 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, nil
 }
 
+func marshalTxs[T Tx](txs []T) ([]*dsmr.Transaction, error) {
+	result := make([]*dsmr.Transaction, 0, len(txs))
+
+	for _, tx := range txs {
+		p := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
+		if err := codec.LinearCodec.MarshalInto(tx, p); err != nil {
+			return nil, err
+		}
+
+		result = append(result, &dsmr.Transaction{
+
+			Bytes: p.Bytes,
+		})
+	}
+
+	return result, nil
+}
+
+func newProtoChunk[T Tx](chunk Chunk[T]) (*dsmr.Chunk, error) {
+	txs, err := marshalTxs(chunk.Txs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dsmr.Chunk{
+		Producer:     chunk.Producer[:],
+		Expiry:       chunk.Expiry,
+		Beneficiary:  chunk.Beneficiary[:],
+		Transactions: txs,
+		Signer:       nil,
+		Signature:    nil,
+	}, nil
+}
+
 func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 	producer, err := ids.ToNodeID(chunkProto.Producer)
 	if err != nil {
