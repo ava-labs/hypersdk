@@ -23,31 +23,31 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-var _ workload.TxGenerator = (*simpleTxGenerator)(nil)
+var _ workload.TxGenerator = (*txGenerator)(nil)
 
-type simpleTxGenerator struct {
+type txGenerator struct {
 	factory         *auth.ED25519Factory
 	txCheckInterval time.Duration
 }
 
-func NewSimpleTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
-	return &simpleTxGenerator{
-		factory:         auth.NewED25519Factory(key.PrivKey),
+func NewTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
+	return &txGenerator{
+		factory:         auth.NewED25519Factory(key.PrivateKey),
 		txCheckInterval: txCheckInterval,
 	}
 }
 
-func (g *simpleTxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+func (g *txGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
 	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
-	other, err := ed25519.GeneratePrivateKey()
+	to, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	aother := auth.NewED25519Address(other.PublicKey())
+	toAddress := auth.NewED25519Address(to.PublicKey())
 	parser, err := lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -56,7 +56,7 @@ func (g *simpleTxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.
 		ctx,
 		parser,
 		[]chain.Action{&actions.Transfer{
-			To:    aother,
+			To:    toAddress,
 			Value: 1,
 		}},
 		g.factory,
@@ -66,7 +66,7 @@ func (g *simpleTxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), aother, 1, g.txCheckInterval)
+		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1, g.txCheckInterval)
 	}, nil
 }
 

@@ -30,7 +30,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(0)
 	keys := testVM.GetKeys()
-	generator := morpheusGenerator.NewSimpleTxGenerator(keys[0], txCheckInterval)
+	generator := morpheusGenerator.NewTxGenerator(keys[0], txCheckInterval)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 

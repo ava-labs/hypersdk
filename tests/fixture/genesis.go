@@ -7,16 +7,18 @@ import (
 	"math"
 	"time"
 
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
-func newDefaultGenesis(keys []*Ed25519TestKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
+func newDefaultGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
 	// allocate the initial balance to the addresses
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(keys))
 	for _, key := range keys {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
-			Address: key.Addr,
+			Address: auth.NewED25519Address(key.PublicKey()),
 			Balance: InitialBalance,
 		})
 	}

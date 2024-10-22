@@ -41,7 +41,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(txCheckInterval)
 	keys := testVM.GetKeys()
-	generator := generator.NewSimpleTxGenerator(keys[0], txCheckInterval)
+	generator := generator.NewTxGenerator(keys[0], txCheckInterval)
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())

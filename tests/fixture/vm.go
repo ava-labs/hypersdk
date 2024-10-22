@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
@@ -14,11 +15,11 @@ type testVM struct {
 	// every VM has a genesis. We initialize the VM with a default genesis.
 	genesis *genesis.DefaultGenesis
 	// pre-set keys on the vm
-	keys []*Ed25519TestKey
+	keys []ed25519.PrivateKey
 }
 
 func NewTestVM(minBlockGap time.Duration) *testVM {
-	keys := newDefualtKeys()
+	keys := newDefaultKeys()
 	genesis := newDefaultGenesis(keys, minBlockGap)
 	return &testVM{
 		genesis: genesis,
@@ -30,6 +31,6 @@ func (t *testVM) GetGenesisBytes() ([]byte, error) {
 	return json.Marshal(t.genesis)
 }
 
-func (t *testVM) GetKeys() []*Ed25519TestKey {
+func (t *testVM) GetKeys() []ed25519.PrivateKey {
 	return t.keys
 }

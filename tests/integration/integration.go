@@ -68,7 +68,6 @@ var (
 	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
 	parser                chain.Parser
 
-	// txWorkloadFactory     workload.TxWorkloadFactory
 	txWorkload  workload.TxWorkload
 	authFactory chain.AuthFactory
 
