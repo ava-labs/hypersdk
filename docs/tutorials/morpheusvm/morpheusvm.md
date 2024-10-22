@@ -21,7 +21,7 @@ This introduction will go over everything up to and including the section
 
 ## Prerequisites
 
-- You are using Go 1.21.12
+- You are using Go 1.22.8
 
 To confirm, you can run:
 
@@ -32,7 +32,7 @@ go version
 And you should see the ouptut (slightly different depending on your machine):
 
 ```
-go version go1.21.12 darwin/arm64
+go version go1.22.8 darwin/arm64
 ```
 
 ## Cloning HyperSDK
