@@ -37,7 +37,7 @@ var chainInfoCmd = &cobra.Command{
 
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(_ *cobra.Command, args []string) error {
 		return handler.Root().WatchChain(hideTxs)
 	},
 }

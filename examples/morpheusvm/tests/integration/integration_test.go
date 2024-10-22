@@ -5,7 +5,6 @@ package integration_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,10 +26,9 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	txCheckInterval := 100 * time.Millisecond
 	testVM := fixture.NewTestVM(0)
 	keys := testVM.GetKeys()
-	generator := morpheusGenerator.NewTxGenerator(keys[0], txCheckInterval)
+	generator := morpheusGenerator.NewTxGenerator(keys[0])
 	genesisBytes, err := testVM.GetGenesisBytes()
 	require.NoError(err)
 

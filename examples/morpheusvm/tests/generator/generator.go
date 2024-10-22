@@ -19,25 +19,24 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-var _ workload.TxGenerator = (*txGenerator)(nil)
+var _ workload.TxGenerator = (*TxGenerator)(nil)
 
-type txGenerator struct {
-	factory         *auth.ED25519Factory
-	txCheckInterval time.Duration
+const txCheckInterval = 100 * time.Millisecond
+
+type TxGenerator struct {
+	factory *auth.ED25519Factory
 }
 
-func NewTxGenerator(key *fixture.Ed25519TestKey, txCheckInterval time.Duration) workload.TxGenerator {
-	return &txGenerator{
-		factory:         auth.NewED25519Factory(key.PrivateKey),
-		txCheckInterval: txCheckInterval,
+func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
+	return &TxGenerator{
+		factory: auth.NewED25519Factory(key),
 	}
 }
 
-func (g *txGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
 	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
@@ -66,11 +65,11 @@ func (g *txGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1, g.txCheckInterval)
+		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
 	}, nil
 }
 
-func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64, txCheckInterval time.Duration) {
+func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
