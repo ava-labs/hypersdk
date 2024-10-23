@@ -54,12 +54,9 @@ TODO
 - define block assembler interface to assemble an executable block
 
 ```golang
-type Assembler[T Tx] interface {
-    AssembleBlock(parentID ids.ID, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
-}
-
-type Executor[Block any, Result any] interface {
-    ExecuteBlock(b Block) (Result, error)
+type Assembler[T Tx, Block any, Result any] interface {
+	AssembleBlock(parentBlock Block, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
+	ExecuteBlock(b Block) (Result, error)
 }
 ```
 
