@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
@@ -77,7 +78,8 @@ func NewWithOptions(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
-		&storage.StateManager{},
+		&storage.BalanceHandler{},
+		metadata.NewDefaultManager(),
 		ActionParser,
 		AuthParser,
 		OutputParser,
