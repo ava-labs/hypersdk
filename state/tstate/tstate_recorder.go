@@ -33,5 +33,5 @@ func (sr *TStateRecorder) GetValue(ctx context.Context, key []byte) (value []byt
 
 // GetStateKeys returns the keys that have been touched along with their respective permissions.
 func (sr *TStateRecorder) GetStateKeys() state.Keys {
-	return sr.stateView.GetStateKeys()
+	return sr.stateView.getStateKeys()
 }

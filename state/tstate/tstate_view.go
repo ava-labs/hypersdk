@@ -355,8 +355,8 @@ func (ts *TStateView) Commit() {
 	ts.ts.ops += len(ts.ops)
 }
 
-// GetStateKeys returns the keys that have been touched along with their respective permissions.
-func (ts *TStateView) GetStateKeys() state.Keys {
+// getStateKeys returns the keys that have been touched along with their respective permissions.
+func (ts *TStateView) getStateKeys() state.Keys {
 	return ts.scope
 }
 
