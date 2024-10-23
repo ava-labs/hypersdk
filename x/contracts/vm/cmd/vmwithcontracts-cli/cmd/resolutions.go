@@ -11,10 +11,10 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/actions"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/consts"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 )
 
 // sendAndWait may not be used concurrently

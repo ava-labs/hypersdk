@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk/examples/vmwithcontracts
+module github.com/ava-labs/hypersdk/x/contracts/vm
 
 go 1.22.8
 
@@ -155,4 +155,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ava-labs/hypersdk => ../../
+replace github.com/ava-labs/hypersdk => ../../../

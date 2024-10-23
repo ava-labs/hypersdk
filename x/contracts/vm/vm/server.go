@@ -8,9 +8,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/consts"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/storage"
 )
 
 const JSONRPCEndpoint = "/vmwithcontractsapi"

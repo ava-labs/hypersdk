@@ -13,8 +13,8 @@ import (
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/cmd/vmwithcontracts/version"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/cmd/vmwithcontracts/version"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 )
 
 var rootCmd = &cobra.Command{

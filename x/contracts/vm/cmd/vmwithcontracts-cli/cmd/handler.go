@@ -17,10 +17,10 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/consts"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 )
 
 var _ cli.Controller = (*Controller)(nil)
