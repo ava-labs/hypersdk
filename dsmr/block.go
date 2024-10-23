@@ -134,6 +134,7 @@ func (s *StatefulBlock[T, B, R]) ID() ids.ID {
 func (s *StatefulBlock[T, B, R]) Parent() ids.ID {
 	return s.block.ParentID
 }
+
 func (s *StatefulBlock[T, B, R]) Verify(ctx context.Context) error {
 	// TODO: Verify header fields
 	// TODO: de-duplicate chunk certificates (internal to block and across history)
