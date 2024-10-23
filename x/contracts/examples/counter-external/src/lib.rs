@@ -35,9 +35,8 @@ mod tests {
 
     #[test]
     fn get_value_exists() {
-        let mut ctx = Context::new();
-        let external = Address::new([0; 33]);
-        let of = Address::new([1; 33]);
+        let [external, of] = [0, 1].map(|i| Address::new([i; 33]));
+        let mut ctx = Context::with_actor(external);
 
         // mock `get_value` external contract call to return `value`
         let value = 5_u64;
