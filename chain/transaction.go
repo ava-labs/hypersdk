@@ -517,14 +517,14 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
-	for _, action := range actions {
+	for i, action := range actions {
 		actionSize, err := GetSize(action)
 		if err != nil {
 			return fees.Dimensions{}, err
 		}
 
 		actor := authFactory.Address()
-		stateKeys := action.StateKeys(actor, ids.Empty)
+		stateKeys := action.StateKeys(actor, CreateActionID(ids.Empty, uint8(i)))
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
