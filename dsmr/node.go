@@ -4,12 +4,16 @@
 package dsmr
 
 import (
+	"context"
+	"math/rand"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -32,9 +36,7 @@ func New[T Tx](
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
-		GetChunkSignatureHandler: &GetChunkSignatureHandler[T]{
-			storage: storage,
-		},
+		ACP118Handler: nil,
 		client: GetChunkClient[T]{
 			client: getChunkClient,
 		},
@@ -42,17 +44,33 @@ func New[T Tx](
 	}, nil
 }
 
+// TODO this is a hack
+func (n *Node[T]) getValidators() []Validator {
+	rand.Shuffle(len(n.validators), func(i, j int) {
+		n.validators[i], n.validators[j] = n.validators[j], n.validators[i]
+	})
+
+	return n.validators
+}
+
 type Node[T Tx] struct {
+	networkID uint32
+	chainID   ids.ID
+
+	validators []acp118.Validator
+	aggregator *acp118.SignatureAggregator
+
 	//TODO cleanup struct
-	nodeID                   ids.NodeID
-	sk                       *bls.SecretKey
-	pk                       *bls.PublicKey
-	beneficiary              codec.Address
-	GetChunkHandler          *GetChunkHandler[T]
-	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
+	nodeID          ids.NodeID
+	sk              *bls.SecretKey
+	pk              *bls.PublicKey
+	beneficiary     codec.Address
+	GetChunkHandler *GetChunkHandler[T]
+	ACP118Handler   *acp118.Handler
 
 	//TODO chunk handler
 	client           GetChunkClient[T]
+	acp118Client     *p2p.Client
 	chunkCertBuilder chunkCertBuilder[T]
 	storage          *chunkStorage[T]
 }
@@ -60,8 +78,7 @@ type Node[T Tx] struct {
 // BuildChunk adds a chunk to the node with the provided transactions
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
-func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
-	// TODO aggregate signatures + gossip
+func (n *Node[T]) BuildChunk(ctx context.Context, txs []T, expiry time.Time) (Chunk[T], error) {
 	chunk, err := newChunk[T](
 		n.nodeID,
 		txs,
@@ -74,6 +91,29 @@ func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 		return Chunk[T]{}, nil
 	}
 
+	msg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, chunk.bytes)
+	if err != nil {
+		return Chunk[T]{}, err
+	}
+
+	totalWeight := uint64(0)
+	for _, v := range n.validators {
+		totalWeight += v.Weight
+	}
+
+	signedMessage, err := n.aggregator.AggregateSignatures(
+		ctx,
+		msg,
+		nil,
+		n.validators,
+		totalWeight*2/3+1,
+	)
+	if err != nil {
+		return Chunk[T]{}, err
+	}
+
+	codec.LinearCodec.signedMessage.Signature
+
 	cert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
@@ -84,7 +124,7 @@ func (n Node[T]) BuildChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 }
 
 // NewBlock TODO should we quiesce
-func (n Node[T]) NewBlock() (Block, error) {
+func (n *Node[T]) NewBlock() (Block, error) {
 	return Block{
 		Chunks: n.storage.GatherChunkCerts(),
 	}, nil
