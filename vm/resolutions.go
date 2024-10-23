@@ -383,8 +383,12 @@ func (vm *VM) Genesis() genesis.Genesis {
 	return vm.genesis
 }
 
-func (vm *VM) StateManager() chain.StateManager {
-	return vm.stateManager
+func (vm *VM) BalanceHandler() chain.BalanceHandler {
+	return vm.balanceHandler
+}
+
+func (vm *VM) MetadataManager() chain.MetadataManager {
+	return vm.metadataManager
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
@@ -468,7 +472,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
