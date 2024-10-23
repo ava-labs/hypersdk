@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
@@ -37,7 +36,7 @@ var (
 	spamHelper  throughput.SpamHelper
 )
 
-func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key ed25519.PrivateKey) {
+func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
 	vmName = name
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
@@ -45,10 +44,7 @@ func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chain
 	parser = chainParser
 	expectedABI = abi
 	spamHelper = sh
-	spamKey = &auth.PrivateKey{
-		Address: auth.NewED25519Address(key.PublicKey()),
-		Bytes:   key[:],
-	}
+	spamKey = key
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {

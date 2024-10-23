@@ -6,7 +6,6 @@ package integration_test
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +27,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	keys := workload.NewDefaultKeys()
-	genesis := workload.NewGenesis(keys, 100*time.Millisecond)
+	genesis := workload.NewGenesis(keys, 0)
 	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 

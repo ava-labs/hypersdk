@@ -29,7 +29,7 @@ type TxWorkload struct {
 
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]
-	// generate [blocks] amount of txs
+	// generate [blocks] num txs
 	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
@@ -65,11 +65,10 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 // can no longer generate transactions
 // ClientUri is the uri of the client that will generate the transactions
 // ConfirmUris is a list of uris to confirm the transactions
-func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, amount int, clientURI string, confirmUris []string) {
-	// TODO: why do we only use the first uri for submitting transactions when it differs from the confirmUris?
+func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, numTxs int, clientURI string, confirmUris []string) {
 	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
 
-	for i := 0; i < amount; i++ {
+	for i := 0; i < numTxs; i++ {
 		tx, confirm, err := w.Generator.GenerateTx(ctx, clientURI)
 		require.NoError(err)
 
