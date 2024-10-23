@@ -210,7 +210,7 @@ type Action interface {
 	// If any key is removed and then re-created, this will count as a creation
 	// instead of a modification.
 	//
-	// [actionID] is a unique, but nonrandom identifier for each [Action].  
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
@@ -222,7 +222,7 @@ type Action interface {
 	// If [Execute] returns an error, execution will halt and any state changes
 	// will revert.
 	//
-	// [actionID] is a unique, but nonrandom identifier for each [Action].  
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
 		r Rules,
