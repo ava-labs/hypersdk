@@ -111,38 +111,59 @@ func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 type ChunkFault struct{}
 
 type Block struct {
-	ID        ids.ID `serialize:"true"`
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
 
-	// TODO Add TxsRoot?
-	// TODO Add OutgoingWarpRoot?
-	// TODO Do we need separate Available + Executed Chunks?
 	Chunks []*ChunkCertificate `serialize:"true"`
+
+	blkID    ids.ID
+	blkBytes []byte
 }
 
-// TODO where does this belong?
-type ExecutionBlock[VerificationContext any] struct {
-	Block
-
-	vm VM[VerificationContext]
+// TODO: implement snowman.Block interface and integrate assembler
+type StatefulBlock[T Tx, B any, Result any] struct {
+	handler *BlockHandler[T, B, Result]
+	block   *Block
 }
 
-func (e *ExecutionBlock[V]) Verify(ctx context.Context, verificationContext V) error {
-	for _, chunkCertificate := range e.Chunks {
-		if err := chunkCertificate.Verify(ctx, verificationContext); err != nil {
+func (s *StatefulBlock[T, B, R]) ID() ids.ID {
+	return s.block.blkID
+}
+
+func (s *StatefulBlock[T, B, R]) Parent() ids.ID {
+	return s.block.ParentID
+}
+func (s *StatefulBlock[T, B, R]) Verify(ctx context.Context) error {
+	// TODO: Verify header fields
+	// TODO: de-duplicate chunk certificates (internal to block and across history)
+	for _, chunkCert := range s.block.Chunks {
+		// TODO: verify chunks within a provided context
+		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
 			return err
 		}
 	}
 
-	return e.vm.Verify(ctx, e)
+	return nil
 }
 
-func (e *ExecutionBlock[V]) Accept(ctx context.Context) error {
-	return e.vm.Accept(ctx, e)
+func (s *StatefulBlock[T, B, R]) Accept(ctx context.Context) error {
+	_, err := s.handler.Accept(ctx, s.block)
+	return err
 }
 
-func (e *ExecutionBlock[V]) Reject(ctx context.Context) error {
-	return e.vm.Reject(ctx, e)
+func (*StatefulBlock[T, B, R]) Reject(context.Context) error {
+	return nil
+}
+
+func (s *StatefulBlock[T, B, R]) Bytes() []byte {
+	return s.block.blkBytes
+}
+
+func (s *StatefulBlock[T, B, R]) Height() uint64 {
+	return s.block.Height
+}
+
+func (s *StatefulBlock[T, B, R]) Timestamp() time.Time {
+	return time.Unix(0, s.block.Timestamp)
 }

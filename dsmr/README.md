@@ -51,7 +51,7 @@ TODO
 
 - fetch and store any chunks that are not stored locally
 - Filter duplicate transactions
-- define block assembler interface to assemble an executable block
+- define block assembler interface to assemble, execute, and accept a block
 
 ```golang
 type Assembler[T Tx, Block any, Result any] interface {

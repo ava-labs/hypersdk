@@ -10,13 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
-// TODO replace VM with usage of Assembler
-type VM[VerificationContext any] interface {
-	Verify(context.Context, *ExecutionBlock[VerificationContext]) error
-	Accept(context.Context, *ExecutionBlock[VerificationContext]) error
-	Reject(context.Context, *ExecutionBlock[VerificationContext]) error
-}
-
 // Note: Assembler breaks assembling and executing a block into two steps
 // but these will be called one after the other.
 type Assembler[T Tx, Block any, Result any] interface {
@@ -36,11 +29,11 @@ type BlockHandler[T Tx, Block any, Result any] struct {
 	Assembler         Assembler[T, Block, Result]
 }
 
-func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block Block) error {
+func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block *Block) (R, error) {
 	// Collect and store chunks in the accepted block
 	chunks, err := b.chunkGatherer.CollectChunks(block.Chunks)
 	if err != nil {
-		return err
+		return *new(R), err
 	}
 
 	// Collect and de-duplicate txs
@@ -59,15 +52,14 @@ func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block Block) error {
 			}
 			txSet.Add(txID)
 			txs = append(txs, tx)
-
 		}
 	}
 
+	// Assemble and execute the block
 	assembledBlk, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
 	if err != nil {
-		return err
+		return *new(R), err
 	}
 	b.lastAcceptedBlock = assembledBlk
-	_, err = b.Assembler.ExecuteBlock(ctx, assembledBlk)
-	return err
+	return b.Assembler.ExecuteBlock(ctx, assembledBlk)
 }
