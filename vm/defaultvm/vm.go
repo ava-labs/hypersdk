@@ -35,7 +35,8 @@ func NewDefaultOptions() []vm.Option {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
@@ -46,7 +47,8 @@ func New(
 	return vm.New(
 		v,
 		genesisFactory,
-		stateManager,
+		balanceHandler,
+		metadataManager,
 		actionCodec,
 		authCodec,
 		outputCodec,

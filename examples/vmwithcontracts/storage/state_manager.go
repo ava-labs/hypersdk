@@ -11,29 +11,17 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ (chain.StateManager) = (*StateManager)(nil)
+var _ (chain.BalanceHandler) = (*BalanceHandler)(nil)
 
-type StateManager struct{}
+type BalanceHandler struct{}
 
-func (*StateManager) HeightKey() []byte {
-	return HeightKey()
-}
-
-func (*StateManager) TimestampKey() []byte {
-	return TimestampKey()
-}
-
-func (*StateManager) FeeKey() []byte {
-	return FeeKey()
-}
-
-func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(BalanceKey(addr)): state.Read | state.Write,
 	}
 }
 
-func (*StateManager) CanDeduct(
+func (*BalanceHandler) CanDeduct(
 	ctx context.Context,
 	addr codec.Address,
 	im state.Immutable,
@@ -49,7 +37,7 @@ func (*StateManager) CanDeduct(
 	return nil
 }
 
-func (*StateManager) Deduct(
+func (*BalanceHandler) Deduct(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -59,7 +47,7 @@ func (*StateManager) Deduct(
 	return err
 }
 
-func (*StateManager) AddBalance(
+func (*BalanceHandler) AddBalance(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
