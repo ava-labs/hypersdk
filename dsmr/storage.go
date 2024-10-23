@@ -181,7 +181,7 @@ func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	return nil
 }
 
-// TODO this is only called in tests?
+// TODO need to call this to expire chunks in server
 // SetMin sets the minimum timestamp on the expiring storage and marks the chunks that
 // must be saved, which would otherwise expire.
 func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
