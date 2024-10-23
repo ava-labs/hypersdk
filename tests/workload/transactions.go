@@ -63,8 +63,7 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 
 // GenerateTxs generates transactions using the provided TxGenerator until the generator
 // can no longer generate transactions
-// ClientUri is the uri of the client that will generate the transactions
-// ConfirmUris is a list of uris to confirm the transactions
+// issues tx through clientURI and confirms against each uri in confirmURIs
 func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, numTxs int, clientURI string, confirmUris []string) {
 	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
 
