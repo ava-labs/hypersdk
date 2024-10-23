@@ -32,6 +32,17 @@ type op struct {
 	pastWrites    *uint16
 }
 
+// immutableScopeStorage implements [state.Immutable], allowing the map to be used
+// as a read-only state source, and making it compatible with error-generating backing storage.
+type immutableScopeStorage map[string][]byte
+
+func (i immutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+	if v, has := i[string(key)]; has {
+		return v, nil
+	}
+	return nil, database.ErrNotFound
+}
+
 type TStateView struct {
 	ts                 *TState
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
@@ -45,11 +56,16 @@ type TStateView struct {
 	// key, see issue below)
 	// https://github.com/ava-labs/hypersdk/issues/709
 	scope        state.Keys
-	scopeStorage map[string][]byte
+	scopeStorage state.Immutable
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
+
+	// simulationMode flag is used to determine whether we're in execution mode or simulation mode.
+	// while in simulation mode, we don't enforce any scope limitations. instead, we record the accessed keys.
+	// during execution mode, we use the configured scope to enforce the access to the keys.
+	simulationMode bool
 }
 
 func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
@@ -60,10 +76,29 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateVi
 		ops: make([]*op, 0, defaultOps),
 
 		scope:        scope,
-		scopeStorage: storage,
+		scopeStorage: immutableScopeStorage(storage),
 
 		allocates: make(map[string]uint16, len(scope)),
 		writes:    make(map[string]uint16, len(scope)),
+
+		simulationMode: false,
+	}
+}
+
+func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
+	return &TStateView{
+		ts:                 New(0),
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], 0),
+
+		ops: make([]*op, 0, defaultOps),
+
+		scope:        state.Keys{},
+		scopeStorage: immutableState,
+
+		allocates: make(map[string]uint16, 0),
+		writes:    make(map[string]uint16, 0),
+
+		simulationMode: true,
 	}
 }
 
@@ -144,7 +179,12 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
+// the method always return true in case we're in simulation mode.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
+	if ts.simulationMode {
+		ts.scope.Add(string(k), perm)
+		return true
+	}
 	return ts.scope[string(k)].Has(perm)
 }
 
@@ -157,39 +197,41 @@ func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) 
 		return nil, ErrInvalidKeyOrPermission
 	}
 	k := string(key)
-	v, exists := ts.getValue(ctx, k)
-	if !exists {
-		return nil, database.ErrNotFound
-	}
-	return v, nil
+	return ts.getValue(ctx, k)
 }
 
-func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
+func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, error) {
 	if v, ok := ts.pendingChangedKeys[key]; ok {
 		if v.IsNothing() {
-			return nil, false
+			return nil, database.ErrNotFound
 		}
-		return v.Value(), true
+		return v.Value(), nil
 	}
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
-		return v, exists
+		if exists {
+			return v, nil
+		}
+		return v, database.ErrNotFound
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
-		return v, true
-	}
-	return nil, false
+	return ts.scopeStorage.GetValue(ctx, []byte(key))
 }
 
 // isUnchanged determines if a [key] is unchanged from the parent view (or
-// scope if the parent is unchanged).
-func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) bool {
+// scope if the parent is unchanged). The [nexists] flag indicates whether the
+// new value provided in [nval] exists or not.
+func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) (bool, error) {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
-		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
+		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval), nil
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
-		return nexists && bytes.Equal(v, nval)
+	scopeVal, err := ts.scopeStorage.GetValue(ctx, []byte(key))
+	switch err {
+	case nil:
+		return nexists && bytes.Equal(scopeVal, nval), nil
+	case database.ErrNotFound:
+		return !nexists, nil
+	default:
+		return false, err
 	}
-	return !nexists
 }
 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
@@ -204,16 +246,23 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
+	isUnchanged, err := ts.isUnchanged(ctx, k, value, true)
+	if err != nil {
+		return err
+	}
 	// Invariant: [getValue] is safe to call here because with [state.Write], it
 	// will provide Read and Write access to the state
-	past, exists := ts.getValue(ctx, k)
+	past, err := ts.getValue(ctx, k)
+	if err != nil && err != database.ErrNotFound {
+		return err
+	}
 	op := &op{
 		k:             k,
 		pastV:         past,
 		pastAllocates: chunks(ts.allocates, k),
 		pastWrites:    chunks(ts.writes, k),
 	}
-	if exists {
+	if err == nil {
 		if bytes.Equal(past, value) {
 			// No change, so this isn't an op.
 			return nil
@@ -235,7 +284,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
-	if ts.isUnchanged(ctx, k, value, true) {
+	if isUnchanged {
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
@@ -251,10 +300,17 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		return ErrInvalidKeyOrPermission
 	}
 	k := string(key)
-	past, exists := ts.getValue(ctx, k)
-	if !exists {
+	past, err := ts.getValue(ctx, k)
+	if err != nil && err != database.ErrNotFound {
+		return err
+	}
+	if err == database.ErrNotFound {
 		// We do not update writes if the key does not exist.
 		return nil
+	}
+	isUnchanged, err := ts.isUnchanged(ctx, k, nil, false)
+	if err != nil {
+		return err
 	}
 	ts.ops = append(ts.ops, &op{
 		t:             removeOp,
@@ -275,7 +331,7 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		ts.writes[k] = 0
 		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	}
-	if ts.isUnchanged(ctx, k, nil, false) {
+	if isUnchanged {
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
@@ -297,6 +353,11 @@ func (ts *TStateView) Commit() {
 		ts.ts.changedKeys[k] = v
 	}
 	ts.ts.ops += len(ts.ops)
+}
+
+// GetStateKeys returns the keys that have been touched along with their respective permissions.
+func (ts *TStateView) GetStateKeys() state.Keys {
+	return ts.scope
 }
 
 // chunks gets the number of chunks for a key in [m]
