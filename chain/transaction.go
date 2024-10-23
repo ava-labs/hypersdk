@@ -169,8 +169,8 @@ func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	for _, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor()) {
+	for i, action := range t.Actions {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
@@ -524,7 +524,7 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 		}
 
 		actor := authFactory.Address()
-		stateKeys := action.StateKeys(actor)
+		stateKeys := action.StateKeys(actor, ids.Empty)
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
