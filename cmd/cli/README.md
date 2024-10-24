@@ -25,3 +25,8 @@ API:
 ```bash
 go run ./cmd/cli/ read Transfer --key=./examples/morpheusvm/demo.pk --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12 
 ```
+
+Notes: 
+- balance request is impossible to implement right now, as we don't have standardized balance RPC method on HyperSDK (not VM) level.
+- maxFee is hardcoded to 1_000_000 for now
+

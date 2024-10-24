@@ -2,10 +2,10 @@ package tests
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
@@ -54,21 +54,29 @@ func TestSignTx(t *testing.T) {
 	abi, err := hyperSDKRPC.GetABI(context.Background())
 	require.NoError(t, err)
 
+	// Marshal actions to bytes
+	actionBytes := make([][]byte, 0)
+	for _, action := range []chain.Action{&action1, &action2} {
+		jsonPayload, err := json.Marshal(action)
+		require.NoError(t, err)
+
+		bytes, err := dynamic.Marshal(abi, "Transfer", string(jsonPayload))
+		require.NoError(t, err)
+		actionBytes = append(actionBytes, bytes)
+	}
+
 	// Use the manual signing function
-	manuallySignedBytes, err := SignTxManually([]chain.Action{&action1, &action2}, "Transfer", tx.Base, abi, key)
+	manuallySignedBytes, err := SignTxManually(actionBytes, tx.Base, key)
 	require.NoError(t, err)
 
 	// Compare results
 	require.Equal(t, signedBytes, manuallySignedBytes, "signed bytes do not match")
+
+	require.FailNow(t, hex.EncodeToString(manuallySignedBytes))
+
 }
 
-// base := &chain.Base{
-// 	ChainID:   chainID,
-// 	Timestamp: time.Now().Unix()*1000 + 60000,
-// 	MaxFee:    1_000_000,
-// }
-
-func SignTxManually(actions []chain.Action, actionType string, base *chain.Base, abi abi.ABI, privateKey ed25519.PrivateKey) ([]byte, error) {
+func SignTxManually(actionsTxBytes [][]byte, base *chain.Base, privateKey ed25519.PrivateKey) ([]byte, error) {
 	// Create auth factory
 	factory := auth.NewED25519Factory(privateKey)
 
@@ -80,20 +88,10 @@ func SignTxManually(actions []chain.Action, actionType string, base *chain.Base,
 	// Build unsigned bytes starting with base and number of actions
 	unsignedBytes := make([]byte, 0)
 	unsignedBytes = append(unsignedBytes, baseBytes...)
-	unsignedBytes = append(unsignedBytes, byte(len(actions))) // Number of actions
+	unsignedBytes = append(unsignedBytes, byte(len(actionsTxBytes))) // Number of actions
 
-	// Marshal and append each action
-	for _, action := range actions {
-		jsonPayload, err := json.Marshal(action)
-		if err != nil {
-			return nil, err
-		}
-
-		actionBytes, err := dynamic.Marshal(abi, actionType, string(jsonPayload))
-		if err != nil {
-			return nil, err
-		}
-
+	// Append each action's bytes
+	for _, actionBytes := range actionsTxBytes {
 		unsignedBytes = append(unsignedBytes, actionBytes...)
 	}
 
