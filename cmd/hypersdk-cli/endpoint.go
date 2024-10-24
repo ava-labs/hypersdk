@@ -12,7 +12,7 @@ import (
 var endpointCmd = &cobra.Command{
 	Use:   "endpoint",
 	Short: "Manage endpoint",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		endpoint, err := getConfigValue(cmd, "endpoint")
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)

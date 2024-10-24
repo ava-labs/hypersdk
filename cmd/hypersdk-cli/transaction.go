@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -53,10 +54,9 @@ var txCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to get abi: %w", err)
 		}
-
 		// 4. get action name from args
 		if len(args) == 0 {
-			return fmt.Errorf("action name is required")
+			return errors.New("action name is required")
 		}
 		actionName := args[0]
 		_, found := abi.FindActionByName(actionName)
@@ -211,13 +211,14 @@ func SignTxManually(actionsTxBytes [][]byte, base *chain.Base, privateKey ed2551
 	if err != nil {
 		return nil, err
 	}
-
 	// Marshal auth
 	p = codec.NewWriter(auth.Size(), consts.NetworkSizeLimit)
 	auth.Marshal(p)
-	authBytes := append([]byte{auth.GetTypeID()}, p.Bytes()...)
+	authBytes := []byte{auth.GetTypeID()}
+	authBytes = append(authBytes, p.Bytes()...)
 
 	// Combine everything into final signed transaction
+	//nolint:gocritic //append is fine here
 	signedBytes := append(unsignedBytes, authBytes...)
 	return signedBytes, nil
 }

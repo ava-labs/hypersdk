@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 var keyGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate a new key",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		newKey, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			return fmt.Errorf("failed to generate key: %w", err)
@@ -29,14 +30,14 @@ var keyGenerateCmd = &cobra.Command{
 var keySetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set the private ED25519 key",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		// read directly from the flag instead of calling getConfigValue
 		keyString, err := cmd.Flags().GetString("key")
 		if err != nil {
 			return fmt.Errorf("failed to get key: %w", err)
 		}
 		if keyString == "" {
-			return fmt.Errorf("--key is required")
+			return errors.New("--key is required")
 		}
 
 		return checkAndSavePrivateKey(keyString, cmd)
@@ -82,7 +83,7 @@ type keySetCmdResponse struct {
 }
 
 func (r keySetCmdResponse) String() string {
-	return fmt.Sprintf("✅ Key added successfully!\nAddress: %s", r.Address)
+	return "✅ Key added successfully!\nAddress: " + r.Address
 }
 
 func init() {

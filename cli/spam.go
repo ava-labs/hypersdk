@@ -86,11 +86,11 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		key,
 		sZipf,
 		vZipf,
-		int(txsPerSecond),
-		int(minTxsPerSecond),
-		int(txsPerSecondStep),
-		int(numClients),
-		int(numAccounts),
+		txsPerSecond,
+		minTxsPerSecond,
+		txsPerSecondStep,
+		numClients,
+		numAccounts,
 	)
 
 	return throughput.NewSpammer(sc, sh)

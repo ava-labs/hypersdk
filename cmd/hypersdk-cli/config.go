@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -115,7 +116,7 @@ func writeConfig(config map[string]string) error {
 		buf.WriteString(fmt.Sprintf("%s = %s\n", key, value))
 	}
 
-	if err := os.WriteFile(configPath, []byte(buf.String()), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(buf.String()), 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -131,5 +132,5 @@ func decodeFileOrHex(whatever string) ([]byte, error) {
 		return fileContents, nil
 	}
 
-	return nil, fmt.Errorf("unable to decode input as hex, or read as file path")
+	return nil, errors.New("unable to decode input as hex, or read as file path")
 }

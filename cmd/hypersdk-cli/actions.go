@@ -16,7 +16,7 @@ import (
 var actionsCmd = &cobra.Command{
 	Use:   "actions",
 	Short: "Print the list of actions available in the ABI",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		endpoint, err := getConfigValue(cmd, "endpoint")
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
@@ -66,7 +66,6 @@ func (a abiWrapper) String() string {
 		for _, field := range typ.Fields {
 			result += fmt.Sprintf("  %s: %s\n", field.Name, field.Type)
 		}
-
 	}
 	return result
 }

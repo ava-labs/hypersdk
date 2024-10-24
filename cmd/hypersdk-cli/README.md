@@ -121,8 +121,12 @@ hypersdk-cli tx Transfer
 
 ## Notes
 
-- The `balance` command is not currently implemented due to the lack of a standardized balance RPC method at the HyperSDK level.
-- The `maxFee` for transactions is currently hardcoded to 1,000,000.
 - Only flat actions are supported. Arrays, slices, embedded structs, maps, and struct fields are not supported.
 - The CLI supports ED25519 keys only.
 - If `--data` is supplied or JSON output is selected, the CLI will not ask for action arguments interactively.
+
+## Known Issues
+
+- The `balance` command is not currently implemented due to the lack of a standardized balance RPC method at the HyperSDK level.
+- The `maxFee` for transactions is currently hardcoded to 1,000,000.
+- The `key set` and `endpoint set` commands use a nested command structure which adds unnecessary complexity for a small CLI tool. A flatter command structure would be more appropriate.

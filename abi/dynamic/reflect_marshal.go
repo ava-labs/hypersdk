@@ -45,7 +45,7 @@ func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error)
 	found := false
 	for _, action := range inputABI.Actions {
 		if action.Name == typeName {
-			typeID = byte(action.ID)
+			typeID = action.ID
 			found = true
 			break
 		}

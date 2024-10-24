@@ -14,7 +14,7 @@ import (
 var addressCmd = &cobra.Command{
 	Use:   "address",
 	Short: "Print current key address",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		keyString, err := getConfigValue(cmd, "key")
 		if err != nil {
 			return fmt.Errorf("failed to get key: %w", err)

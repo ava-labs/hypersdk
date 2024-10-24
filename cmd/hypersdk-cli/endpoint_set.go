@@ -5,7 +5,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 
@@ -15,14 +17,14 @@ import (
 var endpointSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set the endpoint URL",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		endpoint, err := cmd.Flags().GetString("endpoint")
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint flag: %w", err)
 		}
 
 		if endpoint == "" {
-			return fmt.Errorf("endpoint is required")
+			return errors.New("endpoint is required")
 		}
 
 		if err := updateConfig("endpoint", endpoint); err != nil {
@@ -59,5 +61,9 @@ func (r endpointSetCmdResponse) String() string {
 func init() {
 	endpointCmd.AddCommand(endpointSetCmd)
 	endpointSetCmd.Flags().String("endpoint", "", "Endpoint URL to set")
-	endpointSetCmd.MarkFlagRequired("endpoint")
+
+	err := endpointSetCmd.MarkFlagRequired("endpoint")
+	if err != nil {
+		log.Fatalf("failed to mark endpoint flag as required: %s", err)
+	}
 }
