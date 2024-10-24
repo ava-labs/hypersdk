@@ -63,7 +63,7 @@ func checkAndSavePrivateKey(keyString string, cmd *cobra.Command) error {
 }
 
 func privateKeyFromString(keyStr string) (ed25519.PrivateKey, error) {
-	keyBytes, err := decodeWhatever(keyStr)
+	keyBytes, err := decodeFileOrHex(keyStr)
 	if err != nil {
 		return ed25519.EmptyPrivateKey, fmt.Errorf("failed to decode key: %w", err)
 	}

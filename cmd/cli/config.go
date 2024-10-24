@@ -1,14 +1,13 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/spf13/cobra"
 )
 
@@ -119,12 +118,8 @@ func writeConfig(config map[string]string) error {
 	return nil
 }
 
-func decodeWhatever(whatever string) ([]byte, error) {
-	if decoded, err := hex.DecodeString(whatever); err == nil {
-		return decoded, nil
-	}
-
-	if decoded, err := base64.StdEncoding.DecodeString(whatever); err == nil {
+func decodeFileOrHex(whatever string) ([]byte, error) {
+	if decoded, err := codec.LoadHex(whatever, -1); err == nil {
 		return decoded, nil
 	}
 
@@ -132,5 +127,5 @@ func decodeWhatever(whatever string) ([]byte, error) {
 		return fileContents, nil
 	}
 
-	return nil, fmt.Errorf("unable to decode input as base64, hex, or read as file path")
+	return nil, fmt.Errorf("unable to decode input as hex, or read as file path")
 }
