@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var (
@@ -56,6 +55,6 @@ func (n *Network) URIs() []string {
 	return n.uris
 }
 
-func (*Network) WorkloadFactory() workload.TxWorkloadFactory {
+/*func (*Network) WorkloadFactory() workload.TxWorkloadFactory {
 	return txWorkloadFactory
-}
+}*/

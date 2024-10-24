@@ -70,8 +70,8 @@ mod tests {
 
     #[test]
     fn test_balance() {
-        let mut context = Context::new();
         let address = Address::default();
+        let mut context = Context::with_actor(address);
         let amount: u64 = 100;
 
         // set the balance

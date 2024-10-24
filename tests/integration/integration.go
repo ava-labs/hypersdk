@@ -65,12 +65,13 @@ var (
 
 	// Injected values populated by Setup
 	createVM              func(...vm.Option) (*vm.VM, error)
-	genesisBytes          []byte
+	networkConfig         workload.TestNetworkConfiguration
 	vmID                  ids.ID
 	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
 	parser                chain.Parser
-	txWorkloadFactory     workload.TxWorkloadFactory
-	authFactory           chain.AuthFactory
+
+	txWorkload  workload.TxWorkload
+	authFactory chain.AuthFactory
 
 	externalSubscriberAcceptedBlocksCh chan ids.ID
 )
@@ -100,21 +101,23 @@ func init() {
 
 func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
-	genesis []byte,
+	networkConfigImpl workload.TestNetworkConfiguration,
 	id ids.ID,
 	createParser func(genesisBytes []byte) (chain.Parser, error),
-	workloadFactory workload.TxWorkloadFactory,
+	generator workload.TxGenerator,
 	authF chain.AuthFactory,
 ) {
 	require := require.New(ginkgo.GinkgoT())
 	createVM = newVM
-	genesisBytes = genesis
+	networkConfig = networkConfigImpl
 	vmID = id
 	createParserFromBytes = createParser
-	txWorkloadFactory = workloadFactory
+	txWorkload = workload.TxWorkload{
+		Generator: generator,
+	}
 	authFactory = authF
 
-	createdParser, err := createParserFromBytes(genesisBytes)
+	createdParser, err := createParserFromBytes(networkConfig.GenesisBytes())
 	require.NoError(err)
 	parser = createdParser
 
@@ -223,7 +226,7 @@ func setInstances() {
 			context.TODO(),
 			snowCtx,
 			db,
-			genesisBytes,
+			networkConfig.GenesisBytes(),
 			nil,
 			configs[i],
 			toEngine,
@@ -329,12 +332,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	)
 	ginkgo.It("Gossip TransferTx to a different node", func() {
 		uri := uris[0]
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uri, 100)
-		require.NoError(err)
 		ginkgo.By("issue TransferTx", func() {
-			initialTx, initialTxAssertion, err = workload.GenerateTxWithAssertion(ctx)
+			tx, assertion, err := txWorkload.Generator.GenerateTx(ctx, uri)
+			initialTxAssertion = assertion
+			initialTx = tx
 			require.NoError(err)
-			_, err := instances[0].cli.SubmitTx(ctx, initialTx.Bytes())
+			_, err = instances[0].cli.SubmitTx(ctx, initialTx.Bytes())
 			require.NoError(err)
 
 			require.Equal(1, instances[0].vm.Mempool().Len(context.Background()))
@@ -423,10 +426,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("ensure multiple txs work ", func() {
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("transfer funds again", func() {
-			tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+			tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
+
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
@@ -442,7 +444,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		ginkgo.By("transfer funds again (test storage keys)", func() {
 			for i := 0; i < 4; i++ {
-				tx, _, err := workload.GenerateTxWithAssertion(ctx)
+				tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
+
 				require.NoError(err)
 				_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 				require.NoError(err)
@@ -466,18 +469,15 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("Test processing block handling", func() {
 		var accept, accept2 func(bool) []*chain.Result
-
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("create processing tip", func() {
-			tx, _, err := txWorkload.GenerateTxWithAssertion(ctx)
+			tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
 			accept = expectBlk(instances[1])
 
-			tx, _, err = txWorkload.GenerateTxWithAssertion(ctx)
+			tx, _, err = txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
@@ -499,10 +499,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("ensure mempool works", func() {
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("fail Gossip TransferTx to a stale node when missing previous blocks", func() {
-			tx, _, err := workload.GenerateTxWithAssertion(ctx)
+			tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
@@ -562,9 +560,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// Wait for message to be sent
 		time.Sleep(2 * pubsub.MaxMessageWait) // TODO: remove after websocket server rewrite
 
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
-		tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+		tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 		require.NoError(err)
 
 		_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
@@ -596,9 +592,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		// Create tx
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
-		tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+		tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 		require.NoError(err)
 
 		// Submit tx and accept block
@@ -632,26 +626,6 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		// Close connection when done
 		require.NoError(cli.Close())
-	})
-
-	ginkgo.It("Workloads", func() {
-		workloads, err := txWorkloadFactory.NewWorkloads(uris[0])
-		require.NoError(err)
-
-		for _, txGenerator := range workloads {
-			for txGenerator.Next() {
-				tx, txAssertion, err := txGenerator.GenerateTxWithAssertion(ctx)
-				require.NoError(err)
-				_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
-				require.NoError(err)
-
-				accept := expectBlk(instances[0])
-				_ = accept(true)
-				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-				defer cancel()
-				txAssertion(cctx, require, uris[0])
-			}
-		}
 	})
 })
 
