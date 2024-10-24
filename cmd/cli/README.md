@@ -1,32 +1,122 @@
-We need a CLI to do read only and write actions in transactions. 
+# HyperSDK CLI
 
-Requirements:
-- JSON/human-readable output. You can add `-o json` or `-o human` to any request
-- action payload through interactive UI and through a one line tx, meaning any action argument, that's missing would be asked interactively
-- Only flat actons are supported, no arrays, slices embeded structs, maps and struct fields.
-- Keeps the private key and the endpoint in the user's home folder in `~/.hypersdk-cli/config.cfg`
-- Argument `--endpoint` added to any request, overrides the request endpoint. If `--endpoint` is not set and `~/.hypersdk-cli/config.cfg` doesn't have endpoint field, errors
-- Supports ed25519 keys only (enforce default, this is a default opinionated CLI)
-- If --data supplied, or json selected as an output would not ask for the action arguments
+A command-line interface for interacting with HyperSDK-based chains.
 
-API:
-✅ `address` - prints current key address
-✅ `key generate` - generates a new address
-`balance` - balance
-✅ `key set` set private key from file, base64 string or hex string presented in the first argument
-✅ `endpoint` - prints URL of the current endpoint
-✅ `ping` - checks connectivity with the current endpoing
-✅ `endpoint set --endpoint=https://hello.world:1234` sets endpoint
-✅ `actions` - print the list of actions available in the ABI, for JSON it prints ABI JSON
-`tx [action name] [action params]` - sends a transaction with a single action
-✅ `read [action name] [action params]` - simulates a single action transaction
+## Installation
 
+Just `go run ./cmd/cli/ ` for now
+
+## Configuration
+
+The CLI stores configuration in `~/.hypersdk-cli/config.cfg`. This includes:
+- Private key
+- Endpoint URL
+
+## Global Flags
+
+- `--endpoint`: Override the default endpoint for a single command
+- `-o, --output`: Set output format (`human` or `json`)
+
+## Commands
+
+### address
+
+Print the current key address.
 
 ```bash
-go run ./cmd/cli/ read Transfer --key=./examples/morpheusvm/demo.pk --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12 
+go run ./cmd/cli/ address
 ```
 
-Notes: 
-- balance request is impossible to implement right now, as we don't have standardized balance RPC method on HyperSDK (not VM) level.
-- maxFee is hardcoded to 1_000_000 for now
+### key
 
+Manage keys.
+
+#### generate
+
+Generate a new ED25519 key pair.
+
+```bash
+go run ./cmd/cli/ key generate
+```
+
+#### set
+
+Set the private ED25519 key.
+
+```bash
+go run ./cmd/cli/ key set --key=<private-key-hex-or-file-path>
+```
+
+### endpoint
+
+Print the current endpoint URL.
+
+```bash
+go run ./cmd/cli/ endpoint
+```
+
+#### set
+
+Set the endpoint URL.
+
+```bash
+go run ./cmd/cli/ endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusvm/
+```
+
+### ping
+
+Check connectivity with the current endpoint.
+
+```bash
+go run ./cmd/cli/ ping
+```
+
+### actions
+
+Print the list of actions available in the ABI.
+
+```bash
+go run ./cmd/cli/ actions
+```
+
+For JSON output:
+
+```bash
+go run ./cmd/cli/ actions -o json
+```
+
+### read
+
+Simulate a single action transaction.
+
+```bash
+go run ./cmd/cli/ read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12
+```
+
+For interactive input remove --data from the comand line:
+
+```bash
+go run ./cmd/cli/ read Transfer
+```
+
+### tx
+
+Send a transaction with a single action.
+
+```bash
+go run ./cmd/cli/ tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=
+```
+
+For interactive input:
+
+```bash
+go run ./cmd/cli/ tx Transfer
+```
+
+## Notes
+
+- The `balance` command is not currently implemented due to the lack of a standardized balance RPC method at the HyperSDK level.
+- The `maxFee` for transactions is currently hardcoded to 1,000,000.
+- Only flat actions are supported. Arrays, slices, embedded structs, maps, and struct fields are not supported.
+- The CLI supports ED25519 keys only.
+- If `--data` is supplied or JSON output is selected, the CLI will not ask for action arguments interactively.
