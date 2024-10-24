@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -26,15 +27,23 @@ const (
 )
 
 type Network struct {
-	nodes []*Node
+	nodes  []*Node
+	parser *parser
 }
 
 func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 	blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 	testNetwork := &Network{}
 	for _, uri := range getE2EURIs(tc, blockchainID) {
-		n := Node(uri)
-		testNetwork.nodes = append(testNetwork.nodes, &n)
+		n := &Node{uri: uri, network: testNetwork}
+		testNetwork.nodes = append(testNetwork.nodes, n)
+	}
+	testNetwork.parser = &parser{
+		Parser: networkConfig.Parser(),
+		rules: &rules{
+			Rules:   networkConfig.Parser().Rules(0),
+			chainID: blockchainID,
+		},
 	}
 	return testNetwork
 }
@@ -50,7 +59,10 @@ func (*Network) Configuration() workload.TestNetworkConfiguration {
 	return networkConfig
 }
 
-type Node string
+type Node struct {
+	uri     string
+	network *Network
+}
 
 func (n *Node) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	indexerCli := indexer.NewClient(n.URI())
@@ -81,7 +93,7 @@ func (n *Node) GenerateTx(ctx context.Context, actions []chain.Action, auth chai
 	c := jsonrpc.NewJSONRPCClient(n.URI())
 	_, tx, _, err := c.GenerateTransaction(
 		ctx,
-		networkConfig.Parser(),
+		n.network.parser,
 		actions,
 		auth,
 	)
@@ -89,5 +101,23 @@ func (n *Node) GenerateTx(ctx context.Context, actions []chain.Action, auth chai
 }
 
 func (n *Node) URI() string {
-	return string(*n)
+	return n.uri
+}
+
+type rules struct {
+	chain.Rules
+	chainID ids.ID
+}
+
+func (r *rules) GetChainID() ids.ID {
+	return r.chainID
+}
+
+type parser struct {
+	chain.Parser
+	rules *rules
+}
+
+func (p *parser) Rules(int64) chain.Rules {
+	return p.rules
 }
