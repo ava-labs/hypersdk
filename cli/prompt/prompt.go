@@ -6,9 +6,9 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
-	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/manifoldco/promptui"
