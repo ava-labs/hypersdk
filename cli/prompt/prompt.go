@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/manifoldco/promptui"
@@ -192,6 +193,9 @@ func Uint(
 			amount64, err := strconv.ParseUint(input, 10, 64)
 			if err != nil {
 				return err
+			}
+			if amount64 > math.MaxUint {
+				return fmt.Errorf("%d exceeds the maximum value for uint", amount64)
 			}
 			amount := uint(amount64)
 			if amount > max {
