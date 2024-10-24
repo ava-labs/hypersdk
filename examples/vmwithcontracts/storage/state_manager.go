@@ -58,6 +58,6 @@ func (*BalanceHandler) AddBalance(
 	return err
 }
 
-func (b *BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	return GetBalance(ctx, im, addr)
 }
