@@ -57,3 +57,7 @@ func (*BalanceHandler) AddBalance(
 	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
 	return err
 }
+
+func (b *BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+	return GetBalance(ctx, im, addr)
+}
