@@ -94,7 +94,7 @@ func CreateContract(db *C.Mutable, path *C.char) C.CreateContractResponse {
 		}
 	}
 
-	err = contractManager.SetContract(context.TODO(), contractID, contractBytes)
+	err = contractManager.SetContractBytes(context.TODO(), runtime.ContractID(contractID[:]), contractBytes)
 	if err != nil {
 		errmsg := "contract creation failed: " + err.Error()
 		return C.CreateContractResponse{

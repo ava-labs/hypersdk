@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package runtime
 
 import (
@@ -7,14 +10,15 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 
 var (
-	_ ContractManager = &ContractStateManager{}
-	ErrUnknownAccount = errors.New("unknown account")
-	contractKeyBytes  = []byte("contract")
+	_                 ContractManager = &ContractStateManager{}
+	ErrUnknownAccount                 = errors.New("unknown account")
+	contractKeyBytes                  = []byte("contract")
 )
 
 const (
@@ -23,7 +27,6 @@ const (
 	accountPrefix      = 0x1
 	accountDataPrefix  = 0x0
 	accountStatePrefix = 0x1
-
 )
 
 // default implementation of the ContractManager interface
@@ -67,7 +70,6 @@ func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID 
 
 	return contractBytes, nil
 }
-
 
 func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID ContractID, accountCreationData []byte) (codec.Address, error) {
 	newID := sha256.Sum256(append(contractID, accountCreationData...))

@@ -15,20 +15,20 @@ import (
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
-var _ runtime.ContractStateManager = &ContractStateManager{}
+var _ runtime.StateManager = &ContractStateManager{}
 
 var (
-	balanceKeyBytes   = []byte("balance")
+	balanceKeyBytes       = []byte("balance")
 	contractManagerPrefix = []byte("contract")
 )
 
 const (
-	BalanceManagerPrefix  = 0x1
-	BalanceDataPrefix     = 0x0
+	BalanceManagerPrefix = 0x1
+	BalanceDataPrefix    = 0x0
 )
 
 type ContractStateManager struct {
-	db state.Mutable
+	db            state.Mutable
 	contractState *runtime.ContractStateManager
 }
 
@@ -40,7 +40,7 @@ func NewContractStateManager(db state.Mutable) *ContractStateManager {
 		),
 	)
 	return &ContractStateManager{
-		db: db,
+		db:            db,
 		contractState: contractManager,
 	}
 }
@@ -93,4 +93,27 @@ func accountBalanceKey(account []byte) (k []byte) {
 	return
 }
 
+// expose contract manager methods
+func (p *ContractStateManager) GetContractState(address codec.Address) state.Mutable {
+	return p.contractState.GetContractState(address)
+}
 
+func (p *ContractStateManager) GetAccountContract(ctx context.Context, account codec.Address) (runtime.ContractID, error) {
+	return p.contractState.GetAccountContract(ctx, account)
+}
+
+func (p *ContractStateManager) GetContractBytes(ctx context.Context, contractID runtime.ContractID) ([]byte, error) {
+	return p.contractState.GetContractBytes(ctx, contractID)
+}
+
+func (p *ContractStateManager) NewAccountWithContract(ctx context.Context, contractID runtime.ContractID, accountCreationData []byte) (codec.Address, error) {
+	return p.contractState.NewAccountWithContract(ctx, contractID, accountCreationData)
+}
+
+func (p *ContractStateManager) SetAccountContract(ctx context.Context, account codec.Address, contractID runtime.ContractID) error {
+	return p.contractState.SetAccountContract(ctx, account, contractID)
+}
+
+func (p *ContractStateManager) SetContractBytes(ctx context.Context, contractID runtime.ContractID, contractBytes []byte) error {
+	return p.contractState.SetContractBytes(ctx, contractID, contractBytes)
+}
