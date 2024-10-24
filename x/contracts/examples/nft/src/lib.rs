@@ -1,8 +1,6 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use core::panic;
-
 use wasmlanche::{public, state_schema, Address, Context};
 
 pub type Units = u64;
@@ -150,6 +148,7 @@ pub fn is_approved_for_all(ctx: &mut Context, owner: Address, operator: Address)
         .unwrap_or_default()
 }
 
+#[cfg(not(feature = "bindings"))]
 fn is_approved(ctx: &mut Context, operator: Address, token_id: TokenId) -> bool {
     let owner = owner_of(ctx, token_id);
 
@@ -158,6 +157,7 @@ fn is_approved(ctx: &mut Context, operator: Address, token_id: TokenId) -> bool 
         || is_approved_for_all(ctx, owner, operator)
 }
 
+#[cfg(not(feature = "bindings"))]
 fn is_approved_for_token(ctx: &mut Context, actor: Address, token_id: TokenId) -> bool {
     ctx.get(Approval(token_id))
         .expect("failed to deserialize")
@@ -278,7 +278,7 @@ pub fn burn(ctx: &mut Context, token_id: TokenId) {
     transfer_from(ctx, owner, Address::ZERO, token_id);
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "bindings")))]
 mod tests {
     use super::*;
 

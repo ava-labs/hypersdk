@@ -16,4 +16,4 @@ wasmlanche = { workspace = true, features = ["debug", "test"] }
 wasmlanche = { workspace = true, features = ["build"] }
 
 [features]
-# bindings = ["wasmlanche/bindings"]
+bindings = ["wasmlanche/bindings"]
