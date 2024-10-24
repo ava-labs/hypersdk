@@ -35,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -54,7 +55,7 @@ var (
 	log        logging.Logger
 
 	// when used with embedded VMs
-	instances            []instance
+	instances            []*instance
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
@@ -62,11 +63,9 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
-	genesisBytes          []byte
-	vmID                  ids.ID
-	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
-	parser                chain.Parser
+	createVM      func(...vm.Option) (*vm.VM, error)
+	networkConfig workload.TestNetworkConfiguration
+	vmID          ids.ID
 
 	txWorkload  workload.TxWorkload
 	authFactory chain.AuthFactory
@@ -99,25 +98,18 @@ func init() {
 
 func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
-	genesis []byte,
+	networkConfigImpl workload.TestNetworkConfiguration,
 	id ids.ID,
-	createParser func(genesisBytes []byte) (chain.Parser, error),
 	generator workload.TxGenerator,
 	authF chain.AuthFactory,
 ) {
-	require := require.New(ginkgo.GinkgoT())
 	createVM = newVM
-	genesisBytes = genesis
+	networkConfig = networkConfigImpl
 	vmID = id
-	createParserFromBytes = createParser
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
 	}
 	authFactory = authF
-
-	createdParser, err := createParserFromBytes(genesisBytes)
-	require.NoError(err)
-	parser = createdParser
 
 	setInstances()
 }
@@ -128,7 +120,11 @@ func setInstances() {
 	log.Info("VMID", zap.Stringer("id", vmID))
 
 	// create embedded VMs
-	instances = make([]instance, numVMs)
+	instances = make([]*instance, numVMs)
+
+	createParserFromBytes := func(_ []byte) (chain.Parser, error) {
+		return networkConfig.Parser(), nil
+	}
 
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
@@ -172,9 +168,9 @@ func setInstances() {
 	configs := make([][]byte, numVMs)
 	configs[0] = externalSubscriberConfigBytes
 
-	networkID = uint32(1)
+	networkID = networkConfig.Parser().Rules(0).GetNetworkID()
 	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
+	chainID := networkConfig.Parser().Rules(0).GetChainID()
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
@@ -219,7 +215,7 @@ func setInstances() {
 			context.TODO(),
 			snowCtx,
 			db,
-			genesisBytes,
+			networkConfig.GenesisBytes(),
 			nil,
 			configs[i],
 			toEngine,
@@ -238,7 +234,7 @@ func setInstances() {
 		routerServer := httptest.NewServer(router)
 		jsonRPCServer := httptest.NewServer(hd[jsonrpc.Endpoint])
 		webSocketServer := httptest.NewServer(hd[ws.Endpoint])
-		instances[i] = instance{
+		instances[i] = &instance{
 			chainID:         snowCtx.ChainID,
 			nodeID:          snowCtx.NodeID,
 			vm:              v,
@@ -487,7 +483,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Confirm accepted blocks indexed", func() {
-			workload.GetBlocks(ctx, require, parser, []string{uris[1]})
+			workload.GetBlocks(ctx, require, networkConfig.Parser(), []string{uris[1]})
 		})
 	})
 
@@ -569,7 +565,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		txAssertion(cctx, require, uris[0])
 
 		// Read item from connection
-		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), networkConfig.Parser())
 		require.NoError(err)
 		require.Len(blk.Txs, 1)
 		require.Equal(lresults, results)
@@ -622,7 +618,17 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 })
 
-func expectBlk(i instance) func(add bool) []*chain.Result {
+var _ = ginkgo.Describe("[Custom VM Tests]", func() {
+	require := require.New(ginkgo.GinkgoT())
+	for _, test := range registry.List() {
+		ginkgo.It(test.Name, func() {
+			testNetwork := &Network{uris: uris}
+			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+		})
+	}
+})
+
+func expectBlk(i *instance) func(add bool) []*chain.Result {
 	require := require.New(ginkgo.GinkgoT())
 
 	ctx := context.TODO()

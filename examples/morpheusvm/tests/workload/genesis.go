@@ -4,12 +4,18 @@
 package workload
 
 import (
+	"encoding/json"
 	"math"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 )
@@ -25,7 +31,7 @@ var ed25519HexKeys = []string{
 	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 }
 
-func NewGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
+func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
 	// allocate the initial balance to the addresses
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(keys))
 	for _, key := range keys {
@@ -45,10 +51,13 @@ func NewGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	genesis.Rules.MinBlockGap = minBlockGap.Milliseconds()
 
+	genesis.Rules.NetworkID = uint32(1)
+	genesis.Rules.ChainID = ids.GenerateTestID()
+
 	return genesis
 }
 
-func NewDefaultKeys() []ed25519.PrivateKey {
+func newDefaultKeys() []ed25519.PrivateKey {
 	testKeys := make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	for i, keyHex := range ed25519HexKeys {
 		bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
@@ -59,4 +68,40 @@ func NewDefaultKeys() []ed25519.PrivateKey {
 	}
 
 	return testKeys
+}
+
+type NetworkConfiguration struct {
+	genesisBytes []byte
+	keys         []ed25519.PrivateKey
+	parser       chain.Parser
+}
+
+func (n *NetworkConfiguration) GenesisBytes() []byte {
+	return n.genesisBytes
+}
+
+func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
+	return n.keys
+}
+
+func (*NetworkConfiguration) Name() string {
+	return consts.Name
+}
+
+func (n *NetworkConfiguration) Parser() chain.Parser {
+	return n.parser
+}
+
+func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
+	keys := newDefaultKeys()
+	genesis := newGenesis(keys, minBlockGap)
+	genesisBytes, err := json.Marshal(genesis)
+	if err != nil {
+		return nil, err
+	}
+	return &NetworkConfiguration{
+		keys:         keys,
+		genesisBytes: genesisBytes,
+		parser:       vm.NewParser(genesis),
+	}, nil
 }
