@@ -318,3 +318,33 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 	return nil
 }
+
+type GetBalanceArgs struct {
+	Address codec.Address `json:"address"`
+}
+
+type GetBalanceReply struct {
+	Balance uint64 `json:"balance"`
+}
+
+func (j *JSONRPCServer) GetBalance(
+	req *http.Request,
+	args *GetBalanceArgs,
+	reply *GetBalanceReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetBalance")
+	defer span.End()
+
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+
+	balance, err := j.vm.BalanceHandler().GetBalance(ctx, args.Address, im)
+	if err != nil {
+		return err
+	}
+
+	reply.Balance = balance
+	return nil
+}

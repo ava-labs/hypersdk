@@ -42,4 +42,5 @@ type VM interface {
 	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
+	BalanceHandler() chain.BalanceHandler
 }
