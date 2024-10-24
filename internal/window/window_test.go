@@ -116,12 +116,12 @@ func TestUint64WindowOverflow(t *testing.T) {
 	}
 
 	sum := Sum(uint64Window)
-	require.Equal(uint64(consts.MaxUint64), sum)
+	require.Equal(consts.MaxUint64, sum)
 
 	for i := 0; i < 10; i++ {
 		Update(&uint64Window, i*8, uint64(i))
 		sum = Sum(uint64Window)
 
-		require.Equal(uint64(consts.MaxUint64), sum)
+		require.Equal(consts.MaxUint64, sum)
 	}
 }
