@@ -1,10 +1,14 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/auth"
 )
 
 var addressCmd = &cobra.Command{

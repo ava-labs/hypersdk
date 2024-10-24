@@ -1,12 +1,16 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/spf13/cobra"
 )
 
 var keyGenerateCmd = &cobra.Command{
@@ -26,7 +30,7 @@ var keySetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set the private ED25519 key",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		//read directly from the flag instead of calling getConfigValue
+		// read directly from the flag instead of calling getConfigValue
 		keyString, err := cmd.Flags().GetString("key")
 		if err != nil {
 			return fmt.Errorf("failed to get key: %w", err)

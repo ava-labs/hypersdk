@@ -48,7 +48,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
-	numAccounts, err := prompt.Int("number of accounts", int64(consts.MaxInt))
+	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
 	if err != nil {
 		return nil, err
 	}
@@ -64,19 +64,19 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
-	txsPerSecond, err := prompt.Int("txs to try and issue per second", int64(consts.MaxInt))
+	txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
 	if err != nil {
 		return nil, err
 	}
-	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", int64(consts.MaxInt))
+	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
 	if err != nil {
 		return nil, err
 	}
-	txsPerSecondStep, err := prompt.Int("txs to increase per second", int64(consts.MaxInt))
+	txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
 	if err != nil {
 		return nil, err
 	}
-	numClients, err := prompt.Int("number of clients per node", int64(consts.MaxInt))
+	numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
 	if err != nil {
 		return nil, err
 	}

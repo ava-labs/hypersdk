@@ -1,11 +1,15 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
 var endpointPingCmd = &cobra.Command{

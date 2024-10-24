@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -8,20 +11,21 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/spf13/cobra"
 )
 
 var readCmd = &cobra.Command{
 	Use:   "read [action]",
 	Short: "Read data from the chain",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		//1. figure out sender address
+		// 1. figure out sender address
 		senderStr, err := cmd.Flags().GetString("sender")
 		if err != nil {
 			return fmt.Errorf("failed to get sender: %w", err)
@@ -35,7 +39,7 @@ var readCmd = &cobra.Command{
 				return fmt.Errorf("failed to convert sender to address: %w", err)
 			}
 		} else {
-			//ok, infer user's address from the private key
+			// ok, infer user's address from the private key
 			keyString, err := getConfigValue(cmd, "key")
 			if err != nil {
 				return fmt.Errorf("failed to get key from config: %w", err)
@@ -47,20 +51,20 @@ var readCmd = &cobra.Command{
 			sender = auth.NewED25519Address(key.PublicKey())
 		}
 
-		//2. create client
+		// 2. create client
 		endpoint, err := getConfigValue(cmd, "endpoint")
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
 		}
 		client := jsonrpc.NewJSONRPCClient(endpoint)
 
-		//3. get abi
+		// 3. get abi
 		abi, err := client.GetABI(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to get abi: %w", err)
 		}
 
-		//4. get action name from args
+		// 4. get action name from args
 		if len(args) == 0 {
 			return fmt.Errorf("action name is required")
 		}
@@ -75,7 +79,7 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to find type: %s", actionName)
 		}
 
-		//5. create action using kvPairs
+		// 5. create action using kvPairs
 		kvPairs, err := fillAction(cmd, typ)
 		if err != nil {
 			return err

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -8,6 +11,8 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -17,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
 )
 
 var txCmd = &cobra.Command{
@@ -27,7 +31,7 @@ var txCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		//1. Decode key
+		// 1. Decode key
 		keyString, err := getConfigValue(cmd, "key")
 		if err != nil {
 			return fmt.Errorf("failed to get key from config: %w", err)
@@ -37,20 +41,20 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to decode key: %w", err)
 		}
 
-		//2. create client
+		// 2. create client
 		endpoint, err := getConfigValue(cmd, "endpoint")
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
 		}
 		client := jsonrpc.NewJSONRPCClient(endpoint)
 
-		//3. get abi
+		// 3. get abi
 		abi, err := client.GetABI(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get abi: %w", err)
 		}
 
-		//4. get action name from args
+		// 4. get action name from args
 		if len(args) == 0 {
 			return fmt.Errorf("action name is required")
 		}
@@ -65,7 +69,7 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to find type: %s", actionName)
 		}
 
-		//5. create action using kvPairs
+		// 5. create action using kvPairs
 		kvPairs, err := fillAction(cmd, typ)
 		if err != nil {
 			return err

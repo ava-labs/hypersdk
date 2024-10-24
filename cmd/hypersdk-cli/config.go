@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -7,8 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 func isJSONOutputRequested(cmd *cobra.Command) (bool, error) {
@@ -101,7 +105,7 @@ func writeConfig(config map[string]string) error {
 	}
 
 	configDir := filepath.Join(homeDir, ".hypersdk-cli")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -111,7 +115,7 @@ func writeConfig(config map[string]string) error {
 		buf.WriteString(fmt.Sprintf("%s = %s\n", key, value))
 	}
 
-	if err := os.WriteFile(configPath, []byte(buf.String()), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(buf.String()), 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

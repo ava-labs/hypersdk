@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package tests
 
 import (
@@ -6,18 +9,17 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/abi/dynamic"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/abi/dynamic"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
 )
 
 func TestSignTx(t *testing.T) {
@@ -73,7 +75,6 @@ func TestSignTx(t *testing.T) {
 	require.Equal(t, signedBytes, manuallySignedBytes, "signed bytes do not match")
 
 	require.FailNow(t, hex.EncodeToString(manuallySignedBytes))
-
 }
 
 func SignTxManually(actionsTxBytes [][]byte, base *chain.Base, privateKey ed25519.PrivateKey) ([]byte, error) {
