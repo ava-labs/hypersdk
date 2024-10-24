@@ -174,6 +174,7 @@ type BalanceHandler interface {
 	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
 
 	// GetBalance returns the balance of [addr].
+	// If [addr] does not exist, this should return 0.
 	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
