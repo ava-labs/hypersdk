@@ -13,11 +13,12 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 var ErrTypeNotFound = errors.New("type not found in ABI")
