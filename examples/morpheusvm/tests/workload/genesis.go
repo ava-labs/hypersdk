@@ -8,6 +8,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -48,6 +49,9 @@ func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 	// a block that exceeds the maximum size allowed by AvalancheGo.
 	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	genesis.Rules.MinBlockGap = minBlockGap.Milliseconds()
+
+	genesis.Rules.NetworkID = uint32(1)
+	genesis.Rules.ChainID = ids.GenerateTestID()
 
 	return genesis
 }
@@ -94,14 +98,9 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 	if err != nil {
 		return nil, err
 	}
-	parser, err := vm.CreateParser(genesisBytes)
-	if err != nil {
-		return nil, err
-	}
-
 	return &NetworkConfiguration{
 		keys:         keys,
 		genesisBytes: genesisBytes,
-		parser:       parser,
+		parser:       vm.NewParser(genesis),
 	}, nil
 }

@@ -10,10 +10,15 @@ import (
 )
 
 type TestNetwork interface {
-	SubmitTxs(context.Context, string, []*chain.Transaction) error
-	ConfirmTxs(context.Context, string, []*chain.Transaction) error
-	URIs() []string
+	Nodes() []TestNode
 	Configuration() TestNetworkConfiguration
+}
+
+type TestNode interface {
+	SubmitTxs(context.Context, []*chain.Transaction) error
+	ConfirmTxs(context.Context, []*chain.Transaction) error
+	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
+	URI() string
 }
 
 // TestNetworkConfiguration is an interface, implemented by the custom-vm network test framework

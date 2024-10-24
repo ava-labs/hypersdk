@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -28,18 +29,28 @@ type Network struct {
 	uris []string
 }
 
-func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
-	// this is the wrong way. for integration, we wante to test the block content directly.
-	instance, err := n.getInstance(uri)
-	if err != nil {
-		return err
+func (*Network) Nodes() (out []workload.TestNode) {
+	for _, instance := range instances {
+		out = append(out, instance)
 	}
-	expectBlk(instance)(false)
+	return out
+}
+
+func (i *instance) SubmitTxs(ctx context.Context, txs []*chain.Transaction) error {
+	errs := i.vm.Submit(ctx, true, txs)
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs[0]
+}
+
+func (i *instance) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	expectBlk(i)(false)
 
 	for {
 		allFound := true
 		for _, tx := range txs {
-			err := n.confirmTx(ctx, instance, tx.ID())
+			err := i.confirmTx(ctx, tx.ID())
 			if err == ErrTxNotFound {
 				allFound = false
 				break
@@ -58,28 +69,33 @@ func (n *Network) ConfirmTxs(ctx context.Context, uri string, txs []*chain.Trans
 	}
 }
 
-func (n *Network) SubmitTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
-	instance, err := n.getInstance(uri)
-	if err != nil {
-		return err
-	}
-	errs := instance.vm.Submit(ctx, true, txs)
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs[0]
+func (i *instance) URI() string {
+	return i.routerServer.URL
 }
 
-func (*Network) confirmTx(ctx context.Context, instance instance, txid ids.ID) error {
-	lastAcceptedHeight, err := instance.vm.GetLastAcceptedHeight()
+func (i *instance) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
+	// todo :
+	// this implementation need to change so that we can perform it directly without any RPC calls.
+	c := jsonrpc.NewJSONRPCClient(i.URI())
+	_, tx, _, err := c.GenerateTransaction(
+		context.Background(),
+		networkConfig.Parser(),
+		actions,
+		auth,
+	)
+	return tx, err
+}
+
+func (i *instance) confirmTx(ctx context.Context, txid ids.ID) error {
+	lastAcceptedHeight, err := i.vm.GetLastAcceptedHeight()
 	if err != nil {
 		return err
 	}
-	lastAcceptedBlockID, err := instance.vm.GetBlockHeightID(lastAcceptedHeight)
+	lastAcceptedBlockID, err := i.vm.GetBlockHeightID(lastAcceptedHeight)
 	if err != nil {
 		return err
 	}
-	blk, err := instance.vm.GetBlock(ctx, lastAcceptedBlockID)
+	blk, err := i.vm.GetBlock(ctx, lastAcceptedBlockID)
 	if err != nil {
 		return err
 	}
@@ -96,7 +112,7 @@ func (*Network) confirmTx(ctx context.Context, instance instance, txid ids.ID) e
 		}
 		// keep iterating backward.
 		lastAcceptedBlockID = blk.Parent()
-		blk, err = instance.vm.GetBlock(ctx, lastAcceptedBlockID)
+		blk, err = i.vm.GetBlock(ctx, lastAcceptedBlockID)
 		if err != nil {
 			return ErrTxNotFound
 		}
@@ -109,13 +125,4 @@ func (n *Network) URIs() []string {
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
 	return networkConfig
-}
-
-func (*Network) getInstance(uri string) (instance, error) {
-	for _, instance := range instances {
-		if instance.routerServer.URL == uri {
-			return instance, nil
-		}
-	}
-	return instance{}, ErrInvalidURI
 }

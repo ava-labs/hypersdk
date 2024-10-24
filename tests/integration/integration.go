@@ -55,11 +55,10 @@ var (
 	log        logging.Logger
 
 	// when used with embedded VMs
-	instances            []instance
+	instances            []*instance
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
-	testRegistry         registry.Registry
 
 	networkID uint32
 
@@ -115,18 +114,13 @@ func Setup(
 	setInstances()
 }
 
-func RegisterTest(name string, f registry.TestFunc) bool {
-	testRegistry.Add(name, f)
-	return true
-}
-
 func setInstances() {
 	require := require.New(ginkgo.GinkgoT())
 
 	log.Info("VMID", zap.Stringer("id", vmID))
 
 	// create embedded VMs
-	instances = make([]instance, numVMs)
+	instances = make([]*instance, numVMs)
 
 	createParserFromBytes := func(_ []byte) (chain.Parser, error) {
 		return networkConfig.Parser(), nil
@@ -174,9 +168,9 @@ func setInstances() {
 	configs := make([][]byte, numVMs)
 	configs[0] = externalSubscriberConfigBytes
 
-	networkID = uint32(1)
+	networkID = networkConfig.Parser().Rules(0).GetNetworkID()
 	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
+	chainID := networkConfig.Parser().Rules(0).GetChainID()
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
@@ -240,7 +234,7 @@ func setInstances() {
 		routerServer := httptest.NewServer(router)
 		jsonRPCServer := httptest.NewServer(hd[jsonrpc.Endpoint])
 		webSocketServer := httptest.NewServer(hd[ws.Endpoint])
-		instances[i] = instance{
+		instances[i] = &instance{
 			chainID:         snowCtx.ChainID,
 			nodeID:          snowCtx.NodeID,
 			vm:              v,
@@ -626,7 +620,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	require := require.New(ginkgo.GinkgoT())
-	for _, test := range testRegistry.List() {
+	for _, test := range registry.List() {
 		ginkgo.It(test.Name, func() {
 			testNetwork := &Network{uris: uris}
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
@@ -634,7 +628,7 @@ var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	}
 })
 
-func expectBlk(i instance) func(add bool) []*chain.Result {
+func expectBlk(i *instance) func(add bool) []*chain.Result {
 	require := require.New(ginkgo.GinkgoT())
 
 	ctx := context.TODO()

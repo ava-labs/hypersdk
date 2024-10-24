@@ -26,3 +26,14 @@ func (r *Registry) Add(name string, f TestFunc) {
 func (r *Registry) List() []namedTest {
 	return r.tests
 }
+
+var testRegistry Registry
+
+func RegisterTest(name string, f TestFunc) bool {
+	testRegistry.Add(name, f)
+	return true
+}
+
+func List() []namedTest {
+	return testRegistry.List()
+}

@@ -33,7 +33,6 @@ var (
 	expectedABI   abi.ABI
 	spamKey       *auth.PrivateKey
 	spamHelper    throughput.SpamHelper
-	testRegistry  registry.Registry
 )
 
 func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey) {
@@ -247,19 +246,13 @@ var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	tc := e2e.NewTestContext()
 	require := require.New(tc)
 
-	for _, test := range testRegistry.List() {
+	for _, test := range registry.List() {
 		ginkgo.It(test.Name, func() {
-			blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
-			testNetwork := &Network{uris: getE2EURIs(tc, blockchainID)}
+			testNetwork := NewNetwork(tc)
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 		})
 	}
 })
-
-func RegisterTest(name string, f registry.TestFunc) bool {
-	testRegistry.Add(name, f)
-	return true
-}
 
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
 	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()
