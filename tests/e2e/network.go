@@ -80,7 +80,7 @@ func (n *Node) SubmitTxs(ctx context.Context, txs []*chain.Transaction) error {
 func (n *Node) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
 	c := jsonrpc.NewJSONRPCClient(n.URI())
 	_, tx, _, err := c.GenerateTransaction(
-		context.Background(),
+		ctx,
 		networkConfig.Parser(),
 		actions,
 		auth,

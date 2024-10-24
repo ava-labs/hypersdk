@@ -78,7 +78,7 @@ func (i *instance) GenerateTx(ctx context.Context, actions []chain.Action, auth 
 	// this implementation need to change so that we can perform it directly without any RPC calls.
 	c := jsonrpc.NewJSONRPCClient(i.URI())
 	_, tx, _, err := c.GenerateTransaction(
-		context.Background(),
+		ctx,
 		networkConfig.Parser(),
 		actions,
 		auth,
