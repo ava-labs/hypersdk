@@ -8,244 +8,232 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
-const maxBlockWindow uint64 = 1_000_000
-
-var errBlockNotFound = errors.New("block not found")
+// TODO: implement database cleanup
+var ErrBlockNotFound = errors.New("block not found")
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
-	blockDB            *pebble.Database // height -> block bytes
-	blockIDToHeight    *cache.FIFO[ids.ID, uint64]
-	blockHeightToBlock *cache.FIFO[uint64, *chain.ExecutedBlock]
-	blockWindow        uint64 // Maximum window of blocks to retain
-	lastHeight         atomic.Uint64
-	parser             chain.Parser
-
-	// ID -> timestamp, success, units, fee, outputs
-	txDB *pebble.Database
+	blockDB     *pebble.Database
+	parser      chain.Parser
+	blockWindow uint64
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
-	if blockWindow > maxBlockWindow {
-		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
-	}
-	txDB, _, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig())
-	if err != nil {
-		return nil, err
-	}
 	blockDB, _, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create block DB: %w", err)
 	}
 
-	blockIDCache, err := cache.NewFIFO[ids.ID, uint64](int(blockWindow))
-	if err != nil {
-		return nil, err
+	indexer := &Indexer{
+		blockDB:     blockDB,
+		parser:      parser,
+		blockWindow: blockWindow,
 	}
-	blockCache, err := cache.NewFIFO[uint64, *chain.ExecutedBlock](int(blockWindow))
-	if err != nil {
-		return nil, err
-	}
-	i := &Indexer{
-		blockDB:            blockDB,
-		blockIDToHeight:    blockIDCache,
-		blockHeightToBlock: blockCache,
-		blockWindow:        blockWindow,
-		parser:             parser,
-		txDB:               txDB,
-	}
-	return i, i.initBlocks()
+
+	return indexer, nil
 }
-
-func (i *Indexer) initBlocks() error {
-	// Load blockID <-> height mapping
-	iter := i.blockDB.NewIterator()
-	defer iter.Release()
-
-	var lastHeight uint64
-	for iter.Next() {
-		value := iter.Value()
-		blk, err := chain.UnmarshalExecutedBlock(value, i.parser)
-		if err != nil {
-			return err
-		}
-
-		i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
-		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-		lastHeight = blk.Block.Hght
-	}
-	if err := iter.Error(); err != nil {
-		return err
-	}
-	iter.Release()
-
-	i.lastHeight.Store(lastHeight)
-
-	if lastHeight > i.blockWindow {
-		lastRetainedHeight := lastHeight - i.blockWindow
-		lastRetainedHeightBytes := binary.BigEndian.AppendUint64(nil, lastRetainedHeight)
-		if err := i.blockDB.DeleteRange(nil, lastRetainedHeightBytes); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
-	if err := i.storeTransactions(blk); err != nil {
-		return err
-	}
-	return i.storeBlock(blk)
-}
+	batch := i.blockDB.NewBatch()
+	defer batch.Reset()
 
-func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
-	if i.blockWindow == 0 {
-		return nil
+	// Save transaction IDs
+	for j, tx := range blk.Block.Txs {
+		txID := tx.ID()
+		txLookupInfo := append(packUint64(blk.Block.Hght), packUint32(uint32(j))...)
+		if err := batch.Put(txID[:], txLookupInfo); err != nil {
+			return fmt.Errorf("failed to save transaction ID: %w", err)
+		}
 	}
 
+	// Save block
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal executed block: %w", err)
+	}
+	if err := batch.Put(blockByHeightKey(blk.Block.Hght), executedBlkBytes); err != nil {
+		return fmt.Errorf("failed to save block: %w", err)
 	}
 
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
-		return err
+	// Save block height
+	if err := batch.Put(blockHeightByIDKey(blk.BlockID), packUint64(blk.Block.Hght)); err != nil {
+		return fmt.Errorf("failed to save block ID: %w", err)
 	}
-	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
-		return err
+	if err := batch.Put([]byte("latest"), packUint64(blk.Block.Hght)); err != nil {
+		return fmt.Errorf("failed to update latest block height: %w", err)
 	}
 
-	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
-	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-	i.lastHeight.Store(blk.Block.Hght)
+	// Update earliest block if necessary
+	earliestBytes, err := i.blockDB.Get([]byte("earliest"))
+	earliestHeight := uint64(0)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			// If earliest doesn't exist, this is the first block
+			if err := batch.Put([]byte("earliest"), packUint64(blk.Block.Hght)); err != nil {
+				return fmt.Errorf("failed to set earliest block height: %w", err)
+			}
+			earliestBytes = packUint64(blk.Block.Hght)
+		} else {
+			return fmt.Errorf("failed to get earliest block height: %w", err)
+		}
+	}
+
+	earliestHeight = unpackUint64(earliestBytes)
+
+	// Delete old blocks
+	if blk.Block.Hght >= i.blockWindow {
+		for earliestHeight <= blk.Block.Hght-i.blockWindow {
+			oldBlockHeightKey := blockByHeightKey(earliestHeight)
+
+			// Retrieve old block
+			oldBlockBytes, err := i.blockDB.Get(oldBlockHeightKey)
+			if err != nil {
+				if !errors.Is(err, database.ErrNotFound) {
+					return fmt.Errorf("failed to retrieve old block: %w", err)
+				}
+			} else {
+				oldBlock, err := chain.UnmarshalExecutedBlock(oldBlockBytes, i.parser)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal old block: %w", err)
+				}
+
+				// Remove old block from blockDB
+				if err := batch.Delete(oldBlockHeightKey); err != nil {
+					return fmt.Errorf("failed to delete old block: %w", err)
+				}
+
+				// Remove old block ID from blockIDLookupDB
+				if err := batch.Delete(blockHeightByIDKey(oldBlock.BlockID)); err != nil {
+					return fmt.Errorf("failed to delete old block ID: %w", err)
+				}
+
+				// Remove old transactions from txLookupDB
+				for _, tx := range oldBlock.Block.Txs {
+					txID := tx.ID()
+					if err := batch.Delete(txID[:]); err != nil {
+						return fmt.Errorf("failed to delete old transaction: %w", err)
+					}
+				}
+			}
+
+			earliestHeight++
+		}
+
+		// Update earliest block height
+		if err := batch.Put([]byte("earliest"), packUint64(earliestHeight)); err != nil {
+			return fmt.Errorf("failed to update earliest block height: %w", err)
+		}
+	}
+
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("failed to write batch: %w", err)
+	}
 
 	return nil
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
-	return i.GetBlockByHeight(i.lastHeight.Load())
+	lastHeightValue := uint64(0)
+	lastHeightBytes, err := i.blockDB.Get([]byte("latest"))
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get latest block height: %w", err)
+	}
+	if err == nil {
+		lastHeightValue = unpackUint64(lastHeightBytes)
+	}
+
+	return i.GetBlockByHeight(lastHeightValue)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
-	blk, ok := i.blockHeightToBlock.Get(height)
-	if !ok {
-		return nil, fmt.Errorf("%w: height=%d", errBlockNotFound, height)
+	blkBytes, err := i.blockDB.Get(blockByHeightKey(height))
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, ErrBlockNotFound
+		}
+		return nil, err
 	}
-	return blk, nil
+	return chain.UnmarshalExecutedBlock(blkBytes, i.parser)
 }
 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
-	height, ok := i.blockIDToHeight.Get(blkID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)
+	heightBytes, err := i.blockDB.Get(blockHeightByIDKey(blkID))
+	if err != nil {
+		return nil, err
 	}
+	height := unpackUint64(heightBytes)
 	return i.GetBlockByHeight(height)
 }
 
-func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
-	batch := i.txDB.NewBatch()
-	defer batch.Reset()
-
-	for j, tx := range blk.Block.Txs {
-		result := blk.Results[j]
-		if err := i.storeTransaction(
-			batch,
-			tx.ID(),
-			blk.Block.Tmstmp,
-			result.Success,
-			result.Units,
-			result.Fee,
-			result.Outputs,
-		); err != nil {
-			return err
+func (i *Indexer) GetTransaction(txID ids.ID) (*chain.Transaction, *chain.Result, error) {
+	txLookupBytes, err := i.blockDB.Get(txID[:])
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, nil, ErrTxNotFound
 		}
+		return nil, nil, err
 	}
 
-	return batch.Write()
-}
+	if len(txLookupBytes) != consts.Uint64Len+consts.Uint32Len {
+		return nil, nil, fmt.Errorf("invalid tx lookup info")
+	}
 
-func (*Indexer) storeTransaction(
-	batch database.KeyValueWriter,
-	txID ids.ID,
-	timestamp int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-	outputs [][]byte,
-) error {
-	outputLength := consts.ByteLen // Single byte containing number of outputs
-	for _, output := range outputs {
-		outputLength += consts.Uint32Len + len(output)
-	}
-	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
+	blockHeight := unpackUint64(txLookupBytes[:consts.Uint64Len])
+	txIndex := unpackUint32(txLookupBytes[consts.Uint64Len:])
 
-	writer := codec.NewWriter(txResultLength, consts.NetworkSizeLimit)
-	writer.PackUint64(uint64(timestamp))
-	writer.PackBool(success)
-	writer.PackFixedBytes(units.Bytes())
-	writer.PackUint64(fee)
-	writer.PackByte(byte(len(outputs)))
-	for _, output := range outputs {
-		writer.PackBytes(output)
-	}
-	if err := writer.Err(); err != nil {
-		return err
-	}
-	return batch.Put(txID[:], writer.Bytes())
-}
-
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, error) {
-	v, err := i.txDB.Get(txID[:])
-	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, nil
-	}
+	executedBlock, err := i.GetBlockByHeight(blockHeight)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
+		return nil, nil, err
 	}
-	reader := codec.NewReader(v, consts.NetworkSizeLimit)
-	timestamp := reader.UnpackUint64(true)
-	success := reader.UnpackBool()
-	dimensionsBytes := make([]byte, fees.DimensionsLen)
-	reader.UnpackFixedBytes(fees.DimensionsLen, &dimensionsBytes)
-	fee := reader.UnpackUint64(true)
-	numOutputs := int(reader.UnpackByte())
-	outputs := make([][]byte, numOutputs)
-	for i := range outputs {
-		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
+
+	if int(txIndex) >= len(executedBlock.Block.Txs) {
+		return nil, nil, fmt.Errorf("tx index out of range")
 	}
-	if err := reader.Err(); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
-	}
-	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
-	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, err
-	}
-	return true, int64(timestamp), success, dimensions, fee, outputs, nil
+
+	tx := executedBlock.Block.Txs[txIndex]
+	result := executedBlock.Results[txIndex]
+
+	return tx, result, nil
 }
 
 func (i *Indexer) Close() error {
-	errs := wrappers.Errs{}
-	errs.Add(
-		i.txDB.Close(),
-		i.blockDB.Close(),
-	)
-	return errs.Err
+	return i.blockDB.Close()
+}
+
+func packUint64(v uint64) []byte {
+	b := make([]byte, consts.Uint64Len)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func unpackUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
+func packUint32(v uint32) []byte {
+	b := make([]byte, consts.Uint32Len)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func unpackUint32(b []byte) uint32 {
+	return binary.BigEndian.Uint32(b)
+}
+
+func blockByHeightKey(height uint64) []byte {
+	return append([]byte{0}, packUint64(height)...)
+}
+
+func blockHeightByIDKey(blkOrTxID ids.ID) []byte {
+	return append([]byte{1}, blkOrTxID[:]...)
 }
