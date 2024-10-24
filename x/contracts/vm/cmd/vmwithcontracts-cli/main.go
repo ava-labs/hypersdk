@@ -7,8 +7,8 @@ package main
 import (
 	"os"
 
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/cmd/vmwithcontracts-cli/cmd"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/cmd/vmwithcontracts-cli/cmd"
 )
 
 func main() {

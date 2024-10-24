@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/actions"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 )
 
 type SpamHelper struct {

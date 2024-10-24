@@ -12,11 +12,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/storage"
 
-	mconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
+	mconsts "github.com/ava-labs/hypersdk/x/contracts/vm/consts"
 )
 
 var _ chain.Action = (*Call)(nil)

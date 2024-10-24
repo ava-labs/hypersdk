@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/consts"
 )
 
 func init() {

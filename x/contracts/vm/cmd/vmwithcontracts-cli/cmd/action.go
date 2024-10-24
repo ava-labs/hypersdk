@@ -16,9 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/actions"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/actions"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 )
 
 var errUnexpectedSimulateActionsOutput = errors.New("returned output from SimulateActions was not actions.Result")

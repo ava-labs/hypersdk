@@ -11,11 +11,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/vmwithcontracts/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
+	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
 
-	lconsts "github.com/ava-labs/hypersdk/examples/vmwithcontracts/consts"
-	vmwithcontractsWorkload "github.com/ava-labs/hypersdk/examples/vmwithcontracts/tests/workload"
+	lconsts "github.com/ava-labs/hypersdk/x/contracts/vm/consts"
+	vmwithcontractsWorkload "github.com/ava-labs/hypersdk/x/contracts/vm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
