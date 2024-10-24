@@ -64,11 +64,9 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
-	networkConfig         workload.TestNetworkConfiguration
-	vmID                  ids.ID
-	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
-	parser                chain.Parser
+	createVM      func(...vm.Option) (*vm.VM, error)
+	networkConfig workload.TestNetworkConfiguration
+	vmID          ids.ID
 
 	txWorkload  workload.TxWorkload
 	authFactory chain.AuthFactory
@@ -107,19 +105,13 @@ func Setup(
 	generator workload.TxGenerator,
 	authF chain.AuthFactory,
 ) {
-	require := require.New(ginkgo.GinkgoT())
 	createVM = newVM
 	networkConfig = networkConfigImpl
 	vmID = id
-	createParserFromBytes = createParser
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
 	}
 	authFactory = authF
-
-	createdParser, err := createParserFromBytes(networkConfig.GenesisBytes())
-	require.NoError(err)
-	parser = createdParser
 
 	setInstances()
 }
@@ -136,6 +128,10 @@ func setInstances() {
 
 	// create embedded VMs
 	instances = make([]instance, numVMs)
+
+	createParserFromBytes := func(_ []byte) (chain.Parser, error) {
+		return networkConfig.Parser(), nil
+	}
 
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
@@ -494,7 +490,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Confirm accepted blocks indexed", func() {
-			workload.GetBlocks(ctx, require, parser, []string{uris[1]})
+			workload.GetBlocks(ctx, require, networkConfig.Parser(), []string{uris[1]})
 		})
 	})
 
@@ -576,7 +572,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		txAssertion(cctx, require, uris[0])
 
 		// Read item from connection
-		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), networkConfig.Parser())
 		require.NoError(err)
 		require.Len(blk.Txs, 1)
 		require.Equal(lresults, results)

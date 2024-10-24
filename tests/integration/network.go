@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var (
@@ -106,11 +107,10 @@ func (n *Network) URIs() []string {
 	return n.uris
 }
 
-/*
-	func (*Network) WorkloadFactory() workload.TxWorkloadFactory {
-		return txWorkloadFactory
-	}
-*/
+func (*Network) Configuration() workload.TestNetworkConfiguration {
+	return networkConfig
+}
+
 func (*Network) getInstance(uri string) (instance, error) {
 	for _, instance := range instances {
 		if instance.routerServer.URL == uri {

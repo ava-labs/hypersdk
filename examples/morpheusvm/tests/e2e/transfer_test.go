@@ -14,14 +14,15 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/tests/workload"
+	tworkload "github.com/ava-labs/hypersdk/tests/workload"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-var _ = he2e.RegisterTest("Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork) error {
+var _ = he2e.RegisterTest("Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
 	require := require.New(t)
 
 	uri := tn.URIs()[0]
@@ -33,8 +34,8 @@ var _ = he2e.RegisterTest("Transfer Transaction", func(t ginkgo.FullGinkgoTInter
 	parser, err := lcli.Parser(context.Background())
 	require.NoError(err)
 
-	spendingKey, err := tn.WorkloadFactory().GetSpendingKey()
-	require.NoError(err)
+	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
+	spendingKey := networkConfig.Keys()[0]
 
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	_, tx, _, err := cli.GenerateTransaction(
@@ -44,7 +45,7 @@ var _ = he2e.RegisterTest("Transfer Transaction", func(t ginkgo.FullGinkgoTInter
 			To:    aother,
 			Value: 1,
 		}},
-		auth.NewED25519Factory(ed25519.PrivateKey(spendingKey.Bytes)),
+		auth.NewED25519Factory(spendingKey),
 	)
 
 	require.NoError(err)

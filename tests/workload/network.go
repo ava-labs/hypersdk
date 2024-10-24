@@ -13,7 +13,7 @@ type TestNetwork interface {
 	SubmitTxs(context.Context, string, []*chain.Transaction) error
 	ConfirmTxs(context.Context, string, []*chain.Transaction) error
 	URIs() []string
-	// WorkloadFactory() TxWorkloadFactory
+	Configuration() TestNetworkConfiguration
 }
 
 // TestNetworkConfiguration is an interface, implemented by the custom-vm network test framework
@@ -22,4 +22,6 @@ type TestNetwork interface {
 // interface would keep the data stored immutable as it would be shared across multiple threads.
 type TestNetworkConfiguration interface {
 	GenesisBytes() []byte
+	Name() string
+	Parser() chain.Parser
 }

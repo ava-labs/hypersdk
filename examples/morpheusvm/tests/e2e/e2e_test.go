@@ -4,7 +4,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -39,14 +38,10 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	keys := workload.NewDefaultKeys()
-	genesis := workload.NewGenesis(keys, 100*time.Millisecond)
-	genesisBytes, err := json.Marshal(genesis)
-	require.NoError(err)
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
 	require.NoError(err)
 
-	parser, err := vm.CreateParser(genesisBytes)
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
@@ -55,15 +50,16 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: auth.ED25519Key,
 	}
 
-	generator := workload.NewTxGenerator(keys[0])
+	firstKey := testingNetworkConfig.Keys()[0]
+	generator := workload.NewTxGenerator(firstKey)
 	spamKey := &auth.PrivateKey{
-		Address: auth.NewED25519Address(keys[0].PublicKey()),
-		Bytes:   keys[0][:],
+		Address: auth.NewED25519Address(firstKey.PublicKey()),
+		Bytes:   firstKey[:],
 	}
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, spamKey)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
-	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

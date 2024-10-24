@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -29,21 +28,19 @@ import (
 )
 
 var (
-	vmName       string
-	txWorkload   workload.TxWorkload
-	parser       chain.Parser
-	expectedABI  abi.ABI
-	spamKey      *auth.PrivateKey
-	spamHelper   throughput.SpamHelper
-	testRegistry registry.Registry
+	networkConfig workload.TestNetworkConfiguration
+	txWorkload    workload.TxWorkload
+	expectedABI   abi.ABI
+	spamKey       *auth.PrivateKey
+	spamHelper    throughput.SpamHelper
+	testRegistry  registry.Registry
 )
 
-func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
-	vmName = name
+func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey) {
+	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
 	}
-	parser = chainParser
 	expectedABI = abi
 	spamHelper = sh
 	spamKey = key
@@ -54,23 +51,23 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	require := require.New(tc)
 
 	ginkgo.It("Ping", func() {
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
 		hardcodedHostPort := "http://localhost:9650"
-		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + vmName
+		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + networkConfig.Name()
 
 		c := jsonrpc.NewJSONRPCClient(fixedNodeURL)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		require.Equal(expectedBlockchainID, chainIDFromRPC)
 	})
 
 	ginkgo.It("GetNetwork", func() {
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		baseURIs := getE2EBaseURIs(tc)
 		baseURI := baseURIs[0]
 		client := info.NewClient(baseURI)
@@ -80,12 +77,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("GetABI", func() {
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
 	})
 
 	ginkgo.It("ReadState", func() {
-		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		ctx := tc.DefaultContext()
 		for _, uri := range getE2EURIs(tc, blockchainID) {
 			client := state.NewJSONRPCStateClient(uri)
@@ -103,14 +100,14 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	ginkgo.It("Basic Tx Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
-		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 
 		ginkgo.By("Tx workloads", func() {
 			txWorkload.GenerateBlocks(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), 1)
 		})
 
 		ginkgo.By("Confirm accepted blocks indexed", func() {
-			workload.GetBlocks(tc.DefaultContext(), require, parser, getE2EURIs(tc, blockchainID))
+			workload.GetBlocks(tc.DefaultContext(), require, networkConfig.Parser(), getE2EURIs(tc, blockchainID))
 		})
 	})
 })
@@ -123,7 +120,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
-		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 		key := spamKey
 
@@ -143,7 +140,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 	ginkgo.It("[Sync]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
-		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {
@@ -252,7 +249,7 @@ var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 
 	for _, test := range testRegistry.List() {
 		ginkgo.It(test.Name, func() {
-			blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+			blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 			testNetwork := &Network{uris: getE2EURIs(tc, blockchainID)}
 			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 		})

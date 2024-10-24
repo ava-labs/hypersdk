@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 )
@@ -65,6 +68,7 @@ func newDefaultKeys() []ed25519.PrivateKey {
 type NetworkConfiguration struct {
 	genesisBytes []byte
 	keys         []ed25519.PrivateKey
+	parser       chain.Parser
 }
 
 func (n *NetworkConfiguration) GenesisBytes() []byte {
@@ -75,12 +79,29 @@ func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
 	return n.keys
 }
 
+func (*NetworkConfiguration) Name() string {
+	return consts.Name
+}
+
+func (n *NetworkConfiguration) Parser() chain.Parser {
+	return n.parser
+}
+
 func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
 	keys := newDefaultKeys()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
+	if err != nil {
+		return nil, err
+	}
+	parser, err := vm.CreateParser(genesisBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	return &NetworkConfiguration{
 		keys:         keys,
 		genesisBytes: genesisBytes,
-	}, err
+		parser:       parser,
+	}, nil
 }
