@@ -264,10 +264,10 @@ impl Context {
 #[cfg(feature = "test")]
 impl Context {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn with_actor(actor: Address) -> Self {
         Self {
             contract_address: Address::default(),
-            actor: Address::default(),
+            actor,
             height: 0,
             timestamp: 0,
             action_id: Id::default(),
@@ -397,12 +397,5 @@ mod external {
             self.context
                 .call_contract(contract_address, function_name, args, max_units, value)
         }
-    }
-}
-
-#[cfg(feature = "test")]
-impl Default for Context {
-    fn default() -> Self {
-        Self::new()
     }
 }

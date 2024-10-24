@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: Rust CI
+name: Contracts CI
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fmt:
+  cargo-fmt:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,7 +46,7 @@ jobs:
           taplo fmt
           git diff --color=always
 
-  docs:
+  cargo-doc:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -61,7 +61,7 @@ jobs:
       - name: Run doc tests
         run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items --all
 
-  clippy:
+  cargo-clippy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: cargo clippy --all --all-features --tests --benches --examples -- -D warnings
 
-  unit-tests:
+  cargo-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -116,3 +116,35 @@ jobs:
       - name: Run cross tests
         run: |
           cross -v test -p wasmlanche --target=wasm32-unknown-emscripten
+
+  go-test:
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+        with:
+          targets: wasm32-unknown-unknown
+          cache: false
+      - name: Run unit tests
+        shell: bash
+        run: go test -v -race ./x/contracts/...
+
+  go-bench:
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+        with:
+          targets: wasm32-unknown-unknown
+          cache: false
+      - name: Run unit tests
+        shell: bash
+        run: go test -v -benchmem -run=^$ -bench=. -benchtime=1x ./x/contracts/...
