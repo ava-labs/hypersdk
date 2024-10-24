@@ -19,7 +19,7 @@ API:
 ✅ `endpoint set --endpoint=https://hello.world:1234` sets endpoint
 ✅ `actions` - print the list of actions available in the ABI, for JSON it prints ABI JSON
 `tx [action name] [action params]` - sends a transaction with a single action
-`read [action name] [action params]` - simulates a single action transaction
+✅ `read [action name] [action params]` - simulates a single action transaction
 
 
 ```bash
