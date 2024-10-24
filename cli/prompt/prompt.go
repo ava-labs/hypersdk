@@ -6,6 +6,7 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -183,32 +184,37 @@ func Uint(
 	label string,
 	max uint,
 ) (uint, error) {
+	stringToUint := func(input string, max uint) (uint, error) {
+		input = strings.TrimSpace(input)
+
+		if len(input) == 0 {
+			return 0, ErrInputEmpty
+		}
+		amount, err := strconv.ParseUint(input, 10, 0)
+		if err != nil {
+			return 0, err
+		}
+		if amount > math.MaxUint {
+			return 0, fmt.Errorf("%d exceeds the maximum value for uint", amount)
+		}
+		if uint(amount) > max {
+			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		}
+		return uint(amount), nil
+	}
+
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			amount, err := strconv.ParseUint(input, 10, 0)
-			if err != nil {
-				return err
-			}
-			if uint(amount) > max {
-				return fmt.Errorf("%d must be <= %d", amount, max)
-			}
-			return nil
+			_, err := stringToUint(input, max)
+			return err
 		},
 	}
 	rawAmount, err := promptText.Run()
 	if err != nil {
 		return 0, err
 	}
-	rawAmount = strings.TrimSpace(rawAmount)
-	amount, err := strconv.ParseUint(rawAmount, 10, 0)
-	if err != nil {
-		return 0, err
-	}
-	return uint(amount), nil
+	return stringToUint(rawAmount, max)
 }
 
 func Float(
