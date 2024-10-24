@@ -52,11 +52,13 @@ func TestDynamicMarshal(t *testing.T) {
 			require.NoError(err)
 
 			// Compare with expected hex
-			expectedHex := string(mustReadFile(t, "../testdata/"+tc.name+".hex"))
-			expectedHex = strings.TrimSpace(expectedHex)
+			expectedTypeID, found := abi.FindActionByName(tc.typeName)
+			require.True(found, "action %s not found in ABI", tc.typeName)
+
+			expectedHex := hex.EncodeToString([]byte{expectedTypeID.ID}) + strings.TrimSpace(string(mustReadFile(t, "../testdata/"+tc.name+".hex")))
 			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
-			unmarshaledJSON, err := Unmarshal(abi, tc.typeName, objectBytes)
+			unmarshaledJSON, err := UnmarshalAction(abi, objectBytes)
 			require.NoError(err)
 
 			// Compare with expected JSON

@@ -194,19 +194,10 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	return resp.ABI, err
 }
 
-func (cli *JSONRPCClient) ExecuteActions(ctx context.Context, actor codec.Address, actions []chain.Action) ([][]byte, error) {
-	actionsMarshaled := make([][]byte, 0, len(actions))
-	for _, action := range actions {
-		actionBytes, err := chain.MarshalTyped(action)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal action: %w", err)
-		}
-		actionsMarshaled = append(actionsMarshaled, actionBytes)
-	}
-
+func (cli *JSONRPCClient) ExecuteActions(ctx context.Context, actor codec.Address, actionsBytes [][]byte) ([][]byte, error) {
 	args := &ExecuteActionArgs{
 		Actor:   actor,
-		Actions: actionsMarshaled,
+		Actions: actionsBytes,
 	}
 
 	resp := new(ExecuteActionReply)
