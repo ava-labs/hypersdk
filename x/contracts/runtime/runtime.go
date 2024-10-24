@@ -50,6 +50,8 @@ type ContractManager interface {
 	NewAccountWithContract(ctx context.Context, contractID ContractID, accountCreationData []byte) (codec.Address, error)
 	// SetAccountContract associates the given contract ID with the given account.
 	SetAccountContract(ctx context.Context, account codec.Address, contractID ContractID) error
+	// SetContractBytes stores the compiled WASM bytes of the contract with the given ID.
+	SetContractBytes(ctx context.Context, contractID ContractID, contractBytes []byte) error
 }
 
 func NewRuntime(

@@ -79,6 +79,15 @@ func (p *ContractStateManager) SetAccountContract(ctx context.Context, account c
 	return p.db.Insert(ctx, accountDataKey(account[:], contractKeyBytes), contractID)
 }
 
+// setContract stores [contract] at [contractID]
+func (p *ContractStateManager) SetContractBytes(
+	ctx context.Context,
+	contractID ContractID,
+	contract []byte,
+) error {
+	return p.db.Insert(ctx, contractKey(contractID[:]), contract)
+}
+
 func contractKey(key []byte) (k []byte) {
 	k = make([]byte, 0, 1+len(key))
 	k = append(k, contractPrefix)
@@ -113,32 +122,36 @@ func (p *ContractStateManager) getAccountContract(ctx context.Context, account c
 }
 
 // prefixed state
-type prefixedStateMutable struct {
+type PrefixedStateMutable struct {
 	inner  state.Mutable
 	prefix []byte
 }
 
-func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
+func NewPrefixStateMutable(prefix []byte, inner state.Mutable) *PrefixedStateMutable {
+	return &PrefixedStateMutable{inner: inner, prefix: prefix}
+}
+
+func (s *PrefixedStateMutable) prefixKey(key []byte) (k []byte) {
 	k = make([]byte, len(s.prefix)+len(key))
 	copy(k, s.prefix)
 	copy(k[len(s.prefix):], key)
 	return
 }
 
-func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (s *PrefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	return s.inner.GetValue(ctx, s.prefixKey(key))
 }
 
-func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
+func (s *PrefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
 	return s.inner.Insert(ctx, s.prefixKey(key), value)
 }
 
-func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
+func (s *PrefixedStateMutable) Remove(ctx context.Context, key []byte) error {
 	return s.inner.Remove(ctx, s.prefixKey(key))
 }
 
 func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
-	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
+	return &PrefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
 
 func accountStateKey(key []byte) (k []byte) {

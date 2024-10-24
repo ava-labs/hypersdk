@@ -9,37 +9,40 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
-var _ runtime.StateManager = &ContractStateManager{}
+var _ runtime.ContractStateManager = &ContractStateManager{}
 
 var (
-	ErrUnknownAccount = errors.New("unknown account")
 	balanceKeyBytes   = []byte("balance")
-	contractKeyBytes  = []byte("contract")
+	contractManagerPrefix = []byte("contract")
 )
 
 const (
-	contractPrefix = 0x0
-
-	accountPrefix      = 0x1
-	accountDataPrefix  = 0x0
-	accountStatePrefix = 0x1
-
-	addressStoragePrefix = 0x3
+	BalanceManagerPrefix  = 0x1
+	BalanceDataPrefix     = 0x0
 )
 
 type ContractStateManager struct {
 	db state.Mutable
+	contractState *runtime.ContractStateManager
 }
 
 func NewContractStateManager(db state.Mutable) *ContractStateManager {
-	return &ContractStateManager{db}
+	contractManager := runtime.NewContractStateManager(
+		runtime.NewPrefixStateMutable(
+			contractManagerPrefix,
+			db,
+		),
+	)
+	return &ContractStateManager{
+		db: db,
+		contractState: contractManager,
+	}
 }
 
 // GetBalance gets the balance associated [account].
@@ -82,15 +85,12 @@ func (p *ContractStateManager) TransferBalance(ctx context.Context, from codec.A
 }
 
 // Creates an account balance key
-func accountBalanceKey(account []byte) []byte {
-	return accountDataKey(account, balanceKeyBytes)
+func accountBalanceKey(account []byte) (k []byte) {
+	k = make([]byte, 0, 1+len(account)+len(balanceKeyBytes))
+	k = append(k, BalanceManagerPrefix)
+	k = append(k, account...)
+	k = append(k, balanceKeyBytes...)
+	return
 }
 
-// setContract stores [contract] at [contractID]
-func (p *ContractStateManager) SetContract(
-	ctx context.Context,
-	contractID ids.ID,
-	contract []byte,
-) error {
-	return p.db.Insert(ctx, contractKey(contractID[:]), contract)
-}
+
