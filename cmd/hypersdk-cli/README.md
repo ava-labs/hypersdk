@@ -5,10 +5,10 @@ A command-line interface for interacting with HyperSDK-based chains.
 ## Installation
 
 ```bash
-go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@0d9e79c1c38c9e0611d29144040a8def8f2f60e3
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@4510f51720d2e0fdecfd7fa08350e7c3eab3cf53
 ```
 
-TODO: Has to be @latest
+FIXME: Has to point to the commit with the latest update from main, or just `@main` later on.
 
 ## Configuration
 
@@ -23,13 +23,6 @@ The CLI stores configuration in `~/.hypersdk-cli/config.cfg`. This includes:
 
 ## Commands
 
-### address
-
-Print the current key address.
-
-```bash
-hypersdk-cli address
-```
 
 ### key
 
@@ -77,6 +70,14 @@ Check connectivity with the current endpoint.
 hypersdk-cli ping
 ```
 
+### address
+
+Print the current key address.
+
+```bash
+hypersdk-cli address
+```
+
 ### actions
 
 Print the list of actions available in the ABI.
@@ -110,7 +111,7 @@ hypersdk-cli read Transfer
 Send a transaction with a single action.
 
 ```bash
-hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=
+hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=0x001234
 ```
 
 For interactive input:
@@ -130,3 +131,4 @@ hypersdk-cli tx Transfer
 - The `balance` command is not currently implemented due to the lack of a standardized balance RPC method at the HyperSDK level.
 - The `maxFee` for transactions is currently hardcoded to 1,000,000.
 - The `key set` and `endpoint set` commands use a nested command structure which adds unnecessary complexity for a small CLI tool. A flatter command structure would be more appropriate.
+- Currency values are represented as uint64 without decimal point support in the ABI. The CLI cannot automatically parse decimal inputs (e.g. "12.0") since there is no currency type annotation. Users must enter the raw uint64 value including all decimal places (e.g. "12000000000" for 12 coins with 9 decimal places).
