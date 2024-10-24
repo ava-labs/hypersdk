@@ -5,8 +5,10 @@ A command-line interface for interacting with HyperSDK-based chains.
 ## Installation
 
 ```bash
-go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@cli
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@0d9e79c1c38c9e0611d29144040a8def8f2f60e3
 ```
+
+TODO: Has to be @latest
 
 ## Configuration
 
@@ -43,11 +45,13 @@ hypersdk-cli key generate
 
 #### set
 
-Set the private ED25519 key.
+Set the private ED25519 key. 
 
 ```bash
-hypersdk-cli key set --key=<private-key-hex-or-file-path>
+hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
 ```
+
+`--key` could also be file path like `examples/morpheusvm/demo.pk`
 
 ### endpoint
 
