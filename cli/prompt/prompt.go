@@ -6,7 +6,6 @@ package prompt
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -190,15 +189,11 @@ func Uint(
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			amount64, err := strconv.ParseUint(input, 10, 64)
+			amount, err := strconv.ParseUint(input, 10, 0)
 			if err != nil {
 				return err
 			}
-			if amount64 > math.MaxUint {
-				return fmt.Errorf("%d exceeds the maximum value for uint", amount64)
-			}
-			amount := uint(amount64)
-			if amount > max {
+			if uint(amount) > max {
 				return fmt.Errorf("%d must be <= %d", amount, max)
 			}
 			return nil
@@ -209,11 +204,11 @@ func Uint(
 		return 0, err
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
-	amount64, err := strconv.ParseUint(rawAmount, 10, 64)
+	amount, err := strconv.ParseUint(rawAmount, 10, 0)
 	if err != nil {
 		return 0, err
 	}
-	return uint(amount64), nil
+	return uint(amount), nil
 }
 
 func Float(
