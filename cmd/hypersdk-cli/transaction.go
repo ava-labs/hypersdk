@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -26,7 +27,7 @@ var txCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		//1. figure out sender address
+		//1. Decode key
 		keyString, err := getConfigValue(cmd, "key")
 		if err != nil {
 			return fmt.Errorf("failed to get key from config: %w", err)
@@ -87,7 +88,7 @@ var txCmd = &cobra.Command{
 
 		base := &chain.Base{
 			ChainID:   chainID,
-			Timestamp: time.Now().Unix()*1000 + 59000,
+			Timestamp: time.Now().Unix()*1000 + 60*1000,
 			MaxFee:    1_000_000,
 		}
 
@@ -95,15 +96,6 @@ var txCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
-
-		// signedBytesOverrideHex := "00000192bcaf8728bc268cf27206903fbd7975e22f25a6190b8b7666858744aa8803c5d3e4997a56000000000000c0940200010203040000000000000000000000000000000000000000000000000000000000000000003b9aca000000000b74657374206d656d6f20310005060708000000000000000000000000000000000000000000000000000000000000000000773594000000000b74657374206d656d6f2032001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa70d9c361e5e0b495cbf2c5a2a1b68a71f01cba00062ee417ee8ea4652b40a8f953695db3ed217be20d202fe1ff053b7ad3e557c92dc3125d5c4c953673ed62a04"
-
-		// if signedBytesOverrideHex != "" {
-		// 	signedBytes, err = hex.DecodeString(signedBytesOverrideHex)
-		// 	if err != nil {
-		// 		return fmt.Errorf("failed to decode signedBytesOverrideHex: %w", err)
-		// 	}
-		// }
 
 		wsClient, err := ws.NewWebSocketClient(endpoint, 10*time.Second, 100, 1000000)
 		if err != nil {
@@ -115,14 +107,10 @@ var txCmd = &cobra.Command{
 		}
 
 		expectedTxID := utils.ToID(signedBytes)
-
-		fmt.Println("expectedTxID", expectedTxID)
-
 		// Listen for the transaction result
 		var result *chain.Result
 		for {
 			txID, txErr, txResult, err := wsClient.ListenTx(ctx)
-			fmt.Println("txID", txID)
 			if err != nil {
 				if ctx.Err() == context.DeadlineExceeded {
 					return fmt.Errorf("failed to listen for transaction: %w", ctx.Err())
@@ -136,20 +124,58 @@ var txCmd = &cobra.Command{
 				result = txResult
 				break
 			}
-			log.Printf("Skipping unexpected transaction: %s\n", txID)
 		}
 
-		// Check transaction result
-		if !result.Success {
-			return fmt.Errorf("transaction failed: %s", result.Error)
+		var resultStruct map[string]interface{}
+		if result.Success {
+			if len(result.Outputs) == 1 {
+				resultJSON, err := dynamic.UnmarshalOutput(abi, result.Outputs[0])
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal result: %w", err)
+				}
+
+				err = json.Unmarshal([]byte(resultJSON), &resultStruct)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal result JSON: %w", err)
+				}
+			} else if len(result.Outputs) > 1 {
+				return fmt.Errorf("expected 1 output, got %d", len(result.Outputs))
+			}
 		}
 
-		//TODO: decode outputs
-		//TODO: print outputs
-		//TODO: print errors as json/stringer
-
-		return nil
+		return printValue(cmd, txResponse{
+			Result:  resultStruct,
+			Success: result.Success,
+			TxID:    expectedTxID,
+			Error:   string(result.Error),
+		})
 	},
+}
+
+type txResponse struct {
+	Result  map[string]interface{} `json:"result"`
+	Success bool                   `json:"success"`
+	TxID    ids.ID                 `json:"txId"`
+	Error   string                 `json:"error"`
+}
+
+func (r txResponse) String() string {
+	var result strings.Builder
+	if r.Success {
+		result.WriteString(fmt.Sprintf("✅ Transaction successful (txID: %s)\n\n", r.TxID))
+		if r.Result != nil {
+			for key, value := range r.Result {
+				jsonValue, err := json.Marshal(value)
+				if err != nil {
+					jsonValue = []byte(fmt.Sprintf("%v", value))
+				}
+				result.WriteString(fmt.Sprintf("%s: %s\n", key, string(jsonValue)))
+			}
+		}
+	} else {
+		result.WriteString(fmt.Sprintf("❌ Transaction failed (txID: %s): %s\n", r.TxID, r.Error))
+	}
+	return strings.TrimSpace(result.String())
 }
 
 func init() {

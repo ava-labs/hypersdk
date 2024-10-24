@@ -4,7 +4,9 @@ A command-line interface for interacting with HyperSDK-based chains.
 
 ## Installation
 
-Just `go run ./cmd/cli/ ` for now
+```bash
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@cli
+```
 
 ## Configuration
 
@@ -24,7 +26,7 @@ The CLI stores configuration in `~/.hypersdk-cli/config.cfg`. This includes:
 Print the current key address.
 
 ```bash
-go run ./cmd/cli/ address
+hypersdk-cli address
 ```
 
 ### key
@@ -36,7 +38,7 @@ Manage keys.
 Generate a new ED25519 key pair.
 
 ```bash
-go run ./cmd/cli/ key generate
+hypersdk-cli key generate
 ```
 
 #### set
@@ -44,7 +46,7 @@ go run ./cmd/cli/ key generate
 Set the private ED25519 key.
 
 ```bash
-go run ./cmd/cli/ key set --key=<private-key-hex-or-file-path>
+hypersdk-cli key set --key=<private-key-hex-or-file-path>
 ```
 
 ### endpoint
@@ -52,7 +54,7 @@ go run ./cmd/cli/ key set --key=<private-key-hex-or-file-path>
 Print the current endpoint URL.
 
 ```bash
-go run ./cmd/cli/ endpoint
+hypersdk-cli endpoint
 ```
 
 #### set
@@ -60,7 +62,7 @@ go run ./cmd/cli/ endpoint
 Set the endpoint URL.
 
 ```bash
-go run ./cmd/cli/ endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusvm/
+hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusvm/
 ```
 
 ### ping
@@ -68,7 +70,7 @@ go run ./cmd/cli/ endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusv
 Check connectivity with the current endpoint.
 
 ```bash
-go run ./cmd/cli/ ping
+hypersdk-cli ping
 ```
 
 ### actions
@@ -76,13 +78,13 @@ go run ./cmd/cli/ ping
 Print the list of actions available in the ABI.
 
 ```bash
-go run ./cmd/cli/ actions
+hypersdk-cli actions
 ```
 
 For JSON output:
 
 ```bash
-go run ./cmd/cli/ actions -o json
+hypersdk-cli actions -o json
 ```
 
 ### read
@@ -90,13 +92,13 @@ go run ./cmd/cli/ actions -o json
 Simulate a single action transaction.
 
 ```bash
-go run ./cmd/cli/ read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12
+hypersdk-cli read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12
 ```
 
 For interactive input remove --data from the comand line:
 
 ```bash
-go run ./cmd/cli/ read Transfer
+hypersdk-cli read Transfer
 ```
 
 ### tx
@@ -104,13 +106,13 @@ go run ./cmd/cli/ read Transfer
 Send a transaction with a single action.
 
 ```bash
-go run ./cmd/cli/ tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=
+hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=
 ```
 
 For interactive input:
 
 ```bash
-go run ./cmd/cli/ tx Transfer
+hypersdk-cli tx Transfer
 ```
 
 ## Notes
