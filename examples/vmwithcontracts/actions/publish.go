@@ -33,7 +33,7 @@ func (*Publish) GetTypeID() uint8 {
 	return mconsts.PublishID
 }
 
-func (t *Publish) StateKeys(_ codec.Address) state.Keys {
+func (t *Publish) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.id == nil {
 		hashedID := sha256.Sum256(t.ContractBytes)
 		t.id, _ = keys.Encode(storage.ContractsKey(hashedID[:]), len(t.ContractBytes))
