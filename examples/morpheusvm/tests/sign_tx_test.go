@@ -2,12 +2,10 @@ package tests
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"strings"
 	"testing"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
@@ -30,10 +28,16 @@ func TestSignTx(t *testing.T) {
 
 	factory := auth.NewED25519Factory(key)
 
-	action := actions.Transfer{
+	action1 := actions.Transfer{
 		To:    [33]byte{1, 2, 3, 4},
 		Value: 1000000000,
-		Memo:  []byte("test memo"),
+		Memo:  []byte("test memo 1"),
+	}
+
+	action2 := actions.Transfer{
+		To:    [33]byte{5, 6, 7, 8},
+		Value: 2000000000,
+		Memo:  []byte("test memo 2"),
 	}
 
 	hyperVMRPC := vm.NewJSONRPCClient("http://localhost:9650/ext/bc/morpheusvm/")
@@ -42,60 +46,69 @@ func TestSignTx(t *testing.T) {
 	parser, err := hyperVMRPC.Parser(context.Background())
 	require.NoError(t, err)
 
-	_, tx, _, err := hyperSDKRPC.GenerateTransaction(context.Background(), parser, []chain.Action{&action}, factory)
+	_, tx, _, err := hyperSDKRPC.GenerateTransaction(context.Background(), parser, []chain.Action{&action1, &action2}, factory)
 	require.NoError(t, err)
-
-	unsignedBytes, err := tx.UnsignedBytes()
-	require.NoError(t, err)
-	fmt.Println("unsignedBytes", hex.EncodeToString(unsignedBytes))
 
 	signedBytes := tx.Bytes()
-	fmt.Println("signedBytes", hex.EncodeToString(signedBytes))
-
-	base := tx.Base
-	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
-	base.Marshal(p)
-	baseBytes := p.Bytes()
-	fmt.Println("baseBytes", hex.EncodeToString(baseBytes))
 
 	abi, err := hyperSDKRPC.GetABI(context.Background())
 	require.NoError(t, err)
 
-	jsonPayload, err := json.Marshal(action)
+	// Use the manual signing function
+	manuallySignedBytes, err := SignTxManually([]chain.Action{&action1, &action2}, "Transfer", tx.Base, abi, key)
 	require.NoError(t, err)
 
-	actionBytes, err := dynamic.Marshal(abi, "Transfer", string(jsonPayload))
-	require.NoError(t, err)
+	// Compare results
+	require.Equal(t, signedBytes, manuallySignedBytes, "signed bytes do not match")
+}
 
-	fmt.Println("actionBytes", hex.EncodeToString(actionBytes))
+// base := &chain.Base{
+// 	ChainID:   chainID,
+// 	Timestamp: time.Now().Unix()*1000 + 60000,
+// 	MaxFee:    1_000_000,
+// }
 
-	// Concatenate baseBytes, action count (0x01), and actionBytes
-	actualUnsignedBytes := make([]byte, 0, len(baseBytes)+1+len(actionBytes))
-	actualUnsignedBytes = append(actualUnsignedBytes, baseBytes...)
-	actualUnsignedBytes = append(actualUnsignedBytes, 0x01) // Single action
-	actualUnsignedBytes = append(actualUnsignedBytes, actionBytes...)
+func SignTxManually(actions []chain.Action, actionType string, base *chain.Base, abi abi.ABI, privateKey ed25519.PrivateKey) ([]byte, error) {
+	// Create auth factory
+	factory := auth.NewED25519Factory(privateKey)
 
-	// Compare with original unsigned bytes
-	require.Equal(t, unsignedBytes, actualUnsignedBytes, "unsigned bytes do not match")
+	// Marshal base
+	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
+	base.Marshal(p)
+	baseBytes := p.Bytes()
 
-	actualAuth, err := factory.Sign(actualUnsignedBytes) // Sign the actualUnsignedBytes with the factory
-	require.NoError(t, err)
+	// Build unsigned bytes starting with base and number of actions
+	unsignedBytes := make([]byte, 0)
+	unsignedBytes = append(unsignedBytes, baseBytes...)
+	unsignedBytes = append(unsignedBytes, byte(len(actions))) // Number of actions
 
-	signedBytesDebugStr := hex.EncodeToString(signedBytes)
-	actualUnsignedBytesStr := hex.EncodeToString(actualUnsignedBytes)
-	fmt.Printf("signedBytes: %s\n", signedBytesDebugStr)
+	// Marshal and append each action
+	for _, action := range actions {
+		jsonPayload, err := json.Marshal(action)
+		if err != nil {
+			return nil, err
+		}
 
-	signedBytesDebugStr = strings.Replace(signedBytesDebugStr, actualUnsignedBytesStr, "_actualUnsignedBytesStr_", -1)
-	fmt.Printf("signedBytes: %s\n", signedBytesDebugStr)
+		actionBytes, err := dynamic.Marshal(abi, actionType, string(jsonPayload))
+		if err != nil {
+			return nil, err
+		}
 
-	p = codec.NewWriter(actualAuth.Size(), consts.NetworkSizeLimit)
-	actualAuth.Marshal(p)
-	actualAuthBytes := append([]byte{actualAuth.GetTypeID()}, p.Bytes()...)
+		unsignedBytes = append(unsignedBytes, actionBytes...)
+	}
 
-	actualAuthBytesStr := hex.EncodeToString(actualAuthBytes)
-	signedBytesDebugStr = strings.Replace(signedBytesDebugStr, actualAuthBytesStr, "_actualAuthBytesStr_", -1)
-	fmt.Printf("signedBytes: %s\n", signedBytesDebugStr)
+	// Sign the transaction
+	auth, err := factory.Sign(unsignedBytes)
+	if err != nil {
+		return nil, err
+	}
 
-	actualTxBytes := append(actualUnsignedBytes, actualAuthBytes...)
-	require.Equal(t, signedBytes, actualTxBytes, "signed bytes do not match")
+	// Marshal auth
+	p = codec.NewWriter(auth.Size(), consts.NetworkSizeLimit)
+	auth.Marshal(p)
+	authBytes := append([]byte{auth.GetTypeID()}, p.Bytes()...)
+
+	// Combine everything into final signed transaction
+	signedBytes := append(unsignedBytes, authBytes...)
+	return signedBytes, nil
 }
