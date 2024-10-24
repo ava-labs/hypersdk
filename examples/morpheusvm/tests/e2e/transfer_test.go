@@ -16,9 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	tworkload "github.com/ava-labs/hypersdk/tests/workload"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	tworkload "github.com/ava-labs/hypersdk/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 

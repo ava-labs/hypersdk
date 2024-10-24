@@ -15,20 +15,6 @@ import (
 
 const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
 
-// TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
-// and a sized sequence of transactions to test on a given environment and reach a particular state
-/*type TxWorkloadFactory interface {
-	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
-	// to define each sequence of transactions that should be tested.
-	// TODO: switch from workload generator to procedural test style for VM-defined workloads
-	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
-	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
-	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
-
-	// GetSpendingKey returns a private key to an account which the test case spend money from.
-	GetSpendingKey() (*auth.PrivateKey, error)
-}*/
-
 type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
 
 type TxGenerator interface {

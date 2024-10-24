@@ -12,8 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var StableNodeURI = fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)

@@ -39,7 +39,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		vm.New,
 		testingNetworkConfig,
 		lconsts.ID,
-		vm.CreateParser,
 		generator,
 		randomEd25519AuthFactory,
 	)

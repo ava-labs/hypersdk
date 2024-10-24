@@ -101,7 +101,6 @@ func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
 	networkConfigImpl workload.TestNetworkConfiguration,
 	id ids.ID,
-	createParser func(genesisBytes []byte) (chain.Parser, error),
 	generator workload.TxGenerator,
 	authF chain.AuthFactory,
 ) {
