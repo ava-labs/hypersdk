@@ -153,31 +153,37 @@ func Int(
 	label string,
 	max int,
 ) (int, error) {
+	stringToInt := func(input string, max int) (int, error) {
+		input = strings.TrimSpace(input)
+
+		if len(input) == 0 {
+			return 0, ErrInputEmpty
+		}
+		amount, err := strconv.Atoi(input)
+		if err != nil {
+			return 0, err
+		}
+		if amount <= 0 {
+			return 0, fmt.Errorf("%d must be > 0", amount)
+		}
+		if amount > max {
+			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		}
+		return amount, nil
+	}
+
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			amount, err := strconv.Atoi(input)
-			if err != nil {
-				return err
-			}
-			if amount <= 0 {
-				return fmt.Errorf("%d must be > 0", amount)
-			}
-			if amount > max {
-				return fmt.Errorf("%d must be <= %d", amount, max)
-			}
-			return nil
+			_, err := stringToInt(input, max)
+			return err
 		},
 	}
 	rawAmount, err := promptText.Run()
 	if err != nil {
 		return 0, err
 	}
-	rawAmount = strings.TrimSpace(rawAmount)
-	return strconv.Atoi(rawAmount)
+	return stringToInt(rawAmount, max)
 }
 
 func Uint(
