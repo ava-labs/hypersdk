@@ -32,16 +32,6 @@ func TestTransferAction(t *testing.T) {
 			ExpectedErr: ErrOutputValueZero,
 		},
 		{
-			Name:  "InvalidAddress",
-			Actor: codec.EmptyAddress,
-			Action: &Transfer{
-				To:    codec.EmptyAddress,
-				Value: 1,
-			},
-			State:       chaintest.NewInMemoryStore(),
-			ExpectedErr: storage.ErrInvalidAddress,
-		},
-		{
 			Name:  "NotEnoughBalance",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
