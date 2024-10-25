@@ -48,11 +48,19 @@ func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 	return testNetwork
 }
 
-func (n *Network) Nodes() (out []workload.TestNode) {
+func (n *Network) URIs() (out []string) {
 	for _, node := range n.nodes {
-		out = append(out, node)
+		out = append(out, node.URI())
 	}
-	return out
+	return
+}
+
+func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	return n.nodes[0].ConfirmTxs(ctx, txs)
+}
+
+func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
+	return n.nodes[0].GenerateTx(ctx, actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
@@ -65,6 +73,14 @@ type Node struct {
 }
 
 func (n *Node) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	c := jsonrpc.NewJSONRPCClient(n.URI())
+	for _, tx := range txs {
+		_, err := c.SubmitTx(ctx, tx.Bytes())
+		if err != nil {
+			return err
+		}
+	}
+
 	indexerCli := indexer.NewClient(n.URI())
 	for _, tx := range txs {
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
@@ -73,17 +89,6 @@ func (n *Node) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 		}
 		if !success {
 			return ErrUnableToConfirmTx
-		}
-	}
-	return nil
-}
-
-func (n *Node) SubmitTxs(ctx context.Context, txs []*chain.Transaction) error {
-	c := jsonrpc.NewJSONRPCClient(n.URI())
-	for _, tx := range txs {
-		_, err := c.SubmitTx(ctx, tx.Bytes())
-		if err != nil {
-			return err
 		}
 	}
 	return nil

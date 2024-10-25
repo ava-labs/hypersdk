@@ -27,7 +27,6 @@ var TestsRegistry = &registry.Registry{}
 var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
 	require := require.New(t)
 
-	firstNode := tn.Nodes()[0]
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
@@ -35,7 +34,7 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
 	spendingKey := networkConfig.Keys()[0]
 
-	tx, err := firstNode.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
 		To:    toAddress,
 		Value: 1,
 	}},
@@ -46,7 +45,6 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 	defer timeoutCtxFnc()
 
-	require.NoError(firstNode.SubmitTxs(timeoutCtx, []*chain.Transaction{tx}))
-	require.NoError(firstNode.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 	return nil
 })

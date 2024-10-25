@@ -29,22 +29,20 @@ type Network struct {
 	uris []string
 }
 
-func (*Network) Nodes() (out []workload.TestNode) {
-	for _, instance := range instances {
-		out = append(out, instance)
-	}
-	return out
+func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	return instances[0].ConfirmTxs(ctx, txs)
 }
 
-func (i *instance) SubmitTxs(ctx context.Context, txs []*chain.Transaction) error {
-	errs := i.vm.Submit(ctx, true, txs)
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs[0]
+func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
+	return instances[0].GenerateTx(ctx, actions, auth)
 }
 
 func (i *instance) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	errs := i.vm.Submit(ctx, true, txs)
+	if len(errs) != 0 {
+		return errs[0]
+	}
+
 	expectBlk(i)(false)
 
 	for {
