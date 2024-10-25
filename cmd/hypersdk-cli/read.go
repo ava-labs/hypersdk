@@ -153,8 +153,19 @@ func fillAction(cmd *cobra.Command, typ abi.Type) (map[string]interface{}, error
 
 	return kvPairs, nil
 }
-
 func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]interface{}, error) {
+	// check if any provided fields don't exist in the type definition
+	validFields := make(map[string]bool)
+	for _, field := range typ.Fields {
+		validFields[field.Name] = true
+	}
+
+	for inputField := range kvData {
+		if !validFields[inputField] {
+			return nil, fmt.Errorf("unexpected field provided: %s", inputField)
+		}
+	}
+
 	kvPairs := make(map[string]interface{})
 	for _, field := range typ.Fields {
 		value, ok := kvData[field.Name]
