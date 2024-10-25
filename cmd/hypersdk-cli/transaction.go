@@ -92,8 +92,8 @@ var txCmd = &cobra.Command{
 
 		base := &chain.Base{
 			ChainID:   chainID,
-			Timestamp: time.Now().Unix()*1000 + 60*1000,
-			MaxFee:    1_000_000,
+			Timestamp: time.Now().Unix()*1000 + 60*1000, // TODO: use utils.UnixRMilli(now, rules.GetValidityWindow())
+			MaxFee:    1_000_000,                        // TODO: use chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 		}
 
 		signedBytes, err := SignTxManually([][]byte{actionBytes}, base, key)
