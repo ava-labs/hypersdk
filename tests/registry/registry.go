@@ -24,16 +24,23 @@ func (r *Registry) Add(name string, f TestFunc) {
 }
 
 func (r *Registry) List() []namedTest {
+	if r == nil {
+		return []namedTest{}
+	}
 	return r.tests
 }
 
-var testRegistry Registry
+// we need to pre-register all the test registeries that are created externally in order to comply with the ginko execution order.
+// i.e. the global `var _ = ginkgo.Describe` used in the integration/e2e tests need to have this field populated before the iteration
+// over the top level nodes.
+var testRegistries = map[*Registry]bool{}
 
-func RegisterTest(name string, f TestFunc) bool {
-	testRegistry.Add(name, f)
+func Register(registry *Registry, name string, f TestFunc) bool {
+	registry.Add(name, f)
+	testRegistries[registry] = true
 	return true
 }
 
-func List() []namedTest {
-	return testRegistry.List()
+func GetTestsRegistries() map[*Registry]bool {
+	return testRegistries
 }

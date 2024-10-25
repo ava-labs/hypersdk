@@ -246,11 +246,13 @@ var _ = ginkgo.Describe("[Custom VM Tests]", func() {
 	tc := e2e.NewTestContext()
 	require := require.New(tc)
 
-	for _, test := range registry.List() {
-		ginkgo.It(test.Name, func() {
-			testNetwork := NewNetwork(tc)
-			require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
-		})
+	for testRegistry := range registry.GetTestsRegistries() {
+		for _, test := range testRegistry.List() {
+			ginkgo.It(test.Name, func() {
+				testNetwork := NewNetwork(tc)
+				require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+			})
+		}
 	}
 })
 

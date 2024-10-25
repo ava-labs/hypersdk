@@ -20,7 +20,11 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-var _ = registry.RegisterTest("Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
+// create a single tests registry instance. This doesn't need to be duplicated if we were to add
+// additional tests.
+var TestsRegistry = &registry.Registry{}
+
+var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
 	require := require.New(t)
 
 	firstNode := tn.Nodes()[0]
