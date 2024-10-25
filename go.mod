@@ -17,6 +17,7 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.5.0
+	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.8.4
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
@@ -123,7 +124,6 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.12.0 // indirect
 	github.com/status-im/keycard-go v0.2.0 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
