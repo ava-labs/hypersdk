@@ -74,8 +74,7 @@ func (i *instance) URI() string {
 }
 
 func (i *instance) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
-	// todo :
-	// this implementation need to change so that we can perform it directly without any RPC calls.
+	// TODO: support generating tx without using jsonRPC client
 	c := jsonrpc.NewJSONRPCClient(i.URI())
 	_, tx, _, err := c.GenerateTransaction(
 		ctx,

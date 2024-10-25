@@ -18,12 +18,15 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 const (
 	// default initial balance for each address
 	InitialBalance uint64 = 10_000_000_000_000
 )
+
+var _ workload.TestNetworkConfiguration = &NetworkConfiguration{}
 
 // hardcoded initial set of ed25519 keys. Each will be initialized with InitialBalance
 var ed25519HexKeys = []string{

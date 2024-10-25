@@ -30,13 +30,13 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	firstNode := tn.Nodes()[0]
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
-	aother := auth.NewED25519Address(other.PublicKey())
+	toAddress := auth.NewED25519Address(other.PublicKey())
 
 	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
 	spendingKey := networkConfig.Keys()[0]
 
 	tx, err := firstNode.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
-		To:    aother,
+		To:    toAddress,
 		Value: 1,
 	}},
 		auth.NewED25519Factory(spendingKey),
