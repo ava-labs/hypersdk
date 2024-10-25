@@ -103,12 +103,12 @@ func setConfigValue(key, value string) error {
 	return viper.WriteConfig()
 }
 
-func decodeFileOrHex(whatever string) ([]byte, error) {
-	if decoded, err := codec.LoadHex(whatever, -1); err == nil {
+func decodeFileOrHex(fileNameOrHex string) ([]byte, error) {
+	if decoded, err := codec.LoadHex(fileNameOrHex, -1); err == nil {
 		return decoded, nil
 	}
 
-	if fileContents, err := os.ReadFile(whatever); err == nil {
+	if fileContents, err := os.ReadFile(fileNameOrHex); err == nil {
 		return fileContents, nil
 	}
 
