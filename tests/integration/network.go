@@ -29,11 +29,11 @@ type Network struct {
 	uris []string
 }
 
-func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (*Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	return instances[0].ConfirmTxs(ctx, txs)
 }
 
-func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
+func (*Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
 	return instances[0].GenerateTx(ctx, actions, auth)
 }
 
