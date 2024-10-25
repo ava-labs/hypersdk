@@ -20,8 +20,8 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// create a single tests registry instance. This doesn't need to be duplicated if we were to add
-// additional tests.
+// TestsRegistry is global tests registry instance where all the tests are to be registered. Each VM would typically have only
+// a single instance of such a registry.
 var TestsRegistry = &registry.Registry{}
 
 var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
