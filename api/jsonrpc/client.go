@@ -257,3 +257,17 @@ func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Act
 
 	return resp.ActionResults, nil
 }
+
+func (cli *JSONRPCClient) GetBalance(ctx context.Context, addr codec.Address) (uint64, error) {
+	args := &GetBalanceArgs{
+		Address: addr,
+	}
+	resp := new(GetBalanceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getBalance",
+		args,
+		resp,
+	)
+	return resp.Balance, err
+}
