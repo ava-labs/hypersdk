@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -115,7 +116,33 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
-	txBeforeSign := chain.TransactionData{
+	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
+	txBeforeSignBytes, err := tx.UnsignedBytes()
+	require.NoError(err)
+
+	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
+	require.NoError(err)
+	unsignedTxAfterSignBytes, err := signedTx.TransactionData.UnsignedBytes()
+	require.NoError(err)
+	require.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes)
+	require.NotNil(signedTx.Auth)
+	require.Equal(len(signedTx.Actions), len(tx.Actions))
+	for i, action := range signedTx.Actions {
+		require.Equal(tx.Actions[i], action)
+	}
+
+	unsignedTxBytes, err := signedTx.UnsignedBytes()
+	require.NoError(err)
+	originalUnsignedTxBytes, err := tx.UnsignedBytes()
+	require.NoError(err)
+
+	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
+	require.Len(unsignedTxBytes, 168)
+}
+
+func TestSignRawActionBytesTx(t *testing.T) {
+	require := require.New(t)
+	tx := chain.TransactionData{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -138,24 +165,28 @@ func TestMarshalUnmarshal(t *testing.T) {
 			},
 		},
 	}
-	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
-	_, err = txBeforeSign.UnsignedBytes()
+
+	priv, err := ed25519.GeneratePrivateKey()
+	require.NoError(err)
+	factory := auth.NewED25519Factory(priv)
+
+	actionCodec := codec.NewTypeParser[chain.Action]()
+	authCodec := codec.NewTypeParser[chain.Auth]()
+
+	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
+	require.NoError(err)
+	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
+	require.NoError(err)
+	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
 	require.NoError(err)
-	require.Equal(txBeforeSign, tx)
-	require.NotNil(signedTx.Auth)
-	require.Equal(len(signedTx.Actions), len(tx.Actions))
-	for i, action := range signedTx.Actions {
-		require.Equal(tx.Actions[i], action)
-	}
 
-	unsignedTxBytes, err := signedTx.UnsignedBytes()
+	p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	require.NoError(signedTx.Actions.MarshalInto(p))
+	actionsBytes := p.Bytes()
+	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, factory)
 	require.NoError(err)
-	originalUnsignedTxBytes, err := tx.UnsignedBytes()
-	require.NoError(err)
-
-	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
-	require.Len(unsignedTxBytes, 168)
+	require.Equal(signedTx.Bytes(), rawSignedTxBytes)
 }
