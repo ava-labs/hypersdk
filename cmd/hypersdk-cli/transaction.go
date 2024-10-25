@@ -15,14 +15,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/abi/dynamic"
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var txCmd = &cobra.Command{
@@ -101,39 +100,33 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
 
-		wsClient, err := ws.NewWebSocketClient(endpoint, 10*time.Second, 100, 1000000)
+		indexerClient := indexer.NewClient(endpoint)
+
+		expectedTxID, err := client.SubmitTx(ctx, signedBytes)
 		if err != nil {
-			return fmt.Errorf("failed to create ws client: %w", err)
+			return fmt.Errorf("failed to send tx: %w", err)
 		}
 
-		if err := wsClient.RegisterRawTx(signedBytes); err != nil {
-			return fmt.Errorf("failed to register tx: %w", err)
-		}
-
-		expectedTxID := utils.ToID(signedBytes)
-		// Listen for the transaction result
-		var result *chain.Result
+		var getTxResponse indexer.GetTxResponse
 		for {
-			txID, txErr, txResult, err := wsClient.ListenTx(ctx)
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("context expired while waiting for tx: %w", err)
+			}
+
+			getTxResponse, found, err = indexerClient.GetTx(ctx, expectedTxID)
 			if err != nil {
-				if ctx.Err() == context.DeadlineExceeded {
-					return fmt.Errorf("failed to listen for transaction: %w", ctx.Err())
-				}
-				return fmt.Errorf("failed to listen for transaction: %w", err)
+				return fmt.Errorf("failed to get tx: %w", err)
 			}
-			if txErr != nil {
-				return txErr
-			}
-			if txID == expectedTxID {
-				result = txResult
+			if found {
 				break
 			}
+			time.Sleep(500 * time.Millisecond)
 		}
 
 		var resultStruct map[string]interface{}
-		if result.Success {
-			if len(result.Outputs) == 1 {
-				resultJSON, err := dynamic.UnmarshalOutput(abi, result.Outputs[0])
+		if getTxResponse.Success {
+			if len(getTxResponse.Outputs) == 1 {
+				resultJSON, err := dynamic.UnmarshalOutput(abi, getTxResponse.Outputs[0])
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal result: %w", err)
 				}
@@ -142,16 +135,16 @@ var txCmd = &cobra.Command{
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal result JSON: %w", err)
 				}
-			} else if len(result.Outputs) > 1 {
-				return fmt.Errorf("expected 1 output, got %d", len(result.Outputs))
+			} else if len(getTxResponse.Outputs) > 1 {
+				return fmt.Errorf("expected 1 output, got %d", len(getTxResponse.Outputs))
 			}
 		}
 
 		return printValue(cmd, txResponse{
 			Result:  resultStruct,
-			Success: result.Success,
+			Success: getTxResponse.Success,
 			TxID:    expectedTxID,
-			Error:   string(result.Error),
+			Error:   getTxResponse.ErrorStr,
 		})
 	},
 }
@@ -166,7 +159,7 @@ type txResponse struct {
 func (r txResponse) String() string {
 	var result strings.Builder
 	if r.Success {
-		result.WriteString(fmt.Sprintf("✅ Transaction successful (txID: %s)\n\n", r.TxID))
+		result.WriteString(fmt.Sprintf("✅ Transaction successful (txID: %s)\n", r.TxID))
 		if r.Result != nil {
 			for key, value := range r.Result {
 				jsonValue, err := json.Marshal(value)

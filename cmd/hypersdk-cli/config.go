@@ -25,7 +25,7 @@ func init() {
 	}
 
 	configDir := filepath.Join(homeDir, ".hypersdk-cli")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, "Error creating config directory:", err)
 		os.Exit(1)
 	}

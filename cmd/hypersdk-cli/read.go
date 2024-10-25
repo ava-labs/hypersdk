@@ -153,6 +153,7 @@ func fillAction(cmd *cobra.Command, typ abi.Type) (map[string]interface{}, error
 
 	return kvPairs, nil
 }
+
 func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]interface{}, error) {
 	// check if any provided fields don't exist in the type definition
 	validFields := make(map[string]bool)
