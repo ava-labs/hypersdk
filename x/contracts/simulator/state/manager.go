@@ -24,7 +24,6 @@ var (
 
 const (
 	BalanceManagerPrefix = 0x1
-	BalanceDataPrefix    = 0x0
 )
 
 type ContractStateManager struct {

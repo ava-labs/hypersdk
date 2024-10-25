@@ -22,24 +22,30 @@ var (
 )
 
 const (
+	// Global directory of contractIDs to contractBytes
 	contractPrefix = 0x0
 
-	accountPrefix      = 0x1
-	accountDataPrefix  = 0x0
+	// Prefix for all contract state spaces
+	accountPrefix = 0x1
+	// Associated data for an account, such as the contractID
+	accountDataPrefix = 0x0
+	// State space associated with an account
 	accountStatePrefix = 0x1
 )
 
-// default implementation of the ContractManager interface
+// ContractStateManager is an out of the box implementation of the ContractManager interface.
+// The contract state manager is responsible for managing all state keys associated with contracts.
 type ContractStateManager struct {
-	// this state mutable should have its own prefix that doesn't conflict with other state
 	db state.Mutable
 }
 
+// NewContractStateManager returns a new ContractStateManager instance.
+// [prefix] must be unique to ensures the contract's state space
+// remains isolated from other state spaces in [db].
 func NewContractStateManager(
 	db state.Mutable,
 	prefix []byte,
 ) *ContractStateManager {
-	// set db to prefixed state space
 	prefixedState := newPrefixStateMutable(prefix, db)
 
 	return &ContractStateManager{
@@ -47,6 +53,7 @@ func NewContractStateManager(
 	}
 }
 
+// GetContractState returns a mutable state instance associated with [account].
 func (p *ContractStateManager) GetContractState(account codec.Address) state.Mutable {
 	return newAccountPrefixedMutable(account, p.db)
 }
@@ -160,6 +167,7 @@ func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) sta
 	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
 
+// [accountPrefix] + [account] + [accountStatePrefix] = state space associated with a contract
 func accountStateKey(key []byte) (k []byte) {
 	k = make([]byte, 2+len(key))
 	k[0] = accountPrefix
