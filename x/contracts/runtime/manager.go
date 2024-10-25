@@ -37,9 +37,13 @@ type ContractStateManager struct {
 
 func NewContractStateManager(
 	db state.Mutable,
+	prefix []byte,
 ) *ContractStateManager {
+	// set db to prefixed state space
+	prefixedState := newPrefixStateMutable(prefix, db)
+
 	return &ContractStateManager{
-		db: db,
+		db: prefixedState,
 	}
 }
 
@@ -124,36 +128,36 @@ func (p *ContractStateManager) getAccountContract(ctx context.Context, account c
 }
 
 // prefixed state
-type PrefixedStateMutable struct {
+type prefixedStateMutable struct {
 	inner  state.Mutable
 	prefix []byte
 }
 
-func NewPrefixStateMutable(prefix []byte, inner state.Mutable) *PrefixedStateMutable {
-	return &PrefixedStateMutable{inner: inner, prefix: prefix}
+func newPrefixStateMutable(prefix []byte, inner state.Mutable) *prefixedStateMutable {
+	return &prefixedStateMutable{inner: inner, prefix: prefix}
 }
 
-func (s *PrefixedStateMutable) prefixKey(key []byte) (k []byte) {
+func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
 	k = make([]byte, len(s.prefix)+len(key))
 	copy(k, s.prefix)
 	copy(k[len(s.prefix):], key)
 	return
 }
 
-func (s *PrefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	return s.inner.GetValue(ctx, s.prefixKey(key))
 }
 
-func (s *PrefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
+func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
 	return s.inner.Insert(ctx, s.prefixKey(key), value)
 }
 
-func (s *PrefixedStateMutable) Remove(ctx context.Context, key []byte) error {
+func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
 	return s.inner.Remove(ctx, s.prefixKey(key))
 }
 
 func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
-	return &PrefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
+	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
 
 func accountStateKey(key []byte) (k []byte) {

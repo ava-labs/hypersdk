@@ -58,8 +58,7 @@ func (t TestStateManager) CompileAndSetContract(contractID ContractID, contractN
 	if err != nil {
 		return err
 	}
-	t.SetContractBytes(context.Background(), contractID, contractBytes)
-	return nil
+	return t.SetContractBytes(context.Background(), contractID, contractBytes)
 }
 
 func (t TestStateManager) NewAccountWithContract(_ context.Context, contractID ContractID, _ []byte) (codec.Address, error) {
@@ -205,7 +204,7 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 			NewConfig(),
 			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000}),
 		StateManager: TestStateManager{
-			ContractManager: NewContractStateManager(test.NewTestDB()),
+			ContractManager: NewContractStateManager(test.NewTestDB(), []byte{}),
 			Balances:        map[codec.Address]uint64{},
 		},
 	}

@@ -23,7 +23,7 @@ func TestCallContext(t *testing.T) {
 	contractID := ids.GenerateTestID()
 	contractAccount := codec.CreateAddress(0, contractID)
 	stringedID := string(contractID[:])
-	contractManager := NewContractStateManager(test.NewTestDB())
+	contractManager := NewContractStateManager(test.NewTestDB(), []byte{})
 	err := contractManager.SetAccountContract(ctx, contractAccount, ContractID(stringedID))
 	require.NoError(err)
 	testStateManager := &TestStateManager{
@@ -79,7 +79,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	contract1Address := codec.CreateAddress(1, contract1ID)
 	stringedID0 := string(contract0ID[:])
 
-	contractManager := NewContractStateManager(test.NewTestDB())
+	contractManager := NewContractStateManager(test.NewTestDB(), []byte{})
 	err := contractManager.SetAccountContract(ctx, contract0Address, ContractID(stringedID0))
 	require.NoError(err)
 	testStateManager := &TestStateManager{
@@ -99,7 +99,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		})
 
 	stringedID1 := string(contract1ID[:])
-	contractManager1 := NewContractStateManager(test.NewTestDB())
+	contractManager1 := NewContractStateManager(test.NewTestDB(), []byte{})
 	err = contractManager.SetAccountContract(ctx, contract1Address, ContractID(stringedID1))
 	require.NoError(err)
 	testStateManager1 := &TestStateManager{

@@ -33,12 +33,7 @@ type ContractStateManager struct {
 }
 
 func NewContractStateManager(db state.Mutable) *ContractStateManager {
-	contractManager := runtime.NewContractStateManager(
-		runtime.NewPrefixStateMutable(
-			contractManagerPrefix,
-			db,
-		),
-	)
+	contractManager := runtime.NewContractStateManager(db, contractManagerPrefix)
 	return &ContractStateManager{
 		db:            db,
 		contractState: contractManager,
