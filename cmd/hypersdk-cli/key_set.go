@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 
@@ -31,10 +32,9 @@ var keySetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set the private ED25519 key",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		// read directly from the flag instead of calling getConfigValue
 		keyString, err := cmd.Flags().GetString("key")
 		if err != nil {
-			return fmt.Errorf("failed to get key: %w", err)
+			return fmt.Errorf("failed to get key flag: %w", err)
 		}
 		if keyString == "" {
 			return errors.New("--key is required")
@@ -50,8 +50,8 @@ func checkAndSavePrivateKey(keyString string, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to decode key: %w", err)
 	}
 
-	err = updateConfig("key", hex.EncodeToString(key[:]))
-	if err != nil {
+	// Use Viper to save the key
+	if err := setConfigValue("key", hex.EncodeToString(key[:])); err != nil {
 		return fmt.Errorf("failed to update config: %w", err)
 	}
 
@@ -88,4 +88,10 @@ func (r keySetCmdResponse) String() string {
 
 func init() {
 	keyCmd.AddCommand(keySetCmd, keyGenerateCmd)
+	keySetCmd.Flags().String("key", "", "Private key in hex format or path to file containing the key")
+
+	err := keySetCmd.MarkFlagRequired("key")
+	if err != nil {
+		log.Fatalf("failed to mark key flag as required: %s", err)
+	}
 }

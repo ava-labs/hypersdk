@@ -41,7 +41,7 @@ var readCmd = &cobra.Command{
 			}
 		} else {
 			// ok, infer user's address from the private key
-			keyString, err := getConfigValue(cmd, "key")
+			keyString, err := getConfigValue(cmd, "key", true)
 			if err != nil {
 				return fmt.Errorf("failed to get key from config: %w", err)
 			}
@@ -53,7 +53,7 @@ var readCmd = &cobra.Command{
 		}
 
 		// 2. create client
-		endpoint, err := getConfigValue(cmd, "endpoint")
+		endpoint, err := getConfigValue(cmd, "endpoint", true)
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
 		}

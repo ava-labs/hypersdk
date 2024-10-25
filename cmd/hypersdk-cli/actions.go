@@ -17,7 +17,7 @@ var actionsCmd = &cobra.Command{
 	Use:   "actions",
 	Short: "Print the list of actions available in the ABI",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		endpoint, err := getConfigValue(cmd, "endpoint")
+		endpoint, err := getConfigValue(cmd, "endpoint", true)
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
 		}

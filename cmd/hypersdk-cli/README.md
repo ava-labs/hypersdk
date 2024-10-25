@@ -12,9 +12,15 @@ FIXME: Has to point to the commit with the latest update from main, or just `@ma
 
 ## Configuration
 
-The CLI stores configuration in `~/.hypersdk-cli/config.cfg`. This includes:
+The CLI stores configuration in `~/.hypersdk-cli/config.yaml`. This includes:
 - Private key
 - Endpoint URL
+
+Example setup for a local HyperSDK VM:
+```bash
+hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusvm/ 
+hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+```
 
 ## Global Flags
 

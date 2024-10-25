@@ -12,12 +12,49 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+func init() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error getting home directory:", err)
+		os.Exit(1)
+	}
+
+	configDir := filepath.Join(homeDir, ".hypersdk-cli")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		fmt.Fprintln(os.Stderr, "Error creating config directory:", err)
+		os.Exit(1)
+	}
+
+	configFile := filepath.Join(configDir, "config.yaml")
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		if _, err := os.Create(configFile); err != nil {
+			fmt.Fprintln(os.Stderr, "Error creating config file:", err)
+			os.Exit(1)
+		}
+	}
+
+	// Set config name and paths
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configDir)
+
+	// Read config
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			fmt.Fprintln(os.Stderr, "Error reading config:", err)
+			os.Exit(1)
+		}
+		// Config file not found; will be created when needed
+	}
+}
+
 func isJSONOutputRequested(cmd *cobra.Command) (bool, error) {
-	output, err := getConfigValue(cmd, "output")
+	output, err := getConfigValue(cmd, "output", false)
 	if err != nil {
 		return false, fmt.Errorf("failed to get output format: %w", err)
 	}
@@ -43,84 +80,27 @@ func printValue(cmd *cobra.Command, v fmt.Stringer) error {
 	}
 }
 
-func getConfigValue(cmd *cobra.Command, name string) (string, error) {
-	// Check if the value is among flags
-	if value, err := cmd.Flags().GetString(name); err == nil && value != "" {
+func getConfigValue(cmd *cobra.Command, key string, required bool) (string, error) {
+	// Check flags first
+	if value, err := cmd.Flags().GetString(key); err == nil && value != "" {
 		return value, nil
 	}
 
-	// If not in flags, check the config file
-	config, err := readConfig()
-	if err != nil {
-		return "", fmt.Errorf("failed to read config: %w", err)
-	}
-
-	if value, ok := config[name]; ok {
+	// Then check viper
+	if value := viper.GetString(key); value != "" {
 		return value, nil
 	}
 
-	return "", fmt.Errorf("value for %s not found", name)
+	if required {
+		return "", fmt.Errorf("required value for %s not found", key)
+	}
+
+	return "", nil
 }
 
-func updateConfig(name, value string) error {
-	config, err := readConfig()
-	if err != nil {
-		return fmt.Errorf("failed to read config: %w", err)
-	}
-
-	config[name] = value
-	return writeConfig(config)
-}
-
-func readConfig() (map[string]string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	configPath := filepath.Join(homeDir, ".hypersdk-cli", "config.cfg")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return make(map[string]string), nil
-		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	config := make(map[string]string)
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			config[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
-
-	return config, nil
-}
-
-func writeConfig(config map[string]string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	configDir := filepath.Join(homeDir, ".hypersdk-cli")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	configPath := filepath.Join(configDir, "config.cfg")
-	var buf strings.Builder
-	for key, value := range config {
-		buf.WriteString(fmt.Sprintf("%s = %s\n", key, value))
-	}
-
-	if err := os.WriteFile(configPath, []byte(buf.String()), 0o600); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
+func setConfigValue(key, value string) error {
+	viper.Set(key, value)
+	return viper.WriteConfig()
 }
 
 func decodeFileOrHex(whatever string) ([]byte, error) {

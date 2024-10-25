@@ -16,7 +16,7 @@ var endpointPingCmd = &cobra.Command{
 	Use:   "ping",
 	Short: "Ping the endpoint",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		endpoint, err := getConfigValue(cmd, "endpoint")
+		endpoint, err := getConfigValue(cmd, "endpoint", true)
 		if err != nil {
 			return fmt.Errorf("failed to get endpoint: %w", err)
 		}
