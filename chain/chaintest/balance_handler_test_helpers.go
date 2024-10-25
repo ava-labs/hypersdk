@@ -19,7 +19,6 @@ const (
 	TestCanDeduct BalanceHandlerMethod = iota
 	TestDeduct
 	TestAddBalance
-	TestGetBalance
 )
 
 type BalanceHandlerMethod uint8
@@ -45,9 +44,14 @@ func (test *BalanceHandlerStateKeyTest) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		r := require.New(t)
 
+		ms := NewInMemoryStore()
+
+		// Add balance
+		r.NoError(test.BalanceHandler.AddBalance(ctx, test.Actor, ms, test.Amount, true))
+
 		stateKeys := test.BalanceHandler.SponsorStateKeys(test.Actor)
 		ts := tstate.New(1)
-		tsv := ts.NewView(stateKeys, NewInMemoryStore().Storage)
+		tsv := ts.NewView(stateKeys, ms.Storage)
 
 		// Add balance
 		r.NoError(test.BalanceHandler.AddBalance(ctx, test.Actor, tsv, test.Amount, true))
@@ -89,13 +93,14 @@ func (test *BalanceHandlerFundsTest) Run(ctx context.Context, t *testing.T) {
 			r.ErrorIs(test.BalanceHandler.Deduct(ctx, test.Actor, test.State, test.Amount), test.ExpectedError)
 		case TestAddBalance:
 			r.ErrorIs(test.BalanceHandler.AddBalance(ctx, test.Actor, test.State, test.Amount, test.CreateAccount), test.ExpectedError)
-		case TestGetBalance:
-			balance, err := test.BalanceHandler.GetBalance(ctx, test.Actor, test.State)
-			r.ErrorIs(err, test.ExpectedError)
-			r.Equal(test.ExpectedBalance, balance)
 		default:
 			r.Fail("no test method specified")
 		}
+
+		balance, err := test.BalanceHandler.GetBalance(ctx, test.Actor, test.State)
+		r.NoError(err)
+
+		r.Equal(test.ExpectedBalance, balance)
 
 		if test.Assertion != nil {
 			test.Assertion(ctx, t, test.State)
