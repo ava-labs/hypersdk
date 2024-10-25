@@ -87,14 +87,15 @@ func CreateContract(db *C.Mutable, path *C.char) C.CreateContractResponse {
 		}
 	}
 
-	contractID, err := generateRandomID()
+	id, err := generateRandomID()
 	if err != nil {
 		return C.CreateContractResponse{
 			error: C.CString(err.Error()),
 		}
 	}
 
-	err = contractManager.SetContractBytes(context.TODO(), runtime.ContractID(contractID[:]), contractBytes)
+	contractID := runtime.ContractID(id[:])
+	err = contractManager.SetContractBytes(context.TODO(), contractID, contractBytes)
 	if err != nil {
 		errmsg := "contract creation failed: " + err.Error()
 		return C.CreateContractResponse{
