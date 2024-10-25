@@ -102,6 +102,24 @@ func (t *TransactionData) Sign(
 	return UnmarshalTx(p, actionCodec, authCodec)
 }
 
+func SignRawActionBytesTx(
+	base *Base,
+	rawActionsBytes []byte,
+	authFactory AuthFactory,
+) ([]byte, error) {
+	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
+	base.Marshal(p)
+	p.PackFixedBytes(rawActionsBytes)
+
+	auth, err := authFactory.Sign(p.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	p.PackByte(auth.GetTypeID())
+	auth.Marshal(p)
+	return p.Bytes(), p.Err()
+}
+
 func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
@@ -116,7 +134,7 @@ func (t *TransactionData) Marshal(p *codec.Packer) error {
 
 func (t *TransactionData) marshal(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	return t.Actions.marshalInto(p)
+	return t.Actions.MarshalInto(p)
 }
 
 type Actions []Action
@@ -133,7 +151,7 @@ func (a Actions) Size() (int, error) {
 	return size, nil
 }
 
-func (a Actions) marshalInto(p *codec.Packer) error {
+func (a Actions) MarshalInto(p *codec.Packer) error {
 	p.PackByte(uint8(len(a)))
 	for _, action := range a {
 		p.PackByte(action.GetTypeID())
