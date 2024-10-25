@@ -63,7 +63,7 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 
 type keysJSON map[string]Permissions
 
-// MarshalJSON marshals Keys has readable JSON.
+// MarshalJSON marshals Keys as readable JSON.
 // Keys are hex encoded strings and permissions
 // are either valid named strings or unknown hex encoded strings.
 func (k Keys) MarshalJSON() ([]byte, error) {
