@@ -186,8 +186,9 @@ func TestKeysMarshalingFuzz(t *testing.T) {
 func TestNewPermissionFromString(t *testing.T) {
 	require := require.New(t)
 	tests := []struct {
-		strPerm string
-		perm    Permissions
+		strPerm     string
+		perm        Permissions
+		expectedErr error
 	}{
 		{
 			strPerm: "read",
@@ -209,22 +210,28 @@ func TestNewPermissionFromString(t *testing.T) {
 			strPerm: "none",
 			perm:    None,
 		},
+		{
+			strPerm: "09",
+			perm:    Permissions(9),
+		},
+		{
+			strPerm:     "010A",
+			expectedErr: errInvalidHexadecimalString,
+		},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			var perm Permissions
 			err := perm.UnmarshalText([]byte(test.strPerm))
-			require.NoError(err)
-			require.Equal(test.perm, perm)
+			if test.expectedErr != nil {
+				require.ErrorIs(err, test.expectedErr)
+			} else {
+				require.NoError(err)
+				require.Equal(test.perm, perm)
+			}
 		})
 	}
-
-	t.Run("InvalidString", func(t *testing.T) {
-		var perm Permissions
-		err := perm.UnmarshalText([]byte{byte(1), byte(10)})
-		require.ErrorIs(err, errInvalidHexadecimalString)
-	})
 }
 
 func TestPermissionStringer(t *testing.T) {
