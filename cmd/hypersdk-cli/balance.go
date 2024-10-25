@@ -18,7 +18,7 @@ import (
 var balanceCmd = &cobra.Command{
 	Use:   "balance [address]",
 	Short: "Get the balance of an address",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		// 1. figure out sender address
 		addressStr, err := cmd.Flags().GetString("sender")
 		if err != nil {
@@ -60,21 +60,21 @@ var balanceCmd = &cobra.Command{
 		}
 
 		return printValue(cmd, balanceResponse{
-			Balance: balance,
-			Error:   errorString,
+			Balance:      balance,
+			BalanceError: errorString,
 		})
 	},
 }
 
 type balanceResponse struct {
-	Balance uint64 `json:"balance"`
-	Error   string `json:"error"`
+	Balance      uint64 `json:"balance"`
+	BalanceError string `json:"error"`
 }
 
 func (b balanceResponse) String() string {
 	var result strings.Builder
-	if b.Error != "" {
-		result.WriteString(fmt.Sprintf("❌ Error: %s\n", b.Error))
+	if b.BalanceError != "" {
+		result.WriteString(fmt.Sprintf("❌ Error: %s\n", b.BalanceError))
 	} else {
 		result.WriteString(fmt.Sprintf("✅ Balance: %d\n", b.Balance))
 	}
