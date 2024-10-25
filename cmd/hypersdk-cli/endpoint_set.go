@@ -39,7 +39,7 @@ type endpointSetCmdResponse struct {
 }
 
 func (r endpointSetCmdResponse) String() string {
-	return fmt.Sprintf("Endpoint set to: %s", r.Endpoint)
+	return "Endpoint set to: " + r.Endpoint
 }
 
 func init() {
