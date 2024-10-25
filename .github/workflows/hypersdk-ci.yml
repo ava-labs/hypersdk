@@ -51,11 +51,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Go
         uses: ./.github/actions/install-go
-      - name: Install Rust
-        uses: ./.github/actions/install-rust
-        with:
-          targets: wasm32-unknown-unknown
-          cache: false
       - name: Run unit tests
         shell: bash
         run: scripts/tests.unit.sh
@@ -68,11 +63,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Go
         uses: ./.github/actions/install-go
-      - name: Install Rust
-        uses: ./.github/actions/install-rust
-        with:
-          targets: wasm32-unknown-unknown
-          cache: false
       - name: Run unit tests
         shell: bash
         run: scripts/tests.benchmark.sh
@@ -188,90 +178,3 @@ jobs:
         with:
           vm-name: morpheusvm
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  # VMWithContracts
-  vmwithcontracts-lint:
-    needs: [hypersdk-tests]
-    if: ${{ needs.hypersdk-tests.outputs.only_contracts_changed != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/vmwithcontracts/go.sum
-      - name: Run static analysis tests
-        working-directory: ./examples/vmwithcontracts
-        shell: bash
-        run: scripts/lint.sh
-      - name: Build vm, cli
-        working-directory: ./examples/vmwithcontracts
-        shell: bash
-        run:
-          scripts/build.sh
-
-          #   vmwithcontracts-unit-tests:
-          #     needs: [ hypersdk-tests ]
-          #     if: ${{ needs.hypersdk-tests.outputs.only_contracts_changed != 'true' }}
-          #     runs-on: ubuntu-20.04-32
-          #     timeout-minutes: 10
-          #     steps:
-          #       - name: Checkout
-          #         uses: actions/checkout@v4
-          #       - name: Set up Go
-          #         uses: ./.github/actions/install-go
-          #         with:
-          #           cache-dependency-path: |
-          #             go.sum
-          #             examples/vmwithcontracts/go.sum
-          #       - name: Run unit tests
-          #         working-directory: ./examples/vmwithcontracts
-          #         shell: bash
-          #         run: scripts/tests.unit.sh
-          #       - name: Run integration tests
-          #         working-directory: ./examples/vmwithcontracts
-          #         shell: bash
-          #         run: scripts/tests.integration.sh
-          #
-          #   vmwithcontracts-e2e-tests:
-          #     needs: [ vmwithcontracts-lint, vmwithcontracts-unit-tests ]
-          #     runs-on: ubuntu-20.04-32
-          #     timeout-minutes: 25
-          #     steps:
-          #       - name: Checkout
-          #         uses: actions/checkout@v4
-          #       - name: Set up Go
-          #         uses: ./.github/actions/install-go
-          #         with:
-          #           cache-dependency-path: |
-          #             go.sum
-          #             examples/vmwithcontracts/go.sum
-          #       - name: Run e2e tests
-          #         working-directory: ./examples/vmwithcontracts
-          #         shell: bash
-          #         run: scripts/run.sh
-          #         env:
-          #           MODE: 'test'
-          #       - name: Upload tmpnet network dir
-          #         uses: ava-labs/avalanchego/.github/actions/upload-tmpnet-artifact@v1-actions
-          #         if: always()
-          #         with:
-          #           name: vmwithcontracts-e2e-tmpnet-data
-          #
-          #   vmwithcontracts-release:
-          #     needs: [ vmwithcontracts-e2e-tests ]
-          #     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
-          #     runs-on: ubuntu-20.04-32
-          #     permissions:
-          #       contents: write
-          #     steps:
-          #       - name: Checkout
-          #         uses: actions/checkout@v4
-          #       - uses: ./.github/actions/vm-release
-          #         with:
-          #           vm-name: vmwithcontracts
-          #           github-token: ${{ secrets.GITHUB_TOKEN }}

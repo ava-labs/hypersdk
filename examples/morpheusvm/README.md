@@ -108,7 +108,7 @@ This should return the following JSON:
 }
 ```
 
-_By default, this allocates all funds on the network to `morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu`. The private
+_By default, this allocates all funds on the network to `0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9`. The private
 key for this address is `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
 
@@ -162,7 +162,7 @@ Next, you'll need to add the chains you created and the default key to the
 If the key is added corretcly, you'll see the following log:
 ```
 database: .morpheus-cli
-imported address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+imported address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 ```
 
 Next, you'll need to store the URL of the nodes running on your Subnet:
@@ -211,10 +211,10 @@ If successful, the balance response should look like this:
 ```
 database: .morpheus-cli
 2024/09/09 10:52:49 [JOB 1] WAL file .morpheus-cli/000044.log with log number 000044 stopped reading at offset: 0; replayed 0 keys in 0 batches
-address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 chainID: JkJpw8ZPExTushPYYN4C8f7RHxjDRX8MAGGUGAdRRPEC2M3fx
 uri: http://127.0.0.1:9650/ext/bc/morpheusvm
-address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu balance: 1000.000000000 RED
+address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 balance: 1000.000000000 RED
 ```
 
 ### Generate Another Address
@@ -243,7 +243,7 @@ database: .morpheus-cli
 2024/09/09 10:53:51 [JOB 1] WAL file .morpheus-cli/000047.log with log number 000047 stopped reading at offset: 0; replayed 0 keys in 0 batches
 chainID: JkJpw8ZPExTushPYYN4C8f7RHxjDRX8MAGGUGAdRRPEC2M3fx
 stored keys: 2
-0) address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu balance: 10000000000.000000000 RED
+0) address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 balance: 10000000000.000000000 RED
 1) address: morpheus1q8pyshaqzx4q9stqdt88hyg22axjwrvl0w9wgczct5fnfev9gcnrsqwjdn0 balance: 0.000000000 RED
 set default key: 0
 ```
@@ -285,7 +285,7 @@ select chainID: 0
 uri: http://127.0.0.1:9650/ext/bc/morpheusvm
 watching for new blocks on 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk 👀
 height:1 txs:1 units:440 root:WspVPrHNAwBcJRJPVwt7TW6WT4E74dN8DuD3WXueQTMt5FDdi
-✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu units: 440 summary (*actions.Transfer): [10.000000000 RED -> morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07]
+✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 units: 440 summary (*actions.Transfer): [10.000000000 RED -> morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07]
 ```
 
 If you are running this on a local network, you may see that all blocks are empty.
