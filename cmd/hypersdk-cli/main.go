@@ -25,7 +25,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("output", "o", "human", "Output format (human or json)")
+	rootCmd.PersistentFlags().StringP("output", "o", "text", "Output format (text or json)")
 	rootCmd.PersistentFlags().String("endpoint", "", "Override the default endpoint")
 	rootCmd.PersistentFlags().String("key", "", "Private ED25519 key as hex string")
 }

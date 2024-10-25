@@ -19,7 +19,7 @@ The CLI stores configuration in `~/.hypersdk-cli/config.cfg`. This includes:
 ## Global Flags
 
 - `--endpoint`: Override the default endpoint for a single command
-- `-o, --output`: Set output format (`human` or `json`)
+- `-o, --output`: Set output format (`text` or `json`)
 
 ## Commands
 
