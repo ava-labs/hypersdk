@@ -211,8 +211,11 @@ type Action interface {
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
-	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address) state.Keys
+	// If any key is removed and then re-created, this will count as a creation
+	// instead of a modification.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
+	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
@@ -220,7 +223,10 @@ type Action interface {
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
 	//
-	// If [Execute] returns an error, execution will halt and any state changes will revert.
+	// If [Execute] returns an error, execution will halt and any state changes
+	// will revert.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
 		r Rules,
