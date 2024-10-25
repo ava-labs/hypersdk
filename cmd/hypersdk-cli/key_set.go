@@ -24,7 +24,7 @@ var keyGenerateCmd = &cobra.Command{
 			return fmt.Errorf("failed to generate key: %w", err)
 		}
 
-		return checkAndSavePrivateKey(hex.EncodeToString(newKey[:]), cmd)
+		return checkAndSavePrivateKey(cmd, hex.EncodeToString(newKey[:]))
 	},
 }
 
@@ -40,12 +40,12 @@ var keySetCmd = &cobra.Command{
 			return errors.New("--key is required")
 		}
 
-		return checkAndSavePrivateKey(keyString, cmd)
+		return checkAndSavePrivateKey(cmd, keyString)
 	},
 }
 
-func checkAndSavePrivateKey(keyString string, cmd *cobra.Command) error {
-	key, err := privateKeyFromString(keyString)
+func checkAndSavePrivateKey(cmd *cobra.Command, keyStr string) error {
+	key, err := privateKeyFromString(keyStr)
 	if err != nil {
 		return fmt.Errorf("failed to decode key: %w", err)
 	}

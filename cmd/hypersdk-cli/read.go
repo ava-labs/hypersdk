@@ -155,24 +155,19 @@ func fillAction(cmd *cobra.Command, typ abi.Type) (map[string]interface{}, error
 }
 
 func fillFromInputData(typ abi.Type, kvData map[string]string) (map[string]interface{}, error) {
-	// check if any provided fields don't exist in the type definition
-	validFields := make(map[string]bool)
-	for _, field := range typ.Fields {
-		validFields[field.Name] = true
+	// Require exact match in required fields to supplied arguments
+	if len(kvData) != len(typ.Fields) {
+		return nil, fmt.Errorf("type has %d fields, got %d arguments", len(typ.Fields), len(kvData))
 	}
-
-	for inputField := range kvData {
-		if !validFields[inputField] {
-			return nil, fmt.Errorf("unexpected field provided: %s", inputField)
+	for _, field := range typ.Fields {
+		if _, ok := kvData[field.Name]; !ok {
+			return nil, fmt.Errorf("missing argument: %s", field.Name)
 		}
 	}
 
 	kvPairs := make(map[string]interface{})
 	for _, field := range typ.Fields {
-		value, ok := kvData[field.Name]
-		if !ok {
-			continue
-		}
+		value := kvData[field.Name]
 		var parsedValue interface{}
 		var err error
 		switch field.Type {

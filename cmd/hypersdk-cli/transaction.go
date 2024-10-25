@@ -19,9 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 var txCmd = &cobra.Command{
@@ -95,7 +92,7 @@ var txCmd = &cobra.Command{
 			MaxFee:    1_000_000,                        // TODO: use chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 		}
 
-		signedBytes, err := SignTxManually([][]byte{actionBytes}, base, key)
+		signedBytes, err := chain.SignRawActionBytesTx(base, append([]byte{1}, actionBytes...), auth.NewED25519Factory(key))
 		if err != nil {
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
@@ -178,40 +175,4 @@ func (r txResponse) String() string {
 func init() {
 	txCmd.Flags().StringToString("data", nil, "Key-value pairs for the action data (e.g., key1=value1,key2=value2)")
 	rootCmd.AddCommand(txCmd)
-}
-
-func SignTxManually(actionsTxBytes [][]byte, base *chain.Base, privateKey ed25519.PrivateKey) ([]byte, error) {
-	// Create auth factory
-	factory := auth.NewED25519Factory(privateKey)
-
-	// Marshal base
-	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
-	base.Marshal(p)
-	baseBytes := p.Bytes()
-
-	// Build unsigned bytes starting with base and number of actions
-	unsignedBytes := make([]byte, 0)
-	unsignedBytes = append(unsignedBytes, baseBytes...)
-	unsignedBytes = append(unsignedBytes, byte(len(actionsTxBytes))) // Number of actions
-
-	// Append each action's bytes
-	for _, actionBytes := range actionsTxBytes {
-		unsignedBytes = append(unsignedBytes, actionBytes...)
-	}
-
-	// Sign the transaction
-	auth, err := factory.Sign(unsignedBytes)
-	if err != nil {
-		return nil, err
-	}
-	// Marshal auth
-	p = codec.NewWriter(auth.Size(), consts.NetworkSizeLimit)
-	auth.Marshal(p)
-	authBytes := []byte{auth.GetTypeID()}
-	authBytes = append(authBytes, p.Bytes()...)
-
-	// Combine everything into final signed transaction
-	//nolint:gocritic //append is fine here
-	signedBytes := append(unsignedBytes, authBytes...)
-	return signedBytes, nil
 }
