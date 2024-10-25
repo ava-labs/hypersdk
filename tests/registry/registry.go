@@ -30,7 +30,7 @@ func (r *Registry) List() []namedTest {
 	return r.tests
 }
 
-// we need to pre-register all the test registeries that are created externally in order to comply with the ginko execution order.
+// we need to pre-register all the test registries that are created externally in order to comply with the ginko execution order.
 // i.e. the global `var _ = ginkgo.Describe` used in the integration/e2e tests need to have this field populated before the iteration
 // over the top level nodes.
 var testRegistries = map[*Registry]bool{}
