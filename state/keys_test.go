@@ -6,9 +6,9 @@ package state
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"math/rand"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -184,7 +184,6 @@ func TestKeysMarshalingFuzz(t *testing.T) {
 }
 
 func TestNewPermissionFromString(t *testing.T) {
-	require := require.New(t)
 	tests := []struct {
 		strPerm     string
 		perm        Permissions
@@ -221,7 +220,8 @@ func TestNewPermissionFromString(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			require := require.New(t)
 			var perm Permissions
 			err := perm.UnmarshalText([]byte(test.strPerm))
 			if test.expectedErr != nil {
