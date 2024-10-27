@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -74,25 +73,12 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 
 type NetworkConfiguration struct {
-	genesisBytes []byte
-	keys         []ed25519.PrivateKey
-	parser       chain.Parser
-}
-
-func (n *NetworkConfiguration) GenesisBytes() []byte {
-	return n.genesisBytes
+	workload.DefaultTestNetworkConfiguration
+	keys []ed25519.PrivateKey
 }
 
 func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
 	return n.keys
-}
-
-func (*NetworkConfiguration) Name() string {
-	return consts.Name
-}
-
-func (n *NetworkConfiguration) Parser() chain.Parser {
-	return n.parser
 }
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
@@ -103,8 +89,10 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 		return nil, err
 	}
 	return &NetworkConfiguration{
-		keys:         keys,
-		genesisBytes: genesisBytes,
-		parser:       vm.NewParser(genesis),
+		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
+			genesisBytes,
+			consts.Name,
+			vm.NewParser(genesis)),
+		keys: keys,
 	}, nil
 }

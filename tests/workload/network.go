@@ -25,3 +25,32 @@ type TestNetworkConfiguration interface {
 	Name() string
 	Parser() chain.Parser
 }
+
+// DefaultTestNetworkConfiguration struct is the common test configuration that a test framework would need to provide
+// in order to deploy a network. A test would typically embed this as part of it's network configuration structure.
+type DefaultTestNetworkConfiguration struct {
+	genesisBytes []byte
+	name         string
+	parser       chain.Parser
+}
+
+func (d DefaultTestNetworkConfiguration) GenesisBytes() []byte {
+	return d.genesisBytes
+}
+
+func (d DefaultTestNetworkConfiguration) Name() string {
+	return d.name
+}
+
+func (d DefaultTestNetworkConfiguration) Parser() chain.Parser {
+	return d.parser
+}
+
+// NewDefaultTestNetworkConfiguration creates a new DefaultTestNetworkConfiguration object.
+func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser) DefaultTestNetworkConfiguration {
+	return DefaultTestNetworkConfiguration{
+		genesisBytes: genesisBytes,
+		name:         name,
+		parser:       parser,
+	}
+}

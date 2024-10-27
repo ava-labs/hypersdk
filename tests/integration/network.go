@@ -39,7 +39,7 @@ func (*Network) GenerateTx(ctx context.Context, actions []chain.Action, auth cha
 
 func (i *instance) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	errs := i.vm.Submit(ctx, true, txs)
-	if len(errs) != 0 {
+	if len(errs) != 0 && errs[0] != nil {
 		return errs[0]
 	}
 
