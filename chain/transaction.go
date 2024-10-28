@@ -364,9 +364,9 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
 	type txJSON struct {
-		ID      ids.ID `json:"id"`
-		Actions []byte `json:"actions"`
-		Auth    []byte `json:"auth"`
+		ID      ids.ID      `json:"id"`
+		Actions codec.Bytes `json:"actions"`
+		Auth    codec.Bytes `json:"auth"`
 	}
 
 	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -384,27 +384,18 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	hexActions, err := codec.Bytes(actionsPacker.Bytes()).MarshalText()
-	if err != nil {
-		return nil, err
-	}
-	hexAuth, err := codec.Bytes(authPacker.Bytes()).MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
 	return json.Marshal(txJSON{
 		ID:      t.ID(),
-		Actions: hexActions,
-		Auth:    hexAuth,
+		Actions: actionsPacker.Bytes(),
+		Auth:    authPacker.Bytes(),
 	})
 }
 
 func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	type txJSON struct {
-		ID      ids.ID `json:"id"`
-		Actions []byte `json:"actions"`
-		Auth    []byte `json:"auth"`
+		ID      ids.ID      `json:"id"`
+		Actions codec.Bytes `json:"actions"`
+		Auth    codec.Bytes `json:"auth"`
 	}
 
 	var tx txJSON
@@ -413,17 +404,7 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 		return err
 	}
 
-	var actionsBytes, authBytes codec.Bytes
-	err = actionsBytes.UnmarshalText(tx.Actions)
-	if err != nil {
-		return fmt.Errorf("%w: cannot unmarshal actions text", err)
-	}
-	err = authBytes.UnmarshalText(tx.Auth)
-	if err != nil {
-		return fmt.Errorf("%w: cannot unmarshal auth text", err)
-	}
-
-	actionsReader := codec.NewReader(actionsBytes, consts.NetworkSizeLimit)
+	actionsReader := codec.NewReader(tx.Actions, consts.NetworkSizeLimit)
 	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
 	if err != nil {
 		return err
@@ -431,7 +412,7 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	if err := actionsReader.Err(); err != nil {
 		return fmt.Errorf("%w: actions packer", err)
 	}
-	authReader := codec.NewReader(authBytes, consts.NetworkSizeLimit)
+	authReader := codec.NewReader(tx.Auth, consts.NetworkSizeLimit)
 	auth, err := parser.AuthCodec().Unmarshal(authReader)
 	if err != nil {
 		return fmt.Errorf("%w: cannot unmarshal auth", err)
