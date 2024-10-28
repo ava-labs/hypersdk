@@ -362,13 +362,13 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	return t.marshal(p)
 }
 
-func (t *Transaction) MarshalJSON() ([]byte, error) {
-	type txJSON struct {
-		ID      ids.ID      `json:"id"`
-		Actions codec.Bytes `json:"actions"`
-		Auth    codec.Bytes `json:"auth"`
-	}
+type txJSON struct {
+	ID      ids.ID      `json:"id"`
+	Actions codec.Bytes `json:"actions"`
+	Auth    codec.Bytes `json:"auth"`
+}
 
+func (t *Transaction) MarshalJSON() ([]byte, error) {
 	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := t.Actions.marshalInto(actionsPacker)
 	if err != nil {
@@ -392,12 +392,6 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
-	type txJSON struct {
-		ID      ids.ID      `json:"id"`
-		Actions codec.Bytes `json:"actions"`
-		Auth    codec.Bytes `json:"auth"`
-	}
-
 	var tx txJSON
 	err := json.Unmarshal(data, &tx)
 	if err != nil {
