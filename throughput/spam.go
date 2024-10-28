@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -41,14 +40,6 @@ const (
 // TODO: remove the use of global variables
 var (
 	maxConcurrency = runtime.NumCPU()
-	issuerWg       sync.WaitGroup
-
-	l            sync.Mutex
-	confirmedTxs uint64
-	totalTxs     uint64
-
-	inflight atomic.Int64
-	sent     atomic.Int64
 )
 
 type Spammer struct {
@@ -69,11 +60,15 @@ type Spammer struct {
 
 	// Number of accounts
 	numAccounts int
+
+	// keep track of variables shared across issuers
+	tracker *tracker
 }
 
 func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	tracker := &tracker{}
 	balance, err := sh.LookupBalance(sc.key.Address)
 	if err != nil {
 		return nil, err
@@ -92,6 +87,8 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 		txsPerSecondStep: sc.txsPerSecondStep,
 		numClients:       sc.numClients,
 		numAccounts:      sc.numAccounts,
+
+		tracker: tracker,
 	}, nil
 }
 
@@ -119,7 +116,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(s.key.Address, 0, uniqueBytes())
+	actions := sh.GetTransfer(s.key.Address, 0, s.tracker.uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -154,7 +151,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// set logging
-	issuers[0].logStats(cctx)
+	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
 	s.broadcast(cctx, cancel, sh, accounts, funds, factories, issuers, feePerTx, terminate)
@@ -202,7 +199,7 @@ func (s Spammer) broadcast(
 			start := time.Now()
 
 			// Check to see if we should wait for pending txs
-			if int64(currentTarget)+inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
@@ -247,7 +244,7 @@ func (s Spammer) broadcast(
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, uniqueBytes())
+					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
@@ -290,7 +287,7 @@ func (s Spammer) broadcast(
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	issuerWg.Wait()
+	s.tracker.issuerWg.Wait()
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -306,6 +303,7 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 // createIssuer creates an [numClients] transaction issuers for each URI in [uris]
 func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
+
 	for i := 0; i < len(s.uris); i++ {
 		for j := 0; j < s.numClients; j++ {
 			cli := jsonrpc.NewJSONRPCClient(s.uris[i])
@@ -313,7 +311,14 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 			if err != nil {
 				return nil, err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: webSocketClient, parser: parser, uri: s.uris[i]}
+			issuer := &issuer{
+				i:       len(issuers),
+				cli:     cli,
+				ws:      webSocketClient,
+				parser:  parser,
+				uri:     s.uris[i],
+				tracker: s.tracker,
+			}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -362,7 +367,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
+		actions := sh.GetTransfer(pk.Address, distAmount, s.tracker.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -416,7 +421,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.key.Address, returnAmt, uniqueBytes())
+		actions := sh.GetTransfer(s.key.Address, returnAmt, s.tracker.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err

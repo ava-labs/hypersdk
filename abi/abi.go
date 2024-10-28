@@ -200,3 +200,48 @@ func describeStruct(t reflect.Type) ([]Field, []reflect.Type, error) {
 
 	return fields, otherStructsSeen, nil
 }
+
+func (a *ABI) FindOutputByID(id uint8) (TypedStruct, bool) {
+	for _, output := range a.Outputs {
+		if output.ID == id {
+			return output, true
+		}
+	}
+	return TypedStruct{}, false
+}
+
+func (a *ABI) FindActionByID(id uint8) (TypedStruct, bool) {
+	for _, action := range a.Actions {
+		if action.ID == id {
+			return action, true
+		}
+	}
+	return TypedStruct{}, false
+}
+
+func (a *ABI) FindOutputByName(name string) (TypedStruct, bool) {
+	for _, output := range a.Outputs {
+		if output.Name == name {
+			return output, true
+		}
+	}
+	return TypedStruct{}, false
+}
+
+func (a *ABI) FindActionByName(name string) (TypedStruct, bool) {
+	for _, action := range a.Actions {
+		if action.Name == name {
+			return action, true
+		}
+	}
+	return TypedStruct{}, false
+}
+
+func (a *ABI) FindTypeByName(name string) (Type, bool) {
+	for _, typ := range a.Types {
+		if typ.Name == name {
+			return typ, true
+		}
+	}
+	return Type{}, false
+}

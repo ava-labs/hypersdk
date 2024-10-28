@@ -29,3 +29,18 @@ func TestBytesHex(t *testing.T) {
 	require.NoError(json.Unmarshal(jsonMarshalledBytes, &jsonUnmarshalledBytes))
 	require.Equal(b, []byte(jsonUnmarshalledBytes))
 }
+
+func TestLoadHex(t *testing.T) {
+	require := require.New(t)
+
+	var actual []byte
+	var err error
+
+	actual, err = LoadHex("0x1234", 2)
+	require.NoError(err)
+	require.Equal([]byte{0x12, 0x34}, actual)
+
+	actual, err = LoadHex("1234", 2)
+	require.NoError(err)
+	require.Equal([]byte{0x12, 0x34}, actual)
+}
