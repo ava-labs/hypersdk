@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/vm"
@@ -34,9 +35,11 @@ func NewDefaultOptions() []vm.Option {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
+	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
 ) (*vm.VM, error) {
@@ -44,9 +47,11 @@ func New(
 	return vm.New(
 		v,
 		genesisFactory,
-		stateManager,
-		actionRegistry,
-		authRegistry,
+		balanceHandler,
+		metadataManager,
+		actionCodec,
+		authCodec,
+		outputCodec,
 		authEngine,
 		options...,
 	)

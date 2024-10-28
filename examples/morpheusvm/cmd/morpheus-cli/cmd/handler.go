@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/internal/pubsub"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -38,7 +38,7 @@ func (h *Handler) Root() *cli.Handler {
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, *cli.PrivateKey, chain.AuthFactory,
+	ids.ID, *auth.PrivateKey, chain.AuthFactory,
 	*jsonrpc.JSONRPCClient, *vm.JSONRPCClient, *ws.WebSocketClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
@@ -73,7 +73,7 @@ func (h *Handler) DefaultActor() (
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, &cli.PrivateKey{
+	return chainID, &auth.PrivateKey{
 			Address: addr,
 			Bytes:   priv,
 		}, factory, jcli,
@@ -87,23 +87,19 @@ func (*Handler) GetBalance(
 	cli *vm.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
-	saddr, err := codec.AddressBech32(consts.HRP, addr)
-	if err != nil {
-		return 0, err
-	}
-	balance, err := cli.Balance(ctx, saddr)
+	balance, err := cli.Balance(ctx, addr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
 		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		utils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
 	utils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		utils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -125,18 +121,6 @@ func (*Controller) Symbol() string {
 	return consts.Symbol
 }
 
-func (*Controller) Decimals() uint8 {
-	return consts.Decimals
-}
-
-func (*Controller) Address(addr codec.Address) string {
-	return codec.MustAddressBech32(consts.HRP, addr)
-}
-
-func (*Controller) ParseAddress(addr string) (codec.Address, error) {
-	return codec.ParseAddressBech32(consts.HRP, addr)
-}
-
 func (*Controller) GetParser(uri string) (chain.Parser, error) {
 	cli := vm.NewJSONRPCClient(uri)
 	return cli.Parser(context.TODO())
@@ -146,7 +130,7 @@ func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {
 	handleTx(tx, result)
 }
 
-func (*Controller) LookupBalance(address string, uri string) (uint64, error) {
+func (*Controller) LookupBalance(address codec.Address, uri string) (uint64, error) {
 	cli := vm.NewJSONRPCClient(uri)
 	balance, err := cli.Balance(context.TODO(), address)
 	return balance, err

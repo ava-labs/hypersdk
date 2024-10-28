@@ -1,36 +1,54 @@
 {
     "actions": [
         {
+            "id": 0,
+            "name": "MockObjectSingleNumber"
+        },
+        {
             "id": 1,
-            "action": "MockObjectSingleNumber"
+            "name": "MockActionTransfer"
         },
         {
             "id": 2,
-            "action": "MockActionTransfer"
+            "name": "MockObjectAllNumbers"
         },
         {
             "id": 3,
-            "action": "MockObjectAllNumbers"
+            "name": "MockObjectStringAndBytes"
         },
         {
             "id": 4,
-            "action": "MockObjectStringAndBytes"
+            "name": "MockObjectArrays"
         },
         {
             "id": 5,
-            "action": "MockObjectArrays"
-        },
-        {
-            "id": 7,
-            "action": "MockActionWithTransfer"
+            "name": "MockActionWithTransfer"
         },
         {
             "id": 6,
-            "action": "MockActionWithTransferArray"
+            "name": "MockActionWithTransferArray"
+        },
+        {
+            "id": 7,
+            "name": "Outer"
         },
         {
             "id": 8,
-            "action": "Outer"
+            "name": "ActionWithOutput"
+        },
+        {
+            "id": 9,
+            "name": "FixedBytes"
+        },
+        {
+            "id": 10,
+            "name": "Bools"
+        }
+    ],
+    "outputs": [
+        {
+            "id": 0,
+            "name": "ActionOutput"
         }
     ],
     "types": [
@@ -56,7 +74,7 @@
                 },
                 {
                     "name": "memo",
-                    "type": "Bytes"
+                    "type": "[]uint8"
                 }
             ]
         },
@@ -192,6 +210,54 @@
                 {
                     "name": "field1",
                     "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "ActionWithOutput",
+            "fields": [
+                {
+                    "name": "field1",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "FixedBytes",
+            "fields": [
+                {
+                    "name": "twoBytes",
+                    "type": "[2]uint8"
+                },
+                {
+                    "name": "thirtyTwoBytes",
+                    "type": "[32]uint8"
+                }
+            ]
+        },
+        {
+            "name": "Bools",
+            "fields": [
+                {
+                    "name": "bool1",
+                    "type": "bool"
+                },
+                {
+                    "name": "bool2",
+                    "type": "bool"
+                },
+                {
+                    "name": "boolArray",
+                    "type": "[]bool"
+                }
+            ]
+        },
+        {
+            "name": "ActionOutput",
+            "fields": [
+                {
+                    "name": "field1",
+                    "type": "uint16"
                 }
             ]
         }

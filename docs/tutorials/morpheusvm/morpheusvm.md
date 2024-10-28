@@ -21,7 +21,7 @@ This introduction will go over everything up to and including the section
 
 ## Prerequisites
 
-- You are using Go 1.21.12
+- You are using Go 1.22.8
 
 To confirm, you can run:
 
@@ -32,7 +32,7 @@ go version
 And you should see the ouptut (slightly different depending on your machine):
 
 ```
-go version go1.21.12 darwin/arm64
+go version go1.22.8 darwin/arm64
 ```
 
 ## Cloning HyperSDK
@@ -51,7 +51,7 @@ To start, we'll create a new directory in examples and initialize the go mod:
 ```sh
 mkdir examples/tutorial
 cd examples/tutorial
-go mod init
+go mod init github.com/ava-labs/hypersdk/examples/tutorial
 ```
 
 We now define our VM constants. We'll create a new package to store these
@@ -107,8 +107,13 @@ go get github.com/ava-labs/avalanchego && go mod tidy
 ## Creating `Transfer` Pt. 1
 
 We'll implement a single `Transfer` action to handle payments in a native token.
-Actions are wrapped into HyperSDK transactions and executed on-chain, so the struct
-itself will include all of the fields needed to verify and execute onchain.
+Actions are wrapped into the HyperSDK `chain.Transaction` type and executed on-chain.
+
+A HyperSDK transaction includes a slice of actions. When the transaction is executed, it verifies
+the transaction validity and then executes each action included in the transaction sequentially. If any
+action execution fails, then all of the state changes from the transaction will be reverted.
+
+To find more details on how actions are wrapped into HyperSDK transactions, see [here](../../../chain/transaction.go).
 
 You can think of each field in the `Transfer` type as if it's a parameter to the function
 you want to execute onchain.
@@ -174,11 +179,7 @@ func (t *Transfer) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
-func (t *Transfer) StateKeysMaxChunks() []uint16 {
-	panic("unimplemented")
-}
-
-func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (t *Transfer) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (output codec.Typed, err error) {
 	panic("unimplemented")
 }
 
@@ -198,11 +199,15 @@ constructing and writing key-value pairs directly from our action.
 
 ## Implementing Storage
 
-We'll break storage down into two components:
+When building a VM with the HyperSDK, the VM developer defines their own state storage
+layout. The HyperSDK also stores metadata in the current state, and defers to the VM where to
+store that data. Note: this will be changed in the future, so that developers get a default out
+of the box and can choose to override it if needed instead of needing to provide it.
 
-- Read/Write Helper Functions for our VM's actions
-- StateManager - an interface required by HyperSDK to dictate where to store
-required fields in the state (fees, height, timestamp, etc.)
+With that in mind, we'll break the storage down into two components:
+
+- Read/Write Helper Functions for VM specific state
+- StateManager interface to tell the HyperSDK where to store its metadata
 
 Before that, in `tutorial/`, create a new folder called `storage`.
 
@@ -257,10 +262,12 @@ func FeeKey() (k []byte) {
 Next, we'll define the `BalanceKey` function. `BalanceKey` will return the
 state key that stores the provided address' balance.
 
-The HyperSDK requires that keys include a "chunk suffix", which specifies
-the maximum size of the value that will ever be stored at that key. This also
-means that trying to change the suffix will change the key itself, so a write
-to the same key with a different suffix will write to a different location
+The HyperSDK requires using [size-encoded storage keys](../../explanation/features.md#size-encoded-storage-keys),
+which include a "chunk suffix." The "chunk suffix" is encoded as a `uint16`.
+The length encoded in the "chunk suffix" sets the maximum length of any value
+that can ever be placed in the corresponding key-value pair. This also means
+trying to change the suffix will change the key itself. In other words, if you
+write to the same key with a different suffix, it will write to a different location
 instead of overwriting. This means that the suffix must provide an upper bound
 for the value size forever or the VM would need to explicitly handle migrating
 from the key from size A to size B.
@@ -273,6 +280,9 @@ With that in mind, we'll add `BalanceChunks` as a constant to the top of the fil
 ```golang
 const BalanceChunks uint16 = 1
 ```
+
+This means we're committing that to always store a value (the balance) in a byte
+array <= 64 bytes.
 
 Now, we can implement `BalanceKey` using the constant:
 
@@ -322,7 +332,11 @@ func innerGetBalance(
 	if err != nil {
 		return 0, false, err
 	}
-	return binary.BigEndian.Uint64(v), true, nil
+	val, err := database.ParseUInt64(v)
+	if err != nil {
+		return 0, false, err
+	}
+	return val, true, nil
 }
 ```
 
@@ -363,27 +377,27 @@ func AddBalance(
 	addr codec.Address,
 	amount uint64,
 	create bool,
-) error {
+) (uint64, error) {
 	key, bal, exists, err := getBalance(ctx, mu, addr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// Don't add balance if account doesn't exist. This
 	// can be useful when processing fee refunds.
 	if !exists && !create {
-		return nil
+		return 0, nil
 	}
 	nbal, err := smath.Add(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
@@ -391,30 +405,30 @@ func SubBalance(
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
-) error {
+) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)
 	if !ok {
-		return ErrInvalidAddress
+		return 0, ErrInvalidAddress
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return mu.Remove(ctx, key)
+		return 0, mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 ```
 
@@ -558,16 +572,24 @@ func (*StateManager) AddBalance(
 	amount uint64,
 	createAccount bool,
 ) error {
-	return AddBalance(ctx, mu, addr, amount, createAccount)
+	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
+	return err
 }
 ```
 
-Finally, we need to implement `SponsorStateKeys`. This function may be confusing,
-but it's actually incredibly simple. HyperSDK uses the `chain.Auth` type to handle
-signatures and treats account abstraction as a first class citizen. This means that
-`chain.Auth` returns both an `Actor`, the subject performing an action like a
-`Transfer`, and `Sponsor`, which returns the address responsible for paying fees
-of a transction.
+Finally, we need to implement `SponsorStateKeys`.
+
+The HyperSDK uses `state.Keys` to determine what state keys may be touched during
+the execution of a transaction or block. `state.Keys` includes explicit
+Read/Write/Allocate permissions, so that it can determine how to safely execute
+transactions in parallel.
+
+This enables [parallel transaction execution](../../explanation/features.md#parallel-transaction-execution)
+both for prefetching state and executing transactions.
+
+`SponsorStateKeys` provides the state keys required by `CanDeduct` and `Deduct`
+when the HyperSDK charges fees to the transaction sponsor (see [account abstraction](../../explanation/features.md#account-abstraction)
+for more details on the `Auth` module).
 
 We'll re-use our `BalanceKey` function and specify that both read and write
 permissions, since the HyperSDK may need to both read/write this balance when
@@ -642,23 +664,6 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 }
 ```
 
-### `StateKeysMaxChunks()`
-
-Remember handling "chunk size" for the `BalanceKey` implementation?
-
-We implement `StateKeysMaxChunks()` to provide the exact same idea to HyperSDK:
-
-This function returns a slice of `uint16` values (one for each state key) and they
-both update a single balance key-value pair, so we'll use `BalanceChunks` as before.
-
-Let's update the function like so:
-
-```golang
-func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
-}
-```
-
 ### `Execute()`
 
 We start off by first defining the values necessary for this function at the
@@ -684,20 +689,26 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
+) (codec.Typed, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	if err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	return &TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	}, nil
 }
 ```
 
@@ -763,20 +774,24 @@ import (
 var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
 func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
+	OutputParser = codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		ActionParser.Register(&actions.Transfer{}, nil),
+		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
@@ -800,6 +815,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		&storage.StateManager{},
 		ActionParser,
 		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		options...,
 	)

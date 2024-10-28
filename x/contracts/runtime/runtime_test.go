@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/x/contracts/test"
 )
 
@@ -26,7 +27,7 @@ func BenchmarkRuntimeModuleNotCached(b *testing.B) {
 	require.NoError(err)
 
 	callInfo := &CallInfo{
-		Contract:      contract.Address,
+		Contract:     contract.Address,
 		State:        rt.StateManager,
 		FunctionName: "get_value",
 		Params:       test.SerializeParams(),
@@ -35,7 +36,7 @@ func BenchmarkRuntimeModuleNotCached(b *testing.B) {
 	require.NoError(err)
 	programID, err := callInfo.State.GetAccountContract(ctx, newInfo.Contract)
 	require.NoError(err)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err = rt.callContext.r.getModule(ctx, newInfo, programID)
@@ -60,15 +61,15 @@ func BenchmarkRuntimeModuleCached(b *testing.B) {
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
 	require.NoError(err)
-	
+
 	result, err := contract.Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
-	
+
 	b.ResetTimer()
 
 	callInfo := &CallInfo{
-		Contract:      contract.Address,
+		Contract:     contract.Address,
 		State:        rt.StateManager,
 		FunctionName: "get_value",
 		Params:       test.SerializeParams(),
@@ -86,7 +87,9 @@ func BenchmarkRuntimeModuleCached(b *testing.B) {
 
 // Benchmarks the time it takes to get an instance which happens on every contract call
 // Wasmitime rust allows you to pre-instantiate the module, which is not implemented in go
-//  https://docs.rs/wasmtime/latest/wasmtime/struct.Linker.html#method.instantiate_pre
+//
+//	https://docs.rs/wasmtime/latest/wasmtime/struct.Linker.html#method.instantiate_pre
+//
 // BenchmarkRuntimeInstance-10    	   48392	     28894 ns/op	     265 B/op	      15 allocs/op
 func BenchmarkRuntimeInstance(b *testing.B) {
 	require := require.New(b)
@@ -95,15 +98,15 @@ func BenchmarkRuntimeInstance(b *testing.B) {
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
 	require.NoError(err)
-	
+
 	result, err := contract.Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
-	
+
 	b.ResetTimer()
 
 	callInfo := &CallInfo{
-		Contract:      contract.Address,
+		Contract:     contract.Address,
 		State:        rt.StateManager,
 		FunctionName: "get_value",
 		Params:       test.SerializeParams(),
@@ -112,7 +115,7 @@ func BenchmarkRuntimeInstance(b *testing.B) {
 	require.NoError(err)
 	programID, err := newInfo.State.GetAccountContract(ctx, newInfo.Contract)
 	require.NoError(err)
-	
+
 	module, err := rt.callContext.r.getModule(ctx, newInfo, programID)
 	require.NoError(err)
 	b.ResetTimer()
@@ -138,15 +141,15 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
 	require.NoError(err)
-	
+
 	result, err := contract.Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
-	
+
 	b.ResetTimer()
 
 	callInfo := &CallInfo{
-		Contract:      contract.Address,
+		Contract:     contract.Address,
 		State:        rt.StateManager,
 		FunctionName: "get_value",
 		Params:       test.SerializeParams(),
@@ -155,7 +158,7 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 	require.NoError(err)
 	programID, err := newInfo.State.GetAccountContract(ctx, newInfo.Contract)
 	require.NoError(err)
-	
+
 	module, err := rt.callContext.r.getModule(ctx, newInfo, programID)
 	require.NoError(err)
 	inst, err := rt.callContext.r.getInstance(module, rt.callContext.r.hostImports)
@@ -168,7 +171,7 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 		result, err := inst.call(ctx, newInfo)
 		require.NoError(err)
 		_ = result
-		
+
 		rt.callContext.r.deleteCallInfo(inst.store)
 		b.StopTimer()
 		// reset module
@@ -184,14 +187,13 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 
 func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
 	require.NoError(err)
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		result, err := contract.Call("get_value")
 		require.NoError(err)
@@ -199,11 +201,108 @@ func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 	}
 }
 
+// Benchmarks a contract that sends native balance.
+func BenchmarkRuntimeSendValue(b *testing.B) {
+	require := require.New(b)
+	ctx := context.Background()
+
+	actor := codec.CreateAddress(0, ids.GenerateTestID())
+
+	rt := newTestRuntime(ctx)
+	contract, err := rt.newTestContract("balance")
+	require.NoError(err)
+	contract.Runtime.StateManager.(TestStateManager).Balances[contract.Address] = consts.MaxUint64
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result, err := contract.Call("send_balance", actor)
+		require.NoError(err)
+		require.True(into[bool](result))
+	}
+}
+
+func BenchmarkRuntimeBasicExternalCalls(b *testing.B) {
+	require := require.New(b)
+	ctx := context.Background()
+
+	rt := newTestRuntime(ctx)
+	contract, err := rt.newTestContract("counter-external")
+	require.NoError(err)
+
+	contractID := ids.GenerateTestID()
+	stringedID := string(contractID[:])
+	counterAddress := codec.CreateAddress(0, contractID)
+	err = rt.AddContract(ContractID(stringedID), counterAddress, "counter")
+	require.NoError(err)
+	addressOf := codec.CreateAddress(0, ids.GenerateTestID())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result, err := contract.Call("get_value", counterAddress, addressOf)
+		require.NoError(err)
+		require.Equal(uint64(0), into[uint64](result))
+	}
+}
+
+// Benchmarks a contract that performs an AMM swap
+func BenchmarkAmmSwaps(b *testing.B) {
+	require := require.New(b)
+	ctx := context.Background()
+
+	rt := newTestRuntime(ctx)
+	tokenX, err := rt.newTestContract("token")
+	require.NoError(err)
+	tokenY, err := rt.newTestContract("token")
+	require.NoError(err)
+
+	amountMint := uint64((1 << 28))
+
+	// initialize the tokens
+	_, err = tokenX.Call("init", "tokenX", "TKX")
+	require.NoError(err)
+	_, err = tokenY.Call("init", "tokenY", "TKY")
+	require.NoError(err)
+
+	swaper := codec.CreateAddress(0, ids.GenerateTestID())
+	lp := codec.CreateAddress(0, ids.GenerateTestID())
+
+	// mint tokens for actors
+	_, err = tokenX.Call("mint", swaper, amountMint)
+	require.NoError(err)
+	_, err = tokenX.Call("mint", lp, amountMint)
+	require.NoError(err)
+	_, err = tokenY.Call("mint", lp, amountMint)
+	require.NoError(err)
+
+	// create and initialize the amm
+	amm, err := rt.newTestContract("automated-market-maker")
+	require.NoError(err)
+	_, err = amm.Call("init", tokenX.Address, tokenY.Address, tokenX.ID)
+	require.NoError(err)
+
+	// approve tokens
+	_, err = tokenX.WithActor(lp).Call("approve", amm.Address, amountMint)
+	require.NoError(err)
+	_, err = tokenY.WithActor(lp).Call("approve", amm.Address, amountMint)
+	require.NoError(err)
+	_, err = tokenX.WithActor(swaper).Call("approve", amm.Address, amountMint)
+	require.NoError(err)
+
+	// add liquidity
+	_, err = amm.WithActor(lp).Call("add_liquidity", amountMint, amountMint)
+	require.NoError(err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		received, err := amm.WithActor(swaper).Call("swap", tokenX.Address, 150)
+		require.NoError(err)
+		require.NotZero(received)
+	}
+}
+
 func TestRuntimeCallContractBasicAttachValue(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
@@ -232,9 +331,7 @@ func TestRuntimeCallContractBasicAttachValue(t *testing.T) {
 
 func TestRuntimeCallContractBasic(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("simple")
@@ -252,9 +349,7 @@ type ComplexReturn struct {
 
 func TestRuntimeCallContractComplexReturn(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("return_complex_type")

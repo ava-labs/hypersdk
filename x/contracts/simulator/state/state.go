@@ -17,7 +17,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -28,7 +27,7 @@ type Mutable = C.Mutable
 
 func NewSimulatorState(db unsafe.Pointer) *Mutable {
 	// convert unsafe pointer to C.Mutable
-	mutable := (*C.Mutable)(db)
+	mutable := (*Mutable)(db)
 	return mutable
 }
 
@@ -98,40 +97,4 @@ func (s *Mutable) Remove(_ context.Context, key []byte) error {
 	C.bridge_remove_callback(s.remove_callback, s.stateObj, keyStruct)
 
 	return nil
-}
-
-type prefixedStateMutable struct {
-	inner  state.Mutable
-	prefix []byte
-}
-
-func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
-	k = make([]byte, len(s.prefix)+len(key))
-	copy(k, s.prefix)
-	copy(k[len(s.prefix):], key)
-	return
-}
-
-func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	return s.inner.GetValue(ctx, s.prefixKey(key))
-}
-
-func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
-	return s.inner.Insert(ctx, s.prefixKey(key), value)
-}
-
-func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
-	return s.inner.Remove(ctx, s.prefixKey(key))
-}
-
-func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
-	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
-}
-
-func accountStateKey(key []byte) (k []byte) {
-	k = make([]byte, 2+len(key))
-	k[0] = accountPrefix
-	copy(k[1:], key)
-	k[len(k)-1] = accountStatePrefix
-	return
 }

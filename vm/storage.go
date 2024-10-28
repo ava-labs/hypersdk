@@ -82,7 +82,7 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return binary.BigEndian.Uint64(b), nil
+	return database.ParseUInt64(b)
 }
 
 func (vm *VM) SetLastProcessedHeight(height uint64) error {
@@ -98,7 +98,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return binary.BigEndian.Uint64(b), nil
+	return database.ParseUInt64(b)
 }
 
 func (vm *VM) shouldCompact(expiryHeight uint64) bool {
@@ -199,7 +199,7 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return binary.BigEndian.Uint64(b), nil
+	return database.ParseUInt64(b)
 }
 
 // CompactDiskBlocks forces compaction on the entire range of blocks up to [lastExpired].

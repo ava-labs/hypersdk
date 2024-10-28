@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -81,4 +82,32 @@ func TestLoadBytes(t *testing.T) {
 
 	// Remove
 	_ = os.Remove(fileName)
+}
+
+func TestFormatAndParseBalance(t *testing.T) {
+	// this test assumes that the number of decimals is 9
+	require := require.New(t)
+
+	testCases := []struct {
+		input    uint64
+		expected string
+	}{
+		{1000000000, "1.000000000"},
+		{123456789, "0.123456789"},
+		{1234567890, "1.234567890"},
+		{9876543210, "9.876543210"},
+		{0, "0.000000000"},
+	}
+
+	for _, tc := range testCases {
+		formatted := FormatBalance(tc.input)
+		require.Equal(tc.expected, formatted)
+
+		parsed, err := ParseBalance(tc.expected)
+		require.NoError(err)
+		require.Equal(tc.input, parsed)
+	}
+
+	_, err := ParseBalance("invalid")
+	require.ErrorIs(err, strconv.ErrSyntax)
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -18,26 +19,16 @@ import (
 )
 
 type TestStateManager struct {
-	ContractsMap map[string][]byte
-	AccountMap   map[codec.Address]string
-	Balances     map[codec.Address]uint64
-	Mu           state.Mutable
+	ContractManager *ContractStateManager
+	Balances        map[codec.Address]uint64
 }
 
-func (t TestStateManager) GetAccountContract(_ context.Context, account codec.Address) (ContractID, error) {
-	if contractID, ok := t.AccountMap[account]; ok {
-		return ContractID(contractID), nil
-	}
-	return ids.Empty[:], nil
+func (t TestStateManager) GetAccountContract(ctx context.Context, account codec.Address) (ContractID, error) {
+	return t.ContractManager.GetAccountContract(ctx, account)
 }
 
-func (t TestStateManager) GetContractBytes(_ context.Context, contractID ContractID) ([]byte, error) {
-	contractBytes, ok := t.ContractsMap[string(contractID)]
-	if !ok {
-		return nil, errors.New("couldn't find contract")
-	}
-
-	return contractBytes, nil
+func (t TestStateManager) GetContractBytes(ctx context.Context, contractID ContractID) ([]byte, error) {
+	return t.ContractManager.GetContractBytes(ctx, contractID)
 }
 
 func compileContract(contractName string) ([]byte, error) {
@@ -49,6 +40,7 @@ func compileContract(contractName string) ([]byte, error) {
 		return nil, err
 	}
 
+	contractName = strings.ReplaceAll(contractName, "-", "_")
 	contractBytes, err := os.ReadFile(filepath.Join(dir, "/target/wasm32-unknown-unknown/release/"+contractName+".wasm"))
 	if err != nil {
 		return nil, err
@@ -57,8 +49,8 @@ func compileContract(contractName string) ([]byte, error) {
 	return contractBytes, nil
 }
 
-func (t TestStateManager) SetContractBytes(contractID ContractID, contractBytes []byte) {
-	t.ContractsMap[string(contractID)] = contractBytes
+func (t TestStateManager) SetContractBytes(ctx context.Context, contractID ContractID, contractBytes []byte) error {
+	return t.ContractManager.SetContractBytes(ctx, contractID, contractBytes)
 }
 
 func (t TestStateManager) CompileAndSetContract(contractID ContractID, contractName string) error {
@@ -66,19 +58,15 @@ func (t TestStateManager) CompileAndSetContract(contractID ContractID, contractN
 	if err != nil {
 		return err
 	}
-	t.SetContractBytes(contractID, contractBytes)
-	return nil
+	return t.SetContractBytes(context.Background(), contractID, contractBytes)
 }
 
 func (t TestStateManager) NewAccountWithContract(_ context.Context, contractID ContractID, _ []byte) (codec.Address, error) {
-	account := codec.CreateAddress(0, ids.GenerateTestID())
-	t.AccountMap[account] = string(contractID)
-	return account, nil
+	return t.ContractManager.NewAccountWithContract(context.Background(), contractID, []byte{})
 }
 
 func (t TestStateManager) SetAccountContract(_ context.Context, account codec.Address, contractID ContractID) error {
-	t.AccountMap[account] = string(contractID)
-	return nil
+	return t.ContractManager.SetAccountContract(context.Background(), account, contractID)
 }
 
 func (t TestStateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
@@ -102,7 +90,7 @@ func (t TestStateManager) TransferBalance(ctx context.Context, from codec.Addres
 }
 
 func (t TestStateManager) GetContractState(address codec.Address) state.Mutable {
-	return &prefixedState{address: address, inner: t.Mu}
+	return t.ContractManager.GetContractState(address)
 }
 
 var _ state.Mutable = (*prefixedState)(nil)
@@ -195,9 +183,7 @@ func (t *testRuntime) AddContract(contractID ContractID, account codec.Address, 
 	if err != nil {
 		return err
 	}
-
-	t.StateManager.(TestStateManager).AccountMap[account] = string(contractID)
-	return nil
+	return t.StateManager.(TestStateManager).SetAccountContract(t.Context, account, contractID)
 }
 
 func (t *testRuntime) CallContract(contract codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -216,12 +202,10 @@ func newTestRuntime(ctx context.Context) *testRuntime {
 		Context: ctx,
 		callContext: NewRuntime(
 			NewConfig(),
-			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
+			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000}),
 		StateManager: TestStateManager{
-			ContractsMap: map[string][]byte{},
-			AccountMap:   map[codec.Address]string{},
-			Balances:     map[codec.Address]uint64{},
-			Mu:           test.NewTestDB(),
+			ContractManager: NewContractStateManager(test.NewTestDB(), []byte{}),
+			Balances:        map[codec.Address]uint64{},
 		},
 	}
 }
@@ -231,6 +215,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 	account := codec.CreateAddress(0, id)
 	stringedID := string(id[:])
 	testContract := &testContract{
+		ID:      ContractID(stringedID),
 		Address: account,
 		Runtime: t,
 	}
@@ -244,6 +229,7 @@ func (t *testRuntime) newTestContract(contract string) (*testContract, error) {
 }
 
 type testContract struct {
+	ID      ContractID
 	Address codec.Address
 	Runtime *testRuntime
 }

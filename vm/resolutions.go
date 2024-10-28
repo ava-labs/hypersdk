@@ -18,14 +18,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -50,12 +51,16 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ValidatorState() validators.State {
-	return vm.snowCtx.ValidatorState
+func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
+	return vm.actionCodec
 }
 
-func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return vm.actionRegistry, vm.authRegistry
+func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
+	return vm.outputCodec
+}
+
+func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
+	return vm.authCodec
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
@@ -195,8 +200,9 @@ func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
+	executedBlock := chain.NewExecutedBlockFromStateful(b)
 	for _, subscription := range vm.blockSubscriptions {
-		if err := subscription.Accept(b); err != nil {
+		if err := subscription.Accept(executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
 	}
@@ -321,6 +327,14 @@ func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) 
 	return vm.GetStatefulBlock(ctx, vm.preferred)
 }
 
+func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
+	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	if err != nil {
+		return 0, err
+	}
+	return preferredBlk.Hght, nil
+}
+
 func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
 }
@@ -369,8 +383,12 @@ func (vm *VM) Genesis() genesis.Genesis {
 	return vm.genesis
 }
 
-func (vm *VM) StateManager() chain.StateManager {
-	return vm.stateManager
+func (vm *VM) BalanceHandler() chain.BalanceHandler {
+	return vm.balanceHandler
+}
+
+func (vm *VM) MetadataManager() chain.MetadataManager {
+	return vm.metadataManager
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
@@ -454,7 +472,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {
 		return fees.Dimensions{}, err
 	}

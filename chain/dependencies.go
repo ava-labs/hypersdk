@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -22,14 +21,11 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type (
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
-)
-
 type Parser interface {
 	Rules(int64) Rules
-	Registry() (ActionRegistry, AuthRegistry)
+	ActionCodec() *codec.TypeParser[Action]
+	OutputCodec() *codec.TypeParser[codec.Typed]
+	AuthCodec() *codec.TypeParser[Auth]
 }
 
 type Metrics interface {
@@ -68,11 +64,9 @@ type VM interface {
 	LastAcceptedBlock() *StatefulBlock
 	GetStatefulBlock(context.Context, ids.ID) (*StatefulBlock, error)
 
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
-
 	State() (merkledb.MerkleDB, error)
-	StateManager() StateManager
-	ValidatorState() validators.State
+	BalanceHandler() BalanceHandler
+	MetadataManager() MetadataManager
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
@@ -94,6 +88,10 @@ type VM interface {
 
 type VerifyContext interface {
 	View(ctx context.Context, verify bool) (state.View, error)
+	// IsRepeat returns a bitset containing the indices of [txs] that are repeats from this context back to
+	// [oldestAllowed].
+	// If [stop] is true, the search will stop at the first repeat transaction. This supports early termination
+	// during verification when any invalid transaction will cause the block to fail verification.
 	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
@@ -126,7 +124,6 @@ type Rules interface {
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
-	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
@@ -153,9 +150,9 @@ type Rules interface {
 }
 
 type MetadataManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
+	HeightPrefix() []byte
+	TimestampPrefix() []byte
+	FeePrefix() []byte
 }
 
 type BalanceHandler interface {
@@ -175,17 +172,10 @@ type BalanceHandler interface {
 
 	// AddBalance adds [amount] to [addr].
 	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
-}
 
-// StateManager allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateManager], we may overwrite
-// state written by actions or auth.
-//
-// None of these keys should be suffixed with the max amount of chunks they will
-// use. This will be handled by the hypersdk.
-type StateManager interface {
-	BalanceHandler
-	MetadataManager
+	// GetBalance returns the balance of [addr].
+	// If [addr] does not exist, this should return 0 and no error.
+	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
 type Object interface {
@@ -214,11 +204,6 @@ type Action interface {
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
 	ComputeUnits(Rules) uint64
 
-	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
-	// chunks each state key could use without requiring the state keys to actually be provided (may
-	// not be known until execution).
-	StateKeysMaxChunks() []uint16
-
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
@@ -226,7 +211,10 @@ type Action interface {
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
-	// If any key is removed and then re-created, this will count as a creation instead of a modification.
+	// If any key is removed and then re-created, this will count as a creation
+	// instead of a modification.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
@@ -235,7 +223,10 @@ type Action interface {
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
 	//
-	// If [Execute] returns an error, execution will halt and any state changes will revert.
+	// If [Execute] returns an error, execution will halt and any state changes
+	// will revert.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
 		r Rules,
@@ -243,7 +234,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (outputs [][]byte, err error)
+	) (codec.Typed, error)
 }
 
 type Auth interface {
@@ -288,4 +279,5 @@ type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
+	Address() codec.Address
 }

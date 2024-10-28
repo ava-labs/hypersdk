@@ -6,9 +6,11 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -20,11 +22,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -111,11 +115,11 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry := parser.Registry()
+	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		tx, err := UnmarshalTx(p, actionCodec, authCodec)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +153,7 @@ func NewGenesisBlock(root ids.ID) *StatelessBlock {
 	}
 }
 
-// Stateless is defined separately from "Block"
+// StatefulBlock is defined separately from "StatelessBlock"
 // in case external packages need to use the stateless block
 // without mocking VM or parent block
 type StatefulBlock struct {
@@ -162,7 +166,7 @@ type StatefulBlock struct {
 	txsSet   set.Set[ids.ID]
 
 	results    []*Result
-	feeManager *fees.Manager
+	feeManager *internalfees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -196,7 +200,7 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatelessBlock(ctx, blk, source, accepted, vm)
+	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
@@ -232,24 +236,24 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
+			unsignedTxBytes, err := tx.UnsignedBytes()
 			if err != nil {
 				return err
 			}
-			batchVerifier.Add(txDigest, tx.Auth)
+			batchVerifier.Add(unsignedTxBytes, tx.Auth)
 		}
 	}
 	return nil
 }
 
-func ParseStatelessBlock(
+func ParseStatefulBlock(
 	ctx context.Context,
 	blk *StatelessBlock,
 	source []byte,
 	accepted bool,
 	vm VM,
 ) (*StatefulBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatelessBlock")
+	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
@@ -289,7 +293,7 @@ func (b *StatefulBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *fees.Manager,
+	feeManager *internalfees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
@@ -348,7 +352,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info(
-			"skipping verification, already processed",
+			"skipping verification of locally built block",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 		)
@@ -358,7 +362,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 		// If the parent block's height is less than or equal to the last accepted height (and
 		// the last accepted height is processed), the accepted state will be used as the execution
 		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			b.vm.Logger().Warn("unable to get verify context",
 				zap.Uint64("height", b.Hght),
@@ -420,12 +424,15 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(b.vm.StateManager().HeightKey())
+	heightKey := HeightKey(b.vm.MetadataManager().HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
 		return err
 	}
-	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return err
+	}
 	if b.Hght != parentHeight+1 {
 		return ErrInvalidBlockHeight
 	}
@@ -434,12 +441,16 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKey := TimestampKey(b.vm.MetadataManager().TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
 		return err
 	}
-	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
+	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return err
+	}
+	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
 	}
@@ -447,13 +458,16 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 		return ErrTimestampTooEarly
 	}
 
-	// Ensure tx cannot be replayed
+	// Expiry replay protection
 	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
+	// Replay protection confirms a transaction has not been included within the
+	// past validity window.
+	// Before the node is ready (we have synced a validity window of blocks), this
+	// function may return an error when other nodes see the block as valid.
 	//
 	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
+	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
+	// when it should already be considered valid, so we skip this step here.
 	if !b.accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
@@ -470,12 +484,12 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(b.vm.StateManager().FeeKey())
+	feeKey := FeeKey(b.vm.MetadataManager().FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return err
 	}
-	parentFeeManager := fees.NewManager(feeRaw)
+	parentFeeManager := internalfees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -611,7 +625,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return fmt.Errorf("%w: unable to get verify context", err)
 		}
@@ -723,11 +737,14 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.StateManager().HeightKey()))
+		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.MetadataManager().HeightPrefix()))
 		if err != nil {
 			return nil, err
 		}
-		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
+		acceptedHeight, err := database.ParseUInt64(acceptedHeightRaw)
+		if err != nil {
+			return nil, err
+		}
 		if acceptedHeight == b.Hght {
 			b.vm.Logger().Info("accepted block not processed but found post-execution state on-disk",
 				zap.Uint64("height", b.Hght),
@@ -765,7 +782,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.accepted),
 	)
-	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
+	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
 		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
 		return nil, err
@@ -841,6 +858,39 @@ func (b *StatefulBlock) IsRepeat(
 	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
+func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
+	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
+	if blockHeight == 0 {
+		return nil, errors.New("cannot get context of genesis block")
+	}
+
+	// If the parent block is not yet accepted, we should return the block's processing parent (it may
+	// or may not be verified yet).
+	lastAcceptedBlock := b.vm.LastAcceptedBlock()
+	if blockHeight-1 > lastAcceptedBlock.Hght {
+		blk, err := b.vm.GetStatefulBlock(ctx, parent)
+		if err != nil {
+			return nil, err
+		}
+		return &PendingVerifyContext{blk}, nil
+	}
+
+	// If the last accepted block is not yet processed, we can't use the accepted state for the
+	// verification context. This could happen if state sync finishes with no processing blocks (we
+	// sync to the post-execution state of the parent of the last accepted block, not the post-execution
+	// state of the last accepted block).
+	//
+	// Invariant: When [View] is called on [vm.lastAccepted], the block will be verified and the accepted
+	// state will be updated.
+	if !lastAcceptedBlock.Processed() && parent == lastAcceptedBlock.ID() {
+		return &PendingVerifyContext{lastAcceptedBlock}, nil
+	}
+
+	// If the parent block is accepted and processed, we should
+	// just use the accepted state as the verification context.
+	return &AcceptedVerifyContext{b.vm}, nil
+}
+
 func (b *StatefulBlock) GetTxs() []*Transaction {
 	return b.Txs
 }
@@ -853,8 +903,87 @@ func (b *StatefulBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) FeeManager() *fees.Manager {
+func (b *StatefulBlock) FeeManager() *internalfees.Manager {
 	return b.feeManager
+}
+
+type ExecutedBlock struct {
+	BlockID    ids.ID          `json:"blockID"`
+	Block      *StatelessBlock `json:"block"`
+	Results    []*Result       `json:"results"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
+}
+
+func NewExecutedBlockFromStateful(b *StatefulBlock) *ExecutedBlock {
+	return &ExecutedBlock{
+		BlockID:    b.ID(),
+		Block:      b.StatelessBlock,
+		Results:    b.results,
+		UnitPrices: b.feeManager.UnitPrices(),
+	}
+}
+
+func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions) (*ExecutedBlock, error) {
+	blkID, err := statelessBlock.ID()
+	if err != nil {
+		return nil, err
+	}
+	return &ExecutedBlock{
+		BlockID:    blkID,
+		Block:      statelessBlock,
+		Results:    results,
+		UnitPrices: unitPrices,
+	}, nil
+}
+
+func (b *ExecutedBlock) Marshal() ([]byte, error) {
+	blockBytes, err := b.Block.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
+	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	writer.PackBytes(blockBytes)
+	resultBytes, err := MarshalResults(b.Results)
+	if err != nil {
+		return nil, err
+	}
+	writer.PackBytes(resultBytes)
+	writer.PackFixedBytes(b.UnitPrices.Bytes())
+
+	return writer.Bytes(), writer.Err()
+}
+
+func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
+	reader := codec.NewReader(bytes, consts.NetworkSizeLimit)
+
+	var blkMsg []byte
+	reader.UnpackBytes(-1, true, &blkMsg)
+	blk, err := UnmarshalBlock(blkMsg, parser)
+	if err != nil {
+		return nil, err
+	}
+	var resultsMsg []byte
+	reader.UnpackBytes(-1, true, &resultsMsg)
+	results, err := UnmarshalResults(resultsMsg)
+	if err != nil {
+		return nil, err
+	}
+	unitPricesBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &unitPricesBytes)
+	prices, err := fees.UnpackDimensions(unitPricesBytes)
+	if err != nil {
+		return nil, err
+	}
+	if !reader.Empty() {
+		return nil, ErrInvalidObject
+	}
+	if err := reader.Err(); err != nil {
+		return nil, err
+	}
+	return NewExecutedBlock(blk, results, prices)
 }
 
 type SyncableBlock struct {

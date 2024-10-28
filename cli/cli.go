@@ -14,12 +14,9 @@ import (
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
-	Decimals() uint8
-	Address(codec.Address) string
-	ParseAddress(string) (codec.Address, error)
 	GetParser(string) (chain.Parser, error)
 	HandleTx(*chain.Transaction, *chain.Result)
-	LookupBalance(address string, uri string) (uint64, error)
+	LookupBalance(address codec.Address, uri string) (uint64, error)
 }
 
 type Handler struct {

@@ -4,17 +4,15 @@
 package codectest
 
 import (
-	"crypto/rand"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
 
 // NewRandomAddress returns a random address
 // for use during testing
-func NewRandomAddress() (codec.Address, error) {
-	b := make([]byte, codec.AddressLen)
-	if _, err := rand.Read(b); err != nil {
-		return codec.EmptyAddress, err
-	}
-	return codec.ToAddress(b)
+func NewRandomAddress() codec.Address {
+	typeID := byte(0)
+	addr := ids.GenerateTestID()
+	return codec.CreateAddress(typeID, addr)
 }

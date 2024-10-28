@@ -1,0 +1,9 @@
+{
+    "bool1": false,
+    "bool2": true,
+    "boolArray": [
+        true,
+        false,
+        true
+    ]
+}

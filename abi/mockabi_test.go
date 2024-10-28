@@ -3,9 +3,7 @@
 
 package abi
 
-import (
-	"github.com/ava-labs/hypersdk/codec"
-)
+import "github.com/ava-labs/hypersdk/codec"
 
 type MockObjectSingleNumber struct {
 	Field1 uint16 `serialize:"true"`
@@ -14,7 +12,7 @@ type MockObjectSingleNumber struct {
 type MockActionTransfer struct {
 	To    codec.Address `serialize:"true" json:"to"`
 	Value uint64        `serialize:"true" json:"value"`
-	Memo  codec.Bytes   `serialize:"true" json:"memo"`
+	Memo  []uint8       `serialize:"true" json:"memo"`
 }
 
 type MockObjectAllNumbers struct {
@@ -63,28 +61,47 @@ type Inner struct {
 	Field1 uint8 `serialize:"true" json:"field1"`
 }
 
+type ActionWithOutput struct {
+	Field1 uint8 `serialize:"true" json:"field1"`
+}
+
+type FixedBytes struct {
+	TwoBytes       [2]uint8  `serialize:"true" json:"twoBytes"`
+	ThirtyTwoBytes [32]uint8 `serialize:"true" json:"thirtyTwoBytes"`
+}
+
+type Bools struct {
+	Bool1     bool   `serialize:"true" json:"bool1"`
+	Bool2     bool   `serialize:"true" json:"bool2"`
+	BoolArray []bool `serialize:"true" json:"boolArray"`
+}
+
+type ActionOutput struct {
+	Field1 uint16 `serialize:"true" json:"field1"`
+}
+
 func (MockObjectSingleNumber) GetTypeID() uint8 {
-	return 1
+	return 0
 }
 
 func (MockActionTransfer) GetTypeID() uint8 {
-	return 2
+	return 1
 }
 
 func (MockObjectAllNumbers) GetTypeID() uint8 {
-	return 3
+	return 2
 }
 
 func (MockObjectStringAndBytes) GetTypeID() uint8 {
-	return 4
+	return 3
 }
 
 func (MockObjectArrays) GetTypeID() uint8 {
-	return 5
+	return 4
 }
 
 func (MockActionWithTransfer) GetTypeID() uint8 {
-	return 7
+	return 5
 }
 
 func (MockActionWithTransferArray) GetTypeID() uint8 {
@@ -92,5 +109,21 @@ func (MockActionWithTransferArray) GetTypeID() uint8 {
 }
 
 func (Outer) GetTypeID() uint8 {
+	return 7
+}
+
+func (ActionWithOutput) GetTypeID() uint8 {
 	return 8
+}
+
+func (FixedBytes) GetTypeID() uint8 {
+	return 9
+}
+
+func (Bools) GetTypeID() uint8 {
+	return 10
+}
+
+func (ActionOutput) GetTypeID() uint8 {
+	return 0
 }

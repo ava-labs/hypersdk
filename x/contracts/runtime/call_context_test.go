@@ -13,21 +13,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/x/contracts/test"
 )
 
 func TestCallContext(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	contractID := ids.GenerateTestID()
 	contractAccount := codec.CreateAddress(0, contractID)
 	stringedID := string(contractID[:])
+	contractManager := NewContractStateManager(test.NewTestDB(), []byte{})
+	err := contractManager.SetAccountContract(ctx, contractAccount, ContractID(stringedID))
+	require.NoError(err)
 	testStateManager := &TestStateManager{
-		ContractsMap: map[string][]byte{},
-		AccountMap:   map[codec.Address]string{contractAccount: stringedID},
+		ContractManager: contractManager,
 	}
-	err := testStateManager.CompileAndSetContract(ContractID(stringedID), "call_contract")
+
+	err = testStateManager.CompileAndSetContract(ContractID(stringedID), "call_contract")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -68,9 +71,7 @@ func TestCallContext(t *testing.T) {
 
 func TestCallContextPreventOverwrite(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	contract0ID := ids.GenerateTestID()
 	contract0Address := codec.CreateAddress(0, contract0ID)
@@ -78,12 +79,13 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	contract1Address := codec.CreateAddress(1, contract1ID)
 	stringedID0 := string(contract0ID[:])
 
+	contractManager := NewContractStateManager(test.NewTestDB(), []byte{})
+	err := contractManager.SetAccountContract(ctx, contract0Address, ContractID(stringedID0))
+	require.NoError(err)
 	testStateManager := &TestStateManager{
-		ContractsMap: map[string][]byte{},
-		AccountMap:   map[codec.Address]string{contract0Address: stringedID0},
+		ContractManager: contractManager,
 	}
-
-	err := testStateManager.CompileAndSetContract(ContractID(stringedID0), "call_contract")
+	err = testStateManager.CompileAndSetContract(ContractID(stringedID0), "call_contract")
 	require.NoError(err)
 
 	r := NewRuntime(
@@ -97,10 +99,13 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		})
 
 	stringedID1 := string(contract1ID[:])
+	contractManager1 := NewContractStateManager(test.NewTestDB(), []byte{})
+	err = contractManager.SetAccountContract(ctx, contract1Address, ContractID(stringedID1))
+	require.NoError(err)
 	testStateManager1 := &TestStateManager{
-		ContractsMap: map[string][]byte{},
-		AccountMap:   map[codec.Address]string{contract1Address: stringedID1},
+		ContractManager: contractManager1,
 	}
+
 	err = testStateManager1.CompileAndSetContract(ContractID(stringedID1), "call_contract")
 	require.NoError(err)
 

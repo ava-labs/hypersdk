@@ -20,9 +20,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/internal/keys"
-	"github.com/ava-labs/hypersdk/internal/state/tstate"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const (
@@ -85,8 +85,6 @@ func BuildBlock(
 	//
 	// If the parent block is not yet verified, we will attempt to
 	// execute it.
-	mempoolSize := vm.Mempool().Len(ctx)
-	changesEstimate := min(mempoolSize, maxViewPreallocation)
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -94,7 +92,7 @@ func BuildBlock(
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(vm.StateManager().FeeKey())
+	feeKey := FeeKey(vm.MetadataManager().FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -106,6 +104,9 @@ func BuildBlock(
 	}
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
+
+	mempoolSize := vm.Mempool().Len(ctx)
+	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
 		ts            = tstate.New(changesEstimate)
@@ -127,7 +128,7 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		sm = vm.StateManager()
+		bh = vm.BalanceHandler()
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
@@ -151,6 +152,8 @@ func BuildBlock(
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
+		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
+		// This should only happen after startup, so we add the transactions back to the mempool.
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
 			restorable = append(restorable, txs...)
@@ -170,7 +173,7 @@ func BuildBlock(
 				continue
 			}
 
-			stateKeys, err := tx.StateKeys(sm)
+			stateKeys, err := tx.StateKeys(bh)
 			if err != nil {
 				// Drop bad transaction and continue
 				//
@@ -262,7 +265,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, bh, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -273,7 +276,7 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					sm,
+					bh,
 					r,
 					tsv,
 					nextTime,
@@ -369,9 +372,9 @@ func BuildBlock(
 	}
 
 	// Update chain metadata
-	heightKey := HeightKey(sm.HeightKey())
+	heightKey := HeightKey(b.vm.MetadataManager().HeightPrefix())
 	heightKeyStr := string(heightKey)
-	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKey := TimestampKey(b.vm.MetadataManager().TimestampPrefix())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 

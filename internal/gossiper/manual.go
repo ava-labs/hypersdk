@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"go.uber.org/zap"
 
@@ -19,7 +20,7 @@ var _ Gossiper = (*Manual)(nil)
 
 type Manual struct {
 	vm         VM
-	appSender  common.AppSender
+	client     *p2p.Client
 	doneGossip chan struct{}
 }
 
@@ -30,8 +31,8 @@ func NewManual(vm VM) *Manual {
 	}
 }
 
-func (g *Manual) Run(appSender common.AppSender) {
-	g.appSender = appSender
+func (g *Manual) Run(client *p2p.Client) {
+	g.client = client
 
 	// Only respond to explicitly triggered gossip
 	close(g.doneGossip)
@@ -73,7 +74,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := g.appSender.SendAppGossip(ctx, common.SendConfig{Validators: 10}, b); err != nil {
+	if err := g.client.AppGossip(ctx, common.SendConfig{Validators: 10}, b); err != nil {
 		g.vm.Logger().Warn(
 			"GossipTxs failed",
 			zap.Error(err),
@@ -85,8 +86,8 @@ func (g *Manual) Force(ctx context.Context) error {
 }
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	actionRegistry, authRegistry := g.vm.Registry()
-	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	actionCodec, authCodec := g.vm.ActionCodec(), g.vm.AuthCodec()
+	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionCodec, authCodec)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"AppGossip provided invalid txs",

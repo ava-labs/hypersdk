@@ -4,7 +4,6 @@
 package abi
 
 import (
-	"encoding/json"
 	"go/format"
 	"strings"
 	"testing"
@@ -37,11 +36,4 @@ func removeCommentLines(input []byte) []byte {
 		}
 	}
 	return []byte(strings.Join(result, "\n"))
-}
-
-func mustJSONParse[T any](t *testing.T, jsonStr string) T {
-	var parsed T
-	err := json.Unmarshal([]byte(jsonStr), &parsed)
-	require.NoError(t, err, jsonStr)
-	return parsed
 }

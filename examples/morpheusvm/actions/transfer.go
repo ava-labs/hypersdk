@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
-	consts "github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
@@ -37,7 +36,7 @@ type Transfer struct {
 	Value uint64 `serialize:"true" json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo codec.Bytes `serialize:"true" json:"memo"`
+	Memo []byte `serialize:"true" json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -51,10 +50,6 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-func (*Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
-}
-
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -62,20 +57,26 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) ([][]byte, error) {
+) (codec.Typed, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	senderBalance, err := storage.SubBalance(ctx, mu, actor, t.Value)
+	if err != nil {
 		return nil, err
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	return &TransferResult{
+		SenderBalance:   senderBalance,
+		ReceiverBalance: receiverBalance,
+	}, nil
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -87,23 +88,13 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-// Implementing chain.Marshaler is optional but can be used to optimize performance when hitting TPS limits
-var _ chain.Marshaler = (*Transfer)(nil)
+var _ codec.Typed = (*TransferResult)(nil)
 
-func (t *Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
 }
 
-func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
-	p.PackLong(t.Value)
-	p.PackBytes(t.Memo)
-}
-
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-	var transfer Transfer
-	p.UnpackAddress(&transfer.To)
-	transfer.Value = p.UnpackUint64(true)
-	p.UnpackBytes(MaxMemoSize, false, (*[]byte)(&transfer.Memo))
-	return &transfer, p.Err()
+func (*TransferResult) GetTypeID() uint8 {
+	return mconsts.TransferID // Common practice is to use the action ID
 }

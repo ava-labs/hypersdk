@@ -13,8 +13,10 @@ import (
 )
 
 type Blah interface {
+	Typed
 	Bark() string
 }
+
 type Blah1 struct{}
 
 func (*Blah1) Bark() string { return "blah1" }
@@ -43,7 +45,7 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("empty parser", func(t *testing.T) {
 		require := require.New(t)
-		f, ok := tp.LookupIndex(0)
+		f, ok := tp.lookupIndex(0)
 		require.Nil(f)
 		require.False(ok)
 	})
@@ -62,13 +64,13 @@ func TestTypeParser(t *testing.T) {
 			tp.Register(blah2, func(*Packer) (Blah, error) { return nil, errBlah2 }),
 		)
 
-		f, ok := tp.LookupIndex(blah1.GetTypeID())
+		f, ok := tp.lookupIndex(blah1.GetTypeID())
 		require.True(ok)
 		res, err := f(nil)
 		require.Nil(res)
 		require.ErrorIs(err, errBlah1)
 
-		f, ok = tp.LookupIndex(blah2.GetTypeID())
+		f, ok = tp.lookupIndex(blah2.GetTypeID())
 		require.True(ok)
 		res, err = f(nil)
 		require.Nil(res)

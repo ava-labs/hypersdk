@@ -11,11 +11,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
@@ -25,9 +25,9 @@ func TestIntegration(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
-	genesis, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
-	require.NoError(err)
 
+	keys := workload.NewDefaultKeys()
+	genesis := workload.NewGenesis(keys, 0)
 	genesisBytes, err := json.Marshal(genesis)
 	require.NoError(err)
 
@@ -36,14 +36,14 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
+	generator := workload.NewTxGenerator(keys[0])
 	// Setup imports the integration test coverage
 	integration.Setup(
 		vm.New,
 		genesisBytes,
 		lconsts.ID,
 		vm.CreateParser,
-		vm.JSONRPCEndpoint,
-		workloadFactory,
+		generator,
 		randomEd25519AuthFactory,
 	)
 })

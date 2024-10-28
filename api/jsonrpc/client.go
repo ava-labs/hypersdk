@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
@@ -168,9 +169,9 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	actionRegistry, authRegistry := parser.Registry()
-	tx := chain.NewTx(base, actions)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
+	unsignedTx := chain.NewTxData(base, actions)
+	tx, err := unsignedTx.Sign(authFactory, actionCodec, authCodec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}
@@ -193,6 +194,29 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	return resp.ABI, err
 }
 
+func (cli *JSONRPCClient) ExecuteActions(ctx context.Context, actor codec.Address, actionsBytes [][]byte) ([][]byte, error) {
+	args := &ExecuteActionArgs{
+		Actor:   actor,
+		Actions: actionsBytes,
+	}
+
+	resp := new(ExecuteActionReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"executeActions",
+		args,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("failed to execute action: %s", resp.Error)
+	}
+
+	return resp.Outputs, nil
+}
+
 func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Context) (bool, error)) error {
 	for ctx.Err() == nil {
 		exit, err := check(ctx)
@@ -205,4 +229,45 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 		time.Sleep(interval)
 	}
 	return ctx.Err()
+}
+
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+	args := &SimulatActionsArgs{
+		Actor: actor,
+	}
+
+	for _, action := range actions {
+		marshaledAction, err := chain.MarshalTyped(action)
+		if err != nil {
+			return nil, err
+		}
+		args.Actions = append(args.Actions, marshaledAction)
+	}
+
+	resp := new(SimulateActionsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"simulateActions",
+		args,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.ActionResults, nil
+}
+
+func (cli *JSONRPCClient) GetBalance(ctx context.Context, addr codec.Address) (uint64, error) {
+	args := &GetBalanceArgs{
+		Address: addr,
+	}
+	resp := new(GetBalanceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getBalance",
+		args,
+		resp,
+	)
+	return resp.Balance, err
 }

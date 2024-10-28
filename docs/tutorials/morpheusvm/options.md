@@ -29,12 +29,6 @@ func GetBalanceFromState(
 This function is almost identical to `getBalance()` except that we are passing
 along `f` of type `ReadState` instead of `im` of type `state.Immutable`. 
 
-We also need to specify the precision of our VM token. To do this, go to
-`consts/consts.go` and add the following constant:
-
-```golang
-const Decimals = 9
-```
 
 ## Getting Started
 
@@ -86,7 +80,7 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 }
 
 type BalanceArgs struct {
-	Address string `json:"address"`
+	Address codec.Address `json:"address"`
 }
 
 type BalanceReply struct {
@@ -97,11 +91,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
-	if err != nil {
-		return err
-	}
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, addr)
+	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address)
 	if err != nil {
 		return err
 	}
@@ -210,7 +200,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis,
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -225,7 +215,7 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, err
 
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
-	addr string,
+	addr codec.Address,
 	min uint64,
 ) error {
 	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
@@ -237,7 +227,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 		if !shouldExit {
 			utils.Outf(
 				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min, consts.Decimals),
+				utils.FormatBalance(min),
 				addr,
 			)
 		}
@@ -270,8 +260,16 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return ActionParser, AuthParser
+func (*Parser) ActionCodec() chain.ActionCodec {
+	return ActionParser
+}
+
+func (*Parser) OutputCodec() chain.OutputCodec {
+	return OutputParser
+}
+
+func (*Parser) AuthCodec() chain.AuthCodec {
+	return AuthParser
 }
 
 func (*Parser) StateManager() chain.StateManager {

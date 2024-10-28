@@ -17,7 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/pubsub"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -151,7 +151,11 @@ func (c *WebSocketClient) ListenBlock(
 ) (*chain.StatelessBlock, []*chain.Result, fees.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
-		return UnpackBlockMessage(msg, parser)
+		executedBlock, err := chain.UnmarshalExecutedBlock(msg, parser)
+		if err != nil {
+			return nil, nil, fees.Dimensions{}, err
+		}
+		return executedBlock.Block, executedBlock.Results, executedBlock.UnitPrices, nil
 	case <-c.readStopped:
 		return nil, nil, fees.Dimensions{}, c.err
 	case <-ctx.Done():
@@ -161,10 +165,14 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+	return c.RegisterRawTx(tx.Bytes())
+}
+
+func (c *WebSocketClient) RegisterRawTx(txBytes []byte) error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	return c.mb.Send(append([]byte{TxMode}, txBytes...))
 }
 
 // ListenTx listens for responses from the streamingServer.

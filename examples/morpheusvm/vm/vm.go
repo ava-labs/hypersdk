@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
@@ -20,23 +21,27 @@ import (
 var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
+	OutputParser *codec.TypeParser[codec.Typed]
 )
 
 // Setup types
 func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
+	OutputParser = codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		ActionParser.Register(&actions.Transfer{}, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+
+		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
@@ -49,9 +54,11 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
-		&storage.StateManager{},
+		&storage.BalanceHandler{},
+		metadata.NewDefaultManager(),
 		ActionParser,
 		AuthParser,
+		OutputParser,
 		auth.Engines(),
 		options...,
 	)

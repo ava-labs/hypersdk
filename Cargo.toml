@@ -10,6 +10,8 @@ members = [
   "x/contracts/test/contracts/*",
   "x/contracts/simulator",
   "x/contracts/examples/tutorial",
+  "x/contracts/examples/nft",
+  "x/contracts/examples/multisig",
 ]
 resolver = "2"
 

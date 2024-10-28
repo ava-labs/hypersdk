@@ -4,6 +4,8 @@
 package chain
 
 import (
+	"encoding/json"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
@@ -13,7 +15,7 @@ type Result struct {
 	Success bool
 	Error   []byte
 
-	Outputs [][][]byte
+	Outputs [][]byte
 
 	// Computing [Units] requires access to [StateManager], so it is returned
 	// to make life easier for indexers.
@@ -21,13 +23,52 @@ type Result struct {
 	Fee   uint64
 }
 
+type ResultJSON struct {
+	Success bool        `json:"success"`
+	Error   codec.Bytes `json:"error"`
+
+	Outputs []codec.Bytes   `json:"outputs"`
+	Units   fees.Dimensions `json:"units"`
+	Fee     uint64          `json:"fee"`
+}
+
+func (r Result) MarshalJSON() ([]byte, error) {
+	outputs := make([]codec.Bytes, len(r.Outputs))
+	for i, output := range r.Outputs {
+		outputs[i] = output
+	}
+	resultJSON := ResultJSON{
+		Success: r.Success,
+		Error:   r.Error,
+		Outputs: outputs,
+		Units:   r.Units,
+		Fee:     r.Fee,
+	}
+
+	return json.Marshal(resultJSON)
+}
+
+func (r *Result) UnmarshalJSON(data []byte) error {
+	var resultJSON ResultJSON
+	if err := json.Unmarshal(data, &resultJSON); err != nil {
+		return err
+	}
+
+	r.Success = resultJSON.Success
+	r.Error = resultJSON.Error
+	r.Outputs = make([][]byte, len(resultJSON.Outputs))
+	for i, output := range resultJSON.Outputs {
+		r.Outputs[i] = output
+	}
+	r.Units = resultJSON.Units
+	r.Fee = resultJSON.Fee
+	return nil
+}
+
 func (r *Result) Size() int {
 	outputSize := consts.Uint8Len // actions
-	for _, action := range r.Outputs {
-		outputSize += consts.Uint8Len
-		for _, output := range action {
-			outputSize += codec.BytesLen(output)
-		}
+	for _, actionOutput := range r.Outputs {
+		outputSize += codec.BytesLen(actionOutput)
 	}
 	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
@@ -36,11 +77,8 @@ func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
 	p.PackBytes(r.Error)
 	p.PackByte(uint8(len(r.Outputs)))
-	for _, outputs := range r.Outputs {
-		p.PackByte(uint8(len(outputs)))
-		for _, output := range outputs {
-			p.PackBytes(output)
-		}
+	for _, actionOutput := range r.Outputs {
+		p.PackBytes(actionOutput)
 	}
 	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
@@ -64,17 +102,12 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		Success: p.UnpackBool(),
 	}
 	p.UnpackBytes(consts.MaxInt, false, &result.Error)
-	outputs := [][][]byte{}
+	outputs := [][]byte{}
 	numActions := p.UnpackByte()
 	for i := uint8(0); i < numActions; i++ {
-		numOutputs := p.UnpackByte()
-		actionOutputs := [][]byte{}
-		for j := uint8(0); j < numOutputs; j++ {
-			var output []byte
-			p.UnpackBytes(consts.MaxInt, false, &output)
-			actionOutputs = append(actionOutputs, output)
-		}
-		outputs = append(outputs, actionOutputs)
+		var output []byte
+		p.UnpackBytes(consts.MaxInt, false, &output)
+		outputs = append(outputs, output)
 	}
 	result.Outputs = outputs
 	consumedRaw := make([]byte, fees.DimensionsLen)

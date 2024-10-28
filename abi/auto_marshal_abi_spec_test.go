@@ -12,8 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -30,12 +32,9 @@ func TestABIHash(t *testing.T) {
 	require.NoError(err)
 
 	// check hash and compare it to expected
-	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = codec.LinearCodec.MarshalInto(abiFromFile, writer.Packer)
-	require.NoError(err)
-	require.NoError(writer.Err())
+	abiBytes := chain.MustMarshal(&abiFromFile)
 
-	abiHash := sha256.Sum256(writer.Bytes())
+	abiHash := sha256.Sum256(abiBytes)
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))
 	require.Equal(expectedHashHex, hex.EncodeToString(abiHash[:]))
 }
@@ -60,6 +59,8 @@ func TestMarshalSpecs(t *testing.T) {
 		{"strBytesEmpty", &MockObjectStringAndBytes{}},
 		{"strOnly", &MockObjectStringAndBytes{}},
 		{"outer", &Outer{}},
+		{"fixedBytes", &FixedBytes{}},
+		{"bools", &Bools{}},
 	}
 
 	for _, tc := range testCases {
@@ -85,7 +86,7 @@ func TestMarshalSpecs(t *testing.T) {
 			require.Equal(expectedHex, hex.EncodeToString(objectBytes))
 
 			// Unmarshal the object
-			err = codec.LinearCodec.Unmarshal(objectBytes, unmarshaledFromBytes)
+			err = codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: objectBytes}, unmarshaledFromBytes)
 			require.NoError(err)
 
 			// Compare unmarshaled object with the original

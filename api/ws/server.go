@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/emap"
-	"github.com/ava-labs/hypersdk/internal/pubsub"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -55,13 +55,13 @@ func OptionFunc(v *vm.VM, config Config) error {
 		return nil
 	}
 
-	actionRegistry, authRegistry := v.Registry()
+	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
 		v.Tracer(),
-		actionRegistry,
-		authRegistry,
+		actionCodec,
+		authCodec,
 		config.MaxPendingMessages,
 	)
 
@@ -72,8 +72,8 @@ func OptionFunc(v *vm.VM, config Config) error {
 		},
 	}
 
-	blockSubscription := event.SubscriptionFuncFactory[*chain.StatefulBlock]{
-		AcceptF: func(event *chain.StatefulBlock) error {
+	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
+		AcceptF: func(event *chain.ExecutedBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
@@ -103,11 +103,11 @@ func (w WebSocketServerFactory) New(api.VM) (api.Handler, error) {
 }
 
 type WebSocketServer struct {
-	vm             api.VM
-	logger         logging.Logger
-	tracer         trace.Tracer
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
+	vm          api.VM
+	logger      logging.Logger
+	tracer      trace.Tracer
+	actionCodec *codec.TypeParser[chain.Action]
+	authCodec   *codec.TypeParser[chain.Auth]
 
 	s *pubsub.Server
 
@@ -122,16 +122,16 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionRegistry chain.ActionRegistry,
-	authRegistry chain.AuthRegistry,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
 		vm:             vm,
 		logger:         log,
 		tracer:         tracer,
-		actionRegistry: actionRegistry,
-		authRegistry:   authRegistry,
+		actionCodec:    actionCodec,
+		authCodec:      authCodec,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
@@ -150,10 +150,12 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 
 	// TODO: limit max number of tx listeners a single connection can create
 	txID := tx.ID()
-	if _, ok := w.txListeners[txID]; !ok {
-		w.txListeners[txID] = pubsub.NewConnections()
+	connections, ok := w.txListeners[txID]
+	if !ok {
+		connections = pubsub.NewConnections()
+		w.txListeners[txID] = connections
 	}
-	w.txListeners[txID].Add(c)
+	connections.Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
@@ -193,9 +195,9 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 	if w.blockListeners.Len() > 0 {
-		bytes, err := PackBlockMessage(b)
+		bytes, err := b.Marshal()
 		if err != nil {
 			return err
 		}
@@ -207,8 +209,8 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	results := b.Results()
-	for i, tx := range b.Txs {
+	results := b.Results
+	for i, tx := range b.Block.Txs {
 		txID := tx.ID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
@@ -219,11 +221,13 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatefulBlock) error {
 		if err != nil {
 			return err
 		}
-		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+		// Skip clearing inactive connections because they'll be deleted
+		// regardless.
+		_ = w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return w.setMinTx(b.Tmstmp)
+	return w.setMinTx(b.Block.Tmstmp)
 }
 
 func (w *WebSocketServer) MessageCallback() pubsub.Callback {
@@ -249,7 +253,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
 			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, w.actionRegistry, w.authRegistry)
+			tx, err := chain.UnmarshalTx(p, w.actionCodec, w.authCodec)
 			if err != nil {
 				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),
@@ -260,12 +264,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 
 			// Verify tx
 			if w.vm.GetVerifyAuth() {
-				msg, err := tx.Digest()
-				if err != nil {
-					// Should never occur because populated during unmarshal
-					return
-				}
-				if err := tx.Auth.Verify(ctx, msg); err != nil {
+				if err := tx.VerifyAuth(ctx); err != nil {
 					w.logger.Error("failed to verify sig",
 						zap.Error(err),
 					)
@@ -274,7 +273,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			}
 			w.AddTxListener(tx, c)
 
-			// Submit will remove from [txWaiters] if it is not added
+			// Submit will remove from [txListeners] if it is not added
 			txID := tx.ID()
 			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",

@@ -18,22 +18,33 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
-	vmName            string
-	txWorkloadFactory workload.TxWorkloadFactory
-	expectedABI       abi.ABI
+	vmName      string
+	txWorkload  workload.TxWorkload
+	parser      chain.Parser
+	expectedABI abi.ABI
+	spamKey     *auth.PrivateKey
+	spamHelper  throughput.SpamHelper
 )
 
-func SetWorkload(name string, factory workload.TxWorkloadFactory, abi abi.ABI) {
+func SetWorkload(name string, generator workload.TxGenerator, abi abi.ABI, chainParser chain.Parser, sh throughput.SpamHelper, key *auth.PrivateKey) {
 	vmName = name
-	txWorkloadFactory = factory
+	txWorkload = workload.TxWorkload{
+		Generator: generator,
+	}
+	parser = chainParser
 	expectedABI = abi
+	spamHelper = sh
+	spamKey = key
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -92,11 +103,37 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 
-		txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
-		require.NoError(err)
-		for _, txWorkload := range txWorkloads {
-			workload.ExecuteWorkload(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), txWorkload)
+		ginkgo.By("Tx workloads", func() {
+			txWorkload.GenerateBlocks(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), 1)
+		})
+
+		ginkgo.By("Confirm accepted blocks indexed", func() {
+			workload.GetBlocks(tc.DefaultContext(), require, parser, getE2EURIs(tc, blockchainID))
+		})
+	})
+})
+
+var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
+	ginkgo.It("Spam Workload", func() {
+		if spamKey == nil || spamHelper == nil {
+			return
 		}
+
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		uris := getE2EURIs(tc, blockchainID)
+		key := spamKey
+
+		err := spamHelper.CreateClient(uris[0])
+		require.NoError(err)
+
+		spamConfig := throughput.NewDefaultConfig(uris, key)
+		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
+		require.NoError(err)
+
+		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+		require.NoError(err)
 	})
 })
 
@@ -108,7 +145,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {
-			workload.GenerateNBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, 128)
 		})
 
 		var (
@@ -121,15 +158,14 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			uris = append(uris, bootstrapNodeURI)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
-			require.NoError(err)
-			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, bootstrapNodeURI, uris)
 		})
+
 		ginkgo.By("Restart the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
 		})
 		ginkgo.By("Generate > StateSyncMinBlocks=512", func() {
-			workload.GenerateNBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, txWorkloadFactory, 512)
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 512)
 		})
 		var (
 			syncNode    *tmpnet.Node
@@ -145,9 +181,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-			require.NoError(err)
-			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("Pause the node", func() {
 			// TODO: remove the need to call SaveAPIPort from the test
@@ -163,7 +197,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		ginkgo.By("Generate 256 blocks", func() {
 			// Generate blocks on all nodes except the paused node
 			runningURIs := uris[:len(uris)-1]
-			workload.GenerateNBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, txWorkloadFactory, 256)
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 256)
 		})
 		ginkgo.By("Resume the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
@@ -178,9 +212,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		})
 
 		ginkgo.By("Accept a transaction after resuming", func() {
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-			require.NoError(err)
-			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("State sync while broadcasting txs", func() {
 			stopChannel := make(chan struct{})
@@ -193,10 +225,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 				defer wg.Done()
 				// Recover failure if exits
 				defer ginkgo.GinkgoRecover()
-
-				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
-				require.NoError(err)
-				workload.GenerateUntilStop(tc.DefaultContext(), require, uris, txWorkload, stopChannel)
+				txWorkload.GenerateUntilStop(tc.DefaultContext(), require, uris, 128, stopChannel)
 			}()
 
 			// Give time for transactions to start processing
@@ -210,9 +239,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after syncing", func() {
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
-			require.NoError(err)
-			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, uris[0], uris)
 		})
 	})
 })

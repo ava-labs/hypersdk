@@ -31,10 +31,10 @@ func BenchmarkDeployContract(b *testing.B) {
 		result, err := contract.Call(
 			"deploy",
 			otherContractID[:])
-			require.NoError(err)
-			
-			newAccount := into[codec.Address](result)
-			
+		require.NoError(err)
+
+		newAccount := into[codec.Address](result)
+
 		b.StopTimer()
 		result, err = runtime.CallContract(newAccount, "simple_call")
 		require.NoError(err)
@@ -43,12 +43,9 @@ func BenchmarkDeployContract(b *testing.B) {
 	}
 }
 
-
 func TestImportContractDeployContract(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("deploy_contract")
@@ -73,9 +70,7 @@ func TestImportContractDeployContract(t *testing.T) {
 
 func TestImportContractCallContract(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("call_contract")
@@ -97,9 +92,7 @@ func TestImportContractCallContract(t *testing.T) {
 
 func TestImportContractCallContractActor(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("call_contract")
@@ -115,9 +108,7 @@ func TestImportContractCallContractActor(t *testing.T) {
 
 func TestImportContractCallContractActorChange(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("call_contract")
@@ -135,9 +126,7 @@ func TestImportContractCallContractActorChange(t *testing.T) {
 
 func TestImportContractCallContractWithParam(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("call_contract")
@@ -161,9 +150,7 @@ func TestImportContractCallContractWithParam(t *testing.T) {
 
 func TestImportContractCallContractWithParams(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("call_contract")
@@ -188,9 +175,7 @@ func TestImportContractCallContractWithParams(t *testing.T) {
 
 func TestImportGetRemainingFuel(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("fuel")
@@ -203,9 +188,7 @@ func TestImportGetRemainingFuel(t *testing.T) {
 
 func TestImportOutOfFuel(t *testing.T) {
 	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	rt := newTestRuntime(ctx)
 	contract, err := rt.newTestContract("fuel")

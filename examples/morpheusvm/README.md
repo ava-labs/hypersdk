@@ -108,7 +108,7 @@ This should return the following JSON:
 }
 ```
 
-_By default, this allocates all funds on the network to `morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu`. The private
+_By default, this allocates all funds on the network to `0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9`. The private
 key for this address is `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
 
@@ -162,7 +162,7 @@ Next, you'll need to add the chains you created and the default key to the
 If the key is added corretcly, you'll see the following log:
 ```
 database: .morpheus-cli
-imported address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+imported address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 ```
 
 Next, you'll need to store the URL of the nodes running on your Subnet:
@@ -211,10 +211,10 @@ If successful, the balance response should look like this:
 ```
 database: .morpheus-cli
 2024/09/09 10:52:49 [JOB 1] WAL file .morpheus-cli/000044.log with log number 000044 stopped reading at offset: 0; replayed 0 keys in 0 batches
-address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 chainID: JkJpw8ZPExTushPYYN4C8f7RHxjDRX8MAGGUGAdRRPEC2M3fx
 uri: http://127.0.0.1:9650/ext/bc/morpheusvm
-address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu balance: 1000.000000000 RED
+address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 balance: 1000.000000000 RED
 ```
 
 ### Generate Another Address
@@ -243,7 +243,7 @@ database: .morpheus-cli
 2024/09/09 10:53:51 [JOB 1] WAL file .morpheus-cli/000047.log with log number 000047 stopped reading at offset: 0; replayed 0 keys in 0 batches
 chainID: JkJpw8ZPExTushPYYN4C8f7RHxjDRX8MAGGUGAdRRPEC2M3fx
 stored keys: 2
-0) address: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu balance: 10000000000.000000000 RED
+0) address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 balance: 10000000000.000000000 RED
 1) address: morpheus1q8pyshaqzx4q9stqdt88hyg22axjwrvl0w9wgczct5fnfev9gcnrsqwjdn0 balance: 0.000000000 RED
 set default key: 0
 ```
@@ -285,5 +285,38 @@ select chainID: 0
 uri: http://127.0.0.1:9650/ext/bc/morpheusvm
 watching for new blocks on 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk 👀
 height:1 txs:1 units:440 root:WspVPrHNAwBcJRJPVwt7TW6WT4E74dN8DuD3WXueQTMt5FDdi
-✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu units: 440 summary (*actions.Transfer): [10.000000000 RED -> morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07]
+✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9 units: 440 summary (*actions.Transfer): [10.000000000 RED -> morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07]
+```
+
+If you are running this on a local network, you may see that all blocks are empty.
+To view the same results with non-empty transactions, you can run the spam command from another window:
+```bash
+./build/morpheus-cli spam run ed25519
+```
+
+After inputting the parameters, you'll see output from the spam command showing inflight transactions:
+
+```
+minimum txs to issue per second: 10
+txs to increase per second: 10
+number of clients per node: 10
+unique participants expected every 60s: 10
+distributing funds to each account: 999.978355900 RED
+distributed funds to 10 accounts
+initial target tps: 10
+txs seen: 10 success rate: 100.00% inflight: 10 issued/s: 21 unit prices: [bandwidth=100 compute=100 storage(read)=100 storage(allocate)=100 storage(write)=100]
+```
+
+The transactions will start to show up in the CLI explorer tool as well:
+
+```
+watching for new blocks on bsED31vJbynkhzKrjtNFtUXcg6Y78MjQLg1KBgesMw1xom8F9 👀
+height:634 txs:0 root:B6upYeCegoR5bvfUGLo9GqbymyBCgXNobpTk53HBFNBZGG4aM size:0.08KB units consumed: [bandwidth=0 compute=0 storage(read)=0 storage(allocate)=0 storage(write)=0] unit prices: [bandwidth=100 compute=100 storage(read)=100 storage(allocate)=100 storage(write)=100]
+height:635 txs:10 root:2W6eEZQYqD9xCsZoDPjASqtZx25fyUUobpesuKJJAxnFMU4RJi size:2.04KB units consumed: [bandwidth=2000 compute=70 storage(read)=140 storage(allocate)=500 storage(write)=260] unit prices: [bandwidth=100 compute=100 storage(read)=100 storage(allocate)=100 storage(write)=100] [TPS:85.69 latency:81ms gap:116ms]
+✅ 2QEttqwxZyMF8Lzyj44wpsEhpbVyASq8c7Z4ogh3DDrWDKgKyh actor: 0090dc1ecabfc7680d68bc226158095861544b9309b251eed2f3d2425bc991285f summary (*actions.Transfer): [0.000000001 RED -> 0090dc1ecabfc7680d68bc226158095861544b9309b251eed2f3d2425bc991285f
+] fee (max 86.84%): 0.000029700 RED consumed: [bandwidth=200 compute=7 storage(read)=14 storage(allocate)=50 storage(write)=26]
+✅ 2HVNY8gbeBCrNiekTReGpKZ9hqkZea8Wf4VGjbdroorwEY7s7u actor: 00bd82f4be137f29222695f693e72a9e85e83510e575a3e485eb306a8ad5999010 summary (*actions.Transfer): [0.000000001 RED -> 00bd82f4be137f29222695f693e72a9e85e83510e575a3e485eb306a8ad5999010
+] fee (max 86.84%): 0.000029700 RED consumed: [bandwidth=200 compute=7 storage(read)=14 storage(allocate)=50 storage(write)=26]
+✅ 2WXLjEXf25WeinidC9qmghZWbCeDa26F8pwwkFb53MSsEQm1NL actor: 0090dc1ecabfc7680d68bc226158095861544b9309b251eed2f3d2425bc991285f summary (*actions.Transfer): [0.000000001 RED -> 0090dc1ecabfc7680d68bc226158095861544b9309b251eed2f3d2425bc991285f
+] fee (max 86.84%): 0.000029700 RED consumed: [bandwidth=200 compute=7 storage(read)=14 storage(allocate)=50 storage(write)=26]
 ```

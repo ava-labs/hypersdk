@@ -27,7 +27,7 @@ func (h *Handler) SetKey() error {
 	}
 	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 	for i := 0; i < len(keys); i++ {
-		addrStr := h.c.Address(keys[i].Address)
+		addrStr := keys[i].Address
 		balance, err := h.c.LookupBalance(addrStr, uris[0])
 		if err != nil {
 			return err
@@ -36,7 +36,7 @@ func (h *Handler) SetKey() error {
 			"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 			i,
 			addrStr,
-			utils.FormatBalance(balance, h.c.Decimals()),
+			utils.FormatBalance(balance),
 			h.c.Symbol(),
 		)
 	}
@@ -66,15 +66,14 @@ func (h *Handler) Balance(checkAllChains bool) error {
 	}
 	for _, uri := range uris[:max] {
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-		addrStr := h.c.Address(addr)
-		balance, err := h.c.LookupBalance(addrStr, uris[0])
+		balance, err := h.c.LookupBalance(addr, uris[0])
 		if err != nil {
 			return err
 		}
 		utils.Outf(
 			"{{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-			addrStr,
-			utils.FormatBalance(balance, h.c.Decimals()),
+			addr,
+			utils.FormatBalance(balance),
 			h.c.Symbol(),
 		)
 	}

@@ -6,13 +6,16 @@ package e2e_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
@@ -36,20 +39,29 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, err := workload.New(100 /* minBlockGap: 100ms */)
+	keys := workload.NewDefaultKeys()
+	genesis := workload.NewGenesis(keys, 100*time.Millisecond)
+	genesisBytes, err := json.Marshal(genesis)
+	require.NoError(err)
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
-	genesisBytes, err := json.Marshal(gen)
-	require.NoError(err)
-
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes())
+	parser, err := vm.CreateParser(genesisBytes)
 	require.NoError(err)
 
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI)
+	spamHelper := throughput.SpamHelper{
+		KeyType: auth.ED25519Key,
+	}
 
+	generator := workload.NewTxGenerator(keys[0])
+	spamKey := &auth.PrivateKey{
+		Address: auth.NewED25519Address(keys[0].PublicKey()),
+		Bytes:   keys[0][:],
+	}
 	tc := e2e.NewTestContext()
+	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {

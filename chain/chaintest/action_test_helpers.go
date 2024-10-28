@@ -60,7 +60,7 @@ type ActionTest struct {
 	Actor     codec.Address
 	ActionID  ids.ID
 
-	ExpectedOutputs [][]byte
+	ExpectedOutputs codec.Typed
 	ExpectedErr     error
 
 	Assertion func(context.Context, *testing.T, state.Mutable)
@@ -80,4 +80,49 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 			test.Assertion(ctx, t, test.State)
 		}
 	})
+}
+
+// ActionBenchmark is a parameterized benchmark. It calls Execute on the action with the passed parameters
+// and checks that all assertions pass. To avoid using shared state between runs, a new
+// state is created for each iteration using the provided `CreateState` function.
+type ActionBenchmark struct {
+	Name   string
+	Action chain.Action
+
+	Rules       chain.Rules
+	CreateState func() state.Mutable
+	Timestamp   int64
+	Actor       codec.Address
+	ActionID    ids.ID
+
+	ExpectedOutput codec.Typed
+	ExpectedErr    error
+
+	Assertion func(context.Context, *testing.B, state.Mutable)
+}
+
+// Run executes the [ActionBenchmark] and make sure all the benchmark assertions pass.
+func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
+	require := require.New(b)
+
+	// create a slice of b.N states
+	states := make([]state.Mutable, b.N)
+	for i := 0; i < b.N; i++ {
+		states[i] = test.CreateState()
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
+		require.NoError(err)
+		require.Equal(test.ExpectedOutput, output)
+	}
+
+	b.StopTimer()
+	// check assertions
+	if test.Assertion != nil {
+		for i := 0; i < b.N; i++ {
+			test.Assertion(ctx, b, states[i])
+		}
+	}
 }

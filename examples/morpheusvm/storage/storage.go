@@ -14,37 +14,24 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/metadata"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 // State
-// / (height) => store in root
-//   -> [heightPrefix] => height
-// 0x0/ (balance)
+// 0x0/ (hypersdk-height)
+// 0x1/ (hypersdk-timestamp)
+// 0x2/ (hypersdk-fee)
+//
+// 0x3/ (balance)
 //   -> [owner] => balance
-// 0x1/ (hypersdk-height)
-// 0x2/ (hypersdk-timestamp)
-// 0x3/ (hypersdk-fee)
 
-const (
-	// Active state
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
-)
+const balancePrefix byte = metadata.DefaultMinimumPrefix
 
 const BalanceChunks uint16 = 1
-
-var (
-	heightKey    = []byte{heightPrefix}
-	timestampKey = []byte{timestampPrefix}
-	feeKey       = []byte{feePrefix}
-)
 
 // [balancePrefix] + [address]
 func BalanceKey(addr codec.Address) (k []byte) {
@@ -97,7 +84,11 @@ func innerGetBalance(
 	if err != nil {
 		return 0, false, err
 	}
-	return binary.BigEndian.Uint64(v), true, nil
+	val, err := database.ParseUInt64(v)
+	if err != nil {
+		return 0, false, err
+	}
+	return val, true, nil
 }
 
 func SetBalance(
@@ -125,27 +116,27 @@ func AddBalance(
 	addr codec.Address,
 	amount uint64,
 	create bool,
-) error {
+) (uint64, error) {
 	key, bal, exists, err := getBalance(ctx, mu, addr)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// Don't add balance if account doesn't exist. This
 	// can be useful when processing fee refunds.
 	if !exists && !create {
-		return nil
+		return 0, nil
 	}
 	nbal, err := smath.Add(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
-	return setBalance(ctx, mu, key, nbal)
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
@@ -153,40 +144,28 @@ func SubBalance(
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
-) error {
+) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)
 	if !ok {
-		return ErrInvalidAddress
+		return 0, ErrInvalidBalance
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddressBech32(mconsts.HRP, addr),
+			addr,
 			amount,
 		)
 	}
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return mu.Remove(ctx, key)
+		return 0, mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, mu, key, nbal)
-}
-
-func HeightKey() (k []byte) {
-	return heightKey
-}
-
-func TimestampKey() (k []byte) {
-	return timestampKey
-}
-
-func FeeKey() (k []byte) {
-	return feeKey
+	return nbal, setBalance(ctx, mu, key, nbal)
 }
