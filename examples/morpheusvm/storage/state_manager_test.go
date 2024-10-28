@@ -39,7 +39,6 @@ func TestBalanceHandlerFunds(t *testing.T) {
 			Actor:          addr,
 			State:          chaintest.NewInMemoryStore(),
 			Amount:         1,
-			CreateAccount:  false,
 			Method:         chaintest.TestDeduct,
 			ExpectedError:  storage.ErrInvalidBalance,
 		},
@@ -70,6 +69,7 @@ func TestBalanceHandlerFunds(t *testing.T) {
 				r.NoError(err)
 				return s
 			}(),
+			Method:          chaintest.TestCanDeduct,
 			Amount:          1,
 			ExpectedBalance: 1,
 		},
@@ -90,7 +90,8 @@ func TestBalanceHandlerFunds(t *testing.T) {
 				return s
 			}(),
 			Amount:          uint64(1),
-			ExpectedBalance: uint64(1),
+			Method:          chaintest.TestDeduct,
+			ExpectedBalance: 0,
 		},
 	}
 
