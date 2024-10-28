@@ -126,6 +126,18 @@ For interactive input:
 hypersdk-cli tx Transfer
 ```
 
+### balance
+
+Query the balance of an address
+
+```bash
+hypersdk-cli balance --sender 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
+```
+
+If `--sender` isn't provided, the address associated with the private key in
+`~/.hypersdk-cli/config.yaml` is queried.
+
+
 ## Notes
 
 - Only flat actions are supported. Arrays, slices, embedded structs, maps, and struct fields are not supported.
@@ -134,7 +146,6 @@ hypersdk-cli tx Transfer
 
 ## Known Issues
 
-- The `balance` command is not currently implemented due to the lack of a standardized balance RPC method at the HyperSDK level.
 - The `maxFee` for transactions is currently hardcoded to 1,000,000.
 - The `key set` and `endpoint set` commands use a nested command structure which adds unnecessary complexity for a small CLI tool. A flatter command structure would be more appropriate.
 - Currency values are represented as uint64 without decimal point support in the ABI. The CLI cannot automatically parse decimal inputs (e.g. "12.0") since there is no currency type annotation. Users must enter the raw uint64 value including all decimal places (e.g. "12000000000" for 12 coins with 9 decimal places).
