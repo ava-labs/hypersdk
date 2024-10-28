@@ -206,7 +206,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	require.Equal(signedTx.ID(), utils.ToID(writerPacker.Bytes()))
 	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
-	require.Equal(signedTx.Size(), len(writerPacker.Bytes()))
+	require.Len(writerPacker.Bytes(), signedTx.Size())
 
 	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
