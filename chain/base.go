@@ -55,6 +55,8 @@ func (b *Base) Marshal(p *codec.Packer) {
 	p.PackUint64(b.MaxFee)
 }
 
+// UnmarshalBase unmarshals a Base from packer.
+// Caller can assume packer errors are returned from the function.
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	var base Base
 	base.Timestamp = p.UnpackInt64(true)

@@ -69,8 +69,6 @@ func (t *TransactionData) UnsignedBytes() ([]byte, error) {
 // the original and a signature provided by the authFactory
 func (t *TransactionData) Sign(
 	factory AuthFactory,
-	actionCodec *codec.TypeParser[Action],
-	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	msg, err := t.UnsignedBytes()
 	if err != nil {
@@ -81,26 +79,7 @@ func (t *TransactionData) Sign(
 		return nil, err
 	}
 
-	signedTransaction := Transaction{
-		TransactionData: TransactionData{
-			Base:    t.Base,
-			Actions: t.Actions,
-		},
-		Auth: auth,
-	}
-
-	// Ensure transaction is fully initialized and correct by reloading it from
-	// bytes
-	size := len(msg) + consts.ByteLen + auth.Size()
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := signedTransaction.Marshal(p); err != nil {
-		return nil, err
-	}
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionCodec, authCodec)
+	return newTransaction(t.Base, t.Actions, auth)
 }
 
 func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
@@ -157,13 +136,33 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
+// newTransaction creates a Transaction and initializes the private fields.
+func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
+	tx := Transaction{
+		TransactionData: TransactionData{
+			Base:    base,
+			Actions: actions,
+		},
+		Auth: auth,
+	}
+	p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	if err := tx.Marshal(p); err != nil {
+		return nil, err
+	}
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	tx.bytes = p.Bytes()
+	tx.size = len(p.Bytes())
+	tx.id = utils.ToID(p.Bytes())
+	return &tx, nil
+}
+
 func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) ID() ids.ID { return t.id }
-
-func (t *Transaction) SetID(id ids.ID) { t.id = id }
 
 func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
@@ -366,6 +365,7 @@ type txJSON struct {
 	ID      ids.ID      `json:"id"`
 	Actions codec.Bytes `json:"actions"`
 	Auth    codec.Bytes `json:"auth"`
+	Base    codec.Bytes `json:"base"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -383,11 +383,19 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	if err := authPacker.Err(); err != nil {
 		return nil, err
 	}
+	basePacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	if t.Base != nil {
+		t.Base.Marshal(basePacker)
+	}
+	if err := basePacker.Err(); err != nil {
+		return nil, err
+	}
 
 	return json.Marshal(txJSON{
 		ID:      t.ID(),
 		Actions: actionsPacker.Bytes(),
 		Auth:    authPacker.Bytes(),
+		Base:    basePacker.Bytes(),
 	})
 }
 
@@ -414,12 +422,17 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	if err := authReader.Err(); err != nil {
 		return fmt.Errorf("%w: auth packer", err)
 	}
-
-	t.id = tx.ID
-	t.TransactionData = TransactionData{
-		Actions: actions,
+	baseReader := codec.NewReader(tx.Base, consts.NetworkSizeLimit)
+	base, err := UnmarshalBase(baseReader)
+	if err != nil {
+		return fmt.Errorf("%w: cannot unmarshal base packer", err)
 	}
-	t.Auth = auth
+
+	newTx, err := newTransaction(base, actions, auth)
+	if err != nil {
+		return err
+	}
+	*t = *newTx
 	return nil
 }
 
@@ -519,7 +532,6 @@ func UnmarshalTx(
 	actionRegistry *codec.TypeParser[Action],
 	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
-	start := p.Offset()
 	unsignedTransaction, err := UnmarshalTxData(p, actionRegistry)
 	if err != nil {
 		return nil, err
@@ -537,17 +549,15 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx Transaction
-	tx.TransactionData = *unsignedTransaction
-	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
-	codecBytes := p.Bytes()
-	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	tx.size = len(tx.bytes)
-	tx.id = utils.ToID(tx.bytes)
-	return &tx, nil
+
+	tx, err := newTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {

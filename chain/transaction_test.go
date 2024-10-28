@@ -15,8 +15,10 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -78,37 +80,32 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 func TestJSONMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
-	txID := ids.GenerateTestID()
-	pk, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
-
-	tx := &chain.Transaction{
-		TransactionData: chain.TransactionData{
-			Actions: []chain.Action{
-				&mockTransferAction{
-					To:    codec.Address{1, 2, 3, 4},
-					Value: 4,
-					Memo:  []byte("hello"),
-				},
-				&mockTransferAction{
-					To:    codec.Address{4, 5, 6, 7},
-					Value: 123,
-					Memo:  []byte("world"),
-				},
-				&action2{
-					A: 2,
-					B: 4,
-				},
+	txdata := chain.TransactionData{
+		Base: &chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		Actions: []chain.Action{
+			&mockTransferAction{
+				To:    codec.Address{1, 2, 3, 4},
+				Value: 4,
+				Memo:  []byte("hello"),
+			},
+			&mockTransferAction{
+				To:    codec.Address{4, 5, 6, 7},
+				Value: 123,
+				Memo:  []byte("world"),
+			},
+			&action2{
+				A: 2,
+				B: 4,
 			},
 		},
-		Auth: &auth.ED25519{
-			Signer: pk.PublicKey(),
-		},
 	}
-	tx.SetID(txID)
-
-	b, err := json.Marshal(tx)
+	priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
+	factory := auth.NewED25519Factory(priv)
 
 	actionCodec := codec.NewTypeParser[chain.Action]()
 	authCodec := codec.NewTypeParser[chain.Auth]()
@@ -119,12 +116,32 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
+
+	signedTx, err := txdata.Sign(factory)
+	require.NoError(err)
+
+	b, err := json.Marshal(signedTx)
+	require.NoError(err)
+
 	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
 
 	var txout chain.Transaction
 	err = txout.UnmarshalJSON(b, parser)
 	require.NoError(err)
-	require.Equal(*tx, txout)
+	// cannot check direct Equal between signedTx and txout
+	// because of the Auth codec.Address that will be different after the unmarshaling.
+	require.Equal(signedTx.Base, txout.Base)
+	require.Equal(signedTx.Actions, txout.Actions)
+	require.Equal(signedTx.ID(), txout.ID())
+	require.Equal(signedTx.Bytes(), txout.Bytes())
+	require.Equal(signedTx.Size(), txout.Size())
+	// verify txout Auth is able to verify unsigned bytes.
+	prevUnsignedBytes, err := signedTx.UnsignedBytes()
+	require.NoError(err)
+	unsignedBytes, err := txout.UnsignedBytes()
+	require.NoError(err)
+	require.NoError(txout.Auth.Verify(context.Background(), prevUnsignedBytes))
+	require.NoError(txout.Auth.Verify(context.Background(), unsignedBytes))
 }
 
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
@@ -196,7 +213,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	_, err = txBeforeSign.UnsignedBytes()
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
+	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
 	require.Equal(txBeforeSign, tx)
 	require.NotNil(signedTx.Auth)
@@ -204,6 +221,13 @@ func TestMarshalUnmarshal(t *testing.T) {
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
+	// validating tx ID, Bytes and Size
+	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = signedTx.Marshal(writerPacker)
+	require.NoError(err)
+	require.Equal(signedTx.ID(), utils.ToID(writerPacker.Bytes()))
+	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
+	require.Equal(signedTx.Size(), len(writerPacker.Bytes()))
 
 	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
