@@ -48,19 +48,45 @@ func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 	return testNetwork
 }
 
-func (n *Network) URIs() (out []string) {
-	for _, node := range n.nodes {
-		out = append(out, node.URI())
+func (n *Network) URIs() []string {
+	nodesURIs := make([]string, len(n.nodes))
+	for i, node := range n.nodes {
+		nodesURIs[i] = node.URI()
 	}
-	return
+	return nodesURIs
 }
 
 func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
-	return n.nodes[0].ConfirmTxs(ctx, txs)
+	err := n.nodes[0].confirmTxs(ctx, txs)
+	if err != nil {
+		return err
+	}
+	var targetHeight uint64
+	// check the accepted block height on all blocks.
+	for nodeIdx := 0; nodeIdx < len(n.nodes); nodeIdx++ {
+		_, nodeHeight, _, err := n.nodes[nodeIdx].accepted(ctx)
+		if err != nil {
+			return err
+		}
+		if nodeIdx == 0 {
+			// since we've already confirmed the tx on this node, just use the height as the target.
+			targetHeight = nodeHeight
+		} else if nodeHeight < targetHeight {
+			// take a short delay and try again.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(txCheckInterval):
+			}
+			nodeIdx-- // try again the same node.
+			continue
+		}
+	}
+	return nil
 }
 
 func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
-	return n.nodes[0].GenerateTx(ctx, actions, auth)
+	return n.nodes[0].generateTx(ctx, actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
@@ -72,7 +98,12 @@ type Node struct {
 	network *Network
 }
 
-func (n *Node) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (n *Node) accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
+	c := jsonrpc.NewJSONRPCClient(n.URI())
+	return c.Accepted(ctx)
+}
+
+func (n *Node) confirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	c := jsonrpc.NewJSONRPCClient(n.URI())
 	for _, tx := range txs {
 		_, err := c.SubmitTx(ctx, tx.Bytes())
@@ -94,7 +125,7 @@ func (n *Node) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	return nil
 }
 
-func (n *Node) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
+func (n *Node) generateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
 	c := jsonrpc.NewJSONRPCClient(n.URI())
 	_, tx, _, err := c.GenerateTransaction(
 		ctx,
