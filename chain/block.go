@@ -392,6 +392,36 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 	return nil
 }
 
+// verifyExpiryReplayProtection handles expiry replay protection
+//
+// Replay protection confirms a transaction has not been included within the
+// past validity window.
+// Before the node is ready (we have synced a validity window of blocks), this
+// function may return an error when other nodes see the block as valid.
+//
+// If a block is already accepted, its transactions have already been added
+// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
+// when it should already be considered valid, so we skip this step here.
+func (b *StatefulBlock) verifyExpiryReplayProtection(ctx context.Context, rules Rules, vctx VerifyContext) error {
+	if b.accepted {
+		return nil
+	}
+
+	oldestAllowed := b.Tmstmp - rules.GetValidityWindow()
+	if oldestAllowed < 0 {
+		// Can occur if verifying genesis
+		oldestAllowed = 0
+	}
+	dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
+	if err != nil {
+		return err
+	}
+	if dup.Len() > 0 {
+		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+	}
+	return nil
+}
+
 // innerVerify executes the block on top of the provided [VerifyContext].
 //
 // Invariants:
@@ -458,29 +488,8 @@ func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) err
 		return ErrTimestampTooEarly
 	}
 
-	// Expiry replay protection
-	//
-	// Replay protection confirms a transaction has not been included within the
-	// past validity window.
-	// Before the node is ready (we have synced a validity window of blocks), this
-	// function may return an error when other nodes see the block as valid.
-	//
-	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
-	// when it should already be considered valid, so we skip this step here.
-	if !b.accepted {
-		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-		if oldestAllowed < 0 {
-			// Can occur if verifying genesis
-			oldestAllowed = 0
-		}
-		dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
-		if err != nil {
-			return err
-		}
-		if dup.Len() > 0 {
-			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-		}
+	if err := b.verifyExpiryReplayProtection(ctx, r, vctx); err != nil {
+		return err
 	}
 
 	// Compute next unit prices to use
