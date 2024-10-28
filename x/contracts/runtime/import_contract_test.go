@@ -36,7 +36,7 @@ func BenchmarkDeployContract(b *testing.B) {
 		newAccount := into[codec.Address](result)
 
 		b.StopTimer()
-		result, err = runtime.CallContract(newAccount, "simple_call")
+		result, err = runtime.CallContract(newAccount, "simple_call", nil)
 		require.NoError(err)
 		require.Equal(uint64(0), into[uint64](result))
 		b.StartTimer()
@@ -63,7 +63,7 @@ func TestImportContractDeployContract(t *testing.T) {
 
 	newAccount := into[codec.Address](result)
 
-	result, err = runtime.CallContract(newAccount, "simple_call")
+	result, err = runtime.CallContract(newAccount, "simple_call", nil)
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 }
