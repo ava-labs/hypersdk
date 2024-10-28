@@ -16,10 +16,9 @@ type TestNetwork interface {
 	Configuration() TestNetworkConfiguration
 }
 
-// TestNetworkConfiguration is an interface, implemented by the custom-vm network test framework
-// that allows the test to store information regarding the test network prior to it's invocation, and
-// retrieve the said information during it's execution. It's vital that all implementations of this
-// interface would keep the data stored immutable as it would be shared across multiple threads.
+// TestNetworkConfiguration is an interface, implemented by VM-specific tests
+// to store information regarding the test network prior to it's invocation, and
+// retrieve it during execution. All implementations must be thread-safe.
 type TestNetworkConfiguration interface {
 	GenesisBytes() []byte
 	Name() string
