@@ -33,11 +33,6 @@ var (
 	expectedABI   abi.ABI
 	spamKey       *auth.PrivateKey
 	spamHelper    throughput.SpamHelper
-	// execSyncer is used to syncronize the tests execution against the shared (single instance) network.
-	// The internal tests here would use the "read" portion of the mutex while the custom tests would use the "write"
-	// portion of the mutex. This would allow us to executed the internal tests in parallel while ensuring that
-	// custom tests are being execution sequentially without any interference.
-	execSyncer sync.RWMutex
 )
 
 func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey) {
@@ -54,12 +49,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	tc := e2e.NewTestContext()
 	require := require.New(tc)
 
-	ginkgo.It("Ping", asyncExecution(func() {
+	ginkgo.It("Ping", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
-	}))
+	})
 
-	ginkgo.It("StableNetworkIdentity", asyncExecution(func() {
+	ginkgo.It("StableNetworkIdentity", func() {
 		hardcodedHostPort := "http://localhost:9650"
 		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + networkConfig.Name()
 
@@ -68,9 +63,9 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		require.NoError(err)
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		require.Equal(expectedBlockchainID, chainIDFromRPC)
-	}))
+	})
 
-	ginkgo.It("GetNetwork", asyncExecution(func() {
+	ginkgo.It("GetNetwork", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		baseURIs := getE2EBaseURIs(tc)
 		baseURI := baseURIs[0]
@@ -78,14 +73,14 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
 		require.NoError(err)
 		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
-	}))
+	})
 
-	ginkgo.It("GetABI", asyncExecution(func() {
+	ginkgo.It("GetABI", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		workload.GetABI(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedABI)
-	}))
+	})
 
-	ginkgo.It("ReadState", asyncExecution(func() {
+	ginkgo.It("ReadState", func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		ctx := tc.DefaultContext()
 		for _, uri := range getE2EURIs(tc, blockchainID) {
@@ -97,11 +92,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 			require.Len(values, 1)
 			require.Len(readerrs, 1)
 		}
-	}))
+	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
-	ginkgo.It("Basic Tx Workload", asyncExecution(func() {
+var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
+	ginkgo.It("Basic Tx Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
@@ -113,11 +108,11 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 		ginkgo.By("Confirm accepted blocks indexed", func() {
 			workload.GetBlocks(tc.DefaultContext(), require, networkConfig.Parser(), getE2EURIs(tc, blockchainID))
 		})
-	}))
+	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
-	ginkgo.It("Spam Workload", asyncExecution(func() {
+var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
+	ginkgo.It("Spam Workload", func() {
 		if spamKey == nil || spamHelper == nil {
 			return
 		}
@@ -137,11 +132,11 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", func() {
 
 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
 		require.NoError(err)
-	}))
+	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
-	ginkgo.It("[Sync]", asyncExecution(func() {
+var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
+	ginkgo.It("[Sync]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
@@ -244,18 +239,16 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		ginkgo.By("Accept a transaction after syncing", func() {
 			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, uris[0], uris)
 		})
-	}))
+	})
 })
 
-var _ = ginkgo.Describe("[Custom VM Tests]", func() {
+var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 	tc := e2e.NewTestContext()
 	require := require.New(tc)
 
 	for testRegistry := range registry.GetTestsRegistries() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(test.Name, func() {
-				execSyncer.Lock()
-				defer execSyncer.Unlock()
 				testNetwork := NewNetwork(tc)
 				require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 			})
@@ -283,13 +276,4 @@ func getE2EBaseURIs(tc tests.TestContext) []string {
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
-}
-
-// asyncExecution helper ensure that the inner method invocation takes placed while the reader lock is taken.
-func asyncExecution(asyncFunc func()) func() {
-	return func() {
-		execSyncer.RLock()
-		defer execSyncer.RUnlock()
-		asyncFunc()
-	}
 }
