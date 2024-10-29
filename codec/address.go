@@ -8,10 +8,13 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 )
 
-// TODO: add a checksum to the hex address format (ideally similar to EIP55).
-const AddressLen = 33
+const (
+	AddressLen  = 33
+	checksumLen = 4
+)
 
 // Address represents the 33 byte address of a HyperSDK account
 type Address [AddressLen]byte
@@ -78,4 +81,13 @@ func (a *Address) UnmarshalText(input []byte) error {
 
 	copy(a[:], decoded)
 	return nil
+}
+
+// Returns the checksum representation of the address.
+// The checksum of an address is the address with a 4 byte checksum appended to it.
+func (a *Address) ToChecksum() string {
+	checked := make([]byte, AddressLen+checksumLen)
+	copy(checked, a[:])
+	copy(checked[AddressLen:], hashing.Checksum(a[:], checksumLen))
+	return "0x" + hex.EncodeToString(checked)
 }
