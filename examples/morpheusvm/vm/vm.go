@@ -22,6 +22,8 @@ var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
+
+	AuthProvider *auth.AuthProvider
 )
 
 // Setup types
@@ -29,8 +31,12 @@ func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
+	AuthProvider = auth.NewAuthProvider()
 
 	errs := &wrappers.Errs{}
+
+	auth.WithDefaultPrivateKeyProviders(AuthProvider, errs)
+
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
@@ -43,6 +49,7 @@ func init() {
 
 		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
+
 	if errs.Errored() {
 		panic(errs.Err)
 	}
