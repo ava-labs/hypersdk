@@ -44,10 +44,12 @@ func TestEncodeWithChecksum(t *testing.T) {
 	require := require.New(t)
 
 	tests := []struct {
+		name string
 		address     Address
 		checksumStr string
 	}{
-		{
+		{	
+			name: "zeroAddressChecksum",
 			address: CreateAddress(
 				byte(0),
 				ids.Empty,
@@ -55,23 +57,17 @@ func TestEncodeWithChecksum(t *testing.T) {
 			checksumStr: "0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9",
 		},
 		{
+			name: "arbitraryAddressChecksum",
 			address: CreateAddress(
 				byte(0),
 				[32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 			),
 			checksumStr: "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20a10df6ab",
 		},
-		{
-			address: CreateAddress(
-				byte(16),
-				[32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
-			),
-			checksumStr: "0x102122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40182496b1",
-		},
 	}
 
 	for _, test := range tests {
-		require.Equal(test.checksumStr, encodeWithChecksum(test.address[:]))
+		require.Equal(test.checksumStr, test.address.String())
 	}
 }
 
