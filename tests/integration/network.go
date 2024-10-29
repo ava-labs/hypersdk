@@ -102,7 +102,10 @@ func (*Network) SyncronizeNetwork(ctx context.Context) error {
 }
 
 func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *chain.StatefulBlock) error {
-	i.vm.SetPreference(ctx, lastAcceptedBlock.ID())
+	err := i.vm.SetPreference(ctx, lastAcceptedBlock.ID())
+	if err != nil {
+		return fmt.Errorf("applyBlk failed to set preference : %w", err)
+	}
 	blk, err := i.vm.ParseBlock(ctx, lastAcceptedBlock.Bytes())
 	if err != nil {
 		return fmt.Errorf("applyBlk failed to parse block : %w", err)
