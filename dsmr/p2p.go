@@ -18,7 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
-var _ p2p.Handler = (*GetChunkHandler[Tx])(nil)
+var (
+	_ p2p.Handler = (*GetChunkHandler[Tx])(nil)
+	_ p2p.Handler = (*GetChunkSignatureHandler[Tx])(nil)
+)
 
 type GetChunkHandler[T Tx] struct {
 	storage *chunkStorage[T]
@@ -127,4 +130,16 @@ type ChunkSignature struct {
 	Expiry     time.Time
 	Signer     [bls.PublicKeyLen]byte
 	Signature  [bls.SignatureLen]byte
+}
+
+type GetChunkSignatureHandler[T Tx] struct{}
+
+func (g GetChunkSignatureHandler[T]) AppGossip(ctx context.Context, nodeID ids.NodeID, gossipBytes []byte) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g GetChunkSignatureHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
+	//TODO implement me
+	panic("implement me")
 }

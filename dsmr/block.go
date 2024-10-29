@@ -53,7 +53,7 @@ func newChunk[T Tx](
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
-		return Chunk[T]{}, err
+		return c, err
 	}
 	c.bytes = packer.Bytes
 	c.id = utils.ToID(c.bytes)

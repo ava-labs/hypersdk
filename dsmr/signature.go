@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -12,7 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
-var _ acp118.Verifier = (*ChunkSignatureVerifier)(nil)
+var _ acp118.Verifier = (*ChunkSignatureVerifier[Tx])(nil)
 
 type ChunkSignatureVerifier[T Tx] struct {
 	storage *chunkStorage[T]

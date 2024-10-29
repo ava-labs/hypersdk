@@ -10,113 +10,155 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
+)
+
+var (
+	_ Tx                                                                         = (*tx)(nil)
+	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureParser)(nil)
 )
 
 func TestGetChunk(t *testing.T) {
+	type addChunkArgs struct {
+		txs    []tx
+		expiry time.Time
+	}
+
 	tests := []struct {
-		name   string
-		chunks [][]tx
+		name         string
+		addChunkArgs []addChunkArgs
 	}{
 		{
-			name:   "no chunks",
-			chunks: [][]tx{},
+			name:         "no chunks",
+			addChunkArgs: nil,
 		},
 		{
 			name: "1 chunk with 1 tx",
-			chunks: [][]tx{
+			addChunkArgs: []addChunkArgs{
 				{
-					{
-						ID:     ids.ID{0},
-						Expiry: 0,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 0,
+						},
 					},
+					expiry: time.Now(),
 				},
 			},
 		},
 		{
 			name: "1 chunk with 3 txs",
-			chunks: [][]tx{
+			addChunkArgs: []addChunkArgs{
 				{
-					{
-						ID:     ids.ID{0},
-						Expiry: 0,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 0,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 1,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 2,
+						},
 					},
-					{
-						ID:     ids.ID{1},
-						Expiry: 1,
-					},
-					{
-						ID:     ids.ID{2},
-						Expiry: 2,
-					},
+					expiry: time.Now(),
 				},
 			},
 		},
 		{
 			name: "3 chunks with 1 tx",
-			chunks: [][]tx{
+			addChunkArgs: []addChunkArgs{
 				{
-					{
-						ID:     ids.ID{0},
-						Expiry: 0,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 0,
+						},
 					},
+					expiry: time.Now(),
 				},
 				{
-					{
-						ID:     ids.ID{1},
-						Expiry: 1,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 1,
+						},
 					},
+					expiry: time.Now(),
+				},
+				{
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 2,
+						},
+					},
+					expiry: time.Now(),
 				},
 			},
 		},
 		{
 			name: "3 chunks with 3 txs",
-			chunks: [][]tx{
+			addChunkArgs: []addChunkArgs{
 				{
-					{
-						ID:     ids.ID{0},
-						Expiry: 0,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 0,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 1,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 2,
+						},
 					},
-					{
-						ID:     ids.ID{1},
-						Expiry: 1,
-					},
-					{
-						ID:     ids.ID{2},
-						Expiry: 2,
-					},
+					expiry: time.Now(),
 				},
 				{
-					{
-						ID:     ids.ID{3},
-						Expiry: 3,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 3,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 4,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 5,
+						},
 					},
-					{
-						ID:     ids.ID{4},
-						Expiry: 4,
-					},
-					{
-						ID:     ids.ID{5},
-						Expiry: 5,
-					},
+					expiry: time.Now(),
 				},
 				{
-					{
-						ID:     ids.ID{6},
-						Expiry: 6,
+					txs: []tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 6,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 7,
+						},
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: 8,
+						},
 					},
-					{
-						ID:     ids.ID{7},
-						Expiry: 7,
-					},
-					{
-						ID:     ids.ID{8},
-						Expiry: 8,
-					},
+					expiry: time.Now(),
 				},
 			},
 		},
@@ -124,21 +166,21 @@ func TestGetChunk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
+			r := require.New(t)
 
-			nodeID := ids.GenerateTestNodeID()
 			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
 			sk, err := bls.NewSecretKey()
-			require.NoError(err)
+			r.NoError(err)
 
+			nodeID := ids.GenerateTestNodeID()
 			node, err := New[tx](nodeID, sk, beneficiary, nil)
-			require.NoError(err)
+			r.NoError(err)
 
 			expiry := time.Now()
 			wantChunks := make([]Chunk[tx], 0)
-			for _, txs := range tt.chunks {
-				chunk, err := node.BuildChunk(txs, expiry)
-				require.NoError(err)
+			for _, args := range tt.addChunkArgs {
+				chunk, err := node.NewChunk(args.txs, args.expiry)
+				r.NoError(err)
 
 				wantChunks = append(wantChunks, chunk)
 			}
@@ -154,11 +196,13 @@ func TestGetChunk(t *testing.T) {
 			}
 
 			wg := &sync.WaitGroup{}
-			wg.Add(len(wantChunks))
+			wg.Add(len(tt.addChunkArgs))
 
+			// Node must serve GetChunk requests for chunks that it
+			// built
 			gotChunks := make(map[ids.ID]Chunk[tx], 0)
 			for _, chunk := range wantChunks {
-				require.NoError(client.GetChunk(
+				r.NoError(client.GetChunk(
 					context.Background(),
 					ids.EmptyNodeID,
 					chunk.id,
@@ -166,7 +210,7 @@ func TestGetChunk(t *testing.T) {
 					func(ctx context.Context, c Chunk[tx], err error) {
 						defer wg.Done()
 
-						require.NoError(err)
+						r.NoError(err)
 
 						gotChunks[c.id] = c
 					},
@@ -176,20 +220,62 @@ func TestGetChunk(t *testing.T) {
 			wg.Wait()
 
 			for _, chunk := range wantChunks {
-				require.Contains(gotChunks, chunk.id)
+				r.Contains(gotChunks, chunk.id)
 
 				gotChunk := gotChunks[chunk.id]
-				require.Equal(nodeID, gotChunk.Producer)
-				require.Equal(chunk.Expiry, gotChunk.Expiry)
-				require.Equal(beneficiary, gotChunk.Beneficiary)
-				require.ElementsMatch(chunk.Txs, gotChunk.Txs)
+				r.Equal(nodeID, gotChunk.Producer)
+				r.Equal(chunk.Expiry, gotChunk.Expiry)
+				r.Equal(beneficiary, gotChunk.Beneficiary)
+				r.ElementsMatch(chunk.Txs, gotChunk.Txs)
 				//TODO check signature + aggregate public key
 			}
 		})
 	}
 }
 
-var _ Tx = (*tx)(nil)
+//// Node should be willing to sign valid chunks
+//func TestGetChunkSignature(t *testing.T) {
+//	tests := []struct {
+//		name string
+//	}{}
+//
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			t.Skip()
+//
+//			r := require.New(t)
+//			sk, err := bls.NewSecretKey()
+//			r.NoError(err)
+//
+//			node, err := New[tx](ids.EmptyNodeID, sk, codec.Address{}, nil)
+//			r.NoError(err)
+//
+//			r.NoError(node.NewChunk(Chunk[tx]{}))
+//
+//			client := NewTypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse](
+//				p2ptest.NewClient(
+//					t,
+//					context.Background(),
+//					node.GetChunkSignatureHandler,
+//					ids.EmptyNodeID,
+//					ids.EmptyNodeID,
+//				),
+//				getChunkSignatureParser{},
+//			)
+//
+//			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+//
+//			}
+//
+//			r.NoError(client.AppRequest(
+//				context.Background(),
+//				set.Set[ids.NodeID]{},
+//				nil,
+//				onResponse,
+//			))
+//		})
+//	}
+//}
 
 type tx struct {
 	ID     ids.ID `serialize:"true"`
@@ -202,4 +288,19 @@ func (t tx) GetID() ids.ID {
 
 func (t tx) GetExpiry() time.Time {
 	return time.Unix(0, t.Expiry)
+}
+
+type getChunkSignatureParser struct{}
+
+func (g getChunkSignatureParser) MarshalRequest(t *dsmr.GetChunkSignatureRequest) ([]byte, error) {
+	return proto.Marshal(t)
+}
+
+func (g getChunkSignatureParser) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkSignatureResponse, error) {
+	response := dsmr.GetChunkSignatureResponse{}
+	if err := proto.Unmarshal(bytes, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
 }
