@@ -14,6 +14,8 @@ simulator = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = "0.5.1"
+wasmlanche-test = { path = "wasmlanche-test" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 wasmtime = "14"
