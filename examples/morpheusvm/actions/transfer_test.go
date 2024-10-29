@@ -145,7 +145,9 @@ func TestMultiTransfer(t *testing.T) {
 				To:    addrBob,
 				Value: 1,
 			},
-			State: store,
+			State: func() state.Mutable {
+				return store
+			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				receiverBalance, err := storage.GetBalance(ctx, store, addrBob)
 				require.NoError(t, err)
@@ -166,7 +168,9 @@ func TestMultiTransfer(t *testing.T) {
 				To:    addrAlice,
 				Value: 1,
 			},
-			State: store,
+			State: func() state.Mutable {
+				return store
+			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				receiverBalance, err := storage.GetBalance(ctx, store, addrAlice)
 				require.NoError(t, err)
