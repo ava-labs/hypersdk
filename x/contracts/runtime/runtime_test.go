@@ -46,7 +46,6 @@ func BenchmarkRuntimeModuleNotCached(b *testing.B) {
 		// reset module
 		rt.callContext.r.contractCache.Flush()
 		b.StartTimer()
-
 	}
 }
 
