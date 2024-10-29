@@ -12,6 +12,7 @@ members = [
   "x/contracts/examples/tutorial",
   "x/contracts/examples/nft",
   "x/contracts/examples/multisig",
+  "x/contracts/wasmlanche/wasmlanche-test",
 ]
 resolver = "2"
 
