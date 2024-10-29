@@ -155,3 +155,32 @@ func (b *ED25519Batch) Done() []func() error {
 func NewED25519Address(pk ed25519.PublicKey) codec.Address {
 	return codec.CreateAddress(ED25519ID, utils.ToID(pk[:]))
 }
+
+type ED25519PrivateKeyProvider struct{}
+
+func NewED25519PrivateKeyProvider() *ED25519PrivateKeyProvider {
+	return &ED25519PrivateKeyProvider{}
+}
+
+func (*ED25519PrivateKeyProvider) GeneratePrivateKey() (*PrivateKey, error) {
+	p, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	return &PrivateKey{
+		Address: NewED25519Address(p.PublicKey()),
+		Bytes:   p[:],
+	}, nil
+}
+
+func (*ED25519PrivateKeyProvider) LoadPrivateKey(privateKey []byte) (*PrivateKey, error) {
+	pk := ed25519.PrivateKey(privateKey)
+	return &PrivateKey{
+		Address: NewED25519Address(pk.PublicKey()),
+		Bytes:   privateKey,
+	}, nil
+}
+
+func (*ED25519PrivateKeyProvider) GetExpectedBytesLength() int {
+	return ed25519.PrivateKeyLen
+}

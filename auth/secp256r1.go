@@ -108,3 +108,32 @@ func (d *SECP256R1Factory) Address() codec.Address {
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
 	return codec.CreateAddress(SECP256R1ID, utils.ToID(pk[:]))
 }
+
+type SECP256R1PrivateKeyProvider struct{}
+
+func NewSECP256R1PrivateKeyProvider() *SECP256R1PrivateKeyProvider {
+	return &SECP256R1PrivateKeyProvider{}
+}
+
+func (*SECP256R1PrivateKeyProvider) GeneratePrivateKey() (*PrivateKey, error) {
+	p, err := secp256r1.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	return &PrivateKey{
+		Address: NewSECP256R1Address(p.PublicKey()),
+		Bytes:   p[:],
+	}, nil
+}
+
+func (*SECP256R1PrivateKeyProvider) LoadPrivateKey(p []byte) (*PrivateKey, error) {
+	pk := secp256r1.PrivateKey(p)
+	return &PrivateKey{
+		Address: NewSECP256R1Address(pk.PublicKey()),
+		Bytes:   p,
+	}, nil
+}
+
+func (*SECP256R1PrivateKeyProvider) GetExpectedBytesLength() int {
+	return secp256r1.PrivateKeyLen
+}
