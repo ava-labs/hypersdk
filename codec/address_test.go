@@ -40,7 +40,7 @@ func TestAddressJSON(t *testing.T) {
 	require.Equal(addr, parsedAddr)
 }
 
-func TestChecksum(t *testing.T) {
+func TestEncodeWithChecksum(t *testing.T) {
 	require := require.New(t)
 
 	tests := []struct {
@@ -75,6 +75,43 @@ func TestChecksum(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		require.Equal(test.checksumStr, test.address.ToChecksum())
+		require.Equal(test.checksumStr, encodeWithChecksum(test.address[:]))
+	}
+}
+
+func TestFromChecksum(t *testing.T) {
+	require := require.New(t)
+	zeroAddress := CreateAddress(byte(0), ids.Empty)
+
+	tests := []struct {
+		name          string
+		inputStr      string
+		expectedBytes []byte
+		expectedErr   error
+	}{
+		{
+			name:          "simpleChecksummedAddress",
+			inputStr:      "0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9",
+			expectedBytes: zeroAddress[:],
+			expectedErr:   nil,
+		},
+		{
+			name:          "addressWithNoChecksum",
+			inputStr:      "0x000000000000000000000000000000000000000000000000000000000000000000",
+			expectedBytes: nil,
+			expectedErr:   ErrBadChecksum,
+		},
+		{
+			name:          "addressWithBadChecksum",
+			inputStr:      "0x000000000000000000000000000000000000000000000000000000000000000000b7396ce9",
+			expectedBytes: nil,
+			expectedErr:   ErrBadChecksum,
+		},
+	}
+
+	for _, test := range tests {
+		originalBytes, err := fromChecksum(test.inputStr)
+		require.Equal(test.expectedBytes, originalBytes)
+		require.Equal(test.expectedErr, err)
 	}
 }
