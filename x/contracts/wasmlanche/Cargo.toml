@@ -27,3 +27,7 @@ debug = ["std"]
 std = []
 test = ["std", "simulator"]
 simulator = ["std", "dep:simulator"]
+
+[[bench]]
+name = "call_contract"
+harness = false

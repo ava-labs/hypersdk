@@ -78,7 +78,7 @@ pub struct TestCrate {
 }
 
 impl TestCrate {
-    pub fn new(wasm_path: impl AsRef<Path>) -> Self {
+    fn new(wasm_path: impl AsRef<Path>) -> Self {
         let mut config = Config::new();
         let mut allocation_strategy = PoolingAllocationConfig::default();
         // not sure why, but this seems to be the min
@@ -90,7 +90,8 @@ impl TestCrate {
         let engine = Engine::new(&config).expect("engine failure");
         let mut store: Store<StoreData> = Store::new(&engine, Default::default());
         let mut linker = Linker::new(store.engine());
-        let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
+        let module =
+            Module::from_file(store.engine(), wasm_path.as_ref()).expect("failed to load wasm");
 
         linker
             .func_wrap(
@@ -253,45 +254,4 @@ impl TestCrate {
             .get_typed_func::<UserDefinedFnParam, UserDefinedFnReturn>(&mut self.store, name)
             .expect(&format!("failed to find `{name}` function"))
     }
-
-    // fn highest_allocated_address(&mut self, ptr: UserDefinedFnParam) -> usize {
-    //     self.highest_address_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `highest_allocated_address` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("highest_allocated_address should always return something");
-
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
-
-    // fn always_true(&mut self, ptr: UserDefinedFnParam) -> bool {
-    //     self.always_true_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `always_true` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("always_true should always return something");
-
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
-
-    // fn combine_last_bit_of_each_id_byte(&mut self, ptr: UserDefinedFnParam) -> u32 {
-    //     self.combine_last_bit_of_each_id_byte_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `combine_last_bit_of_each_id_byte` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("combine_last_bit_of_each_id_byte should always return something");
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
 }
