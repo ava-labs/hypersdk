@@ -1,16 +1,22 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+use borsh::BorshSerialize;
 use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
     process::Command,
 };
 use wasmlanche::{Address, ID_LEN};
 use wasmtime::{
-    Caller, Config, Engine, Extern, Instance, InstanceAllocationStrategy, Linker, Memory, Module,
-    PoolingAllocationConfig, Store, TypedFunc,
+    Caller, Config, Engine, Extern, Instance, Linker, Memory, Module, OptLevel, Store, StoreLimits,
+    StoreLimitsBuilder, TypedFunc,
 };
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const PROFILE: &str = "release";
+const ALLOC_FN_NAME: &str = "alloc";
 
 type AllocParam = u32;
 type AllocReturn = u32;
@@ -20,45 +26,77 @@ pub type UserDefinedFnReturn = ();
 pub type UserDefinedFn = TypedFunc<UserDefinedFnParam, UserDefinedFnReturn>;
 type StateKey = Box<[u8]>;
 type StateValue = Box<[u8]>;
-type StoreData = (Option<Vec<u8>>, HashMap<StateKey, StateValue>);
 
-pub struct Builder<'a> {
-    crate_name: &'a str,
+pub struct StoreData {
+    call_result: Option<Vec<u8>>,
+    state: HashMap<StateKey, StateValue>,
+    limiter: StoreLimits,
 }
 
-impl<'a> Builder<'a> {
-    pub fn new(crate_name: &'a str) -> Self {
-        Self { crate_name }
+impl StoreData {
+    fn set_result(&mut self, result: Vec<u8>) {
+        self.call_result = Some(result);
     }
 
-    pub fn build(self) -> TestCrate {
-        let Self { crate_name } = self;
+    fn set<Iter: IntoIterator<Item = (StateKey, StateValue)>>(&mut self, iter: Iter) {
+        self.state.extend(iter);
+    }
+
+    fn get(&self, key: &[u8]) -> Option<&StateValue> {
+        self.state.get(key)
+    }
+
+    pub fn take_result(&mut self) -> Option<Vec<u8>> {
+        self.call_result.take()
+    }
+}
+
+pub struct Builder {
+    engine: Engine,
+    module: Module,
+    linker: Linker<StoreData>,
+}
+
+impl Builder {
+    pub fn new(crate_name: &'static str) -> Self {
+        thread_local! {
+            static BUILD_SET: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+            static WASM_CACHE: RefCell<HashMap<PathBuf, Box<[u8]>>> = RefCell::new(HashMap::new());
+        }
 
         let wasm_path = {
             let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let manifest_dir = std::path::Path::new(&manifest_dir);
-            let test_crate_dir = manifest_dir.join("tests").join(crate_name);
             let target_dir = std::env::var("CARGO_TARGET_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| manifest_dir.join("target"));
 
-            let status = Command::new("cargo")
-                .arg("build")
-                .arg("--package")
-                .arg(crate_name)
-                .arg("--target")
-                .arg(WASM_TARGET)
-                .arg("--profile")
-                .arg(PROFILE)
-                .arg("--target-dir")
-                .arg(&target_dir)
-                .current_dir(&test_crate_dir)
-                .status()
-                .expect("cargo build failed");
+            BUILD_SET.with_borrow_mut(|build_set| {
+                if build_set.contains(crate_name) {
+                    return;
+                }
 
-            if !status.success() {
-                panic!("cargo build failed");
-            }
+                let status = Command::new("cargo")
+                    .arg("rustc")
+                    .arg("--crate-type")
+                    .arg("cdylib")
+                    .arg("--package")
+                    .arg(crate_name)
+                    .arg("--target")
+                    .arg(WASM_TARGET)
+                    .arg("--profile")
+                    .arg(PROFILE)
+                    .arg("--target-dir")
+                    .arg(&target_dir)
+                    .status()
+                    .expect("cargo build failed");
+
+                if !status.success() {
+                    panic!("cargo build failed");
+                }
+
+                build_set.insert(crate_name.to_string());
+            });
 
             target_dir
                 .join(WASM_TARGET)
@@ -67,30 +105,30 @@ impl<'a> Builder<'a> {
                 .with_extension("wasm")
         };
 
-        TestCrate::new(wasm_path)
-    }
-}
-
-pub struct TestCrate {
-    store: Store<StoreData>,
-    instance: Instance,
-    allocate_func: AllocFn,
-}
-
-impl TestCrate {
-    pub fn new(wasm_path: impl AsRef<Path>) -> Self {
         let mut config = Config::new();
-        let mut allocation_strategy = PoolingAllocationConfig::default();
-        // not sure why, but this seems to be the min
-        allocation_strategy.max_memory_size(18 * 0x10000);
 
-        let allocation_strategy = InstanceAllocationStrategy::Pooling(allocation_strategy);
-        config.allocation_strategy(allocation_strategy);
+        config.cranelift_opt_level(OptLevel::Speed);
+        config.consume_fuel(true);
+        config.wasm_threads(false);
+        config.wasm_multi_memory(false);
+        config.wasm_memory64(false);
+        config.epoch_interruption(true); // I think this is redundant when there's fuel
+        config.cranelift_nan_canonicalization(true);
+        // config.static_memory_maximum_size(0); // 0 is dynamic-only
 
         let engine = Engine::new(&config).expect("engine failure");
-        let mut store: Store<StoreData> = Store::new(&engine, Default::default());
-        let mut linker = Linker::new(store.engine());
-        let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
+
+        let module = WASM_CACHE.with_borrow_mut(|cache| {
+            let bytes = cache.entry(wasm_path).or_insert_with_key(|wasm_path| {
+                std::fs::read(wasm_path)
+                    .expect("failed to read wasm")
+                    .into_boxed_slice()
+            });
+
+            Module::from_binary(&engine, bytes).expect("failed to compile wasm")
+        });
+
+        let mut linker = Linker::new(&engine);
 
         linker
             .func_wrap(
@@ -112,8 +150,7 @@ impl TestCrate {
                         .expect("data should exist")
                         .to_vec();
 
-                    let store_result = &mut caller.data_mut().0;
-                    *store_result = Some(result.to_vec())
+                    caller.data_mut().set_result(result.to_vec());
                 },
             )
             .expect("failed to link `contract.set_call_result` function");
@@ -164,57 +201,135 @@ impl TestCrate {
                     let args: Vec<(StateKey, StateValue)> =
                         borsh::from_slice(serialized_args).expect("failed to deserialize args");
 
-                    let state = &mut caller.data_mut().1;
-
-                    state.extend(args);
+                    caller.data_mut().set(args);
                 },
             )
             .expect("failed to link `state.put` function");
+
+        linker
+            .func_wrap(
+                "state",
+                "get",
+                move |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
+                    let Extern::Memory(memory) = caller
+                        .get_export("memory")
+                        .expect("memory should be exported")
+                    else {
+                        panic!("export `memory` should be of type `Memory`");
+                    };
+
+                    let value = {
+                        let (ptr, len) = (ptr as usize, len as usize);
+
+                        let state_key = memory
+                            .data(&caller)
+                            .get(ptr..ptr + len)
+                            .expect("data should exist");
+
+                        caller.data().get(state_key).cloned()
+                    };
+
+                    let Some(value) = value else {
+                        return 0;
+                    };
+
+                    let Some(Extern::Func(f)) = caller.get_export(ALLOC_FN_NAME) else {
+                        panic!("export `{ALLOC_FN_NAME}` should exist");
+                    };
+
+                    // TODO:
+                    // should able to call this unchecked as it is checked
+                    // immediately after instantiation of any instance
+                    let alloc = f
+                        .typed::<AllocParam, AllocReturn>(&mut caller)
+                        .expect("allocate function should always exist");
+
+                    let offset = alloc
+                        .call(&mut caller, value.len() as u32)
+                        .expect("failed to allocate memory");
+
+                    memory
+                        .write(&mut caller, offset as usize, &value)
+                        .expect("failed to write value to memory");
+
+                    offset
+                },
+            )
+            .expect("failed to link `state.get` function");
+
+        Self {
+            engine,
+            module,
+            linker,
+        }
+    }
+
+    pub fn build(&self) -> TestCrate {
+        let Self {
+            engine,
+            module,
+            linker,
+        } = self;
+
+        let store_data = StoreData {
+            call_result: None,
+            state: HashMap::default(),
+            limiter: StoreLimitsBuilder::new().memory_size(18 * 0x10000).build(),
+        };
+
+        let mut store = Store::new(&engine, store_data);
+        store.set_epoch_deadline(1);
+        store
+            .set_fuel(u64::MAX)
+            .expect("should be able to set fuel");
+        store.limiter(|data| &mut data.limiter);
 
         let instance = linker
             .instantiate(&mut store, &module)
             .expect("failed to instantiate wasm");
 
         let allocate_func = instance
-            .get_typed_func(&mut store, "alloc")
+            .get_typed_func(&mut store, ALLOC_FN_NAME)
             .expect("failed to find `alloc` function");
 
-        // let highest_address_func = instance
-        //     .get_typed_func(&mut store, "highest_allocated_address")
-        //     .expect("failed to find `highest_allocated_address` function");
-
-        // let always_true_func = instance
-        //     .get_typed_func(&mut store, "always_true")
-        //     .expect("failed to find `always_true` function");
-        // let combine_last_bit_of_each_id_byte_func = instance
-        //     .get_typed_func(&mut store, "combine_last_bit_of_each_id_byte")
-        //     .expect("combine_last_bit_of_each_id_byte should be a function");
-
-        Self {
+        TestCrate {
             store,
             instance,
             allocate_func,
-            // highest_address_func,
-            // always_true_func,
-            // combine_last_bit_of_each_id_byte_func,
         }
     }
+}
 
-    pub fn write_context(&mut self) -> AllocReturn {
+pub struct TestCrate {
+    store: Store<StoreData>,
+    instance: Instance,
+    allocate_func: AllocFn,
+}
+
+impl TestCrate {
+    pub fn allocate_context(&mut self) -> AllocReturn {
+        self.allocate_params(&())
+    }
+
+    pub fn allocate_params<T: BorshSerialize>(&mut self, params: &T) -> u32 {
         let contract_id = vec![1; Address::LEN];
-        let mut actor = vec![0; Address::LEN];
+        let mut actor = vec![2; Address::LEN];
         let height: u64 = 0;
         let timestamp: u64 = 0;
         let mut action_id = vec![1; ID_LEN];
 
         // this is a hack to create a context since the constructor is private
-        let mut serialized_context = contract_id;
-        serialized_context.append(&mut actor);
-        serialized_context.append(&mut height.to_le_bytes().to_vec());
-        serialized_context.append(&mut timestamp.to_le_bytes().to_vec());
-        serialized_context.append(&mut action_id);
+        let mut ctx = contract_id;
+        ctx.append(&mut actor);
+        ctx.append(&mut height.to_le_bytes().to_vec());
+        ctx.append(&mut timestamp.to_le_bytes().to_vec());
+        ctx.append(&mut action_id);
 
-        self.allocate(serialized_context)
+        params
+            .serialize(&mut ctx)
+            .expect("failed to serialize params");
+
+        self.allocate(ctx)
     }
 
     pub fn store_mut(&mut self) -> &mut Store<StoreData> {
@@ -253,45 +368,4 @@ impl TestCrate {
             .get_typed_func::<UserDefinedFnParam, UserDefinedFnReturn>(&mut self.store, name)
             .expect(&format!("failed to find `{name}` function"))
     }
-
-    // fn highest_allocated_address(&mut self, ptr: UserDefinedFnParam) -> usize {
-    //     self.highest_address_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `highest_allocated_address` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("highest_allocated_address should always return something");
-
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
-
-    // fn always_true(&mut self, ptr: UserDefinedFnParam) -> bool {
-    //     self.always_true_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `always_true` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("always_true should always return something");
-
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
-
-    // fn combine_last_bit_of_each_id_byte(&mut self, ptr: UserDefinedFnParam) -> u32 {
-    //     self.combine_last_bit_of_each_id_byte_func
-    //         .call(&mut self.store, ptr)
-    //         .expect("failed to call `combine_last_bit_of_each_id_byte` function");
-    //     let result = self
-    //         .store
-    //         .data_mut()
-    //         .0
-    //         .take()
-    //         .expect("combine_last_bit_of_each_id_byte should always return something");
-    //     borsh::from_slice(&result).expect("failed to deserialize result")
-    // }
 }

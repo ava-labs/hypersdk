@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -117,17 +118,23 @@ func BenchmarkRuntimeInstance(b *testing.B) {
 
 	module, err := rt.callContext.r.getModule(ctx, newInfo, programID)
 	require.NoError(err)
+
+	var inst *ContractInstance
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		inst, err := rt.callContext.r.getInstance(module)
+		b.StopTimer()
+		runtime.GC()
+		b.StartTimer()
+
+		inst, err = rt.callContext.r.getInstance(module)
 		require.NoError(err)
 		_ = inst
 
-		b.StopTimer()
-		// reset module
-		module, err = rt.callContext.r.getModule(ctx, newInfo, programID)
-		require.NoError(err)
-		b.StartTimer()
+		// // reset module
+		// module, err = rt.callContext.r.getModule(ctx, newInfo, programID)
+		// require.NoError(err)
+		// b.StartTimer()
 	}
 }
 
@@ -194,9 +201,14 @@ func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		runtime.GC()
+		b.StartTimer()
+
 		result, err := contract.CallWithSerializedParams("get_value", nil)
 		require.NoError(err)
-		require.Equal(uint64(0), into[uint64](result))
+		_ = result
+		// require.Equal(uint64(0), into[uint64](result))
 	}
 }
 

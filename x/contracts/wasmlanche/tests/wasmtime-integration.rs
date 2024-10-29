@@ -11,10 +11,10 @@ const TEST_PKG: &str = "test-crate";
 fn public_functions() {
     let mut test_crate = build_test_crate();
 
-    let context_ptr = test_crate.write_context();
+    let context_ptr = test_crate.allocate_context();
     assert!(test_crate.always_true(context_ptr));
 
-    let context_ptr = test_crate.write_context();
+    let context_ptr = test_crate.allocate_context();
     let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
     assert_eq!(combined_binary_digits, u32::MAX);
 }
@@ -32,7 +32,7 @@ const ALLOCATION_MAP_OVERHEAD: usize = 48;
 #[test]
 fn allocate_data_size() {
     let mut test_crate = build_test_crate();
-    let context_ptr = test_crate.write_context();
+    let context_ptr = test_crate.allocate_context();
     let highest_address = test_crate.highest_allocated_address(context_ptr);
     let memory = test_crate.memory();
     let room = memory.data_size(test_crate.store_mut()) - highest_address - ALLOCATION_MAP_OVERHEAD;
@@ -46,7 +46,7 @@ fn allocate_data_size() {
 #[should_panic]
 fn allocate_data_size_plus_one() {
     let mut test_crate = build_test_crate();
-    let context_ptr = test_crate.write_context();
+    let context_ptr = test_crate.allocate_context();
     let highest_address = test_crate.highest_allocated_address(context_ptr);
     let memory = test_crate.memory();
     let room = memory.data_size(test_crate.store_mut()) - highest_address - ALLOCATION_MAP_OVERHEAD;
@@ -107,8 +107,7 @@ impl TestCrate {
         let result = inner
             .store_mut()
             .data_mut()
-            .0
-            .take()
+            .take_result()
             .expect("highest_allocated_address should always return something");
 
         borsh::from_slice(&result).expect("failed to deserialize result")
@@ -127,8 +126,7 @@ impl TestCrate {
         let result = inner
             .store_mut()
             .data_mut()
-            .0
-            .take()
+            .take_result()
             .expect("always_true should always return something");
 
         borsh::from_slice(&result).expect("failed to deserialize result")
@@ -150,8 +148,7 @@ impl TestCrate {
         let result = inner
             .store_mut()
             .data_mut()
-            .0
-            .take()
+            .take_result()
             .expect("combine_last_bit_of_each_id_byte should always return something");
         borsh::from_slice(&result).expect("failed to deserialize result")
     }
