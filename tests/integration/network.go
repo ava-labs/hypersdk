@@ -6,7 +6,7 @@ package integration
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -21,23 +21,107 @@ var (
 	ErrTxNotFound        = errors.New("tx not found")
 )
 
-const (
-	txCheckInterval = 100 * time.Millisecond
-)
-
 type Network struct {
 	uris []string
 }
 
 func (*Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
-	return instances[0].ConfirmTxs(ctx, txs)
+	err := instances[0].confirmTxs(ctx, txs)
+	if err != nil {
+		return err
+	}
+	lastAcceptedBlock := instances[0].vm.LastAcceptedBlock()
+	for i := 1; i < len(instances); i++ {
+		err = instances[i].applyBlk(ctx, lastAcceptedBlock)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (*Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
 	return instances[0].GenerateTx(ctx, actions, auth)
 }
 
-func (i *instance) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+// SyncronizeNetwork ensures that all the nodes on the network are at the same block height.
+// this method should be called at the beginning of each test to ensure good starting point.
+func (*Network) SyncronizeNetwork(ctx context.Context) error {
+	// find the latest block height across the network
+	var biggestHeight uint64
+	var biggestHeightInstanceIndex int
+	for i, instance := range instances {
+		lastHeight, err := instance.vm.GetLastAcceptedHeight()
+		if err != nil {
+			return err
+		}
+		if lastHeight >= biggestHeight {
+			biggestHeightInstanceIndex = i
+			biggestHeight = lastHeight
+		}
+	}
+	for i := 0; i < len(instances); i++ {
+		if i == biggestHeightInstanceIndex {
+			continue
+		}
+		vm := instances[i].vm
+		for {
+			height, err := vm.GetLastAcceptedHeight()
+			if err != nil {
+				return err
+			}
+			if height == biggestHeight {
+				break
+			}
+			statefulBlock, err := instances[biggestHeightInstanceIndex].vm.GetDiskBlock(ctx, height+1)
+			if err != nil {
+				return err
+			}
+			err = vm.SetPreference(ctx, statefulBlock.ID())
+			if err != nil {
+				return err
+			}
+			blk, err := vm.ParseBlock(ctx, statefulBlock.Bytes())
+			if err != nil {
+				return err
+			}
+			err = blk.Verify(ctx)
+			if err != nil {
+				return err
+			}
+			err = blk.Accept(ctx)
+			if err != nil {
+				return err
+			}
+			if instances[i].onAccept != nil {
+				instances[i].onAccept(blk)
+			}
+		}
+	}
+	return nil
+}
+
+func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *chain.StatefulBlock) error {
+	i.vm.SetPreference(ctx, lastAcceptedBlock.ID())
+	blk, err := i.vm.ParseBlock(ctx, lastAcceptedBlock.Bytes())
+	if err != nil {
+		return fmt.Errorf("applyBlk failed to parse block : %w", err)
+	}
+	err = blk.Verify(ctx)
+	if err != nil {
+		return fmt.Errorf("applyBlk failed to verify block : %w", err)
+	}
+	err = blk.Accept(ctx)
+	if err != nil {
+		return fmt.Errorf("applyBlk failed to accept block : %w", err)
+	}
+	if i.onAccept != nil {
+		i.onAccept(blk)
+	}
+	return nil
+}
+
+func (i *instance) confirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	errs := i.vm.Submit(ctx, true, txs)
 	if len(errs) != 0 && errs[0] != nil {
 		return errs[0]
@@ -45,26 +129,14 @@ func (i *instance) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) err
 
 	expectBlk(i)(false)
 
-	for {
-		allFound := true
-		for _, tx := range txs {
-			err := i.confirmTx(ctx, tx.ID())
-			if err == ErrTxNotFound {
-				allFound = false
-				break
-			}
+	for _, tx := range txs {
+		err := i.confirmTx(ctx, tx.ID())
+		if err != nil {
 			return err
 		}
-		if allFound {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.NewTimer(txCheckInterval).C:
-			// try again
-		}
 	}
+
+	return nil
 }
 
 func (i *instance) URI() string {

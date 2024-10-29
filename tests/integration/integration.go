@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -537,9 +538,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
-		// Clear previous txs on instance 0
-		accept := expectBlk(instances[0])
-		accept(false) // don't care about results
+		// syncronize the nodes on the network.
+		// this would clear previous txs on instance 0
+		// and ignore the transaction results while
+		// syncronizing the nodes on the network.
+		testNetwork := &Network{uris: uris}
+		require.NoError(testNetwork.SyncronizeNetwork(context.Background()))
 
 		// Subscribe to blocks
 		cli, err := ws.NewWebSocketClient(instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
@@ -555,7 +559,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		accept = expectBlk(instances[0])
+		accept := expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -616,15 +620,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// Close connection when done
 		require.NoError(cli.Close())
 	})
-})
-
-var _ = ginkgo.Describe("[Custom VM Tests]", func() {
-	require := require.New(ginkgo.GinkgoT())
 
 	for testRegistry := range registry.GetTestsRegistries() {
 		for _, test := range testRegistry.List() {
-			ginkgo.It(test.Name, func() {
+			ginkgo.It(fmt.Sprintf("Custom VM Test '%s'", test.Name), func() {
 				testNetwork := &Network{uris: uris}
+				require.NoError(testNetwork.SyncronizeNetwork(context.Background()))
 				require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
 			})
 		}

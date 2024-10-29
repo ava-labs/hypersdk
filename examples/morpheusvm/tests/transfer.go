@@ -26,7 +26,6 @@ var TestsRegistry = &registry.Registry{}
 
 var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
 	require := require.New(t)
-
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
