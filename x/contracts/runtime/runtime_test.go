@@ -194,7 +194,7 @@ func BenchmarkRuntimeCallContractBasic(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, err := contract.Call("get_value")
+		result, err := contract.CallWithSerializedParams("get_value", nil)
 		require.NoError(err)
 		require.Equal(uint64(0), into[uint64](result))
 	}
@@ -212,9 +212,11 @@ func BenchmarkRuntimeSendValue(b *testing.B) {
 	require.NoError(err)
 	contract.Runtime.StateManager.(TestStateManager).Balances[contract.Address] = consts.MaxUint64
 
+	params := test.SerializeParams(actor)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, err := contract.Call("send_balance", actor)
+		result, err := contract.CallWithSerializedParams("send_balance", params)
 		require.NoError(err)
 		require.True(into[bool](result))
 	}
@@ -235,11 +237,39 @@ func BenchmarkRuntimeBasicExternalCalls(b *testing.B) {
 	require.NoError(err)
 	addressOf := codec.CreateAddress(0, ids.GenerateTestID())
 
+	params := test.SerializeParams(counterAddress, addressOf)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, err := contract.Call("get_value", counterAddress, addressOf)
+		result, err := contract.CallWithSerializedParams("get_value", params)
 		require.NoError(err)
 		require.Equal(uint64(0), into[uint64](result))
+	}
+}
+
+// Benchmark an NFT
+func BenchmarkNFTMint(b *testing.B) {
+	require := require.New(b)
+	ctx := context.Background()
+
+	rt := newTestRuntime(ctx)
+	nft, err := rt.newTestContract("nft")
+	require.NoError(err)
+
+	_, err = nft.Call("init", "NFT", "NFT")
+	require.NoError(err)
+
+	actor := codec.CreateAddress(0, ids.GenerateTestID())
+	params := make([][]byte, b.N)
+
+	for i := 0; i < b.N; i++ {
+		params[i] = test.SerializeParams(actor, i)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = nft.CallWithSerializedParams("mint", params[i])
+		require.NoError(err)
 	}
 }
 
@@ -291,9 +321,11 @@ func BenchmarkAmmSwaps(b *testing.B) {
 	_, err = amm.WithActor(lp).Call("add_liquidity", amountMint, amountMint)
 	require.NoError(err)
 
+	params := test.SerializeParams(tokenX.Address, 150)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		received, err := amm.WithActor(swaper).Call("swap", tokenX.Address, 150)
+		received, err := amm.WithActor(swaper).CallWithSerializedParams("swap", params)
 		require.NoError(err)
 		require.NotZero(received)
 	}
