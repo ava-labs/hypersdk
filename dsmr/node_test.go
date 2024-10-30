@@ -34,7 +34,42 @@ func TestNewChunk(t *testing.T) {
 		txs     []tx
 		expiry  time.Time
 		wantErr error
-	}{}
+	}{
+		{
+			name:    "empty chunk",
+			txs:     nil,
+			expiry:  time.Now(),
+			wantErr: ErrEmptyChunk,
+		},
+		{
+			name: "chunk with 1 tx ",
+			txs: []tx{
+				{
+					ID:     ids.GenerateTestID(),
+					Expiry: 1,
+				},
+			},
+			expiry: time.Now(),
+		},
+		{
+			name: "chunk with multiple txs",
+			txs: []tx{
+				{
+					ID:     ids.GenerateTestID(),
+					Expiry: 1,
+				},
+				{
+					ID:     ids.GenerateTestID(),
+					Expiry: 2,
+				},
+				{
+					ID:     ids.GenerateTestID(),
+					Expiry: 3,
+				},
+			},
+			expiry: time.Now(),
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,8 +98,8 @@ func TestNewChunk(t *testing.T) {
 				return
 			}
 
-			r.Contains(chunk.Txs, tt.txs)
-			r.Equal(chunk.Expiry, tt.expiry)
+			r.ElementsMatch(chunk.Txs, tt.txs)
+			r.Equal(chunk.Expiry, tt.expiry.Unix())
 		})
 	}
 }

@@ -4,6 +4,7 @@
 package dsmr
 
 import (
+	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -12,6 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
+)
+
+var (
+	ErrEmptyChunk = errors.New("empty chunk")
 )
 
 func New[T Tx](
@@ -80,6 +85,10 @@ type Node[T Tx] struct {
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
+	if len(txs) == 0 {
+		return Chunk[T]{}, ErrEmptyChunk
+	}
+
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.nodeID,
