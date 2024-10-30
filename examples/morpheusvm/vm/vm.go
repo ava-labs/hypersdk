@@ -35,7 +35,7 @@ func init() {
 
 	errs := &wrappers.Errs{}
 
-	auth.WithDefaultPrivateKeyProviders(AuthProvider, errs)
+	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
 
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.

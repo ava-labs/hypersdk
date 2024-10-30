@@ -119,13 +119,13 @@ func NewBLSAddress(pk *bls.PublicKey) codec.Address {
 	return codec.CreateAddress(BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
 }
 
-type BLSPrivateKeyProvider struct{}
+type BLSPrivateKeyFactory struct{}
 
-func NewBLSPrivateKeyProvider() *BLSPrivateKeyProvider {
-	return &BLSPrivateKeyProvider{}
+func NewBLSPrivateKeyFactory() *BLSPrivateKeyFactory {
+	return &BLSPrivateKeyFactory{}
 }
 
-func (*BLSPrivateKeyProvider) GeneratePrivateKey() (*PrivateKey, error) {
+func (*BLSPrivateKeyFactory) GeneratePrivateKey() (*PrivateKey, error) {
 	p, err := bls.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
@@ -136,7 +136,10 @@ func (*BLSPrivateKeyProvider) GeneratePrivateKey() (*PrivateKey, error) {
 	}, nil
 }
 
-func (*BLSPrivateKeyProvider) LoadPrivateKey(privateKey []byte) (*PrivateKey, error) {
+func (*BLSPrivateKeyFactory) LoadPrivateKey(privateKey []byte) (*PrivateKey, error) {
+	if len(privateKey) != bls.PrivateKeyLen {
+		return nil, ErrInvalidPrivateKeySize
+	}
 	privKey, err := bls.PrivateKeyFromBytes(privateKey)
 	if err != nil {
 		return nil, err
@@ -145,8 +148,4 @@ func (*BLSPrivateKeyProvider) LoadPrivateKey(privateKey []byte) (*PrivateKey, er
 		Address: NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
 		Bytes:   privateKey,
 	}, nil
-}
-
-func (*BLSPrivateKeyProvider) GetExpectedBytesLength() int {
-	return bls.PrivateKeyLen
 }

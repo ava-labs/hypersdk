@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var ErrInvalidKeyType = errors.New("invalid key type")
@@ -42,12 +41,4 @@ func GetFactory(pk *PrivateKey) (chain.AuthFactory, error) {
 	default:
 		return nil, ErrInvalidKeyType
 	}
-}
-
-func loadPrivateKeyFromFile(path string, expectedLen int, loadPrivateKeyFn func(p []byte) (*PrivateKey, error)) (*PrivateKey, error) {
-	privateKey, err := utils.LoadBytes(path, expectedLen)
-	if err != nil {
-		return nil, err
-	}
-	return loadPrivateKeyFn(privateKey)
 }

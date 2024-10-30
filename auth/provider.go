@@ -6,33 +6,37 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
 
-var ErrAlreadyRegisteredKeyType = errors.New("already registered key type")
+var (
+	ErrAlreadyRegisteredKeyType = errors.New("already registered key type")
+	ErrInvalidPrivateKeySize    = errors.New("invalid private key size")
+)
 
-// WithDefaultPrivateKeyProviders registers the default PrivateKeyProviders
-func WithDefaultPrivateKeyProviders(authProvider *AuthProvider, errs *wrappers.Errs) {
+// WithDefaultPrivateKeyFactories registers the default PrivateKeyFactories
+func WithDefaultPrivateKeyFactories(authProvider *AuthProvider, errs *wrappers.Errs) {
 	errs.Add(
-		authProvider.Register(ED25519Key, NewED25519PrivateKeyProvider()),
-		authProvider.Register(Secp256r1Key, NewSECP256R1PrivateKeyProvider()),
-		authProvider.Register(BLSKey, NewBLSPrivateKeyProvider()),
+		authProvider.Register(ED25519Key, NewED25519PrivateKeyFactory()),
+		authProvider.Register(Secp256r1Key, NewSECP256R1PrivateKeyFactory()),
+		authProvider.Register(BLSKey, NewBLSPrivateKeyFactory()),
 	)
 }
 
 // AuthProvider stores the used PrivateKeys types
 type AuthProvider struct {
-	keys map[string]PrivateKeyProvider
+	keys map[string]PrivateKeyFactory
 }
 
 func NewAuthProvider() *AuthProvider {
 	return &AuthProvider{
-		keys: make(map[string]PrivateKeyProvider),
+		keys: make(map[string]PrivateKeyFactory),
 	}
 }
 
-func (p *AuthProvider) Register(key string, privateKeyProvider PrivateKeyProvider) error {
+func (p *AuthProvider) Register(key string, privateKeyProvider PrivateKeyFactory) error {
 	if _, ok := p.keys[key]; ok {
 		return fmt.Errorf("%w: %s", ErrAlreadyRegisteredKeyType, key)
 	}
@@ -48,21 +52,25 @@ func (p *AuthProvider) CheckType(key string) error {
 }
 
 func (p *AuthProvider) GeneratePrivateKey(key string) (*PrivateKey, error) {
-	if provider, ok := p.keys[key]; ok {
-		return provider.GeneratePrivateKey()
+	if privateKeyFactory, ok := p.keys[key]; ok {
+		return privateKeyFactory.GeneratePrivateKey()
 	}
 	return nil, fmt.Errorf("%w: %s", ErrInvalidKeyType, key)
 }
 
 func (p *AuthProvider) LoadPrivateKey(key, path string) (*PrivateKey, error) {
-	if provider, ok := p.keys[key]; ok {
-		return loadPrivateKeyFromFile(path, provider.GetExpectedBytesLength(), provider.LoadPrivateKey)
+	privateKeyFactory, ok := p.keys[key]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidKeyType, key)
 	}
-	return nil, fmt.Errorf("%w: %s", ErrInvalidKeyType, key)
+	privateKey, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return privateKeyFactory.LoadPrivateKey(privateKey)
 }
 
-type PrivateKeyProvider interface {
+type PrivateKeyFactory interface {
 	GeneratePrivateKey() (*PrivateKey, error)
 	LoadPrivateKey(p []byte) (*PrivateKey, error)
-	GetExpectedBytesLength() int
 }
