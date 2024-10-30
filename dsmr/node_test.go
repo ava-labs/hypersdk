@@ -344,7 +344,6 @@ func TestGetChunkSignature(t *testing.T) {
 				}
 
 				r.Equal(bls.PublicKeyToCompressedBytes(pk), response.Signer)
-
 				signature, err := bls.SignatureFromBytes(response.Signature)
 				r.NoError(err)
 
