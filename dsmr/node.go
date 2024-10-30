@@ -18,6 +18,7 @@ func New[T Tx](
 	nodeID ids.NodeID,
 	sk *bls.SecretKey,
 	beneficiary codec.Address,
+	chunkVerifier Verifier[T],
 	storage *ChunkStorage[T],
 	getChunkClient *p2p.Client,
 ) (*Node[T], error) {
@@ -28,6 +29,11 @@ func New[T Tx](
 		beneficiary: beneficiary,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
+		},
+		GetChunkSignatureHandler: &GetChunkSignatureHandler[T]{
+			sk:       sk,
+			verifier: chunkVerifier,
+			storage:  storage,
 		},
 		ACP118Handler: nil,
 		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
@@ -74,28 +80,13 @@ type Node[T Tx] struct {
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
-	//pkBytes := bls.PublicKeyToCompressedBytes(n.pk)
-	//signer := [48]byte{}
-	//copy(signer[:], pkBytes[:])
-
-	//signature := [96]byte{}
-	//warpSigner := warp.NewSigner(n.sk, n.networkID, n.chainID)
-	//
-	//msg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, nil)
-	//signatureBytes, err := warpSigner.Sign(msg)
-	//if err != nil {
-	//	return Chunk[T]{}, err
-	//}
-
-	unsignedChunk := UnsignedChunk[T]{
-		Producer:    n.nodeID,
-		Beneficiary: n.beneficiary,
-		Expiry:      expiry.Unix(),
-		Txs:         txs,
-	}
-
-	chunk, err := newSignedChunk[T](
-		unsignedChunk,
+	chunk, err := signChunk[T](
+		UnsignedChunk[T]{
+			Producer:    n.nodeID,
+			Beneficiary: n.beneficiary,
+			Expiry:      expiry.Unix(),
+			Txs:         txs,
+		},
 		n.sk,
 		n.pk,
 		n.networkID,

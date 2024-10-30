@@ -149,6 +149,7 @@ func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 // 2. Verify the chunk
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
+// TODO refactor and merge with AddLocalChunkWithCert
 func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (NoVerifyChunkSignatureShare, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -244,28 +245,28 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 // GetChunkBytes returns the corresponding chunk bytes of the requested chunk
 // Both the slot and chunkID must be provided to create the relevant DB key, which
 // includes the slot to create a more sequential DB workload.
-func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, error) {
+func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, bool, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	chunk, ok := s.chunkMap[chunkID]
 	if ok {
-		return chunk.Chunk.bytes, nil
+		return chunk.Chunk.bytes, true, nil //TODO bug
 	}
 
 	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB
 		chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
+			return nil, false, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
 		}
-		return chunkBytes, nil
+		return chunkBytes, true, nil
 	}
 
 	chunkBytes, err := s.chunkDB.Get(pendingChunkKey(expiry, chunkID))
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch chunk bytes for %s: %w", chunkID, err)
+		return nil, false, fmt.Errorf("failed to fetch chunk bytes for %s: %w", chunkID, err)
 	}
-	return chunkBytes, nil
+	return chunkBytes, false, nil
 }
 
 func createChunkKey(prefix byte, slot int64, chunkID ids.ID) []byte {

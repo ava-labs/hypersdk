@@ -2,10 +2,12 @@ package dsmr
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -18,6 +20,16 @@ import (
 )
 
 var (
+	ErrDuplicateChunk = &common.AppError{
+		Code:    common.ErrUndefined.Code,
+		Message: "chunk is already available",
+	}
+
+	ErrInvalidChunk = &common.AppError{
+		Code:    common.ErrUndefined.Code,
+		Message: "invalid chunk",
+	}
+
 	_ p2p.Handler = (*GetChunkHandler[Tx])(nil)
 	_ p2p.Handler = (*GetChunkSignatureHandler[Tx])(nil)
 )
@@ -30,6 +42,8 @@ func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
 	return
 }
 
+// TODO can only get available chunks that have not expired/executed chunks near
+// tip
 func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
 	request := dsmr.GetChunkRequest{}
 	if err := proto.Unmarshal(requestBytes, &request); err != nil {
@@ -38,17 +52,27 @@ func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, 
 
 	chunkID, err := ids.ToID(request.ChunkId)
 	if err != nil {
-		panic(err)
+		return nil, &common.AppError{
+			Code:    common.ErrUndefined.Code,
+			Message: err.Error(),
+		}
 	}
 
-	chunkBytes, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	// TODO check chunk status?
+	chunkBytes, _, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil {
-		panic(err)
+		return nil, &common.AppError{
+			Code:    common.ErrUndefined.Code,
+			Message: err.Error(),
+		}
 	}
 
 	chunk, err := ParseChunk[T](chunkBytes)
 	if err != nil {
-		panic(err)
+		return nil, &common.AppError{
+			Code:    common.ErrUndefined.Code,
+			Message: err.Error(),
+		}
 	}
 
 	txs := make([]*dsmr.Transaction, 0, len(chunk.Txs))
@@ -74,7 +98,10 @@ func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, 
 
 	responseBytes, err := proto.Marshal(response)
 	if err != nil {
-		panic(err)
+		return nil, &common.AppError{
+			Code:    common.ErrUndefined.Code,
+			Message: err.Error(),
+		}
 	}
 
 	return responseBytes, nil
@@ -89,16 +116,73 @@ type ChunkSignature struct {
 	Signature  [bls.SignatureLen]byte
 }
 
-type GetChunkSignatureHandler[T Tx] struct{}
-
-func (g GetChunkSignatureHandler[T]) AppGossip(ctx context.Context, nodeID ids.NodeID, gossipBytes []byte) {
-	//TODO implement me
-	panic("implement me")
+// TODO use warp signatures
+type GetChunkSignatureHandler[T Tx] struct {
+	sk       *bls.SecretKey
+	verifier Verifier[T]
+	storage  *ChunkStorage[T]
 }
 
-func (g GetChunkSignatureHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
-	//TODO implement me
-	panic("implement me")
+func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {
+	return
+}
+
+func (g *GetChunkSignatureHandler[T]) AppRequest(
+	_ context.Context,
+	_ ids.NodeID,
+	_ time.Time,
+	requestBytes []byte,
+) ([]byte, *common.AppError) {
+	request := &dsmr.GetChunkSignatureRequest{}
+	if err := proto.Unmarshal(requestBytes, request); err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
+	chunk, err := newChunkFromProto[T](request.Chunk)
+	if err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
+	if err := g.verifier.Verify(chunk); err != nil {
+		return nil, ErrInvalidChunk
+	}
+
+	_, ok, err := g.storage.GetChunkBytes(chunk.Expiry, chunk.id)
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
+	if ok {
+		// Don't sign a chunk that is already marked as available
+		return nil, ErrDuplicateChunk
+	}
+
+	response := &dsmr.GetChunkSignatureResponse{
+		ChunkId:   chunk.id[:],
+		Producer:  chunk.Producer[:],
+		Expiry:    chunk.Expiry,
+		Signer:    bls.PublicKeyToCompressedBytes(bls.PublicFromSecretKey(g.sk)),
+		Signature: bls.SignatureToBytes(bls.Sign(g.sk, chunk.bytes)),
+	}
+
+	responseBytes, err := proto.Marshal(response)
+	if err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
+	return responseBytes, nil
 }
 
 type getChunkSignatureMarshaler struct{}

@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
@@ -24,25 +24,25 @@ import (
 var (
 	_ Tx                                                                         = (*tx)(nil)
 	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureMarshaler)(nil)
+	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
-func TestGetChunk(t *testing.T) {
-	type addChunkArgs struct {
+// TODO test GetChunk w/ ChunkStorage
+
+// Tests that a Node serves chunks it built over GetChunk
+func TestGetChunk_LocallyBuiltChunk(t *testing.T) {
+	type newChunkArgs struct {
 		txs    []tx
 		expiry time.Time
 	}
 
 	tests := []struct {
-		name          string
-		chunksToBuild []addChunkArgs
+		name   string
+		chunks []newChunkArgs
 	}{
 		{
-			name:          "no chunks",
-			chunksToBuild: nil,
-		},
-		{
 			name: "1 chunk with 1 tx",
-			chunksToBuild: []addChunkArgs{
+			chunks: []newChunkArgs{
 				{
 					txs: []tx{
 						{
@@ -56,7 +56,7 @@ func TestGetChunk(t *testing.T) {
 		},
 		{
 			name: "1 chunk with 3 txs",
-			chunksToBuild: []addChunkArgs{
+			chunks: []newChunkArgs{
 				{
 					txs: []tx{
 						{
@@ -78,7 +78,7 @@ func TestGetChunk(t *testing.T) {
 		},
 		{
 			name: "3 chunks with 1 tx",
-			chunksToBuild: []addChunkArgs{
+			chunks: []newChunkArgs{
 				{
 					txs: []tx{
 						{
@@ -110,7 +110,7 @@ func TestGetChunk(t *testing.T) {
 		},
 		{
 			name: "3 chunks with 3 txs",
-			chunksToBuild: []addChunkArgs{
+			chunks: []newChunkArgs{
 				{
 					txs: []tx{
 						{
@@ -177,12 +177,19 @@ func TestGetChunk(t *testing.T) {
 			nodeID := ids.GenerateTestNodeID()
 			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
 			r.NoError(err)
-			node, err := New[tx](nodeID, sk, beneficiary, chunkStorage, nil)
+			node, err := New[tx](
+				nodeID,
+				sk,
+				beneficiary,
+				NoVerifier[tx]{},
+				chunkStorage,
+				nil,
+			)
 			r.NoError(err)
 
 			// Build some chunks
 			wantChunks := make([]Chunk[tx], 0)
-			for _, args := range tt.chunksToBuild {
+			for _, args := range tt.chunks {
 				chunk, err := node.NewChunk(args.txs, args.expiry)
 				r.NoError(err)
 
@@ -201,7 +208,7 @@ func TestGetChunk(t *testing.T) {
 			)
 
 			wg := &sync.WaitGroup{}
-			wg.Add(len(tt.chunksToBuild))
+			wg.Add(len(tt.chunks))
 
 			// Node must serve GetChunk requests for chunks that it
 			// built
@@ -237,9 +244,9 @@ func TestGetChunk(t *testing.T) {
 				r.Equal(chunk.Expiry, gotChunk.Expiry)
 				r.Equal(beneficiary, gotChunk.Beneficiary)
 				r.ElementsMatch(chunk.Txs, gotChunk.Txs)
+				//TODO check signature + aggregate public key
 				r.NotEmpty(chunk.Signer)
 				r.NotEmpty(chunk.Signature)
-				//TODO check signature + aggregate public key
 			}
 		})
 	}
@@ -247,34 +254,70 @@ func TestGetChunk(t *testing.T) {
 
 // Node should be willing to sign valid chunks
 func TestGetChunkSignature(t *testing.T) {
-	// Can't sign duplicate chunks or chunks with duplicate txs
-	// Can't sign invalid chunks
+	chunk, err := newSignedChunk[tx](
+		UnsignedChunk[tx]{
+			Producer:    ids.GenerateTestNodeID(),
+			Beneficiary: codec.Address{},
+			Expiry:      1,
+			Txs: []tx{
+				{
+					ID:     ids.GenerateTestID(),
+					Expiry: 1,
+				},
+			},
+		},
+		[bls.PublicKeyLen]byte{},
+		[bls.SignatureLen]byte{},
+	)
+	require.NoError(t, err)
+
 	tests := []struct {
-		name    string
-		chunks  []Chunk[tx]
-		chunkID ids.ID
-		wantErr *common.AppError
+		name     string
+		verifier Verifier[tx]
+		chunks   []Chunk[tx]
+		chunk    Chunk[tx]
+		wantErr  error
 	}{
-		{},
+		{
+			name:     "duplicate chunk",
+			verifier: NoVerifier[tx]{},
+			chunks:   []Chunk[tx]{chunk},
+			chunk:    chunk,
+			wantErr:  ErrDuplicateChunk,
+		},
+		{
+			name:     "invalid chunk",
+			verifier: failVerifier{},
+			chunk:    chunk,
+			wantErr:  ErrInvalidChunk,
+		},
+		{
+			name:     "valid chunk",
+			verifier: NoVerifier[tx]{},
+			chunk:    chunk,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-			sk, err := bls.NewSecretKey()
+			sk1, err := bls.NewSecretKey()
 			r.NoError(err)
+			pk1 := bls.PublicFromSecretKey(sk1)
 
 			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
 			r.NoError(err)
 
 			for _, chunk := range tt.chunks {
 				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, &ChunkCertificate{}))
+				r.NoError(chunkStorage.SetMin(chunk.Expiry, []ids.ID{chunk.id}))
 			}
 
 			node, err := New[tx](
 				ids.EmptyNodeID,
-				sk,
+				sk1,
 				codec.Address{},
+				tt.verifier,
 				chunkStorage,
 				nil,
 			)
@@ -294,21 +337,27 @@ func TestGetChunkSignature(t *testing.T) {
 			done := make(chan struct{})
 			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
 				defer close(done)
+
+				r.ErrorIs(err, tt.wantErr)
+				if err != nil {
+					return
+				}
+
+				r.Equal(bls.PublicKeyToCompressedBytes(pk1), response.Signer)
+
+				signature, err := bls.SignatureFromBytes(response.Signature)
+				r.NoError(err)
+
+				r.True(bls.Verify(pk1, signature, tt.chunk.bytes))
 			}
+
+			protoChunk, err := newProtoChunk(tt.chunk)
+			r.NoError(err)
 
 			r.NoError(client.AppRequest(
 				context.Background(),
 				set.Of(ids.EmptyNodeID),
-				&dsmr.GetChunkSignatureRequest{
-					Chunk: &dsmr.Chunk{
-						Producer:     nil,
-						Expiry:       0,
-						Beneficiary:  nil,
-						Transactions: nil,
-						Signer:       nil,
-						Signature:    nil,
-					},
-				},
+				&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
 				onResponse,
 			))
 
@@ -328,4 +377,10 @@ func (t tx) GetID() ids.ID {
 
 func (t tx) GetExpiry() time.Time {
 	return time.Unix(0, t.Expiry)
+}
+
+type failVerifier struct{}
+
+func (f failVerifier) Verify(Chunk[tx]) error {
+	return errors.New("fail")
 }

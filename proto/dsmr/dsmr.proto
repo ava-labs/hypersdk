@@ -16,14 +16,6 @@ message Chunk {
   bytes signature = 6;
 }
 
-message ChunkSignature {
-  bytes chunk_id = 1;
-  bytes producer = 2;
-  int64 expiry = 3;
-  bytes signer = 4; // bls public key
-  bytes signature = 5;
-}
-
 message Transaction {
   bytes bytes = 1;
 }
@@ -57,7 +49,13 @@ message GetChunkSignatureRequest {
 }
 
 message GetChunkSignatureResponse {
-  ChunkSignature signature = 1;
+  // TODO why do we need these fields if they're already in the request?
+  bytes chunk_id = 1;
+  bytes producer = 2;
+  int64 expiry = 3;
+
+  bytes signer = 4; // bls public key
+  bytes signature = 5;
 }
 
 //TODO chunk fault
