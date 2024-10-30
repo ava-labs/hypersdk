@@ -27,10 +27,50 @@ var (
 	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
-// TODO test GetChunk w/ ChunkStorage
+// TODO integration test GetChunk w/ ChunkStorage
+func TestNewChunk(t *testing.T) {
+	tests := []struct {
+		name    string
+		txs     []tx
+		expiry  time.Time
+		wantErr error
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			nodeID := ids.GenerateTestNodeID()
+			sk, err := bls.NewSecretKey()
+			r.NoError(err)
+
+			storage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
+			r.NoError(err)
+
+			node, err := New[tx](
+				nodeID,
+				sk,
+				codec.EmptyAddress,
+				NoVerifier[tx]{},
+				storage,
+				nil,
+			)
+			r.NoError(err)
+
+			chunk, err := node.NewChunk(tt.txs, tt.expiry)
+			r.ErrorIs(err, tt.wantErr)
+			if err != nil {
+				return
+			}
+
+			r.Contains(chunk.Txs, tt.txs)
+			r.Equal(chunk.Expiry, tt.expiry)
+		})
+	}
+}
 
 // Tests that a Node serves chunks it built over GetChunk
-func TestGetChunk_LocallyBuiltChunk(t *testing.T) {
+func TestBuiltChunksAvailableOverGetChunk(t *testing.T) {
 	type newChunkArgs struct {
 		txs    []tx
 		expiry time.Time
