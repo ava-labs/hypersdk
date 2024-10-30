@@ -27,7 +27,6 @@ var (
 	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
-// TODO integration test GetChunk w/ ChunkStorage
 func TestNewChunk(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -37,7 +36,6 @@ func TestNewChunk(t *testing.T) {
 	}{
 		{
 			name:    "empty chunk",
-			txs:     nil,
 			expiry:  time.Now(),
 			wantErr: ErrEmptyChunk,
 		},
