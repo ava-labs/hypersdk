@@ -301,9 +301,9 @@ func TestGetChunkSignature(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-			sk1, err := bls.NewSecretKey()
+			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-			pk1 := bls.PublicFromSecretKey(sk1)
+			pk := bls.PublicFromSecretKey(sk)
 
 			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
 			r.NoError(err)
@@ -315,7 +315,7 @@ func TestGetChunkSignature(t *testing.T) {
 
 			node, err := New[tx](
 				ids.EmptyNodeID,
-				sk1,
+				sk,
 				codec.Address{},
 				tt.verifier,
 				chunkStorage,
@@ -343,12 +343,12 @@ func TestGetChunkSignature(t *testing.T) {
 					return
 				}
 
-				r.Equal(bls.PublicKeyToCompressedBytes(pk1), response.Signer)
+				r.Equal(bls.PublicKeyToCompressedBytes(pk), response.Signer)
 
 				signature, err := bls.SignatureFromBytes(response.Signature)
 				r.NoError(err)
 
-				r.True(bls.Verify(pk1, signature, tt.chunk.bytes))
+				r.True(bls.Verify(pk, signature, tt.chunk.bytes))
 			}
 
 			protoChunk, err := newProtoChunk(tt.chunk)
