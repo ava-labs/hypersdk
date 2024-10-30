@@ -27,7 +27,7 @@ var (
 	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
-func TestNewChunk(t *testing.T) {
+func TestNode_NewChunk(t *testing.T) {
 	tests := []struct {
 		name    string
 		txs     []tx
@@ -101,7 +101,7 @@ func TestNewChunk(t *testing.T) {
 }
 
 // Tests that a Node serves chunks it built over GetChunk
-func TestBuiltChunksAvailableOverGetChunk(t *testing.T) {
+func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 	type newChunkArgs struct {
 		txs    []tx
 		expiry time.Time
@@ -324,7 +324,7 @@ func TestBuiltChunksAvailableOverGetChunk(t *testing.T) {
 }
 
 // Node should be willing to sign valid chunks
-func TestGetChunkSignature(t *testing.T) {
+func TestNode_GetChunkSignature(t *testing.T) {
 	chunk, err := newSignedChunk[tx](
 		UnsignedChunk[tx]{
 			Producer:    ids.GenerateTestNodeID(),
