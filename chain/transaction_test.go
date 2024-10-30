@@ -80,7 +80,7 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 func TestJSONMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
-	txdata := chain.TransactionData{
+	txData := chain.TransactionData{
 		Base: &chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -117,7 +117,7 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
 
-	signedTx, err := txdata.Sign(factory)
+	signedTx, err := txData.Sign(factory)
 	require.NoError(err)
 
 	b, err := json.Marshal(signedTx)
@@ -125,23 +125,23 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 
 	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
 
-	var txout chain.Transaction
-	err = txout.UnmarshalJSON(b, parser)
+	var txFromJSON chain.Transaction
+	err = txFromJSON.UnmarshalJSON(b, parser)
 	require.NoError(err)
 	// cannot check direct Equal between signedTx and txout
 	// because of the Auth codec.Address that will be different after the unmarshaling.
-	require.Equal(signedTx.Base, txout.Base)
-	require.Equal(signedTx.Actions, txout.Actions)
-	require.Equal(signedTx.ID(), txout.ID())
-	require.Equal(signedTx.Bytes(), txout.Bytes())
-	require.Equal(signedTx.Size(), txout.Size())
+	require.Equal(signedTx.Base, txFromJSON.Base)
+	require.Equal(signedTx.Actions, txFromJSON.Actions)
+	require.Equal(signedTx.ID(), txFromJSON.ID())
+	require.Equal(signedTx.Bytes(), txFromJSON.Bytes())
+	require.Equal(signedTx.Size(), txFromJSON.Size())
 	// verify txout Auth is able to verify unsigned bytes of both original tx and unmarshaled tx.
 	prevUnsignedBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
-	unsignedBytes, err := txout.UnsignedBytes()
+	unsignedBytes, err := txFromJSON.UnsignedBytes()
 	require.NoError(err)
-	require.NoError(txout.Auth.Verify(context.Background(), prevUnsignedBytes))
-	require.NoError(txout.Auth.Verify(context.Background(), unsignedBytes))
+	require.NoError(txFromJSON.Auth.Verify(context.Background(), prevUnsignedBytes))
+	require.NoError(txFromJSON.Auth.Verify(context.Background(), unsignedBytes))
 }
 
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly

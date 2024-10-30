@@ -164,6 +164,9 @@ func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error
 		Auth: auth,
 	}
 	p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	if _, err := tx.UnsignedBytes(); err != nil {
+		return nil, err
+	}
 	if err := tx.Marshal(p); err != nil {
 		return nil, err
 	}
@@ -383,7 +386,7 @@ type txJSON struct {
 	ID      ids.ID      `json:"id"`
 	Actions codec.Bytes `json:"actions"`
 	Auth    codec.Bytes `json:"auth"`
-	Base    codec.Bytes `json:"base"`
+	Base    *Base       `json:"base"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -401,19 +404,12 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	if err := authPacker.Err(); err != nil {
 		return nil, err
 	}
-	basePacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	if t.Base != nil {
-		t.Base.Marshal(basePacker)
-	}
-	if err := basePacker.Err(); err != nil {
-		return nil, err
-	}
 
 	return json.Marshal(txJSON{
 		ID:      t.ID(),
 		Actions: actionsPacker.Bytes(),
 		Auth:    authPacker.Bytes(),
-		Base:    basePacker.Bytes(),
+		Base:    t.Base,
 	})
 }
 
@@ -440,13 +436,8 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	if err := authReader.Err(); err != nil {
 		return fmt.Errorf("%w: auth packer", err)
 	}
-	baseReader := codec.NewReader(tx.Base, consts.NetworkSizeLimit)
-	base, err := UnmarshalBase(baseReader)
-	if err != nil {
-		return fmt.Errorf("%w: cannot unmarshal base packer", err)
-	}
 
-	newTx, err := newTransaction(base, actions, auth)
+	newTx, err := newTransaction(tx.Base, actions, auth)
 	if err != nil {
 		return err
 	}
