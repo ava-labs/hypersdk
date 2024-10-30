@@ -49,11 +49,9 @@ func ToAddress(b []byte) (Address, error) {
 // either AddressLen or the length of the hex decoded string.
 func StringToAddress(s string) (Address, error) {
 	var a Address
-	b, err := LoadHex(s, AddressLen)
-	if err != nil {
-		return a, err
+	if err := a.UnmarshalText([]byte(s)); err != nil {
+		return EmptyAddress, err
 	}
-	copy(a[:], b)
 	return a, nil
 }
 
