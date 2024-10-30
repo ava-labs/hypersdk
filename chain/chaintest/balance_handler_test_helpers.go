@@ -23,14 +23,18 @@ func TestBalanceHandler(t *testing.T, b chain.BalanceHandler) {
 	addr := codectest.NewRandomAddress()
 	amount := uint64(1)
 
+	// Initialize key-value store for addr
+	store := NewInMemoryStore()
+	r.NoError(b.AddBalance(context.Background(), addr, store, amount, true))
+
 	stateKeys := b.SponsorStateKeys(addr)
 	ts := tstate.New(1)
 	tsv := ts.NewView(
 		stateKeys,
-		NewInMemoryStore().Storage,
+		store.Storage,
 	)
 
-	r.NoError(b.AddBalance(context.Background(), addr, tsv, amount, true))
+	r.NoError(b.AddBalance(context.Background(), addr, tsv, 0, true))
 	balance, err := b.GetBalance(context.Background(), addr, tsv)
 	r.NoError(err)
 	r.Equal(amount, balance)
