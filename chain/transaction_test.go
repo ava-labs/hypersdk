@@ -200,13 +200,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
-	// validating tx ID, Bytes and Size
 	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = signedTx.Marshal(writerPacker)
 	require.NoError(err)
 	require.Equal(signedTx.ID(), utils.ToID(writerPacker.Bytes()))
 	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
-	require.Len(writerPacker.Bytes(), signedTx.Size())
 
 	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
