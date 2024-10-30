@@ -26,14 +26,15 @@ import (
 // - Call GetBalance() and require that the test account balance is 0.
 //
 // TestBalanceHandler fails if any of the above method calls returns an error.
-func TestBalanceHandler(ctx context.Context, t *testing.T, b chain.BalanceHandler) {
-	r := require.New(t)
+func TestBalanceHandler(ctx context.Context, b chain.BalanceHandler, t *testing.T) {
 	addr := codectest.NewRandomAddress()
 	amount := uint64(1)
-
-	// Initialize key-value store for addr
 	store := NewInMemoryStore()
-	r.NoError(b.AddBalance(ctx, addr, store, uint64(0), true))
+
+	t.Run("initialize key-value store for addr", func(t *testing.T) {
+		r := require.New(t)
+		r.NoError(b.AddBalance(ctx, addr, store, uint64(0), true))
+	})
 
 	stateKeys := b.SponsorStateKeys(addr)
 	ts := tstate.New(1)
@@ -42,15 +43,24 @@ func TestBalanceHandler(ctx context.Context, t *testing.T, b chain.BalanceHandle
 		store.Storage,
 	)
 
-	r.NoError(b.AddBalance(ctx, addr, tsv, amount, true))
-	balance, err := b.GetBalance(ctx, addr, tsv)
-	r.NoError(err)
-	r.Equal(amount, balance)
+	t.Run("add balance", func(t *testing.T) {
+		r := require.New(t)
+		r.NoError(b.AddBalance(ctx, addr, tsv, amount, true))
+		balance, err := b.GetBalance(ctx, addr, tsv)
+		r.NoError(err)
+		r.Equal(amount, balance)
+	})
 
-	r.NoError(b.CanDeduct(ctx, addr, tsv, amount))
+	t.Run("can deduct", func(t *testing.T) {
+		r := require.New(t)
+		r.NoError(b.CanDeduct(ctx, addr, tsv, amount))
+	})
 
-	r.NoError(b.Deduct(ctx, addr, tsv, amount))
-	balance, err = b.GetBalance(ctx, addr, tsv)
-	r.NoError(err)
-	r.Equal(uint64(0), balance)
+	t.Run("deduct balance", func(t *testing.T) {
+		r := require.New(t)
+		r.NoError(b.Deduct(ctx, addr, tsv, amount))
+		balance, err := b.GetBalance(ctx, addr, tsv)
+		r.NoError(err)
+		r.Equal(uint64(0), balance)
+	})
 }

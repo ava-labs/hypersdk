@@ -4,11 +4,16 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
 
 func TestBalanceHandler(t *testing.T) {
-	chaintest.TestBalanceHandler(t, &BalanceHandler{})
+	chaintest.TestBalanceHandler(
+		context.Background(),
+		&BalanceHandler{},
+		t,
+	)
 }
