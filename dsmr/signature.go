@@ -18,7 +18,7 @@ import (
 var _ acp118.Verifier = (*ChunkSignatureVerifier[Tx])(nil)
 
 type ChunkSignatureVerifier[T Tx] struct {
-	storage *chunkStorage[T]
+	storage *ChunkStorage[T]
 }
 
 func (c ChunkSignatureVerifier[T]) Verify(
@@ -31,7 +31,7 @@ func (c ChunkSignatureVerifier[T]) Verify(
 		panic(err)
 	}
 
-	chunk, err := parseChunkProto[T](request.Chunk)
+	chunk, err := newChunkFromProto[T](request.Chunk)
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +61,7 @@ func (c ChunkSignatureClient[T]) GetChunkSignature(
 		return err
 	}
 
-	request := dsmr.GetChunkSignatureRequest{
+	request := &dsmr.GetChunkSignatureRequest{
 		Chunk: &dsmr.Chunk{
 			Producer:     chunk.Producer[:],
 			Expiry:       chunk.Expiry,
@@ -72,7 +72,7 @@ func (c ChunkSignatureClient[T]) GetChunkSignature(
 		},
 	}
 
-	requestBytes, err := proto.Marshal(&request)
+	requestBytes, err := proto.Marshal(request)
 	if err != nil {
 		return err
 	}
@@ -84,8 +84,8 @@ func (c ChunkSignatureClient[T]) GetChunkSignature(
 		err error,
 	) {
 
-		response := dsmr.GetChunkSignatureResponse{}
-		if err := proto.Unmarshal(responseBytes, &response); err != nil {
+		response := &dsmr.GetChunkSignatureResponse{}
+		if err := proto.Unmarshal(responseBytes, response); err != nil {
 			panic(err)
 		}
 

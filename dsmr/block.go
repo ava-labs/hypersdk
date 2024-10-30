@@ -11,6 +11,7 @@ import (
 	avautils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -20,12 +21,19 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
+type UnsignedChunk[T Tx] struct {
+	Producer    ids.NodeID    `serialize:"true"`
+	Beneficiary codec.Address `serialize:"true"`
+	Expiry      int64         `serialize:"true"`
+	Txs         []T           `serialize:"true"`
+}
+
 // TODO emit configurable amount of chunks/sec
 // TODO unexport
 type Chunk[T Tx] struct {
 	Producer    ids.NodeID             `serialize:"true"`
-	Expiry      int64                  `serialize:"true"`
 	Beneficiary codec.Address          `serialize:"true"`
+	Expiry      int64                  `serialize:"true"`
 	Txs         []T                    `serialize:"true"`
 	Signer      [bls.PublicKeyLen]byte `serialize:"true"`
 	Signature   [bls.SignatureLen]byte `serialize:"true"`
@@ -34,30 +42,55 @@ type Chunk[T Tx] struct {
 	id    ids.ID
 }
 
-func newChunk[T Tx](
-	producer ids.NodeID,
-	txs []T,
-	expiry time.Time,
-	beneficiary codec.Address,
-	signer [bls.PublicKeyLen]byte,
-	signature [bls.SignatureLen]byte,
+// newSignedChunk signs a chunk
+func newSignedChunk[T Tx](
+	unsignedChunk UnsignedChunk[T],
+	sk *bls.SecretKey,
+	pk *bls.PublicKey,
+	networkID uint32,
+	chainID ids.ID,
 ) (Chunk[T], error) {
-	c := Chunk[T]{
-		Producer:    producer,
-		Expiry:      expiry.Unix(),
-		Beneficiary: beneficiary,
-		Txs:         txs,
-		Signer:      signer,
-		Signature:   signature,
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(unsignedChunk, &packer); err != nil {
+		return Chunk[T]{}, err
 	}
 
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	if err != nil {
+		return Chunk[T]{}, err
+	}
+
+	signer := warp.NewSigner(sk, networkID, chainID)
+	signatureBytes, err := signer.Sign(msg)
+	if err != nil {
+		return Chunk[T]{}, nil
+	}
+
+	c := Chunk[T]{
+		Producer:    unsignedChunk.Producer,
+		Beneficiary: unsignedChunk.Beneficiary,
+		Expiry:      unsignedChunk.Expiry,
+		Txs:         unsignedChunk.Txs,
+		Signer:      [bls.PublicKeyLen]byte{},
+		Signature:   [bls.SignatureLen]byte{},
+	}
+
+	pkBytes := bls.PublicKeyToCompressedBytes(pk)
+	copy(c.Signer[:], pkBytes[:])
+	copy(c.Signature[:], signatureBytes)
+
+	return c, c.init()
+}
+
+func (c *Chunk[T]) init() error {
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
-		return c, err
+		return err
 	}
+
 	c.bytes = packer.Bytes
 	c.id = utils.ToID(c.bytes)
-	return c, nil
+	return nil
 }
 
 func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
@@ -104,7 +137,7 @@ func newProtoChunk[T Tx](chunk Chunk[T]) (*dsmr.Chunk, error) {
 	}, nil
 }
 
-func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
+func newChunkFromProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 	producer, err := ids.ToNodeID(chunkProto.Producer)
 	if err != nil {
 		return Chunk[T]{}, err
@@ -126,19 +159,19 @@ func parseChunkProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 		txs = append(txs, parsed)
 	}
 
-	signer := [bls.PublicKeyLen]byte{}
-	signature := [bls.SignatureLen]byte{}
-	copy(signer[:], chunkProto.Signer)
-	copy(signature[:], chunkProto.Signature)
+	c := Chunk[T]{
+		Producer:    producer,
+		Beneficiary: beneficiary,
+		Expiry:      chunkProto.Expiry,
+		Txs:         txs,
+		Signer:      [bls.PublicKeyLen]byte{},
+		Signature:   [bls.SignatureLen]byte{},
+	}
 
-	return newChunk[T](
-		producer,
-		txs,
-		time.Unix(chunkProto.Expiry, 0),
-		beneficiary,
-		signer,
-		signature,
-	)
+	copy(c.Signer[:], chunkProto.Signer)
+	copy(c.Signature[:], chunkProto.Signature)
+
+	return c, c.init()
 }
 
 // TODO implement

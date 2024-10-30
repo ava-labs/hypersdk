@@ -6,25 +6,21 @@ package dsmr
 import (
 	"time"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
 func New[T Tx](
 	nodeID ids.NodeID,
 	sk *bls.SecretKey,
 	beneficiary codec.Address,
+	storage *ChunkStorage[T],
 	getChunkClient *p2p.Client,
 ) (*Node[T], error) {
-	storage, err := newChunkStorage[T](&NoVerifier[T]{}, memdb.New())
-	if err != nil {
-		return nil, err
-	}
-
 	return &Node[T]{
 		nodeID:      nodeID,
 		sk:          sk,
@@ -34,9 +30,10 @@ func New[T Tx](
 			storage: storage,
 		},
 		ACP118Handler: nil,
-		client: GetChunkClient[T]{
-			client: getChunkClient,
-		},
+		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
+			getChunkClient,
+			getChunkMarshaler{},
+		),
 		storage: storage,
 	}, nil
 }
@@ -67,39 +64,43 @@ type Node[T Tx] struct {
 	ACP118Handler            *acp118.Handler
 
 	//TODO chunk handler
-	client           GetChunkClient[T]
+	client           *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
 	acp118Client     *p2p.Client
 	chunkCertBuilder chunkCertBuilder[T]
-	storage          *chunkStorage[T]
+	storage          *ChunkStorage[T]
 }
 
 // NewChunk builds transactions into a Chunk
 // TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
-	//msg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, chunk.bytes)
+	//pkBytes := bls.PublicKeyToCompressedBytes(n.pk)
+	//signer := [48]byte{}
+	//copy(signer[:], pkBytes[:])
+
+	//signature := [96]byte{}
+	//warpSigner := warp.NewSigner(n.sk, n.networkID, n.chainID)
+	//
+	//msg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, nil)
+	//signatureBytes, err := warpSigner.Sign(msg)
 	//if err != nil {
 	//	return Chunk[T]{}, err
 	//}
-	//
-	//totalWeight := uint64(0)
-	//for _, v := range n.validators {
-	//	totalWeight += v.Weight
-	//}
-	//
-	//signedMessage, err := n.aggregator.AggregateSignatures(
-	//	ctx,
-	//	msg,
-	//	nil,
-	//	n.validators,
-	//	totalWeight*2/3+1,
-	//)
-	//if err != nil {
-	//	return Chunk[T]{}, err
-	//}
-	//
-	//codec.LinearCodec.signedMessage.Signature
-	chunk, err := newChunk[T](n.nodeID, txs, expiry, n.beneficiary, [48]byte{}, [96]byte{})
+
+	unsignedChunk := UnsignedChunk[T]{
+		Producer:    n.nodeID,
+		Beneficiary: n.beneficiary,
+		Expiry:      expiry.Unix(),
+		Txs:         txs,
+	}
+
+	chunk, err := newSignedChunk[T](
+		unsignedChunk,
+		n.sk,
+		n.pk,
+		n.networkID,
+		n.chainID,
+	)
 	if err != nil {
 		return Chunk[T]{}, err
 	}
