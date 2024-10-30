@@ -73,15 +73,13 @@ func TestNewChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			nodeID := ids.GenerateTestNodeID()
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-
 			storage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
 			r.NoError(err)
 
 			node, err := New[tx](
-				nodeID,
+				ids.GenerateTestNodeID(),
 				sk,
 				codec.EmptyAddress,
 				NoVerifier[tx]{},
