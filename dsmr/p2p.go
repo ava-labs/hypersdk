@@ -184,33 +184,3 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 
 	return responseBytes, nil
 }
-
-type getChunkSignatureMarshaler struct{}
-
-func (g getChunkSignatureMarshaler) MarshalRequest(t *dsmr.GetChunkSignatureRequest) ([]byte, error) {
-	return proto.Marshal(t)
-}
-
-func (g getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkSignatureResponse, error) {
-	response := dsmr.GetChunkSignatureResponse{}
-	if err := proto.Unmarshal(bytes, &response); err != nil {
-		return nil, err
-	}
-
-	return &response, nil
-}
-
-type getChunkMarshaler struct{}
-
-func (g getChunkMarshaler) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
-	return proto.Marshal(t)
-}
-
-func (g getChunkMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkResponse, error) {
-	response := dsmr.GetChunkResponse{}
-	if err := proto.Unmarshal(bytes, &response); err != nil {
-		return nil, err
-	}
-
-	return &response, nil
-}

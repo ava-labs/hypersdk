@@ -41,7 +41,7 @@ func New[T Tx](
 			storage:  storage,
 		},
 		ACP118Handler: nil,
-		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
+		client: newTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
 			getChunkClient,
 			getChunkMarshaler{},
 		),

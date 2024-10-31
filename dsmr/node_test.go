@@ -23,10 +23,11 @@ import (
 
 var (
 	_ Tx                                                                         = (*tx)(nil)
-	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureMarshaler)(nil)
+	_ marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureMarshaler)(nil)
 	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
+// Test that chunks can be built through Node.NewChunk
 func TestNode_NewChunk(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -98,6 +99,49 @@ func TestNode_NewChunk(t *testing.T) {
 			r.Equal(chunk.Expiry, tt.expiry.Unix())
 		})
 	}
+}
+
+// Tests that chunks are available over p2p from a Node
+func TestNode_GetChunk(t *testing.T) {
+	//tests := []struct {
+	//	name    string
+	//	chunks  []Chunk[tx]
+	//	chunk   ids.ID
+	//	wantErr error
+	//}{}
+	//
+	//for _, tt := range tests {
+	//	t.Run(tt.name, func(t *testing.T) {
+	//		r := require.New(t)
+	//		sk, err := bls.NewSecretKey()
+	//		r.NoError(err)
+	//
+	//		chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
+	//		for _, chunk := range tt.chunks {
+	//			chunkStorage.AddLocalChunkWithCert(nil)
+	//		}
+	//
+	//		node, err := New[tx](
+	//			ids.GenerateTestNodeID(),
+	//			sk,
+	//			codec.Address{},
+	//			NoVerifier[tx]{},
+	//			chunkStorage,
+	//			nil,
+	//		)
+	//		r.NoError(err)
+	//
+	//		client := NewGetChunkClient(p2ptest.NewClient(
+	//			t,
+	//			context.Background(),
+	//			node.GetChunkHandler,
+	//			ids.EmptyNodeID,
+	//			ids.EmptyNodeID,
+	//		))
+	//
+	//		client.AppRequest()
+	//	})
+	//}
 }
 
 // Tests that a Node serves chunks it built over GetChunk
@@ -267,16 +311,13 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			client := NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
-				p2ptest.NewClient(
-					t,
-					context.Background(),
-					node.GetChunkHandler,
-					ids.EmptyNodeID,
-					ids.EmptyNodeID,
-				),
-				getChunkMarshaler{},
-			)
+			client := NewGetChunkClient(p2ptest.NewClient(
+				t,
+				context.Background(),
+				node.GetChunkHandler,
+				ids.EmptyNodeID,
+				ids.EmptyNodeID,
+			))
 
 			wg := &sync.WaitGroup{}
 			wg.Add(len(tt.chunks))
@@ -394,16 +435,13 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			)
 			r.NoError(err)
 
-			client := NewTypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse](
-				p2ptest.NewClient(
-					t,
-					context.Background(),
-					node.GetChunkSignatureHandler,
-					ids.EmptyNodeID,
-					ids.EmptyNodeID,
-				),
-				getChunkSignatureMarshaler{},
-			)
+			client := NewGetChunkSignatureClient(p2ptest.NewClient(
+				t,
+				context.Background(),
+				node.GetChunkSignatureHandler,
+				ids.EmptyNodeID,
+				ids.EmptyNodeID,
+			))
 
 			done := make(chan struct{})
 			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
