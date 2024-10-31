@@ -58,7 +58,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		hardcodedHostPort := "http://localhost:9650"
 		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + networkConfig.Name()
 
-		c := jsonrpc.NewJSONRPCClient(fixedNodeURL)
+		c := jsonrpc.NewJSONRPCClient(uri)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
