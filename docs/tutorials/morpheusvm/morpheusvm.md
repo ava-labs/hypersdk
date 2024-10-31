@@ -61,8 +61,7 @@ values:
 mkdir consts
 ```
 
-Inside `consts/`, we'll add a `consts.go` file to declare the name, HRP for Bech32 addresses,
-and the initial version of our VM:
+Inside `consts/`, we'll add a `consts.go` file to declare the name and the initial version of our VM:
 
 ```golang
 package consts
@@ -73,7 +72,6 @@ import (
 )
 
 const (
-	HRP  = "tutorial"
 	Name = "tutorialvm"
 )
 
@@ -126,7 +124,6 @@ mkdir actions
 
 In `actions/`, create `transfer.go`. This file will declare the struct and add a type assertion that it
 implements the `chain.Action` interface:
-
 
 ```golang
 package actions
@@ -637,7 +634,7 @@ func (*Transfer) GetTypeID() uint8 {
 We import the following into `transfer.go`:
 
 ```golang
-    mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"  
+    mconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 ```
 
 ### `StateKeys()`
@@ -653,7 +650,6 @@ Beforehand, we need to import the `storage` package from earlier:
 ```golang
 	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
 ```
-
 
 ```golang
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
@@ -716,7 +712,7 @@ func (t *Transfer) Execute(
 
 The `ComputeUnits` function specifies how many units of computation are consumed
 by this action. The HyperSDK uses dynamic, multi-dimensional fees and specifies its
-own resource limits ie. units of compute, storage, and bandwidth. This means it's 
+own resource limits ie. units of compute, storage, and bandwidth. This means it's
 more important that `ComputeUnits` of different actions is proportional to the maximum,
 target, and the cost of other actions than it is to be exact. So, we'll simply return 1
 for `Transfer`.
