@@ -16,9 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/examples/testvm/actions"
+	"github.com/ava-labs/hypersdk/examples/testvm/consts"
+	"github.com/ava-labs/hypersdk/examples/testvm/vm"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -37,16 +37,15 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 }
 
 func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
-	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
-	to, err := ed25519.GeneratePrivateKey()
+	privateKey, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
-
-	toAddress := auth.NewED25519Address(to.PublicKey())
+	address := auth.NewED25519Address(privateKey.PublicKey())
+	incAmount := uint64(1)
 	parser, err := lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -54,9 +53,9 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	_, tx, _, err := cli.GenerateTransaction(
 		ctx,
 		parser,
-		[]chain.Action{&actions.Transfer{
-			To:    toAddress,
-			Value: 1,
+		[]chain.Action{&actions.Count{
+			Amount: incAmount,
+			Address: address,
 		}},
 		g.factory,
 	)
@@ -65,30 +64,30 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
+		confirmTx(ctx, require, uri, tx.ID(), address, incAmount)
 	}, nil
 }
 
-func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, addr codec.Address, expectedCount uint64) {
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
 	lcli := vm.NewJSONRPCClient(uri)
-	balance, err := lcli.Balance(ctx, receiverAddr)
+	balance, err := lcli.Count(ctx, addr)
 	require.NoError(err)
-	require.Equal(receiverExpectedBalance, balance)
+	require.Equal(expectedCount, balance)
 	txRes, _, err := indexerCli.GetTx(ctx, txID)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
 	require.NotZero(txRes.Fee)
 	require.Len(txRes.Outputs, 1)
-	transferOutputBytes := []byte(txRes.Outputs[0])
-	require.Equal(consts.TransferID, transferOutputBytes[0])
-	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
-	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
+	countOutputBytes := []byte(txRes.Outputs[0])
+	require.Equal(consts.CountID, countOutputBytes[0])
+	reader := codec.NewReader(countOutputBytes, len(countOutputBytes))
+	countOutputTyped, err := vm.OutputParser.Unmarshal(reader)
 	require.NoError(err)
-	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
+	transferOutput, ok := countOutputTyped.(*actions.CountResult)
 	require.True(ok)
-	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
+	require.Equal(expectedCount, transferOutput.Count)
 }

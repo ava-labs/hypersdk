@@ -27,8 +27,11 @@ var (
 )
 
 type Count struct {
+	// Address
+	Address codec.Address `serialize:"true" json:"address"`
 	// Amount to increment actor.
 	Amount uint64 `serialize:"true" json:"value"`
+
 }
 
 func (*Count) GetTypeID() uint8 {
@@ -46,21 +49,21 @@ func (c *Count) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	actor codec.Address,
+	_ codec.Address,
 	_ ids.ID,
 ) (codec.Typed, error) {
-	err := storage.IncreaseCounter(ctx, mu, actor, c.Amount)
+	err := storage.IncreaseCounter(ctx, mu, c.Address, c.Amount)
 	if err != nil {
 		return nil, err
 	}
 
-	count, err := storage.GetCounter(ctx, mu, actor)
+	count, err := storage.GetCounter(ctx, mu, c.Address)
 	if err != nil {
 		return nil, err
 	}
 
 	return &CountResult{
-		ActorCount: count,
+		Count: count,
 	}, nil
 }
 
@@ -76,7 +79,7 @@ func (*Count) ValidRange(chain.Rules) (int64, int64) {
 var _ codec.Typed = (*CountResult)(nil)
 
 type CountResult struct {
-	ActorCount uint64 `serialize:"true" json:"actor_count"`
+	Count uint64 `serialize:"true" json:"actor_count"`
 }
 
 func (*CountResult) GetTypeID() uint8 {

@@ -9,16 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/testvm/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
-const balanceCheckInterval = 500 * time.Millisecond
+const countCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
@@ -52,39 +50,17 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis,
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint64, error) {
-	resp := new(BalanceReply)
+func (cli *JSONRPCClient) Count(ctx context.Context, addr codec.Address) (uint64, error) {
+	resp := new(CountReply)
 	err := cli.requester.SendRequest(
 		ctx,
-		"balance",
-		&BalanceArgs{
+		"count",
+		&CountArgs{
 			Address: addr,
 		},
 		resp,
 	)
-	return resp.Amount, err
-}
-
-func (cli *JSONRPCClient) WaitForBalance(
-	ctx context.Context,
-	addr codec.Address,
-	min uint64,
-) error {
-	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
-		balance, err := cli.Balance(ctx, addr)
-		if err != nil {
-			return false, err
-		}
-		shouldExit := balance >= min
-		if !shouldExit {
-			utils.Outf(
-				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min),
-				addr,
-			)
-		}
-		return shouldExit, nil
-	})
+	return resp.Count, err
 }
 
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
