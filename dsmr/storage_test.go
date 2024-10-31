@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
-// TODO test through p2p client
 var errInvalidTestItem = errors.New("invalid test item")
 
 var _ Verifier[Tx] = testVerifier[Tx]{}
