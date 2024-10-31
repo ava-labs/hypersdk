@@ -9,15 +9,14 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/examples/testvm/consts"
 	"github.com/ava-labs/hypersdk/examples/testvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/testvm/vm"
-	"github.com/ava-labs/hypersdk/tests/fixture"
-
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	"github.com/ava-labs/hypersdk/tests/fixture"
+	"github.com/stretchr/testify/require"
+
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
