@@ -207,7 +207,7 @@ func (e *Executor) Execute(
 // If a block is already accepted, its transactions have already been added
 // to the VM's seen emap and calling [IsRepeat] will return a non-zero value
 // when it should already be considered valid, so we skip this step here.
-func (e *Executor) verifyExpiryReplayProtection(ctx context.Context, b *StatefulBlock, rules Rules, vctx VerifyContext) error {
+func (*Executor) verifyExpiryReplayProtection(ctx context.Context, b *StatefulBlock, rules Rules, vctx VerifyContext) error {
 	if b.accepted {
 		return nil
 	}
