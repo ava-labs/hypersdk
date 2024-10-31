@@ -40,7 +40,7 @@ func (*Count) GetTypeID() uint8 {
 
 func (c *Count) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.CounterKey(actor)): state.All,
+		string(storage.CounterKey(c.Address)): state.All,
 	}
 }
 
