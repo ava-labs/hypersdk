@@ -11,6 +11,7 @@ import (
 	"github.com/near/borsh-go"
 )
 
+// runs cargo rustc -p token --release --target-dir=./target --target=wasm32-unknown-unknown --crate-type=cdylib
 func CompileTest(contractName string) error {
 	cmd := exec.Command("cargo", "rustc", "-p", contractName, "--release", "--target-dir=./target", "--target=wasm32-unknown-unknown", "--crate-type=cdylib")
 	var out bytes.Buffer
