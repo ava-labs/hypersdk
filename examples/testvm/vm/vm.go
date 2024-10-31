@@ -50,7 +50,7 @@ func init() {
 
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With()) // Add MorpheusVM API
+	options = append(options, With()) // Add TestVm API
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
