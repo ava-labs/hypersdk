@@ -6,6 +6,7 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -63,14 +64,15 @@ func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) erro
 	}
 	var targetHeight uint64
 	// check the accepted block height on all blocks.
-	for nodeIdx := 0; nodeIdx < len(n.nodes); nodeIdx++ {
+	for nodeIdx := 0; nodeIdx < len(n.nodes); {
 		_, nodeHeight, _, err := n.nodes[nodeIdx].accepted(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to check node accepted height : %w", err)
 		}
 		if nodeIdx == 0 {
 			// since we've already confirmed the tx on this node, just use the height as the target.
 			targetHeight = nodeHeight
+			nodeIdx++
 		} else if nodeHeight < targetHeight {
 			// take a short delay and try again.
 			select {
@@ -78,8 +80,7 @@ func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) erro
 				return ctx.Err()
 			case <-time.After(txCheckInterval):
 			}
-			nodeIdx-- // try again the same node.
-			continue
+			// try again the same node.
 		}
 	}
 	return nil
@@ -105,18 +106,20 @@ func (n *Node) accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
 
 func (n *Node) confirmTxs(ctx context.Context, txs []*chain.Transaction) error {
 	c := jsonrpc.NewJSONRPCClient(n.URI())
+	txIDs := []ids.ID{}
 	for _, tx := range txs {
-		_, err := c.SubmitTx(ctx, tx.Bytes())
+		txID, err := c.SubmitTx(ctx, tx.Bytes())
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to submit transaction : %w", err)
 		}
+		txIDs = append(txIDs, txID)
 	}
 
 	indexerCli := indexer.NewClient(n.URI())
-	for _, tx := range txs {
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
+	for _, txID := range txIDs {
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while waiting for transaction : %w", err)
 		}
 		if !success {
 			return ErrUnableToConfirmTx
