@@ -8,8 +8,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/testvm/consts"
+	"github.com/ava-labs/hypersdk/examples/testvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
@@ -44,22 +44,22 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 	return nil
 }
 
-type BalanceArgs struct {
+type CountArgs struct {
 	Address codec.Address `json:"address"`
 }
 
-type BalanceReply struct {
-	Amount uint64 `json:"amount"`
+type CountReply struct {
+	Count uint64 `json:"count"`
 }
 
-func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
+func (j *JSONRPCServer) Count(req *http.Request, args *CountArgs, reply *CountReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Count")
 	defer span.End()
 
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address)
+	count, err := storage.GetCounterFromState(ctx, j.vm.ReadState, args.Address)
 	if err != nil {
 		return err
 	}
-	reply.Amount = balance
+	reply.Count = count
 	return err
 }

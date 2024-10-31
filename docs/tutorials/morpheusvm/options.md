@@ -27,8 +27,7 @@ func GetBalanceFromState(
 ```
 
 This function is almost identical to `getBalance()` except that we are passing
-along `f` of type `ReadState` instead of `im` of type `state.Immutable`. 
-
+along `f` of type `ReadState` instead of `im` of type `state.Immutable`.
 
 ## Getting Started
 
@@ -213,27 +212,6 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint
 	return resp.Amount, err
 }
 
-func (cli *JSONRPCClient) WaitForBalance(
-	ctx context.Context,
-	addr codec.Address,
-	min uint64,
-) error {
-	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
-		balance, err := cli.Balance(ctx, addr)
-		if err != nil {
-			return false, err
-		}
-		shouldExit := balance >= min
-		if !shouldExit {
-			utils.Outf(
-				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min),
-				addr,
-			)
-		}
-		return shouldExit, nil
-	})
-}
 ```
 
 Finally, while our JSON-RPC client can now call our server, our client is still
@@ -340,7 +318,7 @@ Options consist of the following:
 - An option function that takes in the VM along with the recieved config value
 
 The option function is especially important, as it's what allows our VM to
-eventually instantiate our JSON-RPC server. 
+eventually instantiate our JSON-RPC server.
 
 ## Adding Our Option To The VM
 
@@ -352,10 +330,10 @@ paste the following line within `New()` (right before the return statement):
 ```
 
 This line of code by default appends the JSON-RPC option to the list of options
-that the function caller passed in. 
+that the function caller passed in.
 
 ## Conclusion
 
 In this section, we've built upon our existing VM implementation by adding a
 JSON-RPC server option. In the final section of this MorpheusVM tutorial, we
-will utilize the workload tests from MorpheusVM to test our VM. 
+will utilize the workload tests from MorpheusVM to test our VM.

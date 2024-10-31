@@ -26,6 +26,7 @@ func TestCountAction(t *testing.T) {
 			Actor: addr,
 			Action: &Count{
 				Amount: 0,
+				Address: addr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -34,7 +35,7 @@ func TestCountAction(t *testing.T) {
 				require.Equal(t, uint64(0), count)
 			},
 			ExpectedOutputs: &CountResult{
-				ActorCount: 0,
+				Count: 0,
 			},
 		},
 		{
@@ -42,6 +43,7 @@ func TestCountAction(t *testing.T) {
 			Actor: addr,
 			Action: &Count{
 				Amount: 1,
+				Address:    addr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -50,7 +52,7 @@ func TestCountAction(t *testing.T) {
 				require.Equal(t, uint64(1), count)
 			},
 			ExpectedOutputs: &CountResult{
-				ActorCount: 1,
+				Count: 1,
 			},
 		},
 		{
@@ -58,6 +60,7 @@ func TestCountAction(t *testing.T) {
 			Actor: addr,
 			Action: &Count{
 				Amount: 100,
+				Address:    addr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -66,14 +69,15 @@ func TestCountAction(t *testing.T) {
 				require.Equal(t, uint64(101), count)
 			},
 			ExpectedOutputs: &CountResult{
-				ActorCount: 101,
+				Count: 101,
 			},
 		},
 		{
 			Name:  "IncrementDifferentActor",
-			Actor: anotherAddr,
+			Actor: addr,
 			Action: &Count{
 				Amount: 1,
+				Address:    anotherAddr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -86,7 +90,7 @@ func TestCountAction(t *testing.T) {
 				require.Equal(t, uint64(1), count)
 			},
 			ExpectedOutputs: &CountResult{
-				ActorCount: 1,
+				Count: 1,
 			},
 		},
 	}

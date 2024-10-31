@@ -11,16 +11,16 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/examples/testvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/testvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
-	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	lconsts "github.com/ava-labs/hypersdk/examples/testvm/consts"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
+	ginkgo.RunSpecs(t, "testvm integration test suites")
 }
 
 var _ = ginkgo.BeforeSuite(func() {
