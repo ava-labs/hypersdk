@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	Name     = "vmwithcontracts"
-	Symbol   = "RED"
-	Decimals = 9
+	Name   = "vmwithcontracts"
+	Symbol = "RED"
 )
 
 var ID ids.ID
