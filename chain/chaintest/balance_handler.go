@@ -14,18 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-// TestBalanceHandler tests b by doing the following:
-//
-// - Creating a new instance of tstate with permissions from SponsorStateKeys().
-//   - The test account balance is initialized to 0.
-//
-// - Call AddBalance() to increment the test account balance by 1.
-// - Call GetBalance() and require that the test account balance is 1.
-// - Call CanDeduct() to check if the test account balance can be deducted by 1.
-// - Call Deduct() to decrement the test account balance by 1.
-// - Call GetBalance() and require that the test account balance is 0.
-//
-// TestBalanceHandler fails if any of the above method calls returns an error.
+// TestBalanceHandler tests b by requiring that it upholds the invariants
+// described in the BalanceHandler interface.
 func TestBalanceHandler(ctx context.Context, b chain.BalanceHandler, t *testing.T) {
 	addr := codectest.NewRandomAddress()
 	amount := uint64(1)
