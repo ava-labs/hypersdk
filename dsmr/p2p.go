@@ -153,7 +153,7 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 		return nil, ErrInvalidChunk
 	}
 
-	_, ok, err := g.storage.GetChunkBytes(chunk.Expiry, chunk.id)
+	_, accepted, err := g.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
@@ -161,8 +161,8 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 		}
 	}
 
-	if ok {
-		// Don't sign a chunk that is already marked as available
+	if accepted {
+		// Don't sign a chunk that is already marked as accepted
 		return nil, ErrDuplicateChunk
 	}
 
