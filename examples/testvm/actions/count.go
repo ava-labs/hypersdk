@@ -31,13 +31,15 @@ type Count struct {
 	Address codec.Address `serialize:"true" json:"address"`
 	// Amount to increment actor.
 	Amount uint64 `serialize:"true" json:"value"`
-
 }
 
 func (*Count) GetTypeID() uint8 {
 	return consts.CountID
 }
 
+// TODO: we need a way to test statekeys seperately. The current test framework
+// makes it really hard why txs fail if something is incorrect with the statekeys method.
+// try passing in actor instead of c.Address to get a hard to debug error.
 func (c *Count) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.CounterKey(c.Address)): state.All,
