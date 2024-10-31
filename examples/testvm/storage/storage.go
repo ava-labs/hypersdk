@@ -27,11 +27,21 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x2/ (hypersdk-fee)
 //
 // 0x3/ (balance)
-//   -> [owner] => balance
+//
+//	-> [owner] => balance
+//
+// 0x4/ (counter)
+//
+//	-> [owner] => count
+const (
+	balancePrefix byte = metadata.DefaultMinimumPrefix
+	counterPrefix byte = metadata.DefaultMinimumPrefix + 1
+)
 
-const balancePrefix byte = metadata.DefaultMinimumPrefix
-
-const BalanceChunks uint16 = 1
+const (
+	BalanceChunks uint16 = 1
+	CounterChunks uint16 = 1
+)
 
 // [balancePrefix] + [address]
 func BalanceKey(addr codec.Address) (k []byte) {
