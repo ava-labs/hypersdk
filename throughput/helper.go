@@ -32,9 +32,9 @@ type SpamHelper interface {
 	GetParser(ctx context.Context) (chain.Parser, error)
 	LookupBalance(address codec.Address) (uint64, error)
 
-	// GetTransfer returns a list of actions that sends [amount] to a given [address].
+	// GetTransfer returns an action to a list of actions that sends [amount] to a given [address].
 	//
 	// Memo is used to ensure that each transaction is unique (even if between the same
 	// sender and receiver for the same amount).
-	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+	GetAction(address codec.Address, amount uint64, memo []byte) []chain.Action
 }

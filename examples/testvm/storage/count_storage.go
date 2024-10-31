@@ -40,7 +40,8 @@ func IncreaseCounter(
 	}
 
 	val += amount
-	return nil
+	
+	return SetCounter(ctx, mu, address, val)
 }
 
 func SetCounter(ctx context.Context, mu state.Mutable, address codec.Address, count uint64) error {
