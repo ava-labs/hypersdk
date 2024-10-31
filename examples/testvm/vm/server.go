@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
-const JSONRPCEndpoint = "/morpheusapi"
+const JSONRPCEndpoint = "/testvmapi"
 
 var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
 

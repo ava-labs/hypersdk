@@ -4,9 +4,9 @@
 
 set -e
 
-MORPHEUSVM_PATH=$(
+TEST_VM_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
   cd .. && pwd
 )
 
-ginkgo -v "$MORPHEUSVM_PATH"/tests/e2e/e2e.test -- --stop-network
+ginkgo -v "$TEST_VM_PATH"/tests/e2e/e2e.test -- --stop-network
