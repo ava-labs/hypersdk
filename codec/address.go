@@ -18,7 +18,10 @@ const (
 	checksumLen = 4
 )
 
-var ErrBadChecksum = errors.New("invalid input checksum")
+var (
+	ErrBadChecksum     = errors.New("invalid input checksum")
+	ErrMissingChecksum = errors.New("input string is smaller than the checksum size")
+)
 
 // Address represents the 33 byte address of a HyperSDK account
 type Address [AddressLen]byte
@@ -65,7 +68,7 @@ func (a Address) MarshalText() ([]byte, error) {
 	return []byte(encodeWithChecksum(a[:])), nil
 }
 
-// UnmarshalText parses a hex-encoded address (with or without a checksum).
+// UnmarshalText parses a checksummed hex-encoded address
 func (a *Address) UnmarshalText(input []byte) error {
 	decoded, err := fromChecksum(string(input))
 	if err != nil {
@@ -93,6 +96,9 @@ func fromChecksum(s string) ([]byte, error) {
 	decoded, err := hex.DecodeString(s)
 	if err != nil {
 		return nil, err
+	}
+	if len(decoded) < checksumLen {
+		return nil, ErrMissingChecksum
 	}
 	// Verify checksum
 	originalBytes := decoded[:len(decoded)-checksumLen]
