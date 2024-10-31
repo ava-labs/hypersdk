@@ -357,24 +357,9 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
-		// Get the [VerifyContext] needed to process this block.
-		//
-		// If the parent block's height is less than or equal to the last accepted height (and
-		// the last accepted height is processed), the accepted state will be used as the execution
-		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			b.vm.Logger().Warn("unable to get verify context",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("blkID", b.ID()),
-				zap.Error(err),
-			)
-			return fmt.Errorf("%w: unable to load verify context", err)
-		}
-
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
 		// recursively verify ancestry.
-		if err := b.innerVerify(ctx, vctx); err != nil {
+		if err := b.innerVerify(ctx); err != nil {
 			b.vm.Logger().Warn("verification failed",
 				zap.Uint64("height", b.Hght),
 				zap.Stringer("blkID", b.ID()),
@@ -422,23 +407,27 @@ func (b *StatefulBlock) verifyExpiryReplayProtection(ctx context.Context, rules 
 	return nil
 }
 
-// innerVerify executes the block on top of the provided [VerifyContext].
+// innerVerify executes the block
 //
 // Invariants:
 // Accepted / Rejected blocks should never have Verify called on them.
 // Blocks that were verified (and returned nil) with Verify will not have verify called again.
-// Blocks that were verified with VerifyWithContext may have verify called multiple times.
 //
 // When this may be called:
-//  1. [Verify|VerifyWithContext]
+//  1. Verify
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
+func (b *StatefulBlock) innerVerify(ctx context.Context) error {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
 	)
+
+	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
+	if err != nil {
+		return fmt.Errorf("%w: unable to get verify context", err)
+	}
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
@@ -634,11 +623,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			return fmt.Errorf("%w: unable to get verify context", err)
-		}
-		if err := b.innerVerify(ctx, vctx); err != nil {
+		if err := b.innerVerify(ctx); err != nil {
 			return fmt.Errorf("%w: unable to verify block", err)
 		}
 	}
@@ -791,12 +776,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.accepted),
 	)
-	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-	if err != nil {
-		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
-		return nil, err
-	}
-	if err := b.innerVerify(ctx, vctx); err != nil {
+	if err := b.innerVerify(ctx); err != nil {
 		b.vm.Logger().Error("unable to verify block", zap.Error(err))
 		return nil, err
 	}
