@@ -20,6 +20,11 @@ import (
 )
 
 var (
+	ErrChunkNotAvailable = &common.AppError{
+		Code:    common.ErrUndefined.Code,
+		Message: "chunk is not available",
+	}
+
 	ErrDuplicateChunk = &common.AppError{
 		Code:    common.ErrUndefined.Code,
 		Message: "chunk is already available",
@@ -44,7 +49,7 @@ func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
 
 // TODO can only get available chunks that have not expired/executed chunks near
 // tip
-func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
+func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, *common.AppError) {
 	request := dsmr.GetChunkRequest{}
 	if err := proto.Unmarshal(requestBytes, &request); err != nil {
 		panic(err)
@@ -59,12 +64,16 @@ func (g *GetChunkHandler[T]) AppRequest(ctx context.Context, nodeID ids.NodeID, 
 	}
 
 	// TODO check chunk status?
-	chunkBytes, _, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	chunkBytes, accepted, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    common.ErrUndefined.Code,
 			Message: err.Error(),
 		}
+	}
+
+	if !accepted {
+		return nil, ErrChunkNotAvailable
 	}
 
 	chunk, err := ParseChunk[T](chunkBytes)

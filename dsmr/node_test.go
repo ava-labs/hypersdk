@@ -101,47 +101,111 @@ func TestNode_NewChunk(t *testing.T) {
 	}
 }
 
-// Tests that chunks are available over p2p from a Node
+// Tests that accepted chunks are available over p2p from a Node
 func TestNode_GetChunk(t *testing.T) {
-	//tests := []struct {
-	//	name    string
-	//	chunks  []Chunk[tx]
-	//	chunk   ids.ID
-	//	wantErr error
-	//}{}
-	//
-	//for _, tt := range tests {
-	//	t.Run(tt.name, func(t *testing.T) {
-	//		r := require.New(t)
-	//		sk, err := bls.NewSecretKey()
-	//		r.NoError(err)
-	//
-	//		chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
-	//		for _, chunk := range tt.chunks {
-	//			chunkStorage.AddLocalChunkWithCert(nil)
-	//		}
-	//
-	//		node, err := New[tx](
-	//			ids.GenerateTestNodeID(),
-	//			sk,
-	//			codec.Address{},
-	//			NoVerifier[tx]{},
-	//			chunkStorage,
-	//			nil,
-	//		)
-	//		r.NoError(err)
-	//
-	//		client := NewGetChunkClient(p2ptest.NewClient(
-	//			t,
-	//			context.Background(),
-	//			node.GetChunkHandler,
-	//			ids.EmptyNodeID,
-	//			ids.EmptyNodeID,
-	//		))
-	//
-	//		client.AppRequest()
-	//	})
-	//}
+	sk0, err := bls.NewSecretKey()
+	require.NoError(t, err)
+	chunk0, err := signChunk(
+		UnsignedChunk[tx]{
+			Producer:    ids.EmptyNodeID,
+			Beneficiary: codec.Address{},
+			Expiry:      0,
+			Txs:         []tx{{ID: ids.Empty, Expiry: 0}},
+		},
+		sk0,
+		bls.PublicFromSecretKey(sk0),
+		0,
+		ids.Empty,
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		pendingChunks  []Chunk[tx]
+		acceptedChunks []Chunk[tx]
+		chunkID        ids.ID
+		expiry         int64
+		wantErr        error
+		wantChunk      Chunk[tx]
+	}{
+		// TODO test expired chunks?
+		{
+			name:          "request pending chunk",
+			pendingChunks: []Chunk[tx]{chunk0},
+			chunkID:       chunk0.id,
+			expiry:        chunk0.Expiry,
+			wantErr:       ErrChunkNotAvailable,
+		},
+		{
+			name:           "request available chunk",
+			acceptedChunks: []Chunk[tx]{chunk0},
+			chunkID:        chunk0.id,
+			expiry:         chunk0.Expiry,
+			wantChunk:      chunk0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+			sk, err := bls.NewSecretKey()
+			r.NoError(err)
+
+			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
+			for _, chunk := range tt.pendingChunks {
+				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
+			}
+
+			for _, chunk := range tt.acceptedChunks {
+				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
+				r.NoError(chunkStorage.SetMin(0, []ids.ID{chunk.id}))
+			}
+
+			node, err := New[tx](
+				ids.GenerateTestNodeID(),
+				sk,
+				codec.Address{},
+				NoVerifier[tx]{},
+				chunkStorage,
+				nil,
+			)
+			r.NoError(err)
+
+			client := NewGetChunkClient(p2ptest.NewClient(
+				t,
+				context.Background(),
+				node.GetChunkHandler,
+				ids.EmptyNodeID,
+				ids.EmptyNodeID,
+			))
+
+			done := make(chan struct{})
+			onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+				defer close(done)
+
+				r.ErrorIs(err, tt.wantErr)
+				if err != nil {
+					return
+				}
+
+				gotChunk, err := newChunkFromProto[tx](response.Chunk)
+				r.NoError(err)
+
+				r.Equal(tt.wantChunk, gotChunk)
+			}
+
+			r.NoError(client.AppRequest(
+				context.Background(),
+				set.Of(ids.EmptyNodeID),
+				&dsmr.GetChunkRequest{
+					ChunkId: tt.chunkID[:],
+					Expiry:  tt.expiry,
+				},
+				onResponse,
+			))
+			<-done
+		})
+	}
 }
 
 // Tests that a Node serves chunks it built over GetChunk
