@@ -10,7 +10,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/bytecodealliance/wasmtime-go/v25"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
@@ -63,21 +63,36 @@ type CallInfo struct {
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {
-	remaining := c.Fuel
-	usedFuel, fuelEnabled := c.inst.store.FuelConsumed()
-	if fuelEnabled {
-		remaining -= usedFuel
+	remaining, err := c.inst.store.GetFuel()
+	if err != nil {
+		return c.Fuel
 	}
+
 	return remaining
 }
 
 func (c *CallInfo) AddFuel(fuel uint64) {
 	// only errors if fuel isn't enable, which it always will be
-	_ = c.inst.store.AddFuel(fuel)
+	remaining, err := c.inst.store.GetFuel()
+	if err != nil {
+		return
+	}
+
+	_ = c.inst.store.SetFuel(remaining + fuel)
 }
 
 func (c *CallInfo) ConsumeFuel(fuel uint64) error {
-	_, err := c.inst.store.ConsumeFuel(fuel)
+	remaining, err := c.inst.store.GetFuel()
+	if err != nil {
+		return err
+	}
+
+	if remaining < fuel {
+		return errors.New("out of fuel")
+	}
+
+	err = c.inst.store.SetFuel(remaining - fuel)
+
 	return err
 }
 
@@ -88,7 +103,12 @@ type ContractInstance struct {
 }
 
 func (p *ContractInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
+	remaining, err := p.store.GetFuel()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.store.SetFuel(remaining + callInfo.Fuel); err != nil {
 		return nil, err
 	}
 
