@@ -64,9 +64,9 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 		if i == biggestHeightInstanceIndex {
 			continue
 		}
-		vm := instances[i].vm
+		instance := instances[i]
 		for {
-			height, err := vm.GetLastAcceptedHeight()
+			height, err := instance.vm.GetLastAcceptedHeight()
 			if err != nil {
 				return err
 			}
@@ -77,24 +77,8 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			err = vm.SetPreference(ctx, statefulBlock.ID())
-			if err != nil {
+			if err := instance.applyBlk(ctx, statefulBlock); err != nil {
 				return err
-			}
-			blk, err := vm.ParseBlock(ctx, statefulBlock.Bytes())
-			if err != nil {
-				return err
-			}
-			err = blk.Verify(ctx)
-			if err != nil {
-				return err
-			}
-			err = blk.Accept(ctx)
-			if err != nil {
-				return err
-			}
-			if instances[i].onAccept != nil {
-				instances[i].onAccept(blk)
 			}
 		}
 	}

@@ -60,6 +60,7 @@ var (
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
+	testNetwork          *Network
 
 	networkID uint32
 
@@ -264,6 +265,7 @@ func setInstances() {
 	for i, inst := range instances {
 		uris[i] = inst.routerServer.URL
 	}
+	testNetwork = &Network{uris: uris}
 
 	blocks = []snowman.Block{}
 
@@ -542,7 +544,6 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// this would clear previous txs on instance 0
 		// and ignore the transaction results while
 		// syncronizing the nodes on the network.
-		testNetwork := &Network{uris: uris}
 		require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
 
 		// Subscribe to blocks
@@ -624,7 +625,6 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	for testRegistry := range registry.GetTestsRegistries() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(fmt.Sprintf("Custom VM Test '%s'", test.Name), func() {
-				testNetwork := &Network{uris: uris}
 				require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
 				test.Fnc(ginkgo.GinkgoT(), testNetwork)
 			})
