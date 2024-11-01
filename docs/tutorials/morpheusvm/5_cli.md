@@ -7,56 +7,8 @@ to actually interact with our VM!
 
 In this tutorial, we'll go over the following:
 
-- Installing the CLI locally
 - Setting up the CLI
 - Interacting with MorpheusVM via the CLI
-
-## CLI Installation
-
-To start, we'll want to compile the HyperSDK-CLI. If you're in
-`examples/tutorial`, you can run the following:
-
-```bash
-go build -o ./hypersdk-cli ../../cmd/hypersdk-cli/
-```
-
-To confirm that your build of the HyperSDK-CLI was successful, run the following
-command:
-
-```bash
-./hypersdk-cli
-```
-
-You should see the following:
-
-```bash
-A CLI application for performing read and write actions on HyperSDK-based chains.
-
-Usage:
-  hypersdk-cli [command]
-
-Available Commands:
-  actions     Print the list of actions available in the ABI
-  address     Print current key address
-  balance     Get the balance of an address
-  completion  Generate the autocompletion script for the specified shell
-  endpoint    Manage endpoint
-  help        Help about any command
-  key         Manage keys
-  ping        Ping the endpoint
-  read        Read data from the chain
-  tx          Execute a transaction on the chain
-
-Flags:
-      --endpoint string   Override the default endpoint
-  -h, --help              help for hypersdk-cli
-      --key string        Private ED25519 key as hex string
-  -o, --output string     Output format (text or json) (default "text")
-
-Use "hypersdk-cli [command] --help" for more information about a command.
-```
-
-With the HyperSDK-CLI built, we can now move on to setting it up.
 
 ## CLI Setup
 

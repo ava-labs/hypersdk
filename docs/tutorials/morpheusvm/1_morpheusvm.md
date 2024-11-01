@@ -72,7 +72,7 @@ import (
 )
 
 const (
-	Name = "tutorialvm"
+	Name = "morpheusvm"
 )
 
 var ID ids.ID
