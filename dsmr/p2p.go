@@ -40,7 +40,7 @@ var (
 )
 
 type GetChunkHandler[T Tx] struct {
-	storage *ChunkStorage[T]
+	storage *chunkStorage[T]
 }
 
 func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
@@ -129,7 +129,7 @@ type ChunkSignature struct {
 type GetChunkSignatureHandler[T Tx] struct {
 	sk       *bls.SecretKey
 	verifier Verifier[T]
-	storage  *ChunkStorage[T]
+	storage  *chunkStorage[T]
 }
 
 func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {

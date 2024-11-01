@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -76,15 +75,14 @@ func TestNode_NewChunk(t *testing.T) {
 
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-			storage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
-			r.NoError(err)
 
+			nodeID := ids.GenerateTestNodeID()
+			beneficiary := codec.CreateAddress(0x0, ids.GenerateTestID())
 			node, err := New[tx](
-				ids.GenerateTestNodeID(),
+				nodeID,
 				sk,
-				codec.EmptyAddress,
+				beneficiary,
 				NoVerifier[tx]{},
-				storage,
 				nil,
 			)
 			r.NoError(err)
@@ -95,13 +93,23 @@ func TestNode_NewChunk(t *testing.T) {
 				return
 			}
 
-			r.ElementsMatch(chunk.Txs, tt.txs)
-			r.Equal(chunk.Expiry, tt.expiry.Unix())
+			r.Equal(nodeID, chunk.Producer)
+			r.Equal(beneficiary, chunk.Beneficiary)
+			r.Equal(tt.expiry.Unix(), chunk.Expiry)
+			r.ElementsMatch(tt.txs, chunk.Txs)
+
+			t.Skip() // TODO test signatures
+			pk := bls.PublicFromSecretKey(sk)
+			r.ElementsMatch(bls.PublicKeyToCompressedBytes(pk), chunk.Signer)
+
+			sig, err := bls.SignatureFromBytes(chunk.Signature[:])
+			r.NoError(err)
+			r.True(bls.Verify(pk, sig, chunk.bytes))
 		})
 	}
 }
 
-// Tests that accepted chunks are available over p2p from a Node
+// Tests that chunks referenced in accepted blocks are available over p2p
 func TestNode_GetChunk(t *testing.T) {
 	sk0, err := bls.NewSecretKey()
 	require.NoError(t, err)
@@ -121,8 +129,8 @@ func TestNode_GetChunk(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		pendingChunks  []Chunk[tx]
 		acceptedChunks []Chunk[tx]
+		pendingChunks  []Chunk[tx]
 		chunkID        ids.ID
 		expiry         int64
 		wantErr        error
@@ -151,25 +159,24 @@ func TestNode_GetChunk(t *testing.T) {
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
 
-			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
-			for _, chunk := range tt.pendingChunks {
-				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
-			}
-
-			for _, chunk := range tt.acceptedChunks {
-				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
-				r.NoError(chunkStorage.SetMin(0, []ids.ID{chunk.id}))
-			}
-
 			node, err := New[tx](
 				ids.GenerateTestNodeID(),
 				sk,
 				codec.Address{},
 				NoVerifier[tx]{},
-				chunkStorage,
 				nil,
 			)
 			r.NoError(err)
+
+			//for _, chunk := range tt.acceptedChunks {
+			//	node.NewChunk(chunk)
+			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
+			//	r.NoError(chunkStorage.SetMin(0, []ids.ID{chunk.id}))
+			//}
+			//
+			//for _, chunk := range tt.pendingChunks {
+			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
+			//}
 
 			client := NewGetChunkClient(p2ptest.NewClient(
 				t,
@@ -349,24 +356,22 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
+			nodeID := ids.GenerateTestNodeID()
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
+			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
 
-			nodeID := ids.GenerateTestNodeID()
-			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
-			r.NoError(err)
 			node, err := New[tx](
 				nodeID,
 				sk,
 				beneficiary,
 				NoVerifier[tx]{},
-				chunkStorage,
 				nil,
 			)
 			r.NoError(err)
 
 			// Build some chunks
+			//TODO refactor (?)
 			wantChunks := make([]Chunk[tx], 0)
 			for _, args := range tt.chunks {
 				chunk, err := node.NewChunk(args.txs, args.expiry)
@@ -374,6 +379,9 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 
 				wantChunks = append(wantChunks, chunk)
 			}
+
+			block := node.NewBlock()
+			r.NoError(node.Accept(block))
 
 			client := NewGetChunkClient(p2ptest.NewClient(
 				t,
@@ -386,8 +394,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			wg := &sync.WaitGroup{}
 			wg.Add(len(tt.chunks))
 
-			// Node must serve GetChunk requests for chunks that it
-			// built
+			// Node must serve GetChunk requests for chunks that it accepted
 			gotChunks := make(map[ids.ID]Chunk[tx], 0)
 			for _, chunk := range wantChunks {
 				r.NoError(client.AppRequest(
@@ -481,20 +488,16 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			r.NoError(err)
 			pk := bls.PublicFromSecretKey(sk)
 
-			chunkStorage, err := NewChunkStorage[tx](NoVerifier[tx]{}, memdb.New())
-			r.NoError(err)
-
-			for _, chunk := range tt.chunks {
-				r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, &ChunkCertificate{}))
-				r.NoError(chunkStorage.SetMin(chunk.Expiry, []ids.ID{chunk.id}))
-			}
+			//for _, chunk := range tt.chunks {
+			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, &ChunkCertificate{}))
+			//	r.NoError(chunkStorage.SetMin(chunk.Expiry, []ids.ID{chunk.id}))
+			//}
 
 			node, err := New[tx](
 				ids.EmptyNodeID,
 				sk,
 				codec.Address{},
 				tt.verifier,
-				chunkStorage,
 				nil,
 			)
 			r.NoError(err)

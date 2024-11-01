@@ -193,7 +193,7 @@ type Block struct {
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
 
-	Chunks []*ChunkCertificate `serialize:"true"`
+	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
 	blkID    ids.ID
 	blkBytes []byte
@@ -216,7 +216,7 @@ func (s *StatefulBlock[T, B, R]) Parent() ids.ID {
 func (s *StatefulBlock[T, B, R]) Verify(ctx context.Context) error {
 	// TODO: Verify header fields
 	// TODO: de-duplicate chunk certificates (internal to block and across history)
-	for _, chunkCert := range s.block.Chunks {
+	for _, chunkCert := range s.block.ChunkCerts {
 		// TODO: verify chunks within a provided context
 		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
 			return err

@@ -18,7 +18,7 @@ import (
 var _ acp118.Verifier = (*ChunkSignatureVerifier[Tx])(nil)
 
 type ChunkSignatureVerifier[T Tx] struct {
-	storage *ChunkStorage[T]
+	storage *chunkStorage[T]
 }
 
 func (c ChunkSignatureVerifier[T]) Verify(

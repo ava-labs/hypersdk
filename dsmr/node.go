@@ -5,8 +5,10 @@ package dsmr
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
@@ -15,18 +17,20 @@ import (
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
-var (
-	ErrEmptyChunk = errors.New("empty chunk")
-)
+var ErrEmptyChunk = errors.New("empty chunk")
 
 func New[T Tx](
 	nodeID ids.NodeID,
 	sk *bls.SecretKey,
 	beneficiary codec.Address,
 	chunkVerifier Verifier[T],
-	storage *ChunkStorage[T],
 	getChunkClient *p2p.Client,
 ) (*Node[T], error) {
+	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
+	if err != nil {
+		return nil, err
+	}
+
 	return &Node[T]{
 		nodeID:      nodeID,
 		sk:          sk,
@@ -62,9 +66,6 @@ type Node[T Tx] struct {
 	networkID uint32
 	chainID   ids.ID
 
-	//validators []acp118.Validator
-	//aggregator *acp118.SignatureAggregator
-
 	//TODO cleanup struct
 	nodeID                   ids.NodeID
 	sk                       *bls.SecretKey
@@ -75,14 +76,12 @@ type Node[T Tx] struct {
 	ACP118Handler            *acp118.Handler
 
 	//TODO chunk handler
-	client           *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
-	acp118Client     *p2p.Client
-	chunkCertBuilder chunkCertBuilder[T]
-	storage          *ChunkStorage[T]
+	client       *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
+	acp118Client *p2p.Client
+	storage      *chunkStorage[T]
 }
 
 // NewChunk builds transactions into a Chunk
-// TODO why return error
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 	if len(txs) == 0 {
@@ -102,33 +101,34 @@ func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 		n.chainID,
 	)
 	if err != nil {
-		return Chunk[T]{}, err
+		return Chunk[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	cert := &ChunkCertificate{
+	//TODO make chunk certs
+	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
 
 	//TODO gossip chunk certs
-
-	return chunk, n.storage.AddLocalChunkWithCert(chunk, cert)
+	return chunk, n.storage.AddLocalChunkWithCert(chunk, chunkCert)
 }
 
 // NewBlock TODO should we quiesce
-func (n *Node[T]) NewBlock() (Block, error) {
+func (n *Node[T]) NewBlock() Block {
 	return Block{
-		Chunks: n.storage.GatherChunkCerts(),
-	}, nil
+		ChunkCerts: n.storage.GatherChunkCerts(),
+	}
 }
 
-// consumes chunks and aggregates signtures to generate chunk certs
-type chunkCertBuilder[T Tx] struct {
-	client *p2p.Client
-}
+func (n *Node[T]) Accept(block Block) error {
+	expiry := int64(0)
+	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
+	for _, chunkCert := range block.ChunkCerts {
+		expiry = max(expiry, chunkCert.Expiry)
+		chunkIDs = append(chunkIDs, chunkCert.ChunkID)
+	}
 
-// TODO implement
-func (c *chunkCertBuilder[T]) NewCert(chunk Chunk[T]) (ChunkCertificate, error) {
-	return ChunkCertificate{}, nil
+	return n.storage.SetMin(expiry, chunkIDs)
 }

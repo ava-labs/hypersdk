@@ -31,7 +31,7 @@ type BlockHandler[T Tx, Block any, Result any] struct {
 
 func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block *Block) (R, error) {
 	// Collect and store chunks in the accepted block
-	chunks, err := b.chunkGatherer.CollectChunks(block.Chunks)
+	chunks, err := b.chunkGatherer.CollectChunks(block.ChunkCerts)
 	if err != nil {
 		return *new(R), err
 	}
