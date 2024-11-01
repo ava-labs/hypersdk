@@ -110,30 +110,6 @@ func (*Network) Configuration() workload.TestNetworkConfiguration {
 	return networkConfig
 }
 
-func (n *Network) confirmTxs(ctx context.Context, uri string, txs []*chain.Transaction) error {
-	c := jsonrpc.NewJSONRPCClient(uri)
-	txIDs := []ids.ID{}
-	for _, tx := range txs {
-		txID, err := c.SubmitTx(ctx, tx.Bytes())
-		if err != nil {
-			return fmt.Errorf("unable to submit transaction : %w", err)
-		}
-		txIDs = append(txIDs, txID)
-	}
-
-	indexerCli := indexer.NewClient(uri)
-	for _, txID := range txIDs {
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
-		if err != nil {
-			return fmt.Errorf("error while waiting for transaction : %w", err)
-		}
-		if !success {
-			return ErrUnableToConfirmTx
-		}
-	}
-	return nil
-}
-
 type rules struct {
 	chain.Rules
 	chainID ids.ID
