@@ -20,8 +20,8 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// Global test registry initialized during init to ensure tests are identical during ginkgo
-// tree construction and test execution
+// TestsRegistry initialized during init to ensure tests are identical during ginkgo
+// suite construction and test execution
 // ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
