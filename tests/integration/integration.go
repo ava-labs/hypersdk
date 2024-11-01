@@ -538,12 +538,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
-		// syncronize the nodes on the network.
+		// synchronize the nodes on the network.
 		// this would clear previous txs on instance 0
 		// and ignore the transaction results while
 		// syncronizing the nodes on the network.
 		testNetwork := &Network{uris: uris}
-		require.NoError(testNetwork.SyncronizeNetwork(context.Background()))
+		require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
 
 		// Subscribe to blocks
 		cli, err := ws.NewWebSocketClient(instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
@@ -625,8 +625,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(fmt.Sprintf("Custom VM Test '%s'", test.Name), func() {
 				testNetwork := &Network{uris: uris}
-				require.NoError(testNetwork.SyncronizeNetwork(context.Background()))
-				require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+				require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
+				test.Fnc(ginkgo.GinkgoT(), testNetwork)
 			})
 		}
 	}

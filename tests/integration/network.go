@@ -44,9 +44,9 @@ func (*Network) GenerateTx(ctx context.Context, actions []chain.Action, auth cha
 	return instances[0].GenerateTx(ctx, actions, auth)
 }
 
-// SyncronizeNetwork ensures that all the nodes on the network are at the same block height.
+// SynchronizeNetwork ensures that all the nodes on the network are at the same block height.
 // this method should be called at the beginning of each test to ensure good starting point.
-func (*Network) SyncronizeNetwork(ctx context.Context) error {
+func (*Network) SynchronizeNetwork(ctx context.Context) error {
 	// find the latest block height across the network
 	var biggestHeight uint64
 	var biggestHeightInstanceIndex int

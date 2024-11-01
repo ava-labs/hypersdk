@@ -20,11 +20,12 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// TestsRegistry is global tests registry instance where all the tests are to be registered. Each VM would typically have only
-// a single instance of such a registry.
+// Global test registry initialized during init to ensure tests are identical during ginkgo
+// tree construction and test execution
+// ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
-var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) error {
+var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
 	require := require.New(t)
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
@@ -45,5 +46,4 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	defer timeoutCtxFnc()
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
-	return nil
 })

@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork) error
+type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork)
 
 type namedTest struct {
 	Fnc  TestFunc

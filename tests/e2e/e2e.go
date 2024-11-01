@@ -244,13 +244,12 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 
 var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 	tc := e2e.NewTestContext()
-	require := require.New(tc)
 
 	for testRegistry := range registry.GetTestsRegistries() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(test.Name, func() {
 				testNetwork := NewNetwork(tc)
-				require.NoError(test.Fnc(ginkgo.GinkgoT(), testNetwork), "Test %s failed with an error", test.Name)
+				test.Fnc(ginkgo.GinkgoT(), testNetwork)
 			})
 		}
 	}
