@@ -44,6 +44,7 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 	return nil
 }
 
+// arguments needed to get the count at [address]
 type CountArgs struct {
 	Address codec.Address `json:"address"`
 }

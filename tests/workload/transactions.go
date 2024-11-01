@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
@@ -38,6 +39,11 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 	targetheight := startHeight + uint64(blocks)
 
 	for height < targetheight {
+		utils.Outf(
+			"{{green}} start height %d and target height %d \n",
+			startHeight,
+			targetheight,
+		)
 		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
 		require.NoError(err)
 		_, err = client.SubmitTx(ctx, tx.Bytes())
@@ -47,6 +53,8 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 		require.NoError(err)
 		height = acceptedHeight
 	}
+
+	utils.Outf("{{cyan}} Generated %d blocks, last height %d\n", blocks, height)
 
 	for _, uri := range uris {
 		client := jsonrpc.NewJSONRPCClient(uri)
@@ -59,6 +67,7 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 		})
 		require.NoError(err)
 	}
+	utils.Outf("{{red}} All nodes reached height %d\n", targetheight)
 }
 
 // GenerateTxs generates transactions using the provided TxGenerator until the generator
