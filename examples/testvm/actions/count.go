@@ -30,7 +30,7 @@ type Count struct {
 	// Address
 	Address codec.Address `serialize:"true" json:"address"`
 	// Amount to increment actor.
-	Amount uint64 `serialize:"true" json:"value"`
+	Amount uint64 `serialize:"true" json:"amount"`
 }
 
 func (*Count) GetTypeID() uint8 {

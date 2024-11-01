@@ -130,7 +130,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
 		require.NoError(err)
 
-		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "TEST")
 		require.NoError(err)
 	})
 })

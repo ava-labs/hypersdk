@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -67,10 +68,11 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, addr codec.Address, expectedCount uint64) {
-	// indexerCli := indexer.NewClient(uri)
-	// success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
-	// require.NoError(err)
-	// require.True(success)
+
+	indexerCli := indexer.NewClient(uri)
+	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+	require.NoError(err)
+	require.True(success)
 	// lcli := vm.NewJSONRPCClient(uri)
 	// balance, err := lcli.Count(ctx, addr)
 	// require.NoError(err)

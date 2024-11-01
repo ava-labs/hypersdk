@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -15,8 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 )
-
-const countCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
