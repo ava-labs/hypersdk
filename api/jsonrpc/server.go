@@ -121,6 +121,9 @@ type LastAcceptedReply struct {
 
 func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := j.vm.LastAcceptedBlock()
+	// the call above returns a pointer to a chain.StatefulBlock struct. This pointer is initialized during VM.Initialize
+	// and being maintained afterward. The handler to this server is created as one of the last tasks of VM.Initialize,
+	// hence it's safe to use this pointer without testing whether it's nil or not.
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
 	reply.Timestamp = blk.Tmstmp
