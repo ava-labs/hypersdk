@@ -12,6 +12,14 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
+type Options struct {
+	builder                        bool
+	gossiper                       bool
+	blockSubscriptionFactories     []event.SubscriptionFactory[*chain.ExecutedBlock]
+	vmAPIHandlerFactories          []api.HandlerFactory[api.VM]
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+}
+
 type optionFunc func(vm api.VM, configBytes []byte) (Opt, error)
 
 type OptionFunc[T any] func(vm api.VM, config T) (Opt, error)
@@ -71,40 +79,6 @@ func WithManual() Option {
 	)
 }
 
-type Options struct {
-	builder                        bool
-	gossiper                       bool
-	blockSubscriptionFactories     []event.SubscriptionFactory[*chain.ExecutedBlock]
-	vmAPIHandlerFactories          []api.HandlerFactory[api.VM]
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
-}
-
-type Opt interface {
-	apply(*Options)
-}
-
-type funcOption struct {
-	f func(*Options)
-}
-
-func (fdo *funcOption) apply(do *Options) {
-	fdo.f(do)
-}
-
-func NewOpt(opts ...Opt) Opt {
-	return newFuncOption(func(o *Options) {
-		for _, opt := range opts {
-			opt.apply(o)
-		}
-	})
-}
-
-func newFuncOption(f func(*Options)) *funcOption {
-	return &funcOption{
-		f: f,
-	}
-}
-
 func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.ExecutedBlock]) Opt {
 	return newFuncOption(func(o *Options) {
 		o.blockSubscriptionFactories = append(o.blockSubscriptionFactories, subscriptions...)
@@ -121,4 +95,31 @@ func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRem
 	return newFuncOption(func(o *Options) {
 		o.txRemovedSubscriptionFactories = append(o.txRemovedSubscriptionFactories, subscriptions...)
 	})
+}
+
+type Opt interface {
+	apply(*Options)
+}
+
+// NewOpt mixes a list of Opt in a new one Opt.
+func NewOpt(opts ...Opt) Opt {
+	return newFuncOption(func(o *Options) {
+		for _, opt := range opts {
+			opt.apply(o)
+		}
+	})
+}
+
+type funcOption struct {
+	f func(*Options)
+}
+
+func (fdo *funcOption) apply(do *Options) {
+	fdo.f(do)
+}
+
+func newFuncOption(f func(*Options)) *funcOption {
+	return &funcOption{
+		f: f,
+	}
 }

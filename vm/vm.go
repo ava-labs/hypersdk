@@ -261,9 +261,10 @@ func (vm *VM) Initialize(
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
+	apiCoreContext := newAPICoreContext(vm)
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
+		opt, err := Option.optionFunc(apiCoreContext, config)
 		if err != nil {
 			return err
 		}
@@ -485,7 +486,7 @@ func (vm *VM) Initialize(
 
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
-		api, err := apiFactory.New(vm)
+		api, err := apiFactory.New(apiCoreContext)
 		if err != nil {
 			return fmt.Errorf("failed to initialize api: %w", err)
 		}
@@ -700,14 +701,6 @@ func (vm *VM) Shutdown(context.Context) error {
 	}
 
 	return nil
-}
-
-func (vm *VM) GetDataDir() string {
-	return vm.DataDir
-}
-
-func (vm *VM) GetGenesisBytes() []byte {
-	return vm.GenesisBytes
 }
 
 // implements "block.ChainVM.common.VM"
@@ -1230,4 +1223,22 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 	vm.snowCtx.Log.Fatal(msg, fields...)
 	panic("fatal error")
+}
+
+type apiCoreContext struct {
+	*VM
+}
+
+func (c *apiCoreContext) GetDataDir() string {
+	return c.VM.DataDir
+}
+
+func (c *apiCoreContext) GetGenesisBytes() []byte {
+	return c.VM.GenesisBytes
+}
+
+func newAPICoreContext(vm *VM) api.VM {
+	return &apiCoreContext{
+		VM: vm,
+	}
 }
