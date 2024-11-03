@@ -40,7 +40,7 @@ func TestNode_NewChunk(t *testing.T) {
 			wantErr: ErrEmptyChunk,
 		},
 		{
-			name: "chunk with 1 tx ",
+			name: "chunk with 1 tx",
 			txs: []tx{
 				{
 					ID:     ids.GenerateTestID(),
@@ -97,14 +97,9 @@ func TestNode_NewChunk(t *testing.T) {
 			r.Equal(beneficiary, chunk.Beneficiary)
 			r.Equal(tt.expiry.Unix(), chunk.Expiry)
 			r.ElementsMatch(tt.txs, chunk.Txs)
-
-			t.Skip() // TODO test signatures
-			pk := bls.PublicFromSecretKey(sk)
-			r.ElementsMatch(bls.PublicKeyToCompressedBytes(pk), chunk.Signer)
-
-			sig, err := bls.SignatureFromBytes(chunk.Signature[:])
-			r.NoError(err)
-			r.True(bls.Verify(pk, sig, chunk.bytes))
+			// TODO verify signature + signer
+			r.NotEmpty(chunk.Signature)
+			r.NotEmpty(chunk.Signer)
 		})
 	}
 }
@@ -136,6 +131,7 @@ func TestNode_GetChunk(t *testing.T) {
 		wantErr        error
 		wantChunk      Chunk[tx]
 	}{
+		// TODO test unknown chunk
 		// TODO test expired chunks?
 		{
 			name:          "request pending chunk",
