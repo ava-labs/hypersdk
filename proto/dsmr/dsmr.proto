@@ -58,4 +58,8 @@ message GetChunkSignatureResponse {
   bytes signature = 5;
 }
 
+message ChunkCertificateGossip {
+  ChunkCertificate chunk_certificate = 1;
+}
+
 //TODO chunk fault

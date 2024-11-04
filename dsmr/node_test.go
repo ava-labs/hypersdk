@@ -1007,7 +1007,6 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		gotChunk, err := newChunkFromProto[tx](response.Chunk)
 		r.NoError(err)
 		r.Equal(chunk, gotChunk)
-
 	}
 
 	r.NoError(client.AppRequest(
