@@ -36,6 +36,8 @@ func New[T Tx](
 	sk *bls.SecretKey,
 	chunkVerifier Verifier[T],
 	getChunkClient *p2p.Client,
+	getChunkSignatureClient *p2p.Client,
+	chunkCertificateGossipClient *p2p.Client,
 	validators []Validator,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
@@ -44,13 +46,12 @@ func New[T Tx](
 	}
 
 	return &Node[T]{
-		nodeID: nodeID,
-		sk:     sk,
-		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
-			getChunkClient,
-			getChunkMarshaler{},
-		),
-		validators: validators,
+		nodeID:                       nodeID,
+		sk:                           sk,
+		getChunkClient:               NewGetChunkClient(getChunkClient),
+		getChunkSignatureClient:      NewGetChunkSignatureClient(getChunkSignatureClient),
+		chunkCertificateGossipClient: NewChunkCertificateGossipClient(chunkCertificateGossipClient),
+		validators:                   validators,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
@@ -59,21 +60,27 @@ func New[T Tx](
 			verifier: chunkVerifier,
 			storage:  storage,
 		},
+		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
+			storage: storage,
+		},
 		storage: storage,
 		pk:      bls.PublicFromSecretKey(sk),
 	}, nil
 }
 
 type Node[T Tx] struct {
-	nodeID     ids.NodeID
-	sk         *bls.SecretKey
-	networkID  uint32
-	chainID    ids.ID
-	client     *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
-	validators []Validator
+	nodeID                       ids.NodeID
+	sk                           *bls.SecretKey
+	networkID                    uint32
+	chainID                      ids.ID
+	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse, []byte]
+	getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
+	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
+	validators                   []Validator
 
-	GetChunkHandler          *GetChunkHandler[T]
-	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
+	GetChunkHandler               *GetChunkHandler[T]
+	GetChunkSignatureHandler      *GetChunkSignatureHandler[T]
+	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
 	//TODO chunk handler
 	storage *chunkStorage[T]
 	pk      *bls.PublicKey
@@ -82,6 +89,7 @@ type Node[T Tx] struct {
 // NewChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) NewChunk(
+	ctx context.Context,
 	txs []T,
 	expiry int64,
 	beneficiary codec.Address,
@@ -106,14 +114,47 @@ func (n *Node[T]) NewChunk(
 		return Chunk[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	//TODO make chunk certs
+	protoChunk, err := newProtoChunk[T](chunk)
+	if err != nil {
+		return Chunk[T]{}, fmt.Errorf("failed to marshal chunk: %w", err)
+	}
+
+	request := &dsmr.GetChunkSignatureRequest{
+		Chunk: protoChunk,
+	}
+
+	for _, validator := range n.validators {
+		done := make(chan struct{})
+		onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+			defer close(done)
+			//TODO generate chunk cert
+		}
+
+		if err := n.getChunkSignatureClient.AppRequest(ctx, validator.NodeID, request, onResponse); err != nil {
+			return Chunk[T]{}, err
+		}
+
+		<-done
+	}
+
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
 
-	//TODO gossip chunk certs
+	if err := n.chunkCertificateGossipClient.AppGossip(ctx, &dsmr.ChunkCertificateGossip{
+		ChunkCertificate: &dsmr.ChunkCertificate{
+			ChunkId:   chunk.id[:],
+			Producer:  chunk.Producer[:],
+			Expiry:    chunk.Expiry,
+			Signers:   nil, // TODO populate
+			Signature: nil,
+		},
+	}); err != nil {
+		return Chunk[T]{}, err
+	}
+
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, chunkCert)
 }
 
@@ -183,7 +224,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 
 				// TODO better request strategy
 				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID
-				if err := n.client.AppRequest(
+				if err := n.getChunkClient.AppRequest(
 					ctx,
 					nodeID,
 					&dsmr.GetChunkRequest{

@@ -43,7 +43,7 @@ type StoredChunkSignature[T Tx] struct {
 	Chunk          Chunk[T]
 	LocalSignature NoVerifyChunkSignatureShare // Decouple signature share / certificate types
 	Cert           *ChunkCertificate
-	Accepted       bool
+	Available      bool
 }
 
 // chunkStorage provides chunk, signature share, and chunk certificate storage
@@ -142,7 +142,7 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
 	}
 	storedChunk.Cert = cert
-	storedChunk.Accepted = true
+	storedChunk.Available = true
 	return nil
 }
 
@@ -203,7 +203,7 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		chunk.Accepted = true
+		chunk.Available = true
 		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id), chunk.Chunk.bytes); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
@@ -254,7 +254,7 @@ func (s *chunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, b
 
 	chunk, ok := s.chunkMap[chunkID]
 	if ok {
-		return chunk.Chunk.bytes, chunk.Accepted, nil
+		return chunk.Chunk.bytes, chunk.Available, nil
 	}
 
 	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB

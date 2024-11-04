@@ -38,6 +38,7 @@ var (
 
 	_ p2p.Handler = (*GetChunkHandler[Tx])(nil)
 	_ p2p.Handler = (*GetChunkSignatureHandler[Tx])(nil)
+	_ p2p.Handler = (*ChunkCertificateGossipHandler[Tx])(nil)
 )
 
 type GetChunkHandler[T Tx] struct {
@@ -68,7 +69,7 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 	}
 
 	// TODO check chunk status?
-	chunkBytes, accepted, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	chunkBytes, available, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil && errors.Is(err, database.ErrNotFound) {
 		return nil, ErrChunkNotAvailable
 	}
@@ -79,7 +80,7 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 		}
 	}
 
-	if !accepted {
+	if !available {
 		return nil, ErrChunkNotAvailable
 	}
 
@@ -132,7 +133,6 @@ type ChunkSignature struct {
 	Signature  [bls.SignatureLen]byte
 }
 
-// TODO use warp signatures
 type GetChunkSignatureHandler[T Tx] struct {
 	sk       *bls.SecretKey
 	verifier Verifier[T]
@@ -182,6 +182,13 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 		return nil, ErrDuplicateChunk
 	}
 
+	if _, err := g.storage.VerifyRemoteChunk(chunk); err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
 	response := &dsmr.GetChunkSignatureResponse{
 		ChunkId:   chunk.id[:],
 		Producer:  chunk.Producer[:],
@@ -199,4 +206,34 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 	}
 
 	return responseBytes, nil
+}
+
+type ChunkCertificateGossipHandler[T Tx] struct {
+	storage *chunkStorage[T]
+}
+
+func (c ChunkCertificateGossipHandler[_]) AppGossip(ctx context.Context, nodeID ids.NodeID, gossipBytes []byte) {
+	gossip := &dsmr.ChunkCertificateGossip{}
+	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
+		return
+	}
+
+	chunkID, err := ids.ToID(gossip.ChunkCertificate.ChunkId)
+	if err != nil {
+		return
+	}
+
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunkID,
+		Expiry:    gossip.ChunkCertificate.Expiry,
+		Signature: NoVerifyChunkSignature{},
+	}
+
+	if err := c.storage.SetChunkCert(chunkID, chunkCert); err != nil {
+		return
+	}
+}
+
+func (c ChunkCertificateGossipHandler[_]) AppRequest(context.Context, ids.NodeID, time.Time, []byte) ([]byte, *common.AppError) {
+	return nil, common.ErrTimeout
 }
