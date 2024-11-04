@@ -7,9 +7,19 @@ set -e
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
 MODE=${MODE:-run}
-if ! [[ "$0" =~ scripts/run.sh ]]; then
-  echo "must be run from morpheusvm root"
-  exit 255
+# if ! [[ "$0" =~ scripts/run.sh ]]; then
+#   echo "must be run from morpheusvm root"
+#   exit 255
+# fi
+
+if [ -n "$1" ]; then
+    # Attempt to change to the directory provided as the argument
+    if cd "$1"; then
+        echo "cd $1"
+    else
+        echo "failed to cd to directory; $1"
+        exit 255
+    fi
 fi
 
 # shellcheck source=/scripts/constants.sh
