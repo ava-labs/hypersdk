@@ -211,7 +211,7 @@ type ChunkCertificateGossipHandler[T Tx] struct {
 	storage *chunkStorage[T]
 }
 
-func (c ChunkCertificateGossipHandler[_]) AppGossip(ctx context.Context, nodeID ids.NodeID, gossipBytes []byte) {
+func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
 		return

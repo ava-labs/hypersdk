@@ -268,7 +268,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ *dsmr.GetChunkResponse, err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrChunkNotAvailable)
@@ -701,7 +701,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			r.NoError(err)
 
 			done := make(chan struct{})
-			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+			onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
 				defer close(done)
 
 				r.ErrorIs(err, tt.wantErr)
@@ -795,7 +795,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(node.Accept(context.Background(), blk))
 
 	done := make(chan struct{})
-	onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ *dsmr.GetChunkSignatureResponse, err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrDuplicateChunk)
@@ -1341,6 +1341,6 @@ func (t tx) GetExpiry() int64 {
 
 type failVerifier struct{}
 
-func (f failVerifier) Verify(Chunk[tx]) error {
+func (failVerifier) Verify(Chunk[tx]) error {
 	return errors.New("fail")
 }
