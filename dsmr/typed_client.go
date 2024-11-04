@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package dsmr
 
 import (
@@ -43,11 +46,11 @@ func (t *TypedClient[T, U, _]) AppRequest(
 	nodeID ids.NodeID,
 	request T,
 	onResponse func(
-		ctx context.Context,
-		nodeID ids.NodeID,
-		response U,
-		err error,
-	)) error {
+	ctx context.Context,
+	nodeID ids.NodeID,
+	response U,
+	err error,
+)) error {
 	onByteResponse := func(ctx context.Context, nodeID ids.NodeID, responseBytes []byte, err error) {
 		response, parseErr := t.marshaler.UnmarshalResponse(responseBytes)
 		if parseErr != nil {

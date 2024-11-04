@@ -21,6 +21,11 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
+type Tx interface {
+	GetID() ids.ID
+	GetExpiry() time.Time
+}
+
 type UnsignedChunk[T Tx] struct {
 	Producer    ids.NodeID    `serialize:"true"`
 	Beneficiary codec.Address `serialize:"true"`
