@@ -16,6 +16,9 @@ This section will consist of the following:
 - Implementing a way to feed our workload tests to the HyperSDK workload test
   framework
 
+In addition to adding workload tests, we will also add procedural tests which
+will allow us to write singular unit tests.
+
 ## Workload Scripts
 
 We start by reusing the workload script from MorpheusVM. In `tutorial/`, create
@@ -391,6 +394,115 @@ other values to the HyperSDK integration test library. Implementing an entire
 integration test framework is time-intensive. By using the HyperSDK integration
 test framework, we can defer most tasks to it and solely focus on defining the
 workload tests.
+
+## Registry Tests
+
+Now that we've added our workload tests, we can focus on adding a simple
+registry test. In short, registry tests allow us to run an integration test on
+our VM in a unit-test-esque manner. To start, run the following command:
+
+```bash
+touch ./tests/transfer.go
+```
+
+As the name suggests, we'll be writing a registry test to test the `Transfer`
+action. Within `transfer.go`, we can start by pasting the following in:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package tests
+
+import (
+	"context"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/tests/registry"
+
+	tworkload "github.com/ava-labs/hypersdk/tests/workload"
+	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+// TestsRegistry initialized during init to ensure tests are identical during ginkgo
+// suite construction and test execution
+// ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
+var TestsRegistry = &registry.Registry{}
+
+var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+
+})
+```
+
+In the code above, we have `TestsRegistry`: as the name suggest, this is a
+registry of all the procedural tests that we want to run against our VM.
+Afterwards, we have the following snippet:
+
+```go
+registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+
+})
+```
+
+Here, we are adding a procedural test to `TestRegistry`. However, what we're
+missing is the actual test logic itself. In short, here's what we want to do in
+our testing logic:
+
+- Setup necessary values
+- Create our test TX
+- Send our TX
+- Require that our TX is sent and that the outputs are as expected
+
+Focusing on the first step, we can write the following inside the anonymous
+function:
+
+```go
+	require := require.New(t)
+	other, err := ed25519.GeneratePrivateKey()
+	require.NoError(err)
+	toAddress := auth.NewED25519Address(other.PublicKey())
+
+	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
+	spendingKey := networkConfig.Keys()[0]
+```
+
+Next, we'll create our test transaction. In short, we'll want to send a value of
+`1` to `To`. Therefore, we have:
+
+```go
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
+		To:    toAddress,
+		Value: 1,
+	}},
+		auth.NewED25519Factory(spendingKey),
+	)
+	require.NoError(err)
+```
+
+Finally, we'll want to send our TX and do the checks mentioned in the last step.
+This step will consist of the following:
+
+- Creating a context with a deadline of 2 seconds
+  - If the test takes longer than 2 seconds, it will fail
+- Calling `ConfirmTxs` with our TX being passed in
+
+The function `ConfirmTXs`, in particular, is useful as it checks that our TX was
+sent and that, if finalized, our transaction has the expected outputs. We have
+the following:
+
+```go
+	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
+	defer timeoutCtxFnc()
+
+	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+```
 
 ## Testing Our VM
 
