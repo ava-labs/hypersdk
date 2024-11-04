@@ -34,7 +34,6 @@ type Validator struct {
 func New[T Tx](
 	nodeID ids.NodeID,
 	sk *bls.SecretKey,
-	beneficiary codec.Address,
 	chunkVerifier Verifier[T],
 	getChunkClient *p2p.Client,
 	validators []Validator,
@@ -45,9 +44,8 @@ func New[T Tx](
 	}
 
 	return &Node[T]{
-		nodeID:      nodeID,
-		sk:          sk,
-		beneficiary: beneficiary,
+		nodeID: nodeID,
+		sk:     sk,
 		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
 			getChunkClient,
 			getChunkMarshaler{},
@@ -67,13 +65,12 @@ func New[T Tx](
 }
 
 type Node[T Tx] struct {
-	nodeID      ids.NodeID
-	sk          *bls.SecretKey
-	networkID   uint32
-	chainID     ids.ID
-	beneficiary codec.Address
-	client      *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
-	validators  []Validator
+	nodeID     ids.NodeID
+	sk         *bls.SecretKey
+	networkID  uint32
+	chainID    ids.ID
+	client     *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
+	validators []Validator
 
 	GetChunkHandler          *GetChunkHandler[T]
 	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
@@ -84,7 +81,11 @@ type Node[T Tx] struct {
 
 // NewChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
-func (n *Node[T]) NewChunk(txs []T, expiry int64) (Chunk[T], error) {
+func (n *Node[T]) NewChunk(
+	txs []T,
+	expiry int64,
+	beneficiary codec.Address,
+) (Chunk[T], error) {
 	if len(txs) == 0 {
 		return Chunk[T]{}, ErrEmptyChunk
 	}
@@ -92,7 +93,7 @@ func (n *Node[T]) NewChunk(txs []T, expiry int64) (Chunk[T], error) {
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.nodeID,
-			Beneficiary: n.beneficiary,
+			Beneficiary: beneficiary,
 			Expiry:      expiry,
 			Txs:         txs,
 		},

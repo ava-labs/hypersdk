@@ -31,15 +31,17 @@ var (
 // Test that chunks can be built through Node.NewChunk
 func TestNode_NewChunk(t *testing.T) {
 	tests := []struct {
-		name    string
-		txs     []tx
-		expiry  int64
-		wantErr error
+		name        string
+		txs         []tx
+		expiry      int64
+		beneficiary codec.Address
+		wantErr     error
 	}{
 		{
-			name:    "empty chunk",
-			expiry:  123,
-			wantErr: ErrEmptyChunk,
+			name:        "empty chunk",
+			expiry:      123,
+			beneficiary: codec.Address{123},
+			wantErr:     ErrEmptyChunk,
 		},
 		{
 			name: "chunk with 1 tx",
@@ -49,7 +51,8 @@ func TestNode_NewChunk(t *testing.T) {
 					Expiry: 1,
 				},
 			},
-			expiry: 123,
+			expiry:      123,
+			beneficiary: codec.Address{123},
 		},
 		{
 			name: "chunk with multiple txs",
@@ -67,7 +70,8 @@ func TestNode_NewChunk(t *testing.T) {
 					Expiry: 3,
 				},
 			},
-			expiry: 123,
+			expiry:      123,
+			beneficiary: codec.Address{123},
 		},
 	}
 
@@ -79,11 +83,9 @@ func TestNode_NewChunk(t *testing.T) {
 			r.NoError(err)
 
 			nodeID := ids.GenerateTestNodeID()
-			beneficiary := codec.CreateAddress(0x0, ids.GenerateTestID())
 			node, err := New[tx](
 				nodeID,
 				sk,
-				beneficiary,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -96,14 +98,14 @@ func TestNode_NewChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunk, err := node.NewChunk(tt.txs, tt.expiry)
+			chunk, err := node.NewChunk(tt.txs, tt.expiry, tt.beneficiary)
 			r.ErrorIs(err, tt.wantErr)
 			if err != nil {
 				return
 			}
 
 			r.Equal(nodeID, chunk.Producer)
-			r.Equal(beneficiary, chunk.Beneficiary)
+			r.Equal(tt.beneficiary, chunk.Beneficiary)
 			r.Equal(tt.expiry, chunk.Expiry)
 			r.ElementsMatch(tt.txs, chunk.Txs)
 			// TODO verify signature + signer
@@ -122,7 +124,6 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
 		sk,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -138,6 +139,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	chunk, err := node.NewChunk(
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
+		codec.Address{123},
 	)
 	r.NoError(err)
 
@@ -190,7 +192,6 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
 		sk,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -206,6 +207,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	chunk, err := node.NewChunk(
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
+		codec.Address{123},
 	)
 	r.NoError(err)
 
@@ -245,7 +247,6 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
 		sk,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -288,8 +289,9 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 // Tests that a Node serves chunks it built over GetChunk
 func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 	type availableChunk struct {
-		txs    []tx
-		expiry int64
+		txs         []tx
+		expiry      int64
+		beneficiary codec.Address
 	}
 
 	tests := []struct {
@@ -306,7 +308,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 							Expiry: 0,
 						},
 					},
-					expiry: 123,
+					expiry:      123,
+					beneficiary: codec.Address{},
 				},
 			},
 		},
@@ -328,7 +331,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 							Expiry: 2,
 						},
 					},
-					expiry: 123,
+					expiry:      123,
+					beneficiary: codec.Address{},
 				},
 			},
 		},
@@ -342,7 +346,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 							Expiry: 0,
 						},
 					},
-					expiry: 123,
+					expiry:      123,
+					beneficiary: codec.Address{0},
 				},
 				{
 					txs: []tx{
@@ -351,7 +356,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 							Expiry: 1,
 						},
 					},
-					expiry: 123,
+					expiry:      123,
+					beneficiary: codec.Address{1},
 				},
 				{
 					txs: []tx{
@@ -360,7 +366,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 							Expiry: 2,
 						},
 					},
-					expiry: 123,
+					expiry:      123,
+					beneficiary: codec.Address{2},
 				},
 			},
 		},
@@ -429,12 +436,10 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			nodeID := ids.GenerateTestNodeID()
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-			beneficiary := codec.CreateAddress(123, ids.GenerateTestID())
 
 			node, err := New[tx](
 				nodeID,
 				sk,
-				beneficiary,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -450,7 +455,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			// Build some chunks
 			wantChunks := make([]Chunk[tx], 0)
 			for _, args := range tt.availableChunks {
-				chunk, err := node.NewChunk(args.txs, args.expiry)
+				chunk, err := node.NewChunk(args.txs, args.expiry, args.beneficiary)
 				r.NoError(err)
 
 				wantChunks = append(wantChunks, chunk)
@@ -509,7 +514,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				gotChunk := gotChunks[chunk.id]
 				r.Equal(nodeID, gotChunk.Producer)
 				r.Equal(chunk.Expiry, gotChunk.Expiry)
-				r.Equal(beneficiary, gotChunk.Beneficiary)
+				r.Equal(chunk.Beneficiary, gotChunk.Beneficiary)
 				r.ElementsMatch(chunk.Txs, gotChunk.Txs)
 				// TODO verify
 				r.NotEmpty(chunk.Signer)
@@ -547,7 +552,6 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			node1, err := New[tx](
 				ids.EmptyNodeID,
 				sk,
-				codec.Address{},
 				tt.verifier,
 				p2ptest.NewClient(
 					t,
@@ -571,7 +575,6 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			node2, err := New[tx](
 				ids.EmptyNodeID,
 				sk,
-				codec.Address{},
 				tt.verifier,
 				p2ptest.NewClient(
 					t,
@@ -583,7 +586,11 @@ func TestNode_GetChunkSignature(t *testing.T) {
 				nil,
 			)
 			r.NoError(err)
-			chunk, err := node2.NewChunk([]tx{{ID: ids.Empty, Expiry: 123}}, 123)
+			chunk, err := node2.NewChunk(
+				[]tx{{ID: ids.Empty, Expiry: 123}},
+				123,
+				codec.Address{123},
+			)
 			r.NoError(err)
 
 			done := make(chan struct{})
@@ -626,7 +633,6 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	node, err := New[tx](
 		ids.EmptyNodeID,
 		sk,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -649,7 +655,11 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 
 	// Accept a chunk
 	r.NoError(err)
-	chunk, err := node.NewChunk([]tx{{ID: ids.Empty, Expiry: 123}}, 123)
+	chunk, err := node.NewChunk(
+		[]tx{{ID: ids.Empty, Expiry: 123}},
+		123,
+		codec.Address{123},
+	)
 	r.NoError(err)
 	blk, err := node.NewBlock(
 		Block{
@@ -684,8 +694,9 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 
 func TestNode_NewBlock(t *testing.T) {
 	type chunk struct {
-		txs    []tx
-		expiry int64
+		txs         []tx
+		expiry      int64
+		beneficiary codec.Address
 	}
 
 	tests := []struct {
@@ -892,7 +903,6 @@ func TestNode_NewBlock(t *testing.T) {
 			node, err := New[tx](
 				ids.EmptyNodeID,
 				sk,
-				codec.Address{},
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -907,7 +917,7 @@ func TestNode_NewBlock(t *testing.T) {
 
 			wantChunks := make([]Chunk[tx], 0)
 			for _, chunk := range tt.chunks {
-				chunk, err := node.NewChunk(chunk.txs, chunk.expiry)
+				chunk, err := node.NewChunk(chunk.txs, chunk.expiry, chunk.beneficiary)
 				r.NoError(err)
 
 				// Only expect chunks that have not expired
@@ -953,7 +963,6 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	node1, err := New[tx](
 		ids.GenerateTestNodeID(),
 		sk1,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -966,7 +975,11 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	)
 	r.NoError(err)
 
-	chunk, err := node1.NewChunk([]tx{{ID: ids.GenerateTestID(), Expiry: 1}}, 1)
+	chunk, err := node1.NewChunk(
+		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
+		1,
+		codec.Address{123},
+	)
 	r.NoError(err)
 	blk, err := node1.NewBlock(Block{
 		ParentID:  ids.GenerateTestID(),
@@ -978,7 +991,6 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	node2, err := New[tx](
 		ids.GenerateTestNodeID(),
 		sk1,
-		codec.Address{},
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
