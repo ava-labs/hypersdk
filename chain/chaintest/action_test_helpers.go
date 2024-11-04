@@ -73,7 +73,7 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 
 		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
-		require.ErrorIs(test.ExpectedErr, err)
+		require.ErrorIs(err, test.ExpectedErr)
 		require.Equal(test.ExpectedOutputs, output)
 
 		if test.Assertion != nil {
