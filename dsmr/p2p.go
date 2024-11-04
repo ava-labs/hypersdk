@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	//TODO error codes
+	// TODO error codes
 	ErrChunkNotAvailable = &common.AppError{
 		Code:    1,
 		Message: "chunk is not available",
@@ -48,9 +48,7 @@ type GetChunkHandler[T Tx] struct {
 	storage *chunkStorage[T]
 }
 
-func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
-	return
-}
+func (*GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {}
 
 // TODO can only get available chunks that have not expired/executed chunks near
 // tip
@@ -142,9 +140,7 @@ type GetChunkSignatureHandler[T Tx] struct {
 	storage  *chunkStorage[T]
 }
 
-func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {
-	return
-}
+func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {}
 
 func (g *GetChunkSignatureHandler[T]) AppRequest(
 	_ context.Context,

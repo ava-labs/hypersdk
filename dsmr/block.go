@@ -23,7 +23,7 @@ const InitialChunkSize = 250 * 1024
 
 type Tx interface {
 	GetID() ids.ID
-	GetExpiry() time.Time
+	GetExpiry() int64
 }
 
 type UnsignedChunk[T Tx] struct {
@@ -34,7 +34,6 @@ type UnsignedChunk[T Tx] struct {
 }
 
 // TODO emit configurable amount of chunks/sec
-// TODO unexport?
 type Chunk[T Tx] struct {
 	Producer    ids.NodeID             `serialize:"true"`
 	Beneficiary codec.Address          `serialize:"true"`
@@ -44,8 +43,7 @@ type Chunk[T Tx] struct {
 	Signature   [bls.SignatureLen]byte `serialize:"true"`
 
 	bytes []byte
-	//TODO export?
-	id ids.ID
+	id    ids.ID
 }
 
 func signChunk[T Tx](
@@ -68,14 +66,14 @@ func signChunk[T Tx](
 	signer := warp.NewSigner(sk, networkID, chainID)
 	signatureBytes, err := signer.Sign(msg)
 	if err != nil {
-		return Chunk[T]{}, nil
+		return Chunk[T]{}, err
 	}
 
 	pkBytes := [bls.PublicKeyLen]byte{}
 	signature := [bls.SignatureLen]byte{}
 
-	copy(pkBytes[:], bls.PublicKeyToCompressedBytes(pk)[:])
-	copy(signature[:], signatureBytes[:])
+	copy(pkBytes[:], bls.PublicKeyToCompressedBytes(pk))
+	copy(signature[:], signatureBytes)
 
 	return newSignedChunk(chunk, pkBytes, signature)
 }
@@ -175,8 +173,8 @@ func newChunkFromProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
 
 	pkBytes := [bls.PublicKeyLen]byte{}
 	signature := [bls.SignatureLen]byte{}
-	copy(pkBytes[:], chunkProto.Signer[:])
-	copy(signature[:], chunkProto.Signature[:])
+	copy(pkBytes[:], chunkProto.Signer)
+	copy(signature[:], chunkProto.Signature)
 
 	return newSignedChunk(
 		UnsignedChunk[T]{

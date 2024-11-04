@@ -38,16 +38,12 @@ func (t *TypedClient[T, U, _]) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	request T,
-	onResponse func(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	response U,
-	err error,
-)) error {
+	onResponse func(ctx context.Context, nodeID ids.NodeID, response U, err error),
+) error {
 	onByteResponse := func(ctx context.Context, nodeID ids.NodeID, responseBytes []byte, err error) {
 		response, parseErr := t.marshaler.UnmarshalResponse(responseBytes)
 		if parseErr != nil {
-			//TODO how do we handle this?
+			// TODO how do we handle this?
 			return
 		}
 
@@ -87,25 +83,25 @@ func (t *TypedClient[T, U, V]) AppGossip(
 
 type chunkCertificateGossipMarshaler struct{}
 
-func (c chunkCertificateGossipMarshaler) MarshalRequest(bytes []byte) ([]byte, error) {
+func (chunkCertificateGossipMarshaler) MarshalRequest(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func (c chunkCertificateGossipMarshaler) UnmarshalResponse(bytes []byte) ([]byte, error) {
+func (chunkCertificateGossipMarshaler) UnmarshalResponse(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func (c chunkCertificateGossipMarshaler) MarshalGossip(gossip *dsmr.ChunkCertificateGossip) ([]byte, error) {
+func (chunkCertificateGossipMarshaler) MarshalGossip(gossip *dsmr.ChunkCertificateGossip) ([]byte, error) {
 	return proto.Marshal(gossip)
 }
 
 type getChunkSignatureMarshaler struct{}
 
-func (g getChunkSignatureMarshaler) MarshalRequest(request *dsmr.GetChunkSignatureRequest) ([]byte, error) {
+func (getChunkSignatureMarshaler) MarshalRequest(request *dsmr.GetChunkSignatureRequest) ([]byte, error) {
 	return proto.Marshal(request)
 }
 
-func (g getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkSignatureResponse, error) {
+func (getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkSignatureResponse, error) {
 	response := dsmr.GetChunkSignatureResponse{}
 	if err := proto.Unmarshal(bytes, &response); err != nil {
 		return nil, err
@@ -114,17 +110,17 @@ func (g getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetCh
 	return &response, nil
 }
 
-func (g getChunkSignatureMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
+func (getChunkSignatureMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
 type getChunkMarshaler struct{}
 
-func (g getChunkMarshaler) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
+func (getChunkMarshaler) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
 	return proto.Marshal(t)
 }
 
-func (g getChunkMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkResponse, error) {
+func (getChunkMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkResponse, error) {
 	response := dsmr.GetChunkResponse{}
 	if err := proto.Unmarshal(bytes, &response); err != nil {
 		return nil, err
@@ -133,7 +129,7 @@ func (g getChunkMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkRespon
 	return &response, nil
 }
 
-func (g getChunkMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
+func (getChunkMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 

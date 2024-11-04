@@ -124,9 +124,9 @@ func (n *Node[T]) NewChunk(
 
 	for _, validator := range n.validators {
 		done := make(chan struct{})
-		onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+		onResponse := func(context.Context, ids.NodeID, *dsmr.GetChunkSignatureResponse, error) {
 			defer close(done)
-			//TODO generate chunk cert
+			// TODO generate chunk cert
 		}
 
 		if err := n.getChunkSignatureClient.AppRequest(ctx, validator.NodeID, request, onResponse); err != nil {
@@ -202,7 +202,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		if errors.Is(err, database.ErrNotFound) {
 			for {
 				result := make(chan error)
-				onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+				onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
 					defer close(result)
 					if err != nil {
 						result <- err
@@ -222,7 +222,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 				}
 
 				// TODO better request strategy
-				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID
+				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID //nolint:gosec
 				if err := n.getChunkClient.AppRequest(
 					ctx,
 					nodeID,
