@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	avautils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -17,6 +16,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
+
+	avautils "github.com/ava-labs/avalanchego/utils"
 )
 
 const InitialChunkSize = 250 * 1024
@@ -125,7 +126,6 @@ func marshalTxs[T Tx](txs []T) ([]*dsmr.Transaction, error) {
 		}
 
 		result = append(result, &dsmr.Transaction{
-
 			Bytes: p.Bytes,
 		})
 	}
