@@ -244,7 +244,7 @@ In layman's terms, we can think of prefixes less than
 touch*, and any prefixes greater than `metadata.DefaultMinimumPrefix` as
 prefixes that the VM developer can use.
 
-### Implementing HyperSDK Metadata Handlers
+### Defining Account Balance Keys
 
 We'll define the `BalanceKey` function. `BalanceKey` will return the
 state key that stores the provided address' balance.
@@ -518,7 +518,7 @@ We'll implement the balance handler functions re-using the helpers
 we've already implemented:
 
 ```golang
-func (*StateManager) CanDeduct(
+func (*BalanceHandler) CanDeduct(
 	ctx context.Context,
 	addr codec.Address,
 	im state.Immutable,
@@ -534,7 +534,7 @@ func (*StateManager) CanDeduct(
 	return nil
 }
 
-func (*StateManager) Deduct(
+func (*BalanceHandler) Deduct(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -543,7 +543,7 @@ func (*StateManager) Deduct(
 	return SubBalance(ctx, mu, addr, amount)
 }
 
-func (*StateManager) AddBalance(
+func (*BalanceHandler) AddBalance(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -552,6 +552,10 @@ func (*StateManager) AddBalance(
 ) error {
 	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
 	return err
+}
+
+func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+	return GetBalance(ctx, im, addr)
 }
 ```
 
