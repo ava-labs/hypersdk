@@ -10,6 +10,7 @@ have some things set up before we can spin up `TutorialVM` on a local network.
 In this interlude, we will focus on the following:
 
 - Setting up our run/stop scripts
+- Adding end-to-end tests
 - Setting up our VM binary generator
 - Installing our CLI
 
@@ -21,13 +22,113 @@ The script that we'll be using will allow us to start and stop a local network
 running `TutorialVM`. To get started, in `examples/tutorial`, run the following commands:
 
 ```bash
-mkdir scripts
-copy ../morpheusvm/scripts/run.sh
-copy ../morpheusvm/scripts/stop.sh
+cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
+cp ../morpheusvm/scripts/stop.sh ./scripts/stop.sh
+
+chmod +x ./scripts/run.sh
+chmod +x ./scripts/stop.sh
 ```
 
 The commands above created a new folder named `scripts` and copied the run/stop
-scripts from MorpheusVM into our scripts folder.
+scripts from MorpheusVM into our scripts folder, along with giving them
+execute permissions.
+
+Before moving for3ward, in lines 68-70, make sure to change it from this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/morpheusvm
+```
+
+to this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/tutorialvm
+```
+
+## Adding End-to-End Tests
+
+The scripts above, while extremely useful, work only if we define end-to-end
+(e2e) tests for our VM. Since we don't focus on e2e tests in this tutorial, we
+can just copy-and-paste a predefined implementation in. To do this, first run
+the following:
+
+```bash
+mkdir tests/e2e
+touch tests/e2e/e2e_test.go
+```
+
+Then, in e2e_test.go, write the following:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package e2e_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/tutorial/tests" // include the tests that are shared between the integration and e2e
+
+	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
+	"github.com/ava-labs/hypersdk/tests/fixture"
+
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const owner = "tutorial-e2e-tests"
+
+var flagVars *e2e.FlagVars
+
+func TestE2e(t *testing.T) {
+	ginkgo.RunSpecs(t, "tutorial e2e test suites")
+}
+
+func init() {
+	flagVars = e2e.RegisterFlags()
+}
+
+// Construct tmpnet network with a single tutorial Subnet
+var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
+	require := require.New(ginkgo.GinkgoT())
+
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
+	require.NoError(err)
+
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	require.NoError(err)
+
+	firstKey := testingNetworkConfig.Keys()[0]
+	generator := workload.NewTxGenerator(firstKey)
+	spamKey := &auth.PrivateKey{
+		Address: auth.NewED25519Address(firstKey.PublicKey()),
+		Bytes:   firstKey[:],
+	}
+	tc := e2e.NewTestContext()
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, spamKey)
+
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+}, func(envBytes []byte) {
+	// Run in every ginkgo process
+
+	// Initialize the local test environment from the global state
+	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+})
+
+```
 
 ## Adding a VM Binary Generator
 
@@ -39,7 +140,8 @@ To start, let's run the following commands:
 
 ```bash
 mkdir -p cmd/tutorialvm
-mkdir cmd/tutorial/vm/version
+mkdir cmd/tutorialvm/version
+touch cmd/tutorialvm/version/version.go
 touch cmd/tutorialvm/main.go
 ```
 
@@ -61,8 +163,8 @@ import (
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/tutorialvm/cmd/morpheusvm/version"
-	"github.com/ava-labs/hypersdk/examples/tutorialvm/vm"
+	"github.com/ava-labs/hypersdk/examples/tutorial/cmd/tutorialvm/version"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
 )
 
 var rootCmd = &cobra.Command{
@@ -116,7 +218,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/tutorialvm/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
 )
 
 func init() {
@@ -145,14 +247,14 @@ To start, we'll want to compile the HyperSDK-CLI. If you're in
 `examples/tutorial`, you can run the following:
 
 ```bash
-go build -o ./hypersdk-cli ../../cmd/hypersdk-cli/
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@4510f51720d2e0fdecfd7fa08350e7c3eab3cf53
 ```
 
 To confirm that your build of the HyperSDK-CLI was successful, run the following
 command:
 
 ```bash
-./hypersdk-cli
+hypersdk-cli
 ```
 
 You should see the following:

@@ -107,9 +107,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -223,8 +223,8 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -350,8 +350,8 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
+	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
 	"github.com/ava-labs/hypersdk/tests/registry"
 
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
@@ -454,20 +454,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
+	_ "github.com/ava-labs/hypersdk/examples/tutorial/tests" // include the tests that are shared between the integration and e2e
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
 
-	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	lconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
+	ginkgo.RunSpecs(t, "tutorial integration test suites")
 }
 
 var _ = ginkgo.BeforeSuite(func() {

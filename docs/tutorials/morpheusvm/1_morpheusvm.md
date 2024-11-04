@@ -187,7 +187,6 @@ func (t *Transfer) ComputeUnits(chain.Rules) uint64 {
 func (t *Transfer) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("unimplemented")
 }
-
 ```
 
 Now that we've defined our action, we'll move on to implementing the state layout for
@@ -540,7 +539,8 @@ func (*BalanceHandler) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return SubBalance(ctx, mu, addr, amount)
+	_, err := SubBalance(ctx, mu, addr, amount)
+	return err
 }
 
 func (*BalanceHandler) AddBalance(
@@ -578,7 +578,7 @@ permissions, since the HyperSDK may need to both read/write this balance when
 it handles fees:
 
 ```golang
-func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(BalanceKey(addr)): state.Read | state.Write,
 	}
@@ -785,6 +785,12 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
 var (
@@ -801,7 +807,7 @@ func init() {
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+		ActionParser.Register(&actions.Transfer{}, nil),
 
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
@@ -828,7 +834,8 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
-		&storage.StateManager{},
+		&storage.BalanceHandler{},
+		metadata.NewDefaultManager(),
 		ActionParser,
 		AuthParser,
 		OutputParser,
