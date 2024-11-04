@@ -55,7 +55,7 @@ func (*Call) GetTypeID() uint8 {
 	return mconsts.CallContractID
 }
 
-func (t *Call) StateKeys(_ codec.Address) state.Keys {
+func (t *Call) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	result := state.Keys{}
 	for _, stateKeyPermission := range t.SpecifiedStateKeys {
 		result.Add(stateKeyPermission.Key, stateKeyPermission.Permission)
