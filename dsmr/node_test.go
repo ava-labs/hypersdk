@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -85,7 +86,13 @@ func TestNode_NewChunk(t *testing.T) {
 				sk,
 				beneficiary,
 				NoVerifier[tx]{},
-				nil,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
 			)
 			r.NoError(err)
 
@@ -117,7 +124,13 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 		sk,
 		codec.Address{},
 		NoVerifier[tx]{},
-		nil,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
 	)
 	r.NoError(err)
 
@@ -178,7 +191,13 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 		sk,
 		codec.Address{},
 		NoVerifier[tx]{},
-		nil,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
 	)
 	r.NoError(err)
 
@@ -226,7 +245,13 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 		sk,
 		codec.Address{},
 		NoVerifier[tx]{},
-		nil,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
 	)
 	r.NoError(err)
 
@@ -408,7 +433,13 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				sk,
 				beneficiary,
 				NoVerifier[tx]{},
-				nil,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
 			)
 			r.NoError(err)
 
@@ -514,7 +545,13 @@ func TestNode_GetChunkSignature(t *testing.T) {
 				sk,
 				codec.Address{},
 				tt.verifier,
-				nil,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
 			)
 			r.NoError(err)
 
@@ -531,7 +568,13 @@ func TestNode_GetChunkSignature(t *testing.T) {
 				sk,
 				codec.Address{},
 				tt.verifier,
-				nil,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
 			)
 			r.NoError(err)
 			chunk, err := node2.NewChunk([]tx{{ID: ids.Empty, Expiry: 123}}, 123)
@@ -579,7 +622,13 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		sk,
 		codec.Address{},
 		NoVerifier[tx]{},
-		nil,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
 	)
 	r.NoError(err)
 
@@ -838,7 +887,13 @@ func TestNode_NewBlock(t *testing.T) {
 				sk,
 				codec.Address{},
 				NoVerifier[tx]{},
-				nil,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
 			)
 			r.NoError(err)
 
