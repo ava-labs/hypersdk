@@ -28,17 +28,10 @@ type Marshaler[T any, U any, V any] interface {
 	MarshalGossip(V) ([]byte, error)
 }
 
+// TODO merge upstream into avalanchego
 type TypedClient[T any, U any, V any] struct {
 	client    *p2p.Client
 	marshaler Marshaler[T, U, V]
-}
-
-// TODO merge upstream into avalanchego
-func NewTypedClient[T any, U any, V any](client *p2p.Client, marshaler Marshaler[T, U, V]) *TypedClient[T, U, V] {
-	return &TypedClient[T, U, V]{
-		client:    client,
-		marshaler: marshaler,
-	}
 }
 
 func (t *TypedClient[T, U, _]) AppRequest(
