@@ -7,17 +7,22 @@ Let's quickly recap what we've done so far:
 
 With the above, our code should work exactly like the version of MorpheusVM
 found in `examples/`. To verify this though, we're going to apply the same
-workload tests used in MorpheusVM against our VM. 
+integration tests used in MorpheusVM against our VM.
 
 This section will consist of the following:
 
 - Implementing a bash script to run our workload tests
-- Implementing the workload tests itself
-- Implementing a way to feed our workload tests to the HyperSDK workload test
-  framework
+- Implementing workload integration tests
+- Implementing procedural integration tests
+- Registering our integration tests
 
-In addition to adding workload tests, we will also add procedural tests which
-will allow us to write singular unit tests.
+At the end of this section, you'll have implemented integration tests that will
+have tested your VM via the following:
+
+- Workload tests: this method tests your VM by applying a large quantity of
+   generic transactions and making sure that each is applied as expected
+- Procedural tests: this method tests your VM by applying a specific transaction
+  and making sure that it is applied as expected 
 
 ## Workload Scripts
 
@@ -27,11 +32,13 @@ called `tests.integration.sh` and paste the following:
 
 ```bash
 #!/usr/bin/env bash
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 set -e
 
 if ! [[ "$0" =~ scripts/tests.integration.sh ]]; then
-  echo "must be run from tutorial root"
+  echo "must be run from morpheusvm root"
   exit 255
 fi
 
@@ -59,9 +66,9 @@ run \
 go tool cover -html=integration.coverage.out -o=integration.coverage.html
 ```
 
-This workload script will both set up our testing environment and execute the
-workload tests. To make sure that our script will run at the end of this
-section, run the following command:
+This script will both set up our testing environment and execute the workload
+tests. To make sure that our script will run at the end of this section, run the
+following command:
 
 ```bash
 chmod +x ./scripts/tests.integration.sh
@@ -70,20 +77,25 @@ chmod +x ./scripts/tests.integration.sh
 ## Implementing Our Workload Tests
 
 Start by creating a subdirectory in `tutorial/` named `tests`. Within `tests/`,
-create a directory called `workload`. Within `workload/`, create a file called `workload.go`. This file is where we will
-define the workload tests that will be used against our VM. 
+create a directory called `workload`. Within `workload`, create the following
+files:
 
-## Workload Initialization
+- `generator.go`
+- `genesis.go`
 
-We start by defining the values necesssary for the workload tests along with an
-`init()` function:
+In short, `generator.go` will be responsible for generating transactions that
+contain the `Transfer` action while `genesis.go` will be responsible for
+providing the network configuration for our integration tests. 
 
-```golang
+### Implementing the Generator
+
+In `generator.go`, we start by implementing the following:
+
+```go
 package workload
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -94,128 +106,54 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/tutorial/actions"
-	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
-	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-const (
-	initialBalance  uint64 = 10_000_000_000_000
-	txCheckInterval        = 100 * time.Millisecond
-)
+var _ workload.TxGenerator = (*TxGenerator)(nil)
 
-var (
-	_              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
-	_              workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
-	ed25519HexKeys                             = []string{
-		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
-		"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
-	}
-	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
-	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
-	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
-)
+const txCheckInterval = 100 * time.Millisecond
 
-func init() {
-	for i, keyHex := range ed25519HexKeys {
-		privBytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
-		if err != nil {
-			panic(err)
-		}
-		priv := ed25519.PrivateKey(privBytes)
-		ed25519PrivKeys[i] = priv
-		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
-		addr := auth.NewED25519Address(priv.PublicKey())
-		ed25519Addrs[i] = addr
+type TxGenerator struct {
+	factory *auth.ED25519Factory
+}
+
+func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
+	return &TxGenerator{
+		factory: auth.NewED25519Factory(key),
 	}
 }
 ```
 
-Our workload tests revolve around the following workflow:
+Next, we'll want to implement a method to our `TxGenerator` that will allow it
+to produce a valid transaction with `Transfer` on the fly. Therefore, we have
+the following:
 
-- Use transaction workloads to generate an arbitrary TX
-  - This TX contains just a `Transfer` action
-- Send generated TX to a running instance of our VM
-- Assert that the TX execute and applied the correct state changes
 
-The code snippet above provides the foundation to define `workloadFactory` and
-`simpleTxWorkload`. We now implement these structs along with their methods:
-
-```golang
-type workloadFactory struct {
-	factories []*auth.ED25519Factory
-	addrs     []codec.Address
-}
-
-func New(minBlockGap int64) (*genesis.DefaultGenesis, workload.TxWorkloadFactory, error) {
-	customAllocs := make([]*genesis.CustomAllocation, 0, len(ed25519Addrs))
-	for _, prefundedAddr := range ed25519Addrs {
-		customAllocs = append(customAllocs, &genesis.CustomAllocation{
-			Address: prefundedAddr,
-			Balance: initialBalance,
-		})
-	}
-
-	genesis := genesis.NewDefaultGenesis(customAllocs)
-	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	genesis.Rules.MinBlockGap = minBlockGap
-
-	return genesis, &workloadFactory{
-		factories: ed25519AuthFactories,
-		addrs:     ed25519Addrs,
-	}, nil
-}
-
-func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
+```go
+func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
+	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
-	return &simpleTxWorkload{
-		factory: f.factories[0],
-		cli:     cli,
-		lcli:    lcli,
-		size:    size,
-	}, nil
-}
 
-type simpleTxWorkload struct {
-	factory *auth.ED25519Factory
-	cli     *jsonrpc.JSONRPCClient
-	lcli    *vm.JSONRPCClient
-	count   int
-	size    int
-}
-
-func (g *simpleTxWorkload) Next() bool {
-	return g.count < g.size
-}
-
-func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
-	g.count++
-	other, err := ed25519.GeneratePrivateKey()
+	to, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	aother := auth.NewED25519Address(other.PublicKey())
-	parser, err := g.lcli.Parser(ctx)
+	toAddress := auth.NewED25519Address(to.PublicKey())
+	parser, err := lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	_, tx, _, err := g.cli.GenerateTransaction(
+	_, tx, _, err := cli.GenerateTransaction(
 		ctx,
 		parser,
 		[]chain.Action{&actions.Transfer{
-			To:    aother,
+			To:    toAddress,
 			Value: 1,
 		}},
 		g.factory,
@@ -225,184 +163,173 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri)
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
-		require.NoError(err)
-		require.True(success)
-		lcli := vm.NewJSONRPCClient(uri)
-		balance, err := lcli.Balance(ctx, aother)
-		require.NoError(err)
-		require.Equal(uint64(1), balance)
-	}, nil
-}
-
-func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
-	blsPriv, err := bls.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-	blsPub := bls.PublicFromPrivateKey(blsPriv)
-	blsAddr := auth.NewBLSAddress(blsPub)
-	blsFactory := auth.NewBLSFactory(blsPriv)
-
-	secpPriv, err := secp256r1.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-	secpPub := secpPriv.PublicKey()
-	secpAddr := auth.NewSECP256R1Address(secpPub)
-	secpFactory := auth.NewSECP256R1Factory(secpPriv)
-
-	cli := jsonrpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := vm.NewJSONRPCClient(uri)
-
-	generator := &mixedAuthWorkload{
-		addressAndFactories: []addressAndFactory{
-			{address: f.addrs[1], authFactory: f.factories[1]},
-			{address: blsAddr, authFactory: blsFactory},
-			{address: secpAddr, authFactory: secpFactory},
-		},
-		balance:   initialBalance,
-		cli:       cli,
-		lcli:      lcli,
-		networkID: networkID,
-		chainID:   blockchainID,
-	}
-
-	return []workload.TxWorkloadIterator{generator}, nil
-}
-
-type addressAndFactory struct {
-	address     codec.Address
-	authFactory chain.AuthFactory
-}
-
-type mixedAuthWorkload struct {
-	addressAndFactories []addressAndFactory
-	balance             uint64
-	cli                 *jsonrpc.JSONRPCClient
-	lcli                *vm.JSONRPCClient
-	networkID           uint32
-	chainID             ids.ID
-	count               int
-}
-
-func (g *mixedAuthWorkload) Next() bool {
-	return g.count < len(g.addressAndFactories)-1
-}
-
-func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
-	defer func() { g.count++ }()
-
-	sender := g.addressAndFactories[g.count]
-	receiver := g.addressAndFactories[g.count+1]
-	expectedBalance := g.balance - 1_000_000
-
-	parser, err := g.lcli.Parser(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	_, tx, _, err := g.cli.GenerateTransaction(
-		ctx,
-		parser,
-		[]chain.Action{&actions.Transfer{
-			To:    receiver.address,
-			Value: expectedBalance,
-		}},
-		sender.authFactory,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	g.balance = expectedBalance
-
-	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		indexerCli := indexer.NewClient(uri)
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, tx.ID())
-		require.NoError(err)
-		require.True(success)
-		lcli := vm.NewJSONRPCClient(uri)
-		balance, err := lcli.Balance(ctx, receiver.address)
-		require.NoError(err)
-		require.Equal(expectedBalance, balance)
-		// TODO check tx fee + units (not currently available via API)
+		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
 	}, nil
 }
 ```
 
-## Using Our Workload Tests
-
-With our workload tests implemented, we now define a way for which our workload
-tests can be utilized. To start, create a new folder named `integration` in
-`tests/`. Inside `integration/`, create a new file `integration_test.go`. Here
-copy-paste the following:
+In addition to generating a valid transaction, this method returns an anonymous
+function which calls `confirmTX`. `confirmTX` sends the generated TX to the VM,
+makes sure that it was accepted, and checks that the result associated with the
+TX is expected. With this in mind, we have:
 
 ```golang
-package integration_test
+func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+	indexerCli := indexer.NewClient(uri)
+	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+	require.NoError(err)
+	require.True(success)
+	lcli := vm.NewJSONRPCClient(uri)
+	balance, err := lcli.Balance(ctx, receiverAddr)
+	require.NoError(err)
+	require.Equal(receiverExpectedBalance, balance)
+	txRes, _, err := indexerCli.GetTx(ctx, txID)
+	require.NoError(err)
+	// TODO: perform exact expected fee, units check, and output check
+	require.NotZero(txRes.Fee)
+	require.Len(txRes.Outputs, 1)
+	transferOutputBytes := []byte(txRes.Outputs[0])
+	require.Equal(consts.TransferID, transferOutputBytes[0])
+	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
+	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
+	require.NoError(err)
+	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
+	require.True(ok)
+	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
+}
+```
+
+With our generator complete, we can now move onto implementing the network
+configuration.
+
+### Implementing the Network Configuration
+
+In `genesis.go`, we first start by implementing a function which returns the
+genesis of our VM:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package workload
 
 import (
 	"encoding/json"
-	"testing"
+	"math"
+	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
-	"github.com/ava-labs/hypersdk/tests/integration"
-
-	lconsts "github.com/ava-labs/hypersdk/examples/tutorial/consts"
-	tutorialWorkload "github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "tutorial integration test suites")
+const (
+	// default initial balance for each address
+	InitialBalance uint64 = 10_000_000_000_000
+)
+
+var _ workload.TestNetworkConfiguration = &NetworkConfiguration{}
+
+// hardcoded initial set of ed25519 keys. Each will be initialized with InitialBalance
+var ed25519HexKeys = []string{
+	"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 }
 
-var _ = ginkgo.BeforeSuite(func() {
-	require := require.New(ginkgo.GinkgoT())
-	genesis, workloadFactory, err := tutorialWorkload.New(0 /* minBlockGap: 0ms */)
-	require.NoError(err)
+func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
+	// allocate the initial balance to the addresses
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(keys))
+	for _, key := range keys {
+		customAllocs = append(customAllocs, &genesis.CustomAllocation{
+			Address: auth.NewED25519Address(key.PublicKey()),
+			Balance: InitialBalance,
+		})
+	}
 
-	genesisBytes, err := json.Marshal(genesis)
-	require.NoError(err)
+	genesis := genesis.NewDefaultGenesis(customAllocs)
 
-	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	genesis.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 
-	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
+	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	genesis.Rules.MinBlockGap = minBlockGap.Milliseconds()
 
-	// Setup imports the integration test coverage
-	integration.Setup(
-		vm.New,
-		genesisBytes,
-		lconsts.ID,
-		vm.CreateParser,
-		workloadFactory,
-		randomEd25519AuthFactory,
-	)
-})
+	genesis.Rules.NetworkID = uint32(1)
+	genesis.Rules.ChainID = ids.GenerateTestID()
+
+	return genesis
+}
 ```
 
-In `integration_test.go`, we are feeding our workload tests along with various
-other values to the HyperSDK integration test library. Implementing an entire
-integration test framework is time-intensive. By using the HyperSDK integration
-test framework, we can defer most tasks to it and solely focus on defining the
-workload tests.
+Next, using the values in `ed25519HexKeys`, we'll implement a function that
+returns our private test keys:
 
-## Registry Tests
+```go
+func newDefaultKeys() []ed25519.PrivateKey {
+	testKeys := make([]ed25519.PrivateKey, len(ed25519HexKeys))
+	for i, keyHex := range ed25519HexKeys {
+		bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+		if err != nil {
+			panic(err)
+		}
+		testKeys[i] = ed25519.PrivateKey(bytes)
+	}
 
-Now that we've added our workload tests, we can focus on adding a simple
-registry test. In short, registry tests allow us to run an integration test on
-our VM in a unit-test-esque manner. To start, run the following command:
+	return testKeys
+}
+```
+
+Finally, we implement the network configuration required for our VM integrationt
+tests:
+
+```go
+type NetworkConfiguration struct {
+	workload.DefaultTestNetworkConfiguration
+	keys []ed25519.PrivateKey
+}
+
+func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
+	return n.keys
+}
+
+func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
+	keys := newDefaultKeys()
+	genesis := newGenesis(keys, minBlockGap)
+	genesisBytes, err := json.Marshal(genesis)
+	if err != nil {
+		return nil, err
+	}
+	return &NetworkConfiguration{
+		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
+			genesisBytes,
+			consts.Name,
+			vm.NewParser(genesis)),
+		keys: keys,
+	}, nil
+}
+```
+
+Having implemented our workload tests, we can now move onto our procedural
+tests.
+
+## Implementing our Procedural Tests
+
+While workload tests allow us to test our transactions en masse, procedural
+tests allow us to run an integration test on
+our VM in a unit-test-esque manner. To start, in the `tests` folder, run the
+following command:
 
 ```bash
-touch ./tests/transfer.go
+touch transfer.go
 ```
 
 As the name suggests, we'll be writing a registry test to test the `Transfer`
@@ -504,9 +431,79 @@ the following:
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 ```
 
+## Registering our Workload Tests
+
+Although we've defined the integration tests themselves, we still need to
+register them with the HyperSDK. That is, we need to pass our integration tests
+into the HyperSDK integration test framework, which will run these tests on our
+behalf. 
+
+ implemented, we now define a way for which our workload
+tests can be utilized. To start, create a new folder named `integration` in
+`tests/`. Inside `integration/`, create a new file `integration_test.go`. Here
+copy-paste the following:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package integration_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
+
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/tests/integration"
+
+	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+func TestIntegration(t *testing.T) {
+	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
+}
+
+var _ = ginkgo.BeforeSuite(func() {
+	require := require.New(ginkgo.GinkgoT())
+
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(0)
+	require.NoError(err)
+
+	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
+	require.NoError(err)
+
+	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
+
+	generator := workload.NewTxGenerator(testingNetworkConfig.Keys()[0])
+	// Setup imports the integration test coverage
+	integration.Setup(
+		vm.New,
+		testingNetworkConfig,
+		lconsts.ID,
+		generator,
+		randomEd25519AuthFactory,
+	)
+})
+```
+
+In `integration_test.go`, we are feeding our workload tests along with various
+other values to the HyperSDK integration test library. Implementing an entire
+integration test framework is time-intensive. By using the HyperSDK integration
+test framework, we can defer most tasks to it and solely focus on defining the
+workload tests. The setup mentioned above also implicitly sets up our procedural
+tests as well.
+
+
 ## Testing Our VM
 
-Putting everything together, its now time to test our work! To do this, run the
+Putting everything together, it's now time to test our work! To do this, run the
 following command:
 
 ```bash
@@ -516,13 +513,13 @@ following command:
 If all goes well, you should see the following message in your command line:
 
 ```bash
-Ran 12 of 12 Specs in 1.083 seconds
+Ran 12 of 12 Specs in 1.614 seconds
 SUCCESS! -- 12 Passed | 0 Failed | 0 Pending | 0 Skipped
 PASS
-coverage: 61.8% of statements in github.com/ava-labs/hypersdk/...
-composite coverage: 60.1% of statements
+coverage: 61.9% of statements in github.com/ava-labs/hypersdk/...
+composite coverage: 60.4% of statements
 
-Ginkgo ran 1 suite in 9.091254458s
+Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
@@ -535,4 +532,8 @@ equivalent to MorpheusVM. In particular, you started by building a base version
 of MorpheusVM which introduced the concepts of actions and storage in the
 context of token transfers. In the `options` section, you then extended your VM
 by adding an option which allowed your VM to spin-up a JSON-RPC server. Finally,
-in this section, we added workload tests to make sure our VM works as expected. 
+in this section, we added integration tests to make sure our VM works as expected. 
+
+In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
+interact with our VM by reading from it and being able to send TXs in real time
+from the command line!
