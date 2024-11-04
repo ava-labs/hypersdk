@@ -272,10 +272,6 @@ func (*Parser) AuthCodec() chain.AuthCodec {
 	return AuthParser
 }
 
-func (*Parser) StateManager() chain.StateManager {
-	return &storage.StateManager{}
-}
-
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
 	return &Parser{genesis: genesis}
 }
