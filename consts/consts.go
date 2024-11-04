@@ -21,6 +21,7 @@ const (
 	// no more than 50 KiB of overhead but is likely much less)
 	NetworkSizeLimit = 2_044_723 // 1.95 MiB
 
+	// FIXME: should use the standard math.MaxUint8, etc.
 	MaxUint8              = ^uint8(0)
 	MaxUint16             = ^uint16(0)
 	MaxUint8Offset        = 7

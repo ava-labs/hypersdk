@@ -13,6 +13,10 @@ func ToHex(b []byte) string {
 // LoadHex Converts hex encoded string into bytes. Returns
 // an error if key is invalid.
 func LoadHex(s string, expectedSize int) ([]byte, error) {
+	if len(s) >= 2 && s[:2] == "0x" {
+		s = s[2:]
+	}
+
 	bytes, err := hex.DecodeString(s)
 	if err != nil {
 		return nil, err

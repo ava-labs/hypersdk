@@ -38,6 +38,8 @@ unsafe impl Pod for Address {}
 
 impl Address {
     pub const LEN: usize = size_of::<Self>();
+    pub const ZERO: Self = Self([0; Self::LEN]);
+
     // Constructor function for Address
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {

@@ -283,8 +283,7 @@ mod tests {
 
         let voters = Voters::Addresses(HashSet::from([bob]));
         let quorum = NonZeroU32::new(1).unwrap();
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         propose(&mut ctx, proposal, voters, quorum);
     }
@@ -301,8 +300,7 @@ mod tests {
             args: Default::default(),
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         propose(&mut ctx, proposal, voters, quorum);
     }
@@ -330,8 +328,7 @@ mod tests {
             args: vec![],
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         let id = propose(&mut ctx, proposal, voters, NonZeroU32::new(quorum).unwrap());
 
@@ -357,8 +354,7 @@ mod tests {
             args: vec![],
         };
 
-        let ctx = &mut Context::new();
-        ctx.set_actor(bob);
+        let ctx = &mut Context::with_actor(bob);
 
         let id = propose(ctx, proposal, voters, quorum);
 
@@ -381,8 +377,7 @@ mod tests {
             args: args.to_vec(),
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         let id = propose(&mut ctx, proposal, voters, quorum);
 
@@ -414,8 +409,7 @@ mod tests {
             args: args.to_vec(),
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         let id = propose(&mut ctx, proposal, voters, quorum);
         let result = "hello world";
@@ -450,8 +444,7 @@ mod tests {
             args: args.to_vec(),
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         let id = propose(&mut ctx, proposal, voters, quorum);
         ctx.set_actor(charlie);
@@ -477,8 +470,7 @@ mod tests {
             args: args.to_vec(),
         };
 
-        let mut ctx = Context::new();
-        ctx.set_actor(bob);
+        let mut ctx = Context::with_actor(bob);
 
         let id = propose(&mut ctx, proposal, voters, quorum);
 

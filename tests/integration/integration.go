@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -35,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -54,21 +56,21 @@ var (
 	log        logging.Logger
 
 	// when used with embedded VMs
-	instances            []instance
+	instances            []*instance
 	sendAppGossipCounter int
 	uris                 []string
 	blocks               []snowman.Block
+	testNetwork          *Network
 
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM              func(...vm.Option) (*vm.VM, error)
-	genesisBytes          []byte
-	vmID                  ids.ID
-	createParserFromBytes func(genesisBytes []byte) (chain.Parser, error)
-	parser                chain.Parser
-	txWorkloadFactory     workload.TxWorkloadFactory
-	authFactory           chain.AuthFactory
+	createVM      func(...vm.Option) (*vm.VM, error)
+	networkConfig workload.TestNetworkConfiguration
+	vmID          ids.ID
+
+	txWorkload  workload.TxWorkload
+	authFactory chain.AuthFactory
 
 	externalSubscriberAcceptedBlocksCh chan ids.ID
 )
@@ -98,23 +100,18 @@ func init() {
 
 func Setup(
 	newVM func(...vm.Option) (*vm.VM, error),
-	genesis []byte,
+	networkConfigImpl workload.TestNetworkConfiguration,
 	id ids.ID,
-	createParser func(genesisBytes []byte) (chain.Parser, error),
-	workloadFactory workload.TxWorkloadFactory,
+	generator workload.TxGenerator,
 	authF chain.AuthFactory,
 ) {
-	require := require.New(ginkgo.GinkgoT())
 	createVM = newVM
-	genesisBytes = genesis
+	networkConfig = networkConfigImpl
 	vmID = id
-	createParserFromBytes = createParser
-	txWorkloadFactory = workloadFactory
+	txWorkload = workload.TxWorkload{
+		Generator: generator,
+	}
 	authFactory = authF
-
-	createdParser, err := createParserFromBytes(genesisBytes)
-	require.NoError(err)
-	parser = createdParser
 
 	setInstances()
 }
@@ -125,7 +122,11 @@ func setInstances() {
 	log.Info("VMID", zap.Stringer("id", vmID))
 
 	// create embedded VMs
-	instances = make([]instance, numVMs)
+	instances = make([]*instance, numVMs)
+
+	createParserFromBytes := func(_ []byte) (chain.Parser, error) {
+		return networkConfig.Parser(), nil
+	}
 
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
@@ -169,9 +170,9 @@ func setInstances() {
 	configs := make([][]byte, numVMs)
 	configs[0] = externalSubscriberConfigBytes
 
-	networkID = uint32(1)
+	networkID = networkConfig.Parser().Rules(0).GetNetworkID()
 	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
+	chainID := networkConfig.Parser().Rules(0).GetChainID()
 
 	app := &enginetest.Sender{
 		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
@@ -216,7 +217,7 @@ func setInstances() {
 			context.TODO(),
 			snowCtx,
 			db,
-			genesisBytes,
+			networkConfig.GenesisBytes(),
 			nil,
 			configs[i],
 			toEngine,
@@ -235,7 +236,7 @@ func setInstances() {
 		routerServer := httptest.NewServer(router)
 		jsonRPCServer := httptest.NewServer(hd[jsonrpc.Endpoint])
 		webSocketServer := httptest.NewServer(hd[ws.Endpoint])
-		instances[i] = instance{
+		instances[i] = &instance{
 			chainID:         snowCtx.ChainID,
 			nodeID:          snowCtx.NodeID,
 			vm:              v,
@@ -264,6 +265,7 @@ func setInstances() {
 	for i, inst := range instances {
 		uris[i] = inst.routerServer.URL
 	}
+	testNetwork = &Network{uris: uris}
 
 	blocks = []snowman.Block{}
 
@@ -322,12 +324,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	)
 	ginkgo.It("Gossip TransferTx to a different node", func() {
 		uri := uris[0]
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uri, 100)
-		require.NoError(err)
 		ginkgo.By("issue TransferTx", func() {
-			initialTx, initialTxAssertion, err = workload.GenerateTxWithAssertion(ctx)
+			tx, assertion, err := txWorkload.Generator.GenerateTx(ctx, uri)
+			initialTxAssertion = assertion
+			initialTx = tx
 			require.NoError(err)
-			_, err := instances[0].cli.SubmitTx(ctx, initialTx.Bytes())
+			_, err = instances[0].cli.SubmitTx(ctx, initialTx.Bytes())
 			require.NoError(err)
 
 			require.Equal(1, instances[0].vm.Mempool().Len(context.Background()))
@@ -416,10 +418,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("ensure multiple txs work ", func() {
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("transfer funds again", func() {
-			tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+			tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
+
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
@@ -435,7 +436,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		ginkgo.By("transfer funds again (test storage keys)", func() {
 			for i := 0; i < 4; i++ {
-				tx, _, err := workload.GenerateTxWithAssertion(ctx)
+				tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
+
 				require.NoError(err)
 				_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 				require.NoError(err)
@@ -459,18 +461,15 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 	ginkgo.It("Test processing block handling", func() {
 		var accept, accept2 func(bool) []*chain.Result
-
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("create processing tip", func() {
-			tx, _, err := txWorkload.GenerateTxWithAssertion(ctx)
+			tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
 
 			accept = expectBlk(instances[1])
 
-			tx, _, err = txWorkload.GenerateTxWithAssertion(ctx)
+			tx, _, err = txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
 			require.NoError(err)
@@ -487,15 +486,13 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Confirm accepted blocks indexed", func() {
-			workload.GetBlocks(ctx, require, parser, []string{uris[1]})
+			workload.GetBlocks(ctx, require, networkConfig.Parser(), []string{uris[1]})
 		})
 	})
 
 	ginkgo.It("ensure mempool works", func() {
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
 		ginkgo.By("fail Gossip TransferTx to a stale node when missing previous blocks", func() {
-			tx, _, err := workload.GenerateTxWithAssertion(ctx)
+			tx, _, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 			require.NoError(err)
 
 			_, err = instances[1].cli.SubmitTx(ctx, tx.Bytes())
@@ -543,9 +540,11 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 	})
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
-		// Clear previous txs on instance 0
-		accept := expectBlk(instances[0])
-		accept(false) // don't care about results
+		// synchronize the nodes on the network.
+		// this would clear previous txs on instance 0
+		// and ignore the transaction results while
+		// syncronizing the nodes on the network.
+		require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
 
 		// Subscribe to blocks
 		cli, err := ws.NewWebSocketClient(instances[0].WebSocketServer.URL, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
@@ -555,15 +554,13 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// Wait for message to be sent
 		time.Sleep(2 * pubsub.MaxMessageWait) // TODO: remove after websocket server rewrite
 
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
-		tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+		tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 		require.NoError(err)
 
 		_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		accept = expectBlk(instances[0])
+		accept := expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
 		require.True(results[0].Success)
@@ -573,7 +570,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		txAssertion(cctx, require, uris[0])
 
 		// Read item from connection
-		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), networkConfig.Parser())
 		require.NoError(err)
 		require.Len(blk.Txs, 1)
 		require.Equal(lresults, results)
@@ -589,9 +586,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		// Create tx
-		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
-		require.NoError(err)
-		tx, txAssertion, err := workload.GenerateTxWithAssertion(ctx)
+		tx, txAssertion, err := txWorkload.Generator.GenerateTx(ctx, uris[0])
 		require.NoError(err)
 
 		// Submit tx and accept block
@@ -627,28 +622,17 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.NoError(cli.Close())
 	})
 
-	ginkgo.It("Workloads", func() {
-		workloads, err := txWorkloadFactory.NewWorkloads(uris[0])
-		require.NoError(err)
-
-		for _, txGenerator := range workloads {
-			for txGenerator.Next() {
-				tx, txAssertion, err := txGenerator.GenerateTxWithAssertion(ctx)
-				require.NoError(err)
-				_, err = instances[0].cli.SubmitTx(ctx, tx.Bytes())
-				require.NoError(err)
-
-				accept := expectBlk(instances[0])
-				_ = accept(true)
-				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-				defer cancel()
-				txAssertion(cctx, require, uris[0])
-			}
+	for testRegistry := range registry.GetTestsRegistries() {
+		for _, test := range testRegistry.List() {
+			ginkgo.It(fmt.Sprintf("Custom VM Test '%s'", test.Name), func() {
+				require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
+				test.Fnc(ginkgo.GinkgoT(), testNetwork)
+			})
 		}
-	})
+	}
 })
 
-func expectBlk(i instance) func(add bool) []*chain.Result {
+func expectBlk(i *instance) func(add bool) []*chain.Result {
 	require := require.New(ginkgo.GinkgoT())
 
 	ctx := context.TODO()

@@ -4,18 +4,19 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
@@ -38,15 +39,10 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	gen, workloadFactory, spamKey, err := workload.New(100 /* minBlockGap: 100ms */)
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
 	require.NoError(err)
 
-	genesisBytes, err := json.Marshal(gen)
-	require.NoError(err)
-
-	parser, err := vm.CreateParser(genesisBytes)
-	require.NoError(err)
-
+	parser := testingNetworkConfig.Parser()
 	expectedABI, err := abi.NewABI((*parser.ActionCodec()).GetRegisteredTypes(), (*parser.OutputCodec()).GetRegisteredTypes())
 	require.NoError(err)
 
@@ -56,10 +52,16 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: auth.ED25519Key,
 	}
 
+	firstKey := testingNetworkConfig.Keys()[0]
+	generator := workload.NewTxGenerator(firstKey)
+	spamKey := &auth.PrivateKey{
+		Address: auth.NewED25519Address(firstKey.PublicKey()),
+		Bytes:   firstKey[:],
+	}
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, workloadFactory, expectedABI, parser, &spamHelper, spamKey)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
-	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
@@ -121,10 +120,6 @@ func (p *Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 
 func (p *Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
 	return p.registry.AuthRegistry()
-}
-
-func (*Parser) StateManager() chain.StateManager {
-	return &storage.StateManager{}
 }
 
 func NewParser(genesis *genesis.DefaultGenesis, registry chain.Registry) chain.Parser {

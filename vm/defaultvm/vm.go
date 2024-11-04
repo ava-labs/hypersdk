@@ -34,7 +34,8 @@ func NewDefaultOptions() []vm.Option {
 func New(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
-	stateManager chain.StateManager,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
 	registry chain.Registry,
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
@@ -43,7 +44,8 @@ func New(
 	return vm.New(
 		v,
 		genesisFactory,
-		stateManager,
+		balanceHandler,
+		metadataManager,
 		registry,
 		authEngine,
 		options...,

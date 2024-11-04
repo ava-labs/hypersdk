@@ -15,79 +15,34 @@ import (
 
 const reachedAcceptedTipSleepInterval = 10 * time.Millisecond
 
-// TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
-// and a sized sequence of transactions to test on a given environment and reach a particular state
-type TxWorkloadFactory interface {
-	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
-	// to define each sequence of transactions that should be tested.
-	// TODO: switch from workload generator to procedural test style for VM-defined workloads
-	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
-	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
-	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
-}
-
 type TxAssertion func(ctx context.Context, require *require.Assertions, uri string)
 
-// TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
-// The caller must proceed in the following sequence:
-// 1. Next
-// 2. GenerateTxWithAssertion
-// 3. (Optional) execute the returned assertion on an arbitrary number of URIs
-//
-// This pattern allows the workload to define how many transactions must be generated. For example,
-// a CFMM application may define a set of workloads that define each sequence of actions that should be tested
-// against different network configurations such as:
-// 1. Create Liquidity Pool
-// 2. Add Liquidity
-// 3. Swap
-//
-// To handle tx expiry correctly, the workload must generate txs on demand (right before issuance) rather than
-// returning a slice of txs, which may expire before they are issued.
-type TxWorkloadIterator interface {
-	// Next returns true iff there are more transactions to generate.
-	Next() bool
-	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
-	// 1. The tx was accepted on the provided URI
-	// 2. The state was updated as expected according to the provided URI
-	GenerateTxWithAssertion(context.Context) (*chain.Transaction, TxAssertion, error)
+type TxGenerator interface {
+	// GenerateTx generates a new transaction and an assertion function that confirms
+	// the transaction was accepted by the network
+	GenerateTx(context.Context, string) (*chain.Transaction, TxAssertion, error)
 }
 
-func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
-	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
-
-	for generator.Next() {
-		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
-		require.NoError(err)
-
-		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
-		require.NoError(err)
-
-		for _, uri := range uris {
-			confirm(ctx, require, uri)
-		}
-	}
+type TxWorkload struct {
+	Generator TxGenerator
 }
 
-func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory, n uint64) {
+func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
 	uri := uris[0]
-	generator, err := factory.NewSizedTxWorkload(uri, int(n))
-	require.NoError(err)
+	// generate [blocks] num txs
 	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
 	require.NoError(err)
 	height := startHeight
-	targetheight := startHeight + n
+	targetheight := startHeight + uint64(blocks)
 
-	for generator.Next() && height < targetheight {
-		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
+	for height < targetheight {
+		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
 		require.NoError(err)
-
 		_, err = client.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
-
 		confirm(ctx, require, uri)
-
 		_, acceptedHeight, _, err := client.Accepted(ctx)
 		require.NoError(err)
 		height = acceptedHeight
@@ -106,23 +61,39 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 }
 
-func GenerateUntilStop(
+// GenerateTxs generates transactions using the provided TxGenerator until the generator
+// can no longer generate transactions
+// issues tx through clientURI and confirms against each uri in confirmURIs
+func (w *TxWorkload) GenerateTxs(ctx context.Context, require *require.Assertions, numTxs int, clientURI string, confirmUris []string) {
+	submitClient := jsonrpc.NewJSONRPCClient(confirmUris[0])
+
+	for i := 0; i < numTxs; i++ {
+		tx, confirm, err := w.Generator.GenerateTx(ctx, clientURI)
+		require.NoError(err)
+
+		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
+		require.NoError(err)
+
+		for _, uri := range confirmUris {
+			confirm(ctx, require, uri)
+		}
+	}
+}
+
+func (w *TxWorkload) GenerateUntilStop(
 	ctx context.Context,
 	require *require.Assertions,
 	uris []string,
-	generator TxWorkloadIterator,
+	maxToGenerate int,
 	stopChannel <-chan struct{},
 ) {
 	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
-	for {
+	for i := 0; i < maxToGenerate; i++ {
 		select {
 		case <-stopChannel:
 			return
 		default:
-			if !generator.Next() {
-				return
-			}
-			tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
+			tx, confirm, err := w.Generator.GenerateTx(ctx, uris[0])
 			if err != nil {
 				time.Sleep(1 * time.Second)
 				continue

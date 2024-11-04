@@ -24,7 +24,7 @@ import (
 var ErrTypeNotFound = errors.New("type not found in ABI")
 
 func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error) {
-	if _, ok := findABIType(inputABI, typeName); !ok {
+	if _, ok := inputABI.FindTypeByName(typeName); !ok {
 		return nil, fmt.Errorf("marshalling %s: %w", typeName, ErrTypeNotFound)
 	}
 
@@ -41,7 +41,21 @@ func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error)
 		return nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 	}
 
-	writer := codec.NewWriter(0, consts.NetworkSizeLimit)
+	var typeID byte
+	found := false
+	for _, action := range inputABI.Actions {
+		if action.Name == typeName {
+			typeID = action.ID
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("action %s not found in ABI", typeName)
+	}
+
+	writer := codec.NewWriter(1, consts.NetworkSizeLimit)
+	writer.PackByte(typeID)
 	if err := codec.LinearCodec.MarshalInto(value, writer.Packer); err != nil {
 		return nil, fmt.Errorf("failed to marshal struct: %w", err)
 	}
@@ -49,11 +63,35 @@ func Marshal(inputABI abi.ABI, typeName string, jsonData string) ([]byte, error)
 	return writer.Bytes(), nil
 }
 
-func Unmarshal(inputABI abi.ABI, typeName string, data []byte) (string, error) {
-	if _, ok := findABIType(inputABI, typeName); !ok {
-		return "", fmt.Errorf("unmarshalling %s: %w", typeName, ErrTypeNotFound)
+func UnmarshalOutput(inputABI abi.ABI, data []byte) (string, error) {
+	if len(data) == 0 {
+		return "", nil
 	}
 
+	typeID := data[0]
+	outputType, ok := inputABI.FindOutputByID(typeID)
+	if !ok {
+		return "", fmt.Errorf("output with id %d not found in ABI", typeID)
+	}
+
+	return Unmarshal(inputABI, data[1:], outputType.Name)
+}
+
+func UnmarshalAction(inputABI abi.ABI, data []byte) (string, error) {
+	if len(data) == 0 {
+		return "", nil
+	}
+
+	typeID := data[0]
+	actionType, ok := inputABI.FindActionByID(typeID)
+	if !ok {
+		return "", fmt.Errorf("action with id %d not found in ABI", typeID)
+	}
+
+	return Unmarshal(inputABI, data[1:], actionType.Name)
+}
+
+func Unmarshal(inputABI abi.ABI, data []byte, typeName string) (string, error) {
 	typeCache := make(map[string]reflect.Type)
 
 	typ, err := getReflectType(typeName, inputABI, typeCache)
@@ -134,13 +172,14 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 			return cachedType, nil
 		}
 
-		abiType, ok := findABIType(inputABI, abiTypeName)
+		abiType, ok := inputABI.FindTypeByName(abiTypeName)
 		if !ok {
 			return nil, fmt.Errorf("type %s not found in ABI", abiTypeName)
 		}
 
 		// It is a struct, as we don't support anything else as custom types
 		fields := make([]reflect.StructField, len(abiType.Fields))
+
 		for i, field := range abiType.Fields {
 			fieldType, err := getReflectType(field.Type, inputABI, typeCache)
 			if err != nil {
@@ -158,13 +197,4 @@ func getReflectType(abiTypeName string, inputABI abi.ABI, typeCache map[string]r
 
 		return structType, nil
 	}
-}
-
-func findABIType(inputABI abi.ABI, typeName string) (abi.Type, bool) {
-	for _, typ := range inputABI.Types {
-		if typ.Name == typeName {
-			return typ, true
-		}
-	}
-	return abi.Type{}, false
 }

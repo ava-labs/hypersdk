@@ -33,7 +33,7 @@ func TestImportBalanceSendBalanceToAnotherContract(t *testing.T) {
 	stateManager.Balances[newInstanceAddress] = 0
 
 	// contract 2 starts with 0 balance
-	result, err := r.CallContract(newInstanceAddress, "balance")
+	result, err := r.CallContract(newInstanceAddress, "balance", nil)
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 
