@@ -53,7 +53,10 @@ func (g *GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {
 func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, *common.AppError) {
 	request := dsmr.GetChunkRequest{}
 	if err := proto.Unmarshal(requestBytes, &request); err != nil {
-		panic(err)
+		return nil, &common.AppError{
+			Code:    common.ErrUndefined.Code,
+			Message: err.Error(),
+		}
 	}
 
 	chunkID, err := ids.ToID(request.ChunkId)

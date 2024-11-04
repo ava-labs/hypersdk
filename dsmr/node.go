@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -26,12 +27,17 @@ var (
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
+type Validator struct {
+	NodeID ids.NodeID
+}
+
 func New[T Tx](
 	nodeID ids.NodeID,
 	sk *bls.SecretKey,
 	beneficiary codec.Address,
 	chunkVerifier Verifier[T],
 	getChunkClient *p2p.Client,
+	validators []Validator,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -46,6 +52,7 @@ func New[T Tx](
 			getChunkClient,
 			getChunkMarshaler{},
 		),
+		validators: validators,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
@@ -59,15 +66,6 @@ func New[T Tx](
 	}, nil
 }
 
-//// TODO this is a hack
-//func (n *Node[T]) getValidators() []Validator {
-//	rand.Shuffle(len(n.validators), func(i, j int) {
-//		n.validators[i], n.validators[j] = n.validators[j], n.validators[i]
-//	})
-//
-//	return n.validators
-//}
-
 type Node[T Tx] struct {
 	nodeID      ids.NodeID
 	sk          *bls.SecretKey
@@ -75,6 +73,7 @@ type Node[T Tx] struct {
 	chainID     ids.ID
 	beneficiary codec.Address
 	client      *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
+	validators  []Validator
 
 	GetChunkHandler          *GetChunkHandler[T]
 	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
@@ -155,20 +154,44 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 
 		_, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if errors.Is(err, database.ErrNotFound) {
-			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+			for {
+				result := make(chan error)
+				onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+					defer close(result)
+					if err != nil {
+						result <- err
+						return
+					}
 
-			}
-			// TODO which validators do we request from?
-			if err := n.client.AppRequest(
-				ctx,
-				ids.EmptyNodeID,
-				&dsmr.GetChunkRequest{
-					ChunkId: chunkCert.ChunkID[:],
-					Expiry:  chunkCert.Expiry,
-				},
-				onResponse,
-			); err != nil {
-				return fmt.Errorf("failed to request chunk referenced in block: %w", err)
+					chunk, err := newChunkFromProto[T](response.Chunk)
+					if err != nil {
+						result <- err
+						return
+					}
+
+					if _, err := n.storage.VerifyRemoteChunk(chunk); err != nil {
+						result <- err
+						return
+					}
+				}
+
+				// TODO better request strategy
+				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID
+				if err := n.client.AppRequest(
+					ctx,
+					nodeID,
+					&dsmr.GetChunkRequest{
+						ChunkId: chunkCert.ChunkID[:],
+						Expiry:  chunkCert.Expiry,
+					},
+					onResponse,
+				); err != nil {
+					return fmt.Errorf("failed to request chunk referenced in block: %w", err)
+				}
+
+				if <-result == nil {
+					break
+				}
 			}
 		}
 	}
