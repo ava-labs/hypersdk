@@ -233,6 +233,6 @@ func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.Nod
 	}
 }
 
-func (c ChunkCertificateGossipHandler[_]) AppRequest(context.Context, ids.NodeID, time.Time, []byte) ([]byte, *common.AppError) {
+func (ChunkCertificateGossipHandler[_]) AppRequest(context.Context, ids.NodeID, time.Time, []byte) ([]byte, *common.AppError) {
 	return nil, common.ErrTimeout
 }
