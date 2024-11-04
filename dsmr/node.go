@@ -122,12 +122,17 @@ func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
-	if err := n.storage.SetMin(timestamp, nil); err != nil {
-		return Block{}, err
-	}
-
 	chunkCerts := n.storage.GatherChunkCerts()
-	if len(chunkCerts) == 0 {
+	availableChunkCerts := make([]*ChunkCertificate, 0)
+	for _, chunkCert := range chunkCerts {
+		// avoid building blocks with expired chunk certs
+		if chunkCert.Expiry < timestamp {
+			continue
+		}
+
+		availableChunkCerts = append(availableChunkCerts, chunkCert)
+	}
+	if len(availableChunkCerts) == 0 {
 		return Block{}, ErrNoAvailableChunkCerts
 	}
 
@@ -135,7 +140,7 @@ func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
 		ParentID:   parent.GetID(),
 		Height:     parent.Height + 1,
 		Timestamp:  timestamp,
-		ChunkCerts: chunkCerts,
+		ChunkCerts: availableChunkCerts,
 	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
