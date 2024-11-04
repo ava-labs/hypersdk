@@ -659,6 +659,41 @@ var (
 )
 ```
 
+Next, we'll want to define a return type for `Execute()`. In this case, we want
+to define a struct which stores the following values:
+
+- The new balance of the sender
+- The new balance of the recipient
+
+By using a struct which implements the `codec.Typed` interface, applications
+such as a frontend for our VM will be able to marshal/unmarshal our struct in a
+clean manner. To start, let's define the following:
+
+```go
+var _ codec.Typed = (*TransferResult)(nil)
+
+type TransferResult struct {
+	SenderBalance   uint64 `serialize:"true" json:"sender_balance"`
+	ReceiverBalance uint64 `serialize:"true" json:"receiver_balance"`
+}
+
+func (*TransferResult) GetTypeID() uint8 {
+	panic("unimplemented")
+}
+```
+
+Here, we have `TransferResult` which has as fields the new balances we mentioned
+earlier along with a `GetTypeID()` method. This method requires us to return a
+unique identifier associated with this result. Since we already assigned a
+unique type ID to our `Transfer` action, we can use this ID for our result
+(action IDs and result IDs are different). Therefore, we have:
+
+```go
+func (*TransferResult) GetTypeID() uint8 {
+	return mconsts.TransferID // Common practice is to use the action ID
+}
+```
+
 We can now define `Execute()`. Recall that we should first check any invariants
 and then execute the necessary state changes. Therefore, we have the following:
 
