@@ -8,17 +8,16 @@ import (
 	"errors"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 

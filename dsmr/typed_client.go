@@ -7,12 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
