@@ -20,18 +20,19 @@ import (
 )
 
 var (
+	//TODO error codes configurable?
 	ErrChunkNotAvailable = &common.AppError{
-		Code:    common.ErrUndefined.Code,
+		Code:    1,
 		Message: "chunk is not available",
 	}
 
 	ErrDuplicateChunk = &common.AppError{
-		Code:    common.ErrUndefined.Code,
+		Code:    2,
 		Message: "chunk is already available",
 	}
 
 	ErrInvalidChunk = &common.AppError{
-		Code:    common.ErrUndefined.Code,
+		Code:    3,
 		Message: "invalid chunk",
 	}
 
@@ -65,6 +66,9 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 
 	// TODO check chunk status?
 	chunkBytes, accepted, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	if err != nil && errors.Is(err, database.ErrNotFound) {
+		return nil, ErrChunkNotAvailable
+	}
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    common.ErrUndefined.Code,

@@ -29,7 +29,7 @@ type UnsignedChunk[T Tx] struct {
 }
 
 // TODO emit configurable amount of chunks/sec
-// TODO unexport
+// TODO unexport?
 type Chunk[T Tx] struct {
 	Producer    ids.NodeID             `serialize:"true"`
 	Beneficiary codec.Address          `serialize:"true"`

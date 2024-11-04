@@ -4,15 +4,17 @@
 package dsmr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
@@ -34,8 +36,11 @@ func New[T Tx](
 	return &Node[T]{
 		nodeID:      nodeID,
 		sk:          sk,
-		pk:          bls.PublicFromSecretKey(sk),
 		beneficiary: beneficiary,
+		client: NewTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
+			getChunkClient,
+			getChunkMarshaler{},
+		),
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
@@ -44,12 +49,8 @@ func New[T Tx](
 			verifier: chunkVerifier,
 			storage:  storage,
 		},
-		ACP118Handler: nil,
-		client: newTypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse](
-			getChunkClient,
-			getChunkMarshaler{},
-		),
 		storage: storage,
+		pk:      bls.PublicFromSecretKey(sk),
 	}, nil
 }
 
@@ -63,22 +64,18 @@ func New[T Tx](
 //}
 
 type Node[T Tx] struct {
-	networkID uint32
-	chainID   ids.ID
+	nodeID      ids.NodeID
+	sk          *bls.SecretKey
+	networkID   uint32
+	chainID     ids.ID
+	beneficiary codec.Address
+	client      *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
 
-	//TODO cleanup struct
-	nodeID                   ids.NodeID
-	sk                       *bls.SecretKey
-	pk                       *bls.PublicKey
-	beneficiary              codec.Address
 	GetChunkHandler          *GetChunkHandler[T]
 	GetChunkSignatureHandler *GetChunkSignatureHandler[T]
-	ACP118Handler            *acp118.Handler
-
 	//TODO chunk handler
-	client       *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse]
-	acp118Client *p2p.Client
-	storage      *chunkStorage[T]
+	storage *chunkStorage[T]
+	pk      *bls.PublicKey
 }
 
 // NewChunk builds transactions into a Chunk
@@ -122,12 +119,31 @@ func (n *Node[T]) NewBlock() Block {
 	}
 }
 
-func (n *Node[T]) Accept(block Block) error {
+func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	expiry := int64(0)
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {
 		expiry = max(expiry, chunkCert.Expiry)
 		chunkIDs = append(chunkIDs, chunkCert.ChunkID)
+
+		_, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
+		if errors.Is(err, database.ErrNotFound) {
+			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+
+			}
+			// TODO which validators do we request from?
+			if err := n.client.AppRequest(
+				ctx,
+				set.Of(ids.EmptyNodeID),
+				&dsmr.GetChunkRequest{
+					ChunkId: chunkCert.ChunkID[:],
+					Expiry:  chunkCert.Expiry,
+				},
+				onResponse,
+			); err != nil {
+				return fmt.Errorf("failed to request chunk referenced in block: %w", err)
+			}
+		}
 	}
 
 	return n.storage.SetMin(expiry, chunkIDs)

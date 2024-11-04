@@ -12,26 +12,24 @@ import (
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
-type marshaler[T any, U any] interface {
+type Marshaler[T any, U any] interface {
 	MarshalRequest(T) ([]byte, error)
 	UnmarshalResponse([]byte) (U, error)
 }
 
 type TypedClient[T any, U any] struct {
 	client    *p2p.Client
-	marshaler marshaler[T, U]
+	marshaler Marshaler[T, U]
 }
 
 // TODO merge upstream into avalanchego
-func newTypedClient[T any, U any](client *p2p.Client, marshaler marshaler[T, U]) *TypedClient[T, U] {
+func NewTypedClient[T any, U any](client *p2p.Client, marshaler Marshaler[T, U]) *TypedClient[T, U] {
 	return &TypedClient[T, U]{
 		client:    client,
 		marshaler: marshaler,
 	}
 }
 
-// AppRequest issues an arbitrary request to a node.
-// [onResponse] is invoked upon an error or a response.
 func (t *TypedClient[T, U]) AppRequest(
 	ctx context.Context,
 	nodeIDs set.Set[ids.NodeID],
@@ -50,7 +48,6 @@ func (t *TypedClient[T, U]) AppRequest(
 		}
 
 		onResponse(ctx, nodeID, response, err)
-
 	}
 
 	requestBytes, err := t.marshaler.MarshalRequest(request)

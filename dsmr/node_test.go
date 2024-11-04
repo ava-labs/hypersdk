@@ -22,7 +22,7 @@ import (
 
 var (
 	_ Tx                                                                         = (*tx)(nil)
-	_ marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureMarshaler)(nil)
+	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse] = (*getChunkSignatureMarshaler)(nil)
 	_ Verifier[tx]                                                               = (*failVerifier)(nil)
 )
 
@@ -105,126 +105,162 @@ func TestNode_NewChunk(t *testing.T) {
 }
 
 // Tests that chunks referenced in accepted blocks are available over p2p
-func TestNode_GetChunk(t *testing.T) {
-	sk0, err := bls.NewSecretKey()
-	require.NoError(t, err)
-	chunk0, err := signChunk(
-		UnsignedChunk[tx]{
-			Producer:    ids.EmptyNodeID,
-			Beneficiary: codec.Address{},
-			Expiry:      0,
-			Txs:         []tx{{ID: ids.Empty, Expiry: 0}},
-		},
-		sk0,
-		bls.PublicFromSecretKey(sk0),
-		0,
-		ids.Empty,
+func TestNode_GetChunk_AvailableChunk(t *testing.T) {
+	r := require.New(t)
+	sk, err := bls.NewSecretKey()
+	r.NoError(err)
+
+	node, err := New[tx](
+		ids.GenerateTestNodeID(),
+		sk,
+		codec.Address{},
+		NoVerifier[tx]{},
+		nil,
 	)
-	require.NoError(t, err)
+	r.NoError(err)
 
-	tests := []struct {
-		name           string
-		acceptedChunks []Chunk[tx]
-		pendingChunks  []Chunk[tx]
-		chunkID        ids.ID
-		expiry         int64
-		wantErr        error
-		wantChunk      Chunk[tx]
-	}{
-		// TODO test unknown chunk
-		// TODO test expired chunks?
-		{
-			name:          "request pending chunk",
-			pendingChunks: []Chunk[tx]{chunk0},
-			chunkID:       chunk0.id,
-			expiry:        chunk0.Expiry,
-			wantErr:       ErrChunkNotAvailable,
-		},
-		{
-			name:           "request available chunk",
-			acceptedChunks: []Chunk[tx]{chunk0},
-			chunkID:        chunk0.id,
-			expiry:         chunk0.Expiry,
-			wantChunk:      chunk0,
-		},
+	chunk, err := node.NewChunk(
+		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		time.Now(),
+	)
+	r.NoError(err)
+
+	blk := node.NewBlock()
+	r.NoError(node.Accept(context.Background(), blk))
+
+	client := NewGetChunkClient(p2ptest.NewClient(
+		t,
+		context.Background(),
+		node.GetChunkHandler,
+		ids.EmptyNodeID,
+		ids.EmptyNodeID,
+	))
+
+	done := make(chan struct{})
+	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+		defer close(done)
+
+		gotChunk, err := newChunkFromProto[tx](response.Chunk)
+		r.NoError(err)
+		r.Equal(chunk, gotChunk)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := require.New(t)
-			sk, err := bls.NewSecretKey()
-			r.NoError(err)
+	r.NoError(client.AppRequest(
+		context.Background(),
+		set.Of(ids.EmptyNodeID),
+		&dsmr.GetChunkRequest{
+			ChunkId: chunk.id[:],
+			Expiry:  chunk.Expiry,
+		},
+		onResponse,
+	))
+	<-done
+}
 
-			node, err := New[tx](
-				ids.GenerateTestNodeID(),
-				sk,
-				codec.Address{},
-				NoVerifier[tx]{},
-				nil,
-			)
-			r.NoError(err)
+// Tests that pending chunks are not available over p2p
+func TestNode_GetChunk_PendingChunk(t *testing.T) {
+	r := require.New(t)
+	sk, err := bls.NewSecretKey()
+	r.NoError(err)
 
-			//for _, chunk := range tt.acceptedChunks {
-			//	node.NewChunk(chunk)
-			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
-			//	r.NoError(chunkStorage.SetMin(0, []ids.ID{chunk.id}))
-			//}
-			//
-			//for _, chunk := range tt.pendingChunks {
-			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, nil))
-			//}
+	node, err := New[tx](
+		ids.GenerateTestNodeID(),
+		sk,
+		codec.Address{},
+		NoVerifier[tx]{},
+		nil,
+	)
+	r.NoError(err)
 
-			client := NewGetChunkClient(p2ptest.NewClient(
-				t,
-				context.Background(),
-				node.GetChunkHandler,
-				ids.EmptyNodeID,
-				ids.EmptyNodeID,
-			))
+	chunk, err := node.NewChunk(
+		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		time.Now(),
+	)
+	r.NoError(err)
 
-			done := make(chan struct{})
-			onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
-				defer close(done)
+	client := NewGetChunkClient(p2ptest.NewClient(
+		t,
+		context.Background(),
+		node.GetChunkHandler,
+		ids.EmptyNodeID,
+		ids.EmptyNodeID,
+	))
 
-				r.ErrorIs(err, tt.wantErr)
-				if err != nil {
-					return
-				}
+	done := make(chan struct{})
+	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+		defer close(done)
 
-				gotChunk, err := newChunkFromProto[tx](response.Chunk)
-				r.NoError(err)
-
-				r.Equal(tt.wantChunk, gotChunk)
-			}
-
-			r.NoError(client.AppRequest(
-				context.Background(),
-				set.Of(ids.EmptyNodeID),
-				&dsmr.GetChunkRequest{
-					ChunkId: tt.chunkID[:],
-					Expiry:  tt.expiry,
-				},
-				onResponse,
-			))
-			<-done
-		})
+		r.ErrorIs(err, ErrChunkNotAvailable)
 	}
+
+	r.NoError(client.AppRequest(
+		context.Background(),
+		set.Of(ids.EmptyNodeID),
+		&dsmr.GetChunkRequest{
+			ChunkId: chunk.id[:],
+			Expiry:  chunk.Expiry,
+		},
+		onResponse,
+	))
+	<-done
+}
+
+// Tests that unknown chunks are not available over p2p
+func TestNode_GetChunk_UnknownChunk(t *testing.T) {
+	r := require.New(t)
+	sk, err := bls.NewSecretKey()
+	r.NoError(err)
+
+	node, err := New[tx](
+		ids.GenerateTestNodeID(),
+		sk,
+		codec.Address{},
+		NoVerifier[tx]{},
+		nil,
+	)
+	r.NoError(err)
+
+	client := NewGetChunkClient(p2ptest.NewClient(
+		t,
+		context.Background(),
+		node.GetChunkHandler,
+		ids.EmptyNodeID,
+		ids.EmptyNodeID,
+	))
+
+	done := make(chan struct{})
+	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+		defer close(done)
+
+		r.ErrorIs(err, ErrChunkNotAvailable)
+	}
+
+	r.NoError(client.AppRequest(
+		context.Background(),
+		set.Of(ids.EmptyNodeID),
+		&dsmr.GetChunkRequest{
+			ChunkId: ids.Empty[:],
+			Expiry:  123,
+		},
+		onResponse,
+	))
+	<-done
 }
 
 // Tests that a Node serves chunks it built over GetChunk
 func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
-	type newChunkArgs struct {
+	type availableChunk struct {
 		txs    []tx
 		expiry time.Time
 	}
 
 	tests := []struct {
-		name   string
-		chunks []newChunkArgs
+		name            string
+		availableChunks []availableChunk
 	}{
 		{
 			name: "1 chunk with 1 tx",
-			chunks: []newChunkArgs{
+			availableChunks: []availableChunk{
 				{
 					txs: []tx{
 						{
@@ -238,7 +274,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		},
 		{
 			name: "1 chunk with 3 txs",
-			chunks: []newChunkArgs{
+			availableChunks: []availableChunk{
 				{
 					txs: []tx{
 						{
@@ -260,7 +296,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		},
 		{
 			name: "3 chunks with 1 tx",
-			chunks: []newChunkArgs{
+			availableChunks: []availableChunk{
 				{
 					txs: []tx{
 						{
@@ -292,7 +328,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		},
 		{
 			name: "3 chunks with 3 txs",
-			chunks: []newChunkArgs{
+			availableChunks: []availableChunk{
 				{
 					txs: []tx{
 						{
@@ -367,9 +403,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			r.NoError(err)
 
 			// Build some chunks
-			//TODO refactor (?)
 			wantChunks := make([]Chunk[tx], 0)
-			for _, args := range tt.chunks {
+			for _, args := range tt.availableChunks {
 				chunk, err := node.NewChunk(args.txs, args.expiry)
 				r.NoError(err)
 
@@ -377,7 +412,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			}
 
 			block := node.NewBlock()
-			r.NoError(node.Accept(block))
+			r.NoError(node.Accept(context.Background(), block))
 
 			client := NewGetChunkClient(p2ptest.NewClient(
 				t,
@@ -388,7 +423,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			))
 
 			wg := &sync.WaitGroup{}
-			wg.Add(len(tt.chunks))
+			wg.Add(len(tt.availableChunks))
 
 			// Node must serve GetChunk requests for chunks that it accepted
 			gotChunks := make(map[ids.ID]Chunk[tx], 0)
@@ -423,7 +458,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				r.Equal(chunk.Expiry, gotChunk.Expiry)
 				r.Equal(beneficiary, gotChunk.Beneficiary)
 				r.ElementsMatch(chunk.Txs, gotChunk.Txs)
-				//TODO check signature + aggregate public key
+				// TODO verify
 				r.NotEmpty(chunk.Signer)
 				r.NotEmpty(chunk.Signature)
 			}
@@ -433,47 +468,19 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 
 // Node should be willing to sign valid chunks
 func TestNode_GetChunkSignature(t *testing.T) {
-	chunk, err := newSignedChunk[tx](
-		UnsignedChunk[tx]{
-			Producer:    ids.GenerateTestNodeID(),
-			Beneficiary: codec.Address{},
-			Expiry:      1,
-			Txs: []tx{
-				{
-					ID:     ids.GenerateTestID(),
-					Expiry: 1,
-				},
-			},
-		},
-		[bls.PublicKeyLen]byte{},
-		[bls.SignatureLen]byte{},
-	)
-	require.NoError(t, err)
-
 	tests := []struct {
 		name     string
 		verifier Verifier[tx]
-		chunks   []Chunk[tx]
-		chunk    Chunk[tx]
 		wantErr  error
 	}{
 		{
-			name:     "duplicate chunk",
-			verifier: NoVerifier[tx]{},
-			chunks:   []Chunk[tx]{chunk},
-			chunk:    chunk,
-			wantErr:  ErrDuplicateChunk,
-		},
-		{
 			name:     "invalid chunk",
 			verifier: failVerifier{},
-			chunk:    chunk,
 			wantErr:  ErrInvalidChunk,
 		},
 		{
 			name:     "valid chunk",
 			verifier: NoVerifier[tx]{},
-			chunk:    chunk,
 		},
 	}
 
@@ -484,12 +491,7 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			r.NoError(err)
 			pk := bls.PublicFromSecretKey(sk)
 
-			//for _, chunk := range tt.chunks {
-			//	r.NoError(chunkStorage.AddLocalChunkWithCert(chunk, &ChunkCertificate{}))
-			//	r.NoError(chunkStorage.SetMin(chunk.Expiry, []ids.ID{chunk.id}))
-			//}
-
-			node, err := New[tx](
+			node1, err := New[tx](
 				ids.EmptyNodeID,
 				sk,
 				codec.Address{},
@@ -501,10 +503,21 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			client := NewGetChunkSignatureClient(p2ptest.NewClient(
 				t,
 				context.Background(),
-				node.GetChunkSignatureHandler,
+				node1.GetChunkSignatureHandler,
 				ids.EmptyNodeID,
 				ids.EmptyNodeID,
 			))
+
+			node2, err := New[tx](
+				ids.EmptyNodeID,
+				sk,
+				codec.Address{},
+				tt.verifier,
+				nil,
+			)
+			r.NoError(err)
+			chunk, err := node2.NewChunk([]tx{{ID: ids.Empty, Expiry: 123}}, time.Now())
+			r.NoError(err)
 
 			done := make(chan struct{})
 			onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
@@ -519,10 +532,10 @@ func TestNode_GetChunkSignature(t *testing.T) {
 				signature, err := bls.SignatureFromBytes(response.Signature)
 				r.NoError(err)
 
-				r.True(bls.Verify(pk, signature, tt.chunk.bytes))
+				r.True(bls.Verify(pk, signature, chunk.bytes))
 			}
 
-			protoChunk, err := newProtoChunk(tt.chunk)
+			protoChunk, err := newProtoChunk(chunk)
 			r.NoError(err)
 
 			r.NoError(client.AppRequest(
@@ -535,6 +548,56 @@ func TestNode_GetChunkSignature(t *testing.T) {
 			<-done
 		})
 	}
+}
+
+// Node should not sign duplicate chunks that have already been accepted
+func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
+	r := require.New(t)
+	sk, err := bls.NewSecretKey()
+	r.NoError(err)
+
+	node, err := New[tx](
+		ids.EmptyNodeID,
+		sk,
+		codec.Address{},
+		NoVerifier[tx]{},
+		nil,
+	)
+	r.NoError(err)
+
+	client := NewGetChunkSignatureClient(p2ptest.NewClient(
+		t,
+		context.Background(),
+		node.GetChunkSignatureHandler,
+		ids.EmptyNodeID,
+		ids.EmptyNodeID,
+	))
+
+	// Accept a chunk
+	r.NoError(err)
+	chunk, err := node.NewChunk([]tx{{ID: ids.Empty, Expiry: 123}}, time.Now())
+	r.NoError(err)
+	blk := node.NewBlock()
+	r.NoError(node.Accept(context.Background(), blk))
+
+	done := make(chan struct{})
+	onResponse := func(ctx context.Context, nodeID ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+		defer close(done)
+
+		r.ErrorIs(err, ErrDuplicateChunk)
+	}
+
+	protoChunk, err := newProtoChunk(chunk)
+	r.NoError(err)
+
+	r.NoError(client.AppRequest(
+		context.Background(),
+		set.Of(ids.EmptyNodeID),
+		&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
+		onResponse,
+	))
+
+	<-done
 }
 
 type tx struct {
