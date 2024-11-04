@@ -62,6 +62,11 @@ type ContractStateManager struct {
 	state.Mutable
 }
 
+/*
+func (p *ContractStateManager) SetContractBytes(context.Context, runtime.ContractID, []byte) error {
+	return nil
+}*/
+
 func (p *ContractStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	_, balance, _, err := getBalance(ctx, p, address)
 	return balance, err

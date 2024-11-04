@@ -23,7 +23,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
-	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0 // indirect
+	github.com/bytecodealliance/wasmtime-go/v25 v25.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
