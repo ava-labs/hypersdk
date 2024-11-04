@@ -247,7 +247,7 @@ To start, we'll want to compile the HyperSDK-CLI. If you're in
 `examples/tutorial`, you can run the following:
 
 ```bash
-go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@4510f51720d2e0fdecfd7fa08350e7c3eab3cf53
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@b2ad4d38aec5b2958a02b209b58eafc6891c51cd
 ```
 
 To confirm that your build of the HyperSDK-CLI was successful, run the following
