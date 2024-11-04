@@ -81,9 +81,8 @@ type Node[T Tx] struct {
 	GetChunkHandler               *GetChunkHandler[T]
 	GetChunkSignatureHandler      *GetChunkSignatureHandler[T]
 	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
-	//TODO chunk handler
-	storage *chunkStorage[T]
-	pk      *bls.PublicKey
+	storage                       *chunkStorage[T]
+	pk                            *bls.PublicKey
 }
 
 // NewChunk builds transactions into a Chunk
