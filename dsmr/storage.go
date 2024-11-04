@@ -59,13 +59,13 @@ type chunkStorage[T Tx] struct {
 
 	lock sync.RWMutex
 	// Chunk storage
-	chunkEMap *emap.EMap[emapChunk[T]]
-	// TODO rename slot -> expiry
+	chunkEMap     *emap.EMap[emapChunk[T]]
 	minimumExpiry int64
 	// pendingByte | slot | chunkID -> chunkBytes
 	// acceptedByte | slot | chunkID -> chunkBytes
 	chunkDB database.Database
 
+	// TODO do we need caching
 	// Chunk + signature + cert
 	chunkMap map[ids.ID]*StoredChunkSignature[T]
 }

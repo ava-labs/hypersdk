@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	//TODO error codes configurable?
+	//TODO error codes
 	ErrChunkNotAvailable = &common.AppError{
 		Code:    1,
 		Message: "chunk is not available",

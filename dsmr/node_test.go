@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
@@ -170,7 +169,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 
 	r.NoError(client.AppRequest(
 		context.Background(),
-		set.Of(ids.EmptyNodeID),
+		ids.EmptyNodeID,
 		&dsmr.GetChunkRequest{
 			ChunkId: chunk.id[:],
 			Expiry:  chunk.Expiry,
@@ -224,7 +223,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 
 	r.NoError(client.AppRequest(
 		context.Background(),
-		set.Of(ids.EmptyNodeID),
+		ids.EmptyNodeID,
 		&dsmr.GetChunkRequest{
 			ChunkId: chunk.id[:],
 			Expiry:  chunk.Expiry,
@@ -272,7 +271,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 
 	r.NoError(client.AppRequest(
 		context.Background(),
-		set.Of(ids.EmptyNodeID),
+		ids.EmptyNodeID,
 		&dsmr.GetChunkRequest{
 			ChunkId: ids.Empty[:],
 			Expiry:  123,
@@ -479,7 +478,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			for _, chunk := range wantChunks {
 				r.NoError(client.AppRequest(
 					context.Background(),
-					set.Of(ids.EmptyNodeID),
+					ids.EmptyNodeID,
 					&dsmr.GetChunkRequest{
 						ChunkId: chunk.id[:],
 						Expiry:  chunk.Expiry,
@@ -601,7 +600,7 @@ func TestNode_GetChunkSignature(t *testing.T) {
 
 			r.NoError(client.AppRequest(
 				context.Background(),
-				set.Of(ids.EmptyNodeID),
+				ids.EmptyNodeID,
 				&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
 				onResponse,
 			))
@@ -667,7 +666,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 
 	r.NoError(client.AppRequest(
 		context.Background(),
-		set.Of(ids.EmptyNodeID),
+		ids.EmptyNodeID,
 		&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
 		onResponse,
 	))
@@ -902,6 +901,7 @@ func TestNode_NewBlock(t *testing.T) {
 				chunk, err := node.NewChunk(chunk.txs, chunk.expiry)
 				r.NoError(err)
 
+				// Only expect chunks that have not expired
 				if chunk.Expiry < tt.timestamp {
 					continue
 				}

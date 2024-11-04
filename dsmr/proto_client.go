@@ -32,7 +32,7 @@ func NewTypedClient[T any, U any](client *p2p.Client, marshaler Marshaler[T, U])
 
 func (t *TypedClient[T, U]) AppRequest(
 	ctx context.Context,
-	nodeIDs set.Set[ids.NodeID],
+	nodeID ids.NodeID,
 	request T,
 	onResponse func(
 		ctx context.Context,
@@ -57,7 +57,7 @@ func (t *TypedClient[T, U]) AppRequest(
 
 	return t.client.AppRequest(
 		ctx,
-		nodeIDs,
+		set.Of(nodeID),
 		requestBytes,
 		onByteResponse,
 	)

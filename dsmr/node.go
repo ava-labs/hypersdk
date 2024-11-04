@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -162,7 +161,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 			// TODO which validators do we request from?
 			if err := n.client.AppRequest(
 				ctx,
-				set.Of(ids.EmptyNodeID),
+				ids.EmptyNodeID,
 				&dsmr.GetChunkRequest{
 					ChunkId: chunkCert.ChunkID[:],
 					Expiry:  chunkCert.Expiry,
