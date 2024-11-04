@@ -224,13 +224,25 @@ import (
 const balancePrefix byte = metadata.DefaultMinimumPrefix
 ```
 
-In the above, we are referring to `metadata.DefaultMinimumPrefix`. In reality,
-there are several partitions of state that the HyperSDK requires (e.g. a
-partition for storing the latest fees, a partition for storing the latest block
-height, etc.). However, as we'll see later on, we can pass in a default layout
-for the rest of the required partitions and rely on
-`metadata.DefaultMinimumPrefix` for defining any remaining partitions without
-having to worry about collisions in state.
+In addition to defining a prefix for account balances, the HyperSDK actually
+requires us to define other prefixes as well (such as those for storing fees,
+the latest block height, etc.). However, we can pass in a default layout which
+handles those other prefixes, leaving us with just having to define a balance
+prefix.
+
+As for `metadata.DefaultMinimumPrefix`, this prefix is the lowest prefix
+available to us if we use the default layout. By using this prefix, we have the
+following contract:
+
+- Using any user-defined prefix that is equal to or greater than `metadata.DefaultMinimumPrefix`
+  will not result in any state collisions with the HyperSDK
+- Using any user-defined prefix that is less than `metadata.DefaultMinimumPrefix` will
+  most likely cause a state collision with the HyperSDK
+
+In layman's terms, we can think of prefixes less than
+`metadata.DefaultMinimumPrefix` as prefixes that *only the HyperSDK should
+touch*, and any prefixes greater than `metadata.DefaultMinimumPrefix` as
+prefixes that the VM developer can use.
 
 ### Implementing HyperSDK Metadata Handlers
 
@@ -502,24 +514,7 @@ func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im st
 The type assertion should pass, so now we can go through and implement
 each function correctly.
 
-For each of the metadata functions, we'll simply return the state keys
-we already defined when partitioning our state:
-
-```golang
-func (*StateManager) HeightKey() []byte {
-	return HeightKey()
-}
-
-func (*StateManager) TimestampKey() []byte {
-	return TimestampKey()
-}
-
-func (*StateManager) FeeKey() []byte {
-	return FeeKey()
-}
-```
-
-Now, we'll implement the balance handler functions re-using the helpers
+We'll implement the balance handler functions re-using the helpers
 we've already implemented:
 
 ```golang
