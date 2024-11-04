@@ -10,7 +10,7 @@ this tutorial is as follows:
 - Creating Transfer, Pt. 1
 - Implementing Storage
   - Read/write functions
-  - StateManager
+  - BalanceHandler
 - Creating Transfer, Pt. 2
 - Bringing Everything Together
 - Options
@@ -198,65 +198,43 @@ constructing and writing key-value pairs directly from our action.
 
 When building a VM with the HyperSDK, the VM developer defines their own state storage
 layout. The HyperSDK also stores metadata in the current state, and defers to the VM where to
-store that data. Note: this will be changed in the future, so that developers get a default out
-of the box and can choose to override it if needed instead of needing to provide it.
+store that data. 
 
 With that in mind, we'll break the storage down into two components:
 
 - Read/Write Helper Functions for VM specific state
-- StateManager interface to tell the HyperSDK where to store its metadata
+- `BalanceHandler` interface to tell the HyperSDK how to modify account balances
 
 Before that, in `tutorial/`, create a new folder called `storage`.
 
 ### Separating the State into Partitions
 
-To start off, we'll add single byte prefixes to separate out the state into
-metadata required by the HyperSDK and an address -> balance mapping.
+To start off, we'll add a single byte prefix to separate a portion of our state
+out for storing account balances.
 
-Let's create the file `storage.go` in `storage/` with prefixes for balance, height, timestamp, and fees:
+Let's create the file `storage.go` in `storage/` with a prefix for balances:
 
 ```golang
 package storage
 
-const (
-	// Active state
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
+import (
+	"github.com/ava-labs/hypersdk/state/metadata"
 )
 
-var (
-	heightKey    = []byte{heightPrefix}
-	timestampKey = []byte{timestampPrefix}
-	feeKey       = []byte{feePrefix}
-)
+const balancePrefix byte = metadata.DefaultMinimumPrefix
 ```
+
+In the above, we are referring to `metadata.DefaultMinimumPrefix`. In reality,
+there are several partitions of state that the HyperSDK requires (e.g. a
+partition for storing the latest fees, a partition for storing the latest block
+height, etc.). However, as we'll see later on, we can pass in a default layout
+for the rest of the required partitions and rely on
+`metadata.DefaultMinimumPrefix` for defining any remaining partitions without
+having to worry about collisions in state.
 
 ### Implementing HyperSDK Metadata Handlers
 
-Now, we'll implement functions that return the key where the HyperSDK should
-store the chain height, timestamp, and fee dimensions. This is currently defined by
-the VM, so that it has full control of its own state layout, but could be abstracted
-away and moved into the HyperSDK in the future.
-
-Let's add the following functions to `storage.go`:
-
-```golang
-func HeightKey() (k []byte) {
-	return heightKey
-}
-
-func TimestampKey() (k []byte) {
-	return timestampKey
-}
-
-func FeeKey() (k []byte) {
-	return feeKey
-}
-```
-
-Next, we'll define the `BalanceKey` function. `BalanceKey` will return the
+We'll define the `BalanceKey` function. `BalanceKey` will return the
 state key that stores the provided address' balance.
 
 The HyperSDK requires using [size-encoded storage keys](../../explanation/features.md#size-encoded-storage-keys),
@@ -461,13 +439,13 @@ var (
 
 Going back to `storage.go`, you should see that the errors from behind are now gone.
 
-### State Manager
+### Balance Handler
 
-Now we'll implement the `chain.StateManager` interface to tell the HyperSDK
-how to modify our VM's state when it needs to store metadata or charge fees.
+Now, we'll implement the `chain.BalanceHandler` interface to tell the HyperSDK
+how to modify account balances.
 
 Let's start off by creating a new `state_manager.go` file in `storage/` and adding a new
-`StateManager` type with function stubs for each of the required functions:
+`BalanceHandler` type with function stubs for each of the required functions:
 
 ```golang
 package storage
@@ -480,35 +458,43 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.StateManager = (*StateManager)(nil)
+var _ chain.BalanceHandler = (*BalanceHandler)(nil)
 
-type StateManager struct{}
+type BalanceHandler struct{}
 
-func (s *StateManager) FeeKey() []byte {
+func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	panic("unimplemented")
 }
 
-func (s *StateManager) HeightKey() []byte {
+func (*BalanceHandler) CanDeduct(
+	ctx context.Context,
+	addr codec.Address,
+	im state.Immutable,
+	amount uint64,
+) error {
 	panic("unimplemented")
 }
 
-func (s *StateManager) TimestampKey() []byte {
+func (*BalanceHandler) Deduct(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+) error {
 	panic("unimplemented")
 }
 
-func (s *StateManager) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error {
+func (*BalanceHandler) AddBalance(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+	createAccount bool,
+) error {
 	panic("unimplemented")
 }
 
-func (s *StateManager) CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error {
-	panic("unimplemented")
-}
-
-func (s *StateManager) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
-	panic("unimplemented")
-}
-
-func (s *StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	panic("unimplemented")
 }
 ```
