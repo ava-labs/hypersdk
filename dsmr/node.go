@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -15,11 +14,18 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
-var ErrEmptyChunk = errors.New("empty chunk")
+var (
+	ErrEmptyChunk                          = errors.New("empty chunk")
+	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
+	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
+)
 
 func New[T Tx](
 	nodeID ids.NodeID,
@@ -80,7 +86,7 @@ type Node[T Tx] struct {
 
 // NewChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
-func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
+func (n *Node[T]) NewChunk(txs []T, expiry int64) (Chunk[T], error) {
 	if len(txs) == 0 {
 		return Chunk[T]{}, ErrEmptyChunk
 	}
@@ -89,7 +95,7 @@ func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 		UnsignedChunk[T]{
 			Producer:    n.nodeID,
 			Beneficiary: n.beneficiary,
-			Expiry:      expiry.Unix(),
+			Expiry:      expiry,
 			Txs:         txs,
 		},
 		n.sk,
@@ -112,18 +118,40 @@ func (n *Node[T]) NewChunk(txs []T, expiry time.Time) (Chunk[T], error) {
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, chunkCert)
 }
 
-// NewBlock TODO should we quiesce
-func (n *Node[T]) NewBlock() Block {
-	return Block{
-		ChunkCerts: n.storage.GatherChunkCerts(),
+func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
+	if timestamp <= parent.Timestamp {
+		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
+
+	if err := n.storage.SetMin(timestamp, nil); err != nil {
+		return Block{}, err
+	}
+
+	chunkCerts := n.storage.GatherChunkCerts()
+	if len(chunkCerts) == 0 {
+		return Block{}, ErrNoAvailableChunkCerts
+	}
+
+	blk := Block{
+		ParentID:   parent.GetID(),
+		Height:     parent.Height + 1,
+		Timestamp:  timestamp,
+		ChunkCerts: chunkCerts,
+	}
+
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
+		return Block{}, err
+	}
+
+	blk.blkBytes = packer.Bytes
+	blk.blkID = utils.ToID(blk.blkBytes)
+	return blk, nil
 }
 
 func (n *Node[T]) Accept(ctx context.Context, block Block) error {
-	expiry := int64(0)
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {
-		expiry = max(expiry, chunkCert.Expiry)
 		chunkIDs = append(chunkIDs, chunkCert.ChunkID)
 
 		_, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
@@ -146,5 +174,5 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		}
 	}
 
-	return n.storage.SetMin(expiry, chunkIDs)
+	return n.storage.SetMin(block.Timestamp, chunkIDs)
 }

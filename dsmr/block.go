@@ -199,6 +199,10 @@ type Block struct {
 	blkBytes []byte
 }
 
+func (b Block) GetID() ids.ID {
+	return b.blkID
+}
+
 // TODO: implement snowman.Block interface and integrate assembler
 type StatefulBlock[T Tx, B any, Result any] struct {
 	handler *BlockHandler[T, B, Result]
