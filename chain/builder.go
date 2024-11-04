@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -59,6 +60,56 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
+type buildBlock struct {
+	vm        VM
+	parent    ids.ID
+	height    uint64
+	timestamp int64
+	executor  *Executor
+	txs       []*Transaction
+	stateRoot ids.ID
+}
+
+func newBuildBlock(
+	vm VM,
+	parent *StatefulBlock,
+	tmstp int64,
+) *buildBlock {
+	return &buildBlock{
+		parent:    parent.ID(),
+		height:    parent.Height() + 1,
+		timestamp: tmstp,
+		vm:        vm,
+		executor:  NewExecutor(vm),
+	}
+}
+
+func (b *buildBlock) ToBlock(
+	results []*Result,
+	feeManager *fees.Manager,
+	view merkledb.View,
+) (*StatefulBlock, error) {
+	statelessBlock, err := NewStatelessBlock(b.parent, b.timestamp, b.height, b.txs, b.stateRoot)
+	if err != nil {
+		return nil, err
+	}
+	statefulBlock := &StatefulBlock{
+		StatelessBlock: statelessBlock,
+		vm:             b.vm,
+		executor:       b.executor,
+		accepted:       false,
+		t:              time.UnixMilli(b.timestamp),
+		results:        results,
+		feeManager:     feeManager,
+		view:           view,
+		txsSet:         set.NewSet[ids.ID](len(b.txs)),
+	}
+	for _, tx := range b.txs {
+		statefulBlock.txsSet.Add(tx.ID())
+	}
+	return statefulBlock, nil
+}
+
 // TODO: This code is terrible and will be removed during the Vryx integration.
 func BuildBlock(
 	ctx context.Context,
@@ -79,7 +130,7 @@ func BuildBlock(
 		log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
-	b := NewBlock(vm, parent, nextTime)
+	pendingBlock := newBuildBlock(vm, parent, nextTime)
 
 	// Fetch view where we will apply block state transitions
 	//
@@ -140,13 +191,13 @@ func BuildBlock(
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
-	b.Txs = []*Transaction{}
+	pendingBlock.txs = []*Transaction{}
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
 		if len(txs) == 0 {
-			b.vm.RecordClearedMempool()
+			pendingBlock.vm.RecordClearedMempool()
 			break
 		}
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
@@ -317,7 +368,7 @@ func BuildBlock(
 
 				// Update block with new transaction
 				tsv.Commit()
-				b.Txs = append(b.Txs, tx)
+				pendingBlock.txs = append(pendingBlock.txs, tx)
 				results = append(results, result)
 				return nil
 			})
@@ -336,10 +387,10 @@ func BuildBlock(
 				// sure all transactions are returned to the mempool.
 				go func() {
 					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
-					restored := mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
-					b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+					restored := mempool.FinishStreaming(ctx, append(pendingBlock.txs, restorable...))
+					pendingBlock.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
-				b.vm.Logger().Warn("build failed", zap.Error(execErr))
+				pendingBlock.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
 			}
 			break
@@ -351,20 +402,20 @@ func BuildBlock(
 	go func() {
 		prepareStreamLock.Lock()
 		restored := mempool.FinishStreaming(ctx, restorable)
-		b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+		pendingBlock.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
 	}()
 
 	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
-		attribute.Int("added", len(b.Txs)),
+		attribute.Int("added", len(pendingBlock.txs)),
 	)
-	if time.Since(start) > b.vm.GetTargetBuildDuration() {
-		b.vm.RecordBuildCapped()
+	if time.Since(start) > pendingBlock.vm.GetTargetBuildDuration() {
+		pendingBlock.vm.RecordBuildCapped()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
-	if len(b.Txs) == 0 {
+	if len(pendingBlock.txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
 			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
@@ -372,9 +423,9 @@ func BuildBlock(
 	}
 
 	// Update chain metadata
-	heightKey := HeightKey(b.vm.MetadataManager().HeightPrefix())
+	heightKey := HeightKey(pendingBlock.vm.MetadataManager().HeightPrefix())
 	heightKeyStr := string(heightKey)
-	timestampKey := TimestampKey(b.vm.MetadataManager().TimestampPrefix())
+	timestampKey := TimestampKey(pendingBlock.vm.MetadataManager().TimestampPrefix())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 
@@ -387,10 +438,10 @@ func BuildBlock(
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, pendingBlock.height)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(pendingBlock.timestamp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
@@ -404,7 +455,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	b.StateRoot = root
+	pendingBlock.stateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
 	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
@@ -412,9 +463,9 @@ func BuildBlock(
 		return nil, err
 	}
 
-	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
-		log.Warn("block failed", zap.Int("txs", len(b.Txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
+	block, err := pendingBlock.ToBlock(results, feeManager, view)
+	if err != nil {
+		log.Warn("block failed", zap.Int("txs", len(pendingBlock.txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
 		return nil, err
 	}
 
@@ -427,22 +478,22 @@ func BuildBlock(
 			return
 		}
 		log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", block.Height()),
+			zap.Stringer("blkID", block.ID()),
 			zap.Stringer("root", root),
 		)
-		b.vm.RecordRootCalculated(time.Since(start))
+		pendingBlock.vm.RecordRootCalculated(time.Since(start))
 	}()
 
 	log.Info(
 		"built block",
-		zap.Uint64("hght", b.Hght),
+		zap.Uint64("hght", block.Height()),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.Txs)),
+		zap.Int("added", len(pendingBlock.txs)),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
-		zap.Int64("block (t)", b.Tmstmp),
+		zap.Int64("block (t)", block.GetTimestamp()),
 	)
-	return b, nil
+	return block, nil
 }

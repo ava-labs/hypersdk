@@ -52,7 +52,8 @@ type StatelessBlock struct {
 	// starting the verification of another block, etc.
 	StateRoot ids.ID `json:"stateRoot"`
 
-	size int
+	id    ids.ID
+	bytes []byte
 
 	// authCounts can be used by batch signature verification
 	// to preallocate memory
@@ -60,18 +61,18 @@ type StatelessBlock struct {
 }
 
 func (b *StatelessBlock) Size() int {
-	return b.size
+	return len(b.bytes)
 }
 
-func (b *StatelessBlock) ID() (ids.ID, error) {
-	blk, err := b.Marshal()
-	if err != nil {
-		return ids.ID{}, err
-	}
-	return utils.ToID(blk), nil
+func (b *StatelessBlock) ID() ids.ID {
+	return b.id
 }
 
-func (b *StatelessBlock) Marshal() ([]byte, error) {
+func (b *StatelessBlock) Bytes() []byte {
+	return b.bytes
+}
+
+func (b *StatelessBlock) init() error {
 	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
 		consts.IntLen + codec.CummSize(b.Txs) +
@@ -87,7 +88,7 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
-			return nil, err
+			return err
 		}
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
@@ -95,10 +96,11 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	p.PackID(b.StateRoot)
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
-		return nil, err
+		return err
 	}
-	b.size = len(bytes)
-	return bytes, nil
+	b.bytes = bytes
+	b.id = utils.ToID(bytes)
+	return nil
 }
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
@@ -106,7 +108,8 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatelessBlock
 	)
-	b.size = len(raw)
+	b.bytes = raw
+	b.id = utils.ToID(raw)
 
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
@@ -135,21 +138,39 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	return &b, p.Err()
 }
 
-func NewGenesisBlock(root ids.ID) *StatelessBlock {
-	return &StatelessBlock{
-		// We set the genesis block timestamp to be after the ProposerVM fork activation.
-		//
-		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
-		// where the child timestamp is rounded down to the nearest second (which may be before
-		// the timestamp of its parent, which is denoted in milliseconds).
-		//
-		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
-		// .../vms/proposervm/pre_fork_block.go#L201
-		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
-
-		// StateRoot should include all allocates made when loading the genesis file
-		StateRoot: root,
+func NewStatelessBlock(
+	parent ids.ID,
+	timestamp int64,
+	height uint64,
+	txs []*Transaction,
+	stateRoot ids.ID,
+) (*StatelessBlock, error) {
+	sb := &StatelessBlock{
+		Prnt:      parent,
+		Tmstmp:    timestamp,
+		Hght:      height,
+		Txs:       txs,
+		StateRoot: stateRoot,
 	}
+	return sb, sb.init()
+}
+
+func NewGenesisBlock(root ids.ID) (*StatelessBlock, error) {
+	// We set the genesis block timestamp to be after the ProposerVM fork activation.
+	//
+	// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+	// where the child timestamp is rounded down to the nearest second (which may be before
+	// the timestamp of its parent, which is denoted in milliseconds).
+	//
+	// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
+	// .../vms/proposervm/pre_fork_block.go#L201
+	return NewStatelessBlock(
+		ids.Empty,
+		time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+		0,
+		nil,
+		root, // Genesis state root should include all allocations while loading genesis
+	)
 }
 
 // StatefulBlock is defined separately from "StatelessBlock"
@@ -158,10 +179,8 @@ func NewGenesisBlock(root ids.ID) *StatelessBlock {
 type StatefulBlock struct {
 	*StatelessBlock `json:"block"`
 
-	id       ids.ID
 	accepted bool
 	t        time.Time
-	bytes    []byte
 	txsSet   set.Set[ids.ID]
 
 	results    []*Result
@@ -172,19 +191,6 @@ type StatefulBlock struct {
 	view     merkledb.View
 
 	sigJob workers.Job
-}
-
-func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatefulBlock {
-	return &StatefulBlock{
-		StatelessBlock: &StatelessBlock{
-			Prnt:   parent.ID(),
-			Tmstmp: tmstp,
-			Hght:   parent.Height() + 1,
-		},
-		vm:       vm,
-		executor: NewExecutor(vm),
-		accepted: false,
-	}
 }
 
 func ParseBlock(
@@ -201,7 +207,7 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
+	return ParseStatefulBlock(ctx, blk, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
@@ -250,7 +256,6 @@ func (b *StatefulBlock) populateTxs(ctx context.Context) error {
 func ParseStatefulBlock(
 	ctx context.Context,
 	blk *StatelessBlock,
-	source []byte,
 	accepted bool,
 	vm VM,
 ) (*StatefulBlock, error) {
@@ -262,21 +267,12 @@ func ParseStatefulBlock(
 		return nil, ErrTimestampTooLate
 	}
 
-	if len(source) == 0 {
-		nsource, err := blk.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		source = nsource
-	}
 	b := &StatefulBlock{
 		StatelessBlock: blk,
 		t:              time.UnixMilli(blk.Tmstmp),
-		bytes:          source,
 		accepted:       accepted,
 		vm:             vm,
 		executor:       NewExecutor(vm),
-		id:             utils.ToID(source),
 	}
 
 	// If we are parsing an older block, it will not be re-executed and should
@@ -300,12 +296,6 @@ func (b *StatefulBlock) initializeBuilt(
 	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
 	defer span.End()
 
-	blk, err := b.StatelessBlock.Marshal()
-	if err != nil {
-		return err
-	}
-	b.bytes = blk
-	b.id = utils.ToID(b.bytes)
 	b.view = view
 	b.t = time.UnixMilli(b.StatelessBlock.Tmstmp)
 	b.results = results
@@ -729,12 +719,8 @@ func NewExecutedBlockFromStateful(b *StatefulBlock) *ExecutedBlock {
 }
 
 func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions) (*ExecutedBlock, error) {
-	blkID, err := statelessBlock.ID()
-	if err != nil {
-		return nil, err
-	}
 	return &ExecutedBlock{
-		BlockID:    blkID,
+		BlockID:    statelessBlock.ID(),
 		Block:      statelessBlock,
 		Results:    results,
 		UnitPrices: unitPrices,
@@ -742,11 +728,7 @@ func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPri
 }
 
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	blockBytes, err := b.Block.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
+	blockBytes := b.Block.Bytes()
 	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 

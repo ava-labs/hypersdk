@@ -26,11 +26,16 @@ func TestBlockCache(t *testing.T) {
 	require := require.New(t)
 
 	// create a block with "Unknown" status
+	block, err := chain.NewStatelessBlock(
+		ids.GenerateTestID(),
+		0,
+		10_000,
+		nil,
+		ids.Empty,
+	)
+	require.NoError(err)
 	blk := &chain.StatefulBlock{
-		StatelessBlock: &chain.StatelessBlock{
-			Prnt: ids.GenerateTestID(),
-			Hght: 10000,
-		},
+		StatelessBlock: block,
 	}
 	blkID := blk.ID()
 
