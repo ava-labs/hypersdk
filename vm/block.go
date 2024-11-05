@@ -21,8 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -106,33 +104,6 @@ func ParseStatefulBlock(
 
 	// Populate hashes and tx set
 	return b, nil
-}
-
-// XXX(incomplete)
-// [initializeBuilt] is invoked after a block is built
-func (b *StatefulBlock) initializeBuilt(
-	ctx context.Context,
-	view merkledb.View,
-	results []*chain.Result,
-	feeManager *internalfees.Manager,
-) error {
-	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
-	defer span.End()
-
-	blk, err := b.StatelessBlock.Marshal()
-	if err != nil {
-		return err
-	}
-	b.bytes = blk
-	b.id = utils.ToID(b.bytes)
-	b.view = view
-	b.t = time.UnixMilli(b.StatelessBlock.Tmstmp)
-	executedBlk, err := chain.NewExecutedBlock(b.StatelessBlock, results, feeManager.UnitPrices(), feeManager.UnitsConsumed())
-	if err != nil {
-		return err
-	}
-	b.executedBlock = executedBlk
-	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
