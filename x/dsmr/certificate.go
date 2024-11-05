@@ -26,7 +26,6 @@ const (
 
 var Codec acodec.Manager
 
-// TODO remove init
 func init() {
 	Codec = acodec.NewManager(MaxMessageSize)
 	lc := linearcodec.NewDefault()
