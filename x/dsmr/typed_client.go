@@ -133,7 +133,7 @@ func (getChunkMarshaler[T]) UnmarshalResponse(bytes []byte) (Chunk[T], error) {
 		&wrappers.Packer{Bytes: response.Chunk},
 		&chunk,
 	); err != nil {
-		return Chunk[T]{}, nil
+		return Chunk[T]{}, err
 	}
 
 	return chunk, chunk.init()

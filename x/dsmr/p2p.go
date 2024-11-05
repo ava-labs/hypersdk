@@ -184,6 +184,7 @@ type ChunkCertificateGossipHandler[T Tx] struct {
 	storage *chunkStorage[T]
 }
 
+// TODO error handling + logs
 func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
