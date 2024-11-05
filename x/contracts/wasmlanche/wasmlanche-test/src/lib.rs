@@ -34,18 +34,22 @@ pub struct StoreData {
 }
 
 impl StoreData {
+    #[inline]
     fn set_result(&mut self, result: Vec<u8>) {
         self.call_result = Some(result);
     }
 
+    #[inline]
     fn set<Iter: IntoIterator<Item = (StateKey, StateValue)>>(&mut self, iter: Iter) {
         self.state.extend(iter);
     }
 
+    #[inline]
     fn get(&self, key: &[u8]) -> Option<&StateValue> {
         self.state.get(key)
     }
 
+    #[inline]
     pub fn take_result(&mut self) -> Option<Vec<u8>> {
         self.call_result.take()
     }
@@ -150,7 +154,7 @@ impl Builder {
                         .expect("data should exist")
                         .to_vec();
 
-                    caller.data_mut().set_result(result.to_vec());
+                    caller.data_mut().set_result(result);
                 },
             )
             .expect("failed to link `contract.set_call_result` function");
@@ -264,6 +268,7 @@ impl Builder {
         }
     }
 
+    #[inline(always)]
     pub fn build(&self) -> TestCrate {
         let Self {
             engine,
@@ -277,7 +282,7 @@ impl Builder {
             limiter: StoreLimitsBuilder::new().memory_size(18 * 0x10000).build(),
         };
 
-        let mut store = Store::new(&engine, store_data);
+        let mut store = Store::new(engine, store_data);
         store.set_epoch_deadline(1);
         store
             .set_fuel(u64::MAX)
@@ -285,7 +290,7 @@ impl Builder {
         store.limiter(|data| &mut data.limiter);
 
         let instance = linker
-            .instantiate(&mut store, &module)
+            .instantiate(&mut store, module)
             .expect("failed to instantiate wasm");
 
         let allocate_func = instance
@@ -307,23 +312,27 @@ pub struct TestCrate {
 }
 
 impl TestCrate {
+    #[inline(always)]
     pub fn allocate_context(&mut self) -> AllocReturn {
         self.allocate_params(&())
     }
 
+    // I don't think inlining is actually necessary here since it's a generic method
+    #[inline(always)]
     pub fn allocate_params<T: BorshSerialize>(&mut self, params: &T) -> u32 {
-        let contract_id = vec![1; Address::LEN];
-        let mut actor = vec![2; Address::LEN];
-        let height: u64 = 0;
-        let timestamp: u64 = 0;
-        let mut action_id = vec![1; ID_LEN];
+        let contract_id = [1; Address::LEN].into_iter();
+        let actor = [2; Address::LEN].into_iter();
+        let height = 0u64.to_le_bytes().into_iter();
+        let timestamp = 0u64.to_le_bytes().into_iter();
+        let action_id = [1; ID_LEN].into_iter();
 
         // this is a hack to create a context since the constructor is private
-        let mut ctx = contract_id;
-        ctx.append(&mut actor);
-        ctx.append(&mut height.to_le_bytes().to_vec());
-        ctx.append(&mut timestamp.to_le_bytes().to_vec());
-        ctx.append(&mut action_id);
+        let mut ctx = contract_id
+            .chain(actor)
+            .chain(height)
+            .chain(timestamp)
+            .chain(action_id)
+            .collect();
 
         params
             .serialize(&mut ctx)
@@ -340,12 +349,14 @@ impl TestCrate {
         &self.instance
     }
 
+    #[inline]
     pub fn memory(&mut self) -> Memory {
         self.instance
             .get_memory(&mut self.store, "memory")
             .expect("failed to get memory")
     }
 
+    #[inline(always)]
     pub fn allocate(&mut self, data: Vec<u8>) -> AllocReturn {
         let offset = self
             .allocate_func
@@ -366,6 +377,6 @@ impl TestCrate {
     pub fn get_user_defined_typed_func(&mut self, name: &str) -> UserDefinedFn {
         self.instance
             .get_typed_func::<UserDefinedFnParam, UserDefinedFnReturn>(&mut self.store, name)
-            .expect(&format!("failed to find `{name}` function"))
+            .unwrap_or_else(|_| panic!("failed to find `{name}` function"))
     }
 }

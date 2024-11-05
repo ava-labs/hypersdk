@@ -10,6 +10,7 @@ pub struct Contract {
 }
 
 impl Contract {
+    #[inline]
     pub fn new(builder: Builder) -> Self {
         let mut inner = builder.build();
         let always_true = inner.get_user_defined_typed_func("always_true");
@@ -17,6 +18,7 @@ impl Contract {
         Self { inner, always_true }
     }
 
+    #[inline]
     pub fn always_true(&mut self) -> bool {
         let Self { always_true, inner } = self;
         let ctx = inner.allocate_context();
@@ -41,6 +43,7 @@ pub struct Nft {
 }
 
 impl Nft {
+    #[inline]
     pub fn new(builder: Builder) -> Self {
         let mut inner = builder.build();
         let mint = inner.get_user_defined_typed_func("mint");
@@ -48,6 +51,7 @@ impl Nft {
         Self { inner, mint }
     }
 
+    #[inline]
     pub fn mint(&mut self, address: Address, id: u64) {
         let Self { mint, inner } = self;
 
