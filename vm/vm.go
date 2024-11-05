@@ -393,6 +393,11 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
+		// Set executed block, since we will never execute the genesis block
+		genesisBlk.executedBlock = &chain.ExecutedBlock{
+			BlockID: genesisBlk.ID(),
+			Block:   genesisExecutionBlk.StatelessBlock,
+		}
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
