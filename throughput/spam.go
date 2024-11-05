@@ -228,7 +228,6 @@ func (s Spammer) broadcast(
 						recipientIndex++
 					}
 				}
-				recipient := accounts[recipientIndex].Address
 				issuer := getRandomIssuer(issuers)
 				g.Go(func() error {
 					factory := factories[senderIndex]
@@ -239,12 +238,11 @@ func (s Spammer) broadcast(
 						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
 						return fmt.Errorf("%s has insufficient funds", sender.Address)
 					}
-					funds[sender.Address] = balance - feePerTx - amountToTransfer
-					funds[recipient] += amountToTransfer
+					funds[sender.Address] = balance - feePerTx
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
+					actions := sh.GetAction()
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}

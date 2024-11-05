@@ -63,3 +63,11 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 		Memo:  memo,
 	}}
 }
+
+func (sh *SpamHelper) GetAction() []chain.Action {
+	return []chain.Action{&actions.Transfer{
+		To:    codec.Address{},
+		Value: 0,
+		Memo:  []byte{},
+	}}
+}
