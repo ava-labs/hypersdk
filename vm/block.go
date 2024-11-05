@@ -55,19 +55,6 @@ type StatefulBlock struct {
 	sigJob workers.Job
 }
 
-// func NewBlock(vm *VM, parent snowman.Block, tmstp int64) *StatefulBlock {
-// 	return &StatefulBlock{
-// 		StatelessBlock: &chain.StatelessBlock{
-// 			Prnt:   parent.ID(),
-// 			Tmstmp: tmstp,
-// 			Hght:   parent.Height() + 1,
-// 		},
-// 		vm:       vm,
-// 		executor: vm.chain,
-// 		accepted: false,
-// 	}
-// }
-
 func ParseBlock(
 	ctx context.Context,
 	source []byte,
@@ -83,50 +70,6 @@ func ParseBlock(
 	}
 	// Not guaranteed that a parsed block is verified
 	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
-}
-
-// XXX(incomplete)
-// populateTxs is only called on blocks we did not build
-func (b *StatefulBlock) populateTxs(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.populateTxs")
-	defer span.End()
-
-	// Setup signature verification job
-	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatefulBlock.verifySignatures") //nolint:spancheck
-	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
-	if err != nil {
-		return err //nolint:spancheck
-	}
-	b.sigJob = job
-	batchVerifier := chain.NewAuthBatch(b.vm, b.sigJob, b.AuthCounts)
-
-	// Make sure to always call [Done], otherwise we will block all future [Workers]
-	defer func() {
-		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-		// to the work queue async and that may not have completed by this point.
-		go batchVerifier.Done(func() { sigVerifySpan.End() })
-	}()
-
-	// Confirm no transaction duplicates and setup
-	// AWM processing
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		// Ensure there are no duplicate transactions
-		if b.txsSet.Contains(tx.ID()) {
-			return chain.ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-
-		// Verify signature async
-		if b.vm.GetVerifyAuth() {
-			unsignedTxBytes, err := tx.UnsignedBytes()
-			if err != nil {
-				return err
-			}
-			batchVerifier.Add(unsignedTxBytes, tx.Auth)
-		}
-	}
-	return nil
 }
 
 func ParseStatefulBlock(
@@ -169,7 +112,7 @@ func ParseStatefulBlock(
 	}
 
 	// Populate hashes and tx set
-	return b, b.populateTxs(ctx)
+	return b, nil
 }
 
 // XXX(incomplete)
@@ -293,7 +236,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context) error {
 	}
 	b.executedBlock = executedBlock
 	b.results = executedBlock.Results
-// XXX(incomplete)
+	// XXX(incomplete)
 	// b.feeManager = feeManager
 	b.view = view
 	return nil

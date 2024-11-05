@@ -156,7 +156,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView merkledb.View, parent
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := c.IsRepeat(ctx, parent, oldestAllowed, txs, set.NewBits(), false)
+		dup, err := c.isRepeat(ctx, parent, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break

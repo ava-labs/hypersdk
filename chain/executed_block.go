@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-// XXX(incomplete)
 type ExecutedBlock struct {
 	BlockID    ids.ID          `json:"blockID"`
 	Block      *StatelessBlock `json:"block"`

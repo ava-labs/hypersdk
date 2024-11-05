@@ -6,8 +6,10 @@ package chain
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -18,7 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// XXX(incomplete) switch from using this to StatelessBlock with optional param to set fields
 type ExecutionBlock struct {
 	*StatelessBlock
 
@@ -47,13 +48,9 @@ type Chain struct {
 	balanceHandler          BalanceHandler
 	authVM                  AuthVM
 
+	lock       sync.Mutex
 	chainIndex ChainIndex
 	seen       emap.EMap[*Transaction]
-}
-
-// XXX(incomplete)
-func NewChain() *Chain {
-	return &Chain{}
 }
 
 type ChainIndex interface {
@@ -61,10 +58,55 @@ type ChainIndex interface {
 	LastAcceptedBlock(ctx context.Context) (*ExecutionBlock, error)
 }
 
+type ChainBackend interface {
+	Tracer() trace.Tracer
+	Metrics() metrics.MultiGatherer
+	Mempool() Mempool
+	Logger() logging.Logger
+	Parser() Parser
+	RuleFactory() RuleFactory
+	MetadataManager() MetadataManager
+	BalanceHandler() BalanceHandler
+	AuthVerifiers() workers.Workers
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	ChainIndex
+}
+
+func NewChain(
+	backend ChainBackend,
+	config ExecutionConfig,
+	chainIndex ChainIndex,
+) (*Chain, error) {
+	registry, metrics, err := newMetrics()
+	if err != nil {
+		return nil, err
+	}
+	if err := backend.Metrics().Register("chain", registry); err != nil {
+		return nil, err
+	}
+	return &Chain{
+		tracer:                  backend.Tracer(),
+		config:                  config,
+		metrics:                 metrics,
+		mempool:                 backend.Mempool(),
+		log:                     backend.Logger(),
+		authVerificationWorkers: backend.AuthVerifiers(),
+		parser:                  backend.Parser(),
+		ruleFactory:             backend.RuleFactory(),
+		metadataManager:         backend.MetadataManager(),
+		balanceHandler:          backend.BalanceHandler(),
+		authVM:                  backend,
+		chainIndex:              backend,
+	}, nil
+}
+
 func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	_, span := c.tracer.Start(ctx, "chain.AcceptBlock")
 	defer span.End()
 
+	// Grab the lock before modifiying seen
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	blkTime := blk.Tmstmp
 	evicted := c.seen.SetMin(blkTime)
 	c.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
@@ -72,7 +114,7 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	return nil
 }
 
-func (c *Chain) IsRepeat(
+func (c *Chain) isRepeat(
 	ctx context.Context,
 	ancestorBlk *ExecutionBlock,
 	oldestAllowed int64,
@@ -82,6 +124,9 @@ func (c *Chain) IsRepeat(
 ) (set.Bits, error) {
 	_, span := c.tracer.Start(ctx, "chain.IsRepeat")
 	defer span.End()
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	lastAcceptedBlk, err := c.chainIndex.LastAcceptedBlock(ctx)
 	if err != nil {
@@ -138,7 +183,7 @@ func (c *Chain) verifyExpiryReplayProtection(
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := c.IsRepeat(ctx, parent, oldestAllowed, blk.Txs, set.NewBits(), true)
+	dup, err := c.isRepeat(ctx, parent, oldestAllowed, blk.Txs, set.NewBits(), true)
 	if err != nil {
 		return err
 	}
@@ -172,9 +217,22 @@ func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, erro
 		go batchVerifier.Done(func() { sigVerifySpan.End() })
 	}()
 
+	// Confirm no transaction duplicates and setup
+	// signature verification
 	txsSet := set.NewSet[ids.ID](len(blk.Txs))
 	for _, tx := range blk.Txs {
+		// Ensure there are no duplicate transactions
+		if txsSet.Contains(tx.ID()) {
+			return nil, ErrDuplicateTx
+		}
 		txsSet.Add(tx.ID())
+
+		// Verify signature async
+		unsignedTxBytes, err := tx.UnsignedBytes()
+		if err != nil {
+			return nil, err
+		}
+		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return &ExecutionBlock{
 		StatelessBlock: blk,
