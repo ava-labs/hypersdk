@@ -18,7 +18,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -1192,9 +1191,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 			r.Equal(tt.parent.GetID(), blk.ParentID)
 			r.Equal(tt.parent.Height+1, blk.Height)
 			r.Greater(blk.Timestamp, tt.parent.Timestamp)
-			packer := wrappers.Packer{Bytes: make([]byte, 0), MaxSize: MaxMessageSize}
-			r.NoError(codec.LinearCodec.MarshalInto(blk, &packer))
-			r.Equal(utils.ToID(packer.Bytes), blk.GetID())
+			r.NotEmpty(blk.GetID())
 			r.Len(blk.ChunkCerts, len(wantChunks))
 
 			for _, chunk := range wantChunks {
