@@ -82,7 +82,7 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
-	chain                      *chain.Chain // XXX(incomplete)
+	chain                      *chain.Chain
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
@@ -134,12 +134,11 @@ type VM struct {
 	// with limited parallelism
 	authVerifiers workers.Workers
 
-	bootstrapped      avautils.Atomic[bool]
-	genesisBlk        *StatefulBlock
-	preferred         ids.ID
-	lastAccepted      *StatefulBlock
-	lastExecutedBlock *chain.ExecutedBlock
-	toEngine          chan<- common.Message
+	bootstrapped avautils.Atomic[bool]
+	genesisBlk   *StatefulBlock
+	preferred    ids.ID
+	lastAccepted *StatefulBlock
+	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient *stateSyncerClient
@@ -332,6 +331,11 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
+	vm.chain, err = chain.NewChain(vm, vm.config.ExecutionConfig, vm)
+	if err != nil {
+		return err
+	}
+
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
 	if err != nil {
@@ -385,7 +389,6 @@ func (vm *VM) Initialize(
 		genesisBlk, err := ParseStatefulBlock(
 			ctx,
 			genesisExecutionBlk,
-			nil,
 			true,
 			vm,
 		)
@@ -770,6 +773,17 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+	defer span.End()
+
+	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
+}
+
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
@@ -863,12 +877,12 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 	blk := &StatefulBlock{
 		ExecutionBlock: executionBlk,
+		t:              time.UnixMilli(executionBlk.Tmstmp),
 		vm:             vm,
 		executor:       vm.chain,
 		accepted:       false,
 		executedBlock:  executedBlk,
 		view:           view,
-		// XXX(incomplete)
 	}
 
 	vm.parsedBlocks.Put(blk.ID(), blk)
@@ -901,32 +915,9 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()))
-	if err != nil {
-		return []error{err}
-	}
-	feeManager := internalfees.NewManager(feeRaw)
-	now := time.Now().UnixMilli()
-	r := vm.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return []error{err}
-	}
-
-	// Find repeats
-	repeatErrs, err := vm.chain.IsRepeat(ctx, blk.ExecutionBlock, now, txs)
-	if err != nil {
-		return []error{err}
-	}
 
 	validTxs := []*chain.Transaction{}
-	for i, tx := range txs {
-		// Check if transaction is a repeat before doing any extra work
-		if repeatErrs[i] != nil {
-			errs = append(errs, repeatErrs[i])
-			continue
-		}
-
+	for _, tx := range txs {
 		// Avoid any sig verification or state lookup if we already have tx in mempool
 		txID := tx.ID()
 		if vm.mempool.Has(ctx, txID) {
@@ -936,45 +927,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.balanceHandler)
-		if err != nil {
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-
-		// Verify auth if not already verified by caller
-		if verifyAuth && vm.config.VerifyAuth {
-			if err := tx.VerifyAuth(ctx); err != nil {
-				// Failed signature verification is the only safe place to remove
-				// a transaction in listeners. Every other case may still end up with
-				// the transaction in a block.
-				event := TxRemovedEvent{
-					TxID: txID,
-					Err:  err,
-				}
-
-				for _, subscription := range vm.txRemovedSubscriptions {
-					if err := subscription.Accept(event); err != nil {
-						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
-					}
-				}
-
-				errs = append(errs, err)
-				continue
-			}
-		}
-
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		//
-		// Note, [PreExecute] ensures that the pending transaction does not have
-		// an expiry time further ahead than [ValidityWindow]. This ensures anything
-		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.balanceHandler, r, view, now); err != nil {
+		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, verifyAuth); err != nil {
 			errs = append(errs, err)
 			continue
 		}

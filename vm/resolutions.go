@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -66,6 +67,14 @@ func (vm *VM) AuthVerifiers() workers.Workers {
 	return vm.authVerifiers
 }
 
+func (vm *VM) RuleFactory() chain.RuleFactory {
+	return vm.ruleFactory
+}
+
+func (vm *VM) Metrics() metrics.MultiGatherer {
+	return vm.snowCtx.Metrics
+}
+
 func (vm *VM) Tracer() trace.Tracer {
 	return vm.tracer
 }
@@ -78,13 +87,16 @@ func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.ruleFactory.GetRules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *StatefulBlock {
+func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-// XXX(incomplete)
-func (vm *VM) LastExecutedBlock() *chain.ExecutedBlock {
-	return vm.lastExecutedBlock
+func (vm *VM) LastAcceptedBlock() *chain.ExecutedBlock {
+	return vm.lastAccepted.executedBlock
+}
+
+func (vm *VM) LastAcceptedExecutionBlock() *chain.ExecutionBlock {
+	return vm.lastAccepted.ExecutionBlock
 }
 
 func (vm *VM) IsBootstrapped() bool {
@@ -110,13 +122,6 @@ func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
 
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
-}
-
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
-	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
-	defer span.End()
-
-	return vm.seen.Contains(txs, marker, stop)
 }
 
 func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
@@ -483,14 +488,6 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 		return fees.Dimensions{}, err
 	}
 	return internalfees.NewManager(v).UnitPrices(), nil
-}
-
-func (vm *VM) GetTransactionExecutionCores() int {
-	return vm.config.TransactionExecutionCores
-}
-
-func (vm *VM) GetStateFetchConcurrency() int {
-	return vm.config.StateFetchConcurrency
 }
 
 func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {

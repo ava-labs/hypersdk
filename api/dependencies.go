@@ -34,7 +34,7 @@ type VM interface {
 		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastExecutedBlock() *chain.ExecutedBlock
+	LastAcceptedBlock() *chain.ExecutedBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,

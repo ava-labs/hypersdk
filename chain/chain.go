@@ -15,7 +15,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/internal/emap"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -29,10 +31,21 @@ type ExecutionBlock struct {
 	txsSet set.Set[ids.ID]
 }
 
+func (b *ExecutionBlock) ID() ids.ID    { return b.id }
+func (b *ExecutionBlock) Bytes() []byte { return b.bytes }
+
 type ExecutionConfig struct {
 	TargetBuildDuration       time.Duration `json:"targetBuildDuration"`
 	TransactionExecutionCores int           `json:"transactionExecutionCores"`
 	StateFetchConcurrency     int           `json:"stateFetchConcurrency"`
+}
+
+func NewDefaultExecutionConfig() ExecutionConfig {
+	return ExecutionConfig{
+		TargetBuildDuration:       100 * time.Millisecond,
+		TransactionExecutionCores: 1,
+		StateFetchConcurrency:     1,
+	}
 }
 
 type Chain struct {
@@ -50,12 +63,12 @@ type Chain struct {
 
 	lock       sync.Mutex
 	chainIndex ChainIndex
-	seen       emap.EMap[*Transaction]
+	seen       *emap.EMap[*Transaction]
 }
 
 type ChainIndex interface {
-	GetBlock(ctx context.Context, blkID ids.ID) (*ExecutionBlock, error)
-	LastAcceptedBlock(ctx context.Context) (*ExecutionBlock, error)
+	GetExecutionBlock(ctx context.Context, blkID ids.ID) (*ExecutionBlock, error)
+	LastAcceptedExecutionBlock() *ExecutionBlock
 }
 
 type ChainBackend interface {
@@ -63,7 +76,7 @@ type ChainBackend interface {
 	Metrics() metrics.MultiGatherer
 	Mempool() Mempool
 	Logger() logging.Logger
-	Parser() Parser
+	Parser
 	RuleFactory() RuleFactory
 	MetadataManager() MetadataManager
 	BalanceHandler() BalanceHandler
@@ -91,12 +104,13 @@ func NewChain(
 		mempool:                 backend.Mempool(),
 		log:                     backend.Logger(),
 		authVerificationWorkers: backend.AuthVerifiers(),
-		parser:                  backend.Parser(),
+		parser:                  backend,
 		ruleFactory:             backend.RuleFactory(),
 		metadataManager:         backend.MetadataManager(),
 		balanceHandler:          backend.BalanceHandler(),
 		authVM:                  backend,
 		chainIndex:              backend,
+		seen:                    emap.NewEMap[*Transaction](),
 	}, nil
 }
 
@@ -115,14 +129,69 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	return nil
 }
 
-// XXX(incomplete): move all mempool level tx verification into Chain
+func (c *Chain) PreExecute(
+	ctx context.Context,
+	parentBlk *ExecutionBlock,
+	view state.View,
+	tx *Transaction,
+	verifyAuth bool,
+) error {
+	feeRaw, err := view.GetValue(ctx, FeeKey(c.metadataManager.FeePrefix()))
+	if err != nil {
+		return err
+	}
+	feeManager := internalfees.NewManager(feeRaw)
+	now := time.Now().UnixMilli()
+	r := c.ruleFactory.GetRules(now)
+	nextFeeManager, err := feeManager.ComputeNext(now, r)
+	if err != nil {
+		return err
+	}
+
+	// Find repeats
+	repeatErrs, err := c.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
+	if err != nil {
+		return err
+	}
+	if repeatErrs.BitLen() > 0 {
+		return ErrDuplicateTx
+	}
+
+	// Ensure state keys are valid
+	_, err = tx.StateKeys(c.balanceHandler)
+	if err != nil {
+		return err
+	}
+
+	// Verify auth if not already verified by caller
+	if verifyAuth {
+		if err := tx.VerifyAuth(ctx); err != nil {
+			return err
+		}
+	}
+
+	// PreExecute does not make any changes to state
+	//
+	// This may fail if the state we are utilizing is invalidated (if a trie
+	// view from a different branch is committed underneath it). We prefer this
+	// instead of putting a lock around all commits.
+	//
+	// Note, [PreExecute] ensures that the pending transaction does not have
+	// an expiry time further ahead than [ValidityWindow]. This ensures anything
+	// added to the [Mempool] is immediately executable.
+	if err := tx.PreExecute(ctx, nextFeeManager, c.balanceHandler, r, view, now); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Chain) IsRepeat(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
 	timestamp int64,
 	txs []*Transaction,
-) ([]error, error) {
-	_, span := c.tracer.Start(ctx, "chain.PreExecute")
+) (set.Bits, error) {
+	_, span := c.tracer.Start(ctx, "chain.IsRepeat")
 	defer span.End()
 
 	rules := c.ruleFactory.GetRules(timestamp)
@@ -133,17 +202,7 @@ func (c *Chain) IsRepeat(
 		oldestAllowed = 0
 	}
 
-	dup, err := c.isRepeat(ctx, parentBlk, timestamp, txs, set.NewBits(), false)
-	if err != nil {
-		return nil, err
-	}
-	errs := make([]error, len(txs))
-	for i := range txs {
-		if dup.Contains(i) {
-			errs[i] = ErrDuplicateTx
-		}
-	}
-	return errs, nil
+	return c.isRepeat(ctx, parentBlk, timestamp, txs, set.NewBits(), false)
 }
 
 func (c *Chain) isRepeat(
@@ -160,11 +219,9 @@ func (c *Chain) isRepeat(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	lastAcceptedBlk, err := c.chainIndex.LastAcceptedBlock(ctx)
-	if err != nil {
-		return marker, err
-	}
+	lastAcceptedBlk := c.chainIndex.LastAcceptedExecutionBlock()
 
+	var err error
 	for {
 		if ancestorBlk.Tmstmp < oldestAllowed {
 			return marker, nil
@@ -186,7 +243,7 @@ func (c *Chain) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = c.chainIndex.GetBlock(ctx, ancestorBlk.Prnt)
+		ancestorBlk, err = c.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Prnt)
 		if err != nil {
 			return marker, err
 		}
@@ -198,14 +255,11 @@ func (c *Chain) verifyExpiryReplayProtection(
 	blk *ExecutionBlock,
 	rules Rules,
 ) error {
-	lastAcceptedBlk, err := c.chainIndex.LastAcceptedBlock(ctx)
-	if err != nil {
-		return err
-	}
+	lastAcceptedBlk := c.chainIndex.LastAcceptedExecutionBlock()
 	if blk.Hght <= lastAcceptedBlk.Hght {
 		return nil
 	}
-	parent, err := c.chainIndex.GetBlock(ctx, blk.Prnt)
+	parent, err := c.chainIndex.GetExecutionBlock(ctx, blk.Prnt)
 	if err != nil {
 		return err
 	}

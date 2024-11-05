@@ -3,54 +3,73 @@
 
 package vm
 
-// XXX(incomplete)
-// func TestBlockCache(t *testing.T) {
-// 	require := require.New(t)
+import (
+	"context"
+	"testing"
 
-// 	// create a block with "Unknown" status
-// 	blk := &StatefulBlock{
-// 		StatelessBlock: &chain.StatelessBlock{
-// 			Prnt: ids.GenerateTestID(),
-// 			Hght: 10000,
-// 		},
-// 	}
-// 	blkID := blk.ID()
+	"github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/cache"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/trace"
+	"github.com/stretchr/testify/require"
+)
 
-// 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-// 	bByID, _ := cache.NewFIFO[ids.ID, *StatefulBlock](3)
-// 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
-// 	rules := genesis.NewDefaultRules()
-// 	vm := VM{
-// 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
-// 		config:  NewConfig(),
-// 		vmDB:    memdb.New(),
+func TestBlockCache(t *testing.T) {
+	require := require.New(t)
 
-// 		tracer:                 tracer,
-// 		acceptedBlocksByID:     bByID,
-// 		acceptedBlocksByHeight: bByHeight,
+	// create a block with "Unknown" status
+	blk := &StatefulBlock{
+		ExecutionBlock: &chain.ExecutionBlock{
+			StatelessBlock: &chain.StatelessBlock{
+				Prnt: ids.GenerateTestID(),
+				Hght: 10000,
+			},
+		},
+	}
+	blkID := blk.ID()
 
-// 		verifiedBlocks: make(map[ids.ID]*StatefulBlock),
-// 		seen:           emap.NewEMap[*chain.Transaction](),
-// 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
-// 		acceptedQueue:  make(chan *StatefulBlock, 1024), // don't block on queue
-// 		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
-// 	}
+	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	bByID, _ := cache.NewFIFO[ids.ID, *StatefulBlock](3)
+	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
+	rules := genesis.NewDefaultRules()
+	vm := VM{
+		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
+		config:  NewConfig(),
+		vmDB:    memdb.New(),
 
-// 	// Init metrics (called in [Accepted])
-// 	reg, m, err := newMetrics()
-// 	require.NoError(err)
-// 	vm.metrics = m
-// 	require.NoError(vm.snowCtx.Metrics.Register("hypersdk", reg))
+		tracer:                 tracer,
+		acceptedBlocksByID:     bByID,
+		acceptedBlocksByHeight: bByHeight,
 
-// 	// put the block into the cache "vm.blocks"
-// 	// and delete from "vm.verifiedBlocks"
-// 	ctx := context.TODO()
-// 	rules.ValidityWindow = int64(60)
-// 	vm.Accepted(ctx, blk)
+		verifiedBlocks: make(map[ids.ID]*StatefulBlock),
+		seen:           emap.NewEMap[*chain.Transaction](),
+		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
+		acceptedQueue:  make(chan *StatefulBlock, 1024), // don't block on queue
+		ruleFactory:    &genesis.ImmutableRuleFactory{Rules: rules},
+	}
 
-// 	// we have not set up any persistent db
-// 	// so this must succeed from using cache
-// 	blk2, err := vm.GetStatefulBlock(ctx, blkID)
-// 	require.NoError(err)
-// 	require.Equal(blk, blk2)
-// }
+	// Init metrics (called in [Accepted])
+	reg, m, err := newMetrics()
+	require.NoError(err)
+	vm.metrics = m
+	require.NoError(vm.snowCtx.Metrics.Register("hypersdk", reg))
+
+	// put the block into the cache "vm.blocks"
+	// and delete from "vm.verifiedBlocks"
+	ctx := context.TODO()
+	rules.ValidityWindow = int64(60)
+	vm.Accepted(ctx, blk)
+
+	// we have not set up any persistent db
+	// so this must succeed from using cache
+	blk2, err := vm.GetStatefulBlock(ctx, blkID)
+	require.NoError(err)
+	require.Equal(blk, blk2)
+}

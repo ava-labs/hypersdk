@@ -20,7 +20,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -34,10 +33,8 @@ var (
 type StatefulBlock struct {
 	*chain.ExecutionBlock `json:"block"`
 
-	id       ids.ID
 	accepted bool
 	t        time.Time
-	bytes    []byte
 
 	executedBlock *chain.ExecutedBlock
 
@@ -60,13 +57,12 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
+	return ParseStatefulBlock(ctx, blk, accepted, vm)
 }
 
 func ParseStatefulBlock(
 	ctx context.Context,
 	blk *chain.ExecutionBlock,
-	source []byte,
 	accepted bool,
 	vm *VM,
 ) (*StatefulBlock, error) {
@@ -78,36 +74,16 @@ func ParseStatefulBlock(
 		return nil, chain.ErrTimestampTooLate
 	}
 
-	if len(source) == 0 {
-		nsource, err := blk.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		source = nsource
-	}
 	b := &StatefulBlock{
 		ExecutionBlock: blk,
 		t:              time.UnixMilli(blk.Tmstmp),
-		bytes:          source,
 		accepted:       accepted,
 		vm:             vm,
 		executor:       vm.chain,
-		id:             utils.ToID(source),
 	}
 
-	// If we are parsing an older block, it will not be re-executed and should
-	// not be tracked as a parsed block
-	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted == nil || b.Hght <= lastAccepted.Hght { // nil when parsing genesis
-		return b, nil
-	}
-
-	// Populate hashes and tx set
 	return b, nil
 }
-
-// implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock) ID() ids.ID { return b.id }
 
 // implements "snowman.Block"
 func (b *StatefulBlock) Verify(ctx context.Context) error {
@@ -275,9 +251,6 @@ func (b *StatefulBlock) Reject(ctx context.Context) error {
 func (b *StatefulBlock) Parent() ids.ID { return b.StatelessBlock.Prnt }
 
 // implements "snowman.Block"
-func (b *StatefulBlock) Bytes() []byte { return b.bytes }
-
-// implements "snowman.Block"
 func (b *StatefulBlock) Height() uint64 { return b.StatelessBlock.Hght }
 
 // implements "snowman.Block"
@@ -418,7 +391,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 
 	// If the parent block is not yet accepted, we should return the block's processing parent (it may
 	// or may not be verified yet).
-	lastAcceptedBlock := b.vm.LastAcceptedBlock()
+	lastAcceptedBlock := b.vm.LastAcceptedStatefulBlock()
 	if blockHeight-1 > lastAcceptedBlock.Hght {
 		blk, err := b.vm.GetStatefulBlock(ctx, parent)
 		if err != nil {
@@ -441,14 +414,6 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 	// If the parent block is accepted and processed, we should
 	// just use the accepted state as the verification context.
 	return &AcceptedVerifyContext{b.vm}, nil
-}
-
-func (b *StatefulBlock) GetTxs() []*chain.Transaction {
-	return b.Txs
-}
-
-func (b *StatefulBlock) GetTimestamp() int64 {
-	return b.Tmstmp
 }
 
 type SyncableBlock struct {

@@ -158,7 +158,6 @@ func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
 	vm.lastAccepted = blk
-	vm.lastExecutedBlock = blk.executedBlock
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	if expired && vm.shouldCompact(expiryHeight) {
