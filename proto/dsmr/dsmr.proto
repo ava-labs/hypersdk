@@ -7,57 +7,29 @@ package dsmr;
 
 option go_package = "github.com/ava-labs/hypersdk/proto/pb/dsmr";
 
-message Chunk {
-  bytes producer = 1;
-  int64 expiry = 2;
-  bytes beneficiary = 3;
-  repeated Transaction transactions = 4;
-  bytes signer = 5;
-  bytes signature = 6;
-}
-
-message Transaction {
-  bytes bytes = 1;
-}
-
-message ChunkCertificate {
-  bytes chunk_id = 1;
-  bytes producer = 2;
-  int64 expiry = 3;
-  bytes signers = 4;
-  bytes signature = 5;
-}
-
-message ExecutedChunk {
-  bytes chunk_id = 1;
-  bytes beneficiary = 2;
-  repeated Transaction transactions = 3;
-  bytes warp_results = 4;
-}
-
 message GetChunkRequest {
   bytes chunk_id = 1;
   int64 expiry = 2;
 }
 
 message GetChunkResponse {
-  Chunk chunk = 1;
+  bytes chunk = 1;
 }
 
 message GetChunkSignatureRequest {
-  Chunk chunk = 1;
+  bytes chunk = 1;
 }
 
 message GetChunkSignatureResponse {
-  // TODO why do we need these fields
+  // TODO are these fields needed?
   bytes chunk_id = 1;
   bytes producer = 2;
   int64 expiry = 3;
 
-  bytes signer = 4; // bls public key
+  bytes signer = 4;
   bytes signature = 5;
 }
 
 message ChunkCertificateGossip {
-  ChunkCertificate chunk_certificate = 1;
+  bytes chunk_certificate = 1;
 }

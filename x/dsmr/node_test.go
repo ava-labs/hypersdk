@@ -186,7 +186,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node.Accept(context.Background(), blk))
 
-	client := NewGetChunkClient(p2ptest.NewClient(
+	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		node.GetChunkHandler,
@@ -195,13 +195,12 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[tx], err error) {
 		defer close(done)
 		r.NoError(err)
 
-		gotChunk, err := newChunkFromProto[tx](response.Chunk)
 		r.NoError(err)
-		r.Equal(chunk, gotChunk)
+		r.Equal(chunk, response)
 	}
 
 	r.NoError(client.AppRequest(
@@ -259,7 +258,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	client := NewGetChunkClient(p2ptest.NewClient(
+	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		node.GetChunkHandler,
@@ -268,7 +267,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, _ *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ Chunk[tx], err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrChunkNotAvailable)
@@ -321,7 +320,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	client := NewGetChunkClient(p2ptest.NewClient(
+	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		node.GetChunkHandler,
@@ -330,7 +329,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, _ *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ Chunk[tx], err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrChunkNotAvailable)
@@ -553,7 +552,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			r.NoError(err)
 			r.NoError(node.Accept(context.Background(), block))
 
-			client := NewGetChunkClient(p2ptest.NewClient(
+			client := NewGetChunkClient[tx](p2ptest.NewClient(
 				t,
 				context.Background(),
 				node.GetChunkHandler,
@@ -572,15 +571,12 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 						ChunkId: chunk.id[:],
 						Expiry:  chunk.Expiry,
 					},
-					func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+					func(_ context.Context, _ ids.NodeID, response Chunk[tx], err error) {
 						defer close(done)
 
 						r.NoError(err)
 
-						gotChunk, err := newChunkFromProto[tx](response.Chunk)
-						r.NoError(err)
-
-						gotChunks[gotChunk.id] = gotChunk
+						gotChunks[response.id] = response
 					},
 				))
 				<-done
@@ -716,13 +712,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				r.True(bls.Verify(pk, signature, chunk.bytes))
 			}
 
-			protoChunk, err := newProtoChunk(chunk)
-			r.NoError(err)
+			packer := wrappers.Packer{MaxSize: MaxMessageSize}
+			r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
 
 			r.NoError(client.AppRequest(
 				context.Background(),
 				ids.EmptyNodeID,
-				&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
+				&dsmr.GetChunkSignatureRequest{Chunk: packer.Bytes},
 				onResponse,
 			))
 
@@ -801,13 +797,13 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		r.ErrorIs(err, ErrDuplicateChunk)
 	}
 
-	protoChunk, err := newProtoChunk(chunk)
-	r.NoError(err)
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
 
 	r.NoError(client.AppRequest(
 		context.Background(),
 		ids.EmptyNodeID,
-		&dsmr.GetChunkSignatureRequest{Chunk: protoChunk},
+		&dsmr.GetChunkSignatureRequest{Chunk: packer.Bytes},
 		onResponse,
 	))
 
@@ -820,7 +816,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	sk1, err := bls.NewSecretKey()
 	r.NoError(err)
 	node1, err := New[tx](
-		ids.GenerateTestNodeID(),
+		ids.EmptyNodeID,
 		sk1,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
@@ -849,7 +845,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r.NoError(err)
 
 	node2, err := New[tx](
-		ids.GenerateTestNodeID(),
+		ids.EmptyNodeID,
 		sk1,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
@@ -879,7 +875,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	chunk, err := node2.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
+		[]tx{{ID: ids.Empty, Expiry: 1}},
 		1,
 		codec.Address{123},
 	)
@@ -905,7 +901,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	}
 	r.NoError(node1.Accept(context.Background(), blk))
 
-	client := NewGetChunkClient(p2ptest.NewClient(
+	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		node1.GetChunkHandler,
@@ -914,13 +910,10 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[tx], err error) {
 		defer close(done)
 		r.NoError(err)
-
-		gotChunk, err := newChunkFromProto[tx](response.Chunk)
-		r.NoError(err)
-		r.Equal(chunk, gotChunk)
+		r.Equal(chunk, response)
 	}
 
 	r.NoError(client.AppRequest(
@@ -1296,7 +1289,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))
 
-	client := NewGetChunkClient(p2ptest.NewClient(
+	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		node2.GetChunkHandler,
@@ -1305,13 +1298,10 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[tx], err error) {
 		defer close(done)
 		r.NoError(err)
-
-		gotChunk, err := newChunkFromProto[tx](response.Chunk)
-		r.NoError(err)
-		r.Equal(chunk, gotChunk)
+		r.Equal(chunk, response)
 	}
 
 	r.NoError(client.AppRequest(

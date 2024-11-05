@@ -92,25 +92,13 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 		}
 	}
 
-	txs := make([]*dsmr.Transaction, 0, len(chunk.Txs))
-	for _, tx := range chunk.Txs {
-		packer := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
-		if err := codec.LinearCodec.MarshalInto(tx, packer); err != nil {
-			panic(err)
-		}
-
-		txs = append(txs, &dsmr.Transaction{Bytes: packer.Bytes})
+	packer := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(chunk, packer); err != nil {
+		panic(err)
 	}
 
 	response := &dsmr.GetChunkResponse{
-		Chunk: &dsmr.Chunk{
-			Producer:     chunk.Producer[:],
-			Expiry:       chunk.Expiry,
-			Beneficiary:  chunk.Beneficiary[:],
-			Transactions: txs,
-			Signer:       chunk.Signer[:],
-			Signature:    chunk.Signature[:],
-		},
+		Chunk: packer.Bytes,
 	}
 
 	responseBytes, err := proto.Marshal(response)
@@ -155,7 +143,7 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 		}
 	}
 
-	chunk, err := newChunkFromProto[T](request.Chunk)
+	chunk, err := ParseChunk[T](request.Chunk)
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
@@ -216,18 +204,13 @@ func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	chunkID, err := ids.ToID(gossip.ChunkCertificate.ChunkId)
-	if err != nil {
+	chunkCert := ChunkCertificate{}
+	packer := wrappers.Packer{MaxSize: MaxMessageSize, Bytes: gossip.ChunkCertificate}
+	if err := codec.LinearCodec.UnmarshalFrom(&packer, &chunkCert); err != nil {
 		return
 	}
 
-	chunkCert := &ChunkCertificate{
-		ChunkID:   chunkID,
-		Expiry:    gossip.ChunkCertificate.Expiry,
-		Signature: NoVerifyChunkSignature{},
-	}
-
-	if err := c.storage.SetChunkCert(chunkID, chunkCert); err != nil {
+	if err := c.storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
 		return
 	}
 }

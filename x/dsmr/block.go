@@ -14,10 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
-
-	avautils "github.com/ava-labs/avalanchego/utils"
 )
 
 const InitialChunkSize = 250 * 1024
@@ -45,6 +42,18 @@ type Chunk[T Tx] struct {
 
 	bytes []byte
 	id    ids.ID
+}
+
+func (c *Chunk[T]) init() error {
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
+		return err
+	}
+
+	c.bytes = packer.Bytes
+	c.id = utils.ToID(c.bytes)
+
+	return nil
 }
 
 func signChunk[T Tx](
@@ -76,11 +85,11 @@ func signChunk[T Tx](
 	copy(pkBytes[:], bls.PublicKeyToCompressedBytes(pk))
 	copy(signature[:], signatureBytes)
 
-	return newSignedChunk(chunk, pkBytes, signature)
+	return newChunk(chunk, pkBytes, signature)
 }
 
-// newSignedChunk signs a chunk
-func newSignedChunk[T Tx](
+// newChunk signs a chunk
+func newChunk[T Tx](
 	unsignedChunk UnsignedChunk[T],
 	signer [bls.PublicKeyLen]byte,
 	signature [bls.SignatureLen]byte,
@@ -93,16 +102,7 @@ func newSignedChunk[T Tx](
 		Signer:      signer,
 		Signature:   signature,
 	}
-
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
-		return Chunk[T]{}, err
-	}
-
-	c.bytes = packer.Bytes
-	c.id = utils.ToID(c.bytes)
-
-	return c, nil
+	return c, c.init()
 }
 
 func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
@@ -110,86 +110,9 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: chunkBytes}, &c); err != nil {
 		return Chunk[T]{}, err
 	}
-	c.bytes = chunkBytes
-	c.id = utils.ToID(c.bytes)
 
-	return c, nil
+	return c, c.init()
 }
-
-func marshalTxs[T Tx](txs []T) ([]*dsmr.Transaction, error) {
-	result := make([]*dsmr.Transaction, 0, len(txs))
-
-	for _, tx := range txs {
-		p := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
-		if err := codec.LinearCodec.MarshalInto(tx, p); err != nil {
-			return nil, err
-		}
-
-		result = append(result, &dsmr.Transaction{
-			Bytes: p.Bytes,
-		})
-	}
-
-	return result, nil
-}
-
-func newProtoChunk[T Tx](chunk Chunk[T]) (*dsmr.Chunk, error) {
-	txs, err := marshalTxs(chunk.Txs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &dsmr.Chunk{
-		Producer:     chunk.Producer[:],
-		Expiry:       chunk.Expiry,
-		Beneficiary:  chunk.Beneficiary[:],
-		Transactions: txs,
-		Signer:       chunk.Signer[:],
-		Signature:    chunk.Signature[:],
-	}, nil
-}
-
-func newChunkFromProto[T Tx](chunkProto *dsmr.Chunk) (Chunk[T], error) {
-	producer, err := ids.ToNodeID(chunkProto.Producer)
-	if err != nil {
-		return Chunk[T]{}, err
-	}
-
-	beneficiary, err := codec.ToAddress(chunkProto.Beneficiary)
-	if err != nil {
-		return Chunk[T]{}, err
-	}
-
-	txs := make([]T, 0, len(chunkProto.Transactions))
-	for _, tx := range chunkProto.Transactions {
-		parsed := avautils.Zero[T]()
-		packer := &wrappers.Packer{Bytes: tx.Bytes, MaxSize: consts.NetworkSizeLimit}
-		if err := codec.LinearCodec.UnmarshalFrom(packer, &parsed); err != nil {
-			return Chunk[T]{}, err
-		}
-
-		txs = append(txs, parsed)
-	}
-
-	pkBytes := [bls.PublicKeyLen]byte{}
-	signature := [bls.SignatureLen]byte{}
-	copy(pkBytes[:], chunkProto.Signer)
-	copy(signature[:], chunkProto.Signature)
-
-	return newSignedChunk(
-		UnsignedChunk[T]{
-			Producer:    producer,
-			Beneficiary: beneficiary,
-			Expiry:      chunkProto.Expiry,
-			Txs:         txs,
-		},
-		pkBytes,
-		signature,
-	)
-}
-
-// TODO implement
-type ChunkFault struct{}
 
 type Block struct {
 	ParentID  ids.ID `serialize:"true"`

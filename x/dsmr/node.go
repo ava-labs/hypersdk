@@ -49,7 +49,7 @@ func New[T Tx](
 	return &Node[T]{
 		nodeID:                       nodeID,
 		sk:                           sk,
-		getChunkClient:               NewGetChunkClient(getChunkClient),
+		getChunkClient:               NewGetChunkClient[T](getChunkClient),
 		getChunkSignatureClient:      NewGetChunkSignatureClient(getChunkSignatureClient),
 		chunkCertificateGossipClient: NewChunkCertificateGossipClient(chunkCertificateGossipClient),
 		validators:                   validators,
@@ -74,7 +74,7 @@ type Node[T Tx] struct {
 	sk                           *bls.SecretKey
 	networkID                    uint32
 	chainID                      ids.ID
-	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse, []byte]
+	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
 	validators                   []Validator
@@ -114,13 +114,13 @@ func (n *Node[T]) NewChunk(
 		return Chunk[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	protoChunk, err := newProtoChunk[T](chunk)
-	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to marshal chunk: %w", err)
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(chunk, &packer); err != nil {
+		return Chunk[T]{}, err
 	}
 
 	request := &dsmr.GetChunkSignatureRequest{
-		Chunk: protoChunk,
+		Chunk: packer.Bytes,
 	}
 
 	for _, validator := range n.validators {
@@ -137,25 +137,25 @@ func (n *Node[T]) NewChunk(
 		<-done
 	}
 
-	chunkCert := &ChunkCertificate{
+	chunkCert := ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: NoVerifyChunkSignature{},
 	}
 
-	if err := n.chunkCertificateGossipClient.AppGossip(ctx, &dsmr.ChunkCertificateGossip{
-		ChunkCertificate: &dsmr.ChunkCertificate{
-			ChunkId:   chunk.id[:],
-			Producer:  chunk.Producer[:],
-			Expiry:    chunk.Expiry,
-			Signers:   nil, // TODO populate
-			Signature: nil,
-		},
-	}); err != nil {
+	packer = wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
 		return Chunk[T]{}, err
 	}
 
-	return chunk, n.storage.AddLocalChunkWithCert(chunk, chunkCert)
+	if err := n.chunkCertificateGossipClient.AppGossip(
+		ctx,
+		&dsmr.ChunkCertificateGossip{ChunkCertificate: packer.Bytes},
+	); err != nil {
+		return Chunk[T]{}, err
+	}
+
+	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
 func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
@@ -203,20 +203,14 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		if errors.Is(err, database.ErrNotFound) {
 			for {
 				result := make(chan error)
-				onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkResponse, err error) {
+				onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[T], err error) {
 					defer close(result)
 					if err != nil {
 						result <- err
 						return
 					}
 
-					chunk, err := newChunkFromProto[T](response.Chunk)
-					if err != nil {
-						result <- err
-						return
-					}
-
-					if _, err := n.storage.VerifyRemoteChunk(chunk); err != nil {
+					if _, err := n.storage.VerifyRemoteChunk(response); err != nil {
 						result <- err
 						return
 					}

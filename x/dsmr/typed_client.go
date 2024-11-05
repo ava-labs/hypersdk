@@ -11,13 +11,15 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/hypersdk/codec"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
 var (
-	_ Marshaler[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse, []byte]                   = (*getChunkMarshaler)(nil)
+	_ Marshaler[*dsmr.GetChunkRequest, Chunk[Tx], []byte]                                = (*getChunkMarshaler[Tx])(nil)
 	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte] = (*getChunkSignatureMarshaler)(nil)
 	_ Marshaler[[]byte, []byte, *dsmr.ChunkCertificateGossip]                            = (*chunkCertificateGossipMarshaler)(nil)
 )
@@ -114,29 +116,37 @@ func (getChunkSignatureMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-type getChunkMarshaler struct{}
+type getChunkMarshaler[T Tx] struct{}
 
-func (getChunkMarshaler) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
+func (getChunkMarshaler[_]) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
 	return proto.Marshal(t)
 }
 
-func (getChunkMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkResponse, error) {
+func (getChunkMarshaler[T]) UnmarshalResponse(bytes []byte) (Chunk[T], error) {
 	response := dsmr.GetChunkResponse{}
 	if err := proto.Unmarshal(bytes, &response); err != nil {
-		return nil, err
+		return Chunk[T]{}, err
 	}
 
-	return &response, nil
+	chunk := Chunk[T]{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		&wrappers.Packer{Bytes: response.Chunk},
+		&chunk,
+	); err != nil {
+		return Chunk[T]{}, nil
+	}
+
+	return chunk, chunk.init()
 }
 
-func (getChunkMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
+func (getChunkMarshaler[_]) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func NewGetChunkClient(client *p2p.Client) *TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse, []byte] {
-	return &TypedClient[*dsmr.GetChunkRequest, *dsmr.GetChunkResponse, []byte]{
+func NewGetChunkClient[T Tx](client *p2p.Client) *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte] {
+	return &TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]{
 		client:    client,
-		marshaler: getChunkMarshaler{},
+		marshaler: getChunkMarshaler[T]{},
 	}
 }
 

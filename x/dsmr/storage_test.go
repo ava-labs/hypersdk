@@ -43,7 +43,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	validChunks := make([]Chunk[tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newSignedChunk(
+		chunk, err := newChunk(
 			UnsignedChunk[tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
@@ -59,7 +59,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	invalidChunks := make([]Chunk[tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newSignedChunk(
+		chunk, err := newChunk(
 			UnsignedChunk[tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
