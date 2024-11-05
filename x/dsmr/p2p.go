@@ -17,7 +17,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
@@ -84,21 +83,8 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 		return nil, ErrChunkNotAvailable
 	}
 
-	chunk, err := ParseChunk[T](chunkBytes)
-	if err != nil {
-		return nil, &common.AppError{
-			Code:    common.ErrUndefined.Code,
-			Message: err.Error(),
-		}
-	}
-
-	packer := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(chunk, packer); err != nil {
-		panic(err)
-	}
-
 	response := &dsmr.GetChunkResponse{
-		Chunk: packer.Bytes,
+		Chunk: chunkBytes,
 	}
 
 	responseBytes, err := proto.Marshal(response)
