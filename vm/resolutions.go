@@ -32,7 +32,6 @@ import (
 )
 
 var (
-	_ chain.VM              = (*VM)(nil)
 	_ gossiper.VM           = (*VM)(nil)
 	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
@@ -79,8 +78,13 @@ func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.ruleFactory.GetRules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.StatefulBlock {
+func (vm *VM) LastAcceptedBlock() *StatefulBlock {
 	return vm.lastAccepted
+}
+
+// XXX(incomplete)
+func (vm *VM) LastExecutedBlock() *chain.ExecutedBlock {
+	return vm.lastExecutedBlock
 }
 
 func (vm *VM) IsBootstrapped() bool {
@@ -115,7 +119,7 @@ func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set
 	return vm.seen.Contains(txs, marker, stop)
 }
 
-func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
@@ -154,7 +158,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatefulBlock) {
 	}
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
@@ -168,7 +172,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatefulBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
+func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -200,7 +204,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	executedBlock := chain.NewExecutedBlockFromStateful(b)
+	// XXX
+	executedBlock, err := chain.NewExecutedBlock(b.StatelessBlock, b.results, b.feeManager.UnitPrices())
+	if err != nil {
+		vm.Fatal("failed to create executed block", zap.Error(err))
+	}
 	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Accept(executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
@@ -233,7 +241,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatefulBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -323,8 +331,12 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
-	return vm.GetStatefulBlock(ctx, vm.preferred)
+func (vm *VM) PreferredBlock(ctx context.Context) (*chain.ExecutionBlock, error) {
+	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
 }
 
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
@@ -354,7 +366,7 @@ func (vm *VM) Gossiper() gossiper.Gossiper {
 
 func (vm *VM) AcceptedSyncableBlock(
 	ctx context.Context,
-	sb *chain.SyncableBlock,
+	sb *SyncableBlock,
 ) (block.StateSyncMode, error) {
 	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
 }
@@ -367,7 +379,7 @@ func (vm *VM) StateReady() bool {
 	return vm.stateSyncClient.StateReady()
 }
 
-func (vm *VM) UpdateSyncTarget(b *chain.StatefulBlock) (bool, error) {
+func (vm *VM) UpdateSyncTarget(b *StatefulBlock) (bool, error) {
 	return vm.stateSyncClient.UpdateSyncTarget(b)
 }
 

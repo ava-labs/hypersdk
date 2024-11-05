@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
@@ -22,97 +21,78 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-type Executor struct {
-	vm VM
-}
 
-func NewExecutor(vm VM) *Executor {
-	return &Executor{vm: vm}
-}
-
-func (e *Executor) Execute(
+func (c *Chain) Execute(
 	ctx context.Context,
-	b *StatefulBlock,
-) ([]*Result, *fees.Manager, merkledb.View, error) {
+	parentView state.View,
+	b *ExecutionBlock,
+) (*ExecutedBlock, merkledb.View, error) {
 	var (
-		log = e.vm.Logger()
-		r   = e.vm.Rules(b.Tmstmp)
+		r   = c.ruleFactory.GetRules(b.Tmstmp)
+		log = c.log
 	)
 
-	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to get verify context", err)
-	}
-
 	// Perform basic correctness checks before doing any expensive work
-	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, nil, nil, ErrTimestampTooLate
-	}
-
-	// Fetch view where we will apply block state transitions
-	//
-	// This call may result in our ancestry being verified.
-	parentView, err := vctx.View(ctx, true)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to load parent view", err)
+	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+		return nil, nil, ErrTimestampTooLate
 	}
 
 	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(e.vm.MetadataManager().HeightPrefix())
+	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if b.Hght != parentHeight+1 {
-		return nil, nil, nil, ErrInvalidBlockHeight
+		return nil, nil, ErrInvalidBlockHeight
 	}
 
 	// Fetch parent timestamp and confirm block timestamp is valid
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(e.vm.MetadataManager().TimestampPrefix())
+	timestampKey := TimestampKey(c.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return nil, nil, nil, ErrTimestampTooEarly
+		return nil, nil, ErrTimestampTooEarly
 	}
 	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return nil, nil, nil, ErrTimestampTooEarly
+		return nil, nil, ErrTimestampTooEarly
 	}
 
-	if err := e.verifyExpiryReplayProtection(ctx, b, r, vctx); err != nil {
-		return nil, nil, nil, err
+	if err := c.verifyExpiryReplayProtection(ctx, b, r); err != nil {
+		return nil, nil, err
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(e.vm.MetadataManager().FeePrefix())
+	feeKey := FeeKey(c.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Process transactions
-	results, ts, err := e.ExecuteTxs(ctx, b, e.vm.Tracer(), parentView, feeManager, r)
+	results, ts, err := c.ExecuteTxs(ctx, b, c.tracer, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Update chain metadata
@@ -130,13 +110,13 @@ func (e *Executor) Execute(
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	tsv.Commit()
 
@@ -144,16 +124,16 @@ func (e *Executor) Execute(
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	_, rspan := e.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitRoot")
+	_, rspan := c.tracer.Start(ctx, "StatefulBlock.Verify.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	e.vm.RecordWaitRoot(time.Since(start))
+	c.metrics.waitRoot.Observe(float64(time.Since(start)))
 	if b.StateRoot != computedRoot {
-		return nil, nil, nil, fmt.Errorf(
+		return nil, nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
@@ -162,21 +142,21 @@ func (e *Executor) Execute(
 	}
 
 	// Ensure signatures are verified
-	_, sspan := e.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitSignatures")
+	_, sspan := c.tracer.Start(ctx, "StatefulBlock.Verify.WaitSignatures")
 	start = time.Now()
 	err = b.sigJob.Wait()
 	sspan.End()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	e.vm.RecordWaitSignatures(time.Since(start))
+	c.metrics.waitSignatures.Observe(float64(time.Since(start)))
 
 	// Get view from [tstate] after processing all state transitions
-	e.vm.RecordStateChanges(ts.PendingChanges())
-	e.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
+	c.metrics.stateChanges.Add(float64(ts.PendingChanges()))
+	c.metrics.stateOperations.Add(float64(ts.OpIndex()))
+	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Kickoff root generation
@@ -189,42 +169,18 @@ func (e *Executor) Execute(
 		}
 		log.Info("merkle root generated",
 			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
+			zap.Stringer("blkID", b.id),
 			zap.Stringer("root", root),
 		)
-		e.vm.RecordRootCalculated(time.Since(start))
+		c.metrics.rootCalculated.Observe(float64(time.Since(start)))
 	}()
-	return results, feeManager, view, nil
-}
 
-// verifyExpiryReplayProtection handles expiry replay protection
-//
-// Replay protection confirms a transaction has not been included within the
-// past validity window.
-// Before the node is ready (we have synced a validity window of blocks), this
-// function may return an error when other nodes see the block as valid.
-//
-// If a block is already accepted, its transactions have already been added
-// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
-// when it should already be considered valid, so we skip this step here.
-func (*Executor) verifyExpiryReplayProtection(ctx context.Context, b *StatefulBlock, rules Rules, vctx VerifyContext) error {
-	if b.accepted {
-		return nil
-	}
-
-	oldestAllowed := b.Tmstmp - rules.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-	dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
-	if err != nil {
-		return err
-	}
-	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-	}
-	return nil
+	return &ExecutedBlock{
+		BlockID:    b.id,
+		Block:      b.StatelessBlock,
+		Results:    results,
+		UnitPrices: feeManager.UnitPrices(),
+	}, view, nil
 }
 
 type fetchData struct {
@@ -234,9 +190,9 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (e *Executor) ExecuteTxs(
+func (c *Chain) ExecuteTxs(
 	ctx context.Context,
-	b *StatefulBlock,
+	b *ExecutionBlock,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *fees.Manager,
@@ -246,14 +202,13 @@ func (e *Executor) ExecuteTxs(
 	defer span.End()
 
 	var (
-		bh     = e.vm.BalanceHandler()
 		numTxs = len(b.Txs)
-		t      = b.GetTimestamp()
+		t      = b.Tmstmp
 
-		f          = fetcher.New(im, numTxs, e.vm.GetStateFetchConcurrency())
-		txExecutor = executor.New(numTxs, e.vm.GetTransactionExecutionCores(), MaxKeyDependencies, e.vm.GetExecutorVerifyRecorder())
-		ts         = tstate.New(numTxs * 2) // TODO: tune this heuristic
-		results    = make([]*Result, numTxs)
+		f       = fetcher.New(im, numTxs, c.config.StateFetchConcurrency)
+		e       = executor.New(numTxs, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorVerifyRecorder)
+		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
+		results = make([]*Result, numTxs)
 	)
 
 	// Fetch required keys and execute transactions
@@ -261,23 +216,23 @@ func (e *Executor) ExecuteTxs(
 		i := li
 		tx := ltx
 
-		stateKeys, err := tx.StateKeys(bh)
+		stateKeys, err := tx.StateKeys(c.balanceHandler)
 		if err != nil {
 			f.Stop()
-			txExecutor.Stop()
+			e.Stop()
 			return nil, nil, err
 		}
 
 		// Ensure we don't consume too many units
-		units, err := tx.Units(bh, r)
+		units, err := tx.Units(c.balanceHandler, r)
 		if err != nil {
 			f.Stop()
-			txExecutor.Stop()
+			e.Stop()
 			return nil, nil, err
 		}
 		if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
 			f.Stop()
-			txExecutor.Stop()
+			e.Stop()
 			return nil, nil, fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 		}
 
@@ -286,7 +241,7 @@ func (e *Executor) ExecuteTxs(
 		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
 			return nil, nil, err
 		}
-		txExecutor.Run(stateKeys, func() error {
+		e.Run(stateKeys, func() error {
 			// Wait for stateKeys to be read from disk
 			storage, err := f.Get(txID)
 			if err != nil {
@@ -300,11 +255,11 @@ func (e *Executor) ExecuteTxs(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, bh, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, bh, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, c.balanceHandler, r, tsv, t)
 			if err != nil {
 				return err
 			}
@@ -318,7 +273,7 @@ func (e *Executor) ExecuteTxs(
 	if err := f.Wait(); err != nil {
 		return nil, nil, err
 	}
-	if err := txExecutor.Wait(); err != nil {
+	if err := e.Wait(); err != nil {
 		return nil, nil, err
 	}
 

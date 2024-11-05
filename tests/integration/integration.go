@@ -405,7 +405,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(err)
 			require.Equal(lastAccepted, blk.ID())
 
-			results := blk.(*chain.StatefulBlock).Results()
+			results := blk.(*vm.StatefulBlock).Results()
 			require.Len(results, 1)
 			require.True(results[0].Success)
 		})
@@ -446,7 +446,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 			// Ensure we can handle case where accepted block is not processed
 			latestBlock := blocks[len(blocks)-1]
-			latestBlock.(*chain.StatefulBlock).MarkUnprocessed()
+			latestBlock.(*vm.StatefulBlock).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
 			accept := expectBlk(instances[1])
@@ -653,6 +653,6 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 		lastAccepted, err := i.vm.LastAccepted(ctx)
 		require.NoError(err)
 		require.Equal(lastAccepted, blk.ID())
-		return blk.(*chain.StatefulBlock).Results()
+		return blk.(*vm.StatefulBlock).Results()
 	}
 }
