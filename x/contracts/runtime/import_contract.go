@@ -8,7 +8,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/bytecodealliance/wasmtime-go/v25"
 
 	"github.com/ava-labs/hypersdk/codec"
 )

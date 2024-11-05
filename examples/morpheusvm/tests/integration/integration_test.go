@@ -4,10 +4,11 @@
 package integration_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -26,9 +27,7 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	keys := workload.NewDefaultKeys()
-	genesis := workload.NewGenesis(keys, 0)
-	genesisBytes, err := json.Marshal(genesis)
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(0)
 	require.NoError(err)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
@@ -36,13 +35,12 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	generator := workload.NewTxGenerator(keys[0])
+	generator := workload.NewTxGenerator(testingNetworkConfig.Keys()[0])
 	// Setup imports the integration test coverage
 	integration.Setup(
 		vm.New,
-		genesisBytes,
+		testingNetworkConfig,
 		lconsts.ID,
-		vm.CreateParser,
 		generator,
 		randomEd25519AuthFactory,
 	)

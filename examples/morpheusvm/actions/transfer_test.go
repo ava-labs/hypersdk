@@ -130,6 +130,64 @@ func TestTransferAction(t *testing.T) {
 	}
 }
 
+// TestMultiTransfer shows an example of reusing the same store for multiple sequential action invocations.
+func TestMultiTransfer(t *testing.T) {
+	addrAlice := codectest.NewRandomAddress()
+	addrBob := codectest.NewRandomAddress()
+
+	store := chaintest.NewInMemoryStore()
+	require.NoError(t, storage.SetBalance(context.Background(), store, addrAlice, 1))
+
+	tests := []chaintest.ActionTest{
+		{
+			Name:  "TransferToBob",
+			Actor: addrAlice,
+			Action: &Transfer{
+				To:    addrBob,
+				Value: 1,
+			},
+			State: store,
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+				receiverBalance, err := storage.GetBalance(ctx, store, addrBob)
+				require.NoError(t, err)
+				require.Equal(t, receiverBalance, uint64(1))
+				senderBalance, err := storage.GetBalance(ctx, store, addrAlice)
+				require.NoError(t, err)
+				require.Equal(t, senderBalance, uint64(0))
+			},
+			ExpectedOutputs: &TransferResult{
+				SenderBalance:   0,
+				ReceiverBalance: 1,
+			},
+		},
+		{
+			Name:  "TransferToAlice",
+			Actor: addrBob,
+			Action: &Transfer{
+				To:    addrAlice,
+				Value: 1,
+			},
+			State: store,
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+				receiverBalance, err := storage.GetBalance(ctx, store, addrAlice)
+				require.NoError(t, err)
+				require.Equal(t, receiverBalance, uint64(1))
+				senderBalance, err := storage.GetBalance(ctx, store, addrBob)
+				require.NoError(t, err)
+				require.Equal(t, senderBalance, uint64(0))
+			},
+			ExpectedOutputs: &TransferResult{
+				SenderBalance:   0,
+				ReceiverBalance: 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt.Run(context.Background(), t)
+	}
+}
+
 func BenchmarkSimpleTransfer(b *testing.B) {
 	setupRequire := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())

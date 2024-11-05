@@ -208,7 +208,8 @@ mod tests {
 
     #[test]
     fn init_token() {
-        let mut context = Context::new();
+        let address = Address::default();
+        let mut context = Context::with_actor(address);
         let token_name = "Test Token".to_string();
         let token_symbol = "TST".to_string();
 
@@ -323,7 +324,8 @@ mod tests {
     }
 
     fn init_test_token() -> Context {
-        let mut context = Context::new();
+        let address = Address::default();
+        let mut context = Context::new(address);
         init(&mut context, "TEST".to_string(), "TST".to_string());
         context
     }

@@ -13,6 +13,8 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var StableNodeURI = fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
@@ -21,18 +23,17 @@ func NewTestEnvironment(
 	testContext tests.TestContext,
 	flagVars *e2e.FlagVars,
 	owner string,
-	vmName string,
+	networkConfig workload.TestNetworkConfiguration,
 	vmID ids.ID,
-	genesisBytes []byte,
 ) *e2e.TestEnvironment {
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
 	nodes[0].Flags[config.HTTPPortKey] = config.DefaultHTTPPort
 
 	subnet := NewHyperVMSubnet(
-		vmName,
+		networkConfig.Name(),
 		vmID,
-		genesisBytes,
+		networkConfig.GenesisBytes(),
 		nodes...,
 	)
 	network := NewTmpnetNetwork(owner, nodes, subnet)
@@ -43,8 +44,8 @@ func NewTestEnvironment(
 		network,
 	)
 
-	chainID := testEnv.GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-	setupDefaultChainAlias(testContext, chainID, vmName)
+	chainID := testEnv.GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
+	setupDefaultChainAlias(testContext, chainID, networkConfig.Name())
 
 	return testEnv
 }
