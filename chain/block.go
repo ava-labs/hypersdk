@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -168,8 +167,9 @@ type StatefulBlock struct {
 	results    []*Result
 	feeManager *internalfees.Manager
 
-	vm   VM
-	view merkledb.View
+	vm       VM
+	executor *Executor
+	view     merkledb.View
 
 	sigJob workers.Job
 }
@@ -182,6 +182,7 @@ func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatefulBlock {
 			Hght:   parent.Height() + 1,
 		},
 		vm:       vm,
+		executor: NewExecutor(vm),
 		accepted: false,
 	}
 }
@@ -274,6 +275,7 @@ func ParseStatefulBlock(
 		bytes:          source,
 		accepted:       accepted,
 		vm:             vm,
+		executor:       NewExecutor(vm),
 		id:             utils.ToID(source),
 	}
 
@@ -357,24 +359,9 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
-		// Get the [VerifyContext] needed to process this block.
-		//
-		// If the parent block's height is less than or equal to the last accepted height (and
-		// the last accepted height is processed), the accepted state will be used as the execution
-		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			b.vm.Logger().Warn("unable to get verify context",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("blkID", b.ID()),
-				zap.Error(err),
-			)
-			return fmt.Errorf("%w: unable to load verify context", err)
-		}
-
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
 		// recursively verify ancestry.
-		if err := b.innerVerify(ctx, vctx); err != nil {
+		if err := b.innerVerify(ctx); err != nil {
 			b.vm.Logger().Warn("verification failed",
 				zap.Uint64("height", b.Hght),
 				zap.Stringer("blkID", b.ID()),
@@ -392,198 +379,25 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 	return nil
 }
 
-// innerVerify executes the block on top of the provided [VerifyContext].
+// innerVerify executes the block
 //
 // Invariants:
 // Accepted / Rejected blocks should never have Verify called on them.
 // Blocks that were verified (and returned nil) with Verify will not have verify called again.
-// Blocks that were verified with VerifyWithContext may have verify called multiple times.
 //
 // When this may be called:
-//  1. [Verify|VerifyWithContext]
+//  1. Verify
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatefulBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
-	var (
-		log = b.vm.Logger()
-		r   = b.vm.Rules(b.Tmstmp)
-	)
-
-	// Perform basic correctness checks before doing any expensive work
-	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-		return ErrTimestampTooLate
-	}
-
-	// Fetch view where we will apply block state transitions
-	//
-	// This call may result in our ancestry being verified.
-	parentView, err := vctx.View(ctx, true)
+func (b *StatefulBlock) innerVerify(ctx context.Context) error {
+	results, feeManager, view, err := b.executor.Execute(ctx, b)
 	if err != nil {
-		return fmt.Errorf("%w: unable to load parent view", err)
-	}
-
-	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(b.vm.MetadataManager().HeightPrefix())
-	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
-	if err != nil {
-		return err
-	}
-	parentHeight, err := database.ParseUInt64(parentHeightRaw)
-	if err != nil {
-		return err
-	}
-	if b.Hght != parentHeight+1 {
-		return ErrInvalidBlockHeight
-	}
-
-	// Fetch parent timestamp and confirm block timestamp is valid
-	//
-	// Parent may not be available (if we preformed state sync), so we
-	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(b.vm.MetadataManager().TimestampPrefix())
-	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
-	if err != nil {
-		return err
-	}
-	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
-	if err != nil {
-		return err
-	}
-	parentTimestamp := int64(parentTimestampUint64)
-	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return ErrTimestampTooEarly
-	}
-	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return ErrTimestampTooEarly
-	}
-
-	// Expiry replay protection
-	//
-	// Replay protection confirms a transaction has not been included within the
-	// past validity window.
-	// Before the node is ready (we have synced a validity window of blocks), this
-	// function may return an error when other nodes see the block as valid.
-	//
-	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value
-	// when it should already be considered valid, so we skip this step here.
-	if !b.accepted {
-		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-		if oldestAllowed < 0 {
-			// Can occur if verifying genesis
-			oldestAllowed = 0
-		}
-		dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
-		if err != nil {
-			return err
-		}
-		if dup.Len() > 0 {
-			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-		}
-	}
-
-	// Compute next unit prices to use
-	feeKey := FeeKey(b.vm.MetadataManager().FeePrefix())
-	feeRaw, err := parentView.GetValue(ctx, feeKey)
-	if err != nil {
-		return err
-	}
-	parentFeeManager := internalfees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
-	if err != nil {
-		return err
-	}
-
-	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
-	if err != nil {
-		log.Error("failed to execute block", zap.Error(err))
 		return err
 	}
 	b.results = results
 	b.feeManager = feeManager
-
-	// Update chain metadata
-	heightKeyStr := string(heightKey)
-	timestampKeyStr := string(timestampKey)
-	feeKeyStr := string(feeKey)
-
-	keys := make(state.Keys)
-	keys.Add(heightKeyStr, state.Write)
-	keys.Add(timestampKeyStr, state.Write)
-	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return err
-	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return err
-	}
-	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return err
-	}
-	tsv.Commit()
-
-	// Compare state root
-	//
-	// Because fee bytes are not recorded in state, it is sufficient to check the state root
-	// to verify all fee calculations were correct.
-	_, rspan := b.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitRoot")
-	start := time.Now()
-	computedRoot, err := parentView.GetMerkleRoot(ctx)
-	rspan.End()
-	if err != nil {
-		return err
-	}
-	b.vm.RecordWaitRoot(time.Since(start))
-	if b.StateRoot != computedRoot {
-		return fmt.Errorf(
-			"%w: expected=%s found=%s",
-			ErrStateRootMismatch,
-			computedRoot,
-			b.StateRoot,
-		)
-	}
-
-	// Ensure signatures are verified
-	_, sspan := b.vm.Tracer().Start(ctx, "StatefulBlock.Verify.WaitSignatures")
-	start = time.Now()
-	err = b.sigJob.Wait()
-	sspan.End()
-	if err != nil {
-		return err
-	}
-	b.vm.RecordWaitSignatures(time.Since(start))
-
-	// Get view from [tstate] after processing all state transitions
-	b.vm.RecordStateChanges(ts.PendingChanges())
-	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.ExportMerkleDBView(ctx, b.vm.Tracer(), parentView)
-	if err != nil {
-		return err
-	}
 	b.view = view
-
-	// Kickoff root generation
-	go func() {
-		start := time.Now()
-		root, err := view.GetMerkleRoot(ctx)
-		if err != nil {
-			log.Error("merkle root generation failed", zap.Error(err))
-			return
-		}
-		log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
-			zap.Stringer("root", root),
-		)
-		b.vm.RecordRootCalculated(time.Since(start))
-	}()
 	return nil
 }
 
@@ -625,11 +439,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			return fmt.Errorf("%w: unable to get verify context", err)
-		}
-		if err := b.innerVerify(ctx, vctx); err != nil {
+		if err := b.innerVerify(ctx); err != nil {
 			return fmt.Errorf("%w: unable to verify block", err)
 		}
 	}
@@ -782,12 +592,7 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.accepted),
 	)
-	vctx, err := b.GetVerifyContext(ctx, b.Hght, b.Prnt)
-	if err != nil {
-		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
-		return nil, err
-	}
-	if err := b.innerVerify(ctx, vctx); err != nil {
+	if err := b.innerVerify(ctx); err != nil {
 		b.vm.Logger().Error("unable to verify block", zap.Error(err))
 		return nil, err
 	}
