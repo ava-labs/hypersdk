@@ -69,7 +69,7 @@ func (t *TypedClient[T, U, V]) AppGossip(
 ) error {
 	gossipBytes, err := t.marshaler.MarshalGossip(gossip)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to marshal gossip: %w", err)
 	}
 
 	return t.client.AppGossip(
