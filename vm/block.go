@@ -13,14 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -42,17 +40,12 @@ type StatefulBlock struct {
 	accepted bool
 	t        time.Time
 	bytes    []byte
-	txsSet   set.Set[ids.ID]
 
 	executedBlock *chain.ExecutedBlock
-	results       []*chain.Result
-	feeManager    *internalfees.Manager
 
 	vm       *VM
 	executor *chain.Chain
 	view     merkledb.View
-
-	sigJob workers.Job
 }
 
 func ParseBlock(
@@ -134,17 +127,11 @@ func (b *StatefulBlock) initializeBuilt(
 	b.id = utils.ToID(b.bytes)
 	b.view = view
 	b.t = time.UnixMilli(b.StatelessBlock.Tmstmp)
-	executedBlk, err := chain.NewExecutedBlock(b.StatelessBlock, results, feeManager.UnitPrices())
+	executedBlk, err := chain.NewExecutedBlock(b.StatelessBlock, results, feeManager.UnitPrices(), feeManager.UnitsConsumed())
 	if err != nil {
 		return err
 	}
 	b.executedBlock = executedBlk
-	b.results = results
-	b.feeManager = feeManager
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		b.txsSet.Add(tx.ID())
-	}
 	return nil
 }
 
@@ -235,9 +222,6 @@ func (b *StatefulBlock) innerVerify(ctx context.Context) error {
 		return err
 	}
 	b.executedBlock = executedBlock
-	b.results = executedBlock.Results
-	// XXX(incomplete)
-	// b.feeManager = feeManager
 	b.view = view
 	return nil
 }
@@ -299,7 +283,6 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 func (b *StatefulBlock) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
 	b.accepted = true
-	b.txsSet = nil // only used for replay protection when processing
 
 	// [Accepted] will persist the block to disk and set in-memory variables
 	// needed to ensure we don't resync all blocks when state sync finishes.
@@ -456,54 +439,6 @@ func (b *StatefulBlock) View(ctx context.Context, verify bool) (state.View, erro
 	return b.vm.State()
 }
 
-// IsRepeat returns a bitset of all transactions that are considered repeats in
-// the range that spans back to [oldestAllowed].
-//
-// If [stop] is set to true, IsRepeat will return as soon as the first repeat
-// is found (useful for block verification).
-func (b *StatefulBlock) IsRepeat(
-	ctx context.Context,
-	oldestAllowed int64,
-	txs []*chain.Transaction,
-	marker set.Bits,
-	stop bool,
-) (set.Bits, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatefulBlock.IsRepeat")
-	defer span.End()
-
-	// Early exit if we are already back at least [ValidityWindow]
-	//
-	// It is critical to ensure this logic is equivalent to [emap] to avoid
-	// non-deterministic verification.
-	if b.Tmstmp < oldestAllowed {
-		return marker, nil
-	}
-
-	// If we are at an accepted block or genesis, we can use the emap on the VM
-	// instead of checking each block
-	if b.accepted || b.Hght == 0 /* genesis */ {
-		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
-	}
-
-	// Check if block contains any overlapping txs
-	for i, tx := range txs {
-		if marker.Contains(i) {
-			continue
-		}
-		if b.txsSet.Contains(tx.ID()) {
-			marker.Add(i)
-			if stop {
-				return marker, nil
-			}
-		}
-	}
-	prnt, err := b.vm.GetStatefulBlock(ctx, b.Prnt)
-	if err != nil {
-		return marker, err
-	}
-	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
-}
-
 func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error) {
 	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
 	if blockHeight == 0 {
@@ -543,14 +478,6 @@ func (b *StatefulBlock) GetTxs() []*chain.Transaction {
 
 func (b *StatefulBlock) GetTimestamp() int64 {
 	return b.Tmstmp
-}
-
-func (b *StatefulBlock) Results() []*chain.Result {
-	return b.results
-}
-
-func (b *StatefulBlock) FeeManager() *internalfees.Manager {
-	return b.feeManager
 }
 
 type SyncableBlock struct {

@@ -133,7 +133,6 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	vm.checkActivity(ctx)
 
 	if b.Processed() {
-		fm := b.FeeManager()
 		vm.snowCtx.Log.Info(
 			"verified block",
 			zap.Stringer("blkID", b.ID()),
@@ -141,8 +140,8 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 			zap.Int("txs", len(b.Txs)),
 			zap.Stringer("parent root", b.StateRoot),
 			zap.Bool("state ready", vm.StateReady()),
-			zap.Any("unit prices", fm.UnitPrices()),
-			zap.Any("units consumed", fm.UnitsConsumed()),
+			zap.Any("unit prices", b.executedBlock.UnitPrices),
+			zap.Any("units consumed", b.executedBlock.UnitsConsumed),
 		)
 	} else {
 		// [b.FeeManager] is not populated if the block
@@ -195,22 +194,17 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 	}
 
 	// Update price metrics
-	feeManager := b.FeeManager()
-	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
-	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
-	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
-	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
-	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+	unitPrices := b.executedBlock.UnitPrices
+	vm.metrics.bandwidthPrice.Set(float64(unitPrices[fees.Bandwidth]))
+	vm.metrics.computePrice.Set(float64(unitPrices[fees.Compute]))
+	vm.metrics.storageReadPrice.Set(float64(unitPrices[fees.StorageRead]))
+	vm.metrics.storageAllocatePrice.Set(float64(unitPrices[fees.StorageAllocate]))
+	vm.metrics.storageWritePrice.Set(float64(unitPrices[fees.StorageWrite]))
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	// XXX
-	executedBlock, err := chain.NewExecutedBlock(b.StatelessBlock, b.results, b.feeManager.UnitPrices())
-	if err != nil {
-		vm.Fatal("failed to create executed block", zap.Error(err))
-	}
 	for _, subscription := range vm.blockSubscriptions {
-		if err := subscription.Accept(executedBlock); err != nil {
+		if err := subscription.Accept(b.executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
 	}

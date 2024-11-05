@@ -6,8 +6,6 @@ package vm
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -28,10 +26,6 @@ func (p *PendingVerifyContext) View(ctx context.Context, verify bool) (state.Vie
 	return p.blk.View(ctx, verify)
 }
 
-func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
-	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
-}
-
 type AcceptedVerifyContext struct {
 	vm *VM
 }
@@ -40,9 +34,4 @@ type AcceptedVerifyContext struct {
 // we will never need to verify a block if [AcceptedVerifyContext] is returned.
 func (a *AcceptedVerifyContext) View(ctx context.Context, _ bool) (state.View, error) {
 	return a.vm.State()
-}
-
-func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
-	bits := a.vm.IsRepeat(ctx, txs, marker, stop)
-	return bits, nil
 }

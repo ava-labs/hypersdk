@@ -914,8 +914,7 @@ func (vm *VM) Submit(
 	}
 
 	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
+	repeatErrs, err := vm.chain.IsRepeat(ctx, blk.ExecutionBlock, now, txs)
 	if err != nil {
 		return []error{err}
 	}
@@ -923,8 +922,8 @@ func (vm *VM) Submit(
 	validTxs := []*chain.Transaction{}
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
-		if repeats.Contains(i) {
-			errs = append(errs, chain.ErrDuplicateTx)
+		if repeatErrs[i] != nil {
+			errs = append(errs, repeatErrs[i])
 			continue
 		}
 

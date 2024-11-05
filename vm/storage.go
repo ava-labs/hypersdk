@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -159,12 +158,7 @@ func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
 	vm.lastAccepted = blk
-	// XXX(incomplete)
-	executedBlk, err := chain.NewExecutedBlock(blk.StatelessBlock, blk.Results(), blk.feeManager.UnitPrices())
-	if err != nil {
-		return err
-	}
-	vm.lastExecutedBlock = executedBlk
+	vm.lastExecutedBlock = blk.executedBlock
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	if expired && vm.shouldCompact(expiryHeight) {

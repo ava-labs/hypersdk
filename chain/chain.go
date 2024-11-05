@@ -107,12 +107,43 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	// Grab the lock before modifiying seen
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	
+
 	blkTime := blk.Tmstmp
 	evicted := c.seen.SetMin(blkTime)
 	c.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	c.seen.Add(blk.Txs)
 	return nil
+}
+
+// XXX(incomplete): move all mempool level tx verification into Chain
+func (c *Chain) IsRepeat(
+	ctx context.Context,
+	parentBlk *ExecutionBlock,
+	timestamp int64,
+	txs []*Transaction,
+) ([]error, error) {
+	_, span := c.tracer.Start(ctx, "chain.PreExecute")
+	defer span.End()
+
+	rules := c.ruleFactory.GetRules(timestamp)
+
+	oldestAllowed := timestamp - rules.GetValidityWindow()
+	if oldestAllowed < 0 {
+		// Can occur if verifying genesis
+		oldestAllowed = 0
+	}
+
+	dup, err := c.isRepeat(ctx, parentBlk, timestamp, txs, set.NewBits(), false)
+	if err != nil {
+		return nil, err
+	}
+	errs := make([]error, len(txs))
+	for i := range txs {
+		if dup.Contains(i) {
+			errs[i] = ErrDuplicateTx
+		}
+	}
+	return errs, nil
 }
 
 func (c *Chain) isRepeat(

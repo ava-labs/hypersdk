@@ -449,9 +449,10 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView merkledb.View, parent
 		zap.Int64("block (t)", b.Tmstmp),
 	)
 	return b, &ExecutedBlock{
-		BlockID:    b.id,
-		Block:      b.StatelessBlock,
-		Results:    results,
-		UnitPrices: feeManager.UnitPrices(),
+		BlockID:       b.id,
+		Block:         b.StatelessBlock,
+		Results:       results,
+		UnitPrices:    feeManager.UnitPrices(),
+		UnitsConsumed: feeManager.UnitsConsumed(),
 	}, view, nil
 }

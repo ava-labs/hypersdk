@@ -401,13 +401,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(blk.Accept(ctx))
 			blocks = append(blocks, blk)
 
-			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
+			lastAccepted := instances[1].vm.LastExecutedBlock()
 			require.NoError(err)
 			require.Equal(lastAccepted, blk.ID())
 
-			results := blk.(*vm.StatefulBlock).Results()
-			require.Len(results, 1)
-			require.True(results[0].Success)
+			require.Len(lastAccepted.Results, 1)
+			require.True(lastAccepted.Results[0].Success)
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
@@ -650,9 +649,9 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 			blocks = append(blocks, blk)
 		}
 
-		lastAccepted, err := i.vm.LastAccepted(ctx)
+		lastAccepted := i.vm.LastExecutedBlock()
 		require.NoError(err)
 		require.Equal(lastAccepted, blk.ID())
-		return blk.(*vm.StatefulBlock).Results()
+		return lastAccepted.Results
 	}
 }

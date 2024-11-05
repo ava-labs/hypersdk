@@ -11,22 +11,24 @@ import (
 )
 
 type ExecutedBlock struct {
-	BlockID    ids.ID          `json:"blockID"`
-	Block      *StatelessBlock `json:"block"`
-	Results    []*Result       `json:"results"`
-	UnitPrices fees.Dimensions `json:"unitPrices"`
+	BlockID       ids.ID          `json:"blockID"`
+	Block         *StatelessBlock `json:"block"`
+	Results       []*Result       `json:"results"`
+	UnitPrices    fees.Dimensions `json:"unitPrices"`
+	UnitsConsumed fees.Dimensions `json:"unitsConsumed"`
 }
 
-func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions) (*ExecutedBlock, error) {
+func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions, unitsConsumed fees.Dimensions) (*ExecutedBlock, error) {
 	blkID, err := statelessBlock.ID()
 	if err != nil {
 		return nil, err
 	}
 	return &ExecutedBlock{
-		BlockID:    blkID,
-		Block:      statelessBlock,
-		Results:    results,
-		UnitPrices: unitPrices,
+		BlockID:       blkID,
+		Block:         statelessBlock,
+		Results:       results,
+		UnitPrices:    unitPrices,
+		UnitsConsumed: unitsConsumed,
 	}, nil
 }
 
@@ -46,6 +48,7 @@ func (b *ExecutedBlock) Marshal() ([]byte, error) {
 	}
 	writer.PackBytes(resultBytes)
 	writer.PackFixedBytes(b.UnitPrices.Bytes())
+	writer.PackFixedBytes(b.UnitsConsumed.Bytes())
 
 	return writer.Bytes(), writer.Err()
 }
@@ -71,11 +74,17 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if err != nil {
 		return nil, err
 	}
+	consumedBytes := make([]byte, fees.DimensionsLen)
+	reader.UnpackFixedBytes(fees.DimensionsLen, &consumedBytes)
+	consumed, err := fees.UnpackDimensions(consumedBytes)
+	if err != nil {
+		return nil, err
+	}
 	if !reader.Empty() {
 		return nil, ErrInvalidObject
 	}
 	if err := reader.Err(); err != nil {
 		return nil, err
 	}
-	return NewExecutedBlock(blk, results, prices)
+	return NewExecutedBlock(blk, results, prices, consumed)
 }

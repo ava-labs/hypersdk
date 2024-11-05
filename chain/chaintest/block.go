@@ -35,6 +35,7 @@ func GenerateEmptyExecutedBlocks(
 			statelessBlock,
 			[]*chain.Result{},
 			fees.Dimensions{},
+			fees.Dimensions{},
 		)
 		require.NoError(err)
 		executedBlocks[i] = blk

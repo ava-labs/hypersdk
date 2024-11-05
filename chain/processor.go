@@ -175,10 +175,11 @@ func (c *Chain) Execute(
 	}()
 
 	return &ExecutedBlock{
-		BlockID:    b.id,
-		Block:      b.StatelessBlock,
-		Results:    results,
-		UnitPrices: feeManager.UnitPrices(),
+		BlockID:       b.id,
+		Block:         b.StatelessBlock,
+		Results:       results,
+		UnitPrices:    feeManager.UnitPrices(),
+		UnitsConsumed: feeManager.UnitsConsumed(),
 	}, view, nil
 }
 
