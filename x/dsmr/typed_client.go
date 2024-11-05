@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/codec"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
