@@ -234,8 +234,7 @@ func versionFunc(*cobra.Command, []string) error {
 
 ## CLI Installation
 
-To start, we'll want to compile the HyperSDK-CLI. If you're in
-`examples/tutorial`, you can run the following:
+To start, install the HyperSDK-CLI by running the following:
 
 ```bash
 go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@b2ad4d38aec5b2958a02b209b58eafc6891c51cd

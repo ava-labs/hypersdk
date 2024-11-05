@@ -75,7 +75,7 @@ files:
 - `generator.go`
 - `genesis.go`
 
-In short, `generator.go` will be responsible for generating transactions that
+`generator.go` will be responsible for generating transactions that
 contain the `Transfer` action while `genesis.go` will be responsible for
 providing the network configuration for our integration tests. 
 
@@ -123,7 +123,6 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 Next, we'll want to implement a method to our `TxGenerator` that will allow it
 to produce a valid transaction with `Transfer` on the fly. We have:
 
-
 ```go
 func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
 	// TODO: no need to generate the clients every tx
@@ -160,7 +159,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 ```
 
 In addition to generating a valid transaction, this method returns an anonymous
-function which calls `confirmTX`. `confirmTX` sends the generated TX to the VM,
+function containing `confirmTX`. `confirmTX` sends the generated TX to the VM,
 makes sure that it was accepted, and checks that the TX outputs are as expected.
 
 ```golang
@@ -423,7 +422,7 @@ the following:
 
 Although we've defined the integration tests themselves, we still need to
 register them with the HyperSDK. To start, create a new folder named `integration` in
-`tests/`. Inside `integration/`, create a new file `integration_test.go`. Here
+`tests/`. Inside `integration/`, create a new file `integration_test.go`. Here,
 copy-paste the following:
 
 ```go
@@ -477,8 +476,8 @@ var _ = ginkgo.BeforeSuite(func() {
 ```
 
 In `integration_test.go`, we are feeding our workload tests along with various
-other values to the HyperSDK integration test library. By using the HyperSDK integration
-test framework, we can defer most tasks to it and solely focus on defining the
+other values to the HyperSDK integration test library. Using this pattern allows
+us to defer most tasks to it and solely focus on defining the
 workload tests. The setup mentioned above also implicitly sets up our procedural
 tests as well.
 
@@ -504,16 +503,12 @@ Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
-If you see this, then this means that your VM passed the workload tests!
+If you see this, then your VM passed the integration tests!
 
 ## Conclusion
 
 Assuming the above went well, you've just built a VM which is functionally
-equivalent to MorpheusVM. In particular, you started by building a base version
-of MorpheusVM which introduced the concepts of actions and storage in the
-context of token transfers. In the `options` section, you then extended your VM
-by adding an option which allowed your VM to spin-up a JSON-RPC server. Finally,
-in this section, we added integration tests to make sure our VM works as expected. 
+equivalent to MorpheusVM. Having built a base VM and extending it with options, we added integration tests to make sure our VM works as expected. 
 
 In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
 interact with our VM by reading from it and being able to send TXs in real time

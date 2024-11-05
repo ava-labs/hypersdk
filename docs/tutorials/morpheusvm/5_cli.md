@@ -24,7 +24,7 @@ SUCCESS! -- 1 Passed | 0 Failed | 0 Pending | 7 Skipped
 PASS
 ```
 
-This means that our network is now running in the background. Focusing now on
+This means that our network is now running in the background. Focusing on
 the HyperSDK-CLI, we now want to store the private key of our (test!) account
 and the RPC endpoint. We can do this by executing the following commands:
 
@@ -33,7 +33,7 @@ and the RPC endpoint. We can do this by executing the following commands:
 ./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
 ```
 
-Your command line should look like the following:
+Your command line should look as follows:
 
 ```bash
 AVL-0W5L7Y:tutorial rodrigo.villar$ ./hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/morpheusvm/ 
@@ -47,8 +47,8 @@ We're now ready to interact with our implementation of MorpheusVM!
 
 ## Interacting with MorpheusVM
 
-As a sanity test, let's first check that we can interact with our running VM -
-to do this, run the following command:
+As a sanity test, let's first check that we can interact with our running VM by
+running the following:
 
 ```bash
 ./hypersdk-cli ping
@@ -75,9 +75,7 @@ This should give us the following result:
 
 Since the account we are using is specified as a prefunded account in the
 genesis of our VM (via `DefaultGenesis`), our account balance is as expected.
-Let's now try writing to our VM by sending
-a transaction via the CLI. In particular, we want to send a transaction with the
-following action:
+Let's now write to our VM by sending a TX via the CLI with the following action:
 
 - Transfer
   - Recipient: the zero address
