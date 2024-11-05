@@ -6,7 +6,7 @@ package runtime
 import (
 	"errors"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/bytecodealliance/wasmtime-go/v25"
 )
 
 func convertToTrap(err error) *wasmtime.Trap {
