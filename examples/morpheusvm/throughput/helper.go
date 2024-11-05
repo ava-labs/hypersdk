@@ -17,8 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
-
-	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 )
 
 type SpamHelper struct {
@@ -30,7 +28,7 @@ type SpamHelper struct {
 var _ throughput.SpamHelper = &SpamHelper{}
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
-	return mauth.GeneratePrivateKey(sh.KeyType)
+	return vm.AuthProvider.GeneratePrivateKey(sh.KeyType)
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
