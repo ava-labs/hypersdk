@@ -286,27 +286,6 @@ func ParseStatefulBlock(
 	return b, b.populateTxs(ctx)
 }
 
-// [initializeBuilt] is invoked after a block is built
-func (b *StatefulBlock) initializeBuilt(
-	ctx context.Context,
-	view merkledb.View,
-	results []*Result,
-	feeManager *internalfees.Manager,
-) error {
-	_, span := b.vm.Tracer().Start(ctx, "StatefulBlock.initializeBuilt")
-	defer span.End()
-
-	b.view = view
-	b.t = time.UnixMilli(b.StatelessBlock.Tmstmp)
-	b.results = results
-	b.feeManager = feeManager
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		b.txsSet.Add(tx.ID())
-	}
-	return nil
-}
-
 // implements "snowman.Block.choices.Decidable"
 func (b *StatefulBlock) ID() ids.ID { return b.id }
 
