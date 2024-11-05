@@ -87,9 +87,6 @@ type VM struct {
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
 	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	// TODO remove by returning an verification error from the submit tx api
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
-	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -482,15 +479,6 @@ func (vm *VM) Initialize(
 		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
 	}
 
-	for _, factory := range vm.txRemovedSubscriptionFactories {
-		subscription, err := factory.New()
-		if err != nil {
-			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
-		}
-
-		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
-	}
-
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
@@ -680,13 +668,6 @@ func (vm *VM) Shutdown(context.Context) error {
 
 	if err := vm.rawStateDB.Close(); err != nil {
 		return err
-	}
-
-	// Close subscriptions
-	for _, subscription := range vm.txRemovedSubscriptions {
-		if err := subscription.Close(); err != nil {
-			return err
-		}
 	}
 
 	for _, subscription := range vm.blockSubscriptions {
