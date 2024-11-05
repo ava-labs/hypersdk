@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"sync"
 	"syscall"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -132,7 +130,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, funds, factories, err := s.distributeFunds(ctx, cli, parser, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(ctx, cli, parser, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -154,13 +152,16 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
-	s.broadcast(cctx, cancel, sh, accounts, funds, factories, issuers, feePerTx, terminate)
+	err = s.broadcast(cctx, cancel, sh, accounts, factories, issuers, feePerTx, terminate)
+	if err != nil {
+		return err
+	}
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
 	}
-	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, funds, symbol)
+	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, symbol)
 }
 
 func (s Spammer) broadcast(
@@ -169,28 +170,27 @@ func (s Spammer) broadcast(
 	sh SpamHelper,
 	accounts []*auth.PrivateKey,
 
-	funds map[codec.Address]uint64,
 	factories []chain.AuthFactory,
 	issuers []*issuer,
 
 	feePerTx uint64,
 	terminate bool,
-) {
+) error {
 	// make sure we can exit gracefully & return funds
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
-		z      = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
-		fundsL = sync.Mutex{}
+		z = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
 
-		it                      = time.NewTimer(0)
-		currentTarget           = min(s.txsPerSecond, s.minTxsPerSecond)
-		consecutiveUnderBacklog int
-		consecutiveAboveBacklog int
-
-		stop bool
+		it                              = time.NewTimer(0)
+		currentTarget                   = min(s.txsPerSecond, s.minTxsPerSecond)
+		consecutiveUnderBacklog         int
+		consecutiveAboveBacklog         int
+		consecutiveFailedDecreaseTarget int
+		broadcastErr                    error
+		stop                            bool
 	)
 	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
 	for !stop {
@@ -208,6 +208,14 @@ func (s Spammer) broadcast(
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 					} else {
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+						consecutiveFailedDecreaseTarget++
+						if consecutiveFailedDecreaseTarget >= failedRunsToDecreaseTarget {
+							utils.Outf("{{cyan}}skipping issuance because large backlog detected, exiting{{/}}\n")
+							broadcastErr = ErrLargeBacklog
+							cancel()
+							stop = true
+							break
+						}
 					}
 					consecutiveAboveBacklog = 0
 				}
@@ -220,7 +228,7 @@ func (s Spammer) broadcast(
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
 				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
-				sender := accounts[senderIndex]
+				sender := accounts[senderIndex].Address
 				if recipientIndex == senderIndex {
 					if recipientIndex == uint64(s.numAccounts-1) {
 						recipientIndex--
@@ -232,17 +240,13 @@ func (s Spammer) broadcast(
 				issuer := getRandomIssuer(issuers)
 				g.Go(func() error {
 					factory := factories[senderIndex]
-					fundsL.Lock()
-					balance := funds[sender.Address]
-					if feePerTx > balance {
-						fundsL.Unlock()
-						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
-						return fmt.Errorf("%s has insufficient funds", sender.Address)
+					balance, err := sh.LookupBalance(sender)
+					if err != nil {
+						return err
 					}
-					funds[sender.Address] = balance - feePerTx - amountToTransfer
-					funds[recipient] += amountToTransfer
-					fundsL.Unlock()
-
+					if balance < feePerTx {
+						return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
+					}
 					// Send transaction
 					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
 					return issuer.Send(ctx, actions, factory, feePerTx)
@@ -253,7 +257,9 @@ func (s Spammer) broadcast(
 			if err := g.Wait(); err != nil {
 				// We don't return here because we want to return funds
 				utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
+				broadcastErr = err
 				stop = true
+				cancel()
 				break
 			}
 
@@ -264,6 +270,7 @@ func (s Spammer) broadcast(
 
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
+			consecutiveFailedDecreaseTarget = 0
 			consecutiveUnderBacklog++
 			// once desired TPS is reached, stop the spammer
 			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
@@ -288,6 +295,8 @@ func (s Spammer) broadcast(
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.tracker.issuerWg.Wait()
+
+	return broadcastErr
 }
 
 func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
@@ -325,28 +334,27 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	return issuers, nil
 }
 
-func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, map[codec.Address]uint64, []chain.AuthFactory, error) {
+func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
 	withholding := feePerTx * uint64(s.numAccounts)
 	if s.balance < withholding {
-		return nil, nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
+		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
 
 	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
-	funds := map[codec.Address]uint64{}
 	accounts := make([]*auth.PrivateKey, s.numAccounts)
 	factories := make([]chain.AuthFactory, s.numAccounts)
 
 	factory, err := auth.GetFactory(s.key)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
@@ -357,12 +365,12 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		// Create account
 		pk, err := sh.CreateAccount()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		accounts[i] = pk
 		f, err := auth.GetFactory(pk)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		factories[i] = f
 
@@ -370,12 +378,11 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		actions := sh.GetTransfer(pk.Address, distAmount, s.tracker.uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		if err := p.Add(tx); err != nil {
-			return nil, nil, nil, fmt.Errorf("%w: failed to register tx", err)
+			return nil, nil, fmt.Errorf("%w: failed to register tx", err)
 		}
-		funds[pk.Address] = distAmount
 
 		// Log progress
 		if i%250 == 0 && i > 0 {
@@ -383,14 +390,14 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 	}
 	if err := p.Wait(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
 
-	return accounts, funds, factories, nil
+	return accounts, factories, nil
 }
 
-func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, factories []chain.AuthFactory, funds map[codec.Address]uint64, symbol string) error {
+func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, maxUnits fees.Dimensions, sh SpamHelper, accounts []*auth.PrivateKey, factories []chain.AuthFactory, symbol string) error {
 	// Return funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
@@ -414,7 +421,10 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	time.Sleep(3 * time.Second)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
-		balance := funds[accounts[i].Address]
+		balance, err := sh.LookupBalance(accounts[i].Address)
+		if err != nil {
+			return err
+		}
 		if feePerTx > balance {
 			continue
 		}

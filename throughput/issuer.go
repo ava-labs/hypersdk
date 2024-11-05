@@ -116,6 +116,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 		// If issuance fails during retry, we should fail
 		return i.ws.RegisterTx(tx)
 	}
+
 	return nil
 }
 
