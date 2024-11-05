@@ -28,7 +28,7 @@ type SpamHelper struct {
 	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
 
-	pks []*auth.PrivateKey
+	pks  []*auth.PrivateKey
 	sent atomic.Int64
 }
 
@@ -78,11 +78,7 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 func (sh *SpamHelper) GetActions() []chain.Action {
 	pkIndex := rand.Int() % len(sh.pks)
 	// transfers 1 unit to a random address
-	return []chain.Action{&actions.Transfer{
-		To:    sh.pks[pkIndex].Address,
-		Value: 1,
-		Memo:  sh.uniqueBytes(),
-	}}
+	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes())
 }
 
 func (sh *SpamHelper) uniqueBytes() []byte {
