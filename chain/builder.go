@@ -148,7 +148,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView merkledb.View, parent
 		txs := c.mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
 		if len(txs) == 0 {
-			// b.vm.RecordClearedMempool()
+			c.metrics.clearedMempool.Inc()
 			break
 		}
 		ctx, executeSpan := c.tracer.Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck

@@ -17,6 +17,7 @@ type chainMetrics struct {
 
 	buildCapped     prometheus.Counter
 	emptyBlockBuilt prometheus.Counter
+	clearedMempool  prometheus.Counter
 
 	stateChanges    prometheus.Counter
 	stateOperations prometheus.Counter
@@ -112,6 +113,11 @@ func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
+		clearedMempool: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "cleared_mempool",
+			Help:      "number of times cleared mempool while building",
+		}),
 		rootCalculated: rootCalculated,
 		waitRoot:       waitRoot,
 		waitSignatures: waitSignatures,
@@ -130,6 +136,7 @@ func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
 		r.Register(m.executorVerifyExecutable),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
+		r.Register(m.clearedMempool),
 	)
 	return r, m, errs.Err
 }
