@@ -163,10 +163,11 @@ func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error
 		},
 		Auth: auth,
 	}
-	p := codec.NewWriter(0, consts.NetworkSizeLimit)
-	if _, err := tx.UnsignedBytes(); err != nil {
+	unsignedBytes, err := tx.UnsignedBytes()
+	if err != nil {
 		return nil, err
 	}
+	p := codec.NewWriter(len(unsignedBytes)+consts.ByteLen+auth.Size(), consts.NetworkSizeLimit)
 	if err := tx.Marshal(p); err != nil {
 		return nil, err
 	}

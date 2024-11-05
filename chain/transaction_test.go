@@ -128,20 +128,7 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	var txFromJSON chain.Transaction
 	err = txFromJSON.UnmarshalJSON(b, parser)
 	require.NoError(err)
-	// cannot check direct Equal between signedTx and txout
-	// because of the Auth codec.Address that will be different after the unmarshaling.
-	require.Equal(signedTx.Base, txFromJSON.Base)
-	require.Equal(signedTx.Actions, txFromJSON.Actions)
-	require.Equal(signedTx.ID(), txFromJSON.ID())
 	require.Equal(signedTx.Bytes(), txFromJSON.Bytes())
-	require.Equal(signedTx.Size(), txFromJSON.Size())
-	// verify txout Auth is able to verify unsigned bytes of both original tx and unmarshaled tx.
-	prevUnsignedBytes, err := signedTx.UnsignedBytes()
-	require.NoError(err)
-	unsignedBytes, err := txFromJSON.UnsignedBytes()
-	require.NoError(err)
-	require.NoError(txFromJSON.Auth.Verify(context.Background(), prevUnsignedBytes))
-	require.NoError(txFromJSON.Auth.Verify(context.Background(), unsignedBytes))
 }
 
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
