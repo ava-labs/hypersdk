@@ -157,6 +157,10 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
+	// Wait for all issuers to finish
+	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
+	s.tracker.issuerWg.Wait()
+
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -176,6 +180,7 @@ func (s Spammer) broadcast(
 	feePerTx uint64,
 	terminate bool,
 ) error {
+	defer cancel()
 	// make sure we can exit gracefully & return funds
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -212,7 +217,6 @@ func (s Spammer) broadcast(
 						if consecutiveFailedDecreaseTarget >= failedRunsToDecreaseTarget {
 							utils.Outf("{{cyan}}skipping issuance because large backlog detected, exiting{{/}}\n")
 							broadcastErr = ErrLargeBacklog
-							cancel()
 							stop = true
 							break
 						}
@@ -259,7 +263,6 @@ func (s Spammer) broadcast(
 				utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
 				broadcastErr = err
 				stop = true
-				cancel()
 				break
 			}
 
@@ -275,8 +278,7 @@ func (s Spammer) broadcast(
 			// once desired TPS is reached, stop the spammer
 			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {
 				utils.Outf("{{green}}reached target tps:{{/}} %d\n", currentTarget)
-				// Cancel the context to stop the issuers
-				cancel()
+				stop = true
 			} else if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < s.txsPerSecond {
 				currentTarget = min(currentTarget+s.txsPerSecondStep, s.txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
@@ -288,13 +290,8 @@ func (s Spammer) broadcast(
 		case <-signals:
 			stop = true
 			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-			cancel()
 		}
 	}
-
-	// Wait for all issuers to finish
-	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	s.tracker.issuerWg.Wait()
 
 	return broadcastErr
 }
