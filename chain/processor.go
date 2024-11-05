@@ -21,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-
 func (c *Chain) Execute(
 	ctx context.Context,
 	parentView state.View,
@@ -89,7 +88,7 @@ func (c *Chain) Execute(
 	}
 
 	// Process transactions
-	results, ts, err := c.ExecuteTxs(ctx, b, c.tracer, parentView, feeManager, r)
+	results, ts, err := c.executeTxs(ctx, b, c.tracer, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, nil, err
@@ -190,7 +189,7 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (c *Chain) ExecuteTxs(
+func (c *Chain) executeTxs(
 	ctx context.Context,
 	b *ExecutionBlock,
 	tracer trace.Tracer, //nolint:interfacer

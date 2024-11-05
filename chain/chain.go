@@ -107,6 +107,7 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	// Grab the lock before modifiying seen
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	
 	blkTime := blk.Tmstmp
 	evicted := c.seen.SetMin(blkTime)
 	c.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
