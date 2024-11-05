@@ -61,11 +61,10 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 			case <-tick.C:
 				current := t.sent.Load()
 				t.l.Lock()
-
 				successRate := "N/A"
 				if t.totalTxs > 0 {
 					rate := float64(t.confirmedTxs) / float64(t.totalTxs) * 100
-					successRate = strconv.FormatFloat(rate, 'f', 2, 64)
+					successRate = strconv.FormatFloat(rate, 'f', 2, 64) + "%"
 				}
 
 				unitPrices, err := cli.UnitPrices(ctx, false)
@@ -81,7 +80,6 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					unitPrices,
 				)
 				t.l.Unlock()
-
 				psent = current
 			case <-ctx.Done():
 				return
