@@ -10,8 +10,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/examples/testvm/consts"
 	"github.com/ava-labs/hypersdk/examples/testvm/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/testvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/testvm/vm"
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 	"github.com/ava-labs/hypersdk/tests/fixture"
@@ -50,7 +52,17 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// and workload factory to orchestrate the test.
 	generator := workload.NewTxGenerator(keys[0])
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, nil, nil)
+	spamHelper := throughput.SpamHelper{
+		KeyType: auth.ED25519Key,
+		InitialBalance: workload.InitialBalance,
+	}
+	spamKey := &auth.PrivateKey{
+		Address: auth.NewED25519Address(keys[0].PublicKey()),
+		Bytes:   keys[0][:],
+	}
+
+
+	he2e.SetWorkload(consts.Name, generator, expectedABI, parser, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
