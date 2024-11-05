@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -34,7 +35,10 @@ type Validator struct {
 
 func New[T Tx](
 	nodeID ids.NodeID,
-	sk *bls.SecretKey,
+	networkID uint32,
+	chainID ids.ID,
+	pk *bls.PublicKey,
+	signer warp.Signer,
 	chunkVerifier Verifier[T],
 	getChunkClient *p2p.Client,
 	getChunkSignatureClient *p2p.Client,
@@ -48,7 +52,10 @@ func New[T Tx](
 
 	return &Node[T]{
 		nodeID:                       nodeID,
-		sk:                           sk,
+		networkID:                    networkID,
+		chainID:                      chainID,
+		pk:                           pk,
+		signer:                       signer,
 		getChunkClient:               NewGetChunkClient[T](getChunkClient),
 		getChunkSignatureClient:      NewGetChunkSignatureClient(getChunkSignatureClient),
 		chunkCertificateGossipClient: NewChunkCertificateGossipClient(chunkCertificateGossipClient),
@@ -57,23 +64,26 @@ func New[T Tx](
 			storage: storage,
 		},
 		GetChunkSignatureHandler: &GetChunkSignatureHandler[T]{
-			sk:       sk,
-			verifier: chunkVerifier,
-			storage:  storage,
+			networkID: networkID,
+			chainID:   chainID,
+			pk:        pk,
+			signer:    signer,
+			verifier:  chunkVerifier,
+			storage:   storage,
 		},
 		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
 			storage: storage,
 		},
 		storage: storage,
-		pk:      bls.PublicFromSecretKey(sk),
 	}, nil
 }
 
 type Node[T Tx] struct {
 	nodeID                       ids.NodeID
-	sk                           *bls.SecretKey
 	networkID                    uint32
 	chainID                      ids.ID
+	pk                           *bls.PublicKey
+	signer                       warp.Signer
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
@@ -83,7 +93,6 @@ type Node[T Tx] struct {
 	GetChunkSignatureHandler      *GetChunkSignatureHandler[T]
 	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
 	storage                       *chunkStorage[T]
-	pk                            *bls.PublicKey
 }
 
 // NewChunk builds transactions into a Chunk
@@ -105,10 +114,10 @@ func (n *Node[T]) NewChunk(
 			Expiry:      expiry,
 			Txs:         txs,
 		},
-		n.sk,
-		n.pk,
 		n.networkID,
 		n.chainID,
+		n.pk,
+		n.signer,
 	)
 	if err != nil {
 		return Chunk[T]{}, fmt.Errorf("failed to sign chunk: %w", err)

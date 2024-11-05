@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -108,9 +109,12 @@ type ChunkSignature struct {
 }
 
 type GetChunkSignatureHandler[T Tx] struct {
-	sk       *bls.SecretKey
-	verifier Verifier[T]
-	storage  *chunkStorage[T]
+	networkID uint32
+	chainID   ids.ID
+	pk        *bls.PublicKey
+	signer    warp.Signer
+	verifier  Verifier[T]
+	storage   *chunkStorage[T]
 }
 
 func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {}
@@ -161,12 +165,28 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 		}
 	}
 
+	unsignedMsg, err := warp.NewUnsignedMessage(g.networkID, g.chainID, request.Chunk)
+	if err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
+	signature, err := g.signer.Sign(unsignedMsg)
+	if err != nil {
+		return nil, &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
+
 	response := &dsmr.GetChunkSignatureResponse{
 		ChunkId:   chunk.id[:],
 		Producer:  chunk.Producer[:],
 		Expiry:    chunk.Expiry,
-		Signer:    bls.PublicKeyToCompressedBytes(bls.PublicFromSecretKey(g.sk)),
-		Signature: bls.SignatureToBytes(bls.Sign(g.sk, chunk.bytes)),
+		Signer:    bls.PublicKeyToCompressedBytes(g.pk),
+		Signature: signature,
 	}
 
 	responseBytes, err := proto.Marshal(response)
