@@ -226,22 +226,13 @@ const balancePrefix byte = metadata.DefaultMinimumPrefix
 In addition to defining a prefix for account balances, the HyperSDK actually
 requires us to define other prefixes as well (such as those for storing fees,
 the latest block height, etc.). However, we can pass in a default layout which
-handles those other prefixes, leaving us with just having to define a balance
-prefix.
+handles those other prefixes.
 
-As for `metadata.DefaultMinimumPrefix`, this prefix is the lowest prefix
-available to us if we use the default layout. By using this prefix, we have the
-following contract:
-
-- Using any user-defined prefix that is equal to or greater than `metadata.DefaultMinimumPrefix`
-  will not result in any state collisions with the HyperSDK
-- Using any user-defined prefix that is less than `metadata.DefaultMinimumPrefix` will
-  most likely cause a state collision with the HyperSDK
-
-In layman's terms, we can think of prefixes less than
-`metadata.DefaultMinimumPrefix` as prefixes that *only the HyperSDK should
-touch*, and any prefixes greater than `metadata.DefaultMinimumPrefix` as
-prefixes that the VM developer can use.
+What prefix do we use though? Since we're using a default layout, we can use
+`metadata.DefaultMinimumPrefix` (i.e. the lowest prefix available to us). By
+using this prefix (or anything greater than it), we avoid any state colisions
+with the HyperSDK. Using any prefix less than `metadata.DefaultMinimumPrefix`
+may result in a state collision that could break your VM!
 
 ### Defining Account Balance Keys
 
@@ -686,7 +677,7 @@ Here, we have `TransferResult` which has as fields the new balances we mentioned
 earlier along with a `GetTypeID()` method. This method requires us to return a
 unique identifier associated with this result. Since we already assigned a
 unique type ID to our `Transfer` action, we can use this ID for our result
-(action IDs and result IDs are different). Therefore, we have:
+(action IDs and result IDs are different). We have:
 
 ```go
 func (*TransferResult) GetTypeID() uint8 {

@@ -1,13 +1,10 @@
 # Interlude
 
-In the previous sections, we built our own implementation of MorpheusVM and
-tested it to see that it worked as expected. In the upcoming sections, we will
-be completing our VM journey by spinning up `TutorialVM` on a local network and
-interacting with it via the HyperSDK-CLI.
+In the previous sections, we built and tested our own implementation of
+MorpheusVM. In the upcoming sections, we'll be spinning up `TutorialVM` on a
+local network and interacting with it via the HyperSDK-CLI.
 
-However, before we get to the exciting part of this tutorial series, we need to
-have some things set up before we can spin up `TutorialVM` on a local network.
-In this interlude, we will focus on the following:
+In this section, we'll:
 
 - Setting up our run/stop scripts
 - Adding end-to-end tests
@@ -18,8 +15,7 @@ Let's get started!
 
 ## Script Setup
 
-The script that we'll be using will allow us to start and stop a local network
-running `TutorialVM`. To get started, in `examples/tutorial`, run the following commands:
+To get started, in `examples/tutorial`, run the following commands:
 
 ```bash
 cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
@@ -33,7 +29,7 @@ The commands above created a new folder named `scripts` and copied the run/stop
 scripts from MorpheusVM into our scripts folder, along with giving them
 execute permissions.
 
-Before moving for3ward, in lines 68-70, make sure to change it from this:
+Before moving forward, in lines 68-70, make sure to change it from this:
 
 ```bash
 go build \
@@ -51,17 +47,15 @@ go build \
 
 ## Adding End-to-End Tests
 
-The scripts above, while extremely useful, work only if we define end-to-end
-(e2e) tests for our VM. Since we don't focus on e2e tests in this tutorial, we
-can just copy-and-paste a predefined implementation in. To do this, first run
-the following:
+A caveat of the scripts above is that we need to define end-to-end (e2e) tests
+for our VM. To start, run the following:
 
 ```bash
 mkdir tests/e2e
 touch tests/e2e/e2e_test.go
 ```
 
-Then, in e2e_test.go, write the following:
+Then, in `e2e_test.go`, write the following:
 
 ```go
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
@@ -132,11 +126,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 ## Adding a VM Binary Generator
 
-Although the run/stop scripts we just created will take care of spinning up and
-stopping our network, it still requires us to define a way for our VM binary to
-be generated. 
-
-To start, let's run the following commands:
+We'll now write a simple CLI that allows us to generate the binary for
+`TutorialVM`. To start, let's run the following commands:
 
 ```bash
 mkdir -p cmd/tutorialvm

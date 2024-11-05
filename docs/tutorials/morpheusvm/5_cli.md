@@ -1,9 +1,7 @@
 # CLI
 
-In the previous sections, we have gone over how to implement MorpheusVM from
-scratch and how we can test our implementation. Now that we're confident that we
-have a correct version of MorpheusVM, we can now utilize the HyperSDK-CLI tool
-to actually interact with our VM!
+In the previous section, we implemented our network scripts along with the
+HyperSDK-CLI. Now, it's time to interact with `TutorialVM`!
 
 In this tutorial, we'll go over the following:
 
@@ -12,8 +10,6 @@ In this tutorial, we'll go over the following:
 
 ## CLI Setup
 
-In this section, we'll want to both start our network along with passing in the
-necessary information that the HyperSDK-CLI needs to interact with our network.
 To start, run the following command from `./examples/tutorial`:
 
 ```bash
@@ -47,7 +43,7 @@ AVL-0W5L7Y:tutorial rodrigo.villar$ ./hypersdk-cli key set --key=0x323b1d8f4eed5
 Address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 ```
 
-With this, we're now ready to interact with our implementation of MorpheusVM!
+We're now ready to interact with our implementation of MorpheusVM!
 
 ## Interacting with MorpheusVM
 
@@ -79,7 +75,7 @@ This should give us the following result:
 
 Since the account we are using is specified as a prefunded account in the
 genesis of our VM (via `DefaultGenesis`), our account balance is as expected.
-Having read into the state of our VM, let's now try writing to our VM by sending
+Let's now try writing to our VM by sending
 a transaction via the CLI. In particular, we want to send a transaction with the
 following action:
 

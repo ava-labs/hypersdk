@@ -13,16 +13,10 @@ This section will consist of the following:
 
 - Implementing a bash script to run our workload tests
 - Implementing workload integration tests
+  - These tests generate a large quantity of generic transactions
 - Implementing procedural integration tests
+  - These tests test for a specific transaction
 - Registering our integration tests
-
-At the end of this section, you'll have implemented integration tests that will
-have tested your VM via the following:
-
-- Workload tests: this method tests your VM by applying a large quantity of
-   generic transactions and making sure that each is applied as expected
-- Procedural tests: this method tests your VM by applying a specific transaction
-  and making sure that it is applied as expected 
 
 ## Workload Scripts
 
@@ -66,9 +60,7 @@ run \
 go tool cover -html=integration.coverage.out -o=integration.coverage.html
 ```
 
-This script will both set up our testing environment and execute the workload
-tests. To make sure that our script will run at the end of this section, run the
-following command:
+Let's make sure that our script can be executed:
 
 ```bash
 chmod +x ./scripts/tests.integration.sh
@@ -129,8 +121,7 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 ```
 
 Next, we'll want to implement a method to our `TxGenerator` that will allow it
-to produce a valid transaction with `Transfer` on the fly. Therefore, we have
-the following:
+to produce a valid transaction with `Transfer` on the fly. We have:
 
 
 ```go
@@ -170,8 +161,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 
 In addition to generating a valid transaction, this method returns an anonymous
 function which calls `confirmTX`. `confirmTX` sends the generated TX to the VM,
-makes sure that it was accepted, and checks that the result associated with the
-TX is expected. With this in mind, we have:
+makes sure that it was accepted, and checks that the TX outputs are as expected.
 
 ```golang
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
@@ -288,7 +278,7 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 ```
 
-Finally, we implement the network configuration required for our VM integrationt
+Finally, we implement the network configuration required for our VM integration
 tests:
 
 ```go
@@ -318,22 +308,20 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 }
 ```
 
-Having implemented our workload tests, we can now move onto our procedural
-tests.
+We now move onto our procedural tests.
 
 ## Implementing our Procedural Tests
 
-While workload tests allow us to test our transactions en masse, procedural
-tests allow us to run an integration test on
-our VM in a unit-test-esque manner. To start, in the `tests` folder, run the
+The benefit of using procedural tests is that we write an integration test in a
+unit-test-esque manner. To start, in the `tests` folder, run the
 following command:
 
 ```bash
 touch transfer.go
 ```
 
-As the name suggests, we'll be writing a registry test to test the `Transfer`
-action. Within `transfer.go`, we can start by pasting the following in:
+We'll be writing a registry test to test the `Transfer`
+action. Within `transfer.go`, we write the following:
 
 ```go
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
@@ -368,7 +356,7 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 })
 ```
 
-In the code above, we have `TestsRegistry`: as the name suggest, this is a
+In the code above, we have `TestsRegistry`: this is a
 registry of all the procedural tests that we want to run against our VM.
 Afterwards, we have the following snippet:
 
@@ -378,8 +366,8 @@ registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkg
 })
 ```
 
-Here, we are adding a procedural test to `TestRegistry`. However, what we're
-missing is the actual test logic itself. In short, here's what we want to do in
+Here, we are adding a procedural test to `TestRegistry`. However, we're
+missing the test itself. In short, here's what we want to do in
 our testing logic:
 
 - Setup necessary values
@@ -420,7 +408,7 @@ This step will consist of the following:
   - If the test takes longer than 2 seconds, it will fail
 - Calling `ConfirmTxs` with our TX being passed in
 
-The function `ConfirmTXs`, in particular, is useful as it checks that our TX was
+The function `ConfirmTXs` is useful as it checks that our TX was
 sent and that, if finalized, our transaction has the expected outputs. We have
 the following:
 
@@ -434,12 +422,7 @@ the following:
 ## Registering our Workload Tests
 
 Although we've defined the integration tests themselves, we still need to
-register them with the HyperSDK. That is, we need to pass our integration tests
-into the HyperSDK integration test framework, which will run these tests on our
-behalf. 
-
- implemented, we now define a way for which our workload
-tests can be utilized. To start, create a new folder named `integration` in
+register them with the HyperSDK. To start, create a new folder named `integration` in
 `tests/`. Inside `integration/`, create a new file `integration_test.go`. Here
 copy-paste the following:
 
@@ -494,12 +477,10 @@ var _ = ginkgo.BeforeSuite(func() {
 ```
 
 In `integration_test.go`, we are feeding our workload tests along with various
-other values to the HyperSDK integration test library. Implementing an entire
-integration test framework is time-intensive. By using the HyperSDK integration
+other values to the HyperSDK integration test library. By using the HyperSDK integration
 test framework, we can defer most tasks to it and solely focus on defining the
 workload tests. The setup mentioned above also implicitly sets up our procedural
 tests as well.
-
 
 ## Testing Our VM
 
