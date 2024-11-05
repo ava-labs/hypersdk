@@ -38,8 +38,8 @@ mod tests {
 
     #[test]
     fn initialized_value_is_zero() {
-        let mut context = Context::new();
         let address = Address::default();
+        let mut context = Context::with_actor(address);
 
         let value = get_value(&mut context, address);
         assert_eq!(value, 0);
@@ -47,8 +47,8 @@ mod tests {
 
     #[test]
     fn test_inc() {
-        let mut context = Context::new();
         let address = Address::default();
+        let mut context = Context::with_actor(address);
         let amount = 5;
 
         let inc = inc(&mut context, address, amount);

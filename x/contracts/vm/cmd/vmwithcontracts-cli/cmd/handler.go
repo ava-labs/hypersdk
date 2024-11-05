@@ -21,6 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/contracts/vm/consts"
 	"github.com/ava-labs/hypersdk/x/contracts/vm/vm"
+
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -122,7 +124,7 @@ func (*Controller) Symbol() string {
 }
 
 func (*Controller) Decimals() uint8 {
-	return consts.Decimals
+	return hconsts.Decimals
 }
 
 func (*Controller) GetParser(uri string) (chain.Parser, error) {
