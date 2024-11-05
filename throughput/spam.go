@@ -228,7 +228,6 @@ func (s Spammer) broadcast(
 						recipientIndex++
 					}
 				}
-				recipient := accounts[recipientIndex].Address
 				issuer := getRandomIssuer(issuers)
 				g.Go(func() error {
 					factory := factories[senderIndex]
@@ -239,12 +238,13 @@ func (s Spammer) broadcast(
 						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
 						return fmt.Errorf("%s has insufficient funds", sender.Address)
 					}
-					funds[sender.Address] = balance - feePerTx - amountToTransfer
-					funds[recipient] += amountToTransfer
+					funds[sender.Address] = balance - feePerTx
 					fundsL.Unlock()
 
-					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
+					// Send transaction. If the action transfers balance, the funds map will be out of 
+					// sync with the actual balance. This is fine as long as the account still has enough
+					// funds to pay for tx fees. 
+					actions := sh.GetActions()
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}

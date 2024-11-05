@@ -37,4 +37,7 @@ type SpamHelper interface {
 	// Memo is used to ensure that each transaction is unique (even if between the same
 	// sender and receiver for the same amount).
 	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+
+	// Send sends the provided actions to the network.
+	GetActions() []chain.Action
 }
