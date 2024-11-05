@@ -24,7 +24,7 @@ message ChunkCertificate {
   bytes chunk_id = 1;
   bytes producer = 2;
   int64 expiry = 3;
-  bytes signers = 4; // bitset
+  bytes signers = 4;
   bytes signature = 5;
 }
 
@@ -32,7 +32,7 @@ message ExecutedChunk {
   bytes chunk_id = 1;
   bytes beneficiary = 2;
   repeated Transaction transactions = 3;
-  bytes warp_results = 4; // bitset
+  bytes warp_results = 4;
 }
 
 message GetChunkRequest {
@@ -61,5 +61,3 @@ message GetChunkSignatureResponse {
 message ChunkCertificateGossip {
   ChunkCertificate chunk_certificate = 1;
 }
-
-//TODO chunk fault
