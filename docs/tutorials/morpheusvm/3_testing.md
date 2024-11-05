@@ -311,7 +311,7 @@ We now move onto our procedural tests.
 
 ## Implementing our Procedural Tests
 
-The benefit of using procedural tests is that we write an integration test in a
+The benefit of using procedural tests is that we can write an integration tests in a
 unit-test-esque manner. To start, in the `tests` folder, run the
 following command:
 
