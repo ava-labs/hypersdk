@@ -33,12 +33,9 @@ type UnsignedChunk[T Tx] struct {
 
 // TODO emit configurable amount of chunks/sec
 type Chunk[T Tx] struct {
-	Producer    ids.NodeID             `serialize:"true"`
-	Beneficiary codec.Address          `serialize:"true"`
-	Expiry      int64                  `serialize:"true"`
-	Txs         []T                    `serialize:"true"`
-	Signer      [bls.PublicKeyLen]byte `serialize:"true"`
-	Signature   [bls.SignatureLen]byte `serialize:"true"`
+	UnsignedChunk[T] `serialize:"true"`
+	Signer           [bls.PublicKeyLen]byte `serialize:"true"`
+	Signature        [bls.SignatureLen]byte `serialize:"true"`
 
 	bytes []byte
 	id    ids.ID
@@ -95,12 +92,9 @@ func newChunk[T Tx](
 	signature [bls.SignatureLen]byte,
 ) (Chunk[T], error) {
 	c := Chunk[T]{
-		Producer:    unsignedChunk.Producer,
-		Beneficiary: unsignedChunk.Beneficiary,
-		Expiry:      unsignedChunk.Expiry,
-		Txs:         unsignedChunk.Txs,
-		Signer:      signer,
-		Signature:   signature,
+		UnsignedChunk: unsignedChunk,
+		Signer:        signer,
+		Signature:     signature,
 	}
 	return c, c.init()
 }
