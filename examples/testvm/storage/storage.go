@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/utils"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
@@ -156,6 +157,7 @@ func SubBalance(
 	amount uint64,
 ) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)
+	utils.Outf("{{green}}SubBalance{{_color}}: key=%v, bal=%d, ok=%v, err=%v", key, bal, ok, err)
 	if !ok {
 		return 0, ErrInvalidBalance
 	}

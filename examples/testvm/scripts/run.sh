@@ -62,6 +62,7 @@ fi
 echo "building testvm"
 
 # delete previous (if exists)
+# the ID `tGBrMAQpFfBZhsbs85vDdyabBuitYFPcNeM48mrjBub4KeBRA` should be changed whenever the vm name is changed
 rm -f "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/tGBrMAQpFfBZhsbs85vDdyabBuitYFPcNeM48mrjBub4KeBRA
 
 # rebuild with latest code

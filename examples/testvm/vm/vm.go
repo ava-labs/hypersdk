@@ -35,6 +35,7 @@ func init() {
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		ActionParser.Register(&actions.Count{}, nil),
+		ActionParser.Register(&actions.Transfer{}, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
@@ -42,6 +43,7 @@ func init() {
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
 		OutputParser.Register(&actions.CountResult{}, nil),
+		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
