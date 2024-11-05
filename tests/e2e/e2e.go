@@ -55,13 +55,13 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
-		hardcodedHostPort := "http://localhost:9650"
-		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + networkConfig.Name()
+		envNetwork := e2e.GetEnv(tc).GetNetwork()
+		uri := envNetwork.Nodes[0].URI + "/ext/bc/" + networkConfig.Name()
 
-		c := jsonrpc.NewJSONRPCClient(fixedNodeURL)
+		c := jsonrpc.NewJSONRPCClient(uri)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
+		expectedBlockchainID := envNetwork.GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		require.Equal(expectedBlockchainID, chainIDFromRPC)
 	})
 
