@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -18,10 +19,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 // [balancePrefix] + [address]
 func (bh *BalanceHandler) BalanceKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
-	k[0] = bh.prefix
-	copy(k[1:], addr[:])
-	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
+	k = make([]byte, len(bh.prefix)+codec.AddressLen+consts.Uint16Len)
+	k = append(k, bh.prefix...)
+	k = append(k, addr[:]...)
+	binary.BigEndian.PutUint16(k[len(bh.prefix)+codec.AddressLen:], BalanceChunks)
 	return
 }
 
