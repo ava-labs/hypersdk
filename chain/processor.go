@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
@@ -88,7 +87,7 @@ func (c *Chain) Execute(
 	}
 
 	// Process transactions
-	results, ts, err := c.executeTxs(ctx, b, c.tracer, parentView, feeManager, r)
+	results, ts, err := c.executeTxs(ctx, b, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, nil, err
@@ -192,12 +191,11 @@ type fetchData struct {
 func (c *Chain) executeTxs(
 	ctx context.Context,
 	b *ExecutionBlock,
-	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *fees.Manager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := tracer.Start(ctx, "Processor.Execute")
+	ctx, span := c.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
 	var (
