@@ -69,6 +69,14 @@ func nextUint16(randBytes []byte) (uint16, []byte, bool) {
 	return uint16(randBytes[0]) | (uint16(randBytes[0]) << 8), randBytes[2:], false
 }
 
+func (i immutableScopeStorage) duplicate() immutableScopeStorage {
+	other := make(map[string][]byte, len(i))
+	for k, v := range i {
+		other[k] = v
+	}
+	return other
+}
+
 func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 	require := require.New(t)
 	// create a set of keys which would be used for testing.
@@ -77,7 +85,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 	existingKeyValue := createKeysValues(existingKeys)
 
 	// create a long living recorder.
-	recorder := NewRecorder(immutableScopeStorage(existingKeyValue))
+	recorder := NewRecorder(immutableScopeStorage(existingKeyValue).duplicate())
 
 	operationCount, randBytes, done := nextByte(randBytes)
 	if done {
@@ -89,7 +97,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 		if opType, randBytes, done = nextByte(randBytes); done {
 			return
 		}
-		opType %= 5
+		opType %= 6
 		switch opType {
 		case 0: // insert existing key
 			var keyIdx uint16
@@ -101,7 +109,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).Insert(context.Background(), existingKeys[keyIdx], []byte{1, 2, 3}))
+			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), existingKeys[keyIdx], []byte{1, 2, 3}))
 
 			existingKeyValue[string(existingKeys[keyIdx])] = []byte{1, 2, 3}
 		case 1: // insert non existing key
@@ -114,7 +122,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).Insert(context.Background(), nonExistingKeys[keyIdx], []byte{1, 2, 3}))
+			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), nonExistingKeys[keyIdx], []byte{1, 2, 3}))
 
 			// since we've modified the recorder state, we need to update our own.
 			existingKeys = append(existingKeys, nonExistingKeys[keyIdx])
@@ -130,11 +138,12 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).Remove(context.Background(), existingKeys[keyIdx]))
+			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), existingKeys[keyIdx]))
 
 			// since we've modified the recorder state, we need to update our own.
+			delete(existingKeyValue, string(existingKeys[keyIdx]))
 			existingKeys = append(existingKeys[:keyIdx], existingKeys[keyIdx+1:]...)
-		case 3: // remove non existing key
+		case 3: // remove a non existing key
 			var keyIdx uint16
 			if keyIdx, randBytes, done = nextUint16(randBytes); done {
 				return
@@ -144,7 +153,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).Remove(context.Background(), nonExistingKeys[keyIdx]))
+			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), nonExistingKeys[keyIdx]))
 		case 4: // get value of existing key
 			var keyIdx uint16
 			if keyIdx, randBytes, done = nextUint16(randBytes); done {
@@ -167,16 +176,13 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 				return
 			}
 			keyIdx %= uint16(len(nonExistingKeys))
-			recorderValue, err := recorder.GetValue(context.Background(), nonExistingKeys[keyIdx])
-			require.NoError(err)
+			val, err := recorder.GetValue(context.Background(), nonExistingKeys[keyIdx])
+			require.Error(err, "element was found with a value of %v, while it was supposed to be missing", val)
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			stateValue, err := New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).GetValue(context.Background(), nonExistingKeys[keyIdx])
-			require.NoError(err)
-
-			// both the recorder and the stateview should return the same value.
-			require.Equal(recorderValue, stateValue)
+			_, err = New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).GetValue(context.Background(), nonExistingKeys[keyIdx])
+			require.Error(err)
 		}
 	}
 }
