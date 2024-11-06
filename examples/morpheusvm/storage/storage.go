@@ -124,7 +124,7 @@ func AddBalance(
 	// Don't add balance if account doesn't exist. This
 	// can be useful when processing fee refunds.
 	if !exists && !create {
-		return 0, nil
+		return 0, ErrInvalidAddress
 	}
 	nbal, err := smath.Add(bal, amount)
 	if err != nil {
