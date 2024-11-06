@@ -6,7 +6,6 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,7 +33,6 @@ func (t *tracker) logResult(
 	wsErr error,
 ) {
 	t.l.Lock()
-	t.totalTxs++
 	if result != nil {
 		if result.Success {
 			t.confirmedTxs++
@@ -47,6 +45,7 @@ func (t *tracker) logResult(
 			utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 		}
 	}
+	t.totalTxs++
 	t.l.Unlock()
 }
 
@@ -61,24 +60,20 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 			case <-tick.C:
 				current := t.sent.Load()
 				t.l.Lock()
-				successRate := "N/A"
 				if t.totalTxs > 0 {
-					rate := float64(t.confirmedTxs) / float64(t.totalTxs) * 100
-					successRate = strconv.FormatFloat(rate, 'f', 2, 64) + "%"
+					unitPrices, err := cli.UnitPrices(ctx, false)
+					if err != nil {
+						continue
+					}
+					utils.Outf(
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						t.totalTxs,
+						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
+						t.inflight.Load(),
+						current-psent,
+						unitPrices,
+					)
 				}
-
-				unitPrices, err := cli.UnitPrices(ctx, false)
-				if err != nil {
-					continue
-				}
-				utils.Outf(
-					"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %s {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
-					t.totalTxs,
-					successRate,
-					t.inflight.Load(),
-					current-psent,
-					unitPrices,
-				)
 				t.l.Unlock()
 				psent = current
 			case <-ctx.Done():
