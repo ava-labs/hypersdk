@@ -15,7 +15,8 @@ type ExecutionBlock struct {
 	*StatelessBlock
 
 	// The below fields are only populated for blocks that may have Verify
-	// called on them
+	// called on them. This excludes the genesis block and any block built
+	// locally.
 	sigJob workers.Job
 	txsSet set.Set[ids.ID]
 
