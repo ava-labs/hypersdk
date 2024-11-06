@@ -186,14 +186,14 @@ func (t *testRuntime) AddContract(contractID ContractID, account codec.Address, 
 	return t.StateManager.(TestStateManager).SetAccountContract(t.Context, account, contractID)
 }
 
-func (t *testRuntime) CallContract(contract codec.Address, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallContract(contract codec.Address, function string, params []byte) ([]byte, error) {
 	return t.callContext.CallContract(
 		t.Context,
 		&CallInfo{
 			Contract:     contract,
 			State:        t.StateManager,
 			FunctionName: function,
-			Params:       test.SerializeParams(params...),
+			Params:       params,
 		})
 }
 
@@ -235,10 +235,15 @@ type testContract struct {
 }
 
 func (t *testContract) Call(function string, params ...interface{}) ([]byte, error) {
+	args := test.SerializeParams(params...)
+	return t.CallWithSerializedParams(function, args)
+}
+
+func (t *testContract) CallWithSerializedParams(function string, params []byte) ([]byte, error) {
 	return t.Runtime.CallContract(
 		t.Address,
 		function,
-		params...)
+		params)
 }
 
 func (t *testContract) WithStateManager(manager StateManager) *testContract {

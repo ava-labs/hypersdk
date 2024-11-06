@@ -6,7 +6,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -23,10 +23,10 @@ var genKeyCmd = &cobra.Command{
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
-		return auth.CheckKeyType(args[0])
+		return vm.AuthProvider.CheckType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		priv, err := auth.GeneratePrivateKey(args[0])
+		priv, err := vm.AuthProvider.GeneratePrivateKey(args[0])
 		if err != nil {
 			return err
 		}
@@ -50,10 +50,10 @@ var importKeyCmd = &cobra.Command{
 		if len(args) != 2 {
 			return ErrInvalidArgs
 		}
-		return auth.CheckKeyType(args[0])
+		return vm.AuthProvider.CheckType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		priv, err := auth.LoadPrivateKey(args[0], args[1])
+		priv, err := vm.AuthProvider.LoadPrivateKey(args[0], args[1])
 		if err != nil {
 			return err
 		}

@@ -50,9 +50,9 @@ func With() vm.Option {
 	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, config Config) error {
+func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	if !config.Enabled {
-		return nil
+		return vm.NewOpt(), nil
 	}
 
 	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
@@ -73,10 +73,10 @@ func OptionFunc(v *vm.VM, config Config) error {
 		},
 	}
 
-	vm.WithBlockSubscriptions(blockSubscription)(v)
-	vm.WithVMAPIs(webSocketFactory)(v)
-
-	return nil
+	return vm.NewOpt(
+		vm.WithBlockSubscriptions(blockSubscription),
+		vm.WithVMAPIs(webSocketFactory),
+	), nil
 }
 
 func NewWebSocketServerFactory(server *pubsub.Server) *WebSocketServerFactory {

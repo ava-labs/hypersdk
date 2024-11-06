@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 )
 
 var spamCmd = &cobra.Command{
@@ -25,7 +25,7 @@ var runSpamCmd = &cobra.Command{
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
-		return auth.CheckKeyType(args[0])
+		return vm.AuthProvider.CheckType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()

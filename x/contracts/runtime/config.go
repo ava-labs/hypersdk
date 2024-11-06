@@ -5,7 +5,7 @@ package runtime
 
 import (
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/bytecodealliance/wasmtime-go/v25"
 )
 
 type CompileStrategy uint8
