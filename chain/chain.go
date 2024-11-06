@@ -41,7 +41,7 @@ type Chain struct {
 
 type ChainIndex interface {
 	GetExecutionBlock(ctx context.Context, blkID ids.ID) (*ExecutionBlock, error)
-	LastAcceptedExecutionBlock() *ExecutionBlock
+	LastAcceptedBlock() *ExecutionBlock
 }
 
 type ChainBackend interface {
@@ -191,7 +191,7 @@ func (c *Chain) isRepeat(
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	lastAcceptedBlk := c.chainIndex.LastAcceptedExecutionBlock()
+	lastAcceptedBlk := c.chainIndex.LastAcceptedBlock()
 
 	var err error
 	for {
@@ -227,7 +227,7 @@ func (c *Chain) verifyExpiryReplayProtection(
 	blk *ExecutionBlock,
 	rules Rules,
 ) error {
-	lastAcceptedBlk := c.chainIndex.LastAcceptedExecutionBlock()
+	lastAcceptedBlk := c.chainIndex.LastAcceptedBlock()
 	if blk.Hght <= lastAcceptedBlk.Hght {
 		return nil
 	}
@@ -260,6 +260,6 @@ func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, erro
 		return nil, err
 	}
 
-	lastAcceptedBlock := c.chainIndex.LastAcceptedExecutionBlock()
+	lastAcceptedBlock := c.chainIndex.LastAcceptedBlock()
 	return NewExecutionBlock(ctx, blk, c, blk.Hght > lastAcceptedBlock.Hght)
 }

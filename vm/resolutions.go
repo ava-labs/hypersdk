@@ -91,12 +91,12 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.ExecutedBlock {
-	return vm.lastAccepted.executedBlock
+func (vm *VM) LastAcceptedBlock() *chain.ExecutionBlock {
+	return vm.lastAccepted.ExecutionBlock
 }
 
-func (vm *VM) LastAcceptedExecutionBlock() *chain.ExecutionBlock {
-	return vm.lastAccepted.ExecutionBlock
+func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
+	return vm.lastAccepted.executedBlock
 }
 
 func (vm *VM) IsBootstrapped() bool {

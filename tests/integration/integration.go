@@ -400,7 +400,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(blk.Accept(ctx))
 			blocks = append(blocks, blk)
 
-			lastAccepted := instances[1].vm.LastAcceptedBlock()
+			lastAccepted := instances[1].vm.LastAcceptedBlockResult()
 			require.Equal(lastAccepted.Block.ID(), blk.ID())
 
 			require.Len(lastAccepted.Results, 1)
@@ -658,7 +658,7 @@ func expectBlk(i *instance) func(add bool) []*chain.Result {
 			blocks = append(blocks, blk)
 		}
 
-		lastAccepted := i.vm.LastAcceptedBlock()
+		lastAccepted := i.vm.LastAcceptedBlockResult()
 		require.NoError(err)
 		require.Equal(lastAccepted.Block.ID(), blk.ID())
 		return lastAccepted.Results
