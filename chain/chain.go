@@ -21,20 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type ExecutionConfig struct {
-	TargetBuildDuration       time.Duration `json:"targetBuildDuration"`
-	TransactionExecutionCores int           `json:"transactionExecutionCores"`
-	StateFetchConcurrency     int           `json:"stateFetchConcurrency"`
-}
-
-func NewDefaultExecutionConfig() ExecutionConfig {
-	return ExecutionConfig{
-		TargetBuildDuration:       100 * time.Millisecond,
-		TransactionExecutionCores: 1,
-		StateFetchConcurrency:     1,
-	}
-}
-
 type Chain struct {
 	tracer                  trace.Tracer
 	config                  ExecutionConfig
