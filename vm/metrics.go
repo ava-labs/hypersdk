@@ -29,8 +29,6 @@ type Metrics struct {
 	txsReceived              prometheus.Counter
 	seenTxsReceived          prometheus.Counter
 	txsGossiped              prometheus.Counter
-	txsVerified              prometheus.Counter
-	txsAccepted              prometheus.Counter
 	stateChanges             prometheus.Counter
 	stateOperations          prometheus.Counter
 	buildCapped              prometheus.Counter
@@ -151,16 +149,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_gossiped",
 			Help:      "number of txs gossiped by vm",
 		}),
-		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_verified",
-			Help:      "number of txs verified by vm",
-		}),
-		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_accepted",
-			Help:      "number of txs accepted by vm",
-		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "state_changes",
@@ -269,8 +257,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsReceived),
 		r.Register(m.seenTxsReceived),
 		r.Register(m.txsGossiped),
-		r.Register(m.txsVerified),
-		r.Register(m.txsAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),
