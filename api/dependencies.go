@@ -19,6 +19,8 @@ import (
 )
 
 type VM interface {
+	GetDataDir() string
+	GetGenesisBytes() []byte
 	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32
@@ -34,6 +36,8 @@ type VM interface {
 		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
+	// LastAcceptedBlock provides the most recent block that the VM has accepted.
+	// The value returned is guaranteed to be non-nil.
 	LastAcceptedBlock() *chain.StatefulBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
