@@ -260,13 +260,16 @@ func (vm *VM) Initialize(
 	// Set defaults
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
-
+	options := &Options{}
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
-		if err := Option.optionFunc(vm, config); err != nil {
+		opt, err := Option.optionFunc(vm, config)
+		if err != nil {
 			return err
 		}
+		opt.apply(options)
 	}
+	vm.applyOptions(options)
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -500,6 +503,18 @@ func (vm *VM) Initialize(
 	}
 
 	return nil
+}
+
+func (vm *VM) applyOptions(o *Options) {
+	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
+	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
+	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
+	if o.builder {
+		vm.builder = builder.NewManual(vm)
+	}
+	if o.gossiper {
+		vm.gossiper = gossiper.NewManual(vm)
+	}
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
