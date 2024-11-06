@@ -75,7 +75,6 @@ type ChainBackend interface {
 func NewChain(
 	backend ChainBackend,
 	config ExecutionConfig,
-	chainIndex ChainIndex,
 ) (*Chain, error) {
 	registry, metrics, err := newMetrics()
 	if err != nil {

@@ -331,7 +331,7 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.chain, err = chain.NewChain(vm, vm.config.ExecutionConfig, vm)
+	vm.chain, err = chain.NewChain(vm, vm.config.ExecutionConfig)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (vm *VM) Initialize(
 		}
 		// Set executed block, since we will never execute the genesis block
 		genesisBlk.executedBlock = &chain.ExecutedBlock{
-			Block:   genesisExecutionBlk.StatelessBlock,
+			Block: genesisExecutionBlk.StatelessBlock,
 		}
 
 		// Update chain metadata
