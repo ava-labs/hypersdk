@@ -854,7 +854,12 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
-	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredBlk.view, preferredBlk.ExecutionBlock)
+	preferredView, err := preferredBlk.View(ctx, true)
+	if err != nil {
+		vm.snowCtx.Log.Warn("unable to get preferred block view", zap.Error(err))
+		return nil, err
+	}
+	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).

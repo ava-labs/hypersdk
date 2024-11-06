@@ -78,7 +78,7 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, parentView merkledb.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
+func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
 	ctx, span := c.tracer.Start(ctx, "chain.BuildBlock")
 	defer span.End()
 
