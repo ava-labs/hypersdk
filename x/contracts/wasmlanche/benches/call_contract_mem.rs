@@ -1,12 +1,12 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-mod contracts;
-use std::hint::black_box;
-
 use contracts::{Contract, Nft};
+use std::hint::black_box;
 use wasmlanche::Address;
 use wasmlanche_test::Builder;
+
+mod contracts;
 
 iai::main!(call_contract, call_nft_mint);
 
