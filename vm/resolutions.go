@@ -128,7 +128,6 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
-	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
@@ -140,23 +139,15 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	if b.Processed() {
 		vm.snowCtx.Log.Info(
 			"verified block",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Hght),
-			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
+			zap.Stringer("executedBlk", b.executedBlock),
 			zap.Bool("state ready", vm.StateReady()),
-			zap.Any("unit prices", b.executedBlock.UnitPrices),
-			zap.Any("units consumed", b.executedBlock.UnitsConsumed),
 		)
 	} else {
 		// [b.FeeManager] is not populated if the block
 		// has not been processed.
 		vm.snowCtx.Log.Info(
 			"skipped block verification",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Hght),
-			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
+			zap.Stringer("blk", b),
 			zap.Bool("state ready", vm.StateReady()),
 		)
 	}
@@ -173,7 +164,7 @@ func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 
 	// Ensure children of block are cleared, they may never be
 	// verified
-	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
+	vm.snowCtx.Log.Info("rejected block", zap.Stringer("blk", b))
 }
 
 func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
@@ -244,8 +235,6 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
-
 	// Update accepted blocks on-disk and caches
 	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
@@ -302,11 +291,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 
 	vm.snowCtx.Log.Info(
 		"accepted block",
-		zap.Stringer("blkID", b.ID()),
-		zap.Uint64("height", b.Hght),
-		zap.Int("txs", len(b.Txs)),
-		zap.Stringer("parent root", b.StateRoot),
-		zap.Int("size", len(b.Bytes())),
+		zap.Stringer("blk", b),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
 	)

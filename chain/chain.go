@@ -90,6 +90,8 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	_, span := c.tracer.Start(ctx, "chain.AcceptBlock")
 	defer span.End()
 
+	c.metrics.txsAccepted.Add(float64(len(blk.Txs)))
+
 	// Grab the lock before modifiying seen
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -98,6 +100,7 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	evicted := c.seen.SetMin(blkTime)
 	c.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	c.seen.Add(blk.Txs)
+
 	return nil
 }
 

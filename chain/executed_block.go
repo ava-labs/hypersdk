@@ -4,6 +4,8 @@
 package chain
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
@@ -80,4 +82,8 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 		return nil, err
 	}
 	return NewExecutedBlock(blk, results, prices, consumed), nil
+}
+
+func (e *ExecutedBlock) String() string {
+	return fmt.Sprintf("(Block=%s, UnitPrices=%s, UnitsConsumed=%s)", e.Block, e.UnitPrices, e.UnitsConsumed)
 }

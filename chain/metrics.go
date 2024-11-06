@@ -11,6 +11,9 @@ import (
 )
 
 type chainMetrics struct {
+	txsVerified prometheus.Counter
+	txsAccepted prometheus.Counter
+
 	rootCalculated metric.Averager
 	waitRoot       metric.Averager
 	waitSignatures metric.Averager
@@ -118,6 +121,16 @@ func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
+		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "txs_verified",
+			Help:      "number of txs verified by chain",
+		}),
+		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "txs_accepted",
+			Help:      "number of txs accepted by chain",
+		}),
 		rootCalculated: rootCalculated,
 		waitRoot:       waitRoot,
 		waitSignatures: waitSignatures,
@@ -137,6 +150,8 @@ func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.clearedMempool),
+		r.Register(m.txsVerified),
+		r.Register(m.txsAccepted),
 	)
 	return r, m, errs.Err
 }

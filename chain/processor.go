@@ -274,6 +274,8 @@ func (c *Chain) executeTxs(
 		return nil, nil, err
 	}
 
+	c.metrics.txsVerified.Add(float64(len(b.Txs)))
+
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
 }
