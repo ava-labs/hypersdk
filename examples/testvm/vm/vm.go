@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/components"
+	"github.com/ava-labs/hypersdk/vm/components/token"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
@@ -22,6 +24,7 @@ var (
 	ActionParser *codec.TypeParser[chain.Action]
 	AuthParser   *codec.TypeParser[chain.Auth]
 	OutputParser *codec.TypeParser[codec.Typed]
+	BalanceHandlerPrefix = metadata.DefaultMinimumPrefix
 )
 
 // Setup types
@@ -29,13 +32,25 @@ func init() {
 	ActionParser = codec.NewTypeParser[chain.Action]()
 	AuthParser = codec.NewTypeParser[chain.Auth]()
 	OutputParser = codec.NewTypeParser[codec.Typed]()
+	transferAction := components.NewGenericAction(
+		&token.Transfer{},
+		consts.TransferID,
+		-1,
+		1,
+	)
+	transferResult := components.NewGenericType(
+		&token.TransferResult{},
+		consts.TransferID,
+	)
 
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		ActionParser.Register(&actions.Count{}, nil),
-		ActionParser.Register(&actions.Transfer{}, nil),
+		
+
+		ActionParser.Register(transferAction, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
@@ -43,7 +58,7 @@ func init() {
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
 		OutputParser.Register(&actions.CountResult{}, nil),
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		OutputParser.Register(transferResult, nil),
 	)
 	if errs.Errored() {
 		panic(errs.Err)
