@@ -6,6 +6,7 @@ package indexer
 import (
 	"path/filepath"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/vm"
@@ -34,14 +35,14 @@ func With() vm.Option {
 	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, config Config) error {
+func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	if !config.Enabled {
-		return nil
+		return vm.NewOpt(), nil
 	}
-	indexerPath := filepath.Join(v.DataDir, Namespace)
+	indexerPath := filepath.Join(v.GetDataDir(), Namespace)
 	indexer, err := NewIndexer(indexerPath, v, config.BlockWindow)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	subscriptionFactory := &subscriptionFactory{
@@ -54,10 +55,10 @@ func OptionFunc(v *vm.VM, config Config) error {
 		indexer: indexer,
 	}
 
-	vm.WithBlockSubscriptions(subscriptionFactory)(v)
-	vm.WithVMAPIs(apiFactory)(v)
-
-	return nil
+	return vm.NewOpt(
+		vm.WithBlockSubscriptions(subscriptionFactory),
+		vm.WithVMAPIs(apiFactory),
+	), nil
 }
 
 type subscriptionFactory struct {

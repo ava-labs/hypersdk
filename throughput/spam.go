@@ -151,7 +151,8 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
-	err = s.broadcast(cctx, cancel, sh, accounts, factories, issuers, feePerTx, terminate)
+	err = s.broadcast(cctx, sh, accounts, factories, issuers, feePerTx, terminate)
+	cancel()
 	if err != nil {
 		return err
 	}
@@ -169,7 +170,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 
 func (s Spammer) broadcast(
 	ctx context.Context,
-	cancel context.CancelFunc,
 	sh SpamHelper,
 	accounts []*auth.PrivateKey,
 
@@ -179,7 +179,6 @@ func (s Spammer) broadcast(
 	feePerTx uint64,
 	terminate bool,
 ) error {
-	defer cancel()
 	// make sure we can exit gracefully & return funds
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -188,13 +187,12 @@ func (s Spammer) broadcast(
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
 		z = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
 
-		it                              = time.NewTimer(0)
-		currentTarget                   = min(s.txsPerSecond, s.minTxsPerSecond)
-		consecutiveUnderBacklog         int
-		consecutiveAboveBacklog         int
-		consecutiveFailedDecreaseTarget int
-		broadcastErr                    error
-		stop                            bool
+		it                      = time.NewTimer(0)
+		currentTarget           = min(s.txsPerSecond, s.minTxsPerSecond)
+		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
+		broadcastErr            error
+		stop                    bool
 	)
 	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
 	for !stop {
@@ -212,13 +210,6 @@ func (s Spammer) broadcast(
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 					} else {
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
-						consecutiveFailedDecreaseTarget++
-						if consecutiveFailedDecreaseTarget >= failedRunsToDecreaseTarget {
-							utils.Outf("{{cyan}}skipping issuance because large backlog detected, exiting{{/}}\n")
-							broadcastErr = ErrLargeBacklog
-							stop = true
-							break
-						}
 					}
 					consecutiveAboveBacklog = 0
 				}
@@ -230,15 +221,8 @@ func (s Spammer) broadcast(
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
-				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
+				senderIndex := z.Uint64()
 				sender := accounts[senderIndex].Address
-				if recipientIndex == senderIndex {
-					if recipientIndex == uint64(s.numAccounts-1) {
-						recipientIndex--
-					} else {
-						recipientIndex++
-					}
-				}
 				issuer := getRandomIssuer(issuers)
 				g.Go(func() error {
 					factory := factories[senderIndex]
@@ -249,7 +233,6 @@ func (s Spammer) broadcast(
 					if balance < feePerTx {
 						return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
 					}
-
 					// Send transaction
 					actions := sh.GetActions()
 					return issuer.Send(ctx, actions, factory, feePerTx)
@@ -272,7 +255,6 @@ func (s Spammer) broadcast(
 
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
-			consecutiveFailedDecreaseTarget = 0
 			consecutiveUnderBacklog++
 			// once desired TPS is reached, stop the spammer
 			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {

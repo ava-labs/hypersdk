@@ -1,0 +1,35 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+syntax = "proto3";
+
+package dsmr;
+
+option go_package = "github.com/ava-labs/hypersdk/proto/pb/dsmr";
+
+message GetChunkRequest {
+  bytes chunk_id = 1;
+  int64 expiry = 2;
+}
+
+message GetChunkResponse {
+  bytes chunk = 1;
+}
+
+message GetChunkSignatureRequest {
+  bytes chunk = 1;
+}
+
+message GetChunkSignatureResponse {
+  // TODO are these fields needed?
+  bytes chunk_id = 1;
+  bytes producer = 2;
+  int64 expiry = 3;
+
+  bytes signer = 4;
+  bytes signature = 5;
+}
+
+message ChunkCertificateGossip {
+  bytes chunk_certificate = 1;
+}

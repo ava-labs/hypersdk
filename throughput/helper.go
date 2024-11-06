@@ -38,6 +38,6 @@ type SpamHelper interface {
 	// sender and receiver for the same amount).
 	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
 
-	// Send sends the provided actions to the network.
+	// GetActions returns a list of actions the spammer sends to the network.
 	GetActions() []chain.Action
 }

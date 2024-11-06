@@ -10,15 +10,19 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/internal/builder"
-	"github.com/ava-labs/hypersdk/internal/gossiper"
 )
 
-type RegisterFunc func(*VM)
+type Options struct {
+	builder                        bool
+	gossiper                       bool
+	blockSubscriptionFactories     []event.SubscriptionFactory[*chain.ExecutedBlock]
+	vmAPIHandlerFactories          []api.HandlerFactory[api.VM]
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+}
 
-type optionFunc func(vm *VM, configBytes []byte) error
+type optionFunc func(vm api.VM, configBytes []byte) (Opt, error)
 
-type OptionFunc[T any] func(vm *VM, config T) error
+type OptionFunc[T any] func(vm api.VM, config T) (Opt, error)
 
 type Option struct {
 	Namespace  string
@@ -38,10 +42,10 @@ func newOptionWithBytes(namespace string, optionFunc optionFunc) Option {
 // 3) An option function that takes the VM and resulting config value as arguments
 func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T]) Option {
 	config := defaultConfig
-	configOptionFunc := func(vm *VM, configBytes []byte) error {
+	configOptionFunc := func(vm api.VM, configBytes []byte) (Opt, error) {
 		if len(configBytes) > 0 {
 			if err := json.Unmarshal(configBytes, &config); err != nil {
-				return fmt.Errorf("failed to unmarshal %q config %q: %w", namespace, string(configBytes), err)
+				return nil, fmt.Errorf("failed to unmarshal %q config %q: %w", namespace, string(configBytes), err)
 			}
 		}
 
@@ -50,44 +54,72 @@ func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T
 	return newOptionWithBytes(namespace, configOptionFunc)
 }
 
-func WithBuilder() RegisterFunc {
-	return func(vm *VM) {
-		vm.builder = builder.NewManual(vm)
-	}
+func WithBuilder() Opt {
+	return newFuncOption(func(o *Options) {
+		o.builder = true
+	})
 }
 
-func WithGossiper() RegisterFunc {
-	return func(vm *VM) {
-		vm.gossiper = gossiper.NewManual(vm)
-	}
+func WithGossiper() Opt {
+	return newFuncOption(func(o *Options) {
+		o.gossiper = true
+	})
 }
 
 func WithManual() Option {
 	return NewOption[struct{}](
 		"manual",
 		struct{}{},
-		func(vm *VM, _ struct{}) error {
-			WithBuilder()(vm)
-			WithGossiper()(vm)
-			return nil
+		func(_ api.VM, _ struct{}) (Opt, error) {
+			return newFuncOption(func(o *Options) {
+				WithBuilder().apply(o)
+				WithGossiper().apply(o)
+			}), nil
 		},
 	)
 }
 
-func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.ExecutedBlock]) RegisterFunc {
-	return func(vm *VM) {
-		vm.blockSubscriptionFactories = append(vm.blockSubscriptionFactories, subscriptions...)
-	}
+func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.ExecutedBlock]) Opt {
+	return newFuncOption(func(o *Options) {
+		o.blockSubscriptionFactories = append(o.blockSubscriptionFactories, subscriptions...)
+	})
 }
 
-func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) RegisterFunc {
-	return func(vm *VM) {
-		vm.vmAPIHandlerFactories = append(vm.vmAPIHandlerFactories, apiHandlerFactories...)
-	}
+func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Opt {
+	return newFuncOption(func(o *Options) {
+		o.vmAPIHandlerFactories = append(o.vmAPIHandlerFactories, apiHandlerFactories...)
+	})
 }
 
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) RegisterFunc {
-	return func(vm *VM) {
-		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
+func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Opt {
+	return newFuncOption(func(o *Options) {
+		o.txRemovedSubscriptionFactories = append(o.txRemovedSubscriptionFactories, subscriptions...)
+	})
+}
+
+type Opt interface {
+	apply(*Options)
+}
+
+// NewOpt mixes a list of Opt in a new one Opt.
+func NewOpt(opts ...Opt) Opt {
+	return newFuncOption(func(o *Options) {
+		for _, opt := range opts {
+			opt.apply(o)
+		}
+	})
+}
+
+type funcOption struct {
+	f func(*Options)
+}
+
+func (fdo *funcOption) apply(do *Options) {
+	fdo.f(do)
+}
+
+func newFuncOption(f func(*Options)) *funcOption {
+	return &funcOption{
+		f: f,
 	}
 }
