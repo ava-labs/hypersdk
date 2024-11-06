@@ -12,9 +12,9 @@ import (
 
 // Note: Assembler breaks assembling and executing a block into two steps
 // but these will be called one after the other.
-type Assembler[T Tx, Block any, Result any] interface {
-	AssembleBlock(ctx context.Context, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, error)
-	ExecuteBlock(ctx context.Context, b Block) (Result, error)
+type Assembler[T Tx, State any, Block any, Result any] interface {
+	AssembleBlock(ctx context.Context, parentState State, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, error)
+	ExecuteBlock(ctx context.Context, parentState State, b Block) (Result, State, error)
 }
 
 type ChunkGatherer[T Tx] interface {
@@ -23,17 +23,19 @@ type ChunkGatherer[T Tx] interface {
 	CollectChunks(chunkCerts []*ChunkCertificate) ([]*Chunk[T], error)
 }
 
-type BlockHandler[T Tx, Block any, Result any] struct {
-	lastAcceptedBlock Block
-	chunkGatherer     ChunkGatherer[T]
-	Assembler         Assembler[T, Block, Result]
+type BlockHandler[T Tx, State any, Block any, Result any] struct {
+	lastAcceptedBlock  Block
+	lastAcceptedState  State
+	lastAcceptedResult Result
+	chunkGatherer      ChunkGatherer[T]
+	Assembler          Assembler[T, State, Block, Result]
 }
 
-func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block *Block) (R, error) {
+func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block) error {
 	// Collect and store chunks in the accepted block
 	chunks, err := b.chunkGatherer.CollectChunks(block.ChunkCerts)
 	if err != nil {
-		return *new(R), err
+		return err
 	}
 
 	// Collect and de-duplicate txs
@@ -56,10 +58,13 @@ func (b *BlockHandler[T, B, R]) Accept(ctx context.Context, block *Block) (R, er
 	}
 
 	// Assemble and execute the block
-	assembledBlk, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
+	assembledBlk, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedState, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
 	if err != nil {
-		return *new(R), err
+		return err
 	}
+	result, state, err := b.Assembler.ExecuteBlock(ctx, b.lastAcceptedState, assembledBlk)
 	b.lastAcceptedBlock = assembledBlk
-	return b.Assembler.ExecuteBlock(ctx, assembledBlk)
+	b.lastAcceptedResult = result
+	b.lastAcceptedState = state
+	return err
 }

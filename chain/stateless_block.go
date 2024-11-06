@@ -31,24 +31,36 @@ type StatelessBlock struct {
 	// starting the verification of another block, etc.
 	StateRoot ids.ID `json:"stateRoot"`
 
-	size int
-
-	// AuthCounts can be used by batch signature verification
-	// to preallocate memory
-	AuthCounts map[uint8]int
+	bytes []byte
+	id    ids.ID
 }
 
-func (b *StatelessBlock) Size() int {
-	return b.size
-}
-
-func (b *StatelessBlock) ID() (ids.ID, error) {
-	blk, err := b.Marshal()
-	if err != nil {
-		return ids.ID{}, err
+func NewStatelessBlock(
+	parentID ids.ID,
+	timestamp int64,
+	height uint64,
+	txs []*Transaction,
+	stateRoot ids.ID,
+) (*StatelessBlock, error) {
+	block := &StatelessBlock{
+		Prnt:      parentID,
+		Tmstmp:    timestamp,
+		Hght:      height,
+		Txs:       txs,
+		StateRoot: stateRoot,
 	}
-	return utils.ToID(blk), nil
+	blkBytes, err := block.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	block.bytes = blkBytes
+	block.id = utils.ToID(blkBytes)
+	return block, nil
 }
+
+func (b *StatelessBlock) ID() ids.ID    { return b.id }
+func (b *StatelessBlock) Bytes() []byte { return b.bytes }
+func (b *StatelessBlock) Size() int     { return len(b.bytes) }
 
 func (b *StatelessBlock) Marshal() ([]byte, error) {
 	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
@@ -63,12 +75,10 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	p.PackUint64(b.Hght)
 
 	p.PackInt(uint32(len(b.Txs)))
-	b.AuthCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
-		b.AuthCounts[tx.Auth.GetTypeID()]++
 	}
 
 	p.PackID(b.StateRoot)
@@ -76,7 +86,6 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
-	b.size = len(bytes)
 	return bytes, nil
 }
 
@@ -85,7 +94,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatelessBlock
 	)
-	b.size = len(raw)
 
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
@@ -95,14 +103,12 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	b.AuthCounts = map[uint8]int{}
 	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionCodec, authCodec)
 		if err != nil {
 			return nil, err
 		}
 		b.Txs = append(b.Txs, tx)
-		b.AuthCounts[tx.Auth.GetTypeID()]++
 	}
 
 	p.UnpackID(false, &b.StateRoot)
@@ -111,33 +117,29 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	if !p.Empty() {
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
+	b.bytes = raw
+	b.id = utils.ToID(raw)
 	return &b, p.Err()
 }
 
 func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
-	sb := &StatelessBlock{
-		// We set the genesis block timestamp to be after the ProposerVM fork activation.
-		//
-		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
-		// where the child timestamp is rounded down to the nearest second (which may be before
-		// the timestamp of its parent, which is denoted in milliseconds).
-		//
-		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
-		// .../vms/proposervm/pre_fork_block.go#L201
-		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
-
-		// StateRoot should include all allocates made when loading the genesis file
-		StateRoot: root,
-	}
-
-	sbBytes, err := sb.Marshal()
+	// We set the genesis block timestamp to be after the ProposerVM fork activation.
+	//
+	// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+	// where the child timestamp is rounded down to the nearest second (which may be before
+	// the timestamp of its parent, which is denoted in milliseconds).
+	//
+	// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
+	// .../vms/proposervm/pre_fork_block.go#L201
+	sb, err := NewStatelessBlock(
+		ids.Empty,
+		time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+		0,
+		nil,
+		root, // StateRoot should include all allocates made when loading the genesis file
+	)
 	if err != nil {
 		return nil, err
 	}
-	id := utils.ToID(sbBytes)
-	return &ExecutionBlock{
-		StatelessBlock: sb,
-		id:             id,
-		bytes:          sbBytes,
-	}, nil
+	return NewExecutionBlockNoVerify(sb), nil
 }

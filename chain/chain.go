@@ -18,21 +18,8 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
-
-type ExecutionBlock struct {
-	*StatelessBlock
-
-	id     ids.ID
-	bytes  []byte
-	sigJob workers.Job
-	txsSet set.Set[ids.ID]
-}
-
-func (b *ExecutionBlock) ID() ids.ID    { return b.id }
-func (b *ExecutionBlock) Bytes() []byte { return b.bytes }
 
 type ExecutionConfig struct {
 	TargetBuildDuration       time.Duration `json:"targetBuildDuration"`
@@ -288,43 +275,6 @@ func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, erro
 		return nil, err
 	}
 
-	// Setup signature verification job
-	_, sigVerifySpan := c.tracer.Start(ctx, "ParseBlock.verifySignatures") //nolint:spancheck
-	sigJob, err := c.authVerificationWorkers.NewJob(len(blk.Txs))
-	if err != nil {
-		return nil, err //nolint:spancheck
-	}
-	batchVerifier := NewAuthBatch(c.authVM, sigJob, blk.AuthCounts)
-
-	// Make sure to always call [Done], otherwise we will block all future [Workers]
-	defer func() {
-		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-		// to the work queue async and that may not have completed by this point.
-		go batchVerifier.Done(func() { sigVerifySpan.End() })
-	}()
-
-	// Confirm no transaction duplicates and setup
-	// signature verification
-	txsSet := set.NewSet[ids.ID](len(blk.Txs))
-	for _, tx := range blk.Txs {
-		// Ensure there are no duplicate transactions
-		if txsSet.Contains(tx.ID()) {
-			return nil, ErrDuplicateTx
-		}
-		txsSet.Add(tx.ID())
-
-		// Verify signature async
-		unsignedTxBytes, err := tx.UnsignedBytes()
-		if err != nil {
-			return nil, err
-		}
-		batchVerifier.Add(unsignedTxBytes, tx.Auth)
-	}
-	return &ExecutionBlock{
-		StatelessBlock: blk,
-		sigJob:         sigJob,
-		txsSet:         txsSet,
-		id:             utils.ToID(b),
-		bytes:          b,
-	}, nil
+	lastAcceptedBlock := c.chainIndex.LastAcceptedExecutionBlock()
+	return NewExecutionBlock(ctx, blk, c, blk.Hght > lastAcceptedBlock.Hght)
 }

@@ -4,32 +4,25 @@
 package chain
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
 type ExecutedBlock struct {
-	BlockID       ids.ID          `json:"blockID"`
 	Block         *StatelessBlock `json:"block"`
 	Results       []*Result       `json:"results"`
 	UnitPrices    fees.Dimensions `json:"unitPrices"`
 	UnitsConsumed fees.Dimensions `json:"unitsConsumed"`
 }
 
-func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions, unitsConsumed fees.Dimensions) (*ExecutedBlock, error) {
-	blkID, err := statelessBlock.ID()
-	if err != nil {
-		return nil, err
-	}
+func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions, unitsConsumed fees.Dimensions) *ExecutedBlock {
 	return &ExecutedBlock{
-		BlockID:       blkID,
 		Block:         statelessBlock,
 		Results:       results,
 		UnitPrices:    unitPrices,
 		UnitsConsumed: unitsConsumed,
-	}, nil
+	}
 }
 
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
@@ -86,5 +79,5 @@ func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error)
 	if err := reader.Err(); err != nil {
 		return nil, err
 	}
-	return NewExecutedBlock(blk, results, prices, consumed)
+	return NewExecutedBlock(blk, results, prices, consumed), nil
 }

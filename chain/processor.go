@@ -175,7 +175,6 @@ func (c *Chain) Execute(
 	}()
 
 	return &ExecutedBlock{
-		BlockID:       b.id,
 		Block:         b.StatelessBlock,
 		Results:       results,
 		UnitPrices:    feeManager.UnitPrices(),

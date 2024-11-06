@@ -13,11 +13,10 @@ import (
 )
 
 type Options struct {
-	builder                        bool
-	gossiper                       bool
-	blockSubscriptionFactories     []event.SubscriptionFactory[*chain.ExecutedBlock]
-	vmAPIHandlerFactories          []api.HandlerFactory[api.VM]
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	builder                    bool
+	gossiper                   bool
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	vmAPIHandlerFactories      []api.HandlerFactory[api.VM]
 }
 
 type optionFunc func(vm api.VM, configBytes []byte) (Opt, error)

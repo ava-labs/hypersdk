@@ -132,7 +132,7 @@ func setInstances() {
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
 		event.SubscriptionFunc[*chain.ExecutedBlock]{
 			AcceptF: func(blk *chain.ExecutedBlock) error {
-				externalSubscriberAcceptedBlocksCh <- blk.BlockID
+				externalSubscriberAcceptedBlocksCh <- blk.Block.ID()
 				return nil
 			},
 		},
@@ -401,7 +401,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			blocks = append(blocks, blk)
 
 			lastAccepted := instances[1].vm.LastAcceptedBlock()
-			require.Equal(lastAccepted.BlockID, blk.ID())
+			require.Equal(lastAccepted.Block.ID(), blk.ID())
 
 			require.Len(lastAccepted.Results, 1)
 			require.True(lastAccepted.Results[0].Success)
@@ -660,7 +660,7 @@ func expectBlk(i *instance) func(add bool) []*chain.Result {
 
 		lastAccepted := i.vm.LastAcceptedBlock()
 		require.NoError(err)
-		require.Equal(lastAccepted.BlockID, blk.ID())
+		require.Equal(lastAccepted.Block.ID(), blk.ID())
 		return lastAccepted.Results
 	}
 }

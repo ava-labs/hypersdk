@@ -398,7 +398,6 @@ func (vm *VM) Initialize(
 		}
 		// Set executed block, since we will never execute the genesis block
 		genesisBlk.executedBlock = &chain.ExecutedBlock{
-			BlockID: genesisBlk.ID(),
 			Block:   genesisExecutionBlk.StatelessBlock,
 		}
 
@@ -511,7 +510,6 @@ func (vm *VM) Initialize(
 
 func (vm *VM) applyOptions(o *Options) {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
-	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm)

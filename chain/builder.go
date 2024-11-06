@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -78,6 +77,14 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
+type buildBlock struct {
+	parentID  ids.ID
+	timestamp int64
+	height    uint64
+	txs       []*Transaction
+	stateRoot ids.ID
+}
+
 func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
 	ctx, span := c.tracer.Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -89,12 +96,11 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, nil, nil, ErrTimestampTooEarly
 	}
-	b := &ExecutionBlock{
-		StatelessBlock: &StatelessBlock{
-			Prnt:   parent.id,
-			Tmstmp: nextTime,
-			Hght:   parent.Hght + 1,
-		},
+	b := buildBlock{
+		parentID:  parent.ID(),
+		timestamp: nextTime,
+		height:    parent.Hght + 1,
+		txs:       []*Transaction{},
 	}
 
 	// Compute next unit prices to use
@@ -142,7 +148,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	c.mempool.StartStreaming(ctx)
-	b.Txs = []*Transaction{}
+	b.txs = []*Transaction{}
 	for time.Since(start) < c.config.TargetBuildDuration && !stop {
 		prepareStreamLock.Lock()
 		txs := c.mempool.Stream(ctx, streamBatch)
@@ -319,7 +325,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 				// Update block with new transaction
 				tsv.Commit()
-				b.Txs = append(b.Txs, tx)
+				b.txs = append(b.txs, tx)
 				results = append(results, result)
 				return nil
 			})
@@ -338,7 +344,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 				// sure all transactions are returned to the mempool.
 				go func() {
 					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
-					restored := c.mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
+					restored := c.mempool.FinishStreaming(ctx, append(b.txs, restorable...))
 					c.log.Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
 				c.log.Warn("build failed", zap.Error(execErr))
@@ -359,14 +365,14 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
-		attribute.Int("added", len(b.Txs)),
+		attribute.Int("added", len(b.txs)),
 	)
 	if time.Since(start) > c.config.TargetBuildDuration {
 		c.metrics.buildCapped.Inc()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
-	if len(b.Txs) == 0 {
+	if len(b.txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
 			return nil, nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
@@ -389,10 +395,10 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.timestamp))); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
@@ -406,7 +412,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	b.StateRoot = root
+	b.stateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
 	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
@@ -415,12 +421,16 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 	}
 
 	// Initialize finalized metadata fields
-	blk, err := b.StatelessBlock.Marshal()
+	blk, err := NewStatelessBlock(
+		b.parentID,
+		b.timestamp,
+		b.height,
+		b.txs,
+		b.stateRoot,
+	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	b.bytes = blk
-	b.id = utils.ToID(b.bytes)
 
 	// Kickoff root generation
 	go func() {
@@ -431,8 +441,8 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 			return
 		}
 		c.log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.id),
+			zap.Uint64("height", blk.Hght),
+			zap.Stringer("blkID", blk.ID()),
 			zap.Stringer("root", root),
 		)
 		c.metrics.rootCalculated.Observe(float64(time.Since(start)))
@@ -440,17 +450,16 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 	c.log.Info(
 		"built block",
-		zap.Uint64("hght", b.Hght),
+		zap.Uint64("hght", b.height),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.Txs)),
+		zap.Int("added", len(b.txs)),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
-		zap.Int64("block (t)", b.Tmstmp),
+		zap.Int64("block (t)", b.timestamp),
 	)
-	return b, &ExecutedBlock{
-		BlockID:       b.id,
-		Block:         b.StatelessBlock,
+	return NewExecutionBlockNoVerify(blk), &ExecutedBlock{
+		Block:         blk,
 		Results:       results,
 		UnitPrices:    feeManager.UnitPrices(),
 		UnitsConsumed: feeManager.UnitsConsumed(),

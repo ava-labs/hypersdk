@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var (
@@ -30,7 +31,7 @@ func (*Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error 
 	if err != nil {
 		return err
 	}
-	lastAcceptedBlock := instances[0].vm.LastAcceptedBlock()
+	lastAcceptedBlock := instances[0].vm.LastAcceptedStatefulBlock()
 	for i := 1; i < len(instances); i++ {
 		err = instances[i].applyBlk(ctx, lastAcceptedBlock)
 		if err != nil {
@@ -85,7 +86,7 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 	return nil
 }
 
-func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *chain.StatefulBlock) error {
+func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulBlock) error {
 	err := i.vm.SetPreference(ctx, lastAcceptedBlock.ID())
 	if err != nil {
 		return fmt.Errorf("applyBlk failed to set preference : %w", err)
@@ -156,7 +157,7 @@ func (i *instance) confirmTx(ctx context.Context, txid ids.ID) error {
 		return err
 	}
 	for {
-		stflBlk, ok := blk.(*chain.StatefulBlock)
+		stflBlk, ok := blk.(*vm.StatefulBlock)
 		if !ok {
 			return ErrTxNotFound
 		}

@@ -5,70 +5,46 @@ package chain
 
 import (
 	"context"
-	"time"
 
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/state"
 )
 
-type Assembler struct {
-	vm VM
-}
-
-func (a *Assembler) AssembleBlock(
+func (c *Chain) AssembleBlock(
 	ctx context.Context,
-	parent *StatefulBlock,
+	parentView state.View,
+	parent *ExecutionBlock,
 	timestamp int64,
 	blockHeight uint64,
 	txs []*Transaction,
-) (*StatefulBlock, error) {
-	ctx, span := a.vm.Tracer().Start(ctx, "chain.AssembleBlock")
+) (*ExecutionBlock, error) {
+	ctx, span := c.tracer.Start(ctx, "chain.AssembleBlock")
 	defer span.End()
 
-	parentView, err := parent.View(ctx, true)
-	if err != nil {
-		return nil, err
-	}
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	blk := &StatelessBlock{
-		Prnt:      parent.ID(),
-		Tmstmp:    timestamp,
-		Hght:      blockHeight,
-		Txs:       txs,
-		StateRoot: parentStateRoot,
-	}
-	for _, tx := range txs {
-		blk.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	blkBytes, err := blk.Marshal()
+	sb, err := NewStatelessBlock(
+		parent.ID(),
+		timestamp,
+		blockHeight,
+		txs,
+		parentStateRoot,
+	)
 	if err != nil {
 		return nil, err
 	}
-	b := &StatefulBlock{
-		StatelessBlock: blk,
-		t:              time.UnixMilli(blk.Tmstmp),
-		bytes:          blkBytes,
-		accepted:       false,
-		vm:             a.vm,
-		id:             utils.ToID(blkBytes),
-	}
-	return b, b.populateTxs(ctx) // TODO: simplify since txs are guaranteed to already be de-duplicated here
+	return NewExecutionBlock(ctx, sb, c, true)
 }
 
-func (a *Assembler) ExecuteBlock(
+func (c *Chain) ExecuteBlock(
 	ctx context.Context,
-	b *StatefulBlock,
-) (*ExecutedBlock, error) {
-	ctx, span := a.vm.Tracer().Start(ctx, "chain.ExecuteBlock")
+	parentView state.View,
+	b *ExecutionBlock,
+) (*ExecutedBlock, state.View, error) {
+	ctx, span := c.tracer.Start(ctx, "chain.ExecuteBlock")
 	defer span.End()
 
-	if err := b.Verify(ctx); err != nil {
-		return nil, err
-	}
-
-	return NewExecutedBlockFromStateful(b), nil
+	return c.Execute(ctx, parentView, b)
 }
