@@ -8,6 +8,10 @@ package throughput
 
 import (
 	"context"
+	"encoding/binary"
+	"sync/atomic"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
@@ -17,20 +21,21 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
-
-	mauth "github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 )
 
 type SpamHelper struct {
 	KeyType string
 	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
+
+	pks  []*auth.PrivateKey
+	sent atomic.Int64
 }
 
 var _ throughput.SpamHelper = &SpamHelper{}
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
-	return mauth.GeneratePrivateKey(sh.KeyType)
+	return vm.AuthProvider.GeneratePrivateKey(sh.KeyType)
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
@@ -64,10 +69,12 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 	}}
 }
 
-func (sh *SpamHelper) GetAction() []chain.Action {
-	return []chain.Action{&actions.Transfer{
-		To:    codec.Address{},
-		Value: 0,
-		Memo:  []byte{},
-	}}
+func (sh *SpamHelper) GetActions() []chain.Action {
+	pkIndex := rand.Int() % len(sh.pks)
+	// transfers 1 unit to a random address
+	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes())
+}
+
+func (sh *SpamHelper) uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1)))
 }
