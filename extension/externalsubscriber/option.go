@@ -6,6 +6,7 @@ package externalsubscriber
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/vm"
@@ -28,18 +29,18 @@ func With() vm.Option {
 	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v *vm.VM, config Config) error {
+func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	if !config.Enabled {
-		return nil
+		return vm.NewOpt(), nil
 	}
 	server, err := NewExternalSubscriberClient(
 		context.TODO(),
 		v.Logger(),
 		config.ServerAddress,
-		v.GenesisBytes,
+		v.GetGenesisBytes(),
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
@@ -48,6 +49,5 @@ func OptionFunc(v *vm.VM, config Config) error {
 		},
 	}
 
-	vm.WithBlockSubscriptions(blockSubscription)(v)
-	return nil
+	return vm.WithBlockSubscriptions(blockSubscription), nil
 }

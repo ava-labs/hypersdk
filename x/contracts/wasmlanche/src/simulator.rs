@@ -266,16 +266,14 @@ mod tests {
 
     #[test]
     fn get_balance() {
-        let account_data_prefix = [0x00];
-        let account_prefix = [0x01];
+        let balance_manager_prefix = [0x01];
         let alice = Address::new([1; 33]);
         let mut state = SimpleState::new();
         let exptected_balance = 999u64;
 
-        let key = account_prefix
+        let key = balance_manager_prefix
             .into_iter()
             .chain(alice.as_ref().iter().copied())
-            .chain(account_data_prefix)
             .chain(b"balance".iter().copied())
             .collect();
 

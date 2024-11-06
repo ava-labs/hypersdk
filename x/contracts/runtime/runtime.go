@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/bytecodealliance/wasmtime-go/v25"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -50,6 +50,8 @@ type ContractManager interface {
 	NewAccountWithContract(ctx context.Context, contractID ContractID, accountCreationData []byte) (codec.Address, error)
 	// SetAccountContract associates the given contract ID with the given account.
 	SetAccountContract(ctx context.Context, account codec.Address, contractID ContractID) error
+	// SetContractBytes stores the compiled WASM bytes of the contract with the given ID.
+	SetContractBytes(ctx context.Context, contractID ContractID, contractBytes []byte) error
 }
 
 func NewRuntime(

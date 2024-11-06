@@ -204,7 +204,7 @@ func (j *JSONRPCServer) ExecuteActions(
 
 	for actionIndex, action := range actions {
 		// Get expected state keys
-		stateKeysWithPermissions := action.StateKeys(args.Actor)
+		stateKeysWithPermissions := action.StateKeys(args.Actor, chain.CreateActionID(ids.Empty, uint8(actionIndex)))
 
 		// flatten the map to a slice of keys
 		storageKeysToRead := make([][]byte, 0, len(stateKeysWithPermissions))
@@ -316,5 +316,35 @@ func (j *JSONRPCServer) SimulateActions(
 		reply.ActionResults = append(reply.ActionResults, actionResult)
 		currentState = recorder
 	}
+	return nil
+}
+
+type GetBalanceArgs struct {
+	Address codec.Address `json:"address"`
+}
+
+type GetBalanceReply struct {
+	Balance uint64 `json:"balance"`
+}
+
+func (j *JSONRPCServer) GetBalance(
+	req *http.Request,
+	args *GetBalanceArgs,
+	reply *GetBalanceReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetBalance")
+	defer span.End()
+
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+
+	balance, err := j.vm.BalanceHandler().GetBalance(ctx, args.Address, im)
+	if err != nil {
+		return err
+	}
+
+	reply.Balance = balance
 	return nil
 }

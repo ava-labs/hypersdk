@@ -4,14 +4,24 @@
 package codec
 
 import (
+	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 )
 
-// TODO: add a checksum to the hex address format (ideally similar to EIP55).
-const AddressLen = 33
+const (
+	AddressLen  = 33
+	checksumLen = 4
+)
+
+var (
+	ErrBadChecksum     = errors.New("invalid input checksum")
+	ErrMissingChecksum = errors.New("input string is smaller than the checksum size")
+)
 
 // Address represents the 33 byte address of a HyperSDK account
 type Address [AddressLen]byte
@@ -42,40 +52,59 @@ func ToAddress(b []byte) (Address, error) {
 // either AddressLen or the length of the hex decoded string.
 func StringToAddress(s string) (Address, error) {
 	var a Address
-	b, err := LoadHex(s, AddressLen)
-	if err != nil {
-		return a, err
+	if err := a.UnmarshalText([]byte(s)); err != nil {
+		return EmptyAddress, err
 	}
-	copy(a[:], b)
 	return a, nil
 }
 
 // String implements fmt.Stringer.
 func (a Address) String() string {
-	return ToHex(a[:])
+	return encodeWithChecksum(a[:])
 }
 
-// MarshalText returns the hex representation of a.
+// MarshalText returns the checksummed hex representation of a.
 func (a Address) MarshalText() ([]byte, error) {
-	result := make([]byte, len(a)*2+2)
-	copy(result, `0x`)
-	hex.Encode(result[2:], a[:])
-	return result, nil
+	return []byte(encodeWithChecksum(a[:])), nil
 }
 
-// UnmarshalText parses a hex-encoded address.
+// UnmarshalText parses a checksummed hex-encoded address
 func (a *Address) UnmarshalText(input []byte) error {
-	// Check if the input has the '0x' prefix and skip it
-	if len(input) >= 2 && input[0] == '0' && input[1] == 'x' {
-		input = input[2:]
-	}
-
-	// Decode the hex string
-	decoded, err := hex.DecodeString(string(input))
+	decoded, err := fromChecksum(string(input))
 	if err != nil {
-		return err // Return the error if the hex string is invalid
+		return err
 	}
 
 	copy(a[:], decoded)
 	return nil
+}
+
+// encodeWithChecksum appends a 4 byte checksum and encodes the result in hex format
+func encodeWithChecksum(bytes []byte) string {
+	bytesLen := len(bytes)
+	checked := make([]byte, bytesLen+checksumLen)
+	copy(checked, bytes)
+	copy(checked[AddressLen:], hashing.Checksum(bytes, checksumLen))
+	return "0x" + hex.EncodeToString(checked)
+}
+
+// fromChecksum interprets the hex bytes, validates the 4 byte checksum, and returns the original bytes
+func fromChecksum(s string) ([]byte, error) {
+	if len(s) >= 2 && s[0] == '0' && s[1] == 'x' {
+		s = s[2:]
+	}
+	decoded, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(decoded) < checksumLen {
+		return nil, ErrMissingChecksum
+	}
+	// Verify checksum
+	originalBytes := decoded[:len(decoded)-checksumLen]
+	checksum := decoded[len(decoded)-checksumLen:]
+	if !bytes.Equal(checksum, hashing.Checksum(originalBytes, checksumLen)) {
+		return nil, ErrBadChecksum
+	}
+	return originalBytes, nil
 }

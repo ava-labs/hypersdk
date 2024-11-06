@@ -4,9 +4,9 @@
 package prompt
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -34,10 +34,7 @@ func Bytes(label string) ([]byte, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			_, err := hex.DecodeString(input)
+			_, err := codec.LoadHex(input, -1)
 			return err
 		},
 	}
@@ -45,17 +42,15 @@ func Bytes(label string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return hex.DecodeString(hexString)
+	return codec.LoadHex(hexString, -1)
 }
 
 func Address(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			return nil
+			_, err := codec.StringToAddress(strings.TrimSpace(input))
+			return err
 		},
 	}
 	recipient, err := promptText.Run()
@@ -158,31 +153,74 @@ func Int(
 	label string,
 	max int,
 ) (int, error) {
+	stringToInt := func(input string, max int) (int, error) {
+		input = strings.TrimSpace(input)
+
+		if len(input) == 0 {
+			return 0, ErrInputEmpty
+		}
+		amount, err := strconv.Atoi(input)
+		if err != nil {
+			return 0, err
+		}
+		if amount <= 0 {
+			return 0, fmt.Errorf("%d must be > 0", amount)
+		}
+		if amount > max {
+			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		}
+		return amount, nil
+	}
+
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			amount, err := strconv.Atoi(input)
-			if err != nil {
-				return err
-			}
-			if amount <= 0 {
-				return fmt.Errorf("%d must be > 0", amount)
-			}
-			if amount > max {
-				return fmt.Errorf("%d must be <= %d", amount, max)
-			}
-			return nil
+			_, err := stringToInt(input, max)
+			return err
 		},
 	}
 	rawAmount, err := promptText.Run()
 	if err != nil {
 		return 0, err
 	}
-	rawAmount = strings.TrimSpace(rawAmount)
-	return strconv.Atoi(rawAmount)
+	return stringToInt(rawAmount, max)
+}
+
+func Uint(
+	label string,
+	max uint,
+) (uint, error) {
+	stringToUint := func(input string, max uint) (uint, error) {
+		input = strings.TrimSpace(input)
+
+		if len(input) == 0 {
+			return 0, ErrInputEmpty
+		}
+		amount, err := strconv.ParseUint(input, 10, 0)
+		if err != nil {
+			return 0, err
+		}
+		if amount > math.MaxUint {
+			return 0, fmt.Errorf("%d exceeds the maximum value for uint", amount)
+		}
+		if uint(amount) > max {
+			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		}
+		return uint(amount), nil
+	}
+
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			_, err := stringToUint(input, max)
+			return err
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return 0, err
+	}
+	return stringToUint(rawAmount, max)
 }
 
 func Float(

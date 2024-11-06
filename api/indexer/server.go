@@ -111,6 +111,7 @@ type GetTxResponse struct {
 	Units     fees.Dimensions `json:"units"`
 	Fee       uint64          `json:"fee"`
 	Outputs   []codec.Bytes   `json:"result"`
+	ErrorStr  string          `json:"errorStr"`
 }
 
 type Server struct {
@@ -122,7 +123,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, t, success, units, fee, outputs, err := s.indexer.GetTransaction(args.TxID)
+	found, t, success, units, fee, outputs, errorStr, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -139,5 +140,6 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 		wrappedOutputs[i] = codec.Bytes(output)
 	}
 	reply.Outputs = wrappedOutputs
+	reply.ErrorStr = errorStr
 	return nil
 }

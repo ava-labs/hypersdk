@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -68,8 +69,6 @@ func (t *TransactionData) UnsignedBytes() ([]byte, error) {
 // the original and a signature provided by the authFactory
 func (t *TransactionData) Sign(
 	factory AuthFactory,
-	actionCodec *codec.TypeParser[Action],
-	authCodec *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	msg, err := t.UnsignedBytes()
 	if err != nil {
@@ -80,26 +79,25 @@ func (t *TransactionData) Sign(
 		return nil, err
 	}
 
-	signedTransaction := Transaction{
-		TransactionData: TransactionData{
-			Base:    t.Base,
-			Actions: t.Actions,
-		},
-		Auth: auth,
-	}
+	return newTransaction(t.Base, t.Actions, auth)
+}
 
-	// Ensure transaction is fully initialized and correct by reloading it from
-	// bytes
-	size := len(msg) + consts.ByteLen + auth.Size()
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := signedTransaction.Marshal(p); err != nil {
+func SignRawActionBytesTx(
+	base *Base,
+	rawActionsBytes []byte,
+	authFactory AuthFactory,
+) ([]byte, error) {
+	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
+	base.Marshal(p)
+	p.PackFixedBytes(rawActionsBytes)
+
+	auth, err := authFactory.Sign(p.Bytes())
+	if err != nil {
 		return nil, err
 	}
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionCodec, authCodec)
+	p.PackByte(auth.GetTypeID())
+	auth.Marshal(p)
+	return p.Bytes(), p.Err()
 }
 
 func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
@@ -116,7 +114,7 @@ func (t *TransactionData) Marshal(p *codec.Packer) error {
 
 func (t *TransactionData) marshal(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	return t.Actions.marshalInto(p)
+	return t.Actions.MarshalInto(p)
 }
 
 type Actions []Action
@@ -133,7 +131,7 @@ func (a Actions) Size() (int, error) {
 	return size, nil
 }
 
-func (a Actions) marshalInto(p *codec.Packer) error {
+func (a Actions) MarshalInto(p *codec.Packer) error {
 	p.PackByte(uint8(len(a)))
 	for _, action := range a {
 		p.PackByte(action.GetTypeID())
@@ -156,6 +154,32 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
+// newTransaction creates a Transaction and initializes the private fields.
+func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
+	tx := Transaction{
+		TransactionData: TransactionData{
+			Base:    base,
+			Actions: actions,
+		},
+		Auth: auth,
+	}
+	unsignedBytes, err := tx.UnsignedBytes()
+	if err != nil {
+		return nil, err
+	}
+	p := codec.NewWriter(len(unsignedBytes)+consts.ByteLen+auth.Size(), consts.NetworkSizeLimit)
+	if err := tx.Marshal(p); err != nil {
+		return nil, err
+	}
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	tx.bytes = p.Bytes()
+	tx.size = len(p.Bytes())
+	tx.id = utils.ToID(p.Bytes())
+	return &tx, nil
+}
+
 func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() int { return t.size }
@@ -169,8 +193,8 @@ func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	for _, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor()) {
+	for i, action := range t.Actions {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
@@ -359,6 +383,69 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	return t.marshal(p)
 }
 
+type txJSON struct {
+	ID      ids.ID      `json:"id"`
+	Actions codec.Bytes `json:"actions"`
+	Auth    codec.Bytes `json:"auth"`
+	Base    *Base       `json:"base"`
+}
+
+func (t *Transaction) MarshalJSON() ([]byte, error) {
+	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err := t.Actions.MarshalInto(actionsPacker)
+	if err != nil {
+		return nil, err
+	}
+	if err := actionsPacker.Err(); err != nil {
+		return nil, err
+	}
+	authPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	authPacker.PackByte(t.Auth.GetTypeID())
+	t.Auth.Marshal(authPacker)
+	if err := authPacker.Err(); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(txJSON{
+		ID:      t.ID(),
+		Actions: actionsPacker.Bytes(),
+		Auth:    authPacker.Bytes(),
+		Base:    t.Base,
+	})
+}
+
+func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
+	var tx txJSON
+	err := json.Unmarshal(data, &tx)
+	if err != nil {
+		return err
+	}
+
+	actionsReader := codec.NewReader(tx.Actions, consts.NetworkSizeLimit)
+	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
+	if err != nil {
+		return err
+	}
+	if err := actionsReader.Err(); err != nil {
+		return fmt.Errorf("%w: actions packer", err)
+	}
+	authReader := codec.NewReader(tx.Auth, consts.NetworkSizeLimit)
+	auth, err := parser.AuthCodec().Unmarshal(authReader)
+	if err != nil {
+		return fmt.Errorf("%w: cannot unmarshal auth", err)
+	}
+	if err := authReader.Err(); err != nil {
+		return fmt.Errorf("%w: auth packer", err)
+	}
+
+	newTx, err := newTransaction(tx.Base, actions, auth)
+	if err != nil {
+		return err
+	}
+	*t = *newTx
+	return nil
+}
+
 func (t *Transaction) marshal(p *codec.Packer) error {
 	if err := t.TransactionData.marshal(p); err != nil {
 		return err
@@ -455,7 +542,6 @@ func UnmarshalTx(
 	actionRegistry *codec.TypeParser[Action],
 	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
-	start := p.Offset()
 	unsignedTransaction, err := UnmarshalTxData(p, actionRegistry)
 	if err != nil {
 		return nil, err
@@ -473,17 +559,15 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx Transaction
-	tx.TransactionData = *unsignedTransaction
-	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
-	codecBytes := p.Bytes()
-	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	tx.size = len(tx.bytes)
-	tx.id = utils.ToID(tx.bytes)
-	return &tx, nil
+
+	tx, err := newTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -517,14 +601,14 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
-	for _, action := range actions {
+	for i, action := range actions {
 		actionSize, err := GetSize(action)
 		if err != nil {
 			return fees.Dimensions{}, err
 		}
 
 		actor := authFactory.Address()
-		stateKeys := action.StateKeys(actor)
+		stateKeys := action.StateKeys(actor, CreateActionID(ids.Empty, uint8(i)))
 		actionStateKeysMaxChunks, ok := stateKeys.ChunkSizes()
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue

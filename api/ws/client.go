@@ -165,10 +165,14 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+	return c.RegisterRawTx(tx.Bytes())
+}
+
+func (c *WebSocketClient) RegisterRawTx(txBytes []byte) error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	return c.mb.Send(append([]byte{TxMode}, txBytes...))
 }
 
 // ListenTx listens for responses from the streamingServer.
