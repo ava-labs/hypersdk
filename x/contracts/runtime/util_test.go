@@ -198,11 +198,13 @@ func (t *testRuntime) CallContract(contract codec.Address, function string, para
 }
 
 func newTestRuntime(ctx context.Context) *testRuntime {
+	callContext := NewRuntime(
+		NewConfig(),
+		logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000})
+
 	return &testRuntime{
-		Context: ctx,
-		callContext: NewRuntime(
-			NewConfig(),
-			logging.NoLog{}).WithDefaults(CallInfo{Fuel: 1000000000}),
+		Context:     ctx,
+		callContext: callContext,
 		StateManager: TestStateManager{
 			ContractManager: NewContractStateManager(test.NewTestDB(), []byte{}),
 			Balances:        map[codec.Address]uint64{},
