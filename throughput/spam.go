@@ -193,7 +193,6 @@ func (s Spammer) broadcast(
 		currentTarget                   = min(s.txsPerSecond, s.minTxsPerSecond)
 		consecutiveUnderBacklog         int
 		consecutiveAboveBacklog         int
-		consecutiveFailedDecreaseTarget int
 		broadcastErr                    error
 		stop                            bool
 	)
@@ -213,13 +212,6 @@ func (s Spammer) broadcast(
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 					} else {
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
-						consecutiveFailedDecreaseTarget++
-						if consecutiveFailedDecreaseTarget >= failedRunsToDecreaseTarget {
-							utils.Outf("{{cyan}}skipping issuance because large backlog detected, exiting{{/}}\n")
-							broadcastErr = ErrLargeBacklog
-							stop = true
-							break
-						}
 					}
 					consecutiveAboveBacklog = 0
 				}
@@ -273,7 +265,6 @@ func (s Spammer) broadcast(
 
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
-			consecutiveFailedDecreaseTarget = 0
 			consecutiveUnderBacklog++
 			// once desired TPS is reached, stop the spammer
 			if terminate && currentTarget == s.txsPerSecond && consecutiveUnderBacklog >= successfulRunsToIncreaseTarget {

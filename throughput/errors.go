@@ -7,5 +7,4 @@ import "errors"
 
 var (
 	ErrTxFailed     = errors.New("tx failed on-chain")
-	ErrLargeBacklog = errors.New("backlog is too large")
 )
