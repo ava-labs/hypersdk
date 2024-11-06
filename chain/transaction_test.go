@@ -5,6 +5,7 @@ package chain_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -12,10 +13,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -74,6 +77,60 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	return &action, err
 }
 
+func TestJSONMarshalUnmarshal(t *testing.T) {
+	require := require.New(t)
+
+	txData := chain.TransactionData{
+		Base: &chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		Actions: []chain.Action{
+			&mockTransferAction{
+				To:    codec.Address{1, 2, 3, 4},
+				Value: 4,
+				Memo:  []byte("hello"),
+			},
+			&mockTransferAction{
+				To:    codec.Address{4, 5, 6, 7},
+				Value: 123,
+				Memo:  []byte("world"),
+			},
+			&action2{
+				A: 2,
+				B: 4,
+			},
+		},
+	}
+	priv, err := ed25519.GeneratePrivateKey()
+	require.NoError(err)
+	factory := auth.NewED25519Factory(priv)
+
+	actionCodec := codec.NewTypeParser[chain.Action]()
+	authCodec := codec.NewTypeParser[chain.Auth]()
+
+	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
+	require.NoError(err)
+	err = actionCodec.Register(&action2{}, unmarshalAction2)
+	require.NoError(err)
+	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
+	require.NoError(err)
+
+	signedTx, err := txData.Sign(factory)
+	require.NoError(err)
+
+	b, err := json.Marshal(signedTx)
+	require.NoError(err)
+
+	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
+
+	var txFromJSON chain.Transaction
+	err = txFromJSON.UnmarshalJSON(b, parser)
+	require.NoError(err)
+	require.Equal(signedTx.Bytes(), txFromJSON.Bytes())
+}
+
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
 func TestMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
@@ -120,7 +177,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	txBeforeSignBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
+	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
 	unsignedTxAfterSignBytes, err := signedTx.TransactionData.UnsignedBytes()
 	require.NoError(err)
@@ -130,6 +187,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
+	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = signedTx.Marshal(writerPacker)
+	require.NoError(err)
+	require.Equal(signedTx.ID(), utils.ToID(writerPacker.Bytes()))
+	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
 
 	unsignedTxBytes, err := signedTx.UnsignedBytes()
 	require.NoError(err)
@@ -180,7 +242,7 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(factory, actionCodec, authCodec)
+	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
 
 	p := codec.NewWriter(0, consts.NetworkSizeLimit)
