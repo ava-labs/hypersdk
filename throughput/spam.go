@@ -189,12 +189,12 @@ func (s Spammer) broadcast(
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
 		z = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
 
-		it                              = time.NewTimer(0)
-		currentTarget                   = min(s.txsPerSecond, s.minTxsPerSecond)
-		consecutiveUnderBacklog         int
-		consecutiveAboveBacklog         int
-		broadcastErr                    error
-		stop                            bool
+		it                      = time.NewTimer(0)
+		currentTarget           = min(s.txsPerSecond, s.minTxsPerSecond)
+		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
+		broadcastErr            error
+		stop                    bool
 	)
 	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
 	for !stop {
