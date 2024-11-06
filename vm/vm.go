@@ -881,11 +881,11 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 	blk := &StatefulBlock{
 		ExecutionBlock: executionBlk,
+		accepted:       false,
 		t:              time.UnixMilli(executionBlk.Tmstmp),
+		executedBlock:  executedBlk,
 		vm:             vm,
 		executor:       vm.chain,
-		accepted:       false,
-		executedBlock:  executedBlk,
 		view:           view,
 	}
 

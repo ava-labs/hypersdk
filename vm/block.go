@@ -76,8 +76,8 @@ func ParseStatefulBlock(
 
 	b := &StatefulBlock{
 		ExecutionBlock: blk,
-		t:              time.UnixMilli(blk.Tmstmp),
 		accepted:       accepted,
+		t:              time.UnixMilli(blk.Tmstmp),
 		vm:             vm,
 		executor:       vm.chain,
 	}
