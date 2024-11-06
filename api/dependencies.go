@@ -19,6 +19,8 @@ import (
 )
 
 type VM interface {
+	GetDataDir() string
+	GetGenesisBytes() []byte
 	Genesis() genesis.Genesis
 	ChainID() ids.ID
 	NetworkID() uint32

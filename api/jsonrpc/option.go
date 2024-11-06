@@ -3,7 +3,10 @@
 
 package jsonrpc
 
-import "github.com/ava-labs/hypersdk/vm"
+import (
+	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/vm"
+)
 
 const Namespace = "core"
 
@@ -18,11 +21,10 @@ func NewDefaultConfig() Config {
 }
 
 func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+	return vm.NewOption(Namespace, NewDefaultConfig(), func(_ api.VM, config Config) (vm.Opt, error) {
 		if !config.Enabled {
-			return nil
+			return vm.NewOpt(), nil
 		}
-		vm.WithVMAPIs(JSONRPCServerFactory{})(v)
-		return nil
+		return vm.WithVMAPIs(JSONRPCServerFactory{}), nil
 	})
 }
