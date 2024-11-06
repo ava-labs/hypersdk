@@ -48,6 +48,12 @@ func (k Keys) Add(key string, permission Permissions) bool {
 	return true
 }
 
+func (k Keys) Has(key string, perm Permissions) bool {
+	return k[key].Has(perm)
+}
+
+func (k Keys) Len() int { return len(k) }
+
 // Returns the chunk sizes of each key
 func (k Keys) ChunkSizes() ([]uint16, bool) {
 	chunks := make([]uint16, 0, len(k))

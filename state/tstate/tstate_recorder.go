@@ -3,35 +3,34 @@
 
 package tstate
 
-import (
-	"context"
-
-	"github.com/ava-labs/hypersdk/state"
-)
+import "github.com/ava-labs/hypersdk/state"
 
 type TStateRecorder struct {
-	stateView *TStateView
+	*TStateView
+
+	recorder ScopeRecorder
 }
 
-func NewRecorder(immutableState state.Immutable) *TStateRecorder {
-	sr := &TStateRecorder{}
-	sr.stateView = sr.newRecorderView(immutableState)
-	return sr
+type ScopeRecorder map[string]state.Permissions
+
+func (s ScopeRecorder) Has(key string, perm state.Permissions) bool {
+	s[key] |= perm
+	return true
 }
 
-func (sr *TStateRecorder) Insert(ctx context.Context, key []byte, value []byte) error {
-	return sr.stateView.Insert(ctx, key, value)
+func (s ScopeRecorder) Len() int { return len(s) }
+
+func NewRecorder(storage state.Immutable) *TStateRecorder {
+	ts := New(0)
+	scope := make(ScopeRecorder)
+	tStateView := ts.newView(scope, storage)
+
+	return &TStateRecorder{
+		TStateView: tStateView,
+		recorder:   scope,
+	}
 }
 
-func (sr *TStateRecorder) Remove(ctx context.Context, key []byte) error {
-	return sr.stateView.Remove(ctx, key)
-}
-
-func (sr *TStateRecorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	return sr.stateView.GetValue(ctx, key)
-}
-
-// GetStateKeys returns the keys that have been touched along with their respective permissions.
-func (sr *TStateRecorder) GetStateKeys() state.Keys {
-	return sr.stateView.getStateKeys()
+func (ts *TStateRecorder) GetStateKeys() state.Keys {
+	return state.Keys(ts.recorder)
 }
