@@ -77,7 +77,7 @@ func NewExecutionBlock(
 	for _, tx := range block.Txs {
 		unsignedTxBytes, err := tx.UnsignedBytes()
 		if err != nil {
-			return nil, err
+			return nil, err //nolint:spancheck
 		}
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
