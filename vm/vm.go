@@ -35,7 +35,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
@@ -82,7 +81,11 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
-	chain                      *chain.Chain
+	chain                  *chain.Chain
+	syncer                 *chain.Syncer
+	seenValidityWindowOnce sync.Once
+	seenValidityWindow     chan struct{}
+
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
@@ -103,12 +106,6 @@ type VM struct {
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
-
-	// track all accepted but still valid txs (replay protection)
-	seen                   *emap.EMap[*chain.Transaction]
-	startSeenTime          int64
-	seenValidityWindowOnce sync.Once
-	seenValidityWindow     chan struct{}
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock]
@@ -195,11 +192,6 @@ func (vm *VM) Initialize(
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	// This will be overwritten when we accept the first block (in state sync) or
-	// backfill existing blocks (during normal bootstrapping).
-	vm.startSeenTime = -1
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -335,6 +327,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
+	vm.syncer = chain.NewSyncer(vm.chain)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -576,7 +569,7 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 	return vm.stateDB.GetValues(ctx, keys)
 }
 
-func (vm *VM) SetState(_ context.Context, state snow.State) error {
+func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		vm.Logger().Info("state sync started")
@@ -609,10 +602,16 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
 		}
 
-		// Backfill seen transactions, if any. This will exit as soon as we reach
-		// a block we no longer have on disk or if we have walked back the full
-		// [ValidityWindow].
-		vm.backfillSeenTransactions()
+		// Start the chain syncer and mark the validity window as completed if possible.
+		seenValidityWindow, err := vm.syncer.Start(ctx, vm.lastAccepted.ExecutionBlock)
+		if err != nil {
+			return err
+		}
+		if seenValidityWindow {
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+		}
 
 		// Trigger that bootstrapping has started
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
@@ -1044,72 +1043,6 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	}
 	vm.metrics.blocksHeightsFromDisk.Inc()
 	return vm.GetBlockHeightID(height)
-}
-
-// backfillSeenTransactions makes a best effort to populate [vm.seen]
-// with whatever transactions we already have on-disk. This will lead
-// a node to becoming ready faster during a restart.
-func (vm *VM) backfillSeenTransactions() {
-	// Exit early if we don't have any blocks other than genesis (which
-	// contains no transactions)
-	blk := vm.lastAccepted
-	if blk.Hght == 0 {
-		vm.snowCtx.Log.Info("no seen transactions to backfill")
-		vm.startSeenTime = 0
-		vm.seenValidityWindowOnce.Do(func() {
-			close(vm.seenValidityWindow)
-		})
-		return
-	}
-
-	// Backfill [vm.seen] with lifeline worth of transactions
-	r := vm.Rules(vm.lastAccepted.Tmstmp)
-	oldest := uint64(0)
-	for {
-		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
-			// We are assured this function won't be running while we accept
-			// a block, so we don't need to protect against closing this channel
-			// twice.
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
-		vm.startSeenTime = blk.Tmstmp
-		oldest = blk.Hght
-
-		// Exit early if next block to fetch is genesis (which contains no
-		// txs)
-		if blk.Hght <= 1 {
-			// If we have walked back from the last accepted block to genesis, then
-			// we can be sure we have all required transactions to start validation.
-			vm.startSeenTime = 0
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// Set next blk in lookback
-		tblk, err := vm.GetStatefulBlock(context.Background(), blk.Prnt)
-		if err != nil {
-			vm.snowCtx.Log.Info("could not load block, exiting backfill",
-				zap.Uint64("height", blk.Height()-1),
-				zap.Stringer("blockID", blk.Prnt),
-				zap.Error(err),
-			)
-			return
-		}
-		blk = tblk
-	}
-	vm.snowCtx.Log.Info(
-		"backfilled seen txs",
-		zap.Uint64("start", oldest),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
-	)
 }
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) {

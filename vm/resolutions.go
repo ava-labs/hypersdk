@@ -253,9 +253,6 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
 	blkTime := b.Tmstmp
-	evicted := vm.seen.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	vm.seen.Add(b.Txs)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
@@ -265,13 +262,11 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 			// We could not be ready but seen a window of transactions if the state
 			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
-			// The value of [vm.startSeenTime] can only be negative if we are
-			// performing state sync.
-			if vm.startSeenTime < 0 {
-				vm.startSeenTime = blkTime
+			seenValidityWindow, err := vm.syncer.AcceptBlock(ctx, b.ExecutionBlock)
+			if err != nil {
+				vm.Fatal("failed to accept block", zap.Error(err))
 			}
-			r := vm.Rules(blkTime)
-			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
+			if seenValidityWindow {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)
 				})
