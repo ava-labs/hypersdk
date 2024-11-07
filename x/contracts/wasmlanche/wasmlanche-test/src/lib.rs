@@ -135,130 +135,13 @@ impl Builder {
         let mut linker = Linker::new(&engine);
 
         linker
-            .func_wrap(
-                "contract",
-                "set_call_result",
-                |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
-                    let Extern::Memory(memory) = caller
-                        .get_export("memory")
-                        .expect("memory should be exported")
-                    else {
-                        panic!("export `memory` should be of type `Memory`");
-                    };
-
-                    let (ptr, len) = (ptr as usize, len as usize);
-
-                    let result = memory
-                        .data(&caller)
-                        .get(ptr..ptr + len)
-                        .expect("data should exist")
-                        .to_vec();
-
-                    caller.data_mut().set_result(result);
-                },
-            )
-            .expect("failed to link `contract.set_call_result` function");
-
-        linker
-            .func_wrap(
-                "log",
-                "write",
-                |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
-                    let Extern::Memory(memory) = caller
-                        .get_export("memory")
-                        .expect("memory should be exported")
-                    else {
-                        panic!("export `memory` should be of type `Memory`");
-                    };
-
-                    let (ptr, len) = (ptr as usize, len as usize);
-
-                    let message = memory
-                        .data(&caller)
-                        .get(ptr..ptr + len)
-                        .expect("data should exist");
-
-                    println!("{}", String::from_utf8_lossy(message));
-                },
-            )
-            .expect("failed to link `log.write` function");
-
-        linker
-            .func_wrap(
-                "state",
-                "put",
-                move |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
-                    let Extern::Memory(memory) = caller
-                        .get_export("memory")
-                        .expect("memory should be exported")
-                    else {
-                        panic!("export `memory` should be of type `Memory`");
-                    };
-
-                    let (ptr, len) = (ptr as usize, len as usize);
-
-                    let serialized_args = memory
-                        .data(&caller)
-                        .get(ptr..ptr + len)
-                        .expect("data should exist");
-
-                    let args: Vec<(StateKey, StateValue)> =
-                        borsh::from_slice(serialized_args).expect("failed to deserialize args");
-
-                    caller.data_mut().set(args);
-                },
-            )
-            .expect("failed to link `state.put` function");
-
-        linker
-            .func_wrap(
-                "state",
-                "get",
-                move |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
-                    let Extern::Memory(memory) = caller
-                        .get_export("memory")
-                        .expect("memory should be exported")
-                    else {
-                        panic!("export `memory` should be of type `Memory`");
-                    };
-
-                    let value = {
-                        let (ptr, len) = (ptr as usize, len as usize);
-
-                        let state_key = memory
-                            .data(&caller)
-                            .get(ptr..ptr + len)
-                            .expect("data should exist");
-
-                        caller.data().get(state_key).cloned()
-                    };
-
-                    let Some(value) = value else {
-                        return 0;
-                    };
-
-                    let Some(Extern::Func(f)) = caller.get_export(ALLOC_FN_NAME) else {
-                        panic!("export `{ALLOC_FN_NAME}` should exist");
-                    };
-
-                    // TODO:
-                    // should able to call this unchecked as it is checked
-                    // immediately after instantiation of any instance
-                    let alloc = f
-                        .typed::<AllocParam, AllocReturn>(&mut caller)
-                        .expect("allocate function should always exist");
-
-                    let offset = alloc
-                        .call(&mut caller, value.len() as u32)
-                        .expect("failed to allocate memory");
-
-                    memory
-                        .write(&mut caller, offset as usize, &value)
-                        .expect("failed to write value to memory");
-
-                    offset
-                },
-            )
+            .func_wrap("contract", "set_call_result", contract_set_call_result)
+            .expect("failed to link `contract.set_call_result` function")
+            .func_wrap("log", "write", log_write)
+            .expect("failed to link `log.write` function")
+            .func_wrap("state", "put", state_put)
+            .expect("failed to link `state.put` function")
+            .func_wrap("state", "get", state_get)
             .expect("failed to link `state.get` function");
 
         Self {
@@ -303,6 +186,109 @@ impl Builder {
             allocate_func,
         }
     }
+}
+
+fn contract_set_call_result(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) {
+    let Extern::Memory(memory) = caller
+        .get_export("memory")
+        .expect("memory should be exported")
+    else {
+        panic!("export `memory` should be of type `Memory`");
+    };
+
+    let (ptr, len) = (ptr as usize, len as usize);
+
+    let result = memory
+        .data(&caller)
+        .get(ptr..ptr + len)
+        .expect("data should exist")
+        .to_vec();
+
+    caller.data_mut().set_result(result);
+}
+
+fn log_write(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) {
+    let Extern::Memory(memory) = caller
+        .get_export("memory")
+        .expect("memory should be exported")
+    else {
+        panic!("export `memory` should be of type `Memory`");
+    };
+
+    let (ptr, len) = (ptr as usize, len as usize);
+
+    let message = memory
+        .data(&caller)
+        .get(ptr..ptr + len)
+        .expect("data should exist");
+
+    println!("{}", String::from_utf8_lossy(message));
+}
+
+fn state_put(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) {
+    let Extern::Memory(memory) = caller
+        .get_export("memory")
+        .expect("memory should be exported")
+    else {
+        panic!("export `memory` should be of type `Memory`");
+    };
+
+    let (ptr, len) = (ptr as usize, len as usize);
+
+    let serialized_args = memory
+        .data(&caller)
+        .get(ptr..ptr + len)
+        .expect("data should exist");
+
+    let args: Vec<(StateKey, StateValue)> =
+        borsh::from_slice(serialized_args).expect("failed to deserialize args");
+
+    caller.data_mut().set(args);
+}
+
+fn state_get(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) -> u32 {
+    let Extern::Memory(memory) = caller
+        .get_export("memory")
+        .expect("memory should be exported")
+    else {
+        panic!("export `memory` should be of type `Memory`");
+    };
+
+    let value = {
+        let (ptr, len) = (ptr as usize, len as usize);
+
+        let state_key = memory
+            .data(&caller)
+            .get(ptr..ptr + len)
+            .expect("data should exist");
+
+        caller.data().get(state_key).cloned()
+    };
+
+    let Some(value) = value else {
+        return 0;
+    };
+
+    let Some(Extern::Func(f)) = caller.get_export(ALLOC_FN_NAME) else {
+        panic!("export `{ALLOC_FN_NAME}` should exist");
+    };
+
+    // TODO:
+    // should able to call this unchecked as it is checked
+    // immediately after instantiation of any instance
+    let alloc = f
+        .typed::<AllocParam, AllocReturn>(&mut caller)
+        .expect("allocate function should always exist");
+
+    let offset = alloc
+        .call(&mut caller, value.len() as u32)
+        .expect("failed to allocate memory");
+
+    memory
+        .write(&mut caller, offset as usize, &value)
+        .expect("failed to write value to memory");
+
+    offset
 }
 
 pub struct TestCrate {
