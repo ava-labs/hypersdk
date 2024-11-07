@@ -159,10 +159,14 @@ impl Builder {
             linker,
         } = self;
 
+        // 0x10000 is 1 << 16 which is the default page-size.
+        // this means we're setting the 18 pages.
+        let limiter = StoreLimitsBuilder::new().memory_size(18 * 0x10000).build();
+
         let store_data = StoreData {
             call_result: None,
             state: HashMap::default(),
-            limiter: StoreLimitsBuilder::new().memory_size(18 * 0x10000).build(),
+            limiter,
         };
 
         let mut store = Store::new(engine, store_data);
