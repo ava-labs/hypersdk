@@ -17,6 +17,24 @@ type Config struct {
 	numAccounts      int
 }
 
+// func NewDefaultConfig(
+// 	uris []string,
+// 	key *auth.PrivateKey,
+// ) *Config {
+// 	return &Config{
+// 		uris:             uris,
+// 		key:              key,
+// 		sZipf:            1.01,
+// 		vZipf:            2.7,
+// 		txsPerSecond:     500,
+// 		minTxsPerSecond:  100,
+// 		txsPerSecondStep: 200,
+// 		numClients:       10,
+// 		numAccounts:      25,
+// 	}
+// }
+
+// for the aws script
 func NewDefaultConfig(
 	uris []string,
 	key *auth.PrivateKey,
@@ -26,13 +44,13 @@ func NewDefaultConfig(
 		key:              key,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     500,
-		minTxsPerSecond:  100,
-		txsPerSecondStep: 200,
+		txsPerSecond:     100000,
+		minTxsPerSecond:  15000,
+		txsPerSecondStep: 1000,
 		numClients:       10,
-		numAccounts:      25,
+		numAccounts:      10000000,
 	}
-}
+} //min capacity 15000
 
 func NewConfig(
 	uris []string,
