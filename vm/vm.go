@@ -80,14 +80,14 @@ type VM struct {
 	genesis                    genesis.Genesis
 	GenesisBytes               []byte
 	ruleFactory                genesis.RuleFactory
-	options                    []Option
+	options                    []api.Option
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
 	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
 	// TODO remove by returning an verification error from the submit tx api
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
-	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[api.TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[api.TxRemovedEvent]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -157,7 +157,7 @@ func New(
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
-	options ...Option,
+	options ...api.Option,
 ) (*VM, error) {
 	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
@@ -260,14 +260,14 @@ func (vm *VM) Initialize(
 	// Set defaults
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
-	options := &Options{}
+	options := &api.Options{}
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
+		opt, err := Option.OptionFunc(vm, config)
 		if err != nil {
 			return err
 		}
-		opt.apply(options)
+		opt.Apply(options)
 	}
 	vm.applyOptions(options)
 
@@ -505,14 +505,14 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) {
-	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
-	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
-	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
-	if o.builder {
+func (vm *VM) applyOptions(o *api.Options) {
+	vm.blockSubscriptionFactories = o.BlockSubscriptionFactories
+	vm.txRemovedSubscriptionFactories = o.TxRemovedSubscriptionFactories
+	vm.vmAPIHandlerFactories = o.VMAPIHandlerFactories
+	if o.Builder {
 		vm.builder = builder.NewManual(vm)
 	}
-	if o.gossiper {
+	if o.Gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
 	}
 }
@@ -947,7 +947,7 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				event := TxRemovedEvent{
+				event := api.TxRemovedEvent{
 					TxID: txID,
 					Err:  err,
 				}

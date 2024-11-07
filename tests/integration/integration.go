@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -65,7 +66,7 @@ var (
 	networkID uint32
 
 	// Injected values populated by Setup
-	createVM      func(...vm.Option) (*vm.VM, error)
+	createVM      func(...api.Option) (*vm.VM, error)
 	networkConfig workload.TestNetworkConfiguration
 	vmID          ids.ID
 
@@ -99,7 +100,7 @@ func init() {
 }
 
 func Setup(
-	newVM func(...vm.Option) (*vm.VM, error),
+	newVM func(...api.Option) (*vm.VM, error),
 	networkConfigImpl workload.TestNetworkConfiguration,
 	id ids.ID,
 	generator workload.TxGenerator,
@@ -210,7 +211,7 @@ func setInstances() {
 		db := memdb.New()
 
 		v, err := createVM(
-			vm.WithManual(),
+			api.WithManual(),
 		)
 		require.NoError(err)
 		require.NoError(v.Initialize(

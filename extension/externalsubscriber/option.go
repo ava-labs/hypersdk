@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 const (
@@ -25,13 +24,13 @@ func NewDefaultConfig() Config {
 	return Config{}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
+func With() api.Option {
+	return api.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
+func OptionFunc(v api.VM, config Config) (api.Opt, error) {
 	if !config.Enabled {
-		return vm.NewOpt(), nil
+		return api.NewOpt(), nil
 	}
 	server, err := NewExternalSubscriberClient(
 		context.TODO(),
@@ -49,5 +48,5 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		},
 	}
 
-	return vm.WithBlockSubscriptions(blockSubscription), nil
+	return api.WithBlockSubscriptions(blockSubscription), nil
 }

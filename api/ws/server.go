@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 const (
@@ -46,13 +45,13 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
+func With() api.Option {
+	return api.NewOption(Namespace, NewDefaultConfig(), OptionFunc)
 }
 
-func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
+func OptionFunc(v api.VM, config Config) (api.Opt, error) {
 	if !config.Enabled {
-		return vm.NewOpt(), nil
+		return api.NewOpt(), nil
 	}
 
 	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
@@ -66,8 +65,8 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	)
 
 	webSocketFactory := NewWebSocketServerFactory(handler)
-	txRemovedSubscription := event.SubscriptionFuncFactory[vm.TxRemovedEvent]{
-		AcceptF: func(event vm.TxRemovedEvent) error {
+	txRemovedSubscription := event.SubscriptionFuncFactory[api.TxRemovedEvent]{
+		AcceptF: func(event api.TxRemovedEvent) error {
 			return server.RemoveTx(event.TxID, event.Err)
 		},
 	}
@@ -78,10 +77,10 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		},
 	}
 
-	return vm.NewOpt(
-		vm.WithBlockSubscriptions(blockSubscription),
-		vm.WithTxRemovedSubscriptions(txRemovedSubscription),
-		vm.WithVMAPIs(webSocketFactory),
+	return api.NewOpt(
+		api.WithBlockSubscriptions(blockSubscription),
+		api.WithTxRemovedSubscriptions(txRemovedSubscription),
+		api.WithVMAPIs(webSocketFactory),
 	), nil
 }
 

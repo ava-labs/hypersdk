@@ -5,7 +5,6 @@ package state
 
 import (
 	"github.com/ava-labs/hypersdk/api"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 const Namespace = "corestate"
@@ -20,11 +19,11 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), func(_ api.VM, config Config) (vm.Opt, error) {
+func With() api.Option {
+	return api.NewOption(Namespace, NewDefaultConfig(), func(_ api.VM, config Config) (api.Opt, error) {
 		if !config.Enabled {
-			return vm.NewOpt(), nil
+			return api.NewOpt(), nil
 		}
-		return vm.WithVMAPIs(JSONRPCStateServerFactory{}), nil
+		return api.WithVMAPIs(JSONRPCStateServerFactory{}), nil
 	})
 }

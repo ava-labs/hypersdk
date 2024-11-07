@@ -5,7 +5,6 @@ package vm
 
 import (
 	"github.com/ava-labs/hypersdk/api"
-	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/contracts/runtime"
 )
 
@@ -21,18 +20,18 @@ func NewDefaultConfig() Config {
 	}
 }
 
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), func(_ api.VM, config Config) (vm.Opt, error) {
+func With() api.Option {
+	return api.NewOption(Namespace, NewDefaultConfig(), func(_ api.VM, config Config) (api.Opt, error) {
 		if !config.Enabled {
-			return vm.NewOpt(), nil
+			return api.NewOpt(), nil
 		}
-		return vm.WithVMAPIs(jsonRPCServerFactory{}), nil
+		return api.WithVMAPIs(jsonRPCServerFactory{}), nil
 	})
 }
 
-func WithRuntime() vm.Option {
-	return vm.NewOption(Namespace+"runtime", *runtime.NewConfig(), func(v api.VM, cfg runtime.Config) (vm.Opt, error) {
+func WithRuntime() api.Option {
+	return api.NewOption(Namespace+"runtime", *runtime.NewConfig(), func(v api.VM, cfg runtime.Config) (api.Opt, error) {
 		wasmRuntime = runtime.NewRuntime(&cfg, v.Logger())
-		return vm.NewOpt(), nil
+		return api.NewOpt(), nil
 	})
 }
