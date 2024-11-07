@@ -6,17 +6,15 @@ Let's quickly recap what we've done so far:
 - We've extended our implementation by adding a JSON-RPC server option
 
 With the above, our code should work exactly like the version of MorpheusVM
-found in `examples/`. To verify this though, we're going to apply the same
-integration tests used in MorpheusVM against our VM.
+found in `examples/`. To verify this though, we're going to apply the same 
+workload tests used in MorpheusVM against our VM.
 
 This section will consist of the following:
 
 - Implementing a bash script to run our workload tests
-- Implementing workload integration tests
-  - These tests generate a large quantity of generic transactions
-- Implementing procedural integration tests
-  - These tests test for a specific transaction
-- Registering our integration tests
+- Implementing workload tests that generate a large quantity of generic transactions
+- Implementing workload tests that test for a specific transaction
+- Registering our workload tests
 
 ## Workload Scripts
 
@@ -66,7 +64,7 @@ Let's make sure that our script can be executed:
 chmod +x ./scripts/tests.integration.sh
 ```
 
-## Implementing Our Workload Tests
+## Testing via Transaction Generation
 
 Start by creating a subdirectory in `tutorial/` named `tests`. Within `tests/`,
 create a directory called `workload`. Within `workload`, create the following
@@ -77,7 +75,7 @@ files:
 
 `generator.go` will be responsible for generating transactions that
 contain the `Transfer` action while `genesis.go` will be responsible for
-providing the network configuration for our integration tests. 
+providing the network configuration for our tests. 
 
 ### Implementing the Generator
 
@@ -277,7 +275,7 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 ```
 
-Finally, we implement the network configuration required for our VM integration
+Finally, we implement the network configuration required for our VM
 tests:
 
 ```go
@@ -307,13 +305,12 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 }
 ```
 
-We now move onto our procedural tests.
+We now move onto testing against a specific transaction.
 
-## Implementing our Procedural Tests
+## Testing via a Specific Transaction
 
-The benefit of using procedural tests is that we can write an integration tests in a
-unit-test-esque manner. To start, in the `tests` folder, run the
-following command:
+The benefit of this testing style is that it's similar to writing unit tests. 
+To start, in the `tests` folder, run the following command:
 
 ```bash
 touch transfer.go
@@ -356,7 +353,7 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 ```
 
 In the code above, we have `TestsRegistry`: this is a
-registry of all the procedural tests that we want to run against our VM.
+registry of all the tests that we want to run against our VM.
 Afterwards, we have the following snippet:
 
 ```go
@@ -365,7 +362,7 @@ registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkg
 })
 ```
 
-Here, we are adding a procedural test to `TestRegistry`. However, we're
+Here, we are adding a test to `TestRegistry`. However, we're
 missing the test itself. In short, here's what we want to do in
 our testing logic:
 
@@ -412,15 +409,15 @@ sent and that, if finalized, our transaction has the expected outputs. We have
 the following:
 
 ```go
-	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
+	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 ```
 
-## Registering our Workload Tests
+## Registering our Tests
 
-Although we've defined the integration tests themselves, we still need to
+Although we've defined the tests themselves, we still need to
 register them with the HyperSDK. To start, create a new folder named `integration` in
 `tests/`. Inside `integration/`, create a new file `integration_test.go`. Here,
 copy-paste the following:
@@ -475,11 +472,9 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 ```
 
-In `integration_test.go`, we are feeding our workload tests along with various
-other values to the HyperSDK integration test library. Using this pattern allows
-us to defer most tasks to it and solely focus on defining the
-workload tests. The setup mentioned above also implicitly sets up our procedural
-tests as well.
+In `integration_test.go`, we are feeding our tests along with various
+other values to the HyperSDK test library. Using this pattern allows
+us to defer most tasks to it and solely focus on defining the tests.
 
 ## Testing Our VM
 
@@ -503,12 +498,12 @@ Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
-If you see this, then your VM passed the integration tests!
+If you see this, then your VM passed the tests!
 
 ## Conclusion
 
 Assuming the above went well, you've just built a VM which is functionally
-equivalent to MorpheusVM. Having built a base VM and extending it with options, we added integration tests to make sure our VM works as expected. 
+equivalent to MorpheusVM. Having built a base VM and extending it with options, we added tests to make sure our VM works as expected. 
 
 In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
 interact with our VM by reading from it and being able to send TXs in real time
