@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	amountToTransfer               = 1
 	pendingTargetMultiplier        = 10
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
@@ -222,16 +221,8 @@ func (s Spammer) broadcast(
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
-				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
+				senderIndex := z.Uint64()
 				sender := accounts[senderIndex].Address
-				if recipientIndex == senderIndex {
-					if recipientIndex == uint64(s.numAccounts-1) {
-						recipientIndex--
-					} else {
-						recipientIndex++
-					}
-				}
-				recipient := accounts[recipientIndex].Address
 				issuer := getRandomIssuer(issuers)
 				g.Go(func() error {
 					factory := factories[senderIndex]
@@ -243,7 +234,7 @@ func (s Spammer) broadcast(
 						return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
 					}
 					// Send transaction
-					actions := sh.GetTransfer(recipient, amountToTransfer, s.tracker.uniqueBytes())
+					actions := sh.GetActions()
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
