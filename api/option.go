@@ -53,13 +53,13 @@ func NewOption[T any](namespace string, defaultConfig T, optionFunc OptionFunc[T
 	return newOptionWithBytes(namespace, configOptionFunc)
 }
 
-func WithBuilder() Opt {
+func withBuilder() Opt {
 	return newFuncOption(func(o *Options) {
 		o.Builder = true
 	})
 }
 
-func WithGossiper() Opt {
+func withGossiper() Opt {
 	return newFuncOption(func(o *Options) {
 		o.Gossiper = true
 	})
@@ -71,8 +71,8 @@ func WithManual() Option {
 		struct{}{},
 		func(_ VM, _ struct{}) (Opt, error) {
 			return newFuncOption(func(o *Options) {
-				WithBuilder().Apply(o)
-				WithGossiper().Apply(o)
+				withBuilder().Apply(o)
+				withGossiper().Apply(o)
 			}), nil
 		},
 	)
