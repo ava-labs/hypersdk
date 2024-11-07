@@ -32,6 +32,6 @@ type AcceptedVerifyContext struct {
 
 // We disregard [verify] because [GetVerifyContext] ensures
 // we will never need to verify a block if [AcceptedVerifyContext] is returned.
-func (a *AcceptedVerifyContext) View(ctx context.Context, _ bool) (state.View, error) {
+func (a *AcceptedVerifyContext) View(_ context.Context, _ bool) (state.View, error) {
 	return a.vm.State()
 }

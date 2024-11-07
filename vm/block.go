@@ -56,6 +56,7 @@ func ParseBlock(
 	if err != nil {
 		return nil, err
 	}
+
 	// Not guaranteed that a parsed block is verified
 	return ParseStatefulBlock(ctx, blk, accepted, vm)
 }
@@ -66,7 +67,7 @@ func ParseStatefulBlock(
 	accepted bool,
 	vm *VM,
 ) (*StatefulBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
+	_, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work

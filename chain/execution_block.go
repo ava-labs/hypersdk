@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/internal/workers"
 )
 
@@ -56,14 +57,15 @@ func NewExecutionBlock(
 		eb.txsSet.Add(tx.ID())
 		eb.authCounts[tx.Auth.GetTypeID()]++
 	}
-	// Setup signature verification job
-	_, sigVerifySpan := c.tracer.Start(ctx, "NewExecutionBlock.verifySignatures") //nolint:spancheck
-
 	sigJob, err := c.authVerificationWorkers.NewJob(len(block.Txs))
 	if err != nil {
 		return nil, err
 	}
 	eb.sigJob = sigJob
+
+	// Setup signature verification job
+	_, sigVerifySpan := c.tracer.Start(ctx, "NewExecutionBlock.verifySignatures") //nolint:spancheck
+
 	batchVerifier := NewAuthBatch(c.authVM, sigJob, eb.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
 	defer func() {

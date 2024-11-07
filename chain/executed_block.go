@@ -27,23 +27,23 @@ func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPri
 	}
 }
 
-func (b *ExecutedBlock) Marshal() ([]byte, error) {
-	blockBytes, err := b.Block.Marshal()
+func (e *ExecutedBlock) Marshal() ([]byte, error) {
+	blockBytes, err := e.Block.Marshal()
 	if err != nil {
 		return nil, err
 	}
 
-	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
+	size := codec.BytesLen(blockBytes) + codec.CummSize(e.Results) + fees.DimensionsLen
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	writer.PackBytes(blockBytes)
-	resultBytes, err := MarshalResults(b.Results)
+	resultBytes, err := MarshalResults(e.Results)
 	if err != nil {
 		return nil, err
 	}
 	writer.PackBytes(resultBytes)
-	writer.PackFixedBytes(b.UnitPrices.Bytes())
-	writer.PackFixedBytes(b.UnitsConsumed.Bytes())
+	writer.PackFixedBytes(e.UnitPrices.Bytes())
+	writer.PackFixedBytes(e.UnitsConsumed.Bytes())
 
 	return writer.Bytes(), writer.Err()
 }

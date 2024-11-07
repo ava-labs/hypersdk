@@ -12,13 +12,14 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBlockCache(t *testing.T) {
@@ -32,6 +33,7 @@ func TestBlockCache(t *testing.T) {
 		nil,
 		ids.Empty,
 	)
+	require.NoError(err)
 	blk := &StatefulBlock{
 		ExecutionBlock: chain.NewExecutionBlockNoVerify(sb),
 	}

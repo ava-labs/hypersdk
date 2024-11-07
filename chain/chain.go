@@ -14,11 +14,13 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/internal/emap"
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"go.uber.org/zap"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type Chain struct {
@@ -177,7 +179,7 @@ func (c *Chain) IsRepeat(
 		oldestAllowed = 0
 	}
 
-	return c.isRepeat(ctx, parentBlk, timestamp, txs, set.NewBits(), false)
+	return c.isRepeat(ctx, parentBlk, oldestAllowed, txs, set.NewBits(), false)
 }
 
 func (c *Chain) isRepeat(

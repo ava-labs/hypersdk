@@ -6,8 +6,9 @@ package chain
 import (
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/ava-labs/hypersdk/internal/executor"
 )
 
 type chainMetrics struct {
