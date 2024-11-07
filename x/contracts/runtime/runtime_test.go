@@ -119,7 +119,7 @@ func BenchmarkRuntimeInstance(b *testing.B) {
 	require.NoError(err)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		inst, err := rt.callContext.r.getInstance(module, rt.callContext.r.hostImports)
+		inst, err := rt.callContext.r.getInstance(module)
 		require.NoError(err)
 		_ = inst
 
@@ -160,7 +160,7 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 
 	module, err := rt.callContext.r.getModule(ctx, newInfo, programID)
 	require.NoError(err)
-	inst, err := rt.callContext.r.getInstance(module, rt.callContext.r.hostImports)
+	inst, err := rt.callContext.r.getInstance(module)
 	require.NoError(err)
 	b.ResetTimer()
 	newInfo.inst = inst
@@ -176,7 +176,7 @@ func BenchmarkRuntimeInstanceCall(b *testing.B) {
 		// reset module
 		module, err = rt.callContext.r.getModule(ctx, newInfo, programID)
 		require.NoError(err)
-		inst, err = rt.callContext.r.getInstance(module, rt.callContext.r.hostImports)
+		inst, err = rt.callContext.r.getInstance(module)
 		require.NoError(err)
 		newInfo.inst = inst
 		b.StartTimer()
