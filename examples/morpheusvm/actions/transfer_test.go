@@ -55,7 +55,6 @@ func TestTransferAction(t *testing.T) {
 					s,
 					codec.EmptyAddress,
 					0,
-					true,
 				)
 				require.NoError(t, err)
 				return s
