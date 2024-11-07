@@ -104,3 +104,4 @@ func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults b
 
 	return spammer.Spam(ctx, sh, false, h.c.Symbol())
 }
+
