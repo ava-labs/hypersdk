@@ -212,6 +212,27 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr codec.Address) (uint
 	return resp.Amount, err
 }
 
+func (cli *JSONRPCClient) WaitForBalance(
+	ctx context.Context,
+	addr codec.Address,
+	min uint64,
+) error {
+	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
+		balance, err := cli.Balance(ctx, addr)
+		if err != nil {
+			return false, err
+		}
+		shouldExit := balance >= min
+		if !shouldExit {
+			utils.Outf(
+				"{{yellow}}waiting for %s balance: %s{{/}}\n",
+				utils.FormatBalance(min),
+				addr,
+			)
+		}
+		return shouldExit, nil
+	})
+}
 ```
 
 Finally, while our JSON-RPC client can now call our server, our client is still

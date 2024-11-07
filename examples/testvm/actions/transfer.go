@@ -20,9 +20,7 @@ const (
 	MaxMemoSize          = 256
 )
 
-var (
-	_                     chain.Action = (*Transfer)(nil)
-)
+var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].

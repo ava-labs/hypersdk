@@ -53,7 +53,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 		ctx,
 		parser,
 		[]chain.Action{&actions.Count{
-			Amount: incAmount,
+			Amount:  incAmount,
 			Address: address,
 		}},
 		g.factory,
@@ -68,7 +68,6 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, addr codec.Address, expectedCount uint64) {
-
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
@@ -90,5 +89,4 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	// transferOutput, ok := countOutputTyped.(*actions.CountResult)
 	// require.True(ok)
 	// require.Equal(expectedCount, transferOutput.Count)
-	
 }

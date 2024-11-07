@@ -25,7 +25,7 @@ func TestCountAction(t *testing.T) {
 			Name:  "IncrementZero",
 			Actor: addr,
 			Action: &Count{
-				Amount: 0,
+				Amount:  0,
 				Address: addr,
 			},
 			State: store,
@@ -42,8 +42,8 @@ func TestCountAction(t *testing.T) {
 			Name:  "IncrementOne",
 			Actor: addr,
 			Action: &Count{
-				Amount: 1,
-				Address:    addr,
+				Amount:  1,
+				Address: addr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -59,8 +59,8 @@ func TestCountAction(t *testing.T) {
 			Name:  "IncrementExistingState",
 			Actor: addr,
 			Action: &Count{
-				Amount: 100,
-				Address:    addr,
+				Amount:  100,
+				Address: addr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
@@ -76,8 +76,8 @@ func TestCountAction(t *testing.T) {
 			Name:  "IncrementDifferentActor",
 			Actor: addr,
 			Action: &Count{
-				Amount: 1,
-				Address:    anotherAddr,
+				Amount:  1,
+				Address: anotherAddr,
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {

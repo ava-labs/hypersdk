@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -25,9 +26,9 @@ import (
 
 type SpamHelper struct {
 	InitialBalance uint64
-	KeyType string
-	cli     *vm.JSONRPCClient
-	ws      *ws.WebSocketClient
+	KeyType        string
+	cli            *vm.JSONRPCClient
+	ws             *ws.WebSocketClient
 }
 
 var _ throughput.SpamHelper = &SpamHelper{}
@@ -71,4 +72,3 @@ func (*SpamHelper) GetAction() []chain.Action {
 		Amount:  1,
 	}}
 }
-

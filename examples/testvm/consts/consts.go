@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	Name     = "testvm"
-	Symbol   = "TRT"
+	Name   = "testvm"
+	Symbol = "TRT"
 )
 
 var ID ids.ID
