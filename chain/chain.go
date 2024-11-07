@@ -5,23 +5,31 @@ package chain
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
+
+type ChainBackend interface {
+	Tracer() trace.Tracer
+	Metrics() metrics.MultiGatherer
+	Mempool() Mempool
+	Logger() logging.Logger
+	Parser
+	RuleFactory() RuleFactory
+	MetadataManager() MetadataManager
+	BalanceHandler() BalanceHandler
+	AuthVerifiers() workers.Workers
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetValidityWindow() *TimeValidityWindow
+}
 
 type Chain struct {
 	tracer                  trace.Tracer
@@ -35,29 +43,7 @@ type Chain struct {
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
 	authVM                  AuthVM
-
-	lock       sync.Mutex
-	chainIndex ChainIndex
-	seen       *emap.EMap[*Transaction]
-}
-
-type ChainIndex interface {
-	GetExecutionBlock(ctx context.Context, blkID ids.ID) (*ExecutionBlock, error)
-	LastAcceptedBlock() *ExecutionBlock
-}
-
-type ChainBackend interface {
-	Tracer() trace.Tracer
-	Metrics() metrics.MultiGatherer
-	Mempool() Mempool
-	Logger() logging.Logger
-	Parser
-	RuleFactory() RuleFactory
-	MetadataManager() MetadataManager
-	BalanceHandler() BalanceHandler
-	AuthVerifiers() workers.Workers
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
-	ChainIndex
+	validityWindow          *TimeValidityWindow
 }
 
 func NewChain(
@@ -83,8 +69,7 @@ func NewChain(
 		metadataManager:         backend.MetadataManager(),
 		balanceHandler:          backend.BalanceHandler(),
 		authVM:                  backend,
-		chainIndex:              backend,
-		seen:                    emap.NewEMap[*Transaction](),
+		validityWindow:          backend.GetValidityWindow(),
 	}, nil
 }
 
@@ -94,14 +79,7 @@ func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 
 	c.metrics.txsAccepted.Add(float64(len(blk.Txs)))
 
-	// Grab the lock before modifiying seen
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	blkTime := blk.Tmstmp
-	evicted := c.seen.SetMin(blkTime)
-	c.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	c.seen.Add(blk.Txs)
+	c.validityWindow.Accept(blk)
 
 	return nil
 }
@@ -126,7 +104,11 @@ func (c *Chain) PreExecute(
 	}
 
 	// Find repeats
-	repeatErrs, err := c.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
+	oldestAllowed := now - r.GetValidityWindow()
+	if oldestAllowed < 0 {
+		oldestAllowed = 0
+	}
+	repeatErrs, err := c.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx}, oldestAllowed)
 	if err != nil {
 		return err
 	}
@@ -162,100 +144,6 @@ func (c *Chain) PreExecute(
 	return nil
 }
 
-func (c *Chain) IsRepeat(
-	ctx context.Context,
-	parentBlk *ExecutionBlock,
-	timestamp int64,
-	txs []*Transaction,
-) (set.Bits, error) {
-	_, span := c.tracer.Start(ctx, "chain.IsRepeat")
-	defer span.End()
-
-	rules := c.ruleFactory.GetRules(timestamp)
-
-	oldestAllowed := timestamp - rules.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-
-	return c.isRepeat(ctx, parentBlk, oldestAllowed, txs, set.NewBits(), false)
-}
-
-func (c *Chain) isRepeat(
-	ctx context.Context,
-	ancestorBlk *ExecutionBlock,
-	oldestAllowed int64,
-	txs []*Transaction,
-	marker set.Bits,
-	stop bool,
-) (set.Bits, error) {
-	_, span := c.tracer.Start(ctx, "chain.IsRepeat")
-	defer span.End()
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	lastAcceptedBlk := c.chainIndex.LastAcceptedBlock()
-
-	var err error
-	for {
-		if ancestorBlk.Tmstmp < oldestAllowed {
-			return marker, nil
-		}
-
-		if ancestorBlk.Hght <= lastAcceptedBlk.Hght || ancestorBlk.Hght == 0 {
-			return c.seen.Contains(txs, marker, stop), nil
-		}
-
-		for i, tx := range txs {
-			if marker.Contains(i) {
-				continue
-			}
-			if ancestorBlk.txsSet.Contains(tx.ID()) {
-				marker.Add(i)
-				if stop {
-					return marker, nil
-				}
-			}
-		}
-
-		ancestorBlk, err = c.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Prnt)
-		if err != nil {
-			return marker, err
-		}
-	}
-}
-
-func (c *Chain) verifyExpiryReplayProtection(
-	ctx context.Context,
-	blk *ExecutionBlock,
-	rules Rules,
-) error {
-	lastAcceptedBlk := c.chainIndex.LastAcceptedBlock()
-	if blk.Hght <= lastAcceptedBlk.Hght {
-		return nil
-	}
-	parent, err := c.chainIndex.GetExecutionBlock(ctx, blk.Prnt)
-	if err != nil {
-		return err
-	}
-
-	oldestAllowed := blk.Tmstmp - rules.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-	dup, err := c.isRepeat(ctx, parent, oldestAllowed, blk.Txs, set.NewBits(), true)
-	if err != nil {
-		return err
-	}
-	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-	}
-	return nil
-}
-
 func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, error) {
 	_, span := c.tracer.Start(ctx, "chain.ParseBlock")
 	defer span.End()
@@ -264,7 +152,5 @@ func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, erro
 	if err != nil {
 		return nil, err
 	}
-
-	lastAcceptedBlock := c.chainIndex.LastAcceptedBlock()
-	return NewExecutionBlock(ctx, blk, c, blk.Hght > lastAcceptedBlock.Hght)
+	return NewExecutionBlock(blk), nil
 }

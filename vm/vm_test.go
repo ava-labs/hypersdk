@@ -34,7 +34,7 @@ func TestBlockCache(t *testing.T) {
 	)
 	require.NoError(err)
 	blk := &StatefulBlock{
-		ExecutionBlock: chain.NewExecutionBlockNoVerify(sb),
+		ExecutionBlock: chain.NewExecutionBlock(sb),
 	}
 	blkID := blk.ID()
 

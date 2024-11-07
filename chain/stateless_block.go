@@ -146,5 +146,5 @@ func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlockNoVerify(sb), nil
+	return NewExecutionBlock(sb), nil
 }

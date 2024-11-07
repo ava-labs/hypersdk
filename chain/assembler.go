@@ -35,7 +35,7 @@ func (c *Chain) AssembleBlock(
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlock(ctx, sb, c, true)
+	return NewExecutionBlock(sb), nil
 }
 
 func (c *Chain) ExecuteBlock(

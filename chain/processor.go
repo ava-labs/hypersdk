@@ -34,6 +34,10 @@ func (c *Chain) Execute(
 	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, nil, ErrTimestampTooLate
 	}
+	// AsyncVerify should have been called already. We call it here defensively.
+	if err := c.AsyncVerify(ctx, b); err != nil {
+		return nil, nil, err
+	}
 
 	// Fetch parent height key and ensure block height is valid
 	heightKey := HeightKey(c.metadataManager.HeightPrefix())
@@ -70,7 +74,7 @@ func (c *Chain) Execute(
 		return nil, nil, ErrTimestampTooEarly
 	}
 
-	if err := c.verifyExpiryReplayProtection(ctx, b, r); err != nil {
+	if err := c.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
 		return nil, nil, err
 	}
 

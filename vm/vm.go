@@ -81,10 +81,11 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
-	chain                  *chain.Chain
-	syncer                 *chain.Syncer
-	seenValidityWindowOnce sync.Once
-	seenValidityWindow     chan struct{}
+	chain                   *chain.Chain
+	chainTimeValidityWindow *chain.TimeValidityWindow
+	syncer                  *chain.Syncer
+	seenValidityWindowOnce  sync.Once
+	seenValidityWindow      chan struct{}
 
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
@@ -323,11 +324,12 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
+	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm)
 	vm.chain, err = chain.NewChain(vm, vm.config.ChainConfig)
 	if err != nil {
 		return err
 	}
-	vm.syncer = chain.NewSyncer(vm.chain)
+	vm.syncer = chain.NewSyncer(vm.chainTimeValidityWindow, vm.ruleFactory)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -780,6 +782,10 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.Execu
 		return nil, err
 	}
 	return blk.ExecutionBlock, nil
+}
+
+func (vm *VM) GetValidityWindow() *chain.TimeValidityWindow {
+	return vm.chainTimeValidityWindow
 }
 
 // implements "block.ChainVM.commom.VM.Parser"

@@ -56,6 +56,12 @@ func ParseBlock(
 	if err != nil {
 		return nil, err
 	}
+	// If it's possible to verify the block, start async verification
+	if blk.Hght > vm.lastAccepted.Hght {
+		if err := vm.chain.AsyncVerify(ctx, blk); err != nil {
+			return nil, err
+		}
+	}
 
 	// Not guaranteed that a parsed block is verified
 	return ParseStatefulBlock(ctx, blk, accepted, vm)

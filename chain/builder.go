@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -162,7 +161,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := c.isRepeat(ctx, parent, oldestAllowed, txs, set.NewBits(), false)
+		dup, err := c.validityWindow.IsRepeat(ctx, parent, b.timestamp, txs, oldestAllowed)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break
@@ -458,7 +457,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", b.timestamp),
 	)
-	return NewExecutionBlockNoVerify(blk), &ExecutedBlock{
+	return NewExecutionBlock(blk), &ExecutedBlock{
 		Block:         blk,
 		Results:       results,
 		UnitPrices:    feeManager.UnitPrices(),

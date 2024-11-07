@@ -15,58 +15,57 @@ import (
 type ExecutionBlock struct {
 	*StatelessBlock
 
-	// The below fields are only populated for blocks that may have Verify
-	// called on them. This excludes the genesis block and any block built
-	// locally.
-	sigJob workers.Job
-	txsSet set.Set[ids.ID]
-
 	// authCounts can be used by batch signature verification
 	// to preallocate memory
 	authCounts map[uint8]int
+	txsSet     set.Set[ids.ID]
+	sigJob     workers.Job
 }
 
-func NewExecutionBlockNoVerify(block *StatelessBlock) *ExecutionBlock {
+func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	return &ExecutionBlock{
 		StatelessBlock: block,
 	}
 }
 
-func NewExecutionBlock(
-	ctx context.Context,
-	block *StatelessBlock,
-	c *Chain,
-	populateTxs bool,
-) (*ExecutionBlock, error) {
-	eb := &ExecutionBlock{
-		StatelessBlock: block,
-		txsSet:         set.NewSet[ids.ID](len(block.Txs)),
-		authCounts:     make(map[uint8]int),
+func (b *ExecutionBlock) initTxs() error {
+	if b.txsSet.Len() == len(b.Txs) {
+		return nil
 	}
-	if !populateTxs {
-		return eb, nil
+	b.authCounts = make(map[uint8]int)
+	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	for _, tx := range b.Txs {
+		if b.txsSet.Contains(tx.ID()) {
+			return ErrDuplicateTx
+		}
+		b.txsSet.Add(tx.ID())
+		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
-	ctx, span := c.tracer.Start(ctx, "NewExecutionBlock.populateTxs")
+	return nil
+}
+
+// AsyncVerify starts async signature verification as early as possible
+func (c *Chain) AsyncVerify(ctx context.Context, block *ExecutionBlock) error {
+	ctx, span := c.tracer.Start(ctx, "Chain.AsyncVerify")
 	defer span.End()
 
-	for _, tx := range block.Txs {
-		if eb.txsSet.Contains(tx.ID()) {
-			return nil, ErrDuplicateTx
-		}
-		eb.txsSet.Add(tx.ID())
-		eb.authCounts[tx.Auth.GetTypeID()]++
+	if err := block.initTxs(); err != nil {
+		return err
+	}
+	if block.sigJob != nil {
+		return nil
 	}
 	sigJob, err := c.authVerificationWorkers.NewJob(len(block.Txs))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	eb.sigJob = sigJob
+	block.sigJob = sigJob
 
 	// Setup signature verification job
 	_, sigVerifySpan := c.tracer.Start(ctx, "NewExecutionBlock.verifySignatures") //nolint:spancheck
 
-	batchVerifier := NewAuthBatch(c.authVM, sigJob, eb.authCounts)
+	batchVerifier := NewAuthBatch(c.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
 	defer func() {
 		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
@@ -77,9 +76,9 @@ func NewExecutionBlock(
 	for _, tx := range block.Txs {
 		unsignedTxBytes, err := tx.UnsignedBytes()
 		if err != nil {
-			return nil, err //nolint:spancheck
+			return err //nolint:spancheck
 		}
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
-	return eb, nil
+	return nil
 }

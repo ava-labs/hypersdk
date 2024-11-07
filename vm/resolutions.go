@@ -262,10 +262,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 			// We could not be ready but seen a window of transactions if the state
 			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
-			seenValidityWindow, err := vm.syncer.AcceptBlock(ctx, b.ExecutionBlock)
-			if err != nil {
-				vm.Fatal("failed to accept block", zap.Error(err))
-			}
+			seenValidityWindow := vm.syncer.Accept(b.ExecutionBlock)
 			if seenValidityWindow {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)
