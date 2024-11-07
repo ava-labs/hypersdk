@@ -5,14 +5,14 @@ package chain
 
 import "time"
 
-type ExecutionConfig struct {
+type Config struct {
 	TargetBuildDuration       time.Duration `json:"targetBuildDuration"`
 	TransactionExecutionCores int           `json:"transactionExecutionCores"`
 	StateFetchConcurrency     int           `json:"stateFetchConcurrency"`
 }
 
-func NewDefaultExecutionConfig() ExecutionConfig {
-	return ExecutionConfig{
+func NewDefaultConfig() Config {
+	return Config{
 		TargetBuildDuration:       100 * time.Millisecond,
 		TransactionExecutionCores: 1,
 		StateFetchConcurrency:     1,

@@ -38,7 +38,7 @@ type Config struct {
 	ProcessingBuildSkip              int                        `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int                        `json:"blockCompactionFrequency"`
-	ExecutionConfig                  chain.ExecutionConfig      `json:"executionConfig"`
+	ChainConfig                      chain.Config               `json:"executionConfig"`
 	ServiceConfig                    map[string]json.RawMessage `json:"services"` // Config of service namespace -> raw service config
 }
 
@@ -67,6 +67,6 @@ func NewConfig() Config {
 		ProcessingBuildSkip:              16,
 		TargetGossipDuration:             20 * time.Millisecond,
 		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks
-		ExecutionConfig:                  chain.NewDefaultExecutionConfig(),
+		ChainConfig:                      chain.NewDefaultConfig(),
 	}
 }

@@ -23,7 +23,7 @@ import (
 
 type Chain struct {
 	tracer                  trace.Tracer
-	config                  ExecutionConfig
+	config                  Config
 	metrics                 *chainMetrics
 	mempool                 Mempool
 	log                     logging.Logger
@@ -60,7 +60,7 @@ type ChainBackend interface {
 
 func NewChain(
 	backend ChainBackend,
-	config ExecutionConfig,
+	config Config,
 ) (*Chain, error) {
 	registry, metrics, err := newMetrics()
 	if err != nil {

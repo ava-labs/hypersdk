@@ -331,7 +331,7 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.chain, err = chain.NewChain(vm, vm.config.ExecutionConfig)
+	vm.chain, err = chain.NewChain(vm, vm.config.ChainConfig)
 	if err != nil {
 		return err
 	}
