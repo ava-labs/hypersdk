@@ -151,7 +151,7 @@ impl Builder {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn build(&self) -> TestCrate {
         let Self {
             engine,
@@ -302,13 +302,13 @@ pub struct TestCrate {
 }
 
 impl TestCrate {
-    #[inline(always)]
+    #[inline]
     pub fn allocate_context(&mut self) -> AllocReturn {
         self.allocate_params(&())
     }
 
     // I don't think inlining is actually necessary here since it's a generic method
-    #[inline(always)]
+    #[inline]
     pub fn allocate_params<T: BorshSerialize>(&mut self, params: &T) -> u32 {
         let contract_id = [1; Address::LEN].into_iter();
         let actor = [2; Address::LEN].into_iter();
@@ -346,7 +346,7 @@ impl TestCrate {
             .expect("failed to get memory")
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn allocate(&mut self, data: Vec<u8>) -> AllocReturn {
         let offset = self
             .allocate_func

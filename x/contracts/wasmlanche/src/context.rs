@@ -141,6 +141,7 @@ impl Context {
     ///
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
+    #[inline]
     pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, Error>
     where
         Key: Schema,
@@ -153,6 +154,7 @@ impl Context {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
+    #[inline]
     pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
@@ -164,6 +166,7 @@ impl Context {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
+    #[inline]
     pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
         self.state_cache.store(pairs)
     }
@@ -173,6 +176,7 @@ impl Context {
     /// Returns an [Error] if the value is inexistent
     /// or if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
+    #[inline]
     pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
         self.state_cache.delete(key)
     }
@@ -181,6 +185,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
+    #[inline]
     pub fn deploy(&mut self, contract_id: ContractId, account_creation_data: &[u8]) -> Address {
         let ptr =
             borsh::to_vec(&(contract_id, account_creation_data)).expect("failed to serialize args");
@@ -193,6 +198,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the remaining fuel
     #[must_use]
+    #[inline]
     pub fn remaining_fuel(&self) -> u64 {
         let bytes = self.host_accessor.get_remaining_fuel();
 
@@ -203,6 +209,7 @@ impl Context {
     /// # Panics
     /// Panics if there was an issue deserializing the balance
     #[must_use]
+    #[inline]
     pub fn get_balance(&mut self, account: Address) -> u64 {
         let ptr = borsh::to_vec(&account).expect("failed to serialize args");
         let bytes = self.host_accessor.get_balance(&ptr);
@@ -215,6 +222,7 @@ impl Context {
     /// Panics if there was an issue deserializing the result
     /// # Errors
     /// Errors if there are insufficient funds
+    #[inline]
     pub fn send(&self, to: Address, amount: u64) -> Result<(), ExternalCallError> {
         let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
         let bytes = self.host_accessor.send_value(&ptr);
@@ -230,6 +238,7 @@ impl Context {
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
+    #[inline]
     pub fn call_contract<T: BorshDeserialize>(
         &mut self,
         address: Address,

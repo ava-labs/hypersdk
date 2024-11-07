@@ -91,6 +91,7 @@ pub unsafe trait Schema: NoUninit {
 
     /// # Errors
     /// Will return an error when there's an issue with deserialization
+    #[inline]
     fn get(self, state_cache: &mut Cache) -> Result<Option<Self::Value>, Error> {
         let key = to_key(self);
         state_cache.get_with_raw_key(key.as_ref())
@@ -121,6 +122,7 @@ impl Cache {
         }
     }
 
+    #[inline]
     pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
         let cache = &mut self.cache;
 
@@ -133,6 +135,7 @@ impl Cache {
         Ok(())
     }
 
+    #[inline]
     pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
@@ -165,6 +168,7 @@ impl Cache {
         }
     }
 
+    #[inline]
     pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
         let cache = &mut self.cache;
         let key = to_key(key);
