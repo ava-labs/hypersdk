@@ -173,6 +173,19 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 
+	t.Run("TransactionData", func(_ *testing.T) {
+		writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
+		err = tx.Marshal(writerPacker)
+		require.NoError(err)
+		txDataBytes, err := tx.UnsignedBytes()
+		require.NoError(err)
+		require.Equal(writerPacker.Bytes(), txDataBytes)
+		readerPacker := codec.NewReader(writerPacker.Bytes(), consts.NetworkSizeLimit)
+		unmarshaledTxData, err := chain.UnmarshalTxData(readerPacker, actionCodec)
+		require.NoError(err)
+		require.Equal(tx, *unmarshaledTxData)
+	})
+
 	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
 	txBeforeSignBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
@@ -200,6 +213,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
 	require.Len(unsignedTxBytes, 168)
+
+	readerPacker := codec.NewReader(writerPacker.Bytes(), consts.NetworkSizeLimit)
+	unmarshaledTx, err := chain.UnmarshalTx(readerPacker, actionCodec, authCodec)
+	require.NoError(err)
+	require.Equal(writerPacker.Bytes(), unmarshaledTx.Bytes())
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
