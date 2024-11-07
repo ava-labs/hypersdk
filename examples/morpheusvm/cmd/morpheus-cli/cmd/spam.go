@@ -5,16 +5,17 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/crypto/secp256r1"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	hthroughput "github.com/ava-labs/hypersdk/throughput"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var spamCmd = &cobra.Command{
@@ -35,7 +36,15 @@ var runSpamCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
 		privateKey := "323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
-		key, err := generatePrivateKey(privateKey)
+		b, err := hex.DecodeString(privateKey)
+		if err != nil {
+			return err
+		}
+		pk := &auth.PrivateKey{
+			Address: auth.NewED25519Address(ed25519.PrivateKey(b).PublicKey()),
+			Bytes:   b,
+		}
+			
 		if err != nil {
 			return err
 		}
@@ -51,49 +60,25 @@ var runSpamCmd = &cobra.Command{
 		chainIndex := 0
 		chainID := keys[chainIndex]
 		uris := chains[chainID]
-	
+		
+		utils.Outf("{{green}} uris: %s \n", uris)
+		utils.Outf("{{green}} chainID: %s \n", chainID)
+		// utils.Outf("{{green}} privateKey: %s {{white}}", privateKey)
+		sc := hthroughput.NewDefaultConfig(uris, pk)
+		sh := &throughput.SpamHelper{
+			KeyType: auth.ED25519Key,
+		}
+		err = sh.CreateClient(uris[0])
+		if err != nil {
+			return err
+		}
 
-		sc := hthroughput.NewDefaultConfig(uris, key)
 		spammer, err := hthroughput.NewSpammer(sc, sh)
 		if err != nil {
 			return err
 		}
 
-	
-		return spammer.Spam(ctx, sh, false, h.c.Symbol())
+		// return nil
+		return spammer.Spam(ctx, sh, true, "AVAX")
 	},
-}
-
-func generatePrivateKey(k string) (*cli.PrivateKey, error) {
-	switch k {
-	case ed25519Key:
-		p, err := ed25519.GeneratePrivateKey()
-		if err != nil {
-			return nil, err
-		}
-		return &cli.PrivateKey{
-			Address: auth.NewED25519Address(p.PublicKey()),
-			Bytes:   p[:],
-		}, nil
-	case secp256r1Key:
-		p, err := secp256r1.GeneratePrivateKey()
-		if err != nil {
-			return nil, err
-		}
-		return &cli.PrivateKey{
-			Address: auth.NewSECP256R1Address(p.PublicKey()),
-			Bytes:   p[:],
-		}, nil
-	case blsKey:
-		p, err := bls.GeneratePrivateKey()
-		if err != nil {
-			return nil, err
-		}
-		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(p)),
-			Bytes:   bls.PrivateKeyToBytes(p),
-		}, nil
-	default:
-		return nil, ErrInvalidKeyType
-	}
 }
