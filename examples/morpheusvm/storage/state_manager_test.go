@@ -13,7 +13,7 @@ import (
 func TestBalanceHandler(t *testing.T) {
 	chaintest.TestBalanceHandler(
 		context.Background(),
-		&BalanceHandler{},
 		t,
+		&BalanceHandler{},
 	)
 }
