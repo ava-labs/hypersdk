@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -495,8 +496,8 @@ func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
 }
 
-func (vm *VM) GetDataDir() string {
-	return vm.DataDir
+func (vm *VM) GetDataDir(namespace string) string {
+	return filepath.Join(vm.DataDir, namespace)
 }
 
 func (vm *VM) GetGenesisBytes() []byte {

@@ -4,8 +4,6 @@
 package indexer
 
 import (
-	"path/filepath"
-
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
@@ -39,8 +37,7 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	if !config.Enabled {
 		return vm.NewOpt(), nil
 	}
-	indexerPath := filepath.Join(v.GetDataDir(), Namespace)
-	indexer, err := NewIndexer(indexerPath, v, config.BlockWindow)
+	indexer, err := NewIndexer(v.GetDataDir(Namespace), v, config.BlockWindow)
 	if err != nil {
 		return nil, err
 	}
