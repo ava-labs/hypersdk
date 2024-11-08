@@ -59,14 +59,6 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-type buildBlock struct {
-	parentID  ids.ID
-	timestamp int64
-	height    uint64
-	txs       []*Transaction
-	stateRoot ids.ID
-}
-
 func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
 	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
