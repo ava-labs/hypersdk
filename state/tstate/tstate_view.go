@@ -69,6 +69,14 @@ type TStateView struct {
 }
 
 func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+	return newView(ts, scope, immutableScopeStorage(storage), false)
+}
+
+func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
+	return newView(New(0), state.Keys{}, immutableState, true)
+}
+
+func newView(ts *TState, scope state.Keys, storage state.Immutable, simulationMode bool) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
@@ -76,29 +84,12 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateVi
 		ops: make([]*op, 0, defaultOps),
 
 		scope:        scope,
-		scopeStorage: immutableScopeStorage(storage),
+		scopeStorage: storage,
 
 		allocates: make(map[string]uint16, len(scope)),
 		writes:    make(map[string]uint16, len(scope)),
 
-		simulationMode: false,
-	}
-}
-
-func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
-	return &TStateView{
-		ts:                 New(0),
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], 0),
-
-		ops: make([]*op, 0, defaultOps),
-
-		scope:        state.Keys{},
-		scopeStorage: immutableState,
-
-		allocates: make(map[string]uint16, 0),
-		writes:    make(map[string]uint16, 0),
-
-		simulationMode: true,
+		simulationMode: simulationMode,
 	}
 }
 

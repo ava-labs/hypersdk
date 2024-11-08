@@ -5,6 +5,7 @@ package tstate
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -13,52 +14,49 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 )
 
+const (
+	fuzzerOpInsertExistingKey = iota
+	fuzzerOpInsertNonExistingKey
+	fuzzerOpRemoveExistingKey
+	fuzzerOpRemoveNonExistingKey
+	fuzzerOpGetExistingKey
+	fuzzerOpGetNonExistingKey
+	fuzzerOpCount
+)
+
 func FuzzRecorderPermissionValidator(f *testing.F) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		shaBytes := sha256.Sum256([]byte{byte(i), byte(i >> 8)})
 		bytes := shaBytes[:]
-		for bytes[len(bytes)-1] > 16 {
-			shaBytes := sha256.Sum256([]byte{bytes[len(bytes)-2], bytes[len(bytes)-1]})
-			bytes = append(bytes, shaBytes[:]...)
-		}
-		f.Add(bytes)
+
+		f.Add(bytes[0], // opCount
+			binary.BigEndian.Uint64(bytes[1:9]), // keyPrefix
+			bytes[10:])                          // randBytes
 	}
 	f.Fuzz(
 		RecorderPermissionValidatorFuzzer,
 	)
 }
 
-func createKeys(prefix byte) (keylist [][]byte) {
+func createKeys(prefix uint64) [][]byte {
+	var keylist [][]byte
+	bytesPrefix := binary.AppendUvarint([]byte{}, prefix)
 	for i := 0; i < 512; i++ {
-		shaBytes := sha256.Sum256([]byte{prefix, byte(i), byte(i >> 8)})
+		shaBytes := sha256.Sum256(append(bytesPrefix, []byte{byte(i), byte(i >> 8)}...))
 		randNewKey := make([]byte, 30, 32)
 		copy(randNewKey, shaBytes[:])
 		keylist = append(keylist, keys.EncodeChunks(randNewKey, 1))
 	}
-	return
+	return keylist
 }
 
-func createKeysValues(keys [][]byte) (out map[string][]byte) {
-	out = map[string][]byte{}
+func createKeysValues(keys [][]byte) map[string][]byte {
+	out := map[string][]byte{}
 	for i, key := range keys {
 		shaBytes := sha256.Sum256(key)
 		out[string(keys[i])] = shaBytes[:]
 	}
 	return out
-}
-
-func nextByte(randBytes []byte) (byte, []byte, bool) {
-	if len(randBytes) == 0 {
-		return 0, randBytes, true
-	}
-	return randBytes[0], randBytes[1:], false
-}
-
-func nextUint16(randBytes []byte) (uint16, []byte, bool) {
-	if len(randBytes) < 2 {
-		return 0, randBytes, true
-	}
-	return uint16(randBytes[0]) | (uint16(randBytes[0]) << 8), randBytes[2:], false
 }
 
 func (i immutableScopeStorage) duplicate() immutableScopeStorage {
@@ -69,34 +67,37 @@ func (i immutableScopeStorage) duplicate() immutableScopeStorage {
 	return other
 }
 
-func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
+// removeSliceElement removes the idx-th element from a slice without maintaining the original
+// slice order. removeSliceElement modifies the backing array of the provided slice.
+func removeSliceElement[K any](slice []K, idx int) []K {
+	if idx >= len(slice) {
+		return slice
+	}
+	// swap the element at index [idx] with the last element.
+	slice[idx], slice[len(slice)-1] = slice[len(slice)-1], slice[idx]
+	// resize the slice and return it.
+	return slice[:len(slice)-1]
+}
+
+func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, keysPrefix uint64, randBytes []byte) {
 	require := require.New(t)
 	// create a set of keys which would be used for testing.
 	// half of these keys would "exists", where the other won't.
-	existingKeys := createKeys(0)
-	nonExistingKeys := createKeys(1)
+	existingKeys := createKeys(keysPrefix)
+	nonExistingKeys := createKeys(keysPrefix + 1)
 	existingKeyValue := createKeysValues(existingKeys)
 
 	// create a long living recorder.
 	recorder := NewRecorder(immutableScopeStorage(existingKeyValue).duplicate())
 
-	operationCount, randBytes, done := nextByte(randBytes)
-	if done {
-		return
-	}
-	operationCount %= 128 // limit to 128 operations.
-	var opType byte
 	for opIdx := byte(0); opIdx < operationCount; opIdx++ {
-		if opType, randBytes, done = nextByte(randBytes); done {
-			return
-		}
-		opType %= 6
-		var keyIdx uint16
-		if keyIdx, randBytes, done = nextUint16(randBytes); done {
-			return
-		}
+		updatedSeed := sha256.Sum256(append(binary.AppendUvarint([]byte{}, uint64(opIdx)), randBytes...))
+		randBytes = updatedSeed[:]
+
+		opType := binary.BigEndian.Uint64(randBytes) & fuzzerOpCount
+		keyIdx := binary.BigEndian.Uint16(randBytes[8:])
 		switch opType {
-		case 0: // insert existing key
+		case fuzzerOpInsertExistingKey: // insert existing key
 			keyIdx %= uint16(len(existingKeys))
 			key := existingKeys[keyIdx]
 			require.NoError(recorder.Insert(context.Background(), key, []byte{1, 2, 3}))
@@ -106,22 +107,21 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3}))
 
 			existingKeyValue[string(key)] = []byte{1, 2, 3}
-		case 1: // insert non existing key
+		case fuzzerOpInsertNonExistingKey: // insert non existing key
 			keyIdx %= uint16(len(nonExistingKeys))
 			key := nonExistingKeys[keyIdx]
-			nonExistingKeys[keyIdx] = []byte{}
-			nonExistingKeys = append(nonExistingKeys[:keyIdx], nonExistingKeys[keyIdx+1:]...)
+			nonExistingKeys = removeSliceElement(nonExistingKeys, int(keyIdx))
 
 			require.NoError(recorder.Insert(context.Background(), key, []byte{1, 2, 3, 4}))
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3}))
+			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3, 4}))
 
 			// since we've modified the recorder state, we need to update our own.
 			existingKeys = append(existingKeys, key)
 			existingKeyValue[string(key)] = []byte{1, 2, 3, 4}
-		case 2: // remove existing key
+		case fuzzerOpRemoveExistingKey: // remove existing key
 			keyIdx %= uint16(len(existingKeys))
 			require.NoError(recorder.Remove(context.Background(), existingKeys[keyIdx]))
 
@@ -132,14 +132,14 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 			// since we've modified the recorder state, we need to update our own.
 			delete(existingKeyValue, string(existingKeys[keyIdx]))
 			existingKeys = append(existingKeys[:keyIdx], existingKeys[keyIdx+1:]...)
-		case 3: // remove a non existing key
+		case fuzzerOpRemoveNonExistingKey: // remove a non existing key
 			keyIdx %= uint16(len(nonExistingKeys))
 			require.NoError(recorder.Remove(context.Background(), nonExistingKeys[keyIdx]))
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
 			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), nonExistingKeys[keyIdx]))
-		case 4: // get value of existing key
+		case fuzzerOpGetExistingKey: // get value of existing key
 			keyIdx %= uint16(len(existingKeys))
 			recorderValue, err := recorder.GetValue(context.Background(), existingKeys[keyIdx])
 			require.NoError(err)
@@ -151,7 +151,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, randBytes []byte) {
 
 			// both the recorder and the stateview should return the same value.
 			require.Equal(recorderValue, stateValue)
-		case 5: // get value of non existing key
+		case fuzzerOpGetNonExistingKey: // get value of non existing key
 			keyIdx %= uint16(len(nonExistingKeys))
 			val, err := recorder.GetValue(context.Background(), nonExistingKeys[keyIdx])
 			require.ErrorIs(err, database.ErrNotFound, "element was found with a value of %v, while it was supposed to be missing", val)
