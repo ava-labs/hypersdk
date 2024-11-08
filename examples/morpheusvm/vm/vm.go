@@ -18,12 +18,17 @@ import (
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
+var AuthProvider *auth.AuthProvider
+
 func newRegistry() (chain.Registry, error) {
 	actionParser := codec.NewTypeParser[chain.Action]()
 	authParser := codec.NewTypeParser[chain.Auth]()
 	outputParser := codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
+
+	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
+
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
@@ -35,6 +40,7 @@ func newRegistry() (chain.Registry, error) {
 
 		outputParser.Register(&actions.TransferResult{}, nil),
 	)
+
 	if errs.Errored() {
 		return nil, errs.Err
 	}
@@ -57,4 +63,9 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		auth.Engines(),
 		options...,
 	)
+}
+
+// Setup types
+func init() {
+	AuthProvider = auth.NewAuthProvider()
 }

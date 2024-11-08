@@ -494,3 +494,11 @@ func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
 func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
 }
+
+func (vm *VM) GetDataDir() string {
+	return vm.DataDir
+}
+
+func (vm *VM) GetGenesisBytes() []byte {
+	return vm.GenesisBytes
+}

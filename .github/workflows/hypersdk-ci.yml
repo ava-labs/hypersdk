@@ -165,16 +165,3 @@ jobs:
         with:
           name: morpheusvm-e2e-tmpnet-data
 
-  morpheusvm-release:
-    needs: [morpheusvm-e2e-tests]
-    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
-    runs-on: ubuntu-20.04-32
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: ./.github/actions/vm-release
-        with:
-          vm-name: morpheusvm
-          github-token: ${{ secrets.GITHUB_TOKEN }}
