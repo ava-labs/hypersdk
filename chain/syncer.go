@@ -11,16 +11,12 @@ import (
 // and signals to the caller that it can begin processing blocks from that block forward.
 type Syncer struct {
 	chainIndex         ChainIndex
-	timeValidityWindow WindowAccepter
+	timeValidityWindow *TimeValidityWindow
 	ruleFactory        RuleFactory
 	initialBlock       *ExecutionBlock
 }
 
-type WindowAccepter interface {
-	Accept(block *ExecutionBlock)
-}
-
-func NewSyncer(chainIndex ChainIndex, timeValidityWindow WindowAccepter, ruleFactory RuleFactory) *Syncer {
+func NewSyncer(chainIndex ChainIndex, timeValidityWindow *TimeValidityWindow, ruleFactory RuleFactory) *Syncer {
 	return &Syncer{
 		chainIndex:         chainIndex,
 		timeValidityWindow: timeValidityWindow,
