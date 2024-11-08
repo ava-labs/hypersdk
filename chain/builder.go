@@ -68,7 +68,7 @@ type buildBlock struct {
 }
 
 func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
-	ctx, span := c.tracer.Start(ctx, "chain.BuildBlock")
+	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
 
 	// Select next timestamp
@@ -138,7 +138,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 			c.metrics.clearedMempool.Inc()
 			break
 		}
-		ctx, executeSpan := c.tracer.Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
+		ctx, executeSpan := c.tracer.Start(ctx, "Chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.

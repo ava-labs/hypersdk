@@ -25,6 +25,9 @@ func (c *Chain) Execute(
 	parentView state.View,
 	b *ExecutionBlock,
 ) (*ExecutedBlock, merkledb.View, error) {
+	ctx, span := c.tracer.Start(ctx, "Chain.Execute")
+	defer span.End()
+
 	var (
 		r   = c.ruleFactory.GetRules(b.Tmstmp)
 		log = c.log
@@ -126,7 +129,7 @@ func (c *Chain) Execute(
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	_, rspan := c.tracer.Start(ctx, "StatefulBlock.Verify.WaitRoot")
+	_, rspan := c.tracer.Start(ctx, "Chain.Execute.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
@@ -144,7 +147,7 @@ func (c *Chain) Execute(
 	}
 
 	// Ensure signatures are verified
-	_, sspan := c.tracer.Start(ctx, "StatefulBlock.Verify.WaitSignatures")
+	_, sspan := c.tracer.Start(ctx, "Chain.Execute.WaitSignatures")
 	start = time.Now()
 	err = b.sigJob.Wait()
 	sspan.End()
