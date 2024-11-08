@@ -325,7 +325,20 @@ func (vm *VM) Initialize(
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm)
-	vm.chain, err = chain.NewChain(vm, vm.config.ChainConfig)
+	vm.chain, err = chain.NewChain(
+		vm.Tracer(),
+		vm.Metrics(),
+		vm,
+		vm.Mempool(),
+		vm.Logger(),
+		vm.ruleFactory,
+		vm.MetadataManager(),
+		vm.BalanceHandler(),
+		vm.AuthVerifiers(),
+		vm,
+		vm.GetValidityWindow(),
+		vm.config.ChainConfig,
+	)
 	if err != nil {
 		return err
 	}

@@ -10,27 +10,104 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
+	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-func (c *Chain) Execute(
+type ExecutionBlock struct {
+	*StatelessBlock
+
+	// authCounts can be used by batch signature verification
+	// to preallocate memory
+	authCounts map[uint8]int
+	txsSet     set.Set[ids.ID]
+	sigJob     workers.Job
+}
+
+func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
+	return &ExecutionBlock{
+		StatelessBlock: block,
+	}
+}
+
+func (b *ExecutionBlock) initTxs() error {
+	if b.txsSet.Len() == len(b.Txs) {
+		return nil
+	}
+	b.authCounts = make(map[uint8]int)
+	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	for _, tx := range b.Txs {
+		if b.txsSet.Contains(tx.ID()) {
+			return ErrDuplicateTx
+		}
+		b.txsSet.Add(tx.ID())
+		b.authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	return nil
+}
+
+type Processor struct {
+	tracer                  trace.Tracer
+	log                     logging.Logger
+	ruleFactory             RuleFactory
+	authVerificationWorkers workers.Workers
+	authVM                  AuthVM
+	metadataManager         MetadataManager
+	balanceHandler          BalanceHandler
+	validityWindow          *TimeValidityWindow
+	metrics                 *chainMetrics
+	config                  Config
+}
+
+func NewProcessor(
+	tracer trace.Tracer,
+	log logging.Logger,
+	ruleFactory RuleFactory,
+	authVerificationWorkers workers.Workers,
+	authVM AuthVM,
+	metadataManager MetadataManager,
+	balanceHandler BalanceHandler,
+	validityWindow *TimeValidityWindow,
+	metrics *chainMetrics,
+	config Config,
+) *Processor {
+	return &Processor{
+		tracer:                  tracer,
+		log:                     log,
+		ruleFactory:             ruleFactory,
+		authVerificationWorkers: authVerificationWorkers,
+		authVM:                  authVM,
+		metadataManager:         metadataManager,
+		balanceHandler:          balanceHandler,
+		validityWindow:          validityWindow,
+		metrics:                 metrics,
+		config:                  config,
+	}
+}
+
+func (p *Processor) Execute(
 	ctx context.Context,
 	parentView state.View,
 	b *ExecutionBlock,
 ) (*ExecutedBlock, merkledb.View, error) {
-	ctx, span := c.tracer.Start(ctx, "Chain.Execute")
+	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
 
 	var (
-		r   = c.ruleFactory.GetRules(b.Tmstmp)
-		log = c.log
+		r   = p.ruleFactory.GetRules(b.Tmstmp)
+		log = p.log
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -38,12 +115,12 @@ func (c *Chain) Execute(
 		return nil, nil, ErrTimestampTooLate
 	}
 	// AsyncVerify should have been called already. We call it here defensively.
-	if err := c.AsyncVerify(ctx, b); err != nil {
+	if err := p.AsyncVerify(ctx, b); err != nil {
 		return nil, nil, err
 	}
 
 	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(c.metadataManager.HeightPrefix())
+	heightKey := HeightKey(p.metadataManager.HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
 		return nil, nil, err
@@ -60,7 +137,7 @@ func (c *Chain) Execute(
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(c.metadataManager.TimestampPrefix())
+	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
 		return nil, nil, err
@@ -77,12 +154,12 @@ func (c *Chain) Execute(
 		return nil, nil, ErrTimestampTooEarly
 	}
 
-	if err := c.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
+	if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
 		return nil, nil, err
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(c.metadataManager.FeePrefix())
+	feeKey := FeeKey(p.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, nil, err
@@ -94,7 +171,7 @@ func (c *Chain) Execute(
 	}
 
 	// Process transactions
-	results, ts, err := c.executeTxs(ctx, b, parentView, feeManager, r)
+	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, nil, err
@@ -129,14 +206,14 @@ func (c *Chain) Execute(
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	_, rspan := c.tracer.Start(ctx, "Chain.Execute.WaitRoot")
+	_, rspan := p.tracer.Start(ctx, "Chain.Execute.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
 	if err != nil {
 		return nil, nil, err
 	}
-	c.metrics.waitRoot.Observe(float64(time.Since(start)))
+	p.metrics.waitRoot.Observe(float64(time.Since(start)))
 	if b.StateRoot != computedRoot {
 		return nil, nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -147,19 +224,19 @@ func (c *Chain) Execute(
 	}
 
 	// Ensure signatures are verified
-	_, sspan := c.tracer.Start(ctx, "Chain.Execute.WaitSignatures")
+	_, sspan := p.tracer.Start(ctx, "Chain.Execute.WaitSignatures")
 	start = time.Now()
 	err = b.sigJob.Wait()
 	sspan.End()
 	if err != nil {
 		return nil, nil, err
 	}
-	c.metrics.waitSignatures.Observe(float64(time.Since(start)))
+	p.metrics.waitSignatures.Observe(float64(time.Since(start)))
 
 	// Get view from [tstate] after processing all state transitions
-	c.metrics.stateChanges.Add(float64(ts.PendingChanges()))
-	c.metrics.stateOperations.Add(float64(ts.OpIndex()))
-	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
+	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
+	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
+	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,7 +254,7 @@ func (c *Chain) Execute(
 			zap.Stringer("blkID", b.id),
 			zap.Stringer("root", root),
 		)
-		c.metrics.rootCalculated.Observe(float64(time.Since(start)))
+		p.metrics.rootCalculated.Observe(float64(time.Since(start)))
 	}()
 
 	return &ExecutedBlock{
@@ -195,22 +272,22 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (c *Chain) executeTxs(
+func (p *Processor) executeTxs(
 	ctx context.Context,
 	b *ExecutionBlock,
 	im state.Immutable,
 	feeManager *fees.Manager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := c.tracer.Start(ctx, "Chain.Execute.ExecuteTxs")
+	ctx, span := p.tracer.Start(ctx, "Chain.Execute.ExecuteTxs")
 	defer span.End()
 
 	var (
 		numTxs = len(b.Txs)
 		t      = b.Tmstmp
 
-		f       = fetcher.New(im, numTxs, c.config.StateFetchConcurrency)
-		e       = executor.New(numTxs, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorVerifyRecorder)
+		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
+		e       = executor.New(numTxs, p.config.TransactionExecutionCores, MaxKeyDependencies, p.metrics.executorVerifyRecorder)
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
 	)
@@ -220,7 +297,7 @@ func (c *Chain) executeTxs(
 		i := li
 		tx := ltx
 
-		stateKeys, err := tx.StateKeys(c.balanceHandler)
+		stateKeys, err := tx.StateKeys(p.balanceHandler)
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -228,7 +305,7 @@ func (c *Chain) executeTxs(
 		}
 
 		// Ensure we don't consume too many units
-		units, err := tx.Units(c.balanceHandler, r)
+		units, err := tx.Units(p.balanceHandler, r)
 		if err != nil {
 			f.Stop()
 			e.Stop()
@@ -259,11 +336,11 @@ func (c *Chain) executeTxs(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, c.balanceHandler, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
 			if err != nil {
 				return err
 			}
@@ -281,8 +358,46 @@ func (c *Chain) executeTxs(
 		return nil, nil, err
 	}
 
-	c.metrics.txsVerified.Add(float64(len(b.Txs)))
+	p.metrics.txsVerified.Add(float64(len(b.Txs)))
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
+}
+
+// AsyncVerify starts async signature verification as early as possible
+func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) error {
+	ctx, span := p.tracer.Start(ctx, "Chain.AsyncVerify")
+	defer span.End()
+
+	if err := block.initTxs(); err != nil {
+		return err
+	}
+	if block.sigJob != nil {
+		return nil
+	}
+	sigJob, err := p.authVerificationWorkers.NewJob(len(block.Txs))
+	if err != nil {
+		return err
+	}
+	block.sigJob = sigJob
+
+	// Setup signature verification job
+	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.AsyncVerify.verifySignatures") //nolint:spancheck
+
+	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
+	// Make sure to always call [Done], otherwise we will block all future [Workers]
+	defer func() {
+		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
+		// to the work queue async and that may not have completed by this point.
+		go batchVerifier.Done(func() { sigVerifySpan.End() })
+	}()
+
+	for _, tx := range block.Txs {
+		unsignedTxBytes, err := tx.UnsignedBytes()
+		if err != nil {
+			return err //nolint:spancheck
+		}
+		batchVerifier.Add(unsignedTxBytes, tx.Auth)
+	}
+	return nil
 }

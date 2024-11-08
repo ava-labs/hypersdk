@@ -5,16 +5,14 @@ package chain
 
 import (
 	"context"
-	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type ChainBackend interface {
@@ -32,56 +30,94 @@ type ChainBackend interface {
 }
 
 type Chain struct {
-	tracer                  trace.Tracer
-	config                  Config
-	metrics                 *chainMetrics
-	mempool                 Mempool
-	log                     logging.Logger
-	parser                  Parser
-	authVerificationWorkers workers.Workers
-	ruleFactory             RuleFactory
-	metadataManager         MetadataManager
-	balanceHandler          BalanceHandler
-	authVM                  AuthVM
-	validityWindow          *TimeValidityWindow
+	builder     *Builder
+	processor   *Processor
+	accepter    *Accepter
+	preExecutor *PreExecutor
+	blockParser *BlockParser
 }
 
 func NewChain(
-	backend ChainBackend,
+	tracer trace.Tracer,
+	gatherer metrics.MultiGatherer,
+	parser Parser,
+	mempool Mempool,
+	logger logging.Logger,
+	ruleFactory RuleFactory,
+	metadataManager MetadataManager,
+	balanceHandler BalanceHandler,
+	authVerifiers workers.Workers,
+	authVM AuthVM,
+	validityWindow *TimeValidityWindow,
 	config Config,
 ) (*Chain, error) {
 	registry, metrics, err := newMetrics()
 	if err != nil {
 		return nil, err
 	}
-	if err := backend.Metrics().Register("chain", registry); err != nil {
+	if err := gatherer.Register("chain", registry); err != nil {
 		return nil, err
 	}
 	return &Chain{
-		tracer:                  backend.Tracer(),
-		config:                  config,
-		metrics:                 metrics,
-		mempool:                 backend.Mempool(),
-		log:                     backend.Logger(),
-		authVerificationWorkers: backend.AuthVerifiers(),
-		parser:                  backend,
-		ruleFactory:             backend.RuleFactory(),
-		metadataManager:         backend.MetadataManager(),
-		balanceHandler:          backend.BalanceHandler(),
-		authVM:                  backend,
-		validityWindow:          backend.GetValidityWindow(),
+		builder: NewBuilder(
+			tracer,
+			ruleFactory,
+			logger,
+			metadataManager,
+			balanceHandler,
+			mempool,
+			validityWindow,
+			metrics,
+			config,
+		),
+		processor: NewProcessor(
+			tracer,
+			logger,
+			ruleFactory,
+			authVerifiers,
+			authVM,
+			metadataManager,
+			balanceHandler,
+			validityWindow,
+			metrics,
+			config,
+		),
+		accepter: NewAccepter(
+			tracer,
+			validityWindow,
+			metrics,
+		),
+		preExecutor: NewPreExecutor(
+			ruleFactory,
+			validityWindow,
+			metadataManager,
+			balanceHandler,
+		),
+		blockParser: NewBlockParser(tracer, parser),
 	}, nil
 }
 
+func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
+	return c.builder.BuildBlock(ctx, parentView, parent)
+}
+
+func (c *Chain) Execute(
+	ctx context.Context,
+	parentView state.View,
+	b *ExecutionBlock,
+) (*ExecutedBlock, merkledb.View, error) {
+	return c.processor.Execute(ctx, parentView, b)
+}
+
+func (c *Chain) AsyncVerify(
+	ctx context.Context,
+	b *ExecutionBlock,
+) error {
+	return c.processor.AsyncVerify(ctx, b)
+}
+
 func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
-	_, span := c.tracer.Start(ctx, "Chain.AcceptBlock")
-	defer span.End()
-
-	c.metrics.txsAccepted.Add(float64(len(blk.Txs)))
-
-	c.validityWindow.Accept(blk)
-
-	return nil
+	return c.accepter.AcceptBlock(ctx, blk)
 }
 
 func (c *Chain) PreExecute(
@@ -91,66 +127,9 @@ func (c *Chain) PreExecute(
 	tx *Transaction,
 	verifyAuth bool,
 ) error {
-	feeRaw, err := view.GetValue(ctx, FeeKey(c.metadataManager.FeePrefix()))
-	if err != nil {
-		return err
-	}
-	feeManager := internalfees.NewManager(feeRaw)
-	now := time.Now().UnixMilli()
-	r := c.ruleFactory.GetRules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return err
-	}
-
-	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
-	repeatErrs, err := c.validityWindow.IsRepeat(ctx, parentBlk, []*Transaction{tx}, oldestAllowed)
-	if err != nil {
-		return err
-	}
-	if repeatErrs.BitLen() > 0 {
-		return ErrDuplicateTx
-	}
-
-	// Ensure state keys are valid
-	_, err = tx.StateKeys(c.balanceHandler)
-	if err != nil {
-		return err
-	}
-
-	// Verify auth if not already verified by caller
-	if verifyAuth {
-		if err := tx.VerifyAuth(ctx); err != nil {
-			return err
-		}
-	}
-
-	// PreExecute does not make any changes to state
-	//
-	// This may fail if the state we are utilizing is invalidated (if a trie
-	// view from a different branch is committed underneath it). We prefer this
-	// instead of putting a lock around all commits.
-	//
-	// Note, [PreExecute] ensures that the pending transaction does not have
-	// an expiry time further ahead than [ValidityWindow]. This ensures anything
-	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, c.balanceHandler, r, view, now); err != nil {
-		return err
-	}
-	return nil
+	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx, verifyAuth)
 }
 
-func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, error) {
-	_, span := c.tracer.Start(ctx, "Chain.ParseBlock")
-	defer span.End()
-
-	blk, err := UnmarshalBlock(b, c.parser)
-	if err != nil {
-		return nil, err
-	}
-	return NewExecutionBlock(blk), nil
+func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
+	return c.blockParser.ParseBlock(ctx, bytes)
 }

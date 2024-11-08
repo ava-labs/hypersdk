@@ -6,10 +6,24 @@ package chain
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/trace"
+
 	"github.com/ava-labs/hypersdk/state"
 )
 
-func (c *Chain) AssembleBlock(
+type Assembler struct {
+	tracer    trace.Tracer
+	processor *Processor
+}
+
+func NewAssembler(tracer trace.Tracer, processor *Processor) *Assembler {
+	return &Assembler{
+		tracer:    tracer,
+		processor: processor,
+	}
+}
+
+func (a *Assembler) AssembleBlock(
 	ctx context.Context,
 	parentView state.View,
 	parent *ExecutionBlock,
@@ -17,7 +31,7 @@ func (c *Chain) AssembleBlock(
 	blockHeight uint64,
 	txs []*Transaction,
 ) (*ExecutedBlock, state.View, error) {
-	ctx, span := c.tracer.Start(ctx, "Chain.AssembleBlock")
+	ctx, span := a.tracer.Start(ctx, "Chain.AssembleBlock")
 	defer span.End()
 
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
@@ -36,5 +50,5 @@ func (c *Chain) AssembleBlock(
 		return nil, nil, err
 	}
 	executionBlock := NewExecutionBlock(sb)
-	return c.Execute(ctx, parentView, executionBlock)
+	return a.processor.Execute(ctx, parentView, executionBlock)
 }

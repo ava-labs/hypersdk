@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
@@ -59,7 +60,43 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
+type Builder struct {
+	tracer          trace.Tracer
+	ruleFactory     RuleFactory
+	log             logging.Logger
+	metadataManager MetadataManager
+	balanceHandler  BalanceHandler
+	mempool         Mempool
+	validityWindow  *TimeValidityWindow
+	metrics         *chainMetrics
+	config          Config
+}
+
+func NewBuilder(
+	tracer trace.Tracer,
+	ruleFactory RuleFactory,
+	log logging.Logger,
+	metadataManager MetadataManager,
+	balanceHandler BalanceHandler,
+	mempool Mempool,
+	validityWindow *TimeValidityWindow,
+	metrics *chainMetrics,
+	config Config,
+) *Builder {
+	return &Builder{
+		tracer:          tracer,
+		ruleFactory:     ruleFactory,
+		log:             log,
+		metadataManager: metadataManager,
+		balanceHandler:  balanceHandler,
+		mempool:         mempool,
+		validityWindow:  validityWindow,
+		metrics:         metrics,
+		config:          config,
+	}
+}
+
+func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
 	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
 
