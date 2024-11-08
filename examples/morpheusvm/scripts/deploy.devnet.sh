@@ -101,11 +101,11 @@ cat <<EOF > "${TMPDIR}"/allocations.json
 ]
 EOF
 
+# --epoch-duration "${EPOCH_DURATION}" \
+# --validity-window "${VALIDITY_WINDOW}" \
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
---epoch-duration "${EPOCH_DURATION}" \
---validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
---max-chunk-units "${MAX_CHUNK_UNITS}" \
+--max-block-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
 --genesis-file "${TMPDIR}"/morpheusvm.genesis
 

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -37,6 +38,7 @@ var genGenesisCmd = &cobra.Command{
 		}
 		var allocs []*genesis.CustomAllocation
 		if err := json.Unmarshal(a, &allocs); err != nil {
+			fmt.Println("error unmarshalling custom allocates file")
 			return err
 		}
 		genesis := genesis.NewDefaultGenesis(allocs)
