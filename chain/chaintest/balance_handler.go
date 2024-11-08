@@ -15,11 +15,9 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-type BalanceHandlerFactory func() chain.BalanceHandler
-
 // TestBalanceHandler tests b by requiring that it upholds the invariants
 // described in the BalanceHandler interface.
-func TestBalanceHandler(t *testing.T, ctx context.Context, bf BalanceHandlerFactory) {
+func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.BalanceHandler) {
 	addrOne := codectest.NewRandomAddress()
 	addrTwo := codectest.NewRandomAddress()
 
