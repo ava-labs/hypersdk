@@ -13,7 +13,7 @@ import (
 // GetLastStateSummary returns the latest state summary.
 // If no summary is available, [database.ErrNotFound] must be returned.
 func (vm *VM) GetLastStateSummary(context.Context) (block.StateSummary, error) {
-	summary := NewSyncableBlock(vm.LastAcceptedStatefulBlock())
+	summary := NewSyncableBlock(vm.lastAccepted)
 	vm.Logger().Info("Serving syncable block at latest height", zap.Stringer("summary", summary))
 	return summary, nil
 }

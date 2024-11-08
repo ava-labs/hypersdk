@@ -398,7 +398,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 
 	// If the parent block is not yet accepted, we should return the block's processing parent (it may
 	// or may not be verified yet).
-	lastAcceptedBlock := b.vm.LastAcceptedStatefulBlock()
+	lastAcceptedBlock := b.vm.lastAccepted
 	if blockHeight-1 > lastAcceptedBlock.Hght {
 		blk, err := b.vm.GetStatefulBlock(ctx, parent)
 		if err != nil {
