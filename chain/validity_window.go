@@ -12,8 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 type ChainIndex interface {
@@ -83,7 +84,6 @@ func (v *TimeValidityWindow) VerifyExpiryReplayProtection(
 func (v *TimeValidityWindow) IsRepeat(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
-	timestamp int64,
 	txs []*Transaction,
 	oldestAllowed int64,
 ) (set.Bits, error) {

@@ -108,7 +108,7 @@ func (c *Chain) PreExecute(
 	if oldestAllowed < 0 {
 		oldestAllowed = 0
 	}
-	repeatErrs, err := c.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx}, oldestAllowed)
+	repeatErrs, err := c.validityWindow.IsRepeat(ctx, parentBlk, []*Transaction{tx}, oldestAllowed)
 	if err != nil {
 		return err
 	}

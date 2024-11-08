@@ -161,7 +161,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := c.validityWindow.IsRepeat(ctx, parent, b.timestamp, txs, oldestAllowed)
+		dup, err := c.validityWindow.IsRepeat(ctx, parent, txs, oldestAllowed)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break
