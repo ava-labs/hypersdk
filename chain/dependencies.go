@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -18,6 +19,23 @@ type Parser interface {
 	ActionCodec() *codec.TypeParser[Action]
 	OutputCodec() *codec.TypeParser[codec.Typed]
 	AuthCodec() *codec.TypeParser[Auth]
+}
+
+type Mempool interface {
+	Len(context.Context) int  // items
+	Size(context.Context) int // bytes
+	Add(context.Context, []*Transaction)
+
+	Top(
+		context.Context,
+		time.Duration,
+		func(context.Context, *Transaction) (cont bool, rest bool, err error),
+	) error
+
+	StartStreaming(context.Context)
+	PrepareStream(context.Context, int)
+	Stream(context.Context, int) []*Transaction
+	FinishStreaming(context.Context, []*Transaction) int
 }
 
 // TODO: add fixed rules as a subset of this interface
