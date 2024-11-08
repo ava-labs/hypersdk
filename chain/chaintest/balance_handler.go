@@ -15,9 +15,11 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
+type BalanceHandlerFactory func() chain.BalanceHandler
+
 // TestBalanceHandler tests b by requiring that it upholds the invariants
 // described in the BalanceHandler interface.
-func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandler) {
+func TestBalanceHandler(t *testing.T, ctx context.Context, bf BalanceHandlerFactory) {
 	addrOne := codectest.NewRandomAddress()
 	addrTwo := codectest.NewRandomAddress()
 
@@ -25,10 +27,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("add balance", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		balance, err := b.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -36,12 +39,13 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("add balance - overflow", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, consts.MaxUint64))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, consts.MaxUint64))
 
-		r.Error(b.AddBalance(ctx, addrOne, ms, 1))
+		r.Error(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		balance, err := b.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(consts.MaxUint64, balance)
 	})
@@ -49,15 +53,16 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("add balance - multiple accounts", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
-		r.NoError(b.AddBalance(ctx, addrTwo, ms, 2))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrTwo, ms, 2))
 
-		balance, err := b.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 
-		balance, err = b.GetBalance(ctx, addrTwo, ms)
+		balance, err = bh.GetBalance(ctx, addrTwo, ms)
 		r.NoError(err)
 		r.Equal(uint64(2), balance)
 	})
@@ -65,18 +70,19 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("deduct", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			b.SponsorStateKeys(addrOne),
+			bh.SponsorStateKeys(addrOne),
 			ms.Storage,
 		)
 
-		r.NoError(b.Deduct(ctx, addrOne, tsv, 1))
+		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
 
-		balance, err := b.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(0), balance)
 	})
@@ -84,18 +90,19 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("deduct - not enough balance", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			b.SponsorStateKeys(addrOne),
+			bh.SponsorStateKeys(addrOne),
 			ms.Storage,
 		)
 
-		r.Error(b.Deduct(ctx, addrOne, tsv, 2))
+		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
 
-		balance, err := b.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -103,18 +110,19 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("can deduct", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			b.SponsorStateKeys(addrOne),
+			bh.SponsorStateKeys(addrOne),
 			ms.Storage,
 		)
 
-		r.NoError(b.CanDeduct(ctx, addrOne, tsv, 1))
+		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
 
-		balance, err := b.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -122,18 +130,19 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, b chain.BalanceHandle
 	t.Run("can deduct - not enough balance", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
+		bh := bf()
 
-		r.NoError(b.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			b.SponsorStateKeys(addrOne),
+			bh.SponsorStateKeys(addrOne),
 			ms.Storage,
 		)
 
-		r.Error(b.CanDeduct(ctx, addrOne, tsv, 2))
+		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))
 
-		balance, err := b.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})

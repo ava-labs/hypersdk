@@ -7,9 +7,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
 
+func NewBalanceHandler() chain.BalanceHandler {
+	return &BalanceHandler{}
+}
+
 func TestBalanceHandler(t *testing.T) {
-	chaintest.TestBalanceHandler(t, context.Background(), &BalanceHandler{})
+	chaintest.TestBalanceHandler(t, context.Background(), NewBalanceHandler)
 }
