@@ -49,6 +49,8 @@ func ParseBlock(
 	accepted bool,
 	vm *VM,
 ) (*StatefulBlock, error) {
+	_, span := vm.Tracer().Start(ctx, "vm.ParseBlock")
+	defer span.End()
 	blk, err := vm.chain.ParseBlock(ctx, source)
 	if err != nil {
 		return nil, err

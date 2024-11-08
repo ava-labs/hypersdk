@@ -17,7 +17,7 @@ func (c *Chain) AssembleBlock(
 	blockHeight uint64,
 	txs []*Transaction,
 ) (*ExecutedBlock, state.View, error) {
-	ctx, span := c.tracer.Start(ctx, "chain.AssembleBlock")
+	ctx, span := c.tracer.Start(ctx, "Chain.AssembleBlock")
 	defer span.End()
 
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)

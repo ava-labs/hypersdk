@@ -74,7 +74,7 @@ func NewChain(
 }
 
 func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
-	_, span := c.tracer.Start(ctx, "chain.AcceptBlock")
+	_, span := c.tracer.Start(ctx, "Chain.AcceptBlock")
 	defer span.End()
 
 	c.metrics.txsAccepted.Add(float64(len(blk.Txs)))
@@ -145,7 +145,7 @@ func (c *Chain) PreExecute(
 }
 
 func (c *Chain) ParseBlock(ctx context.Context, b []byte) (*ExecutionBlock, error) {
-	_, span := c.tracer.Start(ctx, "chain.ParseBlock")
+	_, span := c.tracer.Start(ctx, "Chain.ParseBlock")
 	defer span.End()
 
 	blk, err := UnmarshalBlock(b, c.parser)
