@@ -248,6 +248,7 @@ impl TestCrate {
         let mut actor = vec![0; Address::LEN];
         let height: u64 = 0;
         let timestamp: u64 = 0;
+        let value: u64 = 0;
         let mut action_id = vec![1; ID_LEN];
 
         // this is a hack to create a context since the constructor is private
@@ -255,6 +256,7 @@ impl TestCrate {
         serialized_context.append(&mut actor);
         serialized_context.append(&mut height.to_le_bytes().to_vec());
         serialized_context.append(&mut timestamp.to_le_bytes().to_vec());
+        serialized_context.append(&mut value.to_le_bytes().to_vec());
         serialized_context.append(&mut action_id);
 
         self.allocate(serialized_context)
