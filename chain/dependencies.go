@@ -171,7 +171,7 @@ type BalanceHandler interface {
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
 	// AddBalance adds [amount] to [addr].
-	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64, createAccount bool) error
+	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
 	// GetBalance returns the balance of [addr].
 	// If [addr] does not exist, this should return 0 and no error.

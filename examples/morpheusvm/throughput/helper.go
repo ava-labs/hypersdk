@@ -8,6 +8,10 @@ package throughput
 
 import (
 	"context"
+	"encoding/binary"
+	"sync/atomic"
+
+	"golang.org/x/exp/rand"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
@@ -23,12 +27,21 @@ type SpamHelper struct {
 	KeyType string
 	cli     *vm.JSONRPCClient
 	ws      *ws.WebSocketClient
+
+	pks  []*auth.PrivateKey
+	sent atomic.Int64
 }
 
 var _ throughput.SpamHelper = &SpamHelper{}
 
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
-	return vm.AuthProvider.GeneratePrivateKey(sh.KeyType)
+	pk, err := vm.AuthProvider.GeneratePrivateKey(sh.KeyType)
+	if err != nil {
+		return nil, err
+	}
+
+	sh.pks = append(sh.pks, pk)
+	return pk, nil
 }
 
 func (sh *SpamHelper) CreateClient(uri string) error {
@@ -60,4 +73,14 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 		Value: amount,
 		Memo:  memo,
 	}}
+}
+
+func (sh *SpamHelper) GetActions() []chain.Action {
+	pkIndex := rand.Int() % len(sh.pks)
+	// transfers 1 unit to a random address
+	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes())
+}
+
+func (sh *SpamHelper) uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1)))
 }

@@ -16,16 +16,14 @@ import (
 )
 
 type WasmRuntime struct {
-	log         logging.Logger
-	engine      *wasmtime.Engine
-	hostImports *Imports
-	cfg         *Config
+	log    logging.Logger
+	engine *wasmtime.Engine
+	cfg    *Config
 
 	contractCache cache.Cacher[string, *wasmtime.Module]
 
-	callerInfo                map[uintptr]*CallInfo
-	linker                    *wasmtime.Linker
-	linkerNeedsInitialization bool
+	callerInfo map[uintptr]*CallInfo
+	linker     *wasmtime.Linker
 }
 
 type StateManager interface {
@@ -58,13 +56,13 @@ func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
 ) *WasmRuntime {
+	hostImports := NewImports()
+
 	runtime := &WasmRuntime{
-		log:                       log,
-		cfg:                       cfg,
-		engine:                    wasmtime.NewEngineWithConfig(cfg.wasmConfig),
-		hostImports:               NewImports(),
-		callerInfo:                map[uintptr]*CallInfo{},
-		linkerNeedsInitialization: true,
+		log:        log,
+		cfg:        cfg,
+		engine:     wasmtime.NewEngineWithConfig(cfg.wasmConfig),
+		callerInfo: map[uintptr]*CallInfo{},
 		contractCache: cache.NewSizedLRU(cfg.ContractCacheSize, func(id string, mod *wasmtime.Module) int {
 			bytes, err := mod.Serialize()
 			if err != nil {
@@ -74,21 +72,23 @@ func NewRuntime(
 		}),
 	}
 
-	runtime.AddImportModule(NewLogModule())
-	runtime.AddImportModule(NewBalanceModule())
-	runtime.AddImportModule(NewStateAccessModule())
-	runtime.AddImportModule(NewContractModule(runtime))
+	hostImports.AddModule(NewLogModule())
+	hostImports.AddModule(NewBalanceModule())
+	hostImports.AddModule(NewStateAccessModule())
+	hostImports.AddModule(NewContractModule(runtime))
+
+	linker, err := hostImports.createLinker(runtime)
+	if err != nil {
+		panic(err)
+	}
+
+	runtime.linker = linker
 
 	return runtime
 }
 
 func (r *WasmRuntime) WithDefaults(callInfo CallInfo) CallContext {
 	return CallContext{r: r, defaultCallInfo: callInfo}
-}
-
-func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
-	r.hostImports.AddModule(mod)
-	r.linkerNeedsInitialization = true
 }
 
 func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id []byte) (*wasmtime.Module, error) {
@@ -116,7 +116,7 @@ func (r *WasmRuntime) CallContract(ctx context.Context, callInfo *CallInfo) (res
 	if err != nil {
 		return nil, err
 	}
-	inst, err := r.getInstance(contractModule, r.hostImports)
+	inst, err := r.getInstance(contractModule)
 	if err != nil {
 		return nil, err
 	}
@@ -128,16 +128,7 @@ func (r *WasmRuntime) CallContract(ctx context.Context, callInfo *CallInfo) (res
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module, imports *Imports) (*ContractInstance, error) {
-	if r.linkerNeedsInitialization {
-		linker, err := imports.createLinker(r)
-		if err != nil {
-			return nil, err
-		}
-		r.linker = linker
-		r.linkerNeedsInitialization = false
-	}
-
+func (r *WasmRuntime) getInstance(contractModule *wasmtime.Module) (*ContractInstance, error) {
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
 	inst, err := r.linker.Instantiate(store, contractModule)
