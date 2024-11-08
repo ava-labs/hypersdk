@@ -95,12 +95,12 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, nil, nil, ErrTimestampTooEarly
 	}
-	b := buildBlock{
-		parentID:  parent.ID(),
-		timestamp: nextTime,
-		height:    parent.Hght + 1,
-		txs:       []*Transaction{},
-	}
+	var (
+		parentID  = parent.ID()
+		timestamp = nextTime
+		height    = parent.Hght + 1
+		txs       = []*Transaction{}
+	)
 
 	// Compute next unit prices to use
 	feeKey := FeeKey(c.metadataManager.FeePrefix())
@@ -147,7 +147,6 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	c.mempool.StartStreaming(ctx)
-	b.txs = []*Transaction{}
 	for time.Since(start) < c.config.TargetBuildDuration && !stop {
 		prepareStreamLock.Lock()
 		txs := c.mempool.Stream(ctx, streamBatch)
@@ -324,7 +323,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 				// Update block with new transaction
 				tsv.Commit()
-				b.txs = append(b.txs, tx)
+				txs = append(txs, tx)
 				results = append(results, result)
 				return nil
 			})
@@ -343,7 +342,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 				// sure all transactions are returned to the mempool.
 				go func() {
 					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
-					restored := c.mempool.FinishStreaming(ctx, append(b.txs, restorable...))
+					restored := c.mempool.FinishStreaming(ctx, append(txs, restorable...))
 					c.log.Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
 				c.log.Warn("build failed", zap.Error(execErr))
@@ -364,14 +363,14 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
-		attribute.Int("added", len(b.txs)),
+		attribute.Int("added", len(txs)),
 	)
 	if time.Since(start) > c.config.TargetBuildDuration {
 		c.metrics.buildCapped.Inc()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
-	if len(b.txs) == 0 {
+	if len(txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
 			return nil, nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
@@ -394,10 +393,10 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.height)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.timestamp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(timestamp))); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
@@ -411,7 +410,7 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	b.stateRoot = root
+	parentStateRoot := root
 
 	// Get view from [tstate] after writing all changed keys
 	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
@@ -421,11 +420,11 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 	// Initialize finalized metadata fields
 	blk, err := NewStatelessBlock(
-		b.parentID,
-		b.timestamp,
-		b.height,
-		b.txs,
-		b.stateRoot,
+		parentID,
+		timestamp,
+		height,
+		txs,
+		parentStateRoot,
 	)
 	if err != nil {
 		return nil, nil, nil, err
@@ -449,13 +448,13 @@ func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *E
 
 	c.log.Info(
 		"built block",
-		zap.Uint64("hght", b.height),
+		zap.Uint64("hght", height),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.txs)),
+		zap.Int("added", len(txs)),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
-		zap.Int64("block (t)", b.timestamp),
+		zap.Int64("block (t)", timestamp),
 	)
 	return NewExecutionBlock(blk), &ExecutedBlock{
 		Block:         blk,
