@@ -15,20 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type ChainBackend interface {
-	Tracer() trace.Tracer
-	Metrics() metrics.MultiGatherer
-	Mempool() Mempool
-	Logger() logging.Logger
-	Parser
-	RuleFactory() RuleFactory
-	MetadataManager() MetadataManager
-	BalanceHandler() BalanceHandler
-	AuthVerifiers() workers.Workers
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
-	GetValidityWindow() *TimeValidityWindow
-}
-
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
