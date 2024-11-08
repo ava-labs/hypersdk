@@ -14,6 +14,8 @@ Before we build out our JSON-RPC function, we'll first need to add the following
 function to `storage/storage.go`:
 
 ```golang
+type ReadState func(context.Context, [][]byte) ([][]byte, []error)
+
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
@@ -260,20 +262,16 @@ func (p *Parser) Rules(_ int64) chain.Rules {
 	return p.genesis.Rules
 }
 
-func (*Parser) ActionCodec() chain.ActionCodec {
+func (*Parser) ActionCodec() *codec.TypeParser[chain.Action] {
 	return ActionParser
 }
 
-func (*Parser) OutputCodec() chain.OutputCodec {
+func (*Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 	return OutputParser
 }
 
-func (*Parser) AuthCodec() chain.AuthCodec {
+func (*Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
 	return AuthParser
-}
-
-func (*Parser) StateManager() chain.StateManager {
-	return &storage.StateManager{}
 }
 
 func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
