@@ -1,0 +1,9 @@
+[package]
+name = "wasmlanche-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh = "1.5.1"
+wasmlanche.workspace = true
+wasmtime = "26.0.0"

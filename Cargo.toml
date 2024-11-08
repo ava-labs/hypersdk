@@ -7,11 +7,13 @@ members = [
   "x/contracts/examples/counter-external",
   "x/contracts/examples/automated-market-maker",
   "x/contracts/wasmlanche/tests/test-crate",
+  "x/contracts/wasmlanche/tests/bench-crate",
   "x/contracts/test/contracts/*",
   "x/contracts/simulator",
   "x/contracts/examples/tutorial",
   "x/contracts/examples/nft",
   "x/contracts/examples/multisig",
+  "x/contracts/wasmlanche/wasmlanche-test",
 ]
 resolver = "2"
 
