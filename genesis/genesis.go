@@ -65,7 +65,7 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 		if err != nil {
 			return err
 		}
-		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance, true); err != nil {
+		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

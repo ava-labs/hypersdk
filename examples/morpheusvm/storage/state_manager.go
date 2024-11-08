@@ -52,9 +52,8 @@ func (*BalanceHandler) AddBalance(
 	addr codec.Address,
 	mu state.Mutable,
 	amount uint64,
-	createAccount bool,
 ) error {
-	_, err := AddBalance(ctx, mu, addr, amount, createAccount)
+	_, err := AddBalance(ctx, mu, addr, amount)
 	return err
 }
 
