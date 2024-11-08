@@ -11,16 +11,19 @@ use hashbrown::HashMap;
 type LenMap = HashMap<*const u8, usize>;
 
 /// Get size of allocation at `key`
+#[inline]
 pub fn get(key: *const u8) -> Option<usize> {
     ALLOCATIONS.with_borrow(|map| map.get(&key).copied())
 }
 
 /// Insert size of allocation at `key`
+#[inline]
 pub fn insert(key: *const u8, value: usize) {
     ALLOCATIONS.with_borrow_mut(|map| map.insert(key, value));
 }
 
 /// Remove size of allocation at `key` in preparation of deallocation or move
+#[inline]
 pub fn remove(key: *const u8) -> Option<usize> {
     ALLOCATIONS.with_borrow_mut(|map| map.remove(&key))
 }
@@ -90,6 +93,7 @@ cfg_if! {
             /// Safety:
             /// Data-races are prevented with a lock
             #[must_use]
+            #[inline]
             fn init_and_lock(&self) -> Guard<'_> {
                 assert!(!self.lock.swap(true, Acquire), "already accessed");
 
@@ -104,12 +108,14 @@ cfg_if! {
             }
 
             /// Matches the `LocalKey` API
+            #[inline]
             fn with_borrow<F: FnOnce(&LenMap) -> R, R>(&self, f: F) -> R {
                 let map = self.init_and_lock();
                 f(&map)
             }
 
             /// Matches the `LocalKey` API
+            #[inline]
             fn with_borrow_mut<F: FnOnce(&mut LenMap) -> R, R>(&self, f: F) -> R {
                 let mut map = self.init_and_lock();
                 f(&mut map)
