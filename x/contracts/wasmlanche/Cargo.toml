@@ -14,9 +14,13 @@ simulator = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+env_logger = "0.11.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-wasmtime = "14"
+criterion = "0.5.1"
+iai = "0.1.1"
+pprof = { version = "0.13.0", features = ["criterion", "flamegraph"] }
+wasmlanche-test = { path = "wasmlanche-test" }
 
 [features]
 bindings = []
@@ -25,3 +29,11 @@ debug = ["std"]
 std = []
 test = ["std", "simulator"]
 simulator = ["std", "dep:simulator"]
+
+[[bench]]
+name = "call_contract_time"
+harness = false
+
+[[bench]]
+name = "call_contract_mem"
+harness = false

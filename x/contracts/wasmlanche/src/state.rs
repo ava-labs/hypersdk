@@ -10,7 +10,10 @@ use crate::{
 use alloc::{boxed::Box, vec::Vec};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
-use core::mem::{self, size_of};
+use core::{
+    mem::{self, size_of},
+    ops::Deref,
+};
 use displaydoc::Display;
 use hashbrown::HashMap;
 use sdk_macros::impl_to_pairs;
@@ -28,8 +31,42 @@ pub enum Error {
     Deserialization,
 }
 
+enum Query<V> {
+    Found(V),
+    Changed(V),
+    NotFound,
+}
+
+impl<V> From<Option<V>> for Query<V> {
+    fn from(value: Option<V>) -> Self {
+        match value {
+            Some(value) => Query::Found(value),
+            None => Query::NotFound,
+        }
+    }
+}
+
+impl<V> Query<V> {
+    fn to_option(&self) -> Option<&V> {
+        match self {
+            Query::Found(value) | Query::Changed(value) => Some(value),
+            Query::NotFound => None,
+        }
+    }
+
+    fn to_option_mut(&mut self) -> Option<&mut V> {
+        match self {
+            Query::Found(value) | Query::Changed(value) => Some(value),
+            Query::NotFound => None,
+        }
+    }
+}
+
 pub struct Cache {
-    cache: HashMap<CacheKey, Option<CacheValue>>,
+    #[allow(clippy::struct_field_names)]
+    cache: HashMap<CacheKey, Query<CacheValue>>,
+    byte_count: usize,
+    change_count: usize,
 }
 
 impl Drop for Cache {
@@ -91,6 +128,7 @@ pub unsafe trait Schema: NoUninit {
 
     /// # Errors
     /// Will return an error when there's an issue with deserialization
+    #[inline]
     fn get(self, state_cache: &mut Cache) -> Result<Option<Self::Value>, Error> {
         let key = to_key(self);
         state_cache.get_with_raw_key(key.as_ref())
@@ -118,21 +156,27 @@ impl Cache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::default(),
+            byte_count: usize::default(),
+            change_count: usize::default(),
         }
     }
 
+    #[inline]
     pub fn store<Pairs: IntoPairs>(&mut self, pairs: Pairs) -> Result<(), Error> {
         let cache = &mut self.cache;
 
         pairs.into_pairs().into_iter().try_for_each(|result| {
             result.map(|(k, v)| {
-                cache.insert(k, Some(v));
+                self.change_count += 1;
+                self.byte_count += size_of::<u32>() + k.as_ref().len() + size_of::<u32>() + v.len();
+                cache.insert(k, Query::Changed(v));
             })
         })?;
 
         Ok(())
     }
 
+    #[inline]
     pub fn store_by_key<K>(&mut self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
@@ -148,36 +192,62 @@ impl Cache {
 
         if let Some(value) = cache.get(key) {
             value
-                .as_deref()
+                .to_option()
+                .map(Deref::deref)
                 .map(from_slice)
                 .transpose()
                 .map_err(|_| Error::Deserialization)
         } else {
             let key = CacheKey::from(key);
-            let bytes = get_bytes(&key);
-            cache
-                .entry(key)
-                .or_insert(bytes)
-                .as_deref()
+            let bytes = get_bytes(&key).into();
+            let value = cache.entry(key).or_insert(bytes);
+
+            value
+                .to_option()
+                .map(Deref::deref)
                 .map(from_slice)
                 .transpose()
                 .map_err(|_| Error::Deserialization)
         }
     }
 
+    #[inline]
     pub fn delete<K: Schema>(&mut self, key: K) -> Result<Option<K::Value>, Error> {
         let cache = &mut self.cache;
         let key = to_key(key);
+        let key = key.as_ref();
 
-        let cache_entry = if let Some(value) = cache.get_mut(key.as_ref()) {
-            value
+        let cache_entry = if let Some(value) = cache.get_mut(key) {
+            match value {
+                Query::Found(v) => {
+                    self.change_count += 1;
+                    self.byte_count -= size_of::<u32>() + key.len() + size_of::<u32>();
+                    *value = Query::Changed(mem::take(v));
+                    value
+                }
+                Query::Changed(v) if v.is_empty() => value,
+                Query::Changed(v) => {
+                    self.byte_count -= v.len();
+                    value
+                }
+                Query::NotFound => value,
+            }
         } else {
-            let key = CacheKey::from(key.as_ref());
-            let value_bytes = get_bytes(&key);
+            let key = CacheKey::from(key);
+
+            let value_bytes = if let Some(value_bytes) = get_bytes(&key) {
+                self.change_count += 1;
+                self.byte_count += size_of::<u32>() + key.len() + size_of::<u32>();
+
+                Query::Changed(value_bytes)
+            } else {
+                Query::NotFound
+            };
+
             cache.entry(key).or_insert(value_bytes)
         };
 
-        match cache_entry {
+        match cache_entry.to_option_mut() {
             None => Ok(None),
             Some(val) if val.is_empty() => Ok(None),
             Some(val) => from_slice(&mem::take(val))
@@ -188,23 +258,33 @@ impl Cache {
 
     /// Apply all pending operations to storage and mark the cache as flushed
     pub(super) fn flush(&mut self) {
-        #[derive(BorshSerialize)]
-        struct PutArgs<Key> {
-            key: Key,
-            value: CacheValue,
+        let Self {
+            cache,
+            byte_count,
+            change_count,
+        } = self;
+
+        if *change_count == 0 {
+            return;
         }
 
-        let cache = &mut self.cache;
+        let mut to_delete = Vec::with_capacity(size_of::<u32>() + mem::take(byte_count));
+        to_delete.extend(mem::take(change_count).to_le_bytes());
 
-        let args: Vec<_> = cache
+        cache
             .drain()
-            .filter_map(|(key, val)| val.map(|value| PutArgs { key, value }))
-            .collect();
+            .filter_map(|(key, value)| match value {
+                Query::Found(_) | Query::NotFound => None,
+                Query::Changed(value) => Some((key, value)),
+            })
+            .for_each(|(key, value)| {
+                to_delete.extend(&key.len().to_le_bytes());
+                to_delete.extend(key.as_ref());
+                to_delete.extend(&value.len().to_le_bytes());
+                to_delete.extend(&value);
+            });
 
-        if !args.is_empty() {
-            let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-            StateAccessor::put(&serialized_args);
-        }
+        StateAccessor::put(&to_delete);
     }
 }
 
