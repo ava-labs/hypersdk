@@ -27,8 +27,6 @@ func newRegistry() (chain.Registry, error) {
 
 	errs := &wrappers.Errs{}
 
-	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
-
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
@@ -68,4 +66,11 @@ func New(options ...vm.Option) (*vm.VM, error) {
 // Setup types
 func init() {
 	AuthProvider = auth.NewAuthProvider()
+
+	errs := &wrappers.Errs{}
+
+	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
+	if errs.Errored() {
+		panic(errs.Err)
+	}
 }
