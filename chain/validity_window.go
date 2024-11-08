@@ -87,9 +87,6 @@ func (v *TimeValidityWindow) IsRepeat(
 	txs []*Transaction,
 	oldestAllowed int64,
 ) (set.Bits, error) {
-	_, span := v.tracer.Start(ctx, "chain.IsRepeat")
-	defer span.End()
-
 	return v.isRepeat(ctx, parentBlk, oldestAllowed, txs, set.NewBits(), false)
 }
 
@@ -101,7 +98,7 @@ func (v *TimeValidityWindow) isRepeat(
 	marker set.Bits,
 	stop bool,
 ) (set.Bits, error) {
-	_, span := v.tracer.Start(ctx, "chain.IsRepeat")
+	_, span := v.tracer.Start(ctx, "Chain.isRepeat")
 	defer span.End()
 
 	v.lock.Lock()

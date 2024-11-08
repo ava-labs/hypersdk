@@ -63,7 +63,7 @@ func (c *Chain) AsyncVerify(ctx context.Context, block *ExecutionBlock) error {
 	block.sigJob = sigJob
 
 	// Setup signature verification job
-	_, sigVerifySpan := c.tracer.Start(ctx, "NewExecutionBlock.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := c.tracer.Start(ctx, "Chain.AsyncVerify.verifySignatures") //nolint:spancheck
 
 	batchVerifier := NewAuthBatch(c.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]

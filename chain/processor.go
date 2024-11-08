@@ -202,7 +202,7 @@ func (c *Chain) executeTxs(
 	feeManager *fees.Manager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := c.tracer.Start(ctx, "Processor.Execute")
+	ctx, span := c.tracer.Start(ctx, "Chain.Execute.ExecuteTxs")
 	defer span.End()
 
 	var (
