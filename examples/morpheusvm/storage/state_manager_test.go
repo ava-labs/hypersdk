@@ -11,9 +11,5 @@ import (
 )
 
 func TestBalanceHandler(t *testing.T) {
-	chaintest.TestBalanceHandler(
-		context.Background(),
-		t,
-		&BalanceHandler{},
-	)
+	chaintest.TestBalanceHandler(t, context.Background(), &BalanceHandler{})
 }
