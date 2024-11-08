@@ -69,6 +69,7 @@ VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
 cd examples/morpheusvm
 ./scripts/build.sh
+ls ./build
 mv ./build/morpheus-cli "${TMPDIR}/morpheus-cli"
 cd $pw
 
