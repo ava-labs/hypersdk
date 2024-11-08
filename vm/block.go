@@ -57,7 +57,7 @@ func ParseBlock(
 		return nil, err
 	}
 	// If it's possible to verify the block, start async verification
-	if blk.Hght > vm.lastAccepted.Hght {
+	if vm.lastAccepted != nil && blk.Hght > vm.lastAccepted.Hght {
 		if err := vm.chain.AsyncVerify(ctx, blk); err != nil {
 			return nil, err
 		}

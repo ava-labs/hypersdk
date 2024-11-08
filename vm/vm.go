@@ -329,7 +329,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	vm.syncer = chain.NewSyncer(vm.chainTimeValidityWindow, vm.ruleFactory)
+	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -605,7 +605,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 		}
 
 		// Start the chain syncer and mark the validity window as completed if possible.
-		seenValidityWindow, err := vm.syncer.Start(ctx, vm.lastAccepted.ExecutionBlock)
+		seenValidityWindow, err := vm.syncer.Accept(ctx, vm.lastAccepted.ExecutionBlock)
 		if err != nil {
 			return err
 		}
