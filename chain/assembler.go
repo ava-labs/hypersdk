@@ -16,13 +16,13 @@ func (c *Chain) AssembleBlock(
 	timestamp int64,
 	blockHeight uint64,
 	txs []*Transaction,
-) (*ExecutionBlock, error) {
+) (*ExecutedBlock, state.View, error) {
 	ctx, span := c.tracer.Start(ctx, "chain.AssembleBlock")
 	defer span.End()
 
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sb, err := NewStatelessBlock(
@@ -33,18 +33,8 @@ func (c *Chain) AssembleBlock(
 		parentStateRoot,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return NewExecutionBlock(sb), nil
-}
-
-func (c *Chain) ExecuteBlock(
-	ctx context.Context,
-	parentView state.View,
-	b *ExecutionBlock,
-) (*ExecutedBlock, state.View, error) {
-	ctx, span := c.tracer.Start(ctx, "chain.ExecuteBlock")
-	defer span.End()
-
-	return c.Execute(ctx, parentView, b)
+	executionBlock := NewExecutionBlock(sb)
+	return c.Execute(ctx, parentView, executionBlock)
 }

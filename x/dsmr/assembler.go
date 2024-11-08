@@ -13,8 +13,7 @@ import (
 // Note: Assembler breaks assembling and executing a block into two steps
 // but these will be called one after the other.
 type Assembler[T Tx, State any, Block any, Result any] interface {
-	AssembleBlock(ctx context.Context, parentState State, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, error)
-	ExecuteBlock(ctx context.Context, parentState State, b Block) (Result, State, error)
+	AssembleBlock(ctx context.Context, parentState State, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, Result, State, error)
 }
 
 type ChunkGatherer[T Tx] interface {
@@ -58,12 +57,11 @@ func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block) err
 	}
 
 	// Assemble and execute the block
-	assembledBlk, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedState, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
+	innerBlock, result, state, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedState, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
 	if err != nil {
 		return err
 	}
-	result, state, err := b.Assembler.ExecuteBlock(ctx, b.lastAcceptedState, assembledBlk)
-	b.lastAcceptedBlock = assembledBlk
+	b.lastAcceptedBlock = innerBlock
 	b.lastAcceptedResult = result
 	b.lastAcceptedState = state
 	return err

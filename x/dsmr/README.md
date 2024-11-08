@@ -54,9 +54,8 @@ TODO
 - define block assembler interface to assemble, execute, and accept a block
 
 ```golang
-type Assembler[T Tx, Block any, Result any] interface {
-	AssembleBlock(parentBlock Block, timestamp uint64, blockHeight uint64, txs []T) (Block, error)
-	ExecuteBlock(b Block) (Result, error)
+type Assembler[T Tx, State any, Block any, Result any] interface {
+	AssembleBlock(ctx context.Context, parentState State, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, Result, State, error)
 }
 ```
 
