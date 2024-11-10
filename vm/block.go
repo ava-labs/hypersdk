@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,10 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var (
-	_ snowman.Block      = (*StatefulBlock)(nil)
-	_ block.StateSummary = (*SyncableBlock)(nil)
-)
+var _ snowman.Block = (*StatefulBlock)(nil)
 
 // StatefulBlock is defined separately from "StatelessBlock"
 // in case external packages need to use the stateless block
@@ -420,22 +416,6 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 	// If the parent block is accepted and processed, we should
 	// just use the accepted state as the verification context.
 	return &AcceptedVerifyContext{b.vm}, nil
-}
-
-type SyncableBlock struct {
-	*StatefulBlock
-}
-
-func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
-	return sb.vm.AcceptedSyncableBlock(ctx, sb)
-}
-
-func NewSyncableBlock(sb *StatefulBlock) *SyncableBlock {
-	return &SyncableBlock{sb}
-}
-
-func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
 }
 
 // Testing
