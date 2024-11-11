@@ -53,7 +53,7 @@ func TestTransferAction(t *testing.T) {
 				_, err := storage.AddBalance(
 					context.Background(),
 					s,
-					codec.EmptyAddress,
+					codec.EmptyAddress[:],
 					0,
 				)
 				require.NoError(t, err)
@@ -70,11 +70,11 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress[:], 1))
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+				balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress[:])
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
@@ -92,7 +92,7 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress[:], 1))
 				return store
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
@@ -106,14 +106,14 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				store := chaintest.NewInMemoryStore()
-				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				require.NoError(t, storage.SetBalance(context.Background(), store, codec.EmptyAddress[:], 1))
 				return store
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, store, addr)
+				receiverBalance, err := storage.GetBalance(ctx, store, addr[:])
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress[:])
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -135,7 +135,7 @@ func TestMultiTransfer(t *testing.T) {
 	addrBob := codectest.NewRandomAddress()
 
 	store := chaintest.NewInMemoryStore()
-	require.NoError(t, storage.SetBalance(context.Background(), store, addrAlice, 1))
+	require.NoError(t, storage.SetBalance(context.Background(), store, addrAlice[:], 1))
 
 	tests := []chaintest.ActionTest{
 		{
@@ -147,10 +147,10 @@ func TestMultiTransfer(t *testing.T) {
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, store, addrBob)
+				receiverBalance, err := storage.GetBalance(ctx, store, addrBob[:])
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, store, addrAlice)
+				senderBalance, err := storage.GetBalance(ctx, store, addrAlice[:])
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -168,10 +168,10 @@ func TestMultiTransfer(t *testing.T) {
 			},
 			State: store,
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
-				receiverBalance, err := storage.GetBalance(ctx, store, addrAlice)
+				receiverBalance, err := storage.GetBalance(ctx, store, addrAlice[:])
 				require.NoError(t, err)
 				require.Equal(t, receiverBalance, uint64(1))
-				senderBalance, err := storage.GetBalance(ctx, store, addrBob)
+				senderBalance, err := storage.GetBalance(ctx, store, addrBob[:])
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
@@ -205,17 +205,17 @@ func BenchmarkSimpleTransfer(b *testing.B) {
 		},
 		CreateState: func() state.Mutable {
 			store := chaintest.NewInMemoryStore()
-			err := storage.SetBalance(context.Background(), store, from, 1)
+			err := storage.SetBalance(context.Background(), store, from[:], 1)
 			setupRequire.NoError(err)
 			return store
 		},
 		Assertion: func(ctx context.Context, b *testing.B, store state.Mutable) {
 			require := require.New(b)
-			toBalance, err := storage.GetBalance(ctx, store, to)
+			toBalance, err := storage.GetBalance(ctx, store, to[:])
 			require.NoError(err)
 			require.Equal(uint64(1), toBalance)
 
-			fromBalance, err := storage.GetBalance(ctx, store, from)
+			fromBalance, err := storage.GetBalance(ctx, store, from[:])
 			require.NoError(err)
 			require.Equal(uint64(0), fromBalance)
 		},
