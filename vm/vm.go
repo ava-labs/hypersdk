@@ -43,7 +43,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
-	"github.com/ava-labs/hypersdk/nethandlers"
+	"github.com/ava-labs/hypersdk/netextensions"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -137,7 +137,7 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient *nethandlers.StateSyncerClient
+	stateSyncClient *netextensions.StateSyncerClient
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -191,7 +191,7 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
-	vm.StateSyncableVM = nethandlers.NewStateSyncerServer(vm)
+	vm.StateSyncableVM = netextensions.NewStateSyncerServer(vm)
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
@@ -434,15 +434,15 @@ func (vm *VM) Initialize(
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
-	vm.stateSyncClient = nethandlers.NewStateSyncClient(vm.snowCtx.Metrics, vm)
+	vm.stateSyncClient = netextensions.NewStateSyncClient(vm.snowCtx.Metrics, vm)
 
-	if err := nethandlers.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.gossiper.HandleAppGossip); err != nil {
+	if err := netextensions.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.gossiper.HandleAppGossip); err != nil {
 		return err
 	}
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
-	go vm.gossiper.Run(vm.network.NewClient(nethandlers.TxGossipHandlerID))
+	go vm.gossiper.Run(vm.network.NewClient(netextensions.TxGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
