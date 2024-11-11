@@ -23,21 +23,19 @@ const (
 	CodeChunks    = 1024 * 24 / 64 // the max contract size is 24KB
 )
 
-func AccountKey(addr common.Address) []byte {
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
-	k := make([]byte, 0, 1+common.HashLength+consts.Uint16Len)
+func AccountKey(addr []byte) []byte {
+	k := make([]byte, 0, 1+len(addr)+consts.Uint16Len)
 	k = append(k, evmPrefix)
-	k = append(k, addrHash.Bytes()...)
+	k = append(k, addr...)
 	k = binary.BigEndian.AppendUint16(k, AccountChunks)
 	return k
 }
 
-func StorageKey(addr common.Address, key []byte) []byte {
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
+func StorageKey(addr []byte, key []byte) []byte {
 	keyHash := crypto.Keccak256Hash(key)
-	k := make([]byte, 0, 1+2*common.HashLength+consts.Uint16Len)
+	k := make([]byte, 0, 1+2*len(addr)+len(key)+consts.Uint16Len)
 	k = append(k, evmPrefix)
-	k = append(k, addrHash.Bytes()...)
+	k = append(k, addr...)
 	k = append(k, keyHash.Bytes()...)
 	k = binary.BigEndian.AppendUint16(k, StorageChunks)
 	return k
@@ -46,7 +44,7 @@ func StorageKey(addr common.Address, key []byte) []byte {
 func GetStorage(
 	ctx context.Context,
 	im state.Immutable,
-	addr common.Address,
+	addr []byte,
 	key []byte,
 ) ([]byte, error) {
 	k := StorageKey(addr, key)
@@ -63,7 +61,7 @@ func GetStorage(
 func SetStorage(
 	ctx context.Context,
 	mu state.Mutable,
-	addr common.Address,
+	addr []byte,
 	key, value []byte,
 ) error {
 	k := StorageKey(addr, key)
@@ -73,7 +71,7 @@ func SetStorage(
 func DeleteStorage(
 	ctx context.Context,
 	mu state.Mutable,
-	addr common.Address,
+	addr []byte,
 	key []byte,
 ) error {
 	k := StorageKey(addr, key)
@@ -83,7 +81,7 @@ func DeleteStorage(
 func GetAccount(
 	ctx context.Context,
 	im state.Immutable,
-	addr common.Address,
+	addr []byte,
 ) ([]byte, error) {
 	k := AccountKey(addr)
 	val, err := im.GetValue(ctx, k)
@@ -99,7 +97,7 @@ func GetAccount(
 func SetAccount(
 	ctx context.Context,
 	mu state.Mutable,
-	addr common.Address,
+	addr []byte,
 	account []byte,
 ) error {
 	k := AccountKey(addr)
@@ -109,14 +107,14 @@ func SetAccount(
 func DeleteAccount(
 	ctx context.Context,
 	mu state.Mutable,
-	addr common.Address,
+	addr []byte,
 ) error {
 	k := AccountKey(addr)
 	return mu.Remove(ctx, k)
 }
 
-func CodeKey(addr common.Address) []byte {
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
+func CodeKey(addr []byte) []byte {
+	addrHash := crypto.Keccak256Hash(addr)
 	k := make([]byte, 0, 1+common.HashLength+consts.Uint16Len)
 	k = append(k, evmPrefix)
 	k = append(k, addrHash.Bytes()...)
@@ -127,7 +125,7 @@ func CodeKey(addr common.Address) []byte {
 func GetCode(
 	ctx context.Context,
 	im state.Immutable,
-	addr common.Address,
+	addr []byte,
 ) ([]byte, error) {
 	k := CodeKey(addr)
 	val, err := im.GetValue(ctx, k)
@@ -143,7 +141,7 @@ func GetCode(
 func SetCode(
 	ctx context.Context,
 	mu state.Mutable,
-	addr common.Address,
+	addr []byte,
 	code []byte,
 ) error {
 	k := CodeKey(addr)

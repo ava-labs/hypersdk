@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -19,58 +18,16 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ava-labs/subnet-evm/params"
+	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
-
-func getTestMerkleConfig(tracer trace.Tracer) merkledb.Config {
-	return merkledb.Config{
-		BranchFactor:                merkledb.BranchFactor16,
-		RootGenConcurrency:          1,
-		HistoryLength:               100,
-		ValueNodeCacheSize:          units.MiB,
-		IntermediateNodeCacheSize:   units.MiB,
-		IntermediateWriteBufferSize: units.KiB,
-		IntermediateWriteBatchSize:  units.KiB,
-		Tracer:                      tracer,
-	}
-}
-
-func traceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
-	mu := state.NewSimpleMutable(view)
-	recorder := tstate.NewRecorder(mu)
-	result, err := call.Execute(ctx, r, recorder, time, from, txID)
-	require.NoError(err)
-	require.Nil(result.(*EvmCallResult).Err)
-	call.SetStateKeys(recorder.GetStateKeys())
-
-	stateKeys := call.StateKeys(from, txID)
-	storage := make(map[string][]byte, len(stateKeys))
-	for key := range stateKeys {
-		val, err := view.GetValue(ctx, []byte(key))
-		if errors.Is(err, database.ErrNotFound) {
-			continue
-		}
-		require.NoError(err)
-		storage[key] = val
-	}
-	ts := tstate.New(0) // estimate of changed keys does not need to be accurate
-	tsv := ts.NewView(stateKeys, storage)
-	resultExecute, err := call.Execute(ctx, r, tsv, time, from, txID)
-	require.NoError(err)
-	require.Equal(result.(*EvmCallResult).UsedGas, resultExecute.(*EvmCallResult).UsedGas)
-	require.Equal(result.(*EvmCallResult).Return, resultExecute.(*EvmCallResult).Return)
-
-	tsv.Commit()
-	view, err = ts.ExportMerkleDBView(ctx, tracer, view)
-	require.NoError(err)
-	return view
-}
 
 func TestContract(t *testing.T) {
 	require := require.New(t)
@@ -81,17 +38,11 @@ func TestContract(t *testing.T) {
 
 	var from codec.Address
 	copy(from[20:], []byte("112233"))
-	tip := int64(0)
-	txTip := big.NewInt(tip * params.GWei)
-	baseFee := big.NewInt(0)
-	feeCap := new(big.Int).Add(baseFee, txTip)
+
 	call := &EvmCall{
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 
 	rules := genesis.NewDefaultRules()
@@ -104,6 +55,9 @@ func TestContract(t *testing.T) {
 	statedb, err := merkledb.New(ctx, memdb.New(), getTestMerkleConfig(tracer))
 	require.NoError(err)
 	mu := state.NewSimpleMutable(statedb)
+
+	err = InitializeAccount(ctx, mu, from, uint64(10000000000))
+	require.NoError(err)
 
 	{
 		result, err := call.Execute(
@@ -119,14 +73,10 @@ func TestContract(t *testing.T) {
 	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
 	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	{
 		result, err := call.Execute(
@@ -141,14 +91,10 @@ func TestContract(t *testing.T) {
 
 	data = common.Hex2Bytes("2e64cec1")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	require.NoError(mu.Commit(ctx))
 	mu = state.NewSimpleMutable(statedb)
@@ -177,17 +123,10 @@ func TestContractWithTracing(t *testing.T) {
 
 	var from codec.Address
 	copy(from[20:], []byte("112233"))
-	tip := int64(0)
-	txTip := big.NewInt(tip * params.GWei)
-	baseFee := big.NewInt(0)
-	feeCap := new(big.Int).Add(baseFee, txTip)
 	call := &EvmCall{
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 
 	r := genesis.NewDefaultRules()
@@ -206,27 +145,77 @@ func TestContractWithTracing(t *testing.T) {
 	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
 	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	view = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
 
 	data = common.Hex2Bytes("2e64cec1")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	_ = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
+}
+func getTestMerkleConfig(tracer trace.Tracer) merkledb.Config {
+	return merkledb.Config{
+		BranchFactor:                merkledb.BranchFactor16,
+		RootGenConcurrency:          1,
+		HistoryLength:               100,
+		ValueNodeCacheSize:          units.MiB,
+		IntermediateNodeCacheSize:   units.MiB,
+		IntermediateWriteBufferSize: units.KiB,
+		IntermediateWriteBatchSize:  units.KiB,
+		Tracer:                      tracer,
+	}
+}
+
+func traceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
+	mu := state.NewSimpleMutable(view)
+	recorder := tstate.NewRecorder(mu)
+	result, err := call.Execute(ctx, r, recorder, time, from, txID)
+	require.NoError(err)
+	require.Nil(result.(*EvmCallResult).Err)
+	call.Keys = recorder.GetStateKeys()
+
+	stateKeys := call.StateKeys(from, txID)
+	storage := make(map[string][]byte, len(stateKeys))
+	for key := range stateKeys {
+		val, err := view.GetValue(ctx, []byte(key))
+		if errors.Is(err, database.ErrNotFound) {
+			continue
+		}
+		require.NoError(err)
+		storage[key] = val
+	}
+	ts := tstate.New(0) // estimate of changed keys does not need to be accurate
+	tsv := ts.NewView(stateKeys, storage)
+	resultExecute, err := call.Execute(ctx, r, tsv, time, from, txID)
+	require.NoError(err)
+	require.Equal(result.(*EvmCallResult).UsedGas, resultExecute.(*EvmCallResult).UsedGas)
+	require.Equal(result.(*EvmCallResult).Return, resultExecute.(*EvmCallResult).Return)
+
+	tsv.Commit()
+	view, err = ts.ExportMerkleDBView(ctx, tracer, view)
+	require.NoError(err)
+	return view
+}
+
+func InitializeAccount(ctx context.Context, mu state.Mutable, address codec.Address, balance uint64) error {
+
+	newAccount := types.StateAccount{}
+	newAccount.Balance = uint256.NewInt(0).SetUint64(balance)
+	newAccount.Nonce = 0
+	newAccount.CodeHash = []byte{}
+	copy(newAccount.Root[:], common.Hash{}.Bytes())
+
+	encoded, err := storage.EncodeAccount(&newAccount)
+	if err != nil {
+		return fmt.Errorf("failed to encode account: %w", err)
+	}
+	return storage.SetAccount(ctx, mu, address[:], encoded)
 }

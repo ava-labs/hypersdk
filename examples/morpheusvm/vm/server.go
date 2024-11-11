@@ -55,8 +55,11 @@ type BalanceReply struct {
 func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
-
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address[:])
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	balance, err := storage.GetBalance(ctx, im, args.Address[:])
 	if err != nil {
 		return err
 	}
