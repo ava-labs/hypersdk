@@ -433,7 +433,7 @@ func (vm *VM) Initialize(
 	// Setup state syncing
 	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
 
-	if err := nethandlers.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.AppGossip); err != nil {
+	if err := nethandlers.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.gossiper.HandleAppGossip); err != nil {
 		return err
 	}
 
