@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/nethandlers"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
@@ -128,8 +129,8 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
-		RangeProofClient:      s.vm.network.NewClient(rangeProofHandlerID),
-		ChangeProofClient:     s.vm.network.NewClient(changeProofHandlerID),
+		RangeProofClient:      s.vm.network.NewClient(nethandlers.RangeProofHandlerID),
+		ChangeProofClient:     s.vm.network.NewClient(nethandlers.ChangeProofHandlerID),
 		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,
 		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,

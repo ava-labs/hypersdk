@@ -42,6 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/nethandlers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -49,7 +50,6 @@ import (
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
-	avasync "github.com/ava-labs/avalanchego/x/sync"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
@@ -60,10 +60,6 @@ const (
 
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
-
-	rangeProofHandlerID  = 0x0
-	changeProofHandlerID = 0x1
-	txGossipHandlerID    = 0x2
 )
 
 type VM struct {
@@ -437,30 +433,13 @@ func (vm *VM) Initialize(
 	// Setup state syncing
 	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
 
-	if err := vm.network.AddHandler(
-		rangeProofHandlerID,
-		avasync.NewGetRangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		changeProofHandlerID,
-		avasync.NewGetChangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		txGossipHandlerID,
-		NewTxGossipHandler(vm),
-	); err != nil {
+	if err := nethandlers.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.AppGossip); err != nil {
 		return err
 	}
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
-	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
+	go vm.gossiper.Run(vm.network.NewClient(nethandlers.TxGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
