@@ -135,7 +135,7 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient *stateSyncerClient
+	stateSyncClient *nethandlers.StateSyncerClient
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -431,7 +431,7 @@ func (vm *VM) Initialize(
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
-	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
+	vm.stateSyncClient = nethandlers.NewStateSyncClient(vm.snowCtx.Metrics, vm)
 
 	if err := nethandlers.RegisterNetworkHandlers(vm.network, vm.Logger(), vm.stateDB, vm.isReady, vm.gossiper.HandleAppGossip); err != nil {
 		return err
@@ -506,7 +506,7 @@ func (vm *VM) markReady() {
 	select {
 	case <-vm.stop:
 		return
-	case <-vm.stateSyncClient.done:
+	case <-vm.stateSyncClient.Done():
 	}
 
 	// We can begin partailly verifying blocks here because

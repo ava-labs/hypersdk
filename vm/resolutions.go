@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -83,6 +84,14 @@ func (vm *VM) LastAcceptedBlock() *chain.StatefulBlock {
 	return vm.lastAccepted
 }
 
+func (vm *VM) GetStateSyncMinBlocks() uint64 {
+	return vm.config.StateSyncMinBlocks
+}
+
+func (vm *VM) GetStateSyncParallelism() int {
+	return vm.config.StateSyncParallelism
+}
+
 func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
@@ -93,6 +102,10 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 		return nil, ErrStateMissing
 	}
 	return vm.stateDB, nil
+}
+
+func (vm *VM) Network() *p2p.Network {
+	return vm.network
 }
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
