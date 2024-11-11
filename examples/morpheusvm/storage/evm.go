@@ -24,6 +24,7 @@ const (
 )
 
 func AccountKey(addr common.Address) []byte {
+	// TODO: can we skip hashing and use the address directly
 	addrHash := crypto.Keccak256Hash(addr.Bytes())
 	k := make([]byte, 0, 1+common.HashLength+consts.Uint16Len)
 	k = append(k, evmPrefix)
@@ -80,6 +81,7 @@ func DeleteStorage(
 	return mu.Remove(ctx, k)
 }
 
+// Is this correct or do we need to grab the balance from a separate key and load that into the account as well?
 func GetAccount(
 	ctx context.Context,
 	im state.Immutable,

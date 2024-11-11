@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -26,24 +25,21 @@ import (
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To            *common.Address `json:"to"`            // Address of the contract to call (nil means contract creation)
-	Nonce         uint64          `json:"nonce"`         // Nonce for the transaction
-	Value         *big.Int        `json:"value"`         // Amount of native tokens to send
-	GasLimit      uint64          `json:"gasLimit"`      // Maximum gas units to consume
-	GasPrice      *big.Int        `json:"gasPrice"`      // Price per unit of gas
-	GasFeeCap     *big.Int        `json:"gasFeeCap"`     // Maximum fee per gas unit
-	GasTipCap     *big.Int        `json:"gasTipCap"`     // Maximum tip per gas unit
-	Data          []byte          `json:"data"`          // Input data for the transaction
-	BlobGasFeeCap *big.Int        `json:"blobGasFeeCap"` // Maximum fee for blob gas
-	BlobHashes    []common.Hash   `json:"blobHashes"`    // Hashes of associated blobs
-	Keys          state.Keys      `json:"stateKeys"`     // State keys accessed by this call
-
-	usedGas        uint64 // Gas used by the execution
-	executionError error  // Error encountered during execution
+	To            *common.Address `serialize:"true" json:"to"`            // Address of the contract to call (nil means contract creation)
+	Nonce         uint64          `serialize:"true" json:"nonce"`         // Nonce for the transaction
+	Value         *big.Int        `serialize:"true" json:"value"`         // Amount of native tokens to send
+	GasLimit      uint64          `serialize:"true" json:"gasLimit"`      // Maximum gas units to consume
+	GasPrice      *big.Int        `serialize:"true" json:"gasPrice"`      // Price per unit of gas
+	GasFeeCap     *big.Int        `serialize:"true" json:"gasFeeCap"`     // Maximum fee per gas unit
+	GasTipCap     *big.Int        `serialize:"true" json:"gasTipCap"`     // Maximum tip per gas unit
+	Data          []byte          `serialize:"true" json:"data"`          // Input data for the transaction
+	BlobGasFeeCap *big.Int        `serialize:"true" json:"blobGasFeeCap"` // Maximum fee for blob gas
+	BlobHashes    []common.Hash   `serialize:"true" json:"blobHashes"`    // Hashes of associated blobs
+	Keys          state.Keys      `serialize:"true" json:"stateKeys"`     // State keys accessed by this call
 }
 
-func (e *EvmCall) ComputeUnits(r chain.Rules) uint64 {
-	return GasToComputeUnits(e.GasLimit)
+func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
+	return e.GasLimit
 }
 
 func ToEVMAddress(addr codec.Address) common.Address {
@@ -53,38 +49,26 @@ func ToEVMAddress(addr codec.Address) common.Address {
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
 	return &core.Message{
-		From:          from,
-		To:            e.To,
-		Nonce:         e.Nonce,
-		Value:         e.Value,
-		GasLimit:      e.GasLimit,
-		GasPrice:      e.GasPrice,
-		GasFeeCap:     e.GasFeeCap,
-		GasTipCap:     e.GasTipCap,
-		Data:          slices.Clone(e.Data),
-		BlobGasFeeCap: e.BlobGasFeeCap,
-		BlobHashes:    e.getBlobHashes(),
+		From:              from,
+		To:                e.To,
+		Nonce:             e.Nonce,
+		Value:             e.Value,
+		GasLimit:          e.GasLimit,
+		GasPrice:          e.GasPrice,
+		GasFeeCap:         e.GasFeeCap,
+		GasTipCap:         e.GasTipCap,
+		Data:              slices.Clone(e.Data),
+		BlobGasFeeCap:     e.BlobGasFeeCap,
+		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
-}
-
-func (e *EvmCall) getBlobHashes() []common.Hash {
-	if len(e.BlobHashes) == 0 {
-		return nil
-	}
-	return slices.Clone(e.BlobHashes)
 }
 
 func (*EvmCall) GetTypeID() uint8 {
 	return mconsts.EvmCallID
 }
 
-func (e *EvmCall) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
-	// Make a deep copy to prevent external modification
-	keys := make(state.Keys, len(e.Keys))
-	for k, v := range e.Keys {
-		keys[k] = v
-	}
-	return keys
+func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return e.Keys
 }
 
 // An error should only be returned if a fatal error was encountered, otherwise [success] should
@@ -129,13 +113,12 @@ func (e *EvmCall) Execute(
 	// NOTE: we must explicitly check the error from statedb, since if the tx
 	// accesses a key that is not allowed, the EVM will not return an error
 	// from ApplyMessage, but the statedb will have an error instead.
-	success := e.handleExecutionResult(result, statedb.Error())
 	return &EvmCallResult{
-		Success: success,
-		UsedGas: GasToComputeUnits(result.UsedGas),
+		Success: result.Err == nil,
 		Return:  result.ReturnData,
-		Err:     e.executionError,
-	}, nil
+		UsedGas: result.UsedGas,
+		Err:     result.Err,
+	}, statedb.Error()
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)
@@ -151,173 +134,6 @@ func (e *EvmCallResult) GetTypeID() uint8 {
 	return mconsts.EvmCallID
 }
 
-func (e *EvmCall) MaxComputeUnits(chain.Rules) uint64 {
-	return GasToComputeUnits(e.GasLimit)
-}
-
-func GasToComputeUnits(gas uint64) uint64 {
-	return gas / 1000
-}
-
 func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
-}
-
-func (e *EvmCall) SetStateKeys(k state.Keys) {
-	e.Keys = k
-}
-
-func (e *EvmCall) ExecutionError() string {
-	if e.executionError == nil {
-		return ""
-	}
-	return e.executionError.Error()
-}
-
-func (e *EvmCall) UsedGas() uint64 {
-	return e.usedGas
-}
-
-func (e *EvmCall) Marshal(p *codec.Packer) {
-	e.marshalAddress(p)
-	e.marshalBasicFields(p)
-	e.marshalBlobData(p)
-	MarshalKeys(e.Keys, p)
-}
-
-func UnmarshalEvmCall(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	var e EvmCall
-	if err := e.unmarshalAddress(p); err != nil {
-		return nil, err
-	}
-	if err := e.unmarshalBasicFields(p); err != nil {
-		return nil, err
-	}
-	if err := e.unmarshalBlobData(p); err != nil {
-		return nil, err
-	}
-
-	var err error
-	e.Keys, err = UnmarshalKeys(p)
-	if err != nil {
-		return nil, err
-	}
-	return &e, p.Err()
-}
-
-func MarshalKeys(s state.Keys, p *codec.Packer) {
-	keys := make([]string, 0, len(s))
-	for k := range s {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	p.PackInt(uint32(len(keys)))
-	for _, k := range keys {
-		p.PackString(k)
-		p.PackByte(byte(s[k]))
-	}
-}
-
-func UnmarshalKeys(p *codec.Packer) (state.Keys, error) {
-	numKeys := p.UnpackInt(false)
-	keys := make(state.Keys, numKeys)
-	for i := 0; i < int(numKeys); i++ {
-		key := p.UnpackString(false)
-		perm := state.Permissions(p.UnpackByte())
-		keys[key] = perm
-	}
-	return keys, p.Err()
-}
-
-func (e *EvmCall) handleExecutionResult(result *core.ExecutionResult, statedbErr error) bool {
-	if result.Err != nil {
-		e.executionError = result.Err
-		return false
-	}
-	if statedbErr != nil {
-		e.executionError = statedbErr
-		return false
-	}
-	e.usedGas = result.UsedGas
-	return true
-}
-
-func (e *EvmCall) marshalAddress(p *codec.Packer) {
-	if e.To == nil {
-		p.PackBool(false)
-		return
-	}
-	p.PackBool(true)
-	p.PackFixedBytes(e.To[:])
-}
-
-func (e *EvmCall) marshalBasicFields(p *codec.Packer) {
-	p.PackUint64(e.Nonce)
-	packBig(p, e.Value)
-	p.PackUint64(e.GasLimit)
-	packBig(p, e.GasPrice)
-	packBig(p, e.GasFeeCap)
-	packBig(p, e.GasTipCap)
-	if e.Data == nil {
-		p.PackBytes([]byte{})
-	} else {
-		p.PackBytes(e.Data)
-	}
-}
-
-func (e *EvmCall) marshalBlobData(p *codec.Packer) {
-	packBig(p, e.BlobGasFeeCap)
-	p.PackInt(uint32(len(e.BlobHashes)))
-	for _, hash := range e.BlobHashes {
-		p.PackFixedBytes(hash[:])
-	}
-}
-
-func packBig(p *codec.Packer, b *big.Int) {
-	if b == nil {
-		p.PackBytes([]byte{})
-	} else {
-		p.PackBytes(b.Bytes())
-	}
-}
-
-func (e *EvmCall) unmarshalAddress(p *codec.Packer) error {
-	hasAddr := p.UnpackBool()
-	if hasAddr {
-		buf := make([]byte, common.AddressLength)
-		p.UnpackFixedBytes(len(buf), &buf)
-		e.To = new(common.Address)
-		copy(e.To[:], buf)
-	}
-	return p.Err()
-}
-
-func (e *EvmCall) unmarshalBasicFields(p *codec.Packer) error {
-	e.Nonce = p.UnpackUint64(false)
-	e.Value = unpackBig(p)
-	e.GasLimit = p.UnpackUint64(false)
-	e.GasPrice = unpackBig(p)
-	e.GasFeeCap = unpackBig(p)
-	e.GasTipCap = unpackBig(p)
-	p.UnpackBytes(-1, false, &e.Data)
-	return p.Err()
-}
-
-func (e *EvmCall) unmarshalBlobData(p *codec.Packer) error {
-	e.BlobGasFeeCap = unpackBig(p)
-	numHashes := p.UnpackInt(false)
-	e.BlobHashes = make([]common.Hash, numHashes)
-	for i := 0; i < int(numHashes); i++ {
-		buf := make([]byte, common.HashLength)
-		p.UnpackFixedBytes(len(buf), &buf)
-		copy(e.BlobHashes[i][:], buf)
-	}
-	return p.Err()
-}
-
-// Helper function to unpack big.Int values
-func unpackBig(p *codec.Packer) *big.Int {
-	var buf []byte
-	p.UnpackBytes(-1, false, &buf)
-	return new(big.Int).SetBytes(buf)
 }

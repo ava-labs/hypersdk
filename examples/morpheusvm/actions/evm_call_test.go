@@ -47,7 +47,7 @@ func traceAndExecute(ctx context.Context, require *require.Assertions, call *Evm
 	result, err := call.Execute(ctx, r, recorder, time, from, txID)
 	require.NoError(err)
 	require.Nil(result.(*EvmCallResult).Err)
-	call.SetStateKeys(recorder.GetStateKeys())
+	call.Keys = recorder.GetStateKeys()
 
 	stateKeys := call.StateKeys(from, txID)
 	storage := make(map[string][]byte, len(stateKeys))
