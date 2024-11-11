@@ -8,7 +8,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -62,25 +61,6 @@ func NewStateSyncClient(
 		gatherer: gatherer,
 		done:     make(chan struct{}),
 	}
-}
-
-func (*StateSyncerClient) StateSyncEnabled(context.Context) (bool, error) {
-	// We always start the state syncer and may fallback to normal bootstrapping
-	// if we are close to tip.
-	//
-	// There is no way to trigger a full bootstrap from genesis.
-	return true, nil
-}
-
-func (*StateSyncerClient) GetOngoingSyncStateSummary(
-	context.Context,
-) (block.StateSummary, error) {
-	// Because the history of MerkleDB change proofs tends to be short, we always
-	// restart syncing from scratch.
-	//
-	// This is unlike other DB implementations where roots are persisted
-	// indefinitely (and it means we can continue from where we left off).
-	return nil, database.ErrNotFound
 }
 
 func (s *StateSyncerClient) AcceptedSyncableBlock(
