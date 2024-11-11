@@ -488,7 +488,11 @@ func (vm *VM) Initialize(
 
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
-		NewTxGossipHandler(vm),
+		gossiper.NewTxGossipHandler(
+			vm,
+			vm.snowCtx.Log,
+			vm.gossiper,
+		),
 	); err != nil {
 		return err
 	}
@@ -581,7 +585,7 @@ func (vm *VM) markReady() {
 	vm.checkActivity(context.TODO())
 }
 
-func (vm *VM) isReady() bool {
+func (vm *VM) IsReady() bool {
 	select {
 	case <-vm.ready:
 		return true
@@ -592,7 +596,7 @@ func (vm *VM) isReady() bool {
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
 	}
 	// Atomic read to ensure consistency
@@ -743,7 +747,7 @@ func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 	//
 	// We return "unhealthy" here until synced to block RPC traffic in the
 	// meantime.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return http.StatusServiceUnavailable, ErrNotReady
 	}
 	return http.StatusOK, nil
@@ -879,7 +883,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
 	// early here should not cause us to stop producing blocks.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
@@ -942,7 +946,7 @@ func (vm *VM) Submit(
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
 	// is good to be defensive.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return []error{ErrNotReady}
 	}
 

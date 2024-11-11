@@ -256,7 +256,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
