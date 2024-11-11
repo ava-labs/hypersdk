@@ -187,6 +187,126 @@ func TestMultiTransfer(t *testing.T) {
 	}
 }
 
+func TestTransferActionAdvanced(t *testing.T) {
+	addr1 := codectest.NewRandomAddress()
+	addr2 := codectest.NewRandomAddress()
+	addr3 := codectest.NewRandomAddress()
+
+	tests := []chaintest.ActionTest{
+		{
+			Name:  "TransferWithMemo",
+			Actor: addr1,
+			Action: &Transfer{
+				To:    addr2,
+				Value: 100,
+				Memo:  []byte("test transfer"),
+			},
+			State: func() state.Mutable {
+				store := chaintest.NewInMemoryStore()
+				require.NoError(t, storage.SetBalance(context.Background(), store, addr1[:], 100))
+				return store
+			}(),
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+				receiverBalance, err := storage.GetBalance(ctx, store, addr2[:])
+				require.NoError(t, err)
+				require.Equal(t, receiverBalance, uint64(100))
+				senderBalance, err := storage.GetBalance(ctx, store, addr1[:])
+				require.NoError(t, err)
+				require.Equal(t, senderBalance, uint64(0))
+			},
+			ExpectedOutputs: &TransferResult{
+				SenderBalance:   0,
+				ReceiverBalance: 100,
+			},
+		},
+		{
+			Name:  "MemoTooLarge",
+			Actor: addr1,
+			Action: &Transfer{
+				To:    addr2,
+				Value: 1,
+				Memo:  make([]byte, MaxMemoSize+1),
+			},
+			State: func() state.Mutable {
+				store := chaintest.NewInMemoryStore()
+				require.NoError(t, storage.SetBalance(context.Background(), store, addr1[:], 1))
+				return store
+			}(),
+			ExpectedErr: ErrOutputMemoTooLarge,
+		},
+		{
+			Name:  "ChainedTransfers",
+			Actor: addr1,
+			Action: &Transfer{
+				To:    addr2,
+				Value: 50,
+			},
+			State: func() state.Mutable {
+				store := chaintest.NewInMemoryStore()
+				require.NoError(t, storage.SetBalance(context.Background(), store, addr1[:], 100))
+				require.NoError(t, storage.SetBalance(context.Background(), store, addr2[:], 50))
+				return store
+			}(),
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+				// Execute second transfer
+				transfer2 := &Transfer{
+					To:    addr3,
+					Value: 75,
+				}
+				result, err := transfer2.Execute(ctx, nil, store, 0, addr2, ids.Empty)
+				require.NoError(t, err)
+
+				// Verify final balances
+				balance1, err := storage.GetBalance(ctx, store, addr1[:])
+				require.NoError(t, err)
+				require.Equal(t, uint64(50), balance1)
+
+				balance2, err := storage.GetBalance(ctx, store, addr2[:])
+				require.NoError(t, err)
+				require.Equal(t, uint64(25), balance2)
+
+				balance3, err := storage.GetBalance(ctx, store, addr3[:])
+				require.NoError(t, err)
+				require.Equal(t, uint64(75), balance3)
+
+				transferResult := result.(*TransferResult)
+				require.Equal(t, uint64(25), transferResult.SenderBalance)
+				require.Equal(t, uint64(75), transferResult.ReceiverBalance)
+			},
+			ExpectedOutputs: &TransferResult{
+				SenderBalance:   50,
+				ReceiverBalance: 100,
+			},
+		},
+		{
+			Name:  "MaxUint64Transfer",
+			Actor: addr1,
+			Action: &Transfer{
+				To:    addr2,
+				Value: math.MaxUint64,
+			},
+			State: func() state.Mutable {
+				store := chaintest.NewInMemoryStore()
+				require.NoError(t, storage.SetBalance(context.Background(), store, addr1[:], math.MaxUint64))
+				return store
+			}(),
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+				balance, err := storage.GetBalance(ctx, store, addr2[:])
+				require.NoError(t, err)
+				require.Equal(t, uint64(math.MaxUint64), balance)
+			},
+			ExpectedOutputs: &TransferResult{
+				SenderBalance:   0,
+				ReceiverBalance: math.MaxUint64,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt.Run(context.Background(), t)
+	}
+}
+
 func BenchmarkSimpleTransfer(b *testing.B) {
 	setupRequire := require.New(b)
 	to := codec.CreateAddress(0, ids.GenerateTestID())

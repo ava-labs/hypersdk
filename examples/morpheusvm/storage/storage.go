@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 
@@ -33,13 +34,23 @@ const balancePrefix byte = metadata.DefaultMinimumPrefix
 
 const BalanceChunks uint16 = 1
 
+var keyPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+	},
+}
+
 // [balancePrefix] + [address]
-func BalanceKey(addr []byte) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+func BalanceKey(addr []byte) []byte {
+	k := keyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], addr[len(addr)-20:])
 	binary.BigEndian.PutUint16(k[1+20:], BalanceChunks)
-	return
+	return k
+}
+
+func ReleaseKey(k []byte) {
+	keyPool.Put(&k)
 }
 
 // If locked is 0, then account does not exist
