@@ -85,7 +85,7 @@ func (e *EvmCall) Execute(
 		BaseFee:     big.NewInt(0),
 	}
 
-	statedb := shim.NewStateDB(ctx, mu)
+	statedb, shim := shim.NewStateDB(ctx, mu)
 	from := ToEVMAddress(actor)
 	msg := e.toMessage(from)
 	txContext := core.NewEVMTxContext(msg)
@@ -96,6 +96,12 @@ func (e *EvmCall) Execute(
 	gp := new(core.GasPool).AddGas(e.GasLimit)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err != nil {
+		return nil, err
+	}
+	if err := shim.Error(); err != nil {
+		return nil, err
+	}
+	if err := statedb.Error(); err != nil {
 		return nil, err
 	}
 
@@ -109,7 +115,7 @@ func (e *EvmCall) Execute(
 		Return:  result.ReturnData,
 		UsedGas: result.UsedGas,
 		Err:     result.Err,
-	}, statedb.Error()
+	}, nil
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)

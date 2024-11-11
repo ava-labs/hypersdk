@@ -22,52 +22,67 @@ import (
 )
 
 var (
-	_ evm_state.Database = (*databaseShim)(nil)
+	_ evm_state.Database = (*DatabaseShim)(nil)
 	_ evm_state.Trie     = (*trieShim)(nil)
 )
 
-type databaseShim struct {
-	ctx context.Context
+type DatabaseShim struct {
+	ctx context.Context // TODO: remove
 	mu  state.Mutable
+	err error
 }
 
-func NewStateDB(ctx context.Context, mu state.Mutable) *evm_state.StateDB {
-	statedb, err := evm_state.New(common.Hash{}, NewDatabaseShim(ctx, mu), nil)
+func NewStateDB(ctx context.Context, mu state.Mutable) (*evm_state.StateDB, *DatabaseShim) {
+	shim := NewDatabaseShim(ctx, mu)
+	statedb, err := evm_state.New(common.Hash{}, shim, nil)
 	if err != nil {
 		panic(err) // This can never happen since OpenTrie will always succeed
 	}
-	return statedb
+	return statedb, shim
 }
 
-func NewDatabaseShim(ctx context.Context, mu state.Mutable) *databaseShim {
-	return &databaseShim{ctx: ctx, mu: mu}
+func NewDatabaseShim(ctx context.Context, mu state.Mutable) *DatabaseShim {
+	return &DatabaseShim{ctx: ctx, mu: mu}
 }
 
-func (d *databaseShim) OpenTrie(common.Hash) (evm_state.Trie, error) {
+func (d *DatabaseShim) setError(err error) {
+	if err != nil && d.err == nil {
+		d.err = err
+	}
+}
+
+func (d *DatabaseShim) Error() error {
+	return d.err
+}
+
+func (d *DatabaseShim) OpenTrie(common.Hash) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
 
-func (d *databaseShim) OpenStorageTrie(root common.Hash, addr common.Address, hash common.Hash, _ evm_state.Trie) (evm_state.Trie, error) {
+func (d *DatabaseShim) OpenStorageTrie(root common.Hash, addr common.Address, hash common.Hash, _ evm_state.Trie) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
 
-func (d *databaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
-	return storage.GetCode(d.ctx, d.mu, addr)
+func (d *DatabaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
+	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr)
+	d.setError(err)
+	return codeBytes, err
 }
 
-func (d *databaseShim) ContractCodeSize(addr common.Address, codeHash common.Hash) (int, error) {
+func (d *DatabaseShim) ContractCodeSize(addr common.Address, codeHash common.Hash) (int, error) {
 	code, err := d.ContractCode(addr, codeHash)
 	return len(code), err
 }
-func (*databaseShim) CopyTrie(t evm_state.Trie) evm_state.Trie { return t }
-func (*databaseShim) DiskDB() ethdb.KeyValueStore              { panic("unimplemented") }
-func (*databaseShim) TrieDB() *triedb.Database                 { panic("unimplemented") }
+func (*DatabaseShim) CopyTrie(evm_state.Trie) evm_state.Trie { panic("unimplemented") }
+func (*DatabaseShim) DiskDB() ethdb.KeyValueStore            { panic("unimplemented") }
+func (*DatabaseShim) TrieDB() *triedb.Database               { panic("unimplemented") }
 
 type trieShim struct {
-	d *databaseShim
+	d *DatabaseShim
 }
 
 func (*trieShim) GetKey([]byte) []byte { panic("unimplemented") }
+
 func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
 	return storage.GetStorage(t.d.ctx, t.d.mu, addr, key)
 }
@@ -135,9 +150,7 @@ func (t *trieShim) DeleteStorage(addr common.Address, key []byte) error {
 func (t *trieShim) DeleteAccount(address common.Address) error {
 	return storage.DeleteAccount(t.d.ctx, t.d.mu, address)
 }
-func (*trieShim) Hash() common.Hash { return common.Hash{} }
-func (*trieShim) Commit(bool) (common.Hash, *trienode.NodeSet, error) {
-	panic("unimplemented")
-}
-func (*trieShim) NodeIterator([]byte) (trie.NodeIterator, error) { panic("unimplemented") }
-func (*trieShim) Prove([]byte, ethdb.KeyValueWriter) error       { panic("unimplemented") }
+func (*trieShim) Hash() common.Hash                                   { return common.Hash{} }
+func (*trieShim) Commit(bool) (common.Hash, *trienode.NodeSet, error) { panic("unimplemented") }
+func (*trieShim) NodeIterator([]byte) (trie.NodeIterator, error)      { panic("unimplemented") }
+func (*trieShim) Prove([]byte, ethdb.KeyValueWriter) error            { panic("unimplemented") }
