@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ava-labs/subnet-evm/params"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -81,17 +79,10 @@ func TestContract(t *testing.T) {
 
 	var from codec.Address
 	copy(from[20:], []byte("112233"))
-	tip := int64(0)
-	txTip := big.NewInt(tip * params.GWei)
-	baseFee := big.NewInt(0)
-	feeCap := new(big.Int).Add(baseFee, txTip)
 	call := &EvmCall{
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 
 	rules := genesis.NewDefaultRules()
@@ -119,14 +110,10 @@ func TestContract(t *testing.T) {
 	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
 	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	{
 		result, err := call.Execute(
@@ -141,14 +128,10 @@ func TestContract(t *testing.T) {
 
 	data = common.Hex2Bytes("2e64cec1")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	require.NoError(mu.Commit(ctx))
 	mu = state.NewSimpleMutable(statedb)
@@ -177,17 +160,10 @@ func TestContractWithTracing(t *testing.T) {
 
 	var from codec.Address
 	copy(from[20:], []byte("112233"))
-	tip := int64(0)
-	txTip := big.NewInt(tip * params.GWei)
-	baseFee := big.NewInt(0)
-	feeCap := new(big.Int).Add(baseFee, txTip)
 	call := &EvmCall{
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 
 	r := genesis.NewDefaultRules()
@@ -206,27 +182,19 @@ func TestContractWithTracing(t *testing.T) {
 	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
 	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	view = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
 
 	data = common.Hex2Bytes("2e64cec1")
 	call = &EvmCall{
-		To:        &contractAddress,
-		Value:     common.Big0,
-		GasLimit:  sufficientGas,
-		Data:      data,
-		GasFeeCap: feeCap,
-		GasTipCap: txTip,
-		GasPrice:  feeCap,
-		Nonce:     0,
+		To:       &contractAddress,
+		Value:    common.Big0,
+		GasLimit: sufficientGas,
+		Data:     data,
 	}
 	_ = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
 }

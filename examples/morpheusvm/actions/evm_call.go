@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 	"math/big"
-	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -25,17 +24,11 @@ import (
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To            *common.Address `serialize:"true" json:"to"`            // Address of the contract to call (nil means contract creation)
-	Nonce         uint64          `serialize:"true" json:"nonce"`         // Nonce for the transaction
-	Value         *big.Int        `serialize:"true" json:"value"`         // Amount of native tokens to send
-	GasLimit      uint64          `serialize:"true" json:"gasLimit"`      // Maximum gas units to consume
-	GasPrice      *big.Int        `serialize:"true" json:"gasPrice"`      // Price per unit of gas
-	GasFeeCap     *big.Int        `serialize:"true" json:"gasFeeCap"`     // Maximum fee per gas unit
-	GasTipCap     *big.Int        `serialize:"true" json:"gasTipCap"`     // Maximum tip per gas unit
-	Data          []byte          `serialize:"true" json:"data"`          // Input data for the transaction
-	BlobGasFeeCap *big.Int        `serialize:"true" json:"blobGasFeeCap"` // Maximum fee for blob gas
-	BlobHashes    []common.Hash   `serialize:"true" json:"blobHashes"`    // Hashes of associated blobs
-	Keys          state.Keys      `serialize:"true" json:"stateKeys"`     // State keys accessed by this call
+	To       *common.Address `serialize:"true" json:"to"`        // Address of the contract to call (nil means contract creation)
+	Value    *big.Int        `serialize:"true" json:"value"`     // Amount of native tokens to send
+	GasLimit uint64          `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
+	Data     []byte          `serialize:"true" json:"data"`      // Input data for the transaction
+	Keys     state.Keys      `serialize:"true" json:"stateKeys"` // State keys accessed by this call
 }
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
@@ -51,14 +44,12 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 	return &core.Message{
 		From:              from,
 		To:                e.To,
-		Nonce:             e.Nonce,
 		Value:             e.Value,
 		GasLimit:          e.GasLimit,
-		GasPrice:          e.GasPrice,
-		GasFeeCap:         e.GasFeeCap,
-		GasTipCap:         e.GasTipCap,
-		Data:              slices.Clone(e.Data),
-		BlobGasFeeCap:     e.BlobGasFeeCap,
+		Data:              e.Data,
+		GasPrice:          big.NewInt(0),
+		GasFeeCap:         big.NewInt(0),
+		GasTipCap:         big.NewInt(0),
 		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
 }
@@ -130,7 +121,7 @@ type EvmCallResult struct {
 	Err     error  `json:"err"`
 }
 
-func (e *EvmCallResult) GetTypeID() uint8 {
+func (*EvmCallResult) GetTypeID() uint8 {
 	return mconsts.EvmCallID
 }
 
