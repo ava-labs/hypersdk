@@ -6,4 +6,5 @@ package consts
 const (
 	// Action TypeIDs
 	TransferID uint8 = 0
+	EvmCallID  uint8 = 1
 )

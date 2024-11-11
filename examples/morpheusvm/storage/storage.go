@@ -34,11 +34,11 @@ const balancePrefix byte = metadata.DefaultMinimumPrefix
 const BalanceChunks uint16 = 1
 
 // [balancePrefix] + [address]
-func BalanceKey(addr codec.Address) (k []byte) {
+func BalanceKey(addr []byte) (k []byte) {
 	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = balancePrefix
-	copy(k[1:], addr[:])
-	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
+	copy(k[1:], addr[len(addr)-20:])
+	binary.BigEndian.PutUint16(k[1+20:], BalanceChunks)
 	return
 }
 
@@ -46,16 +46,16 @@ func BalanceKey(addr codec.Address) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.Address,
+	addr []byte,
 ) (uint64, error) {
-	_, bal, _, err := getBalance(ctx, im, addr)
+	_, bal, _, err := getBalance(ctx, im, addr[:])
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.Address,
+	addr []byte,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(addr)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
@@ -66,7 +66,7 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	addr codec.Address,
+	addr []byte,
 ) (uint64, error) {
 	k := BalanceKey(addr)
 	values, errs := f(ctx, [][]byte{k})
@@ -94,7 +94,7 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.Address,
+	addr []byte,
 	balance uint64,
 ) error {
 	k := BalanceKey(addr)
@@ -113,7 +113,7 @@ func setBalance(
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.Address,
+	addr []byte,
 	amount uint64,
 ) (uint64, error) {
 	key, bal, _, err := getBalance(ctx, mu, addr)
@@ -136,7 +136,7 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.Address,
+	addr []byte,
 	amount uint64,
 ) (uint64, error) {
 	key, bal, ok, err := getBalance(ctx, mu, addr)

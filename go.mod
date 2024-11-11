@@ -6,6 +6,7 @@ require (
 	github.com/ava-labs/avalanchego v1.11.12-rc.2.0.20241001202925-f03745d187d0
 	github.com/bytecodealliance/wasmtime-go/v25 v25.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
+	github.com/consensys/gnark-crypto v0.12.1
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hdevalence/ed25519consensus v0.2.0
@@ -52,7 +53,6 @@ require (
 	github.com/cockroachdb/redact v1.1.3 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
-	github.com/consensys/gnark-crypto v0.12.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20231025140028-3c0104f4b233 // indirect
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
