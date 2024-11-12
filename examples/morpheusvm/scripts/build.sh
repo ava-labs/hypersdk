@@ -20,3 +20,9 @@ MORPHEUSVM_PATH=$(
 )
 
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+
+# also build the morpheusvm cli(moved from old build script)
+CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
+echo "Building morpheus-cli in $CLI_PATH"
+mkdir -p "$(dirname "$CLI_PATH")"
+go build -o "$CLI_PATH" ./cmd/morpheus-cli
