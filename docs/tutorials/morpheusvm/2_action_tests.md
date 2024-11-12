@@ -135,7 +135,8 @@ func TestTransferAction(t *testing.T) {
 }
 ```
 
-Next, since we'll have multiple action tests, let's group them into an array. We have:
+Next, since we'll want to have multiple tests, let's implement a single table
+test: 
 
 ```go
 func TestTransferAction(t *testing.T) {
