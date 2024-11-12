@@ -30,14 +30,7 @@ type ActionTest struct {
 }
 ```
 
-There's a lot going on here, but at a high level, action tests are used in the
-following steps:
-
-- Setup
-- Execution
-- Checks
-
-Focusing on setting up, this corresponds with the following fields:
+Going over the fields of `ActionTest`:
 
 - `Name`: the name of the test
 - `Action`: the action being tested
@@ -46,15 +39,15 @@ Focusing on setting up, this corresponds with the following fields:
 - `Timestamp`: the time of execution
 - `Actor`: the account executing the action
 - `ActionID`: a unique identifier associated with the action (similiar to TX ID)
-
-Next, we have the execution portion. This portion is handled by the action test
-itself and so we have the checks section. This section corresponds with the
-following fields:
-
 - `ExpectedOutputs`: the output that executing `Action` should produce
 - `ExpectedErr`: the error that executing `Action` should produce
 - `Assertion`: a lambda function that the user can pass in to mainly check for
   expected state transitions
+
+From a high level, we as VM developers are responsible for setting up the test
+environment along with providing the expected outcomes that executing `Action`
+should result in. The HyperSDK, in return, will execute the test and perform any
+necessary checks.
 
 ## Running an Action Test
 
@@ -300,7 +293,26 @@ the action tests that we'll add:
     },
   ```
 
-Having defined the rest of our actiont tests, your implementation of
+The tests above, while maximizing test coverage of `Transfer`, also gave us a
+good idea of of `State` and `Assertion` are used. In particular:
+
+- `State`: in some cases, we don't need to pass in state if `Action` errors
+  before touching the state provided. In other cases, we utilize
+  `chaintest.NewInMemoryStore()` and even pass in a lambda function to set up
+  our state.
+- `Assertion`: as previously mentioned, `Assertion` is used to check that our
+  state was modified as expected. For example, consider the `Assertion` found in
+  the `SelfTransfer` test:
+  ```go
+  Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
+          balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
+          require.NoError(t, err)
+          require.Equal(t, balance, uint64(1))
+      }
+  ```
+  In the above, we are checking that the balance of `Actor` is still 1.
+
+Having defined the rest of our action tests, your implementation of
 `TestTransferAction` should look as follows:
 
 ```go
