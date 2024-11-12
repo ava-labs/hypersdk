@@ -7,6 +7,7 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 type Config struct {
@@ -39,9 +40,10 @@ func NewDefaultConfig(
 }
 
 func NewDefaultCliConfig(uris []string) (*Config, error) {
-	keyHex := "0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017"
+	keyHex := "323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 	bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
 	if err != nil {
+		utils.Outf("{{red:%s}}\n", err)
 		return nil, err
 	}
 	privateKey := ed25519.PrivateKey(bytes)

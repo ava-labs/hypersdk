@@ -34,19 +34,22 @@ var runSpamCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
 		if len(clusterInfo) > 0 {
-			_, uris, err := cli.ReadCLIFile(clusterInfo)
+			_, urisFromFile, err := cli.ReadCLIFile(clusterInfo)
 			if err != nil {
 				utils.Outf("{{red}} failed to read cluster info: %s \n", err)
 				return err
 			}
-			uriNames := onlyAPIs(uris)
-			spamConfig, err := hthroughput.NewDefaultCliConfig(uriNames)
+			uris := onlyAPIs(urisFromFile)
+			utils.Outf("{{green}}Spamming with %s\n", uris)
+			spamConfig, err := hthroughput.NewDefaultCliConfig(uris)
 			if err != nil {
 				return err
 			}
-			
+
 			spamHelper := &throughput.SpamHelper{KeyType: args[0]}
-			
+			if err := spamHelper.CreateClient(uris[0]); err != nil {
+				return err
+			}
 			spammer, err := hthroughput.NewSpammer(spamConfig, spamHelper)
 			if err != nil {
 				return err
@@ -63,7 +66,8 @@ func onlyAPIs(m map[string]string) []string {
 		if !strings.Contains(strings.ToLower(k), "api") {
 			continue
 		}
-		apis = append(apis, k)
+
+		apis = append(apis, m[k])
 	}
 	return apis
 }
