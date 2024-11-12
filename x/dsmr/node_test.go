@@ -12,7 +12,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/stretchr/testify/require"
@@ -662,7 +665,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			signer1 := warp.NewSigner(sk1, networkID, chainID)
 
 			node1, err := New[tx](
-				ids.EmptyNodeID,
+				ids.GenerateTestNodeID(),
 				networkID,
 				chainID,
 				pk1,
@@ -706,7 +709,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			pk2 := bls.PublicFromSecretKey(sk2)
 			signer2 := warp.NewSigner(sk2, networkID, chainID)
 			node2, err := New[tx](
-				ids.EmptyNodeID,
+				ids.GenerateTestNodeID(),
 				networkID,
 				chainID,
 				pk2,
@@ -755,10 +758,36 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 				r.Equal(bls.PublicKeyToCompressedBytes(pk1), response.Signer)
 
+				pChain := &validatorstest.State{
+					T: t,
+					GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
+						return ids.Empty, nil
+					},
+					GetValidatorSetF: func(
+						context.Context,
+						uint64,
+						ids.ID,
+					) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+						return map[ids.NodeID]*validators.GetValidatorOutput{
+							node1.nodeID: {
+								NodeID:    node1.nodeID,
+								PublicKey: pk1,
+								Weight:    1,
+							},
+							node2.nodeID: {
+								NodeID:    node2.nodeID,
+								PublicKey: pk2,
+								Weight:    1,
+							},
+						}, nil
+					},
+				}
+
 				signature := warp.BitSetSignature{
-					Signers:   nil,
+					Signers:   getSignerBitSet(t, pChain, node1.nodeID).Bytes(),
 					Signature: [bls.SignatureLen]byte{},
 				}
+
 				copy(signature.Signature[:], response.Signature)
 
 				msg, err := warp.NewUnsignedMessage(networkID, chainID, chunk.bytes)
@@ -767,10 +796,10 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					context.Background(),
 					msg,
 					networkID,
-					nil,
+					pChain,
 					0,
-					0,
-					0,
+					1,
+					2,
 				))
 			}
 
@@ -1423,6 +1452,30 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		onResponse,
 	))
 	<-done
+}
+
+func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeID) set.Bits {
+	validators, _, err := warp.GetCanonicalValidatorSet(
+		context.Background(),
+		pChain,
+		0,
+		ids.Empty,
+	)
+	require.NoError(t, err)
+
+	signers := set.Of(nodeIDs...)
+
+	signerBitSet := set.NewBits()
+	for i, v := range validators {
+		for _, nodeID := range v.NodeIDs {
+			if signers.Contains(nodeID) {
+				signerBitSet.Add(i)
+				break
+			}
+		}
+	}
+
+	return signerBitSet
 }
 
 type tx struct {
