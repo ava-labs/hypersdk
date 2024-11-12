@@ -1465,7 +1465,6 @@ func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeI
 	require.NoError(t, err)
 
 	signers := set.Of(nodeIDs...)
-
 	signerBitSet := set.NewBits()
 	for i, v := range validators {
 		for _, nodeID := range v.NodeIDs {
