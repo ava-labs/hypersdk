@@ -71,7 +71,7 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 		}),
 		waitRootSum: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "root_calculated_sum",
+			Name:      "wait_root_sum",
 			Help:      "Sum of time spent waiting for the state root in verify",
 		}),
 		waitSignaturesCount: prometheus.NewCounter(prometheus.CounterOpts{
