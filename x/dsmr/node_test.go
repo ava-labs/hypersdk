@@ -695,13 +695,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			client := NewGetChunkSignatureClient(p2ptest.NewClient(
-				t,
-				context.Background(),
-				node1.GetChunkSignatureHandler,
-				ids.EmptyNodeID,
-				ids.EmptyNodeID,
-			))
+			client := NewGetChunkSignatureClient(
+				networkID,
+				chainID,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					node1.GetChunkSignatureHandler,
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+			)
 
 			sk2, err := bls.NewSecretKey()
 			r.NoError(err)
@@ -754,8 +758,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				if err != nil {
 					return
 				}
-
-				r.Equal(bls.PublicKeyToCompressedBytes(pk1), response.Signer)
 
 				pChain := &validatorstest.State{
 					T: t,
@@ -859,13 +861,16 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	client := NewGetChunkSignatureClient(p2ptest.NewClient(
-		t,
-		context.Background(),
-		node.GetChunkSignatureHandler,
-		ids.EmptyNodeID,
-		ids.EmptyNodeID,
-	))
+	client := NewGetChunkSignatureClient(
+		networkID,
+		chainID,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			node.GetChunkSignatureHandler,
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		))
 
 	// Accept a chunk
 	r.NoError(err)

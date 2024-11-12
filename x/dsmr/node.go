@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -51,26 +52,29 @@ func New[T Tx](
 	}
 
 	return &Node[T]{
-		nodeID:                       nodeID,
-		networkID:                    networkID,
-		chainID:                      chainID,
-		pk:                           pk,
-		signer:                       signer,
-		getChunkClient:               NewGetChunkClient[T](getChunkClient),
-		getChunkSignatureClient:      NewGetChunkSignatureClient(getChunkSignatureClient),
+		nodeID:         nodeID,
+		networkID:      networkID,
+		chainID:        chainID,
+		pk:             pk,
+		signer:         signer,
+		getChunkClient: NewGetChunkClient[T](getChunkClient),
+		getChunkSignatureClient: NewGetChunkSignatureClient(
+			networkID,
+			chainID,
+			getChunkSignatureClient,
+		),
 		chunkCertificateGossipClient: NewChunkCertificateGossipClient(chunkCertificateGossipClient),
 		validators:                   validators,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
-		GetChunkSignatureHandler: &GetChunkSignatureHandler[T]{
-			networkID: networkID,
-			chainID:   chainID,
-			pk:        pk,
-			signer:    signer,
-			verifier:  chunkVerifier,
-			storage:   storage,
-		},
+		GetChunkSignatureHandler: acp118.NewHandler(
+			ChunkSignatureRequestVerifier[T]{
+				verifier: chunkVerifier,
+				storage:  storage,
+			},
+			signer,
+		),
 		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
 			storage: storage,
 		},
@@ -90,7 +94,7 @@ type Node[T Tx] struct {
 	validators                   []Validator
 
 	GetChunkHandler               *GetChunkHandler[T]
-	GetChunkSignatureHandler      *GetChunkSignatureHandler[T]
+	GetChunkSignatureHandler      *acp118.Handler
 	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
 	storage                       *chunkStorage[T]
 }
