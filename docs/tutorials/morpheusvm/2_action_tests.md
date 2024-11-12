@@ -6,7 +6,7 @@ testing coverage of `Transfer`.
 
 ## Structure of Action Tests
 
-We first introduce the `ActionTest` struct itself:
+Action tests are defined as follows:
 
 ```go
 type ActionTest struct {
@@ -56,7 +56,7 @@ actionTest.Run(ctx, t)
 ```
 
 where `ctx` is a `Context` instance and `t` is an instance of `*testing.T`. When
-calling an action test, the following happens in order:
+running an action test, the following happens in order:
 
 - `Execute()` is called on the action. 
 - `actionTest` checks that the error of `Execute()` matches `ExpectedErr`
@@ -98,8 +98,8 @@ the rest of the action tests for `Transfer`!
 
 ## `Transfer` Action Tests
 
-Let's start by reusing the action test we wrote in the last section. To start,
-create a new file named `transfer_test.go` in the `action` folder. Next,
+Let's start by reusing the action test we wrote in the last section.
+Create a new file named `transfer_test.go` in the `action` folder. Next,
 copy-paste the following code in:
 
 ```go
@@ -289,8 +289,9 @@ the action tests that we'll add:
     },
   ```
 
-The tests above, while maximizing test coverage of `Transfer`, also gave us a
-good idea of of `State` and `Assertion` are used. In particular:
+
+The tests above provide great examples on how `State` and `Assertion` are used
+In particular:
 
 - `State`: in some cases, we don't need to pass in state if `Action` errors
   before touching the state provided. In other cases, we utilize
@@ -436,7 +437,7 @@ If all goes well, you should see the following:
 ok      github.com/ava-labs/hypersdk/examples/tutorial/actions        0.566s
 ```
 
-Congratulations, you just tested an action used the action test framework!
+Congratulations, you just tested an action using the action test framework!
 
 ## Conclusion
 
