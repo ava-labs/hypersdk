@@ -13,8 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
-
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
@@ -26,7 +24,7 @@ type stateSyncerClient struct {
 
 	// tracks the sync target so we can update last accepted
 	// block when sync completes.
-	target        *chain.StatefulBlock
+	target        *StatefulBlock
 	targetUpdated bool
 
 	// State Sync results
@@ -69,7 +67,7 @@ func (*stateSyncerClient) GetOngoingSyncStateSummary(
 
 func (s *stateSyncerClient) AcceptedSyncableBlock(
 	_ context.Context,
-	sb *chain.SyncableBlock,
+	sb *SyncableBlock,
 ) (block.StateSyncMode, error) {
 	s.init = true
 	s.vm.snowCtx.Log.Info("accepted syncable block",
@@ -245,7 +243,7 @@ func (s *stateSyncerClient) StateReady() bool {
 
 // UpdateSyncTarget returns a boolean indicating if the root was
 // updated and an error if one occurred while updating the root.
-func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatefulBlock) (bool, error) {
+func (s *stateSyncerClient) UpdateSyncTarget(b *StatefulBlock) (bool, error) {
 	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
 	if errors.Is(err, avasync.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing

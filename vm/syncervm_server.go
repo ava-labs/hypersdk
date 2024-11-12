@@ -8,14 +8,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.uber.org/zap"
-
-	"github.com/ava-labs/hypersdk/chain"
 )
 
 // GetLastStateSummary returns the latest state summary.
 // If no summary is available, [database.ErrNotFound] must be returned.
 func (vm *VM) GetLastStateSummary(context.Context) (block.StateSummary, error) {
-	summary := chain.NewSyncableBlock(vm.LastAcceptedBlock())
+	summary := NewSyncableBlock(vm.lastAccepted)
 	vm.Logger().Info("Serving syncable block at latest height", zap.Stringer("summary", summary))
 	return summary, nil
 }
@@ -32,7 +30,7 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 	if err != nil {
 		return nil, err
 	}
-	summary := chain.NewSyncableBlock(block)
+	summary := NewSyncableBlock(block)
 	vm.Logger().Info("Serving syncable block at requested height",
 		zap.Uint64("height", height),
 		zap.Stringer("summary", summary),
@@ -41,11 +39,11 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 }
 
 func (vm *VM) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
-	sb, err := chain.ParseBlock(ctx, bytes, false, vm)
+	sb, err := ParseBlock(ctx, bytes, false, vm)
 	if err != nil {
 		return nil, err
 	}
-	summary := chain.NewSyncableBlock(sb)
+	summary := NewSyncableBlock(sb)
 	vm.Logger().Info("parsed state summary", zap.Stringer("summary", summary))
 	return summary, nil
 }

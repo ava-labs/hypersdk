@@ -66,11 +66,6 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	)
 
 	webSocketFactory := NewWebSocketServerFactory(handler)
-	txRemovedSubscription := event.SubscriptionFuncFactory[vm.TxRemovedEvent]{
-		AcceptF: func(event vm.TxRemovedEvent) error {
-			return server.RemoveTx(event.TxID, event.Err)
-		},
-	}
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
 		AcceptF: func(event *chain.ExecutedBlock) error {
@@ -80,7 +75,6 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 
 	return vm.NewOpt(
 		vm.WithBlockSubscriptions(blockSubscription),
-		vm.WithTxRemovedSubscriptions(txRemovedSubscription),
 		vm.WithVMAPIs(webSocketFactory),
 	), nil
 }
@@ -157,14 +151,6 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	}
 	connections.Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
-}
-
-// If never possible for a tx to enter mempool, call this
-func (w *WebSocketServer) RemoveTx(txID ids.ID, err error) error {
-	w.txL.Lock()
-	defer w.txL.Unlock()
-
-	return w.removeTx(txID, err)
 }
 
 func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
