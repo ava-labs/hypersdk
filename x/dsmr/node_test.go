@@ -12,8 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -76,13 +80,19 @@ func TestNode_NewChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
+			networkID := uint32(123)
+			chainID := ids.Empty
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-
+			pk := bls.PublicFromSecretKey(sk)
+			signer := warp.NewSigner(sk, networkID, chainID)
 			nodeID := ids.GenerateTestNodeID()
 			node, err := New[tx](
 				nodeID,
-				sk,
+				networkID,
+				chainID,
+				pk,
+				signer,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -134,12 +144,19 @@ func TestNode_NewChunk(t *testing.T) {
 // Tests that chunks referenced in accepted blocks are available over p2p
 func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
 	sk, err := bls.NewSecretKey()
 	r.NoError(err)
-
+	pk := bls.PublicFromSecretKey(sk)
+	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
-		sk,
+		networkID,
+		chainID,
+		pk,
+		signer,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -217,12 +234,19 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 // Tests that pending chunks are not available over p2p
 func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
 	sk, err := bls.NewSecretKey()
 	r.NoError(err)
-
+	pk := bls.PublicFromSecretKey(sk)
+	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
-		sk,
+		networkID,
+		chainID,
+		pk,
+		signer,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -287,12 +311,19 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 // Tests that unknown chunks are not available over p2p
 func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
 	sk, err := bls.NewSecretKey()
 	r.NoError(err)
-
+	pk := bls.PublicFromSecretKey(sk)
+	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
 		ids.GenerateTestNodeID(),
-		sk,
+		networkID,
+		chainID,
+		pk,
+		signer,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -494,12 +525,18 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			r := require.New(t)
 
 			nodeID := ids.GenerateTestNodeID()
+			networkID := uint32(123)
+			chainID := ids.Empty
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
-
+			pk := bls.PublicFromSecretKey(sk)
+			signer := warp.NewSigner(sk, networkID, chainID)
 			node, err := New[tx](
 				nodeID,
-				sk,
+				networkID,
+				chainID,
+				pk,
+				signer,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -618,13 +655,20 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-			sk, err := bls.NewSecretKey()
+
+			networkID := uint32(123)
+			chainID := ids.Empty
+			sk1, err := bls.NewSecretKey()
 			r.NoError(err)
-			pk := bls.PublicFromSecretKey(sk)
+			pk1 := bls.PublicFromSecretKey(sk1)
+			signer1 := warp.NewSigner(sk1, networkID, chainID)
 
 			node1, err := New[tx](
-				ids.EmptyNodeID,
-				sk,
+				ids.GenerateTestNodeID(),
+				networkID,
+				chainID,
+				pk1,
+				signer1,
 				tt.verifier,
 				p2ptest.NewClient(
 					t,
@@ -651,17 +695,28 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			client := NewGetChunkSignatureClient(p2ptest.NewClient(
-				t,
-				context.Background(),
-				node1.GetChunkSignatureHandler,
-				ids.EmptyNodeID,
-				ids.EmptyNodeID,
-			))
+			client := NewGetChunkSignatureClient(
+				networkID,
+				chainID,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					node1.GetChunkSignatureHandler,
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+			)
 
+			sk2, err := bls.NewSecretKey()
+			r.NoError(err)
+			pk2 := bls.PublicFromSecretKey(sk2)
+			signer2 := warp.NewSigner(sk2, networkID, chainID)
 			node2, err := New[tx](
-				ids.EmptyNodeID,
-				sk,
+				ids.GenerateTestNodeID(),
+				networkID,
+				chainID,
+				pk2,
+				signer2,
 				tt.verifier,
 				p2ptest.NewClient(
 					t,
@@ -704,11 +759,49 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					return
 				}
 
-				r.Equal(bls.PublicKeyToCompressedBytes(pk), response.Signer)
-				signature, err := bls.SignatureFromBytes(response.Signature)
-				r.NoError(err)
+				pChain := &validatorstest.State{
+					T: t,
+					GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
+						return ids.Empty, nil
+					},
+					GetValidatorSetF: func(
+						context.Context,
+						uint64,
+						ids.ID,
+					) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+						return map[ids.NodeID]*validators.GetValidatorOutput{
+							node1.nodeID: {
+								NodeID:    node1.nodeID,
+								PublicKey: pk1,
+								Weight:    1,
+							},
+							node2.nodeID: {
+								NodeID:    node2.nodeID,
+								PublicKey: pk2,
+								Weight:    1,
+							},
+						}, nil
+					},
+				}
 
-				r.True(bls.Verify(pk, signature, chunk.bytes))
+				signature := warp.BitSetSignature{
+					Signers:   getSignerBitSet(t, pChain, node1.nodeID).Bytes(),
+					Signature: [bls.SignatureLen]byte{},
+				}
+
+				copy(signature.Signature[:], response.Signature)
+
+				msg, err := warp.NewUnsignedMessage(networkID, chainID, chunk.bytes)
+				r.NoError(err)
+				r.NoError(signature.Verify(
+					context.Background(),
+					msg,
+					networkID,
+					pChain,
+					0,
+					1,
+					2,
+				))
 			}
 
 			packer := wrappers.Packer{MaxSize: MaxMessageSize}
@@ -729,12 +822,19 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 // Node should not sign duplicate chunks that have already been accepted
 func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
 	sk, err := bls.NewSecretKey()
 	r.NoError(err)
-
+	pk := bls.PublicFromSecretKey(sk)
+	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
 		ids.EmptyNodeID,
-		sk,
+		networkID,
+		chainID,
+		pk,
+		signer,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -761,13 +861,16 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	client := NewGetChunkSignatureClient(p2ptest.NewClient(
-		t,
-		context.Background(),
-		node.GetChunkSignatureHandler,
-		ids.EmptyNodeID,
-		ids.EmptyNodeID,
-	))
+	client := NewGetChunkSignatureClient(
+		networkID,
+		chainID,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			node.GetChunkSignatureHandler,
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		))
 
 	// Accept a chunk
 	r.NoError(err)
@@ -812,11 +915,19 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 // Nodes must persist chunks that they sign from other nodes
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(23)
+	chainID := ids.Empty
 	sk1, err := bls.NewSecretKey()
 	r.NoError(err)
+	pk1 := bls.PublicFromSecretKey(sk1)
+	signer1 := warp.NewSigner(sk1, networkID, chainID)
 	node1, err := New[tx](
 		ids.EmptyNodeID,
-		sk1,
+		networkID,
+		chainID,
+		pk1,
+		signer1,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -843,9 +954,16 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	)
 	r.NoError(err)
 
+	sk2, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk2 := bls.PublicFromSecretKey(sk2)
+	signer2 := warp.NewSigner(sk2, networkID, chainID)
 	node2, err := New[tx](
 		ids.EmptyNodeID,
-		sk1,
+		networkID,
+		chainID,
+		pk2,
+		signer2,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -1132,12 +1250,20 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
+
+			networkID := uint32(123)
+			chainID := ids.Empty
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
+			pk := bls.PublicFromSecretKey(sk)
+			signer := warp.NewSigner(sk, networkID, chainID)
 
 			node, err := New[tx](
 				ids.EmptyNodeID,
-				sk,
+				networkID,
+				chainID,
+				pk,
+				signer,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -1210,11 +1336,20 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 // Nodes should request chunks referenced in accepted blocks
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
 	sk1, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk1 := bls.PublicFromSecretKey(sk1)
+	signer1 := warp.NewSigner(sk1, networkID, chainID)
 	r.NoError(err)
 	node1, err := New[tx](
 		ids.GenerateTestNodeID(),
-		sk1,
+		networkID,
+		chainID,
+		pk1,
+		signer1,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -1256,9 +1391,16 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node1.Accept(context.Background(), blk))
 
+	sk2, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk2 := bls.PublicFromSecretKey(sk2)
+	signer2 := warp.NewSigner(sk2, networkID, chainID)
 	node2, err := New[tx](
 		ids.GenerateTestNodeID(),
-		sk1,
+		networkID,
+		chainID,
+		pk2,
+		signer2,
 		NoVerifier[tx]{},
 		p2ptest.NewClient(
 			t,
@@ -1311,6 +1453,29 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		onResponse,
 	))
 	<-done
+}
+
+func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeID) set.Bits {
+	validators, _, err := warp.GetCanonicalValidatorSet(
+		context.Background(),
+		pChain,
+		0,
+		ids.Empty,
+	)
+	require.NoError(t, err)
+
+	signers := set.Of(nodeIDs...)
+	signerBitSet := set.NewBits()
+	for i, v := range validators {
+		for _, nodeID := range v.NodeIDs {
+			if signers.Contains(nodeID) {
+				signerBitSet.Add(i)
+				break
+			}
+		}
+	}
+
+	return signerBitSet
 }
 
 type tx struct {
