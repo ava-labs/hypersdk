@@ -326,7 +326,9 @@ func (vm *VM) Initialize(
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
-	vm.snowCtx.Metrics.Register("chain", registerer)
+	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
+		return err
+	}
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
 		registerer,
