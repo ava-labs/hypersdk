@@ -1,227 +1,47 @@
 API:
-    - CLOUD_ID: i-07c23137881ec6f06
-      IP: 18.117.182.135
-      REGION: us-east-2
-    - CLOUD_ID: i-0a9d1ed7505daab6b
-      IP: 18.179.62.58
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-00e555aaac7036b3b
-      IP: 34.254.179.163
-      REGION: eu-west-1
-    - CLOUD_ID: i-0fdca1f6a925ce6ea
-      IP: 35.93.106.130
-      REGION: us-west-2
-    - CLOUD_ID: i-0ebe5c64020d80f63
-      IP: 100.28.252.64
-      REGION: us-east-1
-VALIDATOR:
-    - CLOUD_ID: i-0acf846c2d4a09c29
-      NODE_ID: NodeID-EJzkqriv6YDvMosSZ8tm6FKDnSohCerPm
-      IP: 18.118.106.61
-      REGION: us-east-2
-    - CLOUD_ID: i-048598add2e5730ef
-      NODE_ID: NodeID-Ggqd1oXxfH1G1MHvdcrT7UjraC1BNdJBt
-      IP: 18.218.162.255
-      REGION: us-east-2
-    - CLOUD_ID: i-04a1c383272e5346e
-      NODE_ID: NodeID-EctTmf7yWkC869nqahce2uKaj7nktxtan
-      IP: 18.117.169.36
-      REGION: us-east-2
-    - CLOUD_ID: i-0ab47cf7b782c33a4
-      NODE_ID: NodeID-LyJxJDZArc5Qi4T3xpEQoZAMT9K5PswJ5
-      IP: 18.221.86.53
-      REGION: us-east-2
-    - CLOUD_ID: i-0f966b0dd16691f45
-      NODE_ID: NodeID-LHnAcHSZK2AqTuq5CH7yQPwAvJ2Myj6J8
-      IP: 18.191.85.216
-      REGION: us-east-2
-    - CLOUD_ID: i-014265b1b61623364
-      NODE_ID: NodeID-J4p4cNXC3SDKaCh3t1EwLbghRyknKvasN
-      IP: 18.118.109.98
-      REGION: us-east-2
-    - CLOUD_ID: i-0362f5c6233e7f3ab
-      NODE_ID: NodeID-27mx2cmBmaKzvZHVGYYMGqvvDtDZG6Mx9
-      IP: 3.129.65.164
-      REGION: us-east-2
-    - CLOUD_ID: i-05f2f494f69ea439b
-      NODE_ID: NodeID-51KYrouxcXYZP23nACqcA7w95z5yqntry
-      IP: 13.59.147.190
-      REGION: us-east-2
-    - CLOUD_ID: i-0f6df6b3f7614c3f5
-      NODE_ID: NodeID-MAH4nzof9AYMDeZG7hRseH3ggAHgHpKdx
-      IP: 3.139.77.94
-      REGION: us-east-2
-    - CLOUD_ID: i-0db3f9a4e6dd9a1cf
-      NODE_ID: NodeID-CDSRCWthoXMY5YdZeu2svqRvWWEqhgFGA
-      IP: 3.140.247.141
-      REGION: us-east-2
-    - CLOUD_ID: i-0d872846d48dfda97
-      NODE_ID: NodeID-2y5u3btW7EgWqqhRJHHNkFeuke5Z3NLM3
-      IP: 18.180.155.26
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0a176228c5566bf04
-      NODE_ID: NodeID-KefmY9wspRaSwoKLvkNpNqXRecAwWGdwS
-      IP: 18.181.232.183
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-04b0da2134c8371d2
-      NODE_ID: NodeID-Lgw76tPEcNobuGPjEgztp165QgV6Mh89J
-      IP: 35.77.60.211
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0234c4a5dca674b2a
-      NODE_ID: NodeID-91VzdFKY5evxVCjnLAoEp2Thr4VRTDKDo
-      IP: 57.181.175.49
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0c48a5d744dfe0b15
-      NODE_ID: NodeID-5LLNZqd5yYV66vFMLEJhCCX1gzqy8KvT9
-      IP: 43.206.138.19
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-05a9761d12df57184
-      NODE_ID: NodeID-76UvWWUkEiPwKAB3WqHKMgnNuf5Ua6SVp
-      IP: 18.176.93.19
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-01640523829afcf34
-      NODE_ID: NodeID-7UWqBzM1tQaUCEQxpacBSi3xmqmVyCfFR
-      IP: 3.113.113.76
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0ca20189b133f2ef3
-      NODE_ID: NodeID-JQSNUQr9tDFEdbpCiDqiwB67kPZEQNZ4B
-      IP: 3.114.12.190
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0ef8ad91095809a69
-      NODE_ID: NodeID-EBYEvMQbtcxrddJopX2AE4aHXjW7hF1X5
-      IP: 13.230.43.210
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-06242bc6a5d236223
-      NODE_ID: NodeID-MwJxoX9yp3LB23mkUHHte1yMiw1ip1Yo7
-      IP: 3.112.94.132
-      REGION: ap-northeast-1
-    - CLOUD_ID: i-0adde93da05ad859f
-      NODE_ID: NodeID-J3UjcD7BQBWS28fbZaKmNniymnBqAMYkq
-      IP: 54.77.159.151
-      REGION: eu-west-1
-    - CLOUD_ID: i-07dbbe81d10b19ec6
-      NODE_ID: NodeID-NzQUgVL7mq1Y9hp8kEYbwcg76q8x5QLnz
-      IP: 34.244.227.2
-      REGION: eu-west-1
-    - CLOUD_ID: i-004068bb4c97497de
-      NODE_ID: NodeID-9JBorrsNVhZirjPM6vX9yNprVNfjDABZD
-      IP: 54.74.131.83
-      REGION: eu-west-1
-    - CLOUD_ID: i-08a6dc4fb5cec9b57
-      NODE_ID: NodeID-G1yYwqreRsy1gq3rPhxYeDuNkcsTBLmM8
-      IP: 34.253.187.128
-      REGION: eu-west-1
-    - CLOUD_ID: i-09d2c730c9984a12d
-      NODE_ID: NodeID-Bhj4GXfTZTgpAmCSHWs3pGDZ6Z4GsLgG2
-      IP: 18.201.86.177
-      REGION: eu-west-1
-    - CLOUD_ID: i-0a3013cfd17bc6139
-      NODE_ID: NodeID-EuaZsUASdkZ2s8WHgqY8PVh8h6m3r8VVU
-      IP: 54.229.24.89
-      REGION: eu-west-1
-    - CLOUD_ID: i-0cf3a3609e6ee875f
-      NODE_ID: NodeID-NM8d64FjYVH6H1S1L7mJ5ff6Fre4uPSkb
-      IP: 54.74.4.0
-      REGION: eu-west-1
-    - CLOUD_ID: i-078a936e2b833be49
-      NODE_ID: NodeID-HqWAsiBhPZKe5PqHcagi5TG7gb3ejGHoW
-      IP: 54.74.244.125
-      REGION: eu-west-1
-    - CLOUD_ID: i-0e7847e5bc7200d7c
-      NODE_ID: NodeID-8V1UeZpCHfEyLmcobsVNRAs2Cr7uEyiaP
-      IP: 54.170.251.24
-      REGION: eu-west-1
-    - CLOUD_ID: i-0ac94d179f9e2187f
-      NODE_ID: NodeID-6pDi2v3s2NDwiXVBWYzWpU1cMX14esHdb
-      IP: 34.253.228.189
-      REGION: eu-west-1
-    - CLOUD_ID: i-078ff3e3c15a3085c
-      NODE_ID: NodeID-2eij4hh2gESYQK2eH8XA6itpbVDJDQXSY
-      IP: 35.86.74.77
-      REGION: us-west-2
-    - CLOUD_ID: i-027553046ed8325ed
-      NODE_ID: NodeID-Dh8c4DgLmmepT6bJzXvLKd1xGZeHfL6tH
-      IP: 35.94.243.179
-      REGION: us-west-2
-    - CLOUD_ID: i-07cbe96e074d9c8d7
-      NODE_ID: NodeID-BVF1c6zNiNZXkKtJddYgGhej6UTxBCbfU
-      IP: 44.244.154.147
-      REGION: us-west-2
-    - CLOUD_ID: i-04a531ac103db780b
-      NODE_ID: NodeID-JMAKBY13Cdt5VQEayEW57yU2k8Bp3bhsZ
-      IP: 44.244.127.153
-      REGION: us-west-2
-    - CLOUD_ID: i-0275c8366e254d024
-      NODE_ID: NodeID-BGccuQmPUSpPPYSx7P6s4MR3Qh7vimun6
-      IP: 44.244.6.27
-      REGION: us-west-2
-    - CLOUD_ID: i-0c589dd785af04a72
-      NODE_ID: NodeID-2RhAQ3SHkG3WnSY6Mt8fTtJfkiybWskyo
-      IP: 44.244.129.132
-      REGION: us-west-2
-    - CLOUD_ID: i-09c7a09eecf5461e8
-      NODE_ID: NodeID-3Aw9crghUvW7xfRoDMfFXVV23s23acBVa
-      IP: 44.234.51.251
-      REGION: us-west-2
-    - CLOUD_ID: i-0ca132a101570a715
-      NODE_ID: NodeID-KeBXiq5b624mQEVwGxeiruUeaqb3dm3q1
-      IP: 35.88.13.126
-      REGION: us-west-2
-    - CLOUD_ID: i-003bb65903f333671
-      NODE_ID: NodeID-ECDaLeqwQg3RFPr73w5seHw8UiFppRvzC
-      IP: 34.223.53.55
-      REGION: us-west-2
-    - CLOUD_ID: i-06e7f8dd0ee625dcf
-      NODE_ID: NodeID-2bcGgGh4Dw8BGoRg43FEWZwc86MK247Xj
-      IP: 18.246.4.14
-      REGION: us-west-2
-    - CLOUD_ID: i-0a48714432b339d9f
-      NODE_ID: NodeID-ASG5Vo2zcL3ikZcGzvArScUkr6nvjSLL6
-      IP: 44.197.251.55
-      REGION: us-east-1
-    - CLOUD_ID: i-044cc02e83dacf6f7
-      NODE_ID: NodeID-2Wz9eJmZuCXoosahiGEuj284zapqy6bbF
-      IP: 34.231.180.157
-      REGION: us-east-1
-    - CLOUD_ID: i-026e8f49940cb5c5c
-      NODE_ID: NodeID-ApMDMVunJguvaaLBFBuswLynwwYt96Dhw
-      IP: 3.236.22.166
-      REGION: us-east-1
-    - CLOUD_ID: i-0ad78a8c8c75b1be4
-      NODE_ID: NodeID-3vbqbewYTiia1szuBFoRVRk6VGQgopNr3
-      IP: 3.236.233.243
-      REGION: us-east-1
-    - CLOUD_ID: i-0c8d547372ceafb36
-      NODE_ID: NodeID-4Jeya7BvEk975ZtpioJq4vVTk2Ywukfwh
-      IP: 3.234.217.235
-      REGION: us-east-1
-    - CLOUD_ID: i-016ac1f24c8102406
-      NODE_ID: NodeID-E5DjfnrNmFPBGXs9EXCA6trC2Z1pNKNSM
-      IP: 3.236.21.87
-      REGION: us-east-1
-    - CLOUD_ID: i-003b75b22671184cd
-      NODE_ID: NodeID-JUTJaYkcMubrN1AxSA1Hjaq2D1Q9jrh7e
-      IP: 34.226.244.122
-      REGION: us-east-1
-    - CLOUD_ID: i-0344cbd1aa15600a1
-      NODE_ID: NodeID-MSwZ7hsbwpazXkdt4FxeQM9QJFT2YXKzh
-      IP: 44.192.31.22
-      REGION: us-east-1
-    - CLOUD_ID: i-032759493062609e7
-      NODE_ID: NodeID-CXyBQ8Abd79ATHczLt3dny8SHbgfHnLNB
-      IP: 3.227.254.0
-      REGION: us-east-1
-    - CLOUD_ID: i-047f2282859635515
-      NODE_ID: NodeID-HDabbHRpBb8q9Ryp7r9gce3DJ7uD1mD87
-      IP: 44.201.94.66
-      REGION: us-east-1
-LOADTEST:
-    CLOUD_ID: i-088147c0e8bdcd5a9
-    IP: 3.255.35.130
-    REGION: eu-west-1
-MONITOR:
-    CLOUD_ID: i-02cadde1aec23825a
-    IP: 18.117.178.77
+  - CLOUD_ID: i-0b9258a99968c6f3f
+    IP: 44.210.243.186
+    REGION: us-east-1
+  - CLOUD_ID: i-00ad001ad52a6272f
+    IP: 3.144.34.135
     REGION: us-east-2
-CHAIN_ID: 2AcRkXTLLtQjvDpLUNSKgPu3WHNHAao59DE71EHrfhczhZXY8j
+  - CLOUD_ID: i-05ad22eea11523787
+    IP: 43.207.237.38
+    REGION: ap-northeast-1
+  - CLOUD_ID: i-08e1a67d9a259accf
+    IP: 3.249.58.207
+    REGION: eu-west-1
+  - CLOUD_ID: i-007535240c5698915
+    IP: 44.243.58.160
+    REGION: us-west-2
+VALIDATOR:
+  - CLOUD_ID: i-022ad628300c28948
+    NODE_ID: NodeID-5rtVCjUUkebqToYEPe5oXYXGwqurUgTaP
+    IP: 34.239.147.64
+    REGION: us-east-1
+  - CLOUD_ID: i-058525e8e9af3d49b
+    NODE_ID: NodeID-7ZnAVv5P7yy84bqUaPRjoBk3UKUkvWv2D
+    IP: 18.191.223.95
+    REGION: us-east-2
+  - CLOUD_ID: i-032d25c15629a653e
+    NODE_ID: NodeID-G43Zp4zYcspj7WexnNongg7LBFDgHHq3o
+    IP: 18.181.111.205
+    REGION: ap-northeast-1
+  - CLOUD_ID: i-017a172564687fe1f
+    NODE_ID: NodeID-54jHrMbShfifAUKLpWsEXC8rpAX1b3dEv
+    IP: 34.241.115.129
+    REGION: eu-west-1
+  - CLOUD_ID: i-05d9b417a332c7941
+    NODE_ID: NodeID-DySQfWYmY4Lai8WwyKekeh99328gA1o7s
+    IP: 34.222.188.123
+    REGION: us-west-2
+LOADTEST:
+  CLOUD_ID: i-0293ed1fe382d5a69
+  IP: 63.33.32.215
+  REGION: eu-west-1
+MONITOR:
+  CLOUD_ID: i-0818e31711bd7e164
+  IP: 34.251.155.164
+  REGION: eu-west-1
+CHAIN_ID: 3TKfevue55XZ3fGwNmgt3mvrD2ynZ9tS7SavphMaD1fvxdFvB
 SUBNET_ID: giY8tswWgZmcAWzPkoNrmjjrykited7GJ9799SsFzTiq5a1ML
