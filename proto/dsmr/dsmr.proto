@@ -21,13 +21,7 @@ message GetChunkSignatureRequest {
 }
 
 message GetChunkSignatureResponse {
-  // TODO are these fields needed?
-  bytes chunk_id = 1;
-  bytes producer = 2;
-  int64 expiry = 3;
-
-  bytes signer = 4;
-  bytes signature = 5;
+  bytes signature = 1;
 }
 
 message ChunkCertificateGossip {
