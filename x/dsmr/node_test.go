@@ -86,7 +86,6 @@ func TestNode_NewChunk(t *testing.T) {
 			r.NoError(err)
 			pk := bls.PublicFromSecretKey(sk)
 			signer := warp.NewSigner(sk, networkID, chainID)
-
 			nodeID := ids.GenerateTestNodeID()
 			node, err := New[tx](
 				nodeID,
