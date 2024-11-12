@@ -33,7 +33,6 @@ import (
 var (
 	_ chain.VM              = (*VM)(nil)
 	_ gossiper.VM           = (*VM)(nil)
-	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
 )
@@ -320,14 +319,6 @@ func (vm *VM) CurrentValidators(
 
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
-}
-
-func (vm *VM) PreferredBlockTimestamp(ctx context.Context) (int64, error) {
-	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
-	if err != nil {
-		return 0, err
-	}
-	return blk.Tmstmp, nil
 }
 
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {

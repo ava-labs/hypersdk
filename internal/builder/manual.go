@@ -26,12 +26,12 @@ func NewManual(engineCh chan<- common.Message, logger logging.Logger) *Manual {
 	}
 }
 
-func (b *Manual) Run() {
+func (b *Manual) Run(int64) {
 	close(b.doneBuild)
 }
 
 // Queue is a no-op in [Manual].
-func (*Manual) Queue(context.Context) {}
+func (*Manual) Queue(context.Context, int64) {}
 
 func (b *Manual) Force(context.Context) error {
 	select {

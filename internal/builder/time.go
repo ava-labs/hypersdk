@@ -24,10 +24,6 @@ const minBuildGap int64 = 25 // ms
 
 var _ Builder = (*Time)(nil)
 
-type VM interface {
-	PreferredBlockTimestamp(context.Context) (int64, error)
-}
-
 type Mempool interface {
 	Len(context.Context) int // items
 }
@@ -38,7 +34,6 @@ type Time struct {
 	logger      logging.Logger
 	mempool     Mempool
 	ruleFactory genesis.RuleFactory
-	vm          VM
 	doneBuild   chan struct{}
 
 	timer     *timer.Timer
@@ -46,22 +41,21 @@ type Time struct {
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory genesis.RuleFactory, vm VM) *Time {
+func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory genesis.RuleFactory) *Time {
 	b := &Time{
 		engineCh:    engineCh,
 		logger:      logger,
 		mempool:     mempool,
 		ruleFactory: ruleFactory,
-		vm:          vm,
 		doneBuild:   make(chan struct{}),
 	}
 	b.timer = timer.NewTimer(b.handleTimerNotify)
 	return b
 }
 
-func (b *Time) Run() {
-	b.Queue(context.TODO()) // start building loop (may not be an initial trigger)
-	b.timer.Dispatch()      // this blocks
+func (b *Time) Run(preferedBlkTmstmp int64) {
+	b.Queue(context.TODO(), preferedBlkTmstmp) // start building loop (may not be an initial trigger)
+	b.timer.Dispatch()                         // this blocks
 }
 
 func (b *Time) handleTimerNotify() {
@@ -83,19 +77,13 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) Queue(ctx context.Context) {
+func (b *Time) Queue(ctx context.Context, preferedBlkTmstmp int64) {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.logger.Debug("unable to acquire waiting lock")
 		return
 	}
-	preferredBlkTmstmp, err := b.vm.PreferredBlockTimestamp(context.TODO())
-	if err != nil {
-		b.waiting.Store(false)
-		b.logger.Warn("unable to load preferred block", zap.Error(err))
-		return
-	}
 	now := time.Now().UnixMilli()
-	next := b.nextTime(now, preferredBlkTmstmp)
+	next := b.nextTime(now, preferedBlkTmstmp)
 	if next < 0 {
 		if err := b.Force(ctx); err != nil {
 			b.logger.Warn("unable to build", zap.Error(err))

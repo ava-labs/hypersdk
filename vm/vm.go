@@ -258,7 +258,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Set defaults
-	vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, vm.ruleFactory, vm)
+	vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, vm.ruleFactory)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -459,7 +459,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Startup block builder and gossiper
-	go vm.builder.Run()
+	go vm.builder.Run(vm.lastAccepted.Tmstmp)
 	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
@@ -519,7 +519,12 @@ func (vm *VM) applyOptions(o *Options) {
 
 func (vm *VM) checkActivity(ctx context.Context) {
 	vm.gossiper.Queue(ctx)
-	vm.builder.Queue(ctx)
+	blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+	if err != nil {
+		vm.snowCtx.Log.Warn("unable to load preferred block", zap.Error(err))
+		return
+	}
+	vm.builder.Queue(ctx, blk.Tmstmp)
 }
 
 func (vm *VM) markReady() {
