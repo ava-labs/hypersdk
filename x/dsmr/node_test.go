@@ -656,9 +656,9 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
+
 			networkID := uint32(123)
 			chainID := ids.Empty
-
 			sk1, err := bls.NewSecretKey()
 			r.NoError(err)
 			pk1 := bls.PublicFromSecretKey(sk1)
@@ -914,7 +914,6 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	networkID := uint32(23)
 	chainID := ids.Empty
-
 	sk1, err := bls.NewSecretKey()
 	r.NoError(err)
 	pk1 := bls.PublicFromSecretKey(sk1)
@@ -1340,7 +1339,6 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.NoError(err)
 	pk1 := bls.PublicFromSecretKey(sk1)
 	signer1 := warp.NewSigner(sk1, networkID, chainID)
-
 	r.NoError(err)
 	node1, err := New[tx](
 		ids.GenerateTestNodeID(),
@@ -1393,7 +1391,6 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.NoError(err)
 	pk2 := bls.PublicFromSecretKey(sk2)
 	signer2 := warp.NewSigner(sk2, networkID, chainID)
-
 	node2, err := New[tx](
 		ids.GenerateTestNodeID(),
 		networkID,
