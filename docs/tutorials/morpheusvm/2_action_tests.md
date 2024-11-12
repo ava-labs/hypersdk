@@ -290,7 +290,7 @@ the action tests that we'll add:
   ```
 
 
-The tests above provide great examples on how `State` and `Assertion` are used
+The tests above provide great examples on how `State` and `Assertion` are used.
 In particular:
 
 - `State`: in some cases, we don't need to pass in state if `Action` errors
