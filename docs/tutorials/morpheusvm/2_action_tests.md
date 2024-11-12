@@ -295,7 +295,7 @@ In particular:
 
 - `State`: in some cases, we don't need to pass in state if `Action` errors
   before touching the state provided. In other cases, we utilize
-  `chaintest.NewInMemoryStore()` and even pass in a lambda function to set up
+  `chaintest.NewInMemoryStore()` and sometimes even pass in a lambda function to set up
   our state.
 - `Assertion`: as previously mentioned, `Assertion` is used to check that our
   state was modified as expected. For example, consider the `Assertion` found in
