@@ -1,10 +1,7 @@
 # Action Tests
 
-In the previous section, we implemented our first action: `Transfer`. Although
-we carefully went over the implementation for `Transfer`, the only way to make
-sure that our implementation is correct is by testing it. 
-
-In this section, we'll implement a series of action tests that aim to maximize
+In the previous section, we implemented our first action: `Transfer`. In this 
+section, we'll implement a series of action tests that aim to maximize
 testing coverage of `Transfer`.
 
 ## Structure of Action Tests
@@ -62,15 +59,14 @@ where `ctx` is a `Context` instance and `t` is an instance of `*testing.T`. When
 calling an action test, the following happens in order:
 
 - `Execute()` is called on the action. 
-- The action test checks that the error of `Execute()` matches `ExpectedErr`
-- The action test checks that the output of `Execute()` matches `ExpectedOutput`
-- If an assertion function was defined, then the action test runs the function
+- `actionTest` checks that the error of `Execute()` matches `ExpectedErr`
+- `actionTest` checks that the output of `Execute()` matches `ExpectedOutput`
+- If an assertion function was defined, then `actionTest` runs the function
 
 ## Action Test Example
 
-To see an action test first-hand, let's write an action test that tests that an
-instance of `Transfer` with a value of 0 fails. In this case, we want to focus
-on the following fields:
+Let's write an action test that tests that an instance of `Transfer` with a
+value of 0 fails. In this case, we want to focus on the following fields:
 
 - `Actor`: since the actor sending the `Transfer` action here doesn't matter, we
   can just use `codec.EmptyAddress`.
@@ -122,7 +118,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/codec/codectest"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/tutorial/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
 
