@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
@@ -32,9 +31,9 @@ import (
 )
 
 var (
-	_ chain.VM              = (*VM)(nil)
-	_ gossiper.VM           = (*VM)(nil)
-	_ builder.VM            = (*VM)(nil)
+	_ chain.VM    = (*VM)(nil)
+	_ gossiper.VM = (*VM)(nil)
+	//	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
 )
@@ -323,8 +322,12 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatefulBlock, error) {
-	return vm.GetStatefulBlock(ctx, vm.preferred)
+func (vm *VM) PreferredBlockTimestamp(ctx context.Context) (int64, error) {
+	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	if err != nil {
+		return 0, err
+	}
+	return blk.Tmstmp, nil
 }
 
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
@@ -337,10 +340,6 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 
 func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
-}
-
-func (vm *VM) EngineChan() chan<- common.Message {
-	return vm.toEngine
 }
 
 // Used for integration and load testing

@@ -258,7 +258,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Set defaults
-	vm.builder = builder.NewTime(vm)
+	vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, vm.ruleFactory, vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -510,7 +510,7 @@ func (vm *VM) applyOptions(o *Options) {
 	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm)
+		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	}
 	if o.gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
