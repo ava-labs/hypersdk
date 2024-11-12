@@ -5,11 +5,15 @@ package cmd
 
 import (
 	"context"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	hthroughput "github.com/ava-labs/hypersdk/throughput"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var spamCmd = &cobra.Command{
@@ -29,6 +33,37 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
+		if len(clusterInfo) > 0 {
+			_, uris, err := cli.ReadCLIFile(clusterInfo)
+			if err != nil {
+				utils.Outf("{{red}} failed to read cluster info: %s \n", err)
+				return err
+			}
+			uriNames := onlyAPIs(uris)
+			spamConfig, err := hthroughput.NewDefaultCliConfig(uriNames)
+			if err != nil {
+				return err
+			}
+			
+			spamHelper := &throughput.SpamHelper{KeyType: args[0]}
+			
+			spammer, err := hthroughput.NewSpammer(spamConfig, spamHelper)
+			if err != nil {
+				return err
+			}
+			return spammer.Spam(ctx, spamHelper, true, "AVAX")
+		}
 		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamDefaults)
 	},
+}
+
+func onlyAPIs(m map[string]string) []string {
+	apis := make([]string, 0, len(m))
+	for k := range m {
+		if !strings.Contains(strings.ToLower(k), "api") {
+			continue
+		}
+		apis = append(apis, k)
+	}
+	return apis
 }

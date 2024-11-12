@@ -28,6 +28,19 @@ var setChainCmd = &cobra.Command{
 	},
 }
 
+var importAvalancheCliChainCmd = &cobra.Command{
+	Use: "import-cli [path]",
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return ErrInvalidArgs
+		}
+		return nil
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		return handler.Root().ImportCLI(args[0])
+	},
+}
+
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, _ []string) error {

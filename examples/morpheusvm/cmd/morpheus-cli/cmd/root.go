@@ -31,12 +31,12 @@ var (
 	hideTxs               bool
 	checkAllChains        bool
 	spamDefaults          bool
+	clusterInfo		      string
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
@@ -144,6 +144,7 @@ func init() {
 		importChainCmd,
 		setChainCmd,
 		chainInfoCmd,
+		importAvalancheCliChainCmd,
 		watchChainCmd,
 	)
 
@@ -159,10 +160,18 @@ func init() {
 		"use default spam parameters",
 	)
 
+	runSpamCmd.PersistentFlags().StringVar(
+		&clusterInfo,
+		"cluster-info",
+		"",
+		"output from avalanche-cli with cluster info",
+	)
+
 	// spam
 	spamCmd.AddCommand(
 		runSpamCmd,
 	)
+	
 
 	// prometheus
 	generatePrometheusCmd.PersistentFlags().StringVar(

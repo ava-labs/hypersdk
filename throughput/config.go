@@ -3,7 +3,11 @@
 
 package throughput
 
-import "github.com/ava-labs/hypersdk/auth"
+import (
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+)
 
 type Config struct {
 	uris             []string
@@ -32,6 +36,31 @@ func NewDefaultConfig(
 		numClients:       10,
 		numAccounts:      25,
 	}
+}
+
+func NewDefaultCliConfig(uris []string) (*Config, error) {
+	keyHex := "0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017"
+	bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+	if err != nil {
+		return nil, err
+	}
+	privateKey := ed25519.PrivateKey(bytes)
+	key := &auth.PrivateKey{
+		Address: auth.NewED25519Address(privateKey.PublicKey()),
+		Bytes:  bytes,
+	}
+
+	return &Config{
+		key: key,
+		sZipf: 1.0001,
+		vZipf: 2.7,
+		txsPerSecond: 100000,
+		minTxsPerSecond: 15000,
+		txsPerSecondStep: 1000,
+		numClients: 10,
+		numAccounts: 10000000,
+
+	}, nil
 }
 
 func NewConfig(
