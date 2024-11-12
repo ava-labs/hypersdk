@@ -324,7 +324,7 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm)
+	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
 		vm.Metrics(),

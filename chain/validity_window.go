@@ -22,12 +22,6 @@ type ChainIndex interface {
 	LastAcceptedBlock() *ExecutionBlock
 }
 
-type TimeValidityWindowBackend interface {
-	Logger() logging.Logger
-	Tracer() trace.Tracer
-	ChainIndex
-}
-
 type TimeValidityWindow struct {
 	log    logging.Logger
 	tracer trace.Tracer
@@ -37,11 +31,11 @@ type TimeValidityWindow struct {
 	seen       *emap.EMap[*Transaction]
 }
 
-func NewTimeValidityWindow(backend TimeValidityWindowBackend) *TimeValidityWindow {
+func NewTimeValidityWindow(log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex) *TimeValidityWindow {
 	return &TimeValidityWindow{
-		log:        backend.Logger(),
-		tracer:     backend.Tracer(),
-		chainIndex: backend,
+		log:        log,
+		tracer:     tracer,
+		chainIndex: chainIndex,
 		seen:       emap.NewEMap[*Transaction](),
 	}
 }
