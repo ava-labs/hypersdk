@@ -173,11 +173,11 @@ func NewGetChunkClient[T Tx](client *p2p.Client) *TypedClient[*dsmr.GetChunkRequ
 	}
 }
 
-func NewGetChunkSignatureClient(networKID uint32, chainID ids.ID, client *p2p.Client) *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte] {
+func NewGetChunkSignatureClient(networkID uint32, chainID ids.ID, client *p2p.Client) *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte] {
 	return &TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]{
 		client: client,
 		marshaler: getChunkSignatureMarshaler{
-			networkID: networKID,
+			networkID: networkID,
 			chainID:   chainID,
 		},
 	}
