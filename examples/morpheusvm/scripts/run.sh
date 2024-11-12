@@ -81,12 +81,18 @@ additional_args=("$@")
 
 if [[ ${MODE} == "run" ]]; then
   echo "applying ginkgo.focus=Ping and --reuse-network to setup local network"
-  additional_args+=("--ginkgo.focus=Ping")
-  additional_args+=("--reuse-network")
+  additional_args+=("--ginkgo.focus=Transfer Transaction")
+  #additional_args+=("--reuse-network")
 fi
 
 echo "running e2e tests"
 ./tests/e2e/e2e.test \
+--ginkgo.v \
+--avalanchego-path="${AVALANCHEGO_PATH}" \
+--plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
+"${additional_args[@]}"
+
+echo ./tests/e2e/e2e.test \
 --ginkgo.v \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
 --plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \

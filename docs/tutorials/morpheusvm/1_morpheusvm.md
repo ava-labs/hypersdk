@@ -784,36 +784,32 @@ import (
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
-var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
-	OutputParser *codec.TypeParser[codec.Typed]
-)
-
-// Setup types
-func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
-	OutputParser = codec.NewTypeParser[codec.Typed]()
+func newRegistry() (chain.Registry, error) {
+	actionParser := codec.NewTypeParser[chain.Action]()
+	authParser := codec.NewTypeParser[chain.Auth]()
+	outputParser := codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		ActionParser.Register(&actions.Transfer{}, nil),
+		// When registering new actions, ALWAYS make sure to append at the end.
+		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
+		actionParser.Register(&actions.Transfer{}, nil),
 
-		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		// When registering new auth, ALWAYS make sure to append at the end.
+		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		authParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		authParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		outputParser.Register(&actions.TransferResult{}, nil),
 	)
 	if errs.Errored() {
-		panic(errs.Err)
+		return nil, errs.Err
 	}
+	return vm.NewRegistry(actionParser, authParser, outputParser), nil
 }
-
 ```
 
-By “registry”, we mean the `ActionParser` and `AuthParser` which tell our VM
+By “registry”, we mean the `actionParser`, `authParser` and `outputParser` which tell our VM
 which actions and cryptographic functions that it’ll support.
 
 Finally, we create a `New()` function that allows for the VM we’ve worked on to
@@ -822,14 +818,17 @@ be instantiated.
 ```golang
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
+	options = append(options, With()) // Add MorpheusVM API
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),
-		ActionParser,
-		AuthParser,
-		OutputParser,
+		registry,
 		auth.Engines(),
 		options...,
 	)

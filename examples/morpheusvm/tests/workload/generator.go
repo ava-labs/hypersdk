@@ -65,11 +65,11 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
+		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1, parser)
 	}, nil
 }
 
-func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64, parser chain.Parser) {
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
@@ -86,7 +86,8 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	transferOutputBytes := []byte(txRes.Outputs[0])
 	require.Equal(consts.TransferID, transferOutputBytes[0])
 	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
-	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
+
+	transferOutputTyped, err := parser.OutputCodec().Unmarshal(reader)
 	require.NoError(err)
 	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
 	require.True(ok)

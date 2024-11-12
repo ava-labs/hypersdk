@@ -18,55 +18,59 @@ import (
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
 )
 
-var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
-	OutputParser *codec.TypeParser[codec.Typed]
+var AuthProvider *auth.AuthProvider
 
-	AuthProvider *auth.AuthProvider
-)
-
-// Setup types
-func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
-	OutputParser = codec.NewTypeParser[codec.Typed]()
-	AuthProvider = auth.NewAuthProvider()
+func newRegistry() (chain.Registry, error) {
+	actionParser := codec.NewTypeParser[chain.Action]()
+	authParser := codec.NewTypeParser[chain.Auth]()
+	outputParser := codec.NewTypeParser[codec.Typed]()
 
 	errs := &wrappers.Errs{}
-
-	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
 
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, nil),
-
+		actionParser.Register(&actions.Transfer{}, nil),
 		// When registering new auth, ALWAYS make sure to append at the end.
-		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
+		authParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		authParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		outputParser.Register(&actions.TransferResult{}, nil),
 	)
 
 	if errs.Errored() {
-		panic(errs.Err)
+		return nil, errs.Err
 	}
+	return chain.NewRegistry(actionParser, authParser, outputParser), nil
 }
 
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
 	options = append(options, With()) // Add MorpheusVM API
+	registry, err := newRegistry()
+	if err != nil {
+		return nil, err
+	}
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),
-		ActionParser,
-		AuthParser,
-		OutputParser,
+		registry,
 		auth.Engines(),
 		options...,
 	)
+}
+
+// Setup types
+func init() {
+	AuthProvider = auth.NewAuthProvider()
+
+	errs := &wrappers.Errs{}
+
+	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
+	if errs.Errored() {
+		panic(errs.Err)
+	}
 }

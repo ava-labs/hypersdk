@@ -88,11 +88,15 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 	if err != nil {
 		return nil, err
 	}
+	parser, err := vm.CreateParser(genesisBytes)
+	if err != nil {
+		return nil, err
+	}
 	return &NetworkConfiguration{
 		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
 			genesisBytes,
 			consts.Name,
-			vm.NewParser(genesis)),
+			parser),
 		keys: keys,
 	}, nil
 }

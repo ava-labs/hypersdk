@@ -29,7 +29,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -67,6 +66,8 @@ const (
 )
 
 type VM struct {
+	chain.Registry
+
 	DataDir string
 	v       *version.Semantic
 
@@ -96,9 +97,6 @@ type VM struct {
 	handlers              map[string]http.Handler
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
-	actionCodec           *codec.TypeParser[chain.Action]
-	authCodec             *codec.TypeParser[chain.Auth]
-	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
 
@@ -153,9 +151,7 @@ func New(
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
+	registry chain.Registry,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -168,13 +164,11 @@ func New(
 	}
 
 	return &VM{
+		Registry:              registry,
 		v:                     v,
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		config:                NewConfig(),
-		actionCodec:           actionCodec,
-		authCodec:             authCodec,
-		outputCodec:           outputCodec,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
