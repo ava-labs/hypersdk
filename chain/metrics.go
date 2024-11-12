@@ -4,20 +4,24 @@
 package chain
 
 import (
-	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 )
 
+const namespace = "chain"
+
 type chainMetrics struct {
 	txsVerified prometheus.Counter
 	txsAccepted prometheus.Counter
 
-	rootCalculated metric.Averager
-	waitRoot       metric.Averager
-	waitSignatures metric.Averager
+	rootCalculatedCount prometheus.Counter
+	rootCalculatedSum   prometheus.Gauge
+	waitRootCount       prometheus.Counter
+	waitRootSum         prometheus.Gauge
+	waitSignaturesCount prometheus.Counter
+	waitSignaturesSum   prometheus.Gauge
 
 	buildCapped     prometheus.Counter
 	emptyBlockBuilt prometheus.Counter
@@ -48,93 +52,93 @@ func (em *executorMetrics) RecordExecutable() {
 	em.executable.Inc()
 }
 
-func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
-	r := prometheus.NewRegistry()
-
-	rootCalculated, err := metric.NewAverager(
-		"chain_root_calculated",
-		"time spent calculating the state root in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitRoot, err := metric.NewAverager(
-		"chain_wait_root",
-		"time spent waiting for root calculation in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitSignatures, err := metric.NewAverager(
-		"chain_wait_signatures",
-		"time spent waiting for signature verification in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 	m := &chainMetrics{
+		rootCalculatedCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "root_calculated_count",
+			Help:      "Total # of observations of time spent calculating the state root in verify",
+		}),
+		rootCalculatedSum: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "root_calculated_sum",
+			Help:      "Sum of time spent calculating the state root in verify",
+		}),
+		waitRootCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "wait_root_count",
+			Help:      "Total # of observations of time spent waiting for the state root in verify",
+		}),
+		waitRootSum: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "root_calculated_sum",
+			Help:      "Sum of time spent waiting for the state root in verify",
+		}),
+		waitSignaturesCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "wait_signatures_count",
+			Help:      "Total # of observations of time spent waiting for signature verification",
+		}),
+		waitSignaturesSum: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "wait_signatures_sum",
+			Help:      "Sum of time spent waiting for signature verification",
+		}),
 		buildCapped: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "build_capped",
 			Help:      "number of times build capped by target duration",
 		}),
 		emptyBlockBuilt: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "empty_block_built",
 			Help:      "number of times empty block built",
 		}),
 		executorBuildBlocked: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "executor_build_blocked",
 			Help:      "executor tasks blocked during build",
 		}),
 		executorBuildExecutable: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "executor_build_executable",
 			Help:      "executor tasks executable during build",
 		}),
 		executorVerifyBlocked: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "executor_verify_blocked",
 			Help:      "executor tasks blocked during verify",
 		}),
 		executorVerifyExecutable: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "executor_verify_executable",
 			Help:      "executor tasks executable during verify",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "state_changes",
 			Help:      "number of state changes",
 		}),
 		stateOperations: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
 		clearedMempool: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
 		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "txs_verified",
 			Help:      "number of txs verified by chain",
 		}),
 		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
+			Namespace: namespace,
 			Name:      "txs_accepted",
 			Help:      "number of txs accepted by chain",
 		}),
-		rootCalculated: rootCalculated,
-		waitRoot:       waitRoot,
-		waitSignatures: waitSignatures,
 	}
 
 	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
@@ -142,17 +146,23 @@ func newMetrics() (*prometheus.Registry, *chainMetrics, error) {
 
 	errs := wrappers.Errs{}
 	errs.Add(
-		r.Register(m.buildCapped),
-		r.Register(m.emptyBlockBuilt),
-		r.Register(m.executorBuildBlocked),
-		r.Register(m.executorBuildExecutable),
-		r.Register(m.executorVerifyBlocked),
-		r.Register(m.executorVerifyExecutable),
-		r.Register(m.stateChanges),
-		r.Register(m.stateOperations),
-		r.Register(m.clearedMempool),
-		r.Register(m.txsVerified),
-		r.Register(m.txsAccepted),
+		reg.Register(m.rootCalculatedCount),
+		reg.Register(m.rootCalculatedSum),
+		reg.Register(m.waitRootCount),
+		reg.Register(m.waitRootSum),
+		reg.Register(m.waitSignaturesCount),
+		reg.Register(m.waitSignaturesSum),
+		reg.Register(m.buildCapped),
+		reg.Register(m.emptyBlockBuilt),
+		reg.Register(m.executorBuildBlocked),
+		reg.Register(m.executorBuildExecutable),
+		reg.Register(m.executorVerifyBlocked),
+		reg.Register(m.executorVerifyExecutable),
+		reg.Register(m.stateChanges),
+		reg.Register(m.stateOperations),
+		reg.Register(m.clearedMempool),
+		reg.Register(m.txsVerified),
+		reg.Register(m.txsAccepted),
 	)
-	return r, m, errs.Err
+	return m, errs.Err
 }

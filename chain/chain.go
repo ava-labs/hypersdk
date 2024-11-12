@@ -6,10 +6,10 @@ package chain
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
@@ -25,7 +25,7 @@ type Chain struct {
 
 func NewChain(
 	tracer trace.Tracer,
-	gatherer metrics.MultiGatherer,
+	registerer *prometheus.Registry,
 	parser Parser,
 	mempool Mempool,
 	logger logging.Logger,
@@ -37,11 +37,8 @@ func NewChain(
 	validityWindow *TimeValidityWindow,
 	config Config,
 ) (*Chain, error) {
-	registry, metrics, err := newMetrics()
+	metrics, err := newMetrics(registerer)
 	if err != nil {
-		return nil, err
-	}
-	if err := gatherer.Register("chain", registry); err != nil {
 		return nil, err
 	}
 	return &Chain{

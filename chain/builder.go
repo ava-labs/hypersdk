@@ -454,7 +454,8 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 			zap.Stringer("blkID", blk.ID()),
 			zap.Stringer("root", root),
 		)
-		c.metrics.rootCalculated.Observe(float64(time.Since(start)))
+		c.metrics.rootCalculatedCount.Inc()
+		c.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
 	c.log.Info(

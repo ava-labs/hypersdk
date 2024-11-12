@@ -139,7 +139,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	if b.Processed() {
 		vm.snowCtx.Log.Info(
 			"verified block",
-			zap.Stringer("executedBlk", b.executedBlock),
+			zap.Stringer("blk", b.executedBlock),
 			zap.Bool("state ready", vm.StateReady()),
 		)
 	} else {

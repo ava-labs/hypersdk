@@ -213,7 +213,8 @@ func (p *Processor) Execute(
 	if err != nil {
 		return nil, nil, err
 	}
-	p.metrics.waitRoot.Observe(float64(time.Since(start)))
+	p.metrics.waitRootCount.Inc()
+	p.metrics.waitRootSum.Add(float64(time.Since(start)))
 	if b.StateRoot != computedRoot {
 		return nil, nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -231,7 +232,8 @@ func (p *Processor) Execute(
 	if err != nil {
 		return nil, nil, err
 	}
-	p.metrics.waitSignatures.Observe(float64(time.Since(start)))
+	p.metrics.waitSignaturesCount.Inc()
+	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
 
 	// Get view from [tstate] after processing all state transitions
 	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
@@ -254,7 +256,8 @@ func (p *Processor) Execute(
 			zap.Stringer("blkID", b.id),
 			zap.Stringer("root", root),
 		)
-		p.metrics.rootCalculated.Observe(float64(time.Since(start)))
+		p.metrics.rootCalculatedCount.Inc()
+		p.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
 	return &ExecutedBlock{
