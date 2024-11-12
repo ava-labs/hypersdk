@@ -29,6 +29,10 @@ var (
 	_ mempool.Item = (*Transaction)(nil)
 )
 
+// initialCapacity is the initial size of a txs array we allocate when
+// unmarshaling a batch of txs.
+const initialCapacity = 1000
+
 type TransactionData struct {
 	Base *Base `json:"base"`
 
@@ -583,6 +587,20 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 		}
 	}
 	return p.Bytes(), p.Err()
+}
+
+type TxSerializer struct {
+	ActionRegistry *codec.TypeParser[Action]
+	AuthRegistry   *codec.TypeParser[Auth]
+}
+
+func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
+	_, txs, err := UnmarshalTxs(data, initialCapacity, s.ActionRegistry, s.AuthRegistry)
+	return txs, err
+}
+
+func (s *TxSerializer) Marshal(txs []*Transaction) ([]byte, error) {
+	return MarshalTxs(txs)
 }
 
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost

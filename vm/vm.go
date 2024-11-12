@@ -246,7 +246,21 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	txGossiper, err := gossiper.NewProposer[*chain.Transaction](
+		vm.tracer,
+		vm.snowCtx.Log,
+		vm.snowCtx.Metrics,
+		vm.mempool,
+		&chain.TxSerializer{
+			ActionRegistry: vm.actionCodec,
+			AuthRegistry:   vm.authCodec,
+		},
+		vm,
+		vm,
+		vm.config.TargetGossipDuration,
+		gossiper.DefaultProposerConfig(),
+		vm.stop,
+	)
 	if err != nil {
 		return err
 	}
@@ -542,7 +556,21 @@ func (vm *VM) applyOptions(o *Options) {
 		vm.builder = builder.NewManual(vm)
 	}
 	if o.gossiper {
-		vm.gossiper = gossiper.NewManual(vm)
+		var err error
+		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
+			vm.snowCtx.Log,
+			vm.snowCtx.Metrics,
+			vm.mempool,
+			&chain.TxSerializer{
+				ActionRegistry: vm.actionCodec,
+				AuthRegistry:   vm.authCodec,
+			},
+			vm,
+			vm.config.TargetGossipDuration,
+		)
+		if err != nil {
+			vm.snowCtx.Log.Fatal("failed to create manual gossiper", zap.Error(err))
+		}
 	}
 }
 
@@ -936,7 +964,6 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 
 func (vm *VM) Submit(
 	ctx context.Context,
-	verifyAuth bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
@@ -972,7 +999,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, verifyAuth); err != nil {
+		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, vm.config.VerifyAuth); err != nil {
 			errs = append(errs, err)
 			continue
 		}

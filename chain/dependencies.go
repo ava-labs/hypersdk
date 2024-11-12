@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -25,12 +24,6 @@ type Mempool interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
-
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
 
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)

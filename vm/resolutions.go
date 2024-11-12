@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	_ gossiper.VM           = (*VM)(nil)
+	_ gossiper.ValidatorSet = (*VM)(nil)
 	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
@@ -397,18 +397,6 @@ func (vm *VM) RecordStateOperations(c int) {
 
 func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.VerifyAuth
-}
-
-func (vm *VM) RecordTxsGossiped(c int) {
-	vm.metrics.txsGossiped.Add(float64(c))
-}
-
-func (vm *VM) RecordTxsReceived(c int) {
-	vm.metrics.txsReceived.Add(float64(c))
-}
-
-func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordBuildCapped() {

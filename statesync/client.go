@@ -12,11 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
