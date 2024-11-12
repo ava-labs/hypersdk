@@ -11,9 +11,11 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -37,9 +39,9 @@ var (
 		Message: "invalid chunk",
 	}
 
-	_ p2p.Handler = (*GetChunkHandler[Tx])(nil)
-	_ p2p.Handler = (*GetChunkSignatureHandler[Tx])(nil)
-	_ p2p.Handler = (*ChunkCertificateGossipHandler[Tx])(nil)
+	_ acp118.Verifier = (*ChunkSignatureRequestVerifier[Tx])(nil)
+	_ p2p.Handler     = (*GetChunkHandler[Tx])(nil)
+	_ p2p.Handler     = (*ChunkCertificateGossipHandler[Tx])(nil)
 )
 
 type GetChunkHandler[T Tx] struct {
@@ -107,43 +109,27 @@ type ChunkSignature struct {
 	Signature  [bls.SignatureLen]byte
 }
 
-type GetChunkSignatureHandler[T Tx] struct {
-	sk       *bls.SecretKey
+type ChunkSignatureRequestVerifier[T Tx] struct {
 	verifier Verifier[T]
 	storage  *chunkStorage[T]
 }
 
-func (*GetChunkSignatureHandler[T]) AppGossip(context.Context, ids.NodeID, []byte) {}
-
-func (g *GetChunkSignatureHandler[T]) AppRequest(
-	_ context.Context,
-	_ ids.NodeID,
-	_ time.Time,
-	requestBytes []byte,
-) ([]byte, *common.AppError) {
-	request := &dsmr.GetChunkSignatureRequest{}
-	if err := proto.Unmarshal(requestBytes, request); err != nil {
-		return nil, &common.AppError{
-			Code:    p2p.ErrUnexpected.Code,
-			Message: err.Error(),
-		}
-	}
-
-	chunk, err := ParseChunk[T](request.Chunk)
+func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *warp.UnsignedMessage, _ []byte) *common.AppError {
+	chunk, err := ParseChunk[T](message.Payload)
 	if err != nil {
-		return nil, &common.AppError{
+		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
 			Message: err.Error(),
 		}
 	}
 
-	if err := g.verifier.Verify(chunk); err != nil {
-		return nil, ErrInvalidChunk
+	if err := c.verifier.Verify(chunk); err != nil {
+		return ErrInvalidChunk
 	}
 
-	_, accepted, err := g.storage.GetChunkBytes(chunk.Expiry, chunk.id)
+	_, accepted, err := c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return nil, &common.AppError{
+		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
 			Message: err.Error(),
 		}
@@ -151,33 +137,17 @@ func (g *GetChunkSignatureHandler[T]) AppRequest(
 
 	if accepted {
 		// Don't sign a chunk that is already marked as accepted
-		return nil, ErrDuplicateChunk
+		return ErrDuplicateChunk
 	}
 
-	if _, err := g.storage.VerifyRemoteChunk(chunk); err != nil {
-		return nil, &common.AppError{
+	if _, err := c.storage.VerifyRemoteChunk(chunk); err != nil {
+		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
 			Message: err.Error(),
 		}
 	}
 
-	response := &dsmr.GetChunkSignatureResponse{
-		ChunkId:   chunk.id[:],
-		Producer:  chunk.Producer[:],
-		Expiry:    chunk.Expiry,
-		Signer:    bls.PublicKeyToCompressedBytes(bls.PublicFromSecretKey(g.sk)),
-		Signature: bls.SignatureToBytes(bls.Sign(g.sk, chunk.bytes)),
-	}
-
-	responseBytes, err := proto.Marshal(response)
-	if err != nil {
-		return nil, &common.AppError{
-			Code:    p2p.ErrUnexpected.Code,
-			Message: err.Error(),
-		}
-	}
-
-	return responseBytes, nil
+	return nil
 }
 
 type ChunkCertificateGossipHandler[T Tx] struct {
