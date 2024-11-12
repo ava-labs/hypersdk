@@ -33,16 +33,6 @@ const balancePrefix byte = metadata.DefaultMinimumPrefix
 
 const BalanceChunks uint16 = 1
 
-// [balancePrefix] + [address]
-// invariant: caller must guarantee [addr] is >= 20 bytes
-// func BalanceKey(addr []byte) []byte {
-// 	k := make([]byte, consts.ByteLen+common.AddressLength+consts.Uint16Len)
-// 	k[0] = balancePrefix
-// 	copy(k[1:], addr[len(addr)-20:])
-// 	binary.BigEndian.PutUint16(k[1+20:], BalanceChunks)
-// 	return k
-// }
-
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
@@ -68,7 +58,7 @@ func getBalance(
 	}
 	account, err := DecodeAccount(val)
 	if err != nil {
-		return nil, 0, false, err
+		return nil, 0, false, fmt.Errorf("failed to decode account: %w", err)
 	}
 	return k, account.Balance.Uint64(), true, nil
 }
@@ -89,9 +79,16 @@ func setBalance(
 	key []byte,
 	balance uint64,
 ) error {
-	account := types.NewEmptyStateAccount()
-	account.Balance = uint256.NewInt(0).SetUint64(balance)
-	encoded, err := EncodeAccount(account)
+	account, err := GetAccount(ctx, mu, key)
+	if err != nil {
+		return err
+	}
+	accountDecoded, err := DecodeAccount(account)
+	if err != nil {
+		return err
+	}
+	accountDecoded.Balance = uint256.NewInt(0).SetUint64(balance)
+	encoded, err := EncodeAccount(accountDecoded)
 	if err != nil {
 		return err
 	}
@@ -163,8 +160,8 @@ func SubBalance(
 
 func EncodeAccount(account *types.StateAccount) ([]byte, error) {
 	p := codec.NewWriter(0, consts.MaxInt)
-	p.PackUint64(account.Balance.Uint64())
 	p.PackUint64(account.Nonce)
+	p.PackUint64(account.Balance.Uint64())
 	p.PackFixedBytes(account.Root.Bytes())
 	p.PackBytes(account.CodeHash)
 	return p.Bytes(), p.Err()
@@ -173,11 +170,11 @@ func EncodeAccount(account *types.StateAccount) ([]byte, error) {
 func DecodeAccount(data []byte) (*types.StateAccount, error) {
 	p := codec.NewReader(data, len(data))
 	var account types.StateAccount
-	account.Balance = uint256.NewInt(0).SetUint64(p.UnpackUint64(false))
 	account.Nonce = p.UnpackUint64(false)
-	rootHash := make([]byte, 32)
-	p.UnpackFixedBytes(len(rootHash), &rootHash)
-	copy(account.Root[:], common.BytesToHash(rootHash).Bytes())
+	account.Balance = uint256.NewInt(0).SetUint64(p.UnpackUint64(false))
+	rt := make([]byte, 32)
+	p.UnpackFixedBytes(len(rt), &rt)
+	account.Root = common.BytesToHash(rt)
 	p.UnpackBytes(-1, false, &account.CodeHash)
 	return &account, p.Err()
 }

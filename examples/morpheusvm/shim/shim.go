@@ -6,7 +6,6 @@ package shim
 import (
 	"context"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -15,7 +14,6 @@ import (
 	"github.com/ava-labs/subnet-evm/trie"
 	"github.com/ava-labs/subnet-evm/trie/trienode"
 	"github.com/ava-labs/subnet-evm/triedb"
-	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -91,28 +89,20 @@ func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
 }
 
 func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, error) {
-	var account types.StateAccount
 
 	bytes, err := storage.GetAccount(t.d.ctx, t.d.mu, address.Bytes())
 	t.d.setError(err)
 	if err != nil {
 		return nil, err
 	}
-	p := codec.NewReader(bytes, len(bytes))
 	if len(bytes) > 0 {
-		unlimited := -1
-		var buf []byte
-		p.UnpackBytes(unlimited, false, &buf)
-		account.Nonce = p.UnpackUint64(false)
-		account.Balance = uint256.NewInt(0).SetUint64(p.UnpackUint64(false)) // should it be false?
-
-		hashBuf := make([]byte, 32)
-		p.UnpackFixedBytes(len(hashBuf), &hashBuf)
-		copy(account.Root[:], hashBuf)
-
-		p.UnpackBytes(unlimited, false, &account.CodeHash)
+		account, err := storage.DecodeAccount(bytes)
+		if err != nil {
+			return nil, err
+		}
+		return account, nil
 	}
-	return &account, nil
+	return nil, nil
 }
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {

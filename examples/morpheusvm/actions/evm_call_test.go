@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package actions
@@ -56,7 +56,8 @@ func TestContract(t *testing.T) {
 	require.NoError(err)
 	mu := state.NewSimpleMutable(statedb)
 
-	err = InitializeAccount(ctx, mu, from, uint64(10000000000))
+	err = InitializeAccount(ctx, mu, from, uint64(10000000))
+
 	require.NoError(err)
 
 	{
@@ -176,6 +177,8 @@ func getTestMerkleConfig(tracer trace.Tracer) merkledb.Config {
 
 func traceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
 	mu := state.NewSimpleMutable(view)
+	err := InitializeAccount(ctx, mu, from, uint64(10000000))
+	require.NoError(err)
 	recorder := tstate.NewRecorder(mu)
 	result, err := call.Execute(ctx, r, recorder, time, from, txID)
 	require.NoError(err)
@@ -207,15 +210,21 @@ func traceAndExecute(ctx context.Context, require *require.Assertions, call *Evm
 
 func InitializeAccount(ctx context.Context, mu state.Mutable, address codec.Address, balance uint64) error {
 
-	newAccount := types.StateAccount{}
-	newAccount.Balance = uint256.NewInt(0).SetUint64(balance)
-	newAccount.Nonce = 0
-	newAccount.CodeHash = []byte{}
-	copy(newAccount.Root[:], common.Hash{}.Bytes())
+	newAccount := types.StateAccount{
+		Nonce:    0,
+		Balance:  uint256.NewInt(balance),
+		Root:     common.Hash{},
+		CodeHash: []byte{},
+	}
 
 	encoded, err := storage.EncodeAccount(&newAccount)
 	if err != nil {
 		return fmt.Errorf("failed to encode account: %w", err)
 	}
-	return storage.SetAccount(ctx, mu, address[:], encoded)
+	sender := ToEVMAddress(address)
+	err = storage.SetAccount(ctx, mu, sender[:], encoded)
+	if err != nil {
+		return fmt.Errorf("failed to set account: %w", err)
+	}
+	return nil
 }

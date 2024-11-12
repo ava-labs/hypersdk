@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package actions
@@ -94,7 +94,6 @@ func (e *EvmCall) Execute(
 	evm := vm.NewEVM(
 		blockCtx, txContext, statedb, chainConfig, vm.Config{},
 	)
-	fmt.Println("evm gas limit", e.GasLimit)
 	gp := new(core.GasPool).AddGas(e.GasLimit)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err != nil {
@@ -107,11 +106,6 @@ func (e *EvmCall) Execute(
 		return nil, fmt.Errorf("statedb error: %w", err)
 	}
 
-	// hash := statedb.IntermediateRoot(true)
-
-	// NOTE: we must explicitly check the error from statedb, since if the tx
-	// accesses a key that is not allowed, the EVM will not return an error
-	// from ApplyMessage, but the statedb will have an error instead.
 	return &EvmCallResult{
 		Success: result.Err == nil,
 		Return:  result.ReturnData,
