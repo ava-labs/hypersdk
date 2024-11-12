@@ -55,10 +55,10 @@ func (c *Chunk[T]) init() error {
 
 func signChunk[T Tx](
 	chunk UnsignedChunk[T],
-	sk *bls.SecretKey,
-	pk *bls.PublicKey,
 	networkID uint32,
 	chainID ids.ID,
+	pk *bls.PublicKey,
+	signer warp.Signer,
 ) (Chunk[T], error) {
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(chunk, &packer); err != nil {
@@ -70,7 +70,6 @@ func signChunk[T Tx](
 		return Chunk[T]{}, err
 	}
 
-	signer := warp.NewSigner(sk, networkID, chainID)
 	signatureBytes, err := signer.Sign(msg)
 	if err != nil {
 		return Chunk[T]{}, err

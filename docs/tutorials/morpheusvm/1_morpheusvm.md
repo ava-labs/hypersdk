@@ -840,5 +840,5 @@ Note: if you see an error when importing
 `"github.com/ava-labs/hypersdk/vm/defaultvm"`, running `go mod tidy` should fix it
 
 At this point, we've implemented the necessary components of MorpheusVM. It's
-time to move onto the next section, where we will implement options and extend
-the functionality of MorpheusVM.
+time to move onto the next section, where we will test our implementation of
+`Transfer` via action tests.
