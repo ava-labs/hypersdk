@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=b3bd37791adfcfd612daf1e157f5e099c85836a4
+MORPHEUS_VM_COMMIT=47826ea3231acb818ebb29658a77d99816f38ed0
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -92,11 +92,11 @@ MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}
 # Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu", "balance":3000000000000000000},
-  {"address":"morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3", "balance":3000000000000000000},
-  {"address":"morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4", "balance":3000000000000000000},
-  {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":3000000000000000000},
-  {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
+  {"address":"0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017", "balance":3000000000000000000},
+  {"address":"0x003020338128fc7babb4e5850aace96e589f55b33bda90d62c44651de110ea5b8c0b5ee37f", "balance":3000000000000000000},
+  {"address":"0x006cf906f2df7c34d9be247dd384aefb43510d37d6c9ab273199d68c3b85130bcd05081a2c", "balance":3000000000000000000},
+  {"address":"0x00f45cd0197c148ebd317efe15ef91df1af7b5092f01f6e36cd4063c2e6ee149403f724a12", "balance":3000000000000000000},
+  {"address":"0x00e3ae18f245e3bbb50860db2f44a0fe460e1de92b698d6370ec3112501ec6d9ba26a9d456", "balance":3000000000000000000}
 ]
 EOF
 # --epoch-duration "${EPOCH_DURATION}" \ -> where did the epoch duration go?
@@ -104,7 +104,7 @@ EOF
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
 --validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
---max-chunk-units "${MAX_CHUNK_UNITS}" \
+--max-block-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
 --genesis-file "${TMPDIR}"/morpheusvm.genesis
 
