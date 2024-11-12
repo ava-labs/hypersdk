@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=da9af15e6f882299a1f1a6ace6d99c3eb3bdd94c
+MORPHEUS_VM_COMMIT=15e4c5264b2a6aa1699454e0ec3d70519e924c38
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -73,6 +73,7 @@ ls ./build
 mv ./build/morpheus-cli "${TMPDIR}/morpheus-cli"
 cd $pw
 
+echo -e "${YELLOW}Successfully built avalanche-cli and morpheus-cli${NC}"
 # Generate genesis file and configs
 #
 # We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
@@ -93,11 +94,14 @@ MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}
 # Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu", "balance":3000000000000000000},
-  {"address":"morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3", "balance":3000000000000000000},
-  {"address":"morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4", "balance":3000000000000000000},
-  {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":3000000000000000000},
-  {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
+  {
+    "address": "0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017",
+    "balance": 3000000000000000000
+  },
+  {
+    "address": "0x003020338128fc7babb4e5850aace96e589f55b33bda90d62c44651de110ea5b8c0b5ee37f",
+    "balance": 3000000000000000000
+  }
 ]
 EOF
 
@@ -108,6 +112,8 @@ EOF
 --max-block-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
 --genesis-file "${TMPDIR}"/morpheusvm.genesis
+
+echo -e "${YELLOW}generated genesis file and configs${NC}"
 
 # TODO: find a smarter way to split auth cores between exec and RPC
 # TODO: we limit root generation cores because it can cause network handling to stop (exhausts all CPU for a few seconds)
@@ -199,25 +205,25 @@ $TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlar
 EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
-$TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
+# $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
-# Wait for epoch initialization
-SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
-EPOCH_SEC=$(($EPOCH_DURATION / 1000))
-VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
-echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
-echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
-sleep $SLEEP_DUR
+# # Wait for epoch initialization
+# SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
+# EPOCH_SEC=$(($EPOCH_DURATION / 1000))
+# VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
+# echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
+# echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
+# sleep $SLEEP_DUR
 
-# Start load test on dedicated machine
-#
-# Zipf parameters expected to lead to ~1M active accounts per 60s
-# --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.0001 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
-echo -e "\n${YELLOW}starting load test...${NC}"
-$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519"
+# # Start load test on dedicated machine
+# #
+# # Zipf parameters expected to lead to ~1M active accounts per 60s
+# # --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.0001 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+# echo -e "\n${YELLOW}starting load test...${NC}"
+# $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519"
 
-# Log dashboard information
-echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"
-echo "* hypersdk (metrics): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc"
-echo "* hypersdk (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=subnet"
-echo "* load test (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=loadtest"
+# # Log dashboard information
+# echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"
+# echo "* hypersdk (metrics): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc"
+# echo "* hypersdk (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=subnet"
+# echo "* load test (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=loadtest"

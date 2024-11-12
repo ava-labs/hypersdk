@@ -5,6 +5,7 @@ package workload
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -41,6 +43,8 @@ func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 			Address: auth.NewED25519Address(key.PublicKey()),
 			Balance: InitialBalance,
 		})
+		utils.Outf("{{green}} Genesis allocs: %s", auth.NewED25519Address(key.PublicKey()))
+		fmt.Println("Genesis allocs: ",  auth.NewED25519Address(key.PublicKey()))
 	}
 
 	genesis := genesis.NewDefaultGenesis(customAllocs)
