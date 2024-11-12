@@ -49,8 +49,6 @@ func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) {
 // a msg to be sent to all connections. Checks the message was delivered properly
 // and the connection is properly handled when closed.
 func TestServerPublish(t *testing.T) {
-	t.Skip("FLAKY")
-
 	require := require.New(t)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
@@ -82,6 +80,14 @@ func TestServerPublish(t *testing.T) {
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
+
+	// wait until we have a single connection
+	optimisticEventuallity(
+		require,
+		func() bool { return handler.conns.Len() == 1 },
+		15*time.Second, 250*time.Millisecond, "Server didn't add connection correctly.",
+	)
+
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), handler.Connections())
 	// Receive the message from the publish
@@ -190,12 +196,32 @@ func TestServerRead(t *testing.T) {
 	<-serverDone
 }
 
+// waitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
+}
+
+func optimisticEventuallity(require *require.Assertions, condition func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) { //nolint:unparam
+	if !condition() {
+		require.Eventually(condition, waitFor, tick, msgAndArgs...)
+	}
+}
+
 // TestServerPublishSpecific adds two connections to a pubsub server then publishes
 // a msg to be sent to only one of the connections. Checks the message was
 // delivered properly and the connection is properly handled when closed.
 func TestServerPublishSpecific(t *testing.T) {
-	t.Skip("FLAKY")
-
 	require := require.New(t)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
@@ -229,19 +255,35 @@ func TestServerPublishSpecific(t *testing.T) {
 	webCon1, resp1, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()
+
+	// wait until we have 1 connection.
+	optimisticEventuallity(
+		require,
+		func() bool { return handler.conns.Len() == 1 },
+		15*time.Second, 250*time.Millisecond, "Server didn't add connection correctly.",
+	)
+
+	// grab the connection
 	sendConns := NewConnections()
 	peekCon, _ := handler.conns.Peek()
 	sendConns.Add(peekCon)
+
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp2.Body.Close()
-	require.Eventually(
+
+	optimisticEventuallity(
+		require,
 		func() bool { return handler.conns.Len() == 2 },
 		15*time.Second, 250*time.Millisecond, "Server didn't add connection correctly.",
 	)
+	clientSideClosedConnection := sync.WaitGroup{}
+	clientSideClosedConnection.Add(2)
+
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
+		defer clientSideClosedConnection.Done()
 		// Receive the message from the publish
 		_, batchMsg, err := webCon1.ReadMessage()
 		require.NoError(err, "Error reading to connection.")
@@ -254,24 +296,38 @@ func TestServerPublishSpecific(t *testing.T) {
 	}()
 	// not receive from the other
 	go func() {
-		err := webCon2.SetReadDeadline(time.Now().Add(5 * time.Second))
+		defer clientSideClosedConnection.Done()
+		err := webCon2.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 		require.NoError(err, "Error setting connection deadline.")
 		// Make sure connection wasn't written too
 		_, _, err = webCon2.ReadMessage()
 		require.Error(err, "Error not thrown.") //nolint:forbidigo
 		netErr, ok := err.(net.Error)
-		require.True(ok, "Error is not a net.Error")
+		require.True(ok, "Error is not a net.Error ( %v )", netErr)
 		require.True(netErr.Timeout(), "Error is not a timeout error")
+		// close the connection without letter the server know about it.
 		webCon2.Close()
 	}()
+
+	// wait for client side connection to close.
+	require.Falsef(waitTimeout(&clientSideClosedConnection, 5*time.Second), "Timed out waiting for client side connection to close")
+
 	// Wait for the connection to be closed or for a timeout to occur
-	require.Eventually(
+	optimisticEventuallity(
+		require,
 		func() bool { return handler.conns.Len() == 0 },
-		15*time.Second, 250*time.Millisecond, "Server didn't close connections correctly.",
+		15*time.Second, 50*time.Millisecond, "Server didn't close connections correctly.",
 	)
+
 	// Gracefully shutdown the server
 	err = server.Shutdown(context.TODO())
 	require.NoError(err, "Error shuting down server.")
+
 	// Wait for the server to finish shutting down
-	<-serverDone
+	select {
+	case <-serverDone:
+		// great!
+	case <-time.After(500 * time.Millisecond):
+		require.FailNow("shutting down server takes too lone")
+	}
 }
