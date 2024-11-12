@@ -212,6 +212,9 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}
 }
 
+// optimisticEventuallity asserts that given condition will be met in waitFor time,
+// periodically checking target function each tick. Unlike [require.Eventually], it first test
+// the condition function and call [require.Eventually] only if the condition has not met yet.
 func optimisticEventuallity(require *require.Assertions, condition func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) { //nolint:unparam
 	if !condition() {
 		require.Eventually(condition, waitFor, tick, msgAndArgs...)
@@ -301,11 +304,11 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.NoError(err, "Error setting connection deadline.")
 		// Make sure connection wasn't written too
 		_, _, err = webCon2.ReadMessage()
-		require.Error(err, "Error not thrown.") //nolint:forbidigo
-		netErr, ok := err.(net.Error)
-		require.True(ok, "Error is not a net.Error ( %v )", netErr)
+		require.Error(err, "Error not thrown.")    //nolint:forbidigo
+		require.Implements((*net.Error)(nil), err) // ensure err implements net.Error
+		netErr := err.(net.Error)
 		require.True(netErr.Timeout(), "Error is not a timeout error")
-		// close the connection without letter the server know about it.
+		// close the connection without notifying the server
 		webCon2.Close()
 	}()
 
@@ -328,6 +331,6 @@ func TestServerPublishSpecific(t *testing.T) {
 	case <-serverDone:
 		// great!
 	case <-time.After(500 * time.Millisecond):
-		require.FailNow("shutting down server takes too lone")
+		require.FailNow("shutting down server takes too long")
 	}
 }
