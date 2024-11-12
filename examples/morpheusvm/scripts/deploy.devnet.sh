@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=fb8b6bf17264d861022f25f416a1f2ad852a043e
+MORPHEUS_VM_COMMIT=b3bd37791adfcfd612daf1e157f5e099c85836a4
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -99,9 +99,9 @@ cat <<EOF > "${TMPDIR}"/allocations.json
   {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
 ]
 EOF
+# --epoch-duration "${EPOCH_DURATION}" \ -> where did the epoch duration go?
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
---epoch-duration "${EPOCH_DURATION}" \
 --validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
 --max-chunk-units "${MAX_CHUNK_UNITS}" \

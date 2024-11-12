@@ -42,6 +42,9 @@ var (
 		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
 	}
+
+	// genesis
+	validityWindow int64
 )
 
 func init() {
@@ -105,6 +108,12 @@ func init() {
 		"min-block-gap",
 		-1,
 		"minimum block gap (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&validityWindow,
+		"validity-window",
+		-1,
+		"validity window (ms)",
 	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,
