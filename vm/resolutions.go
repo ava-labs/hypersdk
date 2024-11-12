@@ -31,9 +31,9 @@ import (
 )
 
 var (
-	_ chain.VM    = (*VM)(nil)
-	_ gossiper.VM = (*VM)(nil)
-	//	_ builder.VM            = (*VM)(nil)
+	_ chain.VM              = (*VM)(nil)
+	_ gossiper.VM           = (*VM)(nil)
+	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
 )
