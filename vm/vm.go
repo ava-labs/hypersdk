@@ -323,7 +323,14 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, vm.ruleFactory)
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64) {
+		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		if err != nil {
+			vm.snowCtx.Log.Warn("unable to load preferred block", zap.Error(err))
+			return 0, -1
+		}
+		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap()
+	})
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
@@ -484,7 +491,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Startup block builder and gossiper
-	go vm.builder.Run(vm.lastAccepted.Tmstmp)
+	go vm.builder.Run()
 	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
 
 	// Wait until VM is ready and then send a state sync message to engine
@@ -534,12 +541,7 @@ func (vm *VM) applyOptions(o *Options) {
 
 func (vm *VM) checkActivity(ctx context.Context) {
 	vm.gossiper.Queue(ctx)
-	blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
-	if err != nil {
-		vm.snowCtx.Log.Warn("unable to load preferred block", zap.Error(err))
-		return
-	}
-	vm.builder.Queue(ctx, blk.Tmstmp)
+	vm.builder.Queue(ctx)
 }
 
 func (vm *VM) markReady() {
