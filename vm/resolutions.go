@@ -32,10 +32,9 @@ import (
 )
 
 var (
-	_ gossiper.VM                  = (*VM)(nil)
-	_ block.ChainVM                = (*VM)(nil)
-	_ block.StateSyncableVM        = (*VM)(nil)
-	_ builder.MinBlockGapRetriever = (*VM)(nil)
+	_ gossiper.VM           = (*VM)(nil)
+	_ block.ChainVM         = (*VM)(nil)
+	_ block.StateSyncableVM = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
@@ -459,8 +458,4 @@ func (vm *VM) GetDataDir() string {
 
 func (vm *VM) GetGenesisBytes() []byte {
 	return vm.GenesisBytes
-}
-
-func (vm *VM) GetMinBlockGapRule(t int64) int64 {
-	return vm.ruleFactory.GetRules(t).GetMinBlockGap()
 }

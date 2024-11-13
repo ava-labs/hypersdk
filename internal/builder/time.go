@@ -20,22 +20,26 @@ import (
 // TODO: consider replacing this with AvalancheGo block build metering
 const minBuildGap int64 = 25 // ms
 
-var _ Builder = (*Time)(nil)
+var _ Builder = (*Time[Rules])(nil)
 
 type Mempool interface {
 	Len(context.Context) int // items
 }
 
-type MinBlockGapRetriever interface {
-	GetMinBlockGapRule(int64) int64 // in milliseconds
+type Rules interface {
+	GetMinBlockGap() int64
+}
+
+type RuleFactory[T Rules] interface {
+	GetRules(int64) T
 }
 
 // Time tells the engine when to build blocks and gossip transactions
-type Time struct {
+type Time[T Rules] struct {
 	engineCh    chan<- common.Message
 	logger      logging.Logger
 	mempool     Mempool
-	minBlockGap MinBlockGapRetriever
+	ruleFactory RuleFactory[T]
 	doneBuild   chan struct{}
 
 	timer     *timer.Timer
@@ -43,24 +47,24 @@ type Time struct {
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, minBlockGap MinBlockGapRetriever) *Time {
-	b := &Time{
+func NewTime[T Rules](engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory RuleFactory[T]) *Time[T] {
+	b := &Time[T]{
 		engineCh:    engineCh,
 		logger:      logger,
 		mempool:     mempool,
-		minBlockGap: minBlockGap,
+		ruleFactory: ruleFactory,
 		doneBuild:   make(chan struct{}),
 	}
 	b.timer = timer.NewTimer(b.handleTimerNotify)
 	return b
 }
 
-func (b *Time) Run(preferedBlkTmstmp int64) {
+func (b *Time[T]) Run(preferedBlkTmstmp int64) {
 	b.Queue(context.TODO(), preferedBlkTmstmp) // start building loop (may not be an initial trigger)
 	b.timer.Dispatch()                         // this blocks
 }
 
-func (b *Time) handleTimerNotify() {
+func (b *Time[T]) handleTimerNotify() {
 	if err := b.Force(context.TODO()); err != nil {
 		b.logger.Warn("unable to build", zap.Error(err))
 	} else {
@@ -70,8 +74,9 @@ func (b *Time) handleTimerNotify() {
 	b.waiting.Store(false)
 }
 
-func (b *Time) nextTime(now int64, preferred int64) int64 {
-	gap := b.minBlockGap.GetMinBlockGapRule(now)
+func (b *Time[T]) nextTime(now int64, preferred int64) int64 {
+	rules := b.ruleFactory.GetRules(now)
+	gap := rules.GetMinBlockGap()
 	next := max(b.lastQueue+minBuildGap, preferred+gap)
 	if next < now {
 		return -1
@@ -79,7 +84,7 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) Queue(ctx context.Context, preferedBlkTmstmp int64) {
+func (b *Time[T]) Queue(ctx context.Context, preferedBlkTmstmp int64) {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.logger.Debug("unable to acquire waiting lock")
 		return
@@ -102,7 +107,7 @@ func (b *Time) Queue(ctx context.Context, preferedBlkTmstmp int64) {
 	b.logger.Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 }
 
-func (b *Time) Force(context.Context) error {
+func (b *Time[T]) Force(context.Context) error {
 	select {
 	case b.engineCh <- common.PendingTxs:
 		b.lastQueue = time.Now().UnixMilli()
@@ -112,6 +117,6 @@ func (b *Time) Force(context.Context) error {
 	return nil
 }
 
-func (b *Time) Done() {
+func (b *Time[T]) Done() {
 	b.timer.Stop()
 }

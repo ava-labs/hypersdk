@@ -323,7 +323,7 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, vm)
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, vm.ruleFactory)
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
