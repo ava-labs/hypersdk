@@ -62,7 +62,7 @@ func (d *DatabaseShim) OpenStorageTrie(root common.Hash, addr common.Address, ha
 }
 
 func (d *DatabaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
-	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr.Bytes())
+	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr)
 	d.setError(err)
 	return codeBytes, err
 }
@@ -124,7 +124,7 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 }
 
 func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, code []byte) error {
-	err := storage.SetCode(t.d.ctx, t.d.mu, address.Bytes(), code)
+	err := storage.SetCode(t.d.ctx, t.d.mu, address, code)
 	t.d.setError(err)
 	return err
 }

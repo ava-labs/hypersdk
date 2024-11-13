@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-func testTransferAction(t *testing.T) {
+func TestTransferAction(t *testing.T) {
 	addr := codectest.NewRandomAddress()
 
 	tests := []chaintest.ActionTest{
@@ -130,7 +130,7 @@ func testTransferAction(t *testing.T) {
 }
 
 // TestMultiTransfer shows an example of reusing the same store for multiple sequential action invocations.
-func testMultiTransfer(t *testing.T) {
+func TestMultiTransfer(t *testing.T) {
 	addrAlice := codectest.NewRandomAddress()
 	addrBob := codectest.NewRandomAddress()
 
@@ -187,7 +187,7 @@ func testMultiTransfer(t *testing.T) {
 	}
 }
 
-func testTransferActionAdvanced(t *testing.T) {
+func TestTransferActionAdvanced(t *testing.T) {
 	addr1 := codectest.NewRandomAddress()
 	addr2 := codectest.NewRandomAddress()
 	addr3 := codectest.NewRandomAddress()

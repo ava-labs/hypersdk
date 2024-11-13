@@ -125,9 +125,9 @@ func CodeKey(addr []byte) []byte {
 func GetCode(
 	ctx context.Context,
 	im state.Immutable,
-	addr []byte,
+	addr common.Address,
 ) ([]byte, error) {
-	k := CodeKey(addr)
+	k := CodeKey(addr.Bytes())
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
@@ -141,9 +141,9 @@ func GetCode(
 func SetCode(
 	ctx context.Context,
 	mu state.Mutable,
-	addr []byte,
+	addr common.Address,
 	code []byte,
 ) error {
-	k := CodeKey(addr)
+	k := CodeKey(addr.Bytes())
 	return mu.Insert(ctx, k, code)
 }
