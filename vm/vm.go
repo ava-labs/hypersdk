@@ -261,6 +261,10 @@ func (vm *VM) Initialize(
 		}
 		opt.apply(options)
 	}
+
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
+
 	vm.applyOptions(options)
 
 	// Setup profiler
@@ -297,9 +301,6 @@ func (vm *VM) Initialize(
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
 
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
