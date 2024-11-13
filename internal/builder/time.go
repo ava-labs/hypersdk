@@ -11,9 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"github.com/ava-labs/hypersdk/chain"
 	"go.uber.org/zap"
-
-	"github.com/ava-labs/hypersdk/genesis"
 )
 
 // minBuildGap ensures we don't build blocks too quickly (can fail
@@ -33,7 +32,7 @@ type Time struct {
 	engineCh    chan<- common.Message
 	logger      logging.Logger
 	mempool     Mempool
-	ruleFactory genesis.RuleFactory
+	ruleFactory chain.RuleFactory
 	doneBuild   chan struct{}
 
 	timer     *timer.Timer
@@ -41,7 +40,7 @@ type Time struct {
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory genesis.RuleFactory) *Time {
+func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory chain.RuleFactory) *Time {
 	b := &Time{
 		engineCh:    engineCh,
 		logger:      logger,

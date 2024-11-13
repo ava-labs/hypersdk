@@ -132,7 +132,7 @@ func setInstances() {
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
 		event.SubscriptionFunc[*chain.ExecutedBlock]{
 			AcceptF: func(blk *chain.ExecutedBlock) error {
-				externalSubscriberAcceptedBlocksCh <- blk.BlockID
+				externalSubscriberAcceptedBlocksCh <- blk.Block.ID()
 				return nil
 			},
 		},
@@ -400,13 +400,11 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.NoError(blk.Accept(ctx))
 			blocks = append(blocks, blk)
 
-			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
-			require.NoError(err)
-			require.Equal(lastAccepted, blk.ID())
+			lastAccepted := instances[1].vm.LastAcceptedBlockResult()
+			require.Equal(lastAccepted.Block.ID(), blk.ID())
 
-			results := blk.(*chain.StatefulBlock).Results()
-			require.Len(results, 1)
-			require.True(results[0].Success)
+			require.Len(lastAccepted.Results, 1)
+			require.True(lastAccepted.Results[0].Success)
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
@@ -445,7 +443,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 			// Ensure we can handle case where accepted block is not processed
 			latestBlock := blocks[len(blocks)-1]
-			latestBlock.(*chain.StatefulBlock).MarkUnprocessed()
+			latestBlock.(*vm.StatefulBlock).MarkUnprocessed()
 
 			// Accept new block (should use accepted state)
 			accept := expectBlk(instances[1])
@@ -660,9 +658,9 @@ func expectBlk(i *instance) func(add bool) []*chain.Result {
 			blocks = append(blocks, blk)
 		}
 
-		lastAccepted, err := i.vm.LastAccepted(ctx)
+		lastAccepted := i.vm.LastAcceptedBlockResult()
 		require.NoError(err)
-		require.Equal(lastAccepted, blk.ID())
-		return blk.(*chain.StatefulBlock).Results()
+		require.Equal(lastAccepted.Block.ID(), blk.ID())
+		return lastAccepted.Results
 	}
 }

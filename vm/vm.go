@@ -35,7 +35,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
@@ -76,18 +75,22 @@ type VM struct {
 
 	config Config
 
-	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
-	genesis                    genesis.Genesis
-	GenesisBytes               []byte
-	ruleFactory                genesis.RuleFactory
-	options                    []Option
+	genesisAndRuleFactory genesis.GenesisAndRuleFactory
+	genesis               genesis.Genesis
+	GenesisBytes          []byte
+	ruleFactory           chain.RuleFactory
+	options               []Option
+
+	chain                   *chain.Chain
+	chainTimeValidityWindow *chain.TimeValidityWindow
+	syncer                  *chain.Syncer
+	seenValidityWindowOnce  sync.Once
+	seenValidityWindow      chan struct{}
+
 	builder                    builder.Builder
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
 	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	// TODO remove by returning an verification error from the submit tx api
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
-	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -105,27 +108,21 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// track all accepted but still valid txs (replay protection)
-	seen                   *emap.EMap[*chain.Transaction]
-	startSeenTime          int64
-	seenValidityWindowOnce sync.Once
-	seenValidityWindow     chan struct{}
-
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *chain.StatefulBlock]
+	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*chain.StatefulBlock
+	verifiedBlocks map[ids.ID]*StatefulBlock
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatefulBlock
+	acceptedQueue chan *StatefulBlock
 	acceptorDone  chan struct{}
 
 	// authVerifiers are used to verify signatures in parallel
@@ -133,9 +130,9 @@ type VM struct {
 	authVerifiers workers.Workers
 
 	bootstrapped avautils.Atomic[bool]
-	genesisBlk   *chain.StatefulBlock
+	genesisBlk   *StatefulBlock
 	preferred    ids.ID
-	lastAccepted *chain.StatefulBlock
+	lastAccepted *StatefulBlock
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
@@ -196,11 +193,6 @@ func (vm *VM) Initialize(
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	// This will be overwritten when we accept the first block (in state sync) or
-	// backfill existing blocks (during normal bootstrapping).
-	vm.startSeenTime = -1
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -309,9 +301,9 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatefulBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatefulBlock](vm.config.AcceptedBlockWindowCache)
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
+	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
@@ -327,10 +319,34 @@ func (vm *VM) Initialize(
 	if acceptedBlockWindow < MinAcceptedBlockWindow {
 		return fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
 	}
-	vm.acceptedQueue = make(chan *chain.StatefulBlock, vm.config.AcceptorSize)
+	vm.acceptedQueue = make(chan *StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+
+	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	registerer := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
+		return err
+	}
+	vm.chain, err = chain.NewChain(
+		vm.Tracer(),
+		registerer,
+		vm,
+		vm.Mempool(),
+		vm.Logger(),
+		vm.ruleFactory,
+		vm.MetadataManager(),
+		vm.BalanceHandler(),
+		vm.AuthVerifiers(),
+		vm,
+		vm.GetValidityWindow(),
+		vm.config.ChainConfig,
+	)
+	if err != nil {
+		return err
+	}
+	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -377,16 +393,24 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatefulBlock(
+		genesisExecutionBlk, err := chain.NewGenesisBlock(root)
+		if err != nil {
+			snowCtx.Log.Error("could not create genesis block", zap.Error(err))
+			return err
+		}
+		genesisBlk, err := ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root),
-			nil,
+			genesisExecutionBlk,
 			true,
 			vm,
 		)
 		if err != nil {
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
+		}
+		// Set executed block, since we will never execute the genesis block
+		genesisBlk.executedBlock = &chain.ExecutedBlock{
+			Block: genesisExecutionBlk.StatelessBlock,
 		}
 
 		// Update chain metadata
@@ -474,15 +498,6 @@ func (vm *VM) Initialize(
 		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
 	}
 
-	for _, factory := range vm.txRemovedSubscriptionFactories {
-		subscription, err := factory.New()
-		if err != nil {
-			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
-		}
-
-		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
-	}
-
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
@@ -507,7 +522,6 @@ func (vm *VM) Initialize(
 
 func (vm *VM) applyOptions(o *Options) {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
-	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
@@ -579,7 +593,7 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 	return vm.stateDB.GetValues(ctx, keys)
 }
 
-func (vm *VM) SetState(_ context.Context, state snow.State) error {
+func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		vm.Logger().Info("state sync started")
@@ -612,10 +626,16 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
 		}
 
-		// Backfill seen transactions, if any. This will exit as soon as we reach
-		// a block we no longer have on disk or if we have walked back the full
-		// [ValidityWindow].
-		vm.backfillSeenTransactions()
+		// Start the chain syncer and mark the validity window as completed if possible.
+		seenValidityWindow, err := vm.syncer.Accept(ctx, vm.lastAccepted.ExecutionBlock)
+		if err != nil {
+			return err
+		}
+		if seenValidityWindow {
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+		}
 
 		// Trigger that bootstrapping has started
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
@@ -691,13 +711,6 @@ func (vm *VM) Shutdown(context.Context) error {
 		return err
 	}
 
-	// Close subscriptions
-	for _, subscription := range vm.txRemovedSubscriptions {
-		if err := subscription.Close(); err != nil {
-			return err
-		}
-	}
-
 	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
@@ -742,7 +755,7 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	return vm.GetStatefulBlock(ctx, id)
 }
 
-func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.StatefulBlock, error) {
+func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock, error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
 	defer span.End()
 
@@ -782,6 +795,21 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.Statef
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+	defer span.End()
+
+	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
+}
+
+func (vm *VM) GetValidityWindow() *chain.TimeValidityWindow {
+	return vm.chainTimeValidityWindow
+}
+
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
@@ -808,7 +836,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	if exist {
 		return blk, nil
 	}
-	newBlk, err := chain.ParseBlock(
+	newBlk, err := ParseBlock(
 		ctx,
 		source,
 		false,
@@ -866,13 +894,28 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk)
+	preferredView, err := preferredBlk.View(ctx, true)
+	if err != nil {
+		vm.snowCtx.Log.Warn("unable to get preferred block view", zap.Error(err))
+		return nil, err
+	}
+	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
 		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	blk := &StatefulBlock{
+		ExecutionBlock: executionBlk,
+		accepted:       false,
+		t:              time.UnixMilli(executionBlk.Tmstmp),
+		executedBlock:  executedBlk,
+		vm:             vm,
+		executor:       vm.chain,
+		view:           view,
+	}
+
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
@@ -903,33 +946,9 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()))
-	if err != nil {
-		return []error{err}
-	}
-	feeManager := internalfees.NewManager(feeRaw)
-	now := time.Now().UnixMilli()
-	r := vm.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return []error{err}
-	}
-
-	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
-	if err != nil {
-		return []error{err}
-	}
 
 	validTxs := []*chain.Transaction{}
-	for i, tx := range txs {
-		// Check if transaction is a repeat before doing any extra work
-		if repeats.Contains(i) {
-			errs = append(errs, chain.ErrDuplicateTx)
-			continue
-		}
-
+	for _, tx := range txs {
 		// Avoid any sig verification or state lookup if we already have tx in mempool
 		txID := tx.ID()
 		if vm.mempool.Has(ctx, txID) {
@@ -939,45 +958,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.balanceHandler)
-		if err != nil {
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-
-		// Verify auth if not already verified by caller
-		if verifyAuth && vm.config.VerifyAuth {
-			if err := tx.VerifyAuth(ctx); err != nil {
-				// Failed signature verification is the only safe place to remove
-				// a transaction in listeners. Every other case may still end up with
-				// the transaction in a block.
-				event := TxRemovedEvent{
-					TxID: txID,
-					Err:  err,
-				}
-
-				for _, subscription := range vm.txRemovedSubscriptions {
-					if err := subscription.Accept(event); err != nil {
-						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
-					}
-				}
-
-				errs = append(errs, err)
-				continue
-			}
-		}
-
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		//
-		// Note, [PreExecute] ensures that the pending transaction does not have
-		// an expiry time further ahead than [ValidityWindow]. This ensures anything
-		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.balanceHandler, r, view, now); err != nil {
+		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, verifyAuth); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -1090,72 +1071,6 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	}
 	vm.metrics.blocksHeightsFromDisk.Inc()
 	return vm.GetBlockHeightID(height)
-}
-
-// backfillSeenTransactions makes a best effort to populate [vm.seen]
-// with whatever transactions we already have on-disk. This will lead
-// a node to becoming ready faster during a restart.
-func (vm *VM) backfillSeenTransactions() {
-	// Exit early if we don't have any blocks other than genesis (which
-	// contains no transactions)
-	blk := vm.lastAccepted
-	if blk.Hght == 0 {
-		vm.snowCtx.Log.Info("no seen transactions to backfill")
-		vm.startSeenTime = 0
-		vm.seenValidityWindowOnce.Do(func() {
-			close(vm.seenValidityWindow)
-		})
-		return
-	}
-
-	// Backfill [vm.seen] with lifeline worth of transactions
-	r := vm.Rules(vm.lastAccepted.Tmstmp)
-	oldest := uint64(0)
-	for {
-		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
-			// We are assured this function won't be running while we accept
-			// a block, so we don't need to protect against closing this channel
-			// twice.
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
-		vm.startSeenTime = blk.Tmstmp
-		oldest = blk.Hght
-
-		// Exit early if next block to fetch is genesis (which contains no
-		// txs)
-		if blk.Hght <= 1 {
-			// If we have walked back from the last accepted block to genesis, then
-			// we can be sure we have all required transactions to start validation.
-			vm.startSeenTime = 0
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// Set next blk in lookback
-		tblk, err := vm.GetStatefulBlock(context.Background(), blk.Prnt)
-		if err != nil {
-			vm.snowCtx.Log.Info("could not load block, exiting backfill",
-				zap.Uint64("height", blk.Height()-1),
-				zap.Stringer("blockID", blk.Prnt),
-				zap.Error(err),
-			)
-			return
-		}
-		blk = tblk
-	}
-	vm.snowCtx.Log.Info(
-		"backfilled seen txs",
-		zap.Uint64("start", oldest),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
-	)
 }
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) {

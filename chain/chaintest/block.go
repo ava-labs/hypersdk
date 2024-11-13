@@ -21,24 +21,23 @@ func GenerateEmptyExecutedBlocks(
 ) []*chain.ExecutedBlock {
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
 	for i := range executedBlocks {
-		statelessBlock := &chain.StatelessBlock{
-			Prnt:   parentID,
-			Tmstmp: parentTimestamp + timestampOffset*int64(i),
-			Hght:   parentHeight + 1 + uint64(i),
-			Txs:    []*chain.Transaction{},
-		}
-		blkID, err := statelessBlock.ID()
+		statelessBlock, err := chain.NewStatelessBlock(
+			parentID,
+			parentTimestamp+timestampOffset*int64(i),
+			parentHeight+1+uint64(i),
+			[]*chain.Transaction{},
+			ids.Empty,
+		)
 		require.NoError(err)
-		parentID = blkID
+		parentID = statelessBlock.ID()
 
-		blk, err := chain.NewExecutedBlock(
+		blk := chain.NewExecutedBlock(
 			statelessBlock,
 			[]*chain.Result{},
 			fees.Dimensions{},
+			fees.Dimensions{},
 		)
-		require.NoError(err)
 		executedBlocks[i] = blk
-		require.NoError(err)
 	}
 	return executedBlocks
 }
