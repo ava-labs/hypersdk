@@ -228,6 +228,10 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 		return fmt.Errorf("%w: unable to commit block", err)
 	}
 
+	if err := b.vm.chain.AcceptBlock(ctx, b.ExecutionBlock); err != nil {
+		return err
+	}
+
 	// Mark block as accepted and update last accepted in storage
 	b.MarkAccepted(ctx)
 	return nil

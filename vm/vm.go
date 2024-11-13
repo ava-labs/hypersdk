@@ -324,30 +324,6 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
-	registerer := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
-		return err
-	}
-	vm.chain, err = chain.NewChain(
-		vm.Tracer(),
-		registerer,
-		vm,
-		vm.Mempool(),
-		vm.Logger(),
-		vm.ruleFactory,
-		vm.MetadataManager(),
-		vm.BalanceHandler(),
-		vm.AuthVerifiers(),
-		vm,
-		vm.GetValidityWindow(),
-		vm.config.ChainConfig,
-	)
-	if err != nil {
-		return err
-	}
-	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
-
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
 	if err != nil {
@@ -456,6 +432,30 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+
+	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	registerer := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
+		return err
+	}
+	vm.chain, err = chain.NewChain(
+		vm.Tracer(),
+		registerer,
+		vm,
+		vm.Mempool(),
+		vm.Logger(),
+		vm.ruleFactory,
+		vm.MetadataManager(),
+		vm.BalanceHandler(),
+		vm.AuthVerifiers(),
+		vm,
+		vm.GetValidityWindow(),
+		vm.config.ChainConfig,
+	)
+	if err != nil {
+		return err
+	}
+	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
