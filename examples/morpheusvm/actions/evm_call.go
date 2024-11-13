@@ -105,7 +105,8 @@ func (e *EvmCall) Execute(
 	if err := statedb.Error(); err != nil {
 		return nil, fmt.Errorf("statedb error: %w", err)
 	}
-
+	hash := statedb.IntermediateRoot(true)
+	fmt.Println("hash", hash)
 	return &EvmCallResult{
 		Success: result.Err == nil,
 		Return:  result.ReturnData,

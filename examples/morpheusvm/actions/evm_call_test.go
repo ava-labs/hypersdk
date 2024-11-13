@@ -17,18 +17,225 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	utils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/subnet-evm/core/types"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+/*
+deploy
+deploy twice
+deploy from within contract
+transfer
+transfer from within contract
+call contract
+call contract twice
+ensure invalid TState access reverts (later)
+delegatecall
+*run as much of EVM test suite against it as possible)* (later)
+*/
+
+var (
+	testContractABI, _        = utils.NewABI("../contracts/artifacts/contracts/Test.sol/TestContract.json")
+	testContractFactoryABI, _ = utils.NewABI("../contracts/artifacts/contracts/Test.sol/ContractFactory.json")
+)
+
+func decodeReturnData(t *testing.T, method *abi.Method, returnData []byte) []interface{} {
+	decoded, err := method.Outputs.Unpack(returnData)
+	require.NoError(t, err)
+	return decoded
+}
+func TestDeployments(t *testing.T) {
+	require := require.New(t)
+
+	sufficientGas := uint64(1000000)
+	var from codec.Address
+	copy(from[20:], []byte("112233"))
+
+	rules := genesis.NewDefaultRules()
+	timestamp := time.Now().UnixMilli()
+	actionID := ids.GenerateTestID()
+
+	ctx := context.Background()
+	tracer, err := trace.New(trace.Config{Enabled: false})
+	require.NoError(err)
+	statedb, err := merkledb.New(ctx, memdb.New(), getTestMerkleConfig(tracer))
+	require.NoError(err)
+	mu := state.NewSimpleMutable(statedb)
+
+	// recorder := tstate.NewRecorder(mu)
+
+	err = InitializeAccount(ctx, mu, from, uint64(10000000))
+	require.NoError(err)
+
+	firstDeployTest := &chaintest.ActionTest{
+		Name: "deploy contract",
+		Action: &EvmCall{
+			Value:    common.Big0,
+			GasLimit: sufficientGas,
+			Data:     testContractABI.Bytecode,
+		},
+		Rules:     rules,
+		State:     mu,
+		Timestamp: timestamp,
+		Actor:     from,
+		ActionID:  actionID,
+		ExpectedOutputs: &EvmCallResult{
+			Success: true,
+			UsedGas: 0x8459a,
+			Return:  testContractABI.DeployedBytecode,
+			Err:     nil,
+		},
+		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
+			codeKey := storage.CodeKey(ToEVMAddress(from).Bytes())
+			code, err := storage.GetCode(ctx, mu, codeKey)
+			t.Log(" code", code)
+
+			require.NoError(err)
+		},
+	}
+	firstDeployTest.Run(ctx, t)
+	require.NoError(mu.Commit(ctx))
+
+	mu = state.NewSimpleMutable(statedb)
+	secondDeployTest := &chaintest.ActionTest{
+		Name: "second contract deployment",
+		Action: &EvmCall{
+			Value:    common.Big0,
+			GasLimit: sufficientGas,
+			Data:     testContractABI.Bytecode,
+		},
+		Rules:     rules,
+		State:     mu,
+		Timestamp: timestamp,
+		Actor:     from,
+		ActionID:  ids.GenerateTestID(),
+		ExpectedOutputs: &EvmCallResult{
+			Success: true,
+			UsedGas: 0x8459a,
+			Return:  testContractABI.DeployedBytecode,
+			Err:     nil,
+		},
+		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
+		},
+	}
+	secondDeployTest.Run(ctx, t)
+	require.NoError(mu.Commit(ctx))
+
+	// deploy the factory contract
+	factoryDeployTest := &chaintest.ActionTest{
+		Name: "deploy factory contract",
+		Action: &EvmCall{
+			Value:    common.Big0,
+			GasLimit: sufficientGas,
+			Data:     testContractFactoryABI.Bytecode,
+		},
+		Rules:     rules,
+		State:     mu,
+		Timestamp: timestamp,
+		Actor:     from,
+		ActionID:  ids.GenerateTestID(),
+		ExpectedOutputs: &EvmCallResult{
+			Success: true,
+			UsedGas: 0x98bf6,
+			Return:  testContractFactoryABI.DeployedBytecode,
+			Err:     nil,
+		},
+		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
+
+			code, err := storage.GetCode(ctx, mu, ToEVMAddress(from).Bytes())
+			t.Log("Factory code", code)
+			require.NoError(err)
+			require.NotEmpty(t, code)
+		},
+	}
+	factoryDeployTest.Run(ctx, t)
+	require.NoError(mu.Commit(ctx))
+	// mu = state.NewSimpleMutable(statedb)
+
+	// factoryAddr := crypto.CreateAddress(ToEVMAddress(from), 0)
+	// deployData := testContractFactoryABI.ABI.Methods["deployContract"].ID
+	// deployFromFactoryTest := &chaintest.ActionTest{
+	// 	Name: "deploy contract from factory",
+	// 	Action: &EvmCall{
+	// 		To:       &factoryAddr,
+	// 		Value:    common.Big0,
+	// 		GasLimit: sufficientGas,
+	// 		Data:     deployData,
+	// 	},
+	// 	Rules:     rules,
+	// 	State:     state.NewSimpleMutable(view),
+	// 	Timestamp: timestamp,
+	// 	Actor:     from,
+	// 	ActionID:  ids.GenerateTestID(),
+	// 	ExpectedOutputs: &EvmCallResult{
+	// 		Success: true,
+	// 	},
+	// 	Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
+	// 	},
+	// }
+	// deployFromFactoryTest.Run(ctx, t)
+}
+
+func TestDeployContractTMP(t *testing.T) {
+	require := require.New(t)
+
+	sufficientGas := uint64(1000000)
+
+	var from codec.Address
+	copy(from[20:], []byte("112233"))
+
+	contractBytecode := testContractABI.Bytecode
+
+	rules := genesis.NewDefaultRules()
+	time := time.Now().UnixMilli()
+	actionID := ids.GenerateTestID()
+
+	ctx := context.Background()
+	tracer, err := trace.New(trace.Config{Enabled: false})
+	require.NoError(err)
+	statedb, err := merkledb.New(ctx, memdb.New(), getTestMerkleConfig(tracer))
+	require.NoError(err)
+	mu := state.NewSimpleMutable(statedb)
+
+	test := &chaintest.ActionTest{
+		Name: "deploy contract",
+		Action: &EvmCall{
+			Value:    common.Big0,
+			GasLimit: sufficientGas,
+			Data:     contractBytecode,
+			Keys:     state.Keys{},
+		},
+		Rules:     rules,
+		State:     mu,
+		Timestamp: time,
+		Actor:     from,
+		ActionID:  actionID,
+		ExpectedOutputs: &EvmCallResult{ // TODO: fully populate w/ expected results
+			Success: true,
+			UsedGas: 100000,
+			Return:  []byte{},
+			Err:     nil,
+		},
+		ExpectedErr: nil,
+		Assertion: func(_ context.Context, t *testing.T, mu state.Mutable) {
+			// What should be true about the state?
+			storage.GetCode(ctx, mu, ToEVMAddress(from).Bytes())
+			// Can we check anything else?
+		},
+	}
+	test.Run(ctx, t)
+}
 func TestContract(t *testing.T) {
 	require := require.New(t)
 
@@ -142,6 +349,12 @@ func TestContractWithTracing(t *testing.T) {
 
 	view := state.View(statedb)
 	view = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
+
+	codeKey := storage.CodeKey(ToEVMAddress(from).Bytes())
+	code, err := storage.GetCode(ctx, view, codeKey)
+	t.Log("code", code)
+	require.NoError(err)
+	require.NotEmpty(t, code)
 
 	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
 	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
