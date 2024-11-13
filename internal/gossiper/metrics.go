@@ -14,9 +14,7 @@ type metrics struct {
 	txsGossiped     prometheus.Counter
 }
 
-func newMetrics() (*prometheus.Registry, *metrics, error) {
-	r := prometheus.NewRegistry()
-
+func newMetrics(r prometheus.Registerer) (*metrics, error) {
 	m := &metrics{
 		txsReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "gossiper",
@@ -40,5 +38,5 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 		r.Register(m.txsGossiped),
 		r.Register(m.seenTxsReceived),
 	)
-	return r, m, errs.Err
+	return m, errs.Err
 }

@@ -19,12 +19,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/cache"
-
-	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 )
 
 var _ Gossiper = (*Proposer[Tx])(nil)
@@ -86,7 +85,7 @@ func DefaultProposerConfig() *ProposerConfig {
 func NewProposer[T Tx](
 	tracer trace.Tracer,
 	log logging.Logger,
-	gatherer avametrics.MultiGatherer,
+	registerer prometheus.Registerer,
 	mempool Mempool[T],
 	serializer Serializer[T],
 	submitter Submitter[T],
@@ -95,11 +94,8 @@ func NewProposer[T Tx](
 	cfg *ProposerConfig,
 	stop <-chan struct{},
 ) (*Proposer[T], error) {
-	r, metrics, err := newMetrics()
+	metrics, err := newMetrics(registerer)
 	if err != nil {
-		return nil, err
-	}
-	if err := gatherer.Register("gossiper", r); err != nil {
 		return nil, err
 	}
 	g := &Proposer[T]{

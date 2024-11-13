@@ -244,10 +244,14 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	gossipRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry); err != nil {
+		return err
+	}
 	txGossiper, err := gossiper.NewProposer[*chain.Transaction](
 		vm.tracer,
 		vm.snowCtx.Log,
-		vm.snowCtx.Metrics,
+		gossipRegistry,
 		vm.mempool,
 		&chain.TxSerializer{
 			ActionRegistry: vm.actionCodec,
@@ -545,10 +549,15 @@ func (vm *VM) applyOptions(o *Options) {
 		vm.builder = builder.NewManual(vm)
 	}
 	if o.gossiper {
-		var err error
+		gossipRegistry := prometheus.NewRegistry()
+		err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry)
+		if err != nil {
+			vm.snowCtx.Log.Fatal("failed to register gossiper metrics", zap.Error(err))
+		}
+
 		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
 			vm.snowCtx.Log,
-			vm.snowCtx.Metrics,
+			gossipRegistry,
 			vm.mempool,
 			&chain.TxSerializer{
 				ActionRegistry: vm.actionCodec,
