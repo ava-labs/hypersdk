@@ -53,6 +53,7 @@ func NewDefaultCliConfig(uris []string) (*Config, error) {
 	}
 
 	return &Config{
+		uris: uris,
 		key: key,
 		sZipf: 1.0001,
 		vZipf: 2.7,
