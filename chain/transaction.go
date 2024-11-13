@@ -512,7 +512,6 @@ func UnmarshalActions(
 	return actions, nil
 }
 
-
 func UnmarshalTx(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],

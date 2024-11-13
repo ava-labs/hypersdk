@@ -29,35 +29,6 @@ import (
 
 var _ Gossiper = (*Proposer[Tx])(nil)
 
-type Mempool[T any] interface {
-	Top(
-		ctx context.Context,
-		targetDuration time.Duration,
-		f func(context.Context, T) (cont bool, restore bool, err error),
-	) error
-}
-
-type Serializer[T any] interface {
-	Marshal([]T) ([]byte, error)
-	Unmarshal(b []byte) ([]T, error)
-}
-
-type Submitter[T any] interface {
-	Submit(context.Context, []T) []error
-}
-
-type ValidatorSet interface {
-	NodeID() ids.NodeID
-	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
-	IsValidator(context.Context, ids.NodeID) (bool, error)
-}
-
-type Tx interface {
-	ID() ids.ID
-	Expiry() int64
-	Size() int
-}
-
 type Proposer[T Tx] struct {
 	tracer  trace.Tracer
 	log     logging.Logger

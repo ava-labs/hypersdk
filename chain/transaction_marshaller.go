@@ -35,7 +35,7 @@ func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
 	return txs, p.Err()
 }
 
-func (s *TxSerializer) Marshal(txs []*Transaction) ([]byte, error) {
+func (*TxSerializer) Marshal(txs []*Transaction) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
