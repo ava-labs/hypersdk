@@ -244,6 +244,8 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+
 	gossipRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry); err != nil {
 		return err
@@ -339,8 +341,6 @@ func (vm *VM) Initialize(
 	}
 	vm.acceptedQueue = make(chan *StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
-
-	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
