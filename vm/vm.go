@@ -248,9 +248,11 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
 
 	// Set defaults
-	vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, vm.ruleFactory)
+	vm.builder = builder.NewTime(vm.toEngine, snowCtx.Log, vm.mempool, vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -261,9 +263,6 @@ func (vm *VM) Initialize(
 		}
 		opt.apply(options)
 	}
-
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
 
 	vm.applyOptions(options)
 

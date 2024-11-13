@@ -12,8 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
-
-	"github.com/ava-labs/hypersdk/chain"
 )
 
 // minBuildGap ensures we don't build blocks too quickly (can fail
@@ -28,12 +26,16 @@ type Mempool interface {
 	Len(context.Context) int // items
 }
 
+type MinBlockGapRetriever interface {
+	GetMinBlockGapRule(int64) int64 // in milliseconds
+}
+
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
 	engineCh    chan<- common.Message
 	logger      logging.Logger
 	mempool     Mempool
-	ruleFactory chain.RuleFactory
+	minBlockGap MinBlockGapRetriever
 	doneBuild   chan struct{}
 
 	timer     *timer.Timer
@@ -41,12 +43,12 @@ type Time struct {
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, ruleFactory chain.RuleFactory) *Time {
+func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, minBlockGap MinBlockGapRetriever) *Time {
 	b := &Time{
 		engineCh:    engineCh,
 		logger:      logger,
 		mempool:     mempool,
-		ruleFactory: ruleFactory,
+		minBlockGap: minBlockGap,
 		doneBuild:   make(chan struct{}),
 	}
 	b.timer = timer.NewTimer(b.handleTimerNotify)
@@ -69,7 +71,7 @@ func (b *Time) handleTimerNotify() {
 }
 
 func (b *Time) nextTime(now int64, preferred int64) int64 {
-	gap := b.ruleFactory.GetRules(now).GetMinBlockGap()
+	gap := b.minBlockGap.GetMinBlockGapRule(now)
 	next := max(b.lastQueue+minBuildGap, preferred+gap)
 	if next < now {
 		return -1

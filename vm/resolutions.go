@@ -459,3 +459,7 @@ func (vm *VM) GetDataDir() string {
 func (vm *VM) GetGenesisBytes() []byte {
 	return vm.GenesisBytes
 }
+
+func (vm *VM) GetMinBlockGapRule(t int64) int64 {
+	return vm.ruleFactory.GetRules(t).GetMinBlockGap()
+}
