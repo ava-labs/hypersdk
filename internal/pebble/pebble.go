@@ -133,7 +133,8 @@ func (db *Database) Has(key []byte) (bool, error) {
 func (db *Database) Get(key []byte) ([]byte, error) {
 	start := time.Now()
 	data, closer, err := db.db.Get(key)
-	db.metrics.getLatency.Observe(float64(time.Since(start)))
+	db.metrics.getCount.Inc()
+	db.metrics.getSum.Add(float64(time.Since(start)))
 	if err != nil {
 		return nil, updateError(err)
 	}

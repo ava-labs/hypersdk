@@ -6,7 +6,6 @@ package pebble
 import (
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/cockroachdb/pebble"
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,9 +15,12 @@ const metricsInterval = 10 * time.Second
 
 type metrics struct {
 	delayStart time.Time
-	writeStall metric.Averager
 
-	getLatency metric.Averager
+	writeStallCount prometheus.Counter
+	writeStallSum   prometheus.Gauge
+
+	getCount prometheus.Counter
+	getSum   prometheus.Gauge
 
 	l0Compactions     prometheus.Counter
 	otherCompactions  prometheus.Counter
@@ -34,25 +36,27 @@ type metrics struct {
 }
 
 func newMetrics(r prometheus.Registerer) (*metrics, error) {
-	writeStall, err := metric.NewAverager(
-		"pebble_write_stall",
-		"time spent waiting for disk write",
-		r,
-	)
-	if err != nil {
-		return nil, err
-	}
-	getLatency, err := metric.NewAverager(
-		"pebble_read_latency",
-		"time spent waiting for db get",
-		r,
-	)
-	if err != nil {
-		return nil, err
-	}
 	m := &metrics{
-		writeStall: writeStall,
-		getLatency: getLatency,
+		writeStallCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "pebble",
+			Name:      "write_stall_count",
+			Help:      "number of write stalls",
+		}),
+		writeStallSum: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "pebble",
+			Name:      "write_stall_sum",
+			Help:      "total time spent in write stalls",
+		}),
+		getCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "pebble",
+			Name:      "get_count",
+			Help:      "number of get operations",
+		}),
+		getSum: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "pebble",
+			Name:      "get_sum",
+			Help:      "total time spent in get operations",
+		}),
 		l0Compactions: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "pebble",
 			Name:      "l0_compactions",
@@ -106,6 +110,10 @@ func newMetrics(r prometheus.Registerer) (*metrics, error) {
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
+		r.Register(m.writeStallCount),
+		r.Register(m.writeStallSum),
+		r.Register(m.getCount),
+		r.Register(m.getSum),
 		r.Register(m.l0Compactions),
 		r.Register(m.otherCompactions),
 		r.Register(m.activeCompactions),
@@ -139,7 +147,8 @@ func (db *Database) onWriteStallBegin(pebble.WriteStallBeginInfo) {
 }
 
 func (db *Database) onWriteStallEnd() {
-	db.metrics.writeStall.Observe(float64(time.Since(db.metrics.delayStart)))
+	db.metrics.writeStallCount.Inc()
+	db.metrics.writeStallSum.Add(float64(time.Since(db.metrics.delayStart)))
 }
 
 func (db *Database) collectMetrics() {
