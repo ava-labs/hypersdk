@@ -171,7 +171,7 @@ func (n *Node[T]) NewChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Timestamp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
@@ -207,6 +207,25 @@ func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
 	return blk, nil
 }
 
+func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) error {
+	for _, chunkCert := range block.ChunkCerts {
+		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *Node[T]) ParseBlock(ctx context.Context, bytes []byte) (Block, error) {
+	var blk Block
+	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: bytes}, &blk); err != nil {
+		return Block{}, err
+	}
+
+	blk.blkBytes = bytes
+	blk.blkID = utils.ToID(bytes)
+	return blk, nil
+}
 func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {

@@ -191,7 +191,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk, err := node.NewBlock(
+	blk, err := node.BuildBlock(
 		Block{
 			ParentID:  ids.GenerateTestID(),
 			Height:    0,
@@ -577,7 +577,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			block, err := node.NewBlock(
+			block, err := node.BuildBlock(
 				Block{
 					ParentID:  ids.GenerateTestID(),
 					Height:    0,
@@ -881,7 +881,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node.NewBlock(
+	blk, err := node.BuildBlock(
 		Block{
 			ParentID:  ids.GenerateTestID(),
 			Height:    0,
@@ -1002,7 +1002,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	// chunk cert
 	var blk Block
 	for {
-		blk, err = node1.NewBlock(
+		blk, err = node1.BuildBlock(
 			Block{
 				ParentID:  ids.Empty,
 				Height:    0,
@@ -1308,7 +1308,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			blk, err := node.NewBlock(tt.parent, tt.timestamp)
+			blk, err := node.BuildBlock(tt.parent, tt.timestamp)
 			r.ErrorIs(err, tt.wantErr)
 			if err != nil {
 				return
@@ -1383,7 +1383,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node1.NewBlock(Block{
+	blk, err := node1.BuildBlock(Block{
 		ParentID:  ids.GenerateTestID(),
 		Height:    0,
 		Timestamp: 0,
