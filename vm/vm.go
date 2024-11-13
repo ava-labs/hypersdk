@@ -248,11 +248,8 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
 
 	// Set defaults
-	vm.builder = builder.NewTime(vm.toEngine, snowCtx.Log, vm.mempool, vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -263,7 +260,6 @@ func (vm *VM) Initialize(
 		}
 		opt.apply(options)
 	}
-
 	vm.applyOptions(options)
 
 	// Setup profiler
@@ -301,6 +297,9 @@ func (vm *VM) Initialize(
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
+
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
 	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
@@ -323,6 +322,8 @@ func (vm *VM) Initialize(
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, vm)
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()

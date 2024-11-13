@@ -32,9 +32,10 @@ import (
 )
 
 var (
-	_ gossiper.VM           = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ gossiper.VM                  = (*VM)(nil)
+	_ block.ChainVM                = (*VM)(nil)
+	_ block.StateSyncableVM        = (*VM)(nil)
+	_ builder.MinBlockGapRetriever = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
