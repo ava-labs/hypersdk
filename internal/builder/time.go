@@ -11,8 +11,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
-	"github.com/ava-labs/hypersdk/chain"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 // minBuildGap ensures we don't build blocks too quickly (can fail
