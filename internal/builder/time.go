@@ -24,36 +24,36 @@ type Mempool interface {
 	Len(context.Context) int // items
 }
 
-type GetMinBlockGapFunc func(int64) int64
+type GetPreferedTimestampAndBlockGap func(int64) (int64, int64)
 
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
-	engineCh       chan<- common.Message
-	logger         logging.Logger
-	mempool        Mempool
-	getMinBlockGap GetMinBlockGapFunc
-	doneBuild      chan struct{}
+	engineCh                        chan<- common.Message
+	logger                          logging.Logger
+	mempool                         Mempool
+	getPreferedTimestampAndBlockGap GetPreferedTimestampAndBlockGap
+	doneBuild                       chan struct{}
 
 	timer     *timer.Timer
 	lastQueue int64
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getMinBlockGap GetMinBlockGapFunc) *Time {
+func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getPreferedTimestampAndBlockGap GetPreferedTimestampAndBlockGap) *Time {
 	b := &Time{
-		engineCh:       engineCh,
-		logger:         logger,
-		mempool:        mempool,
-		getMinBlockGap: getMinBlockGap,
-		doneBuild:      make(chan struct{}),
+		engineCh:                        engineCh,
+		logger:                          logger,
+		mempool:                         mempool,
+		getPreferedTimestampAndBlockGap: getPreferedTimestampAndBlockGap,
+		doneBuild:                       make(chan struct{}),
 	}
 	b.timer = timer.NewTimer(b.handleTimerNotify)
 	return b
 }
 
-func (b *Time) Run(preferedBlkTmstmp int64) {
-	b.Queue(context.TODO(), preferedBlkTmstmp) // start building loop (may not be an initial trigger)
-	b.timer.Dispatch()                         // this blocks
+func (b *Time) Run() {
+	b.Queue(context.TODO()) // start building loop (may not be an initial trigger)
+	b.timer.Dispatch()      // this blocks
 }
 
 func (b *Time) handleTimerNotify() {
@@ -66,8 +66,7 @@ func (b *Time) handleTimerNotify() {
 	b.waiting.Store(false)
 }
 
-func (b *Time) nextTime(now int64, preferred int64) int64 {
-	gap := b.getMinBlockGap(now)
+func (b *Time) nextTime(now, preferred, gap int64) int64 {
 	next := max(b.lastQueue+minBuildGap, preferred+gap)
 	if next < now {
 		return -1
@@ -75,13 +74,19 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) Queue(ctx context.Context, preferedBlkTmstmp int64) {
+func (b *Time) Queue(ctx context.Context) {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.logger.Debug("unable to acquire waiting lock")
 		return
 	}
 	now := time.Now().UnixMilli()
-	next := b.nextTime(now, preferedBlkTmstmp)
+	preferred, gap := b.getPreferedTimestampAndBlockGap(now)
+	if gap < 0 {
+		// unable to retrieve block.
+		b.logger.Warn("unable to get preferred timestamp and block gap")
+		return
+	}
+	next := b.nextTime(now, preferred, gap)
 	if next < 0 {
 		if err := b.Force(ctx); err != nil {
 			b.logger.Warn("unable to build", zap.Error(err))
