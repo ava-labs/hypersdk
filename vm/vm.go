@@ -462,10 +462,15 @@ func (vm *VM) Initialize(
 		vm.snowCtx.Log,
 		vm,
 	)
+	syncerRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
+		snowCtx.Log.Error("could not register syncer metrics", zap.Error(err))
+		return err
+	}
 	vm.Client = statesync.NewClient[*StatefulBlock](
 		vm,
 		vm.snowCtx.Log,
-		vm.snowCtx.Metrics,
+		syncerRegistry,
 		vm.stateDB,
 		vm.network,
 		vm.genesis.GetStateBranchFactor(),

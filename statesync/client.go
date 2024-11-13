@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
@@ -41,7 +40,7 @@ type Accepter[T StateSummaryContainer] interface {
 type Client[T StateSummaryContainer] struct {
 	chain                 ChainClient[T]
 	log                   logging.Logger
-	gatherer              avametrics.MultiGatherer
+	registerer            prometheus.Registerer
 	db                    merkledb.MerkleDB
 	network               *p2p.Network
 	syncManager           *avasync.Manager
@@ -65,7 +64,7 @@ type Client[T StateSummaryContainer] struct {
 func NewClient[T StateSummaryContainer](
 	chain ChainClient[T],
 	log logging.Logger,
-	gatherer avametrics.MultiGatherer,
+	registerer prometheus.Registerer,
 	db merkledb.MerkleDB,
 	network *p2p.Network,
 	merkleBranchFactor merkledb.BranchFactor,
@@ -75,7 +74,7 @@ func NewClient[T StateSummaryContainer](
 	return &Client[T]{
 		chain:                 chain,
 		log:                   log,
-		gatherer:              gatherer,
+		registerer:            registerer,
 		db:                    db,
 		network:               network,
 		merkleBranchFactor:    merkleBranchFactor,
@@ -166,12 +165,6 @@ func (s *Client[T]) Accept(
 	)
 	s.startedSync = true
 
-	// Initialize metrics for sync client
-	r := prometheus.NewRegistry()
-	if err := s.gatherer.Register("syncer", r); err != nil {
-		return block.StateSyncSkipped, err
-	}
-
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.merkleBranchFactor,
 		DB:                    s.db,
@@ -180,7 +173,7 @@ func (s *Client[T]) Accept(
 		SimultaneousWorkLimit: s.simultaneousWorkLimit,
 		Log:                   s.log,
 		TargetRoot:            sb.GetStateRoot(),
-	}, r)
+	}, s.registerer)
 	if err != nil {
 		return block.StateSyncSkipped, err
 	}
