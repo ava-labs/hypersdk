@@ -33,15 +33,14 @@ type metrics struct {
 	obsoleteWALCount   prometheus.Gauge
 }
 
-func newMetrics() (*prometheus.Registry, *metrics, error) {
-	r := prometheus.NewRegistry()
+func newMetrics(r prometheus.Registerer) (*metrics, error) {
 	writeStall, err := metric.NewAverager(
 		"pebble_write_stall",
 		"time spent waiting for disk write",
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	getLatency, err := metric.NewAverager(
 		"pebble_read_latency",
@@ -49,7 +48,7 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	m := &metrics{
 		writeStall: writeStall,
@@ -118,7 +117,7 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 		r.Register(m.obsoleteWALSize),
 		r.Register(m.obsoleteWALCount),
 	)
-	return r, m, errs.Err
+	return m, errs.Err
 }
 
 func (db *Database) onCompactionBegin(info pebble.CompactionInfo) {

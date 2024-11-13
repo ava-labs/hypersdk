@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -75,7 +76,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	tempDir := t.TempDir()
 
-	db, _, err := pebble.New(tempDir, pebble.NewDefaultConfig())
+	db, err := pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	require.NoError(err)
 	validChunkIDs := make([]ids.ID, 0, numValidChunks)
 	for _, chunk := range validChunks {
@@ -91,7 +92,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 
 	restart := func() *chunkStorage[tx] {
 		require.NoError(db.Close())
-		db, _, err = pebble.New(tempDir, pebble.NewDefaultConfig())
+		db, err = pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 		require.NoError(err)
 
 		storage, err := newChunkStorage[tx](
