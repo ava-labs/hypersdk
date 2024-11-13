@@ -323,13 +323,12 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64) {
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
 		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
 		if err != nil {
-			vm.snowCtx.Log.Warn("unable to load preferred block", zap.Error(err))
-			return 0, -1
+			return 0, 0, err
 		}
-		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap()
+		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 	})
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)

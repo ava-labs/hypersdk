@@ -24,7 +24,10 @@ type Mempool interface {
 	Len(context.Context) int // items
 }
 
-type GetPreferedTimestampAndBlockGap func(int64) (int64, int64)
+// GetPreferedTimestampAndBlockGap function accepts the current timestamp and returns
+// the preferred block's timestamp and the current rule's block gap.
+// If it fails to get the block, it should return a non-nil error.
+type GetPreferedTimestampAndBlockGap func(now int64) (preferedTimestamp int64, blockGap int64, err error)
 
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
@@ -80,10 +83,10 @@ func (b *Time) Queue(ctx context.Context) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	preferred, gap := b.getPreferedTimestampAndBlockGap(now)
-	if gap < 0 {
+	preferred, gap, err := b.getPreferedTimestampAndBlockGap(now)
+	if err != nil {
 		// unable to retrieve block.
-		b.logger.Warn("unable to get preferred timestamp and block gap")
+		b.logger.Warn("unable to get preferred timestamp and block gap", zap.Error(err))
 		return
 	}
 	next := b.nextTime(now, preferred, gap)
