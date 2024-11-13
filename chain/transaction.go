@@ -512,30 +512,6 @@ func UnmarshalActions(
 	return actions, nil
 }
 
-func UnmarshalTxs(
-	raw []byte,
-	initialCapacity int,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
-) (map[uint8]int, []*Transaction, error) {
-	p := codec.NewReader(raw, consts.NetworkSizeLimit)
-	txCount := p.UnpackInt(true)
-	authCounts := map[uint8]int{}
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, nil, err
-		}
-		txs = append(txs, tx)
-		authCounts[tx.Auth.GetTypeID()]++
-	}
-	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, nil, ErrInvalidObject
-	}
-	return authCounts, txs, p.Err()
-}
 
 func UnmarshalTx(
 	p *codec.Packer,
@@ -568,21 +544,6 @@ func UnmarshalTx(
 		return nil, err
 	}
 	return tx, nil
-}
-
-func MarshalTxs(txs []*Transaction) ([]byte, error) {
-	if len(txs) == 0 {
-		return nil, ErrNoTxs
-	}
-	size := consts.IntLen + codec.CummSize(txs)
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(uint32(len(txs)))
-	for _, tx := range txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-	}
-	return p.Bytes(), p.Err()
 }
 
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost

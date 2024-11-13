@@ -110,7 +110,7 @@ func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulB
 }
 
 func (i *instance) confirmTxs(ctx context.Context, txs []*chain.Transaction) error {
-	errs := i.vm.Submit(ctx, true, txs)
+	errs := i.vm.Submit(ctx, txs)
 	if len(errs) != 0 && errs[0] != nil {
 		return errs[0]
 	}

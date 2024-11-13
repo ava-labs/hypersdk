@@ -26,9 +26,6 @@ func (em *executorMetrics) RecordExecutable() {
 
 type Metrics struct {
 	txsSubmitted             prometheus.Counter // includes gossip
-	txsReceived              prometheus.Counter
-	seenTxsReceived          prometheus.Counter
-	txsGossiped              prometheus.Counter
 	stateChanges             prometheus.Counter
 	stateOperations          prometheus.Counter
 	buildCapped              prometheus.Counter
@@ -106,21 +103,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "vm",
 			Name:      "txs_submitted",
 			Help:      "number of txs submitted to vm",
-		}),
-		txsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_received",
-			Help:      "number of txs received over gossip",
-		}),
-		seenTxsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "seen_txs_received",
-			Help:      "number of txs received over gossip that we've already seen",
-		}),
-		txsGossiped: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_gossiped",
-			Help:      "number of txs gossiped by vm",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -224,9 +206,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.txsSubmitted),
-		r.Register(m.txsReceived),
-		r.Register(m.seenTxsReceived),
-		r.Register(m.txsGossiped),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),
