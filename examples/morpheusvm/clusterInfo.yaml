@@ -1,47 +1,47 @@
 API:
-  - CLOUD_ID: i-0b9258a99968c6f3f
-    IP: 44.210.243.186
-    REGION: us-east-1
-  - CLOUD_ID: i-00ad001ad52a6272f
-    IP: 3.144.34.135
+  - CLOUD_ID: i-043aa4c259e5249b1
+    IP: 3.138.110.141
     REGION: us-east-2
-  - CLOUD_ID: i-05ad22eea11523787
-    IP: 43.207.237.38
+  - CLOUD_ID: i-0614b9c414a3664b1
+    IP: 35.77.117.176
     REGION: ap-northeast-1
-  - CLOUD_ID: i-08e1a67d9a259accf
-    IP: 3.249.58.207
+  - CLOUD_ID: i-08d687e6e3fa5562c
+    IP: 3.253.106.28
     REGION: eu-west-1
-  - CLOUD_ID: i-007535240c5698915
-    IP: 44.243.58.160
+  - CLOUD_ID: i-0f0051ccd9592a1d8
+    IP: 35.81.78.251
     REGION: us-west-2
+  - CLOUD_ID: i-07abc662eb48e2d4d
+    IP: 3.236.27.164
+    REGION: us-east-1
 VALIDATOR:
-  - CLOUD_ID: i-022ad628300c28948
-    NODE_ID: NodeID-5rtVCjUUkebqToYEPe5oXYXGwqurUgTaP
-    IP: 34.239.147.64
-    REGION: us-east-1
-  - CLOUD_ID: i-058525e8e9af3d49b
-    NODE_ID: NodeID-7ZnAVv5P7yy84bqUaPRjoBk3UKUkvWv2D
-    IP: 18.191.223.95
+  - CLOUD_ID: i-06f43becb90eec0d0
+    NODE_ID: NodeID-EgRtPUzSTqMhyk6U4zXgMs5btm2pGubGm
+    IP: 18.188.192.119
     REGION: us-east-2
-  - CLOUD_ID: i-032d25c15629a653e
-    NODE_ID: NodeID-G43Zp4zYcspj7WexnNongg7LBFDgHHq3o
-    IP: 18.181.111.205
+  - CLOUD_ID: i-00d719b5401b37858
+    NODE_ID: NodeID-3PhjAT8DdZkCk88kMCqwYQtgj1k9YGYi3
+    IP: 35.78.214.137
     REGION: ap-northeast-1
-  - CLOUD_ID: i-017a172564687fe1f
-    NODE_ID: NodeID-54jHrMbShfifAUKLpWsEXC8rpAX1b3dEv
-    IP: 34.241.115.129
+  - CLOUD_ID: i-027f944bd2c0d07f3
+    NODE_ID: NodeID-GubEYhvQBK9pM8QsXuyausy762pVhuhWV
+    IP: 34.253.196.36
     REGION: eu-west-1
-  - CLOUD_ID: i-05d9b417a332c7941
-    NODE_ID: NodeID-DySQfWYmY4Lai8WwyKekeh99328gA1o7s
-    IP: 34.222.188.123
+  - CLOUD_ID: i-0b43b70d0634a1e22
+    NODE_ID: NodeID-CuuTpE9HrneSEFoYWHo9qDiWL5hFkKndi
+    IP: 35.80.3.228
     REGION: us-west-2
+  - CLOUD_ID: i-023dea43b76d165c1
+    NODE_ID: NodeID-8vijk4amK3mzfPDockcD9QmQeSHPbEymk
+    IP: 44.210.239.44
+    REGION: us-east-1
 LOADTEST:
-  CLOUD_ID: i-0293ed1fe382d5a69
-  IP: 63.33.32.215
+  CLOUD_ID: i-0ca0c413f3dbc4cee
+  IP: 54.246.39.6
   REGION: eu-west-1
 MONITOR:
-  CLOUD_ID: i-0818e31711bd7e164
-  IP: 34.251.155.164
-  REGION: eu-west-1
-CHAIN_ID: 3TKfevue55XZ3fGwNmgt3mvrD2ynZ9tS7SavphMaD1fvxdFvB
+  CLOUD_ID: i-077c20d31c3af0478
+  IP: 52.14.220.44
+  REGION: us-east-2
+CHAIN_ID: nBjFogwAJ7CPsJPjio6NXcGT5Sth5YbPr46ci7H6ZmyxxFpFM
 SUBNET_ID: giY8tswWgZmcAWzPkoNrmjjrykited7GJ9799SsFzTiq5a1ML
