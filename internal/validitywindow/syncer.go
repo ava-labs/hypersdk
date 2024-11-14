@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package validity_window
+package validitywindow
 
 import (
 	"context"
@@ -13,29 +13,29 @@ type GetValidityWindowFunc func(int64) int64
 
 // Syncer marks sequential blocks as accepted until it has observed a full validity window
 // and signals to the caller that it can begin processing blocks from that block forward.
-type syncer[TxnTypePtr emap.Item] struct {
-	chainIndex         ChainIndex[TxnTypePtr]
-	timeValidityWindow TimeValidityWindow[TxnTypePtr]
+type syncer[Container emap.Item] struct {
+	chainIndex         ChainIndex[Container]
+	timeValidityWindow TimeValidityWindow[Container]
 	getValidityWindow  GetValidityWindowFunc
-	initialBlock       ExecutionBlock[TxnTypePtr]
+	initialBlock       ExecutionBlock[Container]
 }
 
-func NewSyncer[TxnTypePtr emap.Item](chainIndex ChainIndex[TxnTypePtr], timeValidityWindow TimeValidityWindow[TxnTypePtr], getValidityWindow GetValidityWindowFunc) Syncer[TxnTypePtr] {
-	return &syncer[TxnTypePtr]{
+func NewSyncer[Container emap.Item](chainIndex ChainIndex[Container], timeValidityWindow TimeValidityWindow[Container], getValidityWindow GetValidityWindowFunc) Syncer[Container] {
+	return &syncer[Container]{
 		chainIndex:         chainIndex,
 		timeValidityWindow: timeValidityWindow,
 		getValidityWindow:  getValidityWindow,
 	}
 }
 
-func (s *syncer[TxnTypePtr]) start(ctx context.Context, lastAcceptedBlock ExecutionBlock[TxnTypePtr]) (bool, error) {
+func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock ExecutionBlock[Container]) (bool, error) {
 	s.initialBlock = lastAcceptedBlock
 
 	// Attempt to backfill the validity window
 	var (
-		parent             ExecutionBlock[TxnTypePtr] = s.initialBlock
-		parents                                       = []ExecutionBlock[TxnTypePtr]{parent}
-		seenValidityWindow                            = false
+		parent             ExecutionBlock[Container] = s.initialBlock
+		parents                                      = []ExecutionBlock[Container]{parent}
+		seenValidityWindow                           = false
 		err                error
 	)
 	for {
@@ -62,7 +62,7 @@ func (s *syncer[TxnTypePtr]) start(ctx context.Context, lastAcceptedBlock Execut
 	return seenValidityWindow, nil
 }
 
-func (s *syncer[TxnTypePtr]) Accept(ctx context.Context, blk ExecutionBlock[TxnTypePtr]) (bool, error) {
+func (s *syncer[Container]) Accept(ctx context.Context, blk ExecutionBlock[Container]) (bool, error) {
 	if s.initialBlock == nil {
 		return s.start(ctx, blk)
 	}

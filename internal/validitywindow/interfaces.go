@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package validity_window
+package validitywindow
 
 import (
 	"context"
@@ -11,35 +11,35 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-type ExecutionBlock[TxnTypePtr emap.Item] interface {
+type ExecutionBlock[Container emap.Item] interface {
 	Parent() ids.ID
 	Timestamp() int64
 	Height() uint64
-	Txs() []TxnTypePtr
+	Txs() []Container
 	InitTxs() error
 	ContainsTx(ids.ID) bool
 }
 
-type ChainIndex[TxnTypePtr emap.Item] interface {
-	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[TxnTypePtr], error)
+type ChainIndex[Container emap.Item] interface {
+	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[Container], error)
 	LastAcceptedBlockHeight() uint64
 }
 
-type TimeValidityWindow[TxnTypePtr emap.Item] interface {
-	Accept(blk ExecutionBlock[TxnTypePtr])
+type TimeValidityWindow[Container emap.Item] interface {
+	Accept(blk ExecutionBlock[Container])
 	IsRepeat(
 		ctx context.Context,
-		parentBlk ExecutionBlock[TxnTypePtr],
-		txs []TxnTypePtr,
+		parentBlk ExecutionBlock[Container],
+		txs []Container,
 		oldestAllowed int64,
 	) (set.Bits, error)
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
-		blk ExecutionBlock[TxnTypePtr],
+		blk ExecutionBlock[Container],
 		oldestAllowed int64,
 	) error
 }
 
-type Syncer[TxnTypePtr emap.Item] interface {
-	Accept(ctx context.Context, blk ExecutionBlock[TxnTypePtr]) (bool, error)
+type Syncer[Container emap.Item] interface {
+	Accept(ctx context.Context, blk ExecutionBlock[Container]) (bool, error)
 }

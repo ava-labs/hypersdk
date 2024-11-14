@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package validity_window
+package validitywindow
 
 import (
 	"context"
@@ -19,25 +19,25 @@ import (
 
 var ErrDuplicateTx = errors.New("duplicate transaction")
 
-type timeValidityWindow[TxnTypePtr emap.Item] struct {
+type timeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
 
 	lock       sync.Mutex
-	chainIndex ChainIndex[TxnTypePtr]
-	seen       *emap.EMap[TxnTypePtr]
+	chainIndex ChainIndex[Container]
+	seen       *emap.EMap[Container]
 }
 
-func NewTimeValidityWindow[TxnTypePtr emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[TxnTypePtr]) TimeValidityWindow[TxnTypePtr] {
-	return &timeValidityWindow[TxnTypePtr]{
+func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[Container]) TimeValidityWindow[Container] {
+	return &timeValidityWindow[Container]{
 		log:        log,
 		tracer:     tracer,
 		chainIndex: chainIndex,
-		seen:       emap.NewEMap[TxnTypePtr](),
+		seen:       emap.NewEMap[Container](),
 	}
 }
 
-func (v *timeValidityWindow[TxnTypePtr]) Accept(blk ExecutionBlock[TxnTypePtr]) {
+func (v *timeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	// Grab the lock before modifiying seen
 	v.lock.Lock()
 	defer v.lock.Unlock()
@@ -47,9 +47,9 @@ func (v *timeValidityWindow[TxnTypePtr]) Accept(blk ExecutionBlock[TxnTypePtr]) 
 	v.seen.Add(blk.Txs())
 }
 
-func (v *timeValidityWindow[TxnTypePtr]) VerifyExpiryReplayProtection(
+func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	ctx context.Context,
-	blk ExecutionBlock[TxnTypePtr],
+	blk ExecutionBlock[Container],
 	oldestAllowed int64,
 ) error {
 	lastAcceptedBlkHeight := v.chainIndex.LastAcceptedBlockHeight()
@@ -71,20 +71,20 @@ func (v *timeValidityWindow[TxnTypePtr]) VerifyExpiryReplayProtection(
 	return nil
 }
 
-func (v *timeValidityWindow[TxnTypePtr]) IsRepeat(
+func (v *timeValidityWindow[Container]) IsRepeat(
 	ctx context.Context,
-	parentBlk ExecutionBlock[TxnTypePtr],
-	txs []TxnTypePtr,
+	parentBlk ExecutionBlock[Container],
+	txs []Container,
 	oldestAllowed int64,
 ) (set.Bits, error) {
 	return v.isRepeat(ctx, parentBlk, oldestAllowed, txs, false)
 }
 
-func (v *timeValidityWindow[TxnTypePtr]) isRepeat(
+func (v *timeValidityWindow[Container]) isRepeat(
 	ctx context.Context,
-	ancestorBlk ExecutionBlock[TxnTypePtr],
+	ancestorBlk ExecutionBlock[Container],
 	oldestAllowed int64,
-	txs []TxnTypePtr,
+	txs []Container,
 	stop bool,
 ) (set.Bits, error) {
 	marker := set.NewBits()

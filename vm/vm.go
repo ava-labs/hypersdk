@@ -40,7 +40,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
-	"github.com/ava-labs/hypersdk/internal/validity_window"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
@@ -83,8 +83,8 @@ type VM struct {
 	options               []Option
 
 	chain                   *chain.Chain
-	chainTimeValidityWindow validity_window.TimeValidityWindow[*chain.Transaction]
-	syncer                  validity_window.Syncer[*chain.Transaction]
+	chainTimeValidityWindow validitywindow.TimeValidityWindow[*chain.Transaction]
+	syncer                  validitywindow.Syncer[*chain.Transaction]
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
@@ -332,7 +332,7 @@ func (vm *VM) Initialize(
 		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 	})
 
-	vm.chainTimeValidityWindow = validity_window.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
@@ -348,13 +348,13 @@ func (vm *VM) Initialize(
 		vm.BalanceHandler(),
 		vm.AuthVerifiers(),
 		vm,
-		vm.GetValidityWindow(),
+		vm.chainTimeValidityWindow,
 		vm.config.ChainConfig,
 	)
 	if err != nil {
 		return err
 	}
-	vm.syncer = validity_window.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
+	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
 
@@ -800,7 +800,7 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validity_window.ExecutionBlock[*chain.Transaction], error) {
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
@@ -809,10 +809,6 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validity_win
 		return nil, err
 	}
 	return blk.ExecutionBlock, nil
-}
-
-func (vm *VM) GetValidityWindow() validity_window.TimeValidityWindow[*chain.Transaction] {
-	return vm.chainTimeValidityWindow
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
