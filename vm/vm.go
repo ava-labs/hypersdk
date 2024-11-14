@@ -40,6 +40,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
@@ -82,7 +83,7 @@ type VM struct {
 	options               []Option
 
 	chain                   *chain.Chain
-	chainTimeValidityWindow *chain.TimeValidityWindow
+	chainTimeValidityWindow validity_window.TimeValidityWindow[*chain.Transaction]
 	syncer                  *chain.Syncer
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
@@ -324,7 +325,7 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	vm.chainTimeValidityWindow = validity_window.NewTimeValidityWindow[*chain.Transaction](vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
@@ -790,7 +791,7 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validity_window.ExecutionBlock[*chain.Transaction], error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
@@ -801,7 +802,7 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.Execu
 	return blk.ExecutionBlock, nil
 }
 
-func (vm *VM) GetValidityWindow() *chain.TimeValidityWindow {
+func (vm *VM) GetValidityWindow() validity_window.TimeValidityWindow[*chain.Transaction] {
 	return vm.chainTimeValidityWindow
 }
 

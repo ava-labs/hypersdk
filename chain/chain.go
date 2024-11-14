@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -34,7 +35,7 @@ func NewChain(
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authVM AuthVM,
-	validityWindow *TimeValidityWindow,
+	validityWindow validity_window.TimeValidityWindow[*Transaction],
 	config Config,
 ) (*Chain, error) {
 	metrics, err := newMetrics(registerer)

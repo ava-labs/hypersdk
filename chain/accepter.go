@@ -7,17 +7,18 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 )
 
 type Accepter struct {
 	tracer         trace.Tracer
-	validityWindow *TimeValidityWindow
+	validityWindow validity_window.TimeValidityWindow[*Transaction]
 	metrics        *chainMetrics
 }
 
 func NewAccepter(
 	tracer trace.Tracer,
-	validityWindow *TimeValidityWindow,
+	validityWindow validity_window.TimeValidityWindow[*Transaction],
 	metrics *chainMetrics,
 ) *Accepter {
 	return &Accepter{
@@ -31,7 +32,7 @@ func (a *Accepter) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
 	_, span := a.tracer.Start(ctx, "Chain.AcceptBlock")
 	defer span.End()
 
-	a.metrics.txsAccepted.Add(float64(len(blk.Txs)))
+	a.metrics.txsAccepted.Add(float64(len(blk.StatelessBlock.Txs)))
 	a.validityWindow.Accept(blk)
 
 	return nil

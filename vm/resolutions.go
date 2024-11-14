@@ -91,8 +91,8 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.ExecutionBlock {
-	return vm.lastAccepted.ExecutionBlock
+func (vm *VM) LastAcceptedBlockHeight() uint64 {
+	return vm.lastAccepted.ExecutionBlock.Height()
 }
 
 func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
@@ -132,7 +132,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.mempool.Remove(ctx, b.Txs)
+	vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
 	vm.gossiper.BlockVerified(b.Tmstmp)
 	vm.checkActivity(ctx)
 
@@ -160,7 +160,7 @@ func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.mempool.Add(ctx, b.Txs)
+	vm.mempool.Add(ctx, b.StatelessBlock.Txs)
 
 	// Ensure children of block are cleared, they may never be
 	// verified
@@ -184,7 +184,7 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 	}
 
 	// TODO: consider removing this (unused and requires an extra iteration)
-	for _, tx := range b.Txs {
+	for _, tx := range b.StatelessBlock.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -41,13 +42,13 @@ func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	}
 }
 
-func (b *ExecutionBlock) initTxs() error {
-	if b.txsSet.Len() == len(b.Txs) {
+func (b *ExecutionBlock) InitTxs() error {
+	if b.txsSet.Len() == len(b.StatelessBlock.Txs) {
 		return nil
 	}
 	b.authCounts = make(map[uint8]int)
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
+	b.txsSet = set.NewSet[ids.ID](len(b.StatelessBlock.Txs))
+	for _, tx := range b.StatelessBlock.Txs {
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
@@ -58,6 +59,26 @@ func (b *ExecutionBlock) initTxs() error {
 	return nil
 }
 
+func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
+	return b.txsSet.Contains(id)
+}
+
+func (b *ExecutionBlock) Height() uint64 {
+	return b.Hght
+}
+
+func (b *ExecutionBlock) Parent() ids.ID {
+	return b.Prnt
+}
+
+func (b *ExecutionBlock) Timestamp() int64 {
+	return b.Tmstmp
+}
+
+func (b *ExecutionBlock) Txs() []*Transaction {
+	return b.StatelessBlock.Txs
+}
+
 type Processor struct {
 	tracer                  trace.Tracer
 	log                     logging.Logger
@@ -66,7 +87,7 @@ type Processor struct {
 	authVM                  AuthVM
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
-	validityWindow          *TimeValidityWindow
+	validityWindow          validity_window.TimeValidityWindow[*Transaction]
 	metrics                 *chainMetrics
 	config                  Config
 }
@@ -79,7 +100,7 @@ func NewProcessor(
 	authVM AuthVM,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
-	validityWindow *TimeValidityWindow,
+	validityWindow validity_window.TimeValidityWindow[*Transaction],
 	metrics *chainMetrics,
 	config Config,
 ) *Processor {
@@ -150,7 +171,7 @@ func (p *Processor) Execute(
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
 		return nil, nil, ErrTimestampTooEarly
 	}
-	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
+	if len(b.StatelessBlock.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
 		return nil, nil, ErrTimestampTooEarly
 	}
 
@@ -286,7 +307,7 @@ func (p *Processor) executeTxs(
 	defer span.End()
 
 	var (
-		numTxs = len(b.Txs)
+		numTxs = len(b.StatelessBlock.Txs)
 		t      = b.Tmstmp
 
 		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
@@ -296,7 +317,7 @@ func (p *Processor) executeTxs(
 	)
 
 	// Fetch required keys and execute transactions
-	for li, ltx := range b.Txs {
+	for li, ltx := range b.StatelessBlock.Txs {
 		i := li
 		tx := ltx
 
@@ -361,7 +382,7 @@ func (p *Processor) executeTxs(
 		return nil, nil, err
 	}
 
-	p.metrics.txsVerified.Add(float64(len(b.Txs)))
+	p.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
@@ -372,13 +393,13 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 	ctx, span := p.tracer.Start(ctx, "Chain.AsyncVerify")
 	defer span.End()
 
-	if err := block.initTxs(); err != nil {
+	if err := block.InitTxs(); err != nil {
 		return err
 	}
 	if block.sigJob != nil {
 		return nil
 	}
-	sigJob, err := p.authVerificationWorkers.NewJob(len(block.Txs))
+	sigJob, err := p.authVerificationWorkers.NewJob(len(block.StatelessBlock.Txs))
 	if err != nil {
 		return err
 	}
@@ -395,7 +416,7 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 		go batchVerifier.Done(func() { sigVerifySpan.End() })
 	}()
 
-	for _, tx := range block.Txs {
+	for _, tx := range block.StatelessBlock.Txs {
 		unsignedTxBytes, err := tx.UnsignedBytes()
 		if err != nil {
 			return err //nolint:spancheck
