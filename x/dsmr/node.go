@@ -34,6 +34,10 @@ type Validator struct {
 	NodeID ids.NodeID
 }
 
+type ValidatorSetManager interface {
+	GetValidators(timestamp int64) ([]Validator, error)
+}
+
 func New[T Tx](
 	nodeID ids.NodeID,
 	networkID uint32,
@@ -44,7 +48,7 @@ func New[T Tx](
 	getChunkClient *p2p.Client,
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
-	validators []Validator,
+	validatorSetManager ValidatorSetManager,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -64,7 +68,7 @@ func New[T Tx](
 			getChunkSignatureClient,
 		),
 		chunkCertificateGossipClient: NewChunkCertificateGossipClient(chunkCertificateGossipClient),
-		validators:                   validators,
+		validatorSetManager:          validatorSetManager,
 		GetChunkHandler: &GetChunkHandler[T]{
 			storage: storage,
 		},
@@ -91,7 +95,7 @@ type Node[T Tx] struct {
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
-	validators                   []Validator
+	validatorSetManager          ValidatorSetManager
 
 	GetChunkHandler               *GetChunkHandler[T]
 	GetChunkSignatureHandler      *acp118.Handler
@@ -136,7 +140,11 @@ func (n *Node[T]) NewChunk(
 		Chunk: packer.Bytes,
 	}
 
-	for _, validator := range n.validators {
+	validators, err := n.validatorSetManager.GetValidators(expiry)
+	if err != nil {
+		return Chunk[T]{}, err
+	}
+	for _, validator := range validators {
 		done := make(chan struct{})
 		onResponse := func(context.Context, ids.NodeID, *dsmr.GetChunkSignatureResponse, error) {
 			defer close(done)
@@ -250,7 +258,11 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 				}
 
 				// TODO better request strategy
-				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID //nolint:gosec
+				validators, err := n.validatorSetManager.GetValidators(block.Timestamp)
+				if err != nil {
+					return fmt.Errorf("failed to get validators while accepting block: %w", err)
+				}
+				nodeID := validators[rand.Intn(len(validators))].NodeID //nolint:gosec
 				if err := n.getChunkClient.AppRequest(
 					ctx,
 					nodeID,

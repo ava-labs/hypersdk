@@ -29,6 +29,14 @@ var (
 	_ Verifier[tx] = (*failVerifier)(nil)
 )
 
+type fixedValidatorSet struct {
+	Validators []Validator
+}
+
+func (f *fixedValidatorSet) GetValidators(_ int64) ([]Validator, error) {
+	return f.Validators, nil
+}
+
 // Test that chunks can be built through Node.NewChunk
 func TestNode_NewChunk(t *testing.T) {
 	tests := []struct {
@@ -48,8 +56,8 @@ func TestNode_NewChunk(t *testing.T) {
 			name: "chunk with 1 tx",
 			txs: []tx{
 				{
-					id:     ids.GenerateTestID(),
-					expiry: 1,
+					IDV:     ids.GenerateTestID(),
+					ExpiryV: 1,
 				},
 			},
 			expiry:      123,
@@ -59,16 +67,16 @@ func TestNode_NewChunk(t *testing.T) {
 			name: "chunk with multiple txs",
 			txs: []tx{
 				{
-					id:     ids.GenerateTestID(),
-					expiry: 1,
+					IDV:     ids.GenerateTestID(),
+					ExpiryV: 1,
 				},
 				{
-					id:     ids.GenerateTestID(),
-					expiry: 2,
+					IDV:     ids.GenerateTestID(),
+					ExpiryV: 2,
 				},
 				{
-					id:     ids.GenerateTestID(),
-					expiry: 3,
+					IDV:     ids.GenerateTestID(),
+					ExpiryV: 3,
 				},
 			},
 			expiry:      123,
@@ -115,7 +123,7 @@ func TestNode_NewChunk(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				&fixedValidatorSet{},
 			)
 			r.NoError(err)
 
@@ -179,13 +187,13 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{id: ids.GenerateTestID(), expiry: 123}},
+		[]tx{{IDV: ids.GenerateTestID(), ExpiryV: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -269,13 +277,13 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{id: ids.GenerateTestID(), expiry: 123}},
+		[]tx{{IDV: ids.GenerateTestID(), ExpiryV: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -346,7 +354,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
@@ -395,8 +403,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 0,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 0,
 						},
 					},
 					expiry:      123,
@@ -410,16 +418,16 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 0,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 0,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry:      123,
@@ -433,8 +441,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 0,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 0,
 						},
 					},
 					expiry:      123,
@@ -443,8 +451,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry:      123,
@@ -453,8 +461,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry:      123,
@@ -468,33 +476,16 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 0,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 0,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
-						},
-					},
-					expiry: 123,
-				},
-				{
-					txs: []tx{
-						{
-							id:     ids.GenerateTestID(),
-							expiry: 3,
-						},
-						{
-							id:     ids.GenerateTestID(),
-							expiry: 4,
-						},
-						{
-							id:     ids.GenerateTestID(),
-							expiry: 5,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry: 123,
@@ -502,16 +493,33 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 6,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 3,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 7,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 4,
 						},
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 8,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 5,
+						},
+					},
+					expiry: 123,
+				},
+				{
+					txs: []tx{
+						{
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 6,
+						},
+						{
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 7,
+						},
+						{
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 8,
 						},
 					},
 					expiry: 123,
@@ -559,7 +567,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				&fixedValidatorSet{},
 			)
 			r.NoError(err)
 
@@ -691,7 +699,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				&fixedValidatorSet{},
 			)
 			r.NoError(err)
 
@@ -739,12 +747,12 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				&fixedValidatorSet{},
 			)
 			r.NoError(err)
 			chunk, err := node2.NewChunk(
 				context.Background(),
-				[]tx{{id: ids.Empty, expiry: 123}},
+				[]tx{{IDV: ids.Empty, ExpiryV: 123}},
 				123,
 				codec.Address{123},
 			)
@@ -857,7 +865,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
@@ -876,7 +884,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(err)
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{id: ids.Empty, expiry: 123}},
+		[]tx{{IDV: ids.Empty, ExpiryV: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -950,7 +958,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
@@ -986,13 +994,15 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		[]Validator{{NodeID: node1.nodeID}},
+		&fixedValidatorSet{
+			Validators: []Validator{{NodeID: node1.nodeID}},
+		},
 	)
 	r.NoError(err)
 
 	chunk, err := node2.NewChunk(
 		context.Background(),
-		[]tx{{id: ids.Empty, expiry: 1}},
+		[]tx{{IDV: ids.Empty, ExpiryV: 1}},
 		1,
 		codec.Address{123},
 	)
@@ -1099,8 +1109,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry: 1,
@@ -1121,8 +1131,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry: 1,
@@ -1130,8 +1140,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry: 2,
@@ -1139,8 +1149,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry: 3,
@@ -1161,8 +1171,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry: 2,
@@ -1182,8 +1192,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry: 2,
@@ -1191,8 +1201,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry: 2,
@@ -1200,8 +1210,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 2,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 2,
 						},
 					},
 					expiry: 2,
@@ -1221,8 +1231,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 1,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 1,
 						},
 					},
 					expiry: 1,
@@ -1230,8 +1240,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							id:     ids.GenerateTestID(),
-							expiry: 3,
+							IDV:     ids.GenerateTestID(),
+							ExpiryV: 3,
 						},
 					},
 					expiry: 3,
@@ -1286,7 +1296,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				&fixedValidatorSet{},
 			)
 			r.NoError(err)
 
@@ -1372,13 +1382,13 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		&fixedValidatorSet{},
 	)
 	r.NoError(err)
 
 	chunk, err := node1.NewChunk(
 		context.Background(),
-		[]tx{{id: ids.GenerateTestID(), expiry: 1}},
+		[]tx{{IDV: ids.GenerateTestID(), ExpiryV: 1}},
 		1,
 		codec.Address{123},
 	)
@@ -1423,7 +1433,9 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		[]Validator{{NodeID: node1.nodeID}},
+		&fixedValidatorSet{
+			Validators: []Validator{{NodeID: node1.nodeID}},
+		},
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))
@@ -1479,16 +1491,16 @@ func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeI
 }
 
 type tx struct {
-	id     ids.ID `serialize:"true"`
-	expiry int64  `serialize:"true"`
+	IDV     ids.ID `serialize:"true"`
+	ExpiryV int64  `serialize:"true"`
 }
 
 func (t tx) ID() ids.ID {
-	return t.id
+	return t.IDV
 }
 
 func (t tx) Expiry() int64 {
-	return t.expiry
+	return t.ExpiryV
 }
 
 type failVerifier struct{}
