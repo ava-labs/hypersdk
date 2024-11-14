@@ -248,13 +248,27 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	// Setup worker cluster for verifying signatures
+	//
+	// If [parallelism] is odd, we assign the extra
+	// core to signature verification.
+	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
+
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		if err != nil {
+			return 0, 0, err
+		}
+		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+	})
 	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
 	if err != nil {
 		return err
 	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -295,15 +309,6 @@ func (vm *VM) Initialize(
 	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
 		return err
 	}
-
-	// Setup worker cluster for verifying signatures
-	//
-	// If [parallelism] is odd, we assign the extra
-	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
 
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
@@ -553,7 +558,7 @@ func (vm *VM) applyOptions(o *Options) {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm)
+		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	}
 	if o.gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
