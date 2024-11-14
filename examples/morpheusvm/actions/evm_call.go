@@ -5,7 +5,6 @@ package actions
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -97,16 +96,15 @@ func (e *EvmCall) Execute(
 	gp := new(core.GasPool).AddGas(e.GasLimit)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err != nil {
-		return nil, fmt.Errorf("evm error: %w", err)
+		return nil, err
 	}
 	if err := shim.Error(); err != nil {
-		return nil, fmt.Errorf("shim error: %w", err)
+		return nil, err
 	}
 	if err := statedb.Error(); err != nil {
-		return nil, fmt.Errorf("statedb error: %w", err)
+		return nil, err
 	}
-	hash := statedb.IntermediateRoot(true) //todo: ??
-	fmt.Println("hash", hash)
+	_ = statedb.IntermediateRoot(true) //todo: ??
 	return &EvmCallResult{
 		Success: result.Err == nil,
 		Return:  result.ReturnData,

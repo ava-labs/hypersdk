@@ -5,19 +5,15 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
-	"time"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
@@ -156,6 +152,7 @@ func TestDeployment(t *testing.T) {
 		},
 	}
 	deployFromFactoryTest.Run(testCtx.Context, t)
+	require.NoError(testCtx.State.Commit(testCtx.Context))
 }
 
 func TestEVMTransfers(t *testing.T) {
@@ -282,7 +279,7 @@ func TestEVMTransfers(t *testing.T) {
 			require.NoError(err)
 			require.Equal(uint256.NewInt(3), decodedAccount.Balance) // Now has 3 (2 from previous + 1 from this transfer)
 
-			// Contract balance should be 0 as it forwards all received ETH
+			// Contract balance should be 0 as it forwards all received tokens
 			contractAccount, err := storage.GetAccount(ctx, mu, contractAddr.Bytes())
 			require.NoError(err)
 			decodedContractAccount, err := storage.DecodeAccount(contractAccount)
@@ -469,54 +466,98 @@ func TestEVMCalls(t *testing.T) {
 	finalGetValueTest.Run(testCtx.Context, t)
 }
 
-func TestContractWithTracing(t *testing.T) {
+func TestEVMTstate(t *testing.T) {
 	require := require.New(t)
-	data := common.Hex2Bytes("608060405234801561000f575f80fd5b506101438061001d5f395ff3fe608060405234801561000f575f80fd5b5060043610610034575f3560e01c80632e64cec1146100385780636057361d14610056575b5f80fd5b610040610072565b60405161004d919061009b565b60405180910390f35b610070600480360381019061006b91906100e2565b61007a565b005b5f8054905090565b805f8190555050565b5f819050919050565b61009581610083565b82525050565b5f6020820190506100ae5f83018461008c565b92915050565b5f80fd5b6100c181610083565b81146100cb575f80fd5b50565b5f813590506100dc816100b8565b92915050565b5f602082840312156100f7576100f66100b4565b5b5f610104848285016100ce565b9150509291505056fea264697066735822122000afd17ac37e0bb2b68b3ac973de3608be934fa6f2b2e31808f1502fc93a2f2d64736f6c63430008180033")
 
-	sufficientGas := uint64(1000000)
+	testCtx := NewTestContext()
 
-	var from codec.Address
-	copy(from[20:], []byte("112233"))
+	// First deploy the test contract
+	deployTest := &chaintest.ActionTest{
+		Name: "deploy contract for calls",
+		Action: &EvmCall{
+			Value:    common.Big0,
+			GasLimit: testCtx.SufficientGas,
+			Data:     testCtx.TestContractABI.Bytecode,
+		},
+		Rules:     testCtx.Rules,
+		State:     testCtx.State,
+		Timestamp: testCtx.Timestamp,
+		Actor:     testCtx.From,
+		ActionID:  testCtx.ActionID,
+		ExpectedOutputs: &EvmCallResult{
+			Success: true,
+			UsedGas: 0x8459a,
+			Return:  testCtx.TestContractABI.DeployedBytecode,
+			Err:     nil,
+		},
+	}
+	deployTest.Run(testCtx.Context, t)
+	require.NoError(testCtx.State.Commit(testCtx.Context))
+
+	contractAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce)
+	testCtx.Nonce++
+
+	value := big.NewInt(42)
+	setValueData := testCtx.TestContractABI.ABI.Methods["setValue"].ID
+	setValueData = append(setValueData, common.LeftPadBytes(value.Bytes(), 32)...)
+
 	call := &EvmCall{
+		To:       &contractAddr,
 		Value:    common.Big0,
-		GasLimit: sufficientGas,
-		Data:     data,
+		GasLimit: testCtx.SufficientGas,
+		Data:     setValueData,
+		Keys:     state.Keys{},
 	}
 
-	r := genesis.NewDefaultRules()
-	time := time.Now().UnixMilli()
-	txID := ids.ID{}
-
-	ctx := context.Background()
-	tracer, err := trace.New(trace.Config{Enabled: false})
-	require.NoError(err)
-	statedb, err := merkledb.New(ctx, memdb.New(), getTestMerkleConfig(tracer))
-	require.NoError(err)
-
-	view := state.View(statedb)
-	view = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
-
-	codeKey := crypto.CreateAddress(ToEVMAddress(from), 0)
-	code, err := storage.GetCode(ctx, view, codeKey)
-	require.NoError(err)
-	require.NotEmpty(code)
-
-	contractAddress := crypto.CreateAddress(ToEVMAddress(from), 0)
-	data = common.Hex2Bytes("6057361d000000000000000000000000000000000000000000000000000000000000002a")
-	call = &EvmCall{
-		To:       &contractAddress,
-		Value:    common.Big0,
-		GasLimit: sufficientGas,
-		Data:     data,
+	tstateTest := &chaintest.ActionTest{
+		Name:        "incorrect state keys should revert",
+		Action:      call,
+		Rules:       testCtx.Rules,
+		State:       testCtx.State,
+		Timestamp:   testCtx.Timestamp,
+		Actor:       testCtx.From,
+		ActionID:    testCtx.ActionID,
+		ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 	}
-	view = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
 
-	data = common.Hex2Bytes("2e64cec1")
-	call = &EvmCall{
-		To:       &contractAddress,
-		Value:    common.Big0,
-		GasLimit: sufficientGas,
-		Data:     data,
+	recorder := tstate.NewRecorder(testCtx.State)
+	result, err := tstateTest.Action.Execute(testCtx.Context, testCtx.Rules, recorder, testCtx.Timestamp, testCtx.From, testCtx.ActionID)
+	require.NoError(err)
+	require.Nil(result.(*EvmCallResult).Err)
+	call.Keys = recorder.GetStateKeys()
+
+	stateKeys := call.StateKeys(testCtx.From, testCtx.ActionID)
+
+	wrongKeys := state.Keys{
+		"wrongKey": state.All,
 	}
-	_ = traceAndExecute(ctx, require, call, view, r, time, from, txID, tracer)
+
+	storage := make(map[string][]byte, len(stateKeys))
+	for key := range stateKeys {
+		val, err := testCtx.State.GetValue(testCtx.Context, []byte(key))
+		if errors.Is(err, database.ErrNotFound) {
+			continue
+		}
+		require.NoError(err)
+		storage[key] = val
+	}
+	ts := tstate.New(0)
+	tsv := ts.NewView(wrongKeys, storage)
+
+	tstateTest.State = tsv
+
+	tstateTest.Run(testCtx.Context, t)
+
+	tsv = ts.NewView(stateKeys, storage)
+	tstateTest.State = tsv
+	tstateTest.Name = "correct state keys should succeed"
+	tstateTest.ExpectedErr = nil
+	tstateTest.ExpectedOutputs = &EvmCallResult{
+		Success: true,
+		UsedGas: 0xaf73,
+		Return:  []uint8(nil),
+		Err:     nil,
+	}
+	tstateTest.Run(testCtx.Context, t)
+	require.NoError(testCtx.State.Commit(testCtx.Context))
 }

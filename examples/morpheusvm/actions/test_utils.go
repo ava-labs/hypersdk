@@ -133,7 +133,7 @@ func GetStateKeys(ctx context.Context, call *EvmCall) state.Keys {
 	return call.Keys
 }
 
-func traceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
+func TraceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
 	mu := state.NewSimpleMutable(view)
 	err := InitAccount(ctx, mu, from, uint64(10000000))
 	require.NoError(err)
