@@ -33,9 +33,9 @@ func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock Executi
 
 	// Attempt to backfill the validity window
 	var (
-		parent             ExecutionBlock[Container] = s.initialBlock
-		parents                                      = []ExecutionBlock[Container]{parent}
-		seenValidityWindow                           = false
+		parent             = s.initialBlock
+		parents            = []ExecutionBlock[Container]{parent}
+		seenValidityWindow = false
 		err                error
 	)
 	for {
