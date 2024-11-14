@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/math"
 	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -28,6 +29,9 @@ var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
 )
+
+// create a local name for the imported interface.
+type ValidityWindow validity_window.TimeValidityWindow[*Transaction]
 
 type TransactionData struct {
 	Base *Base `json:"base"`

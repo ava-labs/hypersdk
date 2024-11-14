@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
-	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -87,7 +86,7 @@ type Processor struct {
 	authVM                  AuthVM
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
-	validityWindow          validity_window.TimeValidityWindow[*Transaction]
+	validityWindow          ValidityWindow
 	metrics                 *chainMetrics
 	config                  Config
 }
@@ -100,7 +99,7 @@ func NewProcessor(
 	authVM AuthVM,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
-	validityWindow validity_window.TimeValidityWindow[*Transaction],
+	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
 ) *Processor {

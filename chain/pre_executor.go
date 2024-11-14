@@ -10,19 +10,18 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/internal/validity_window"
 )
 
 type PreExecutor struct {
 	ruleFactory     RuleFactory
-	validityWindow  validity_window.TimeValidityWindow[*Transaction]
+	validityWindow  ValidityWindow
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
 }
 
 func NewPreExecutor(
 	ruleFactory RuleFactory,
-	validityWindow validity_window.TimeValidityWindow[*Transaction],
+	validityWindow ValidityWindow,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 ) *PreExecutor {

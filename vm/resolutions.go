@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -32,9 +33,10 @@ import (
 )
 
 var (
-	_ gossiper.VM           = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ gossiper.VM                                    = (*VM)(nil)
+	_ block.ChainVM                                  = (*VM)(nil)
+	_ block.StateSyncableVM                          = (*VM)(nil)
+	_ validity_window.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {

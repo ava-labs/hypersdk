@@ -7,18 +7,17 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/hypersdk/internal/validity_window"
 )
 
 type Accepter struct {
 	tracer         trace.Tracer
-	validityWindow validity_window.TimeValidityWindow[*Transaction]
+	validityWindow ValidityWindow
 	metrics        *chainMetrics
 }
 
 func NewAccepter(
 	tracer trace.Tracer,
-	validityWindow validity_window.TimeValidityWindow[*Transaction],
+	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 ) *Accepter {
 	return &Accepter{

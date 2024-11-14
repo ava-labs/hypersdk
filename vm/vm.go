@@ -84,7 +84,7 @@ type VM struct {
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow validity_window.TimeValidityWindow[*chain.Transaction]
-	syncer                  *chain.Syncer
+	syncer                  validity_window.Syncer[*chain.Transaction]
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
@@ -332,7 +332,7 @@ func (vm *VM) Initialize(
 		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 	})
 
-	vm.chainTimeValidityWindow = validity_window.NewTimeValidityWindow[*chain.Transaction](vm.snowCtx.Log, vm.tracer, vm)
+	vm.chainTimeValidityWindow = validity_window.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
@@ -354,7 +354,9 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
+	vm.syncer = validity_window.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
+		return vm.ruleFactory.GetRules(time).GetValidityWindow()
+	})
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

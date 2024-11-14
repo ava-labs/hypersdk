@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -19,35 +18,6 @@ import (
 )
 
 var ErrDuplicateTx = errors.New("duplicate transaction")
-
-type ExecutionBlock[TxnTypePtr emap.Item] interface {
-	Parent() ids.ID
-	Timestamp() int64
-	Height() uint64
-	Txs() []TxnTypePtr
-	InitTxs() error
-	ContainsTx(ids.ID) bool
-}
-
-type ChainIndex[TxnTypePtr emap.Item] interface {
-	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[TxnTypePtr], error)
-	LastAcceptedBlockHeight() uint64
-}
-
-type TimeValidityWindow[TxnTypePtr emap.Item] interface {
-	Accept(blk ExecutionBlock[TxnTypePtr])
-	IsRepeat(
-		ctx context.Context,
-		parentBlk ExecutionBlock[TxnTypePtr],
-		txs []TxnTypePtr,
-		oldestAllowed int64,
-	) (set.Bits, error)
-	VerifyExpiryReplayProtection(
-		ctx context.Context,
-		blk ExecutionBlock[TxnTypePtr],
-		oldestAllowed int64,
-	) error
-}
 
 type timeValidityWindow[TxnTypePtr emap.Item] struct {
 	log    logging.Logger

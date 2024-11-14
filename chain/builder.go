@@ -21,7 +21,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
-	"github.com/ava-labs/hypersdk/internal/validity_window"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -68,7 +67,7 @@ type Builder struct {
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
 	mempool         Mempool
-	validityWindow  validity_window.TimeValidityWindow[*Transaction]
+	validityWindow  ValidityWindow
 	metrics         *chainMetrics
 	config          Config
 }
@@ -80,7 +79,7 @@ func NewBuilder(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	mempool Mempool,
-	validityWindow validity_window.TimeValidityWindow[*Transaction],
+	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
 ) *Builder {
