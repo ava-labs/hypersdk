@@ -67,7 +67,7 @@ type Processor struct {
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
 	validityWindow          *TimeValidityWindow
-	metrics                 *chainMetrics
+	metrics                 *Metrics
 	config                  Config
 }
 
@@ -80,7 +80,7 @@ func NewProcessor(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	validityWindow *TimeValidityWindow,
-	metrics *chainMetrics,
+	metrics *Metrics,
 	config Config,
 ) *Processor {
 	return &Processor{

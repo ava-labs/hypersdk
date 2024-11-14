@@ -81,7 +81,11 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
-	chain                   *chain.Chain
+	chainBuilder            *chain.Builder
+	processor               *chain.Processor
+	accepter                *chain.Accepter
+	preExecutor             *chain.PreExecutor
+	parser                  *chain.BlockParser
 	chainTimeValidityWindow *chain.TimeValidityWindow
 	syncer                  *chain.Syncer
 	seenValidityWindowOnce  sync.Once
@@ -323,6 +327,8 @@ func (vm *VM) Initialize(
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	// Must set parser before loading last accepted
+	vm.parser = chain.NewBlockParser(vm.tracer, vm)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -438,23 +444,46 @@ func (vm *VM) Initialize(
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
 	}
-	vm.chain, err = chain.NewChain(
-		vm.Tracer(),
-		registerer,
-		vm,
-		vm.Mempool(),
-		vm.Logger(),
-		vm.ruleFactory,
-		vm.MetadataManager(),
-		vm.BalanceHandler(),
-		vm.AuthVerifiers(),
-		vm,
-		vm.GetValidityWindow(),
-		vm.config.ChainConfig,
-	)
+
+	chainMetrics, err := chain.NewMetrics(registerer)
 	if err != nil {
 		return err
 	}
+
+	vm.chainBuilder = chain.NewBuilder(
+		vm.tracer,
+		vm.ruleFactory,
+		vm.snowCtx.Log,
+		vm.metadataManager,
+		vm.balanceHandler,
+		vm.mempool,
+		vm.chainTimeValidityWindow,
+		chainMetrics,
+		vm.config.ChainConfig,
+	)
+	vm.processor = chain.NewProcessor(
+		vm.tracer,
+		vm.snowCtx.Log,
+		vm.ruleFactory,
+		vm.authVerifiers,
+		vm,
+		vm.metadataManager,
+		vm.balanceHandler,
+		vm.chainTimeValidityWindow,
+		chainMetrics,
+		vm.config.ChainConfig,
+	)
+	vm.accepter = chain.NewAccepter(
+		vm.tracer,
+		vm.chainTimeValidityWindow,
+		chainMetrics,
+	)
+	vm.preExecutor = chain.NewPreExecutor(
+		vm.ruleFactory,
+		vm.chainTimeValidityWindow,
+		vm.metadataManager,
+		vm.balanceHandler,
+	)
 	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
 	go vm.processAcceptedBlocks()
 
@@ -894,7 +923,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		vm.snowCtx.Log.Warn("unable to get preferred block view", zap.Error(err))
 		return nil, err
 	}
-	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
+	executionBlk, executedBlk, view, err := vm.chainBuilder.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
@@ -907,7 +936,6 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		t:              time.UnixMilli(executionBlk.Tmstmp),
 		executedBlock:  executedBlk,
 		vm:             vm,
-		executor:       vm.chain,
 		view:           view,
 	}
 
@@ -953,7 +981,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, verifyAuth); err != nil {
+		if err := vm.preExecutor.PreExecute(ctx, blk.ExecutionBlock, view, tx, verifyAuth); err != nil {
 			errs = append(errs, err)
 			continue
 		}

@@ -12,7 +12,7 @@ import (
 
 const namespace = "chain"
 
-type chainMetrics struct {
+type Metrics struct {
 	txsVerified prometheus.Counter
 	txsAccepted prometheus.Counter
 
@@ -52,8 +52,8 @@ func (em *executorMetrics) RecordExecutable() {
 	em.executable.Inc()
 }
 
-func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
-	m := &chainMetrics{
+func NewMetrics(reg *prometheus.Registry) (*Metrics, error) {
+	m := &Metrics{
 		rootCalculatedCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "root_calculated_count",

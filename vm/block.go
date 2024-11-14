@@ -38,9 +38,8 @@ type StatefulBlock struct {
 
 	executedBlock *chain.ExecutedBlock
 
-	vm       *VM
-	executor *chain.Chain
-	view     merkledb.View
+	vm   *VM
+	view merkledb.View
 }
 
 func ParseBlock(
@@ -51,13 +50,13 @@ func ParseBlock(
 ) (*StatefulBlock, error) {
 	_, span := vm.Tracer().Start(ctx, "vm.ParseBlock")
 	defer span.End()
-	blk, err := vm.chain.ParseBlock(ctx, source)
+	blk, err := vm.parser.ParseBlock(ctx, source)
 	if err != nil {
 		return nil, err
 	}
 	// If it's possible to verify the block, start async verification
 	if vm.lastAccepted != nil && blk.Hght > vm.lastAccepted.Hght {
-		if err := vm.chain.AsyncVerify(ctx, blk); err != nil {
+		if err := vm.processor.AsyncVerify(ctx, blk); err != nil {
 			return nil, err
 		}
 	}
@@ -85,7 +84,6 @@ func ParseStatefulBlock(
 		accepted:       accepted,
 		t:              time.UnixMilli(blk.Tmstmp),
 		vm:             vm,
-		executor:       vm.chain,
 	}
 
 	return b, nil
@@ -170,7 +168,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	executedBlock, view, err := b.executor.Execute(ctx, parentView, b.ExecutionBlock)
+	executedBlock, view, err := b.vm.processor.Execute(ctx, parentView, b.ExecutionBlock)
 	if err != nil {
 		return err
 	}
@@ -228,7 +226,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 		return fmt.Errorf("%w: unable to commit block", err)
 	}
 
-	if err := b.vm.chain.AcceptBlock(ctx, b.ExecutionBlock); err != nil {
+	if err := b.vm.accepter.AcceptBlock(ctx, b.ExecutionBlock); err != nil {
 		return err
 	}
 
