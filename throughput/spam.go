@@ -199,7 +199,7 @@ func (s Spammer) broadcast(
 		select {
 		case <-it.C:
 			start := time.Now()
-
+			utils.Outf("{{cyan}}issuing %d transactions{{/}}\n", currentTarget)
 			// Check to see if we should wait for pending txs
 			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
