@@ -17,8 +17,8 @@ import (
 const InitialChunkSize = 250 * 1024
 
 type Tx interface {
-	GetID() ids.ID
-	GetExpiry() int64
+	ID() ids.ID
+	Expiry() int64
 }
 
 type UnsignedChunk[T Tx] struct {
@@ -115,6 +115,6 @@ type Block struct {
 	blkBytes []byte
 }
 
-func (b Block) GetID() ids.ID {
+func (b Block) ID() ids.ID {
 	return b.blkID
 }

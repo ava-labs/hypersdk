@@ -191,7 +191,7 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	}
 
 	blk := Block{
-		ParentID:   parent.GetID(),
+		ParentID:   parent.ID(),
 		Height:     parent.Height + 1,
 		Timestamp:  timestamp,
 		ChunkCerts: availableChunkCerts,

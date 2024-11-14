@@ -47,7 +47,7 @@ func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block) err
 	txSet := set.Set[ids.ID]{}
 	for _, chunk := range chunks {
 		for _, tx := range chunk.Txs {
-			txID := tx.GetID()
+			txID := tx.ID()
 			if txSet.Contains(txID) {
 				continue
 			}

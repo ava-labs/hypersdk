@@ -48,8 +48,8 @@ func TestNode_NewChunk(t *testing.T) {
 			name: "chunk with 1 tx",
 			txs: []tx{
 				{
-					ID:     ids.GenerateTestID(),
-					Expiry: 1,
+					id:     ids.GenerateTestID(),
+					expiry: 1,
 				},
 			},
 			expiry:      123,
@@ -59,16 +59,16 @@ func TestNode_NewChunk(t *testing.T) {
 			name: "chunk with multiple txs",
 			txs: []tx{
 				{
-					ID:     ids.GenerateTestID(),
-					Expiry: 1,
+					id:     ids.GenerateTestID(),
+					expiry: 1,
 				},
 				{
-					ID:     ids.GenerateTestID(),
-					Expiry: 2,
+					id:     ids.GenerateTestID(),
+					expiry: 2,
 				},
 				{
-					ID:     ids.GenerateTestID(),
-					Expiry: 3,
+					id:     ids.GenerateTestID(),
+					expiry: 3,
 				},
 			},
 			expiry:      123,
@@ -185,7 +185,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		[]tx{{id: ids.GenerateTestID(), expiry: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -275,7 +275,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		[]tx{{id: ids.GenerateTestID(), expiry: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -395,8 +395,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 0,
+							id:     ids.GenerateTestID(),
+							expiry: 0,
 						},
 					},
 					expiry:      123,
@@ -410,16 +410,16 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 0,
+							id:     ids.GenerateTestID(),
+							expiry: 0,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry:      123,
@@ -433,8 +433,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 0,
+							id:     ids.GenerateTestID(),
+							expiry: 0,
 						},
 					},
 					expiry:      123,
@@ -443,8 +443,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry:      123,
@@ -453,8 +453,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry:      123,
@@ -468,33 +468,16 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 0,
+							id:     ids.GenerateTestID(),
+							expiry: 0,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
-						},
-					},
-					expiry: 123,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 3,
-						},
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 4,
-						},
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 5,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry: 123,
@@ -502,16 +485,33 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 6,
+							id:     ids.GenerateTestID(),
+							expiry: 3,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 7,
+							id:     ids.GenerateTestID(),
+							expiry: 4,
 						},
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 8,
+							id:     ids.GenerateTestID(),
+							expiry: 5,
+						},
+					},
+					expiry: 123,
+				},
+				{
+					txs: []tx{
+						{
+							id:     ids.GenerateTestID(),
+							expiry: 6,
+						},
+						{
+							id:     ids.GenerateTestID(),
+							expiry: 7,
+						},
+						{
+							id:     ids.GenerateTestID(),
+							expiry: 8,
 						},
 					},
 					expiry: 123,
@@ -744,7 +744,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			r.NoError(err)
 			chunk, err := node2.NewChunk(
 				context.Background(),
-				[]tx{{ID: ids.Empty, Expiry: 123}},
+				[]tx{{id: ids.Empty, expiry: 123}},
 				123,
 				codec.Address{123},
 			)
@@ -876,7 +876,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(err)
 	chunk, err := node.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.Empty, Expiry: 123}},
+		[]tx{{id: ids.Empty, expiry: 123}},
 		123,
 		codec.Address{123},
 	)
@@ -992,7 +992,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	chunk, err := node2.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.Empty, Expiry: 1}},
+		[]tx{{id: ids.Empty, expiry: 1}},
 		1,
 		codec.Address{123},
 	)
@@ -1099,8 +1099,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry: 1,
@@ -1121,8 +1121,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry: 1,
@@ -1130,8 +1130,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry: 2,
@@ -1139,8 +1139,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry: 3,
@@ -1161,8 +1161,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry: 2,
@@ -1182,8 +1182,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry: 2,
@@ -1191,8 +1191,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry: 2,
@@ -1200,8 +1200,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+							id:     ids.GenerateTestID(),
+							expiry: 2,
 						},
 					},
 					expiry: 2,
@@ -1221,8 +1221,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+							id:     ids.GenerateTestID(),
+							expiry: 1,
 						},
 					},
 					expiry: 1,
@@ -1230,8 +1230,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				{
 					txs: []tx{
 						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 3,
+							id:     ids.GenerateTestID(),
+							expiry: 3,
 						},
 					},
 					expiry: 3,
@@ -1314,10 +1314,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				return
 			}
 
-			r.Equal(tt.parent.GetID(), blk.ParentID)
+			r.Equal(tt.parent.ID(), blk.ParentID)
 			r.Equal(tt.parent.Height+1, blk.Height)
 			r.Greater(blk.Timestamp, tt.parent.Timestamp)
-			r.NotEmpty(blk.GetID())
+			r.NotEmpty(blk.ID())
 			r.Len(blk.ChunkCerts, len(wantChunks))
 
 			for _, chunk := range wantChunks {
@@ -1378,7 +1378,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 
 	chunk, err := node1.NewChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
+		[]tx{{id: ids.GenerateTestID(), expiry: 1}},
 		1,
 		codec.Address{123},
 	)
@@ -1479,16 +1479,16 @@ func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeI
 }
 
 type tx struct {
-	ID     ids.ID `serialize:"true"`
-	Expiry int64  `serialize:"true"`
+	id     ids.ID `serialize:"true"`
+	expiry int64  `serialize:"true"`
 }
 
-func (t tx) GetID() ids.ID {
-	return t.ID
+func (t tx) ID() ids.ID {
+	return t.id
 }
 
-func (t tx) GetExpiry() int64 {
-	return t.Expiry
+func (t tx) Expiry() int64 {
+	return t.expiry
 }
 
 type failVerifier struct{}
