@@ -72,6 +72,13 @@ func (d *DatabaseShim) ContractCodeSize(addr common.Address, codeHash common.Has
 	d.setError(err)
 	return len(code), err
 }
+
+func (d *DatabaseShim) GetNonce(addr common.Address) (uint64, error) {
+	nonce, err := storage.GetNonce(d.ctx, d.mu, addr.Bytes())
+	d.setError(err)
+	return nonce, err
+}
+
 func (*DatabaseShim) CopyTrie(evm_state.Trie) evm_state.Trie { panic("unimplemented") }
 func (*DatabaseShim) DiskDB() ethdb.KeyValueStore            { panic("unimplemented") }
 func (*DatabaseShim) TrieDB() *triedb.Database               { panic("unimplemented") }

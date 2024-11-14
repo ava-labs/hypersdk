@@ -105,6 +105,7 @@ func (e *EvmCall) Execute(
 		return nil, err
 	}
 	_ = statedb.IntermediateRoot(true) //todo: ??
+
 	return &EvmCallResult{
 		Success: result.Err == nil,
 		Return:  result.ReturnData,

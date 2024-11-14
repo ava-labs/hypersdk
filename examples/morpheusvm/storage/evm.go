@@ -147,3 +147,23 @@ func SetCode(
 	k := CodeKey(addr.Bytes())
 	return mu.Insert(ctx, k, code)
 }
+
+func GetNonce(
+	ctx context.Context,
+	im state.Immutable,
+	addr []byte,
+) (uint64, error) {
+	k := AccountKey(addr)
+	val, err := im.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	account, err := DecodeAccount(val)
+	if err != nil {
+		return 0, err
+	}
+	return account.Nonce, nil
+}

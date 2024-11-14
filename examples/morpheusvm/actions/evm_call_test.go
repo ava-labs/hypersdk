@@ -20,19 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-/*
-deploy-
-deploy twice-
-deploy from within contract-
-transfer-
-transfer from within contract-
-call contract-
-call contract twice-
-delegatecall-
-ensure invalid TState access reverts!
-*run as much of EVM test suite against it as possible)* (later)
-*/
-
 func TestDeployment(t *testing.T) {
 	require := require.New(t)
 
@@ -68,6 +55,11 @@ func TestDeployment(t *testing.T) {
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
 	testCtx.Nonce++ // TODO: fix manual nonce tracking
+
+	// nonce, err := storage.GetNonce(testCtx.Context, testCtx.State, ToEVMAddress(testCtx.From).Bytes())
+	// t.Logf("nonce: %d", nonce)
+	// require.NoError(err)
+	// require.Equal(uint64(1), nonce)
 
 	secondDeployTest := &chaintest.ActionTest{
 		Name: "deploy same contract again",
