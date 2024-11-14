@@ -26,7 +26,6 @@ type VM interface {
 	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
-	PreferredBlock(context.Context) (*chain.ExecutionBlock, error)
 	ActionCodec() *codec.TypeParser[chain.Action]
 	AuthCodec() *codec.TypeParser[chain.Auth]
 	NodeID() ids.NodeID

@@ -250,7 +250,6 @@ func (vm *VM) Initialize(
 	}
 
 	// Set defaults
-	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
 	options := &Options{}
 	for _, Option := range vm.options {
@@ -323,6 +322,14 @@ func (vm *VM) Initialize(
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		if err != nil {
+			return 0, 0, err
+		}
+		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+	})
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
@@ -524,7 +531,7 @@ func (vm *VM) applyOptions(o *Options) {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm)
+		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	}
 	if o.gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
