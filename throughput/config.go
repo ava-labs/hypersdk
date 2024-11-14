@@ -61,7 +61,8 @@ func NewDefaultCliConfig(uris []string) (*Config, error) {
 		minTxsPerSecond: 15000,
 		txsPerSecondStep: 1000,
 		numClients: 10,
-		numAccounts: 10000000,
+		// numAccounts: 10000000,
+		numAccounts: 1000,
 
 	}, nil
 }
