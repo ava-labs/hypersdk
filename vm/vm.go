@@ -44,6 +44,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/dsmr"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
@@ -84,6 +85,7 @@ type VM struct {
 	chain                   *chain.Chain
 	chainTimeValidityWindow *chain.TimeValidityWindow
 	syncer                  *chain.Syncer
+	node                    *dsmr.Node[*chain.Transaction]
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
@@ -347,6 +349,23 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
+
+	dsmrNode, err := dsmr.New[*chain.Transaction](
+		snowCtx.NodeID,
+		snowCtx.NetworkID,
+		snowCtx.ChainID,
+		snowCtx.PublicKey,
+		snowCtx.WarpSigner,
+		dsmr.NoVerifier[*chain.Transaction]{},
+		vm.network.NewClient(0xd),
+		vm.network.NewClient(0xe),
+		vm.network.NewClient(0xf),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	vm.node = dsmrNode
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -907,7 +926,6 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		t:              time.UnixMilli(executionBlk.Tmstmp),
 		executedBlock:  executedBlk,
 		vm:             vm,
-		executor:       vm.chain,
 		view:           view,
 	}
 

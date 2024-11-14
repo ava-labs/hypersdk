@@ -38,9 +38,8 @@ type StatefulBlock struct {
 
 	executedBlock *chain.ExecutedBlock
 
-	vm       *VM
-	executor *chain.Chain
-	view     merkledb.View
+	vm   *VM
+	view merkledb.View
 }
 
 func ParseBlock(
@@ -85,7 +84,6 @@ func ParseStatefulBlock(
 		accepted:       accepted,
 		t:              time.UnixMilli(blk.Tmstmp),
 		vm:             vm,
-		executor:       vm.chain,
 	}
 
 	return b, nil
@@ -170,7 +168,7 @@ func (b *StatefulBlock) innerVerify(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	executedBlock, view, err := b.executor.Execute(ctx, parentView, b.ExecutionBlock)
+	executedBlock, view, err := b.vm.chain.Execute(ctx, parentView, b.ExecutionBlock)
 	if err != nil {
 		return err
 	}
