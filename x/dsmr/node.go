@@ -207,7 +207,7 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	return blk, nil
 }
 
-func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) error {
+func (*Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
 	for _, chunkCert := range block.ChunkCerts {
 		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
 			return err
@@ -216,7 +216,7 @@ func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) e
 	return nil
 }
 
-func (n *Node[T]) ParseBlock(ctx context.Context, bytes []byte) (Block, error) {
+func (*Node[T]) ParseBlock(_ context.Context, bytes []byte) (Block, error) {
 	var blk Block
 	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: bytes}, &blk); err != nil {
 		return Block{}, err
@@ -226,6 +226,7 @@ func (n *Node[T]) ParseBlock(ctx context.Context, bytes []byte) (Block, error) {
 	blk.blkID = utils.ToID(bytes)
 	return blk, nil
 }
+
 func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {
