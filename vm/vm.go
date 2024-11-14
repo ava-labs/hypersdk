@@ -800,17 +800,6 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
-	defer span.End()
-
-	blk, err := vm.GetStatefulBlock(ctx, blkID)
-	if err != nil {
-		return nil, err
-	}
-	return blk.ExecutionBlock, nil
-}
-
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {

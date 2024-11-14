@@ -33,9 +33,9 @@ import (
 )
 
 var (
-	_ gossiper.VM                                    = (*VM)(nil)
-	_ block.ChainVM                                  = (*VM)(nil)
-	_ block.StateSyncableVM                          = (*VM)(nil)
+	_ gossiper.VM                                   = (*VM)(nil)
+	_ block.ChainVM                                 = (*VM)(nil)
+	_ block.StateSyncableVM                         = (*VM)(nil)
 	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
 
@@ -93,6 +93,17 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 
 func (vm *VM) LastAcceptedBlockHeight() uint64 {
 	return vm.lastAccepted.ExecutionBlock.Height()
+}
+
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+	defer span.End()
+
+	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
 }
 
 func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
