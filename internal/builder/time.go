@@ -24,31 +24,31 @@ type Mempool interface {
 	Len(context.Context) int // items
 }
 
-// GetPreferedTimestampAndBlockGap function accepts the current timestamp and returns
+// GetPreferredTimestampAndBlockGap function accepts the current timestamp and returns
 // the preferred block's timestamp and the current rule's block gap.
 // If it fails to get the block, it should return a non-nil error.
-type GetPreferedTimestampAndBlockGap func(now int64) (preferedTimestamp int64, blockGap int64, err error)
+type GetPreferredTimestampAndBlockGap func(now int64) (preferredTimestamp int64, blockGap int64, err error)
 
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
-	engineCh                        chan<- common.Message
-	logger                          logging.Logger
-	mempool                         Mempool
-	getPreferedTimestampAndBlockGap GetPreferedTimestampAndBlockGap
-	doneBuild                       chan struct{}
+	engineCh                         chan<- common.Message
+	logger                           logging.Logger
+	mempool                          Mempool
+	getPreferredTimestampAndBlockGap GetPreferredTimestampAndBlockGap
+	doneBuild                        chan struct{}
 
 	timer     *timer.Timer
 	lastQueue int64
 	waiting   atomic.Bool
 }
 
-func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getPreferedTimestampAndBlockGap GetPreferedTimestampAndBlockGap) *Time {
+func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getPreferredTimestampAndBlockGap GetPreferredTimestampAndBlockGap) *Time {
 	b := &Time{
-		engineCh:                        engineCh,
-		logger:                          logger,
-		mempool:                         mempool,
-		getPreferedTimestampAndBlockGap: getPreferedTimestampAndBlockGap,
-		doneBuild:                       make(chan struct{}),
+		engineCh:                         engineCh,
+		logger:                           logger,
+		mempool:                          mempool,
+		getPreferredTimestampAndBlockGap: getPreferredTimestampAndBlockGap,
+		doneBuild:                        make(chan struct{}),
 	}
 	b.timer = timer.NewTimer(b.handleTimerNotify)
 	return b
@@ -83,7 +83,7 @@ func (b *Time) Queue(ctx context.Context) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	preferred, gap, err := b.getPreferedTimestampAndBlockGap(now)
+	preferred, gap, err := b.getPreferredTimestampAndBlockGap(now)
 	if err != nil {
 		// unable to retrieve block.
 		b.waiting.Store(false)
