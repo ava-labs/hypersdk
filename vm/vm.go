@@ -223,8 +223,8 @@ func (vm *VM) Initialize(
 	}
 
 	rawStateDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("rawstatedb", blockDBRegistry); err != nil {
-		return fmt.Errorf("failed to register blockdb metrics: %w", err)
+	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
+		return fmt.Errorf("failed to register rawstatedb metrics: %w", err)
 	}
 	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
 	if err != nil {
