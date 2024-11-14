@@ -86,6 +86,7 @@ func (b *Time) Queue(ctx context.Context) {
 	preferred, gap, err := b.getPreferedTimestampAndBlockGap(now)
 	if err != nil {
 		// unable to retrieve block.
+		b.waiting.Store(false)
 		b.logger.Warn("unable to get preferred timestamp and block gap", zap.Error(err))
 		return
 	}
