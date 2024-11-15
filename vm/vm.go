@@ -212,13 +212,21 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
 
+	blockDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
+		return fmt.Errorf("failed to register blockdb metrics: %w", err)
+	}
 	pebbleConfig := pebble.NewDefaultConfig()
-	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
 	if err != nil {
 		return err
 	}
 
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	rawStateDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
+		return fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+	}
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
 	if err != nil {
 		return err
 	}
