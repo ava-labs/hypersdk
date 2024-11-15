@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
@@ -34,7 +33,6 @@ import (
 
 var (
 	_ gossiper.ValidatorSet = (*VM)(nil)
-	_ builder.VM            = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
 )
@@ -310,14 +308,6 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.ExecutionBlock, error) {
-	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
-	if err != nil {
-		return nil, err
-	}
-	return blk.ExecutionBlock, nil
-}
-
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 	if err != nil {
@@ -328,10 +318,6 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 
 func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
-}
-
-func (vm *VM) EngineChan() chan<- common.Message {
-	return vm.toEngine
 }
 
 // Used for integration and load testing

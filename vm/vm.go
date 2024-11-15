@@ -244,6 +244,7 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	gossipRegistry := prometheus.NewRegistry()
@@ -268,10 +269,15 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
+	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		if err != nil {
+			return 0, 0, err
+		}
+		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+	})
+
 	options := &Options{}
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
@@ -546,7 +552,7 @@ func (vm *VM) applyOptions(o *Options) {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm)
+		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	}
 	if o.gossiper {
 		gossipRegistry := prometheus.NewRegistry()
