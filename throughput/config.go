@@ -44,15 +44,17 @@ func NewE2EConfig(
 	key *auth.PrivateKey,
 ) *Config {
 	return &Config{
-		uris:             uris,
-		key:              key,
-		sZipf:            1.0001,
-		vZipf:            2.7,
-		txsPerSecond:     7000,
-		minTxsPerSecond:  500,
+		uris: uris,
+		key: key,
+		sZipf: 1.0001,
+		vZipf: 2.7,
+		txsPerSecond: 100000,
+		minTxsPerSecond: 85000,
 		txsPerSecondStep: 1000,
-		numClients:       10,
-		numAccounts:      100000,
+		numClients: 10,
+		// numAccounts: 10000000,
+		numAccounts: 100000,
+
 	}
 }
 
@@ -75,12 +77,12 @@ func NewDefaultCliConfig(uris []string) (*Config, error) {
 		key: key,
 		sZipf: 1.0001,
 		vZipf: 2.7,
-		txsPerSecond: 7000,
-		minTxsPerSecond: 500,
+		txsPerSecond: 100000,
+		minTxsPerSecond: 15000,
 		txsPerSecondStep: 1000,
 		numClients: 10,
 		// numAccounts: 10000000,
-		numAccounts: 100,
+		numAccounts: 100000,
 
 	}, nil
 	// return &Config{

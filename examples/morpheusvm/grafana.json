@@ -122,7 +122,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_vm_txs_included[30s])",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_vm_txs_verified[30s])",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "instant": false,
@@ -132,7 +132,7 @@
           "useBackend": false
         }
       ],
-      "title": "Transactions Finalized (Rate)",
+      "title": "Transactions Verified (Rate)",
       "type": "timeseries"
     },
     {
@@ -222,7 +222,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_vm_txs_included",
+          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_vm_txs_verified",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "instant": false,
@@ -232,7 +232,7 @@
           "useBackend": false
         }
       ],
-      "title": "Transactions Finalized (Cummulative)",
+      "title": "Transactions Verified (Cummulative)",
       "type": "timeseries"
     },
     {
