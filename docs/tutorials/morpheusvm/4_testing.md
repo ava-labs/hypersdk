@@ -505,6 +505,6 @@ If you see this, then your VM passed the tests!
 Assuming the above went well, you've just built a VM which is functionally
 equivalent to MorpheusVM. Having built a base VM and extending it with options, we added tests to make sure our VM works as expected. 
 
-In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
+In the final two sections, we'll explore the Avalanche-CLI and the HyperSDK-CLI which will allow us to
 interact with our VM by reading from it and being able to send TXs in real time
 from the command line!

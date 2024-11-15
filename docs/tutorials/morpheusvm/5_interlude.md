@@ -6,121 +6,124 @@ local network and interacting with it via the HyperSDK-CLI.
 
 In this section, we'll:
 
-- Setting up our run/stop scripts
-- Adding end-to-end tests
+- Setting up the Avalanche-CLI
+- Defining our Genesis
 - Setting up our VM binary generator
 - Installing our CLI
 
 Let's get started!
 
-## Script Setup
+### Avalanche-CLI Installation
 
-To get started, in `examples/tutorial`, run the following commands:
-
-```bash
-cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
-cp ../morpheusvm/scripts/stop.sh ./scripts/stop.sh
-
-chmod +x ./scripts/run.sh
-chmod +x ./scripts/stop.sh
-```
-
-The commands above created a new folder named `scripts` and copied the run/stop
-scripts from MorpheusVM into our scripts folder, along with giving them
-execute permissions.
-
-Before moving forward, in lines 68-70, make sure to change it from this:
+Start by running the following in your command line:
 
 ```bash
-go build \
--o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
+curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s
 ```
 
-to this:
+This will install the `Avalanche-CLI` binary into `~/bin`. Next, you'll need to
+add the following to your `.bashrc` file:
 
 ```bash
-go build \
--o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/tutorialvm
+export PATH=~/bin:$PATH
 ```
 
-## Adding End-to-End Tests
-
-A caveat of the scripts above is that we need to define end-to-end (e2e) tests
-for our VM. To start, run the following:
+After restarting your terminal, running `avalanche` should give you the
+following:
 
 ```bash
-mkdir tests/e2e
-touch tests/e2e/e2e_test.go
+Usage:
+  avalanche [command]
+
+Available Commands:
+  blockchain            Create and deploy blockchains
+  config                Modify configuration for Avalanche-CLI
+  contract              Manage smart contracts
+  help                  Help about any command
+  ictt                  Manage Interchain Token Transferrers (shorthand for `interchain TokenTransferrer`)
+  interchain            Set and manage interoperability between blockchains
+  key                   Create and manage testnet signing keys
+  network               Manage locally deployed subnets
+  node                  Set up fuji and mainnet validator on cloud service
+  primary               Interact with the Primary Network
+  subnet                Create and deploy blockchains (deprecation notice: use 'avalanche blockchain')
+  teleporter            Interact with teleporter-enabled subnets
+  transaction           Sign and execute specific transactions
+  update                Check for latest updates of Avalanche-CLI
+
+Flags:
+      --config string       config file (default is $HOME/.avalanche-cli/config.json)
+  -h, --help                help for avalanche
+      --log-level string    log level for the application (default "ERROR")
+      --skip-update-check   skip check for new versions
+  -v, --version             version for avalanche
+
+Use "avalanche [command] --help" for more information about a command.
 ```
 
-Then, in `e2e_test.go`, write the following:
+## Adding our Genesis
 
-```go
-// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
+In `/tutorial`, create a file named `genesis.json` and paste the following:
 
-package e2e_test
-
-import (
-	"testing"
-	"time"
-
-	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/stretchr/testify/require"
-
-	_ "github.com/ava-labs/hypersdk/examples/tutorial/tests" // include the tests that are shared between the integration and e2e
-
-	"github.com/ava-labs/hypersdk/abi"
-	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
-	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
-	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
-	"github.com/ava-labs/hypersdk/tests/fixture"
-
-	he2e "github.com/ava-labs/hypersdk/tests/e2e"
-	ginkgo "github.com/onsi/ginkgo/v2"
-)
-
-const owner = "tutorial-e2e-tests"
-
-var flagVars *e2e.FlagVars
-
-func TestE2e(t *testing.T) {
-	ginkgo.RunSpecs(t, "tutorial e2e test suites")
+```json
+{
+    "stateBranchFactor": 16,
+    "customAllocation": [
+        {
+            "address": "0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017",
+            "balance": 10000000000000
+        },
+        {
+            "address": "0x003020338128fc7babb4e5850aace96e589f55b33bda90d62c44651de110ea5b8c0b5ee37f",
+            "balance": 10000000000000
+        }
+    ],
+    "initialRules": {
+        "minBlockGap": 100,
+        "minEmptyBlockGap": 750,
+        "minUnitPrice": {
+            "bandwidth": 100,
+            "compute": 100,
+            "storageRead": 100,
+            "storageAllocate": 100,
+            "storageWrite": 100
+        },
+        "unitPriceChangeDenominator": {
+            "bandwidth": 48,
+            "compute": 48,
+            "storageRead": 48,
+            "storageAllocate": 48,
+            "storageWrite": 48
+        },
+        "windowTargetUnits": {
+            "bandwidth": 18446744073709551615,
+            "compute": 18446744073709551615,
+            "storageRead": 18446744073709551615,
+            "storageAllocate": 18446744073709551615,
+            "storageWrite": 18446744073709551615
+        },
+        "maxBlockUnits": {
+            "bandwidth": 1800000,
+            "compute": 18446744073709551615,
+            "storageRead": 18446744073709551615,
+            "storageAllocate": 18446744073709551615,
+            "storageWrite": 18446744073709551615
+        },
+        "validityWindow": 60000,
+        "maxActionsPerTx": 16,
+        "maxOutputsPerAction": 1,
+        "baseUnits": 1,
+        "storageKeyReadUnits": 5,
+        "storageValueReadUnits": 2,
+        "storageKeyAllocateUnits": 20,
+        "storageValueAllocateUnits": 5,
+        "storageKeyWriteUnits": 10,
+        "storageValueWriteUnits": 3,
+        "sponsorStateKeysMaxChunks": [
+            1
+        ]
+    }
 }
-
-func init() {
-	flagVars = e2e.RegisterFlags()
-}
-
-// Construct tmpnet network with a single tutorial Subnet
-var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
-	require := require.New(ginkgo.GinkgoT())
-
-	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
-	require.NoError(err)
-
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
-	require.NoError(err)
-
-	firstKey := testingNetworkConfig.Keys()[0]
-	generator := workload.NewTxGenerator(firstKey)
-	spamKey := &auth.PrivateKey{
-		Address: auth.NewED25519Address(firstKey.PublicKey()),
-		Bytes:   firstKey[:],
-	}
-	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, spamKey)
-
-	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
-}, func(envBytes []byte) {
-	// Run in every ginkgo process
-
-	// Initialize the local test environment from the global state
-	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
-})
 
 ```
 
@@ -232,7 +235,7 @@ func versionFunc(*cobra.Command, []string) error {
 }
 ```
 
-## CLI Installation
+## HyperSDK-CLI Installation
 
 To start, install the HyperSDK-CLI by running the following:
 
