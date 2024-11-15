@@ -9,6 +9,7 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"sync/atomic"
 
 	"golang.org/x/exp/rand"
@@ -68,10 +69,11 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 }
 
 func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
-	return []chain.Action{&actions.Transfer{
-		To:    address,
-		Value: amount,
-		Memo:  memo,
+	to := actions.ToEVMAddress(address)
+	return []chain.Action{&actions.EvmCall{
+		To:    &to,
+		Value: big.NewInt(0).SetUint64(amount),
+		Data:  memo,
 	}}
 }
 

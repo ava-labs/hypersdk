@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
@@ -20,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/stretchr/testify/require"
 )
 
 var _ workload.TxGenerator = (*TxGenerator)(nil)
@@ -47,6 +46,20 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	toAddress := auth.NewED25519Address(to.PublicKey())
+	// toAddressEVM := actions.ToEVMAddress(toAddress)
+	call := &actions.Transfer{
+		To:    toAddress,
+		Value: 1,
+	}
+	// simRes, err := cli.SimulateActions(ctx, chain.Actions{call}, g.factory.Address())
+	// fmt.Println("simRes", simRes)
+
+	// if simRes[0].StateKeys != nil {
+	// call.Keys = simRes[0].StateKeys
+	// }
+	if err != nil {
+		return nil, nil, err
+	}
 	parser, err := lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -54,10 +67,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	_, tx, _, err := cli.GenerateTransaction(
 		ctx,
 		parser,
-		[]chain.Action{&actions.Transfer{
-			To:    toAddress,
-			Value: 1,
-		}},
+		[]chain.Action{call},
 		g.factory,
 	)
 	if err != nil {
@@ -80,7 +90,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	require.Equal(receiverExpectedBalance, balance)
 	txRes, _, err := indexerCli.GetTx(ctx, txID)
 	require.NoError(err)
-	// TODO: perform exact expected fee, units check, and output check
+
 	require.NotZero(txRes.Fee)
 	require.Len(txRes.Outputs, 1)
 	transferOutputBytes := []byte(txRes.Outputs[0])

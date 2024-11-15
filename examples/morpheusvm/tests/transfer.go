@@ -5,7 +5,6 @@ package tests
 
 import (
 	"context"
-	"math/big"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -35,13 +34,12 @@ var _ = registry.Register(TestsRegistry, "EVM Call Transaction", func(t ginkgo.F
 	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
 	spendingKey := networkConfig.Keys()[0]
 
-	toEVMAddress := actions.ToEVMAddress(toAddress)
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.EvmCall{
-		To:       &toEVMAddress,
-		Value:    big.NewInt(1),
-		GasLimit: uint64(1000000),
-		Data:     nil,
-	}},
+	call := &actions.Transfer{
+		To:    toAddress,
+		Value: 1,
+	}
+
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{call},
 		auth.NewED25519Factory(spendingKey),
 	)
 	require.NoError(err)

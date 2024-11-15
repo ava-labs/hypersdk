@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
@@ -28,10 +27,6 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //
 // 0x3/ (balance)
 //   -> [owner] => balance
-
-const balancePrefix byte = metadata.DefaultMinimumPrefix
-
-const BalanceChunks uint16 = 1
 
 // If locked is 0, then account does not exist
 func GetBalance(
