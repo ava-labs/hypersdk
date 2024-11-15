@@ -186,7 +186,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		for li, ltx := range txs {
 			txsAttempted++
 			if totalTxSize += ltx.Size(); totalTxSize > consts.MaxTotalTxSizePerBlock {
-				c.log.Debug("Transactions in exceeded block limit ", zap.Int("size", ltx.Size()))
+				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.Size()))
 				restorable = append(restorable, txs[li:]...)
 				break
 			}
