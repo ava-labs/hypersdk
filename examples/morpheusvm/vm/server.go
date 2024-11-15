@@ -59,7 +59,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	if err != nil {
 		return err
 	}
-	balance, err := storage.GetBalance(ctx, im, args.Address[:])
+	balance, err := storage.GetBalance(ctx, im, storage.ConvertAddress(args.Address))
 	if err != nil {
 		return err
 	}

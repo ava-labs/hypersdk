@@ -45,8 +45,8 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.AccountKey(actor[:])): state.Read | state.Write,
-		string(storage.AccountKey(t.To[:])):  state.All,
+		string(storage.AccountKey(storage.ConvertAddress(actor))): state.Read | state.Write,
+		string(storage.AccountKey(storage.ConvertAddress(t.To))):  state.All,
 	}
 }
 
@@ -64,11 +64,11 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return nil, ErrOutputMemoTooLarge
 	}
-	senderBalance, err := storage.SubBalance(ctx, mu, actor[:], t.Value)
+	senderBalance, err := storage.SubBalance(ctx, mu, storage.ConvertAddress(actor), t.Value)
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.AddBalance(ctx, mu, t.To[:], t.Value)
+	receiverBalance, err := storage.AddBalance(ctx, mu, storage.ConvertAddress(t.To), t.Value)
 	if err != nil {
 		return nil, err
 	}

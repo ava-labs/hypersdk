@@ -61,8 +61,8 @@ func (d *DatabaseShim) OpenStorageTrie(root common.Hash, addr common.Address, ha
 	return &trieShim{d}, nil
 }
 
-func (d *DatabaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
-	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr)
+func (d *DatabaseShim) ContractCode(addr common.Address, codeHash common.Hash) ([]byte, error) {
+	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr, codeHash)
 	d.setError(err)
 	return codeBytes, err
 }
@@ -74,7 +74,7 @@ func (d *DatabaseShim) ContractCodeSize(addr common.Address, codeHash common.Has
 }
 
 func (d *DatabaseShim) GetNonce(addr common.Address) (uint64, error) {
-	nonce, err := storage.GetNonce(d.ctx, d.mu, addr.Bytes())
+	nonce, err := storage.GetNonce(d.ctx, d.mu, addr)
 	d.setError(err)
 	return nonce, err
 }
@@ -90,14 +90,13 @@ type trieShim struct {
 func (*trieShim) GetKey([]byte) []byte { panic("unimplemented") }
 
 func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
-	value, err := storage.GetStorage(t.d.ctx, t.d.mu, addr.Bytes(), key)
+	value, err := storage.GetStorage(t.d.ctx, t.d.mu, addr, key)
 	t.d.setError(err)
 	return value, err
 }
 
 func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, error) {
-
-	bytes, err := storage.GetAccount(t.d.ctx, t.d.mu, address.Bytes())
+	bytes, err := storage.GetAccount(t.d.ctx, t.d.mu, address)
 	t.d.setError(err)
 	if err != nil {
 		return nil, err
@@ -114,7 +113,7 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
 	value = common.CopyBytes(value)
-	err := storage.SetStorage(t.d.ctx, t.d.mu, addr.Bytes(), key, value)
+	err := storage.SetStorage(t.d.ctx, t.d.mu, addr, key, value)
 	t.d.setError(err)
 	return err
 }
@@ -125,25 +124,25 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 		t.d.setError(err)
 		return err
 	}
-	err = storage.SetAccount(t.d.ctx, t.d.mu, address.Bytes(), encoded)
+	err = storage.SetAccount(t.d.ctx, t.d.mu, address, encoded)
 	t.d.setError(err)
 	return err
 }
 
-func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, code []byte) error {
-	err := storage.SetCode(t.d.ctx, t.d.mu, address, code)
+func (t *trieShim) UpdateContractCode(address common.Address, codeHash common.Hash, code []byte) error {
+	err := storage.SetCode(t.d.ctx, t.d.mu, address, codeHash, code)
 	t.d.setError(err)
 	return err
 }
 
-func (t *trieShim) DeleteStorage(addr common.Address, key []byte) error {
-	err := storage.DeleteStorage(t.d.ctx, t.d.mu, addr.Bytes(), key)
+func (t *trieShim) DeleteStorage(address common.Address, key []byte) error {
+	err := storage.DeleteStorage(t.d.ctx, t.d.mu, address, key)
 	t.d.setError(err)
 	return err
 }
 
 func (t *trieShim) DeleteAccount(address common.Address) error {
-	err := storage.DeleteAccount(t.d.ctx, t.d.mu, address.Bytes())
+	err := storage.DeleteAccount(t.d.ctx, t.d.mu, address)
 	t.d.setError(err)
 	return err
 }
