@@ -45,7 +45,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -80,7 +80,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -109,7 +109,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.FactoryABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.FactoryABI.DeployedBytecode)
@@ -199,7 +199,7 @@ func TestEVMTransfers(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			recipientAccount, err := storage.GetAccount(ctx, mu, to.Bytes())
+			recipientAccount, err := storage.GetAccount(ctx, mu, to)
 			require.NoError(err)
 			decodedAccount, err := storage.DecodeAccount(recipientAccount)
 			require.NoError(err)
@@ -227,12 +227,12 @@ func TestEVMTransfers(t *testing.T) {
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
 			Success: true,
-			UsedGas: 0x7a2c,
+			UsedGas: 0x7a38,
 			Return:  nil,
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			recipientAccount, err := storage.GetAccount(ctx, mu, to.Bytes())
+			recipientAccount, err := storage.GetAccount(ctx, mu, to)
 			require.NoError(err)
 			decodedAccount, err := storage.DecodeAccount(recipientAccount)
 			require.NoError(err)
@@ -260,19 +260,19 @@ func TestEVMTransfers(t *testing.T) {
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
 			Success: true,
-			UsedGas: 0x8067,
+			UsedGas: 0x8073,
 			Return:  nil,
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			recipientAccount, err := storage.GetAccount(ctx, mu, to.Bytes())
+			recipientAccount, err := storage.GetAccount(ctx, mu, to)
 			require.NoError(err)
 			decodedAccount, err := storage.DecodeAccount(recipientAccount)
 			require.NoError(err)
 			require.Equal(uint256.NewInt(3), decodedAccount.Balance) // Now has 3 (2 from previous + 1 from this transfer)
 
 			// Contract balance should be 0 as it forwards all received tokens
-			contractAccount, err := storage.GetAccount(ctx, mu, contractAddr.Bytes())
+			contractAccount, err := storage.GetAccount(ctx, mu, contractAddr)
 			require.NoError(err)
 			decodedContractAccount, err := storage.DecodeAccount(contractAccount)
 			require.NoError(err)

@@ -122,7 +122,7 @@ func InitAccount(ctx context.Context, mu state.Mutable, address codec.Address, b
 		return fmt.Errorf("failed to encode account: %w", err)
 	}
 	sender := ToEVMAddress(address)
-	err = storage.SetAccount(ctx, mu, sender[:], encoded)
+	err = storage.SetAccount(ctx, mu, sender, encoded)
 	if err != nil {
 		return fmt.Errorf("failed to set account: %w", err)
 	}

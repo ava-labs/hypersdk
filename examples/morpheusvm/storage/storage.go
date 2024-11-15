@@ -20,6 +20,10 @@ import (
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
+func ConvertAddress(addr codec.Address) common.Address {
+	return common.BytesToAddress(addr[:])
+}
+
 // State
 // 0x0/ (hypersdk-height)
 // 0x1/ (hypersdk-timestamp)
@@ -32,49 +36,30 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr []byte,
+	addr common.Address,
 ) (uint64, error) {
-	_, bal, _, err := getBalance(ctx, im, addr[:])
-	return bal, err
-}
-
-func getBalance(
-	ctx context.Context,
-	im state.Immutable,
-	addr []byte,
-) ([]byte, uint64, bool, error) {
 	k := AccountKey(addr)
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return nil, 0, false, nil
+		return 0, nil
 	}
 	if err != nil {
-		return nil, 0, false, err
+		return 0, err
 	}
 	account, err := DecodeAccount(val)
 	if err != nil {
-		return nil, 0, false, fmt.Errorf("failed to decode account: %w", err)
+		return 0, fmt.Errorf("failed to decode account: %w", err)
 	}
-	return k, account.Balance.Uint64(), true, nil
+	return account.Balance.Uint64(), nil
 }
 
 func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr []byte,
+	addr common.Address,
 	balance uint64,
 ) error {
-	k := AccountKey(addr)
-	return setBalance(ctx, mu, k, balance)
-}
-
-func setBalance(
-	ctx context.Context,
-	mu state.Mutable,
-	key []byte,
-	balance uint64,
-) error {
-	account, err := GetAccount(ctx, mu, key)
+	account, err := GetAccount(ctx, mu, addr)
 	if err != nil {
 		return err
 	}
@@ -87,18 +72,17 @@ func setBalance(
 	if err != nil {
 		return err
 	}
-	return mu.Insert(ctx, key, encoded)
+	return SetAccount(ctx, mu, addr, encoded)
 }
 
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr []byte,
+	addr common.Address,
 	amount uint64,
 ) (uint64, error) {
-
-	key, bal, _, err := getBalance(ctx, mu, addr)
-	if key == nil { // if the account does not exist, we need to create it according to the EVM spec
+	bal, err := GetBalance(ctx, mu, addr)
+	if err == database.ErrNotFound { // if the account does not exist, we need to create it according to the EVM spec
 		encoded, err := EncodeAccount(&types.StateAccount{
 			Balance: uint256.NewInt(0).SetUint64(amount),
 		})
@@ -107,7 +91,6 @@ func AddBalance(
 		}
 		return amount, mu.Insert(ctx, AccountKey(addr), encoded)
 	}
-
 	if err != nil {
 		return 0, err
 	}
@@ -130,17 +113,17 @@ func AddBalance(
 			amount,
 		)
 	}
-	return nbal, setBalance(ctx, mu, key, nbal)
+	return nbal, SetBalance(ctx, mu, addr, nbal)
 }
 
 func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr []byte,
+	addr common.Address,
 	amount uint64,
 ) (uint64, error) {
-	key, bal, ok, err := getBalance(ctx, mu, addr)
-	if !ok {
+	bal, err := GetBalance(ctx, mu, addr)
+	if err == database.ErrNotFound {
 		return 0, ErrInvalidBalance
 	}
 	if err != nil {
@@ -156,7 +139,7 @@ func SubBalance(
 			amount,
 		)
 	}
-	return nbal, setBalance(ctx, mu, key, nbal)
+	return nbal, SetBalance(ctx, mu, addr, nbal)
 }
 
 func EncodeAccount(account *types.StateAccount) ([]byte, error) {
