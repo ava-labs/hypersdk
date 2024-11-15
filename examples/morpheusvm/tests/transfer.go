@@ -5,6 +5,7 @@ package tests
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ import (
 // ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
-var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+var _ = registry.Register(TestsRegistry, "EVM Call Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
 	require := require.New(t)
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
@@ -34,9 +35,12 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
 	spendingKey := networkConfig.Keys()[0]
 
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
-		To:    toAddress,
-		Value: 1,
+	toEVMAddress := actions.ToEVMAddress(toAddress)
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.EvmCall{
+		To:       &toEVMAddress,
+		Value:    big.NewInt(1),
+		GasLimit: uint64(1000000),
+		Data:     nil,
 	}},
 		auth.NewED25519Factory(spendingKey),
 	)
