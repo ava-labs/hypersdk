@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
@@ -181,8 +182,15 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		e := executor.New(streamBatch, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorBuildRecorder)
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
+		totalTxSize := 0
 		for li, ltx := range txs {
 			txsAttempted++
+			if totalTxSize += ltx.Size(); totalTxSize > consts.MaxTotalTxSizePerBlock {
+				c.log.Debug("Transactions in exceeded block limit ", zap.Int("size", ltx.Size()))
+				restorable = append(restorable, txs[li:]...)
+				break
+			}
+
 			i := li
 			tx := ltx
 
