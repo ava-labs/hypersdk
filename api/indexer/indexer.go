@@ -112,7 +112,11 @@ func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 	if err := i.storeTransactions(blk); err != nil {
 		return fmt.Errorf("store transaction err: %w", err)
 	}
-	return fmt.Errorf("store block error: %w", i.storeBlock(blk))
+	err := i.storeBlock(blk)
+	if err != nil {
+		return fmt.Errorf("store block err: %w", err)
+	}
+	return nil
 }
 
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
@@ -122,15 +126,15 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal blk bytes: %w" , err)
 	}
 
 	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
-		return err
+		return fmt.Errorf("put block: %w", err)
 	}
 	// Ignore overflows in key calculation which will simply delete a non-existent key
 	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
-		return err
+		return fmt.Errorf("delete block: %w", err)
 	}
 
 	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)

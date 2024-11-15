@@ -20,6 +20,7 @@ const (
 	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
 	// no more than 50 KiB of overhead but is likely much less)
 	NetworkSizeLimit = 2_044_723 // 1.95 MiB
+	MaxTargetTxsSize = 1_500_000	// 1.43 MiB
 
 	// FIXME: should use the standard math.MaxUint8, etc.
 	MaxUint8              = ^uint8(0)

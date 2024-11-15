@@ -18,11 +18,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -163,7 +165,16 @@ func BuildBlock(
 		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
+		totalTxSize := 0
 		for li, ltx := range txs {
+			// check if block size is full 
+			if totalTxSize += ltx.size; totalTxSize > consts.MaxTargetTxsSize {
+				utils.Outf("{{red}}block size is full{{/}}\n")
+				log.Debug("block size is full hehehehehehekjnaskjl")
+				restorable = append(restorable, txs[li:]...)
+				break
+			}
+
 			txsAttempted++
 			i := li
 			tx := ltx

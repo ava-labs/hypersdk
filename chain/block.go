@@ -744,21 +744,28 @@ func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPri
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
 	blockBytes, err := b.Block.Marshal()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error marshalling block bytes: %w", err)
 	}
 
 	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
+	if size > consts.NetworkSizeLimit {
+		return nil, fmt.Errorf("block size exceeds network limit: %d", size)
+	}
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	writer.PackBytes(blockBytes)
 	resultBytes, err := MarshalResults(b.Results)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("results marshal err: %w", err)
 	}
 	writer.PackBytes(resultBytes)
 	writer.PackFixedBytes(b.UnitPrices.Bytes())
 
-	return writer.Bytes(), writer.Err()
+	err = writer.Err()
+	if err != nil {
+		return nil, fmt.Errorf("writer error: %w", err)
+	}
+	return writer.Bytes(), nil
 }
 
 func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
