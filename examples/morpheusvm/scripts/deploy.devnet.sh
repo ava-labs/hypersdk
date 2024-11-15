@@ -49,7 +49,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=d2a9fe7cf39bb3a2d7f5f355366e16f4494b0b6f
+LOCAL_CLI_COMMIT=18e5259b499bb9b487bb5e1e620d3107e68f2171
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT="9cf89d4f4d8f8e8fb2ce9d881a1203200c780b9d"
+MORPHEUS_VM_COMMIT="e3c056e2a5ee77c41513a07d1b496424d51e9915"
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -201,11 +201,11 @@ EPOCH_WAIT_START=$(date +%s)
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
 # Wait for epoch initialization
-SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
-EPOCH_SEC=$(($EPOCH_DURATION / 1000))
-VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
-echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
-echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
+# SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
+# EPOCH_SEC=$(($EPOCH_DURATION / 1000))
+# VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
+# echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
+# echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
 # sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
