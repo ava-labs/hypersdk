@@ -5,7 +5,11 @@ package workload
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"time"
+
+	"math/rand"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -36,27 +40,26 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 }
 
 func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
-	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
-	to, err := ed25519.GeneratePrivateKey()
+	// we directly generate the address to speed up the test
+	addr := make([]byte, 32)
+	_, err := rand.Read(addr)
 	if err != nil {
 		return nil, nil, err
 	}
+	address, err := hex.DecodeString(fmt.Sprintf("00%s", hex.EncodeToString(addr)))
+	if err != nil {
+		return nil, nil, err
+	}
+	toAddress := codec.Address(address)
 
-	toAddress := auth.NewED25519Address(to.PublicKey())
-	// toAddressEVM := actions.ToEVMAddress(toAddress)
 	call := &actions.Transfer{
 		To:    toAddress,
 		Value: 1,
 	}
-	// simRes, err := cli.SimulateActions(ctx, chain.Actions{call}, g.factory.Address())
-	// fmt.Println("simRes", simRes)
 
-	// if simRes[0].StateKeys != nil {
-	// call.Keys = simRes[0].StateKeys
-	// }
 	if err != nil {
 		return nil, nil, err
 	}
