@@ -39,7 +39,6 @@ func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	sh.pks = append(sh.pks, pk)
 	return pk, nil
 }

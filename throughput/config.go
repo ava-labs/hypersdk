@@ -49,12 +49,11 @@ func NewE2EConfig(
 		sZipf: 1.0001,
 		vZipf: 2.7,
 		txsPerSecond: 100000,
-		minTxsPerSecond: 85000,
+		minTxsPerSecond: 15000,
 		txsPerSecondStep: 1000,
 		numClients: 10,
 		// numAccounts: 10000000,
 		numAccounts: 100000,
-
 	}
 }
 

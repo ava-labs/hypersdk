@@ -110,9 +110,9 @@ func (i *Indexer) initBlocks() error {
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 	if err := i.storeTransactions(blk); err != nil {
-		return err
+		return fmt.Errorf("store transaction err: %w", err)
 	}
-	return i.storeBlock(blk)
+	return fmt.Errorf("store block error: %w", i.storeBlock(blk))
 }
 
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
@@ -210,9 +210,14 @@ func (*Indexer) storeTransaction(
 	}
 	writer.PackString(errorStr)
 	if err := writer.Err(); err != nil {
-		return err
+		return fmt.Errorf("writing error: %w", err)
 	}
-	return batch.Put(txID[:], writer.Bytes())
+
+	err := batch.Put(txID[:], writer.Bytes())
+	if err != nil {
+		return fmt.Errorf("putting tx: %w", err)
+	}
+	return nil
 }
 
 func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {

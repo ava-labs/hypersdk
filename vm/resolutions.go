@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -203,7 +204,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatefulBlock) {
 	executedBlock := chain.NewExecutedBlockFromStateful(b)
 	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Accept(executedBlock); err != nil {
-			vm.Fatal("subscription failed to process block", zap.Error(err))
+			vm.Fatal("subscription failed to process block", zap.Error(err), zap.String("subscription", fmt.Sprintf("%T", subscription)))
 		}
 	}
 

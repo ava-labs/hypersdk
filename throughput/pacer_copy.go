@@ -36,6 +36,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 				defer wg.Done()
 				_, wsErr, result, err := p.ws.ListenTx(ctx)
 				if err != nil {
+					utils.Outf("{{cyan}} Error listen too: %s\n", err)
 					select {
 					case errors <- err:
 					default:
@@ -43,6 +44,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 					return
 				}
 				if wsErr != nil {
+					utils.Outf("{{cyan}} Error websocket: %s\n", wsErr)
 					select {
 					case errors <- wsErr:
 					default:
@@ -63,7 +65,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 		wg.Wait()
 		select {
 		case err := <-errors:
-			utils.Outf("{{red}} Error: %s\n", err)
+			utils.Outf("{{red}} Error after waiting: %s\n", err)
 			p.done <- err
 		default:
 			p.done <- nil
