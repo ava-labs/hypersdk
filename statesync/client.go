@@ -24,20 +24,20 @@ const (
 	ChangeProofHandlerID = 1
 )
 
-var _ Accepter[StateSummaryContainer] = (*Client[StateSummaryContainer])(nil)
+var _ Accepter[StateSummaryBlock] = (*Client[StateSummaryBlock])(nil)
 
-type ChainClient[T StateSummaryContainer] interface {
+type ChainClient[T StateSummaryBlock] interface {
 	LastAcceptedStatefulBlock() T
 	GetDiskIsSyncing() (bool, error)
 	PutDiskIsSyncing(bool) error
 	ParseStatefulBlock(ctx context.Context, bytes []byte) (T, error)
 }
 
-type Accepter[T StateSummaryContainer] interface {
+type Accepter[T StateSummaryBlock] interface {
 	Accept(ctx context.Context, block T) (block.StateSyncMode, error)
 }
 
-type Client[T StateSummaryContainer] struct {
+type Client[T StateSummaryBlock] struct {
 	chain                 ChainClient[T]
 	log                   logging.Logger
 	registerer            prometheus.Registerer
@@ -61,7 +61,7 @@ type Client[T StateSummaryContainer] struct {
 	done         chan struct{}
 }
 
-func NewClient[T StateSummaryContainer](
+func NewClient[T StateSummaryBlock](
 	chain ChainClient[T],
 	log logging.Logger,
 	registerer prometheus.Registerer,

@@ -11,9 +11,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 )
 
-var _ block.StateSummary = (*SyncableBlock[StateSummaryContainer])(nil)
+var _ block.StateSummary = (*SyncableBlock[StateSummaryBlock])(nil)
 
-type StateSummaryContainer interface {
+type StateSummaryBlock interface {
 	ID() ids.ID
 	Height() uint64
 	Bytes() []byte
@@ -22,12 +22,12 @@ type StateSummaryContainer interface {
 	fmt.Stringer
 }
 
-type SyncableBlock[T StateSummaryContainer] struct {
+type SyncableBlock[T StateSummaryBlock] struct {
 	container T
 	accepter  Accepter[T] // accepter is nil if the SyncableBlock is constructed by the server
 }
 
-func NewSyncableBlock[T StateSummaryContainer](container T, accepter Accepter[T]) *SyncableBlock[T] {
+func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *SyncableBlock[T] {
 	return &SyncableBlock[T]{
 		container: container,
 		accepter:  accepter,

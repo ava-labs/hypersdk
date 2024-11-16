@@ -11,17 +11,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type ChainServer[T StateSummaryContainer] interface {
+type ChainServer[T StateSummaryBlock] interface {
 	LastAcceptedStatefulBlock() T
 	GetDiskBlock(ctx context.Context, height uint64) (T, error)
 }
 
-type Server[T StateSummaryContainer] struct {
+type Server[T StateSummaryBlock] struct {
 	chain ChainServer[T]
 	log   logging.Logger
 }
 
-func NewServer[T StateSummaryContainer](log logging.Logger, chain ChainServer[T]) *Server[T] {
+func NewServer[T StateSummaryBlock](log logging.Logger, chain ChainServer[T]) *Server[T] {
 	return &Server[T]{
 		chain: chain,
 		log:   log,
