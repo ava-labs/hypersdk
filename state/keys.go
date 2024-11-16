@@ -80,6 +80,10 @@ func (k Keys) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON unmarshals readable JSON.
 func (k *Keys) UnmarshalJSON(b []byte) error {
+	// Initialize map if nil
+	if *k == nil {
+		*k = make(Keys)
+	}
 	var keysJSON keysJSON
 	if err := json.Unmarshal(b, &keysJSON); err != nil {
 		return err

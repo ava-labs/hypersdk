@@ -243,3 +243,16 @@ func TestPermissionStringer(t *testing.T) {
 	require.Equal("none", None.String())
 	require.Equal("09", Permissions(9).String())
 }
+
+func TestUnmarshalIntoNilKeys(t *testing.T) {
+	require := require.New(t)
+
+	keys := Keys{}
+	require.True(keys.Add("key1", Read))
+	bytes, err := keys.MarshalJSON()
+	require.NoError(err)
+
+	var unmarshalledKeys Keys
+	require.NoError(unmarshalledKeys.UnmarshalJSON(bytes))
+	require.Len(unmarshalledKeys, 1)
+}
