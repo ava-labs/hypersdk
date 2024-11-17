@@ -254,24 +254,6 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return err
-	}
-
-	// Set defaults
-	vm.gossiper = txGossiper
-	options := &Options{}
-	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
-		if err != nil {
-			return err
-		}
-		opt.apply(options)
-	}
-	vm.applyOptions(options)
-
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
 		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
@@ -330,15 +312,19 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	// if we haven't had the builder created by the options, create it now.
-	if vm.builder == nil {
-		vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
-			if err != nil {
-				return 0, 0, err
-			}
-			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
-		})
+	// Set defaults
+	options := &Options{}
+	for _, Option := range vm.options {
+		config := vm.config.ServiceConfig[Option.Namespace]
+		opt, err := Option.optionFunc(vm, config)
+		if err != nil {
+			return err
+		}
+		opt.apply(options)
+	}
+	err = vm.applyOptions(options)
+	if err != nil {
+		return fmt.Errorf("failed to apply options : %v", err)
 	}
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
@@ -537,15 +523,30 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) {
+func (vm *VM) applyOptions(o *Options) error {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
+	} else {
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+			if err != nil {
+				return 0, 0, err
+			}
+			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+		})
 	}
 	if o.gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
+	} else {
+		txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+		if err != nil {
+			return err
+		}
+		vm.gossiper = txGossiper
 	}
+	return nil
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
