@@ -104,7 +104,7 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 	}
 	if len(bytes) > 0 {
 		account, err := storage.DecodeAccount(bytes)
-		fmt.Println("GetAccount", account.Balance.Uint64(), err)
+		fmt.Println("GetAccount", address, account.Balance.Uint64(), err)
 		if err != nil {
 			return nil, err
 		}

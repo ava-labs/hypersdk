@@ -140,7 +140,7 @@ func TraceAndExecute(ctx context.Context, require *require.Assertions, call *Evm
 	recorder := tstate.NewRecorder(mu)
 	result, err := call.Execute(ctx, r, recorder, time, from, txID)
 	require.NoError(err)
-	require.Nil(result.(*EvmCallResult).Err)
+	require.Equal(result.(*EvmCallResult).ErrorCode, NilError)
 	call.Keys = recorder.GetStateKeys()
 
 	stateKeys := call.StateKeys(from, txID)

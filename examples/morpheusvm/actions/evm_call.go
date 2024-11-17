@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,6 +19,7 @@ import (
 	"github.com/ava-labs/subnet-evm/core"
 	"github.com/ava-labs/subnet-evm/core/vm"
 	"github.com/ava-labs/subnet-evm/params"
+	"github.com/ava-labs/subnet-evm/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -34,11 +36,6 @@ type EvmCall struct {
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 	return e.GasLimit
 }
-
-// func ToEVMAddress(addr codec.Address) common.Address {
-// 	hashed := hashing.ComputeHash256(addr[:])
-// 	return common.BytesToAddress(hashed[len(hashed)-common.AddressLength:])
-// }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
 	return &core.Message{
@@ -106,21 +103,75 @@ func (e *EvmCall) Execute(
 	}
 	_ = statedb.IntermediateRoot(true) //todo: ??
 
+	var resultErrCode ErrorCode
+	switch result.Err {
+	case nil:
+		resultErrCode = NilError
+	case vmerrs.ErrExecutionReverted:
+		resultErrCode = ErrExecutionReverted
+	default:
+		resultErrCode = ErrExecutionFailed
+	}
+
 	return &EvmCallResult{
-		Success: result.Err == nil,
-		Return:  result.ReturnData,
-		UsedGas: result.UsedGas,
-		Err:     result.Err,
+		Success:   result.Err == nil,
+		Return:    result.ReturnData,
+		UsedGas:   result.UsedGas,
+		ErrorCode: resultErrCode,
 	}, nil
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)
 
 type EvmCallResult struct {
-	Success bool   `json:"success"`
-	UsedGas uint64 `json:"usedGas"`
-	Return  []byte `json:"return"`
-	Err     error  `json:"err"`
+	Success   bool        `serialize:"true" json:"success"`
+	UsedGas   uint64      `serialize:"true" json:"usedGas"`
+	Return    codec.Bytes `serialize:"true" json:"return"`
+	ErrorCode ErrorCode   `serialize:"true" json:"errorCode"`
+}
+
+// The result.Err field returned by core.ApplyMessage contains an error type, but
+// the actual value is not part of the EVM's state transition function. ie. if the
+// error changes it should not change the state transition (block/state).
+// We convert it to an error code representing the three differentiated error types:
+// nil (success), revert (special case), and all other erros as a generic failure.
+type ErrorCode byte
+
+const (
+	NilError ErrorCode = iota
+	ErrExecutionReverted
+	ErrExecutionFailed
+)
+
+func (e ErrorCode) String() string {
+	switch {
+	case e == NilError:
+		return "nil"
+	case e == ErrExecutionReverted:
+		return "reverted"
+	case e == ErrExecutionFailed:
+		return "failed"
+	default:
+		return "unknown"
+	}
+}
+
+func (e ErrorCode) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+func (e *ErrorCode) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "nil":
+		*e = NilError
+	case "reverted":
+		*e = ErrExecutionReverted
+	case "failed":
+		*e = ErrExecutionFailed
+	default:
+		return fmt.Errorf("failed to unmarshal error code: %s", text)
+	}
+	return nil
 }
 
 func (*EvmCallResult) GetTypeID() uint8 {
@@ -129,15 +180,4 @@ func (*EvmCallResult) GetTypeID() uint8 {
 
 func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
-}
-
-func UnmarshalKeys(p *codec.Packer) (state.Keys, error) {
-	numKeys := p.UnpackInt(false)
-	keys := make(state.Keys, numKeys)
-	for i := 0; i < int(numKeys); i++ {
-		key := p.UnpackString(false)
-		perm := state.Permissions(p.UnpackByte())
-		keys[key] = perm
-	}
-	return keys, p.Err()
 }

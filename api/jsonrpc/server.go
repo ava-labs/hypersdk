@@ -296,24 +296,21 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 
 	currentTime := time.Now().UnixMilli()
-	for _, action := range actions {
+	for i, action := range actions {
 		recorder := tstate.NewRecorder(currentState)
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
-
-		var actionResult SimulateActionResult
-		if actionOutput == nil {
-			actionResult.Output = []byte{}
-		} else {
-			actionResult.Output, err = chain.MarshalTyped(actionOutput)
-			if err != nil {
-				return fmt.Errorf("failed to marshal output: %w", err)
-			}
-		}
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to execute action: %w", err)
 		}
-		actionResult.StateKeys = recorder.GetStateKeys()
-		reply.ActionResults = append(reply.ActionResults, actionResult)
+
+		actionOutputBytes, err := chain.MarshalTyped(actionOutput)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output simulating action (%d: %v) output = %v: %w", i, action, actionOutput, err)
+		}
+		reply.ActionResults = append(reply.ActionResults, SimulateActionResult{
+			Output:    actionOutputBytes,
+			StateKeys: recorder.GetStateKeys(),
+		})
 		currentState = recorder
 	}
 	return nil

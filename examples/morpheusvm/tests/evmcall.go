@@ -6,11 +6,12 @@ package tests
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -41,63 +42,56 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
 	spendingKey := networkConfig.Keys()[0]
 
-	cli := jsonrpc.NewJSONRPCClient(tn.URIs()[1])
-	lcli := vm.NewJSONRPCClient(tn.URIs()[1])
-	// indexerCli := indexer.NewClient(tn.URIs()[0])
+	spendingKeyAuthFactory := auth.NewED25519Factory(spendingKey)
+	spendingKeyAddr := auth.NewED25519Address(networkConfig.Keys()[0].PublicKey())
+
+	cli := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
+	lcli := vm.NewJSONRPCClient(tn.URIs()[0])
+	indexerClient := indexer.NewClient(tn.URIs()[0])
 
 	toAddressEVM := storage.ConvertAddress(toAddress)
 
 	transferEVM := &actions.EvmCall{
 		To:       &toAddressEVM,
-		Value:    common.Big1,
+		Value:    big.NewInt(1),
 		GasLimit: 1000000,
 	}
 
-	// balanceSender, err := cli.GetBalance(context.Background(), auth.NewED25519Address(networkConfig.Keys()[0].PublicKey()))
-	// require.NoError(err)
-	// require.Equal(balanceSender, uint64(9999999690990))
-	simRes, err := cli.SimulateActions(context.Background(), chain.Actions{transferEVM}, auth.NewED25519Address(networkConfig.Keys()[0].PublicKey()))
+	simRes, err := cli.SimulateActions(context.Background(), chain.Actions{transferEVM}, spendingKeyAddr)
 	require.NoError(err)
-	fmt.Println("simRes", simRes[0].StateKeys)
-	out := simRes[0].Output
-	reader := codec.NewReader(out, len(out))
-	keys, err := actions.UnmarshalKeys(reader)
+	require.Len(simRes, 1)
+	actionResult := simRes[0]
+	evmCallOutputBytes := actionResult.Output
+	reader := codec.NewReader(evmCallOutputBytes, len(evmCallOutputBytes))
+	evmCallResultTyped, err := vm.OutputParser.Unmarshal(reader)
 	require.NoError(err)
-	fmt.Println("keys", keys)
+	evmCallResult, ok := evmCallResultTyped.(*actions.EvmCallResult)
+	require.True(ok)
+	evmCallStateKeys := actionResult.StateKeys
+	require.True(evmCallResult.Success)
+	transferEVM.Keys = evmCallStateKeys
 
-	if simRes[0].StateKeys != nil {
-		transferEVM.Keys = keys
-	} else {
-		require.Fail(fmt.Sprintf("no keys: %v", simRes[0]))
-	}
-
-	// time.Sleep(11 * time.Millisecond)
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{transferEVM},
-		auth.NewED25519Factory(spendingKey),
-	)
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{transferEVM}, spendingKeyAuthFactory)
 	require.NoError(err)
 
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+	response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+	require.NoError(err)
+	require.True(included)
+	require.True(response.Success)
+
+	fmt.Println("response", response)
+	fmt.Println("sender", spendingKeyAddr)
+	fmt.Println("senderEVM", storage.ConvertAddress(spendingKeyAddr))
+	fmt.Println("toAddr", toAddress)
+	fmt.Println("toAddrEVM", toAddressEVM)
 	balanceTo, err := lcli.Balance(timeoutCtx, toAddress)
-	fmt.Println("balanceTo", balanceTo)
 	require.NoError(err)
 	require.Equal(balanceTo, uint64(1))
-
-	// success, _, err := indexerCli.WaitForTransaction(timeoutCtx, txCheckInterval, tx.ID())
-	// require.NoError(err)
-	// require.True(success)
-
-	// callRes, _, err := indexerCli.GetTx(timeoutCtx, tx.ID())
-	// require.NoError(err)
-	// callOutputBytes := []byte(callRes.Outputs[0])
-	// require.Equal(consts.EvmCallID, callOutputBytes[0])
-	// reader := codec.NewReader(callOutputBytes, len(callOutputBytes))
-	// callOutputTyped, err := vm.OutputParser.Unmarshal(reader)
-	// require.NoError(err)
-	// callOutput, ok := callOutputTyped.(*actions.EvmCallResult)
-	// require.True(ok)
-	// require.True(callOutput.Success)
+	// are we converting between uint64 and big.Int correctly and handling nil values?
+	// are we handling address conversions correctly?
 })

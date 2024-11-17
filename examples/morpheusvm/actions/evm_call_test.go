@@ -39,10 +39,10 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
@@ -68,10 +68,10 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
@@ -97,10 +97,10 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x98bf6,
-			Return:  testCtx.FactoryABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x98bf6,
+			Return:    testCtx.FactoryABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.FactoryABI.DeployedBytecode))
@@ -129,10 +129,10 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x7c5bc,
-			Return:  common.LeftPadBytes(crypto.CreateAddress(factoryAddr, testCtx.FactoryNonce+1).Bytes(), 32), // each contract increases its nonce by 1
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x7c5bc,
+			Return:    common.LeftPadBytes(crypto.CreateAddress(factoryAddr, testCtx.FactoryNonce+1).Bytes(), 32), // each contract increases its nonce by 1
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 		},
@@ -162,10 +162,10 @@ func TestEVMTransfers(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 	}
 	deployTest.Run(testCtx.Context, t)
@@ -187,10 +187,10 @@ func TestEVMTransfers(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x5208,
-			Return:  nil,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x5208,
+			Return:    nil,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			recipientAccount, err := storage.GetAccount(ctx, mu, to)
@@ -220,10 +220,10 @@ func TestEVMTransfers(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x7a38,
-			Return:  nil,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x7a38,
+			Return:    nil,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			recipientAccount, err := storage.GetAccount(ctx, mu, to)
@@ -253,10 +253,10 @@ func TestEVMTransfers(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8073,
-			Return:  nil,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8073,
+			Return:    nil,
+			ErrorCode: NilError,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 			recipientAccount, err := storage.GetAccount(ctx, mu, to)
@@ -296,10 +296,10 @@ func TestEVMCalls(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 	}
 	deployTest.Run(testCtx.Context, t)
@@ -327,10 +327,10 @@ func TestEVMCalls(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0xaf73,
-			Return:  nil,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0xaf73,
+			Return:    nil,
+			ErrorCode: NilError,
 		},
 	}
 	setValueTest.Run(testCtx.Context, t)
@@ -353,10 +353,10 @@ func TestEVMCalls(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x5bce,
-			Return:  common.LeftPadBytes(value.Bytes(), 32), // Should return 42
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x5bce,
+			Return:    common.LeftPadBytes(value.Bytes(), 32), // Should return 42
+			ErrorCode: NilError,
 		},
 	}
 	getValueTest.Run(testCtx.Context, t)
@@ -376,10 +376,10 @@ func TestEVMCalls(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 	}
 	secondDeployTest.Run(testCtx.Context, t)
@@ -422,7 +422,7 @@ func TestEVMCalls(t *testing.T) {
 				common.LeftPadBytes(big.NewInt(32).Bytes(), 32),   // offset
 				common.LeftPadBytes(big.NewInt(0).Bytes(), 32)..., // empty return data
 			),
-			Err: nil,
+			ErrorCode: NilError,
 		},
 	}
 	delegateCallTest.Run(testCtx.Context, t)
@@ -443,10 +443,10 @@ func TestEVMCalls(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x5bce,
-			Return:  common.LeftPadBytes(big.NewInt(42).Bytes(), 32), // Should return 100 TODO: fix this
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x5bce,
+			Return:    common.LeftPadBytes(big.NewInt(42).Bytes(), 32), // Should return 100 TODO: fix this
+			ErrorCode: NilError,
 		},
 	}
 	finalGetValueTest.Run(testCtx.Context, t)
@@ -471,10 +471,10 @@ func TestEVMTstate(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success: true,
-			UsedGas: 0x8459a,
-			Return:  testCtx.TestContractABI.DeployedBytecode,
-			Err:     nil,
+			Success:   true,
+			UsedGas:   0x8459a,
+			Return:    testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode: NilError,
 		},
 	}
 	deployTest.Run(testCtx.Context, t)
@@ -509,7 +509,7 @@ func TestEVMTstate(t *testing.T) {
 	recorder := tstate.NewRecorder(testCtx.State)
 	result, err := tstateTest.Action.Execute(testCtx.Context, testCtx.Rules, recorder, testCtx.Timestamp, testCtx.From, testCtx.ActionID)
 	require.NoError(err)
-	require.Nil(result.(*EvmCallResult).Err)
+	require.Equal(result.(*EvmCallResult).ErrorCode, NilError)
 	call.Keys = recorder.GetStateKeys()
 
 	stateKeys := call.StateKeys(testCtx.From, testCtx.ActionID)
@@ -539,10 +539,10 @@ func TestEVMTstate(t *testing.T) {
 	tstateTest.Name = "correct state keys should succeed"
 	tstateTest.ExpectedErr = nil
 	tstateTest.ExpectedOutputs = &EvmCallResult{
-		Success: true,
-		UsedGas: 0xaf73,
-		Return:  []uint8(nil),
-		Err:     nil,
+		Success:   true,
+		UsedGas:   0xaf73,
+		Return:    []uint8(nil),
+		ErrorCode: NilError,
 	}
 	tstateTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))

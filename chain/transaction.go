@@ -346,17 +346,10 @@ func (t *Transaction) Execute(
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
-
-		var encodedOutput []byte
-		if actionOutput == nil {
-			// Ensure output standardization (match form we will
-			// unmarshal)
-			encodedOutput = []byte{}
-		} else {
-			encodedOutput, err = MarshalTyped(actionOutput)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
-			}
+		// TODO: skip check for nil and require action returns non-nil codec.Typed output if it does not return an error
+		encodedOutput, err := MarshalTyped(actionOutput)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
 		}
 
 		actionOutputs = append(actionOutputs, encodedOutput)
