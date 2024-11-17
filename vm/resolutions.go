@@ -105,7 +105,7 @@ func (vm *VM) IsBootstrapped() bool {
 
 func (vm *VM) State() (merkledb.MerkleDB, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
+	if !vm.StateSyncClient.StateReady() {
 		return nil, ErrStateMissing
 	}
 	return vm.stateDB, nil
@@ -140,7 +140,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 		vm.snowCtx.Log.Info(
 			"verified block",
 			zap.Stringer("blk", b.executedBlock),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	} else {
 		// [b.FeeManager] is not populated if the block
@@ -148,7 +148,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 		vm.snowCtx.Log.Info(
 			"skipped block verification",
 			zap.Stringer("blk", b),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	}
 }
@@ -288,7 +288,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 		"accepted block",
 		zap.Stringer("blk", b),
 		zap.Int("dropped mempool txs", len(removed)),
-		zap.Bool("state ready", vm.StateReady()),
+		zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 	)
 }
 

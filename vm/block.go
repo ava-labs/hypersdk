@@ -94,7 +94,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 		b.vm.RecordBlockVerify(time.Since(start))
 	}()
 
-	stateReady := b.vm.StateReady()
+	stateReady := b.vm.StateSyncClient.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
@@ -192,7 +192,7 @@ func (b *StatefulBlock) Accept(ctx context.Context) error {
 		// [StatefulBlock.Verify]. This is because the VM was state syncing
 		// and did not have the state necessary to verify the block.
 		// TODO: Move dynamic state sync block wrapper into state sync package.
-		updated, err := b.vm.Client.UpdateSyncTarget(b)
+		updated, err := b.vm.StateSyncClient.UpdateSyncTarget(b)
 		if err != nil {
 			return err
 		}

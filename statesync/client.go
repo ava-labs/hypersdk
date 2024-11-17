@@ -19,11 +19,6 @@ import (
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
-const (
-	RangeProofHandlerID  = 0
-	ChangeProofHandlerID = 1
-)
-
 var _ Accepter[StateSummaryBlock] = (*Client[StateSummaryBlock])(nil)
 
 type ChainClient[T StateSummaryBlock] interface {
@@ -38,15 +33,16 @@ type Accepter[T StateSummaryBlock] interface {
 }
 
 type Client[T StateSummaryBlock] struct {
-	chain                 ChainClient[T]
-	log                   logging.Logger
-	registerer            prometheus.Registerer
-	db                    merkledb.MerkleDB
-	network               *p2p.Network
-	syncManager           *avasync.Manager
-	merkleBranchFactor    merkledb.BranchFactor
-	minBlocks             uint64
-	simultaneousWorkLimit int
+	chain                                     ChainClient[T]
+	log                                       logging.Logger
+	registerer                                prometheus.Registerer
+	db                                        merkledb.MerkleDB
+	network                                   *p2p.Network
+	rangeProofHandlerID, changeProofHandlerID uint64
+	syncManager                               *avasync.Manager
+	merkleBranchFactor                        merkledb.BranchFactor
+	minBlocks                                 uint64
+	simultaneousWorkLimit                     int
 
 	// tracks the sync target so we can update last accepted
 	// block when sync completes.
@@ -67,6 +63,8 @@ func NewClient[T StateSummaryBlock](
 	registerer prometheus.Registerer,
 	db merkledb.MerkleDB,
 	network *p2p.Network,
+	rangeProofHandlerID uint64,
+	changeProofHandlerID uint64,
 	merkleBranchFactor merkledb.BranchFactor,
 	minBlocks uint64,
 	simultaneousWorkLimit int,
@@ -77,6 +75,8 @@ func NewClient[T StateSummaryBlock](
 		registerer:            registerer,
 		db:                    db,
 		network:               network,
+		rangeProofHandlerID:   rangeProofHandlerID,
+		changeProofHandlerID:  changeProofHandlerID,
 		merkleBranchFactor:    merkleBranchFactor,
 		minBlocks:             minBlocks,
 		simultaneousWorkLimit: simultaneousWorkLimit,
@@ -168,8 +168,8 @@ func (s *Client[T]) Accept(
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.merkleBranchFactor,
 		DB:                    s.db,
-		RangeProofClient:      s.network.NewClient(RangeProofHandlerID),
-		ChangeProofClient:     s.network.NewClient(ChangeProofHandlerID),
+		RangeProofClient:      s.network.NewClient(s.rangeProofHandlerID),
+		ChangeProofClient:     s.network.NewClient(s.changeProofHandlerID),
 		SimultaneousWorkLimit: s.simultaneousWorkLimit,
 		Log:                   s.log,
 		TargetRoot:            sb.GetStateRoot(),

@@ -134,8 +134,8 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	*statesync.Client[*StatefulBlock]
-	*statesync.Server[*StatefulBlock]
+	StateSyncClient *statesync.Client[*StatefulBlock]
+	StateSyncServer *statesync.Server[*StatefulBlock]
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -457,34 +457,7 @@ func (vm *VM) Initialize(
 	}
 	go vm.processAcceptedBlocks()
 
-	// Setup state syncing
-	vm.Server = statesync.NewServer[*StatefulBlock](
-		vm.snowCtx.Log,
-		vm,
-	)
-	syncerRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
-		snowCtx.Log.Error("could not register syncer metrics", zap.Error(err))
-		return err
-	}
-	vm.Client = statesync.NewClient[*StatefulBlock](
-		vm,
-		vm.snowCtx.Log,
-		syncerRegistry,
-		vm.stateDB,
-		vm.network,
-		vm.genesis.GetStateBranchFactor(),
-		vm.config.StateSyncMinBlocks,
-		vm.config.StateSyncParallelism,
-	)
-	if err := statesync.RegisterHandlers(vm.snowCtx.Log, vm.network, vm.stateDB); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		txGossipHandlerID,
-		NewTxGossipHandler(vm),
-	); err != nil {
+	if err := vm.initStateSync(); err != nil {
 		return err
 	}
 
@@ -547,7 +520,7 @@ func (vm *VM) markReady() {
 	select {
 	case <-vm.stop:
 		return
-	case <-vm.Client.Done():
+	case <-vm.StateSyncClient.Done():
 	}
 
 	// We can begin partailly verifying blocks here because
@@ -563,7 +536,7 @@ func (vm *VM) markReady() {
 	case <-vm.seenValidityWindow:
 	}
 	vm.snowCtx.Log.Info("validity window ready")
-	if vm.Client.Started() {
+	if vm.StateSyncClient.Started() {
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
@@ -571,7 +544,7 @@ func (vm *VM) markReady() {
 	// Mark node ready and attempt to build a block.
 	vm.snowCtx.Log.Info(
 		"node is now ready",
-		zap.Bool("synced", vm.Client.Started()),
+		zap.Bool("synced", vm.StateSyncClient.Started()),
 	)
 	vm.checkActivity(context.TODO())
 }
@@ -601,7 +574,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 		return nil
 	case snow.Bootstrapping:
 		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.Client.Started()
+		syncStarted := vm.StateSyncClient.Started()
 		if !syncStarted {
 			// We must check if we finished syncing before starting bootstrapping.
 			// This should only ever occur if we began a state sync, restarted, and
@@ -620,7 +593,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
-			vm.Client.ForceDone()
+			vm.StateSyncClient.ForceDone()
 
 			// TODO: add a config to FATAL here if could not state sync (likely won't be
 			// able to recover in networks where no one has the full state, bypass
@@ -643,7 +616,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
 		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.Client.Started()))
+			Info("normal operation started", zap.Bool("state sync started", vm.StateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -659,7 +632,7 @@ func (vm *VM) onBootstrapStarted() error {
 // ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
-	vm.Client.ForceDone()
+	vm.StateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
@@ -681,7 +654,7 @@ func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
-	if err := vm.Client.Shutdown(); err != nil {
+	if err := vm.StateSyncClient.Shutdown(); err != nil {
 		return err
 	}
 

@@ -14,12 +14,12 @@ import (
 var _ block.StateSummary = (*SyncableBlock[StateSummaryBlock])(nil)
 
 type StateSummaryBlock interface {
+	fmt.Stringer
 	ID() ids.ID
 	Height() uint64
 	Bytes() []byte
 	GetStateRoot() ids.ID
 	MarkAccepted(context.Context)
-	fmt.Stringer
 }
 
 type SyncableBlock[T StateSummaryBlock] struct {
