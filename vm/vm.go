@@ -324,7 +324,7 @@ func (vm *VM) Initialize(
 	}
 	err = vm.applyOptions(options)
 	if err != nil {
-		return fmt.Errorf("failed to apply options : %v", err)
+		return fmt.Errorf("failed to apply options : %w", err)
 	}
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
