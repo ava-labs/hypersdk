@@ -23,7 +23,15 @@ func (r *rawJSON) UnmarshalJSON(data []byte) error {
 }
 
 func (r rawJSON) AsString() string {
-	return string(r[1 : len(r)-1])
+	s := string(r)
+	if len(s) < 2 {
+		return s
+	}
+	// Only trim quotes if they exist
+	if s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	return s
 }
 
 func NewABI(compiledFn string) (*ParsedABI, error) {
@@ -59,4 +67,8 @@ func NewABI(compiledFn string) (*ParsedABI, error) {
 
 func (p *ParsedABI) BytecodeHex() string {
 	return hex.EncodeToString(p.Bytecode)
+}
+
+func (p *ParsedABI) DeployedBytecodeHex() string {
+	return hex.EncodeToString(p.DeployedBytecode)
 }

@@ -105,7 +105,7 @@ func (e *EvmCall) Execute(
 	if err := statedb.Error(); err != nil {
 		return nil, err
 	}
-	_ = statedb.IntermediateRoot(true) //todo: ??
+	_ = statedb.IntermediateRoot(true)
 
 	var resultErrCode ErrorCode
 	switch result.Err {
@@ -128,10 +128,10 @@ func (e *EvmCall) Execute(
 var _ codec.Typed = (*EvmCallResult)(nil)
 
 type EvmCallResult struct {
-	Success   bool        `serialize:"true" json:"success"`
-	UsedGas   uint64      `serialize:"true" json:"usedGas"`
-	Return    codec.Bytes `serialize:"true" json:"return"`
-	ErrorCode ErrorCode   `serialize:"true" json:"errorCode"`
+	Success   bool      `serialize:"true" json:"success"`
+	Return    []byte    `serialize:"true" json:"return"`
+	UsedGas   uint64    `serialize:"true" json:"usedGas"`
+	ErrorCode ErrorCode `serialize:"true" json:"errorCode"`
 }
 
 // The result.Err field returned by core.ApplyMessage contains an error type, but

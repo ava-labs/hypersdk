@@ -9,7 +9,6 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
-	"math/big"
 	"sync/atomic"
 
 	"golang.org/x/exp/rand"
@@ -73,7 +72,7 @@ func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte
 	to := storage.ConvertAddress(address)
 	return []chain.Action{&actions.EvmCall{
 		To:    &to,
-		Value: big.NewInt(0).SetUint64(amount),
+		Value: amount,
 		Data:  memo,
 	}}
 }

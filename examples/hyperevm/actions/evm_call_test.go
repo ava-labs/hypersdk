@@ -20,6 +20,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSerialization(t *testing.T) {
+	require := require.New(t)
+
+	sender := common.Address{1}
+	t.Log("testing serialization - empty To")
+	evmCall := &EvmCall{
+		To:       nil,
+		Value:    1,
+		GasLimit: 1000000,
+		Data:     []byte{},
+	}
+	msg := evmCall.toMessage(sender)
+	require.True(msg.To == nil)
+
+	t.Log("testing serialization - non-empty To")
+	evmCall = &EvmCall{
+		To:       &common.Address{1},
+		Value:    1,
+		GasLimit: 1000000,
+		Data:     []byte{},
+	}
+	msg = evmCall.toMessage(sender)
+	require.NotNil(msg.To)
+
+	t.Log("testing serialization - value")
+	evmCall = &EvmCall{
+		To:       &common.Address{1},
+		Value:    10,
+		GasLimit: 1000000,
+		Data:     []byte{},
+	}
+	msg = evmCall.toMessage(sender)
+	require.IsType(msg.Value, &big.Int{})
+}
+
 func TestDeployment(t *testing.T) {
 	require := require.New(t)
 

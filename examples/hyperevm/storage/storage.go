@@ -38,9 +38,6 @@ func GetBalance(
 	im state.Immutable,
 	addr common.Address,
 ) (balance uint64, err error) {
-	defer func() {
-		fmt.Printf("getting balance for %v is %d\n", addr, balance)
-	}()
 	k := AccountKey(addr)
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
@@ -75,7 +72,6 @@ func SetBalance(
 	if err != nil {
 		return err
 	}
-	fmt.Printf("setting balance for %v to %d\n", addr, balance)
 	return SetAccount(ctx, mu, addr, encoded)
 }
 
