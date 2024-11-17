@@ -130,3 +130,14 @@ func (*EvmCallResult) GetTypeID() uint8 {
 func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
+
+func UnmarshalKeys(p *codec.Packer) (state.Keys, error) {
+	numKeys := p.UnpackInt(false)
+	keys := make(state.Keys, numKeys)
+	for i := 0; i < int(numKeys); i++ {
+		key := p.UnpackString(false)
+		perm := state.Permissions(p.UnpackByte())
+		keys[key] = perm
+	}
+	return keys, p.Err()
+}

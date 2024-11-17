@@ -1,25 +1,18 @@
 <p align="center">
-  <img width="90%" alt="morpheusvm" src="assets/logo.jpeg">
+  <img width="90%" alt="morpheusvm" src="assets/hyperevm2.png">
 </p>
-<p align="center">
-  The Choice is Yours
+<p align="center" style="font-weight: bold;">
+  EVM and beyond
 </p>
 
 ---
 
-_[Who is Morpheus ("The Matrix")?](https://www.youtube.com/watch?v=zE7PKRjrid4)_
-
-The [`morpheusvm`](./examples/morpheusvm) provides the first glimpse into the world of the `hypersdk`.
-After learning how to implement native token transfers in a `hypervm` (one of the simplest Custom VMs
-you could make), you will have the choice to go deeper (red pill) or to turn back to the VMs that you
-already know (blue pill).
-
 ## Status
-`morpheusvm` is considered **ALPHA** software for demonstration purposes only. It is not safe to use in production.
+`hyperevm` is considered **ALPHA** software for demonstration purposes only. It is not safe to use in production.
 
 ## Getting Started
 
-### Building MorpheusVM from Source
+### Building HyperEVM from Source
 
 #### Clone the HyperSDK
 
@@ -27,24 +20,24 @@ Clone the HyperSDK repository:
 
 ```sh
 git clone git@github.com:ava-labs/hypersdk.git
-cd hypersdk/examples/morpheusvm
+cd hypersdk/examples/hyperevm
 ```
 
 This will clone and checkout the `main` branch.
 
-#### Building MorpheusVM
+#### Building HyperEVM
 
-Build MorpheusVM by running the build script:
+Build HyperEVM by running the build script:
 
 ```sh
 ./scripts/build.sh
 ```
 
-The `morpheusvm` binary is now in the `build/./` directory.
+The `hyperevm` binary is now in the `build/./` directory.
 
 ### Run Integration Tests
 
-To run the integration tests for MorpheusVM, run the following command:
+To run the integration tests for HyperEVM, run the following command:
 
 ```sh
 ./scripts/tests.integration.sh

@@ -61,18 +61,12 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	fmt.Println("simRes", simRes[0].StateKeys)
 	out := simRes[0].Output
 	reader := codec.NewReader(out, len(out))
-	callOutputTyped, err := vm.OutputParser.Unmarshal(reader)
+	keys, err := actions.UnmarshalKeys(reader)
 	require.NoError(err)
-	callOutput, ok := callOutputTyped.(*actions.EvmCallResult)
-	require.True(ok)
-	fmt.Println("simRes Success:", callOutput.Success)
-	if !callOutput.Success {
-		fmt.Println("simRes Error:", callOutput.Err)
-	}
-	fmt.Println("simRes Return Data:", callOutput.Return)
+	fmt.Println("keys", keys)
 
 	if simRes[0].StateKeys != nil {
-		transferEVM.Keys = simRes[0].StateKeys
+		transferEVM.Keys = keys
 	} else {
 		require.Fail(fmt.Sprintf("no keys: %v", simRes[0]))
 	}
