@@ -192,6 +192,8 @@ func (vm *VM) Initialize(
 ) error {
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
@@ -305,9 +307,6 @@ func (vm *VM) Initialize(
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
-
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
 	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
@@ -331,13 +330,16 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
-		if err != nil {
-			return 0, 0, err
-		}
-		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
-	})
+	// if we haven't had the builder created by the options, create it now.
+	if vm.builder == nil {
+		vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+			if err != nil {
+				return 0, 0, err
+			}
+			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+		})
+	}
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
