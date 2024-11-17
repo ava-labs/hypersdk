@@ -7,9 +7,10 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/statesync"
 )
 
 const (
