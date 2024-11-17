@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -69,7 +70,7 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 }
 
 func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
-	to := actions.ToEVMAddress(address)
+	to := storage.ConvertAddress(address)
 	return []chain.Action{&actions.EvmCall{
 		To:    &to,
 		Value: big.NewInt(0).SetUint64(amount),

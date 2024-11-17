@@ -5,6 +5,7 @@ package shim
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 
@@ -103,12 +104,14 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 	}
 	if len(bytes) > 0 {
 		account, err := storage.DecodeAccount(bytes)
+		fmt.Println("GetAccount", account.Balance.Uint64(), err)
 		if err != nil {
 			return nil, err
 		}
 		return account, nil
+	} else {
+		return types.NewEmptyStateAccount(), nil
 	}
-	return nil, nil
 }
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {

@@ -45,7 +45,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -53,13 +53,7 @@ func TestDeployment(t *testing.T) {
 	}
 	firstDeployTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
-
-	testCtx.Nonce++ // TODO: fix manual nonce tracking
-
-	// nonce, err := storage.GetNonce(testCtx.Context, testCtx.State, ToEVMAddress(testCtx.From).Bytes())
-	// t.Logf("nonce: %d", nonce)
-	// require.NoError(err)
-	// require.Equal(uint64(1), nonce)
+	testCtx.Nonce++
 
 	secondDeployTest := &chaintest.ActionTest{
 		Name: "deploy same contract again",
@@ -80,7 +74,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -109,7 +103,7 @@ func TestDeployment(t *testing.T) {
 			Err:     nil,
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.FactoryABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.FactoryABI.DeployedBytecode))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.FactoryABI.DeployedBytecode)
@@ -119,7 +113,7 @@ func TestDeployment(t *testing.T) {
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 	testCtx.Nonce++
 
-	factoryAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce-1) // we just deployed the factory
+	factoryAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce-1) // we just deployed the factory
 	deployData := testCtx.FactoryABI.ABI.Methods["deployContract"].ID
 	deployFromFactoryTest := &chaintest.ActionTest{
 		Name: "deploy contract from a contract",
@@ -152,7 +146,7 @@ func TestEVMTransfers(t *testing.T) {
 
 	testCtx := NewTestContext()
 
-	to := ToEVMAddress(testCtx.Recipient)
+	to := storage.ConvertAddress(testCtx.Recipient)
 
 	deployTest := &chaintest.ActionTest{
 		Name: "deploy contract for transfer tests",
@@ -177,7 +171,7 @@ func TestEVMTransfers(t *testing.T) {
 	deployTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	contractAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce)
+	contractAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce)
 	testCtx.Nonce++
 
 	directTransfer := &chaintest.ActionTest{
@@ -311,7 +305,7 @@ func TestEVMCalls(t *testing.T) {
 	deployTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	contractAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce)
+	contractAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce)
 	testCtx.Nonce++
 
 	// Test 1: Call setValue
@@ -391,7 +385,7 @@ func TestEVMCalls(t *testing.T) {
 	secondDeployTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	secondContractAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce)
+	secondContractAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce)
 	testCtx.Nonce++
 
 	// Test 4: Perform delegatecall to set value
@@ -486,7 +480,7 @@ func TestEVMTstate(t *testing.T) {
 	deployTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	contractAddr := crypto.CreateAddress(ToEVMAddress(testCtx.From), testCtx.Nonce)
+	contractAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce)
 	testCtx.Nonce++
 
 	value := big.NewInt(42)

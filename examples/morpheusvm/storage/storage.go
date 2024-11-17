@@ -84,12 +84,19 @@ func AddBalance(
 	bal, err := GetBalance(ctx, mu, addr)
 	if err == database.ErrNotFound { // if the account does not exist, we need to create it according to the EVM spec
 		encoded, err := EncodeAccount(&types.StateAccount{
-			Balance: uint256.NewInt(0).SetUint64(amount),
+			Nonce:    0,
+			Balance:  uint256.NewInt(0).SetUint64(amount),
+			Root:     common.Hash{},
+			CodeHash: []byte{},
 		})
 		if err != nil {
 			return 0, err
 		}
-		return amount, mu.Insert(ctx, AccountKey(addr), encoded)
+		err = mu.Insert(ctx, AccountKey(addr), encoded)
+		if err != nil {
+			return 0, err
+		}
+		return amount, nil
 	}
 	if err != nil {
 		return 0, err
@@ -155,7 +162,7 @@ func DecodeAccount(data []byte) (*types.StateAccount, error) {
 	var account types.StateAccount
 
 	if len(data) == 0 { // todo: check if this is correct
-		account.Balance = uint256.NewInt(0)
+		account = *types.NewEmptyStateAccount()
 		return &account, nil
 	}
 	p := codec.NewReader(data, len(data))

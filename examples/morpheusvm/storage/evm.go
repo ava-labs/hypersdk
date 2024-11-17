@@ -12,7 +12,9 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -95,7 +97,17 @@ func GetAccount(
 	k := AccountKey(addr)
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return nil, nil
+		newAcc := types.StateAccount{
+			Nonce:    0,
+			Balance:  uint256.NewInt(0),
+			Root:     common.Hash{},
+			CodeHash: []byte{},
+		}
+		encoded, err := EncodeAccount(&newAcc)
+		if err != nil {
+			return nil, err
+		}
+		return encoded, nil
 	}
 	if err != nil {
 		return nil, err

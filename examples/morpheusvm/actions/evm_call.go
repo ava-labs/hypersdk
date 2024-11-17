@@ -8,11 +8,11 @@ import (
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/subnet-evm/core"
@@ -35,10 +35,10 @@ func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 	return e.GasLimit
 }
 
-func ToEVMAddress(addr codec.Address) common.Address {
-	hashed := hashing.ComputeHash256(addr[:])
-	return common.BytesToAddress(hashed[len(hashed)-common.AddressLength:])
-}
+// func ToEVMAddress(addr codec.Address) common.Address {
+// 	hashed := hashing.ComputeHash256(addr[:])
+// 	return common.BytesToAddress(hashed[len(hashed)-common.AddressLength:])
+// }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
 	return &core.Message{
@@ -86,7 +86,7 @@ func (e *EvmCall) Execute(
 	}
 
 	statedb, shim := shim.NewStateDB(ctx, mu)
-	from := ToEVMAddress(actor)
+	from := storage.ConvertAddress(actor)
 	msg := e.toMessage(from)
 	txContext := core.NewEVMTxContext(msg)
 	chainConfig := params.SubnetEVMDefaultChainConfig
