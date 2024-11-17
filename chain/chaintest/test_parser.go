@@ -10,14 +10,14 @@ import (
 )
 
 type Parser struct {
-	rules       genesis.RuleFactory
+	rules       chain.RuleFactory
 	actionCodec *codec.TypeParser[chain.Action]
 	authCodec   *codec.TypeParser[chain.Auth]
 	outputCodec *codec.TypeParser[codec.Typed]
 }
 
 func NewParser(
-	ruleFactory genesis.RuleFactory,
+	ruleFactory chain.RuleFactory,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],

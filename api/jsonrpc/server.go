@@ -120,10 +120,10 @@ type LastAcceptedReply struct {
 }
 
 func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := j.vm.LastAcceptedBlock()
-	reply.Height = blk.Hght
-	reply.BlockID = blk.ID()
-	reply.Timestamp = blk.Tmstmp
+	blk := j.vm.LastAcceptedBlockResult()
+	reply.Height = blk.Block.Hght
+	reply.BlockID = blk.Block.ID()
+	reply.Timestamp = blk.Block.Tmstmp
 	return nil
 }
 
@@ -297,7 +297,7 @@ func (j *JSONRPCServer) SimulateActions(
 
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
-		recorder := state.NewRecorder(currentState)
+		recorder := tstate.NewRecorder(currentState)
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
 
 		var actionResult SimulateActionResult

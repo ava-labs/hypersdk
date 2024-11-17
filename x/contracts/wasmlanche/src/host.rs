@@ -257,6 +257,7 @@ mod external_wrappers {
     use crate::HostPtr;
 
     impl StateAccessor {
+        #[inline]
         pub fn put(args: &[u8]) {
             #[link(wasm_import_module = "state")]
             extern "C" {
@@ -269,6 +270,7 @@ mod external_wrappers {
             }
         }
 
+        #[inline]
         pub fn get_bytes(args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "state")]
             extern "C" {
@@ -291,6 +293,7 @@ mod external_wrappers {
             Accessor
         }
 
+        #[inline]
         pub fn deploy(&self, args: &[u8]) -> HostPtr {
             use crate::HostPtr;
             #[link(wasm_import_module = "contract")]
@@ -302,6 +305,7 @@ mod external_wrappers {
             unsafe { deploy(args.as_ptr(), args.len()) }
         }
 
+        #[inline]
         pub fn call_contract(&self, args: &CallContractArgs) -> HostPtr {
             #[link(wasm_import_module = "contract")]
             extern "C" {
@@ -314,6 +318,7 @@ mod external_wrappers {
             unsafe { call_contract(args.as_ptr(), args.len()) }
         }
 
+        #[inline]
         pub fn get_balance(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
@@ -324,6 +329,7 @@ mod external_wrappers {
             unsafe { get(args.as_ptr(), args.len()) }
         }
 
+        #[inline]
         pub fn get_remaining_fuel(&self) -> HostPtr {
             #[link(wasm_import_module = "contract")]
             extern "C" {
@@ -334,6 +340,7 @@ mod external_wrappers {
             unsafe { get_remaining_fuel() }
         }
 
+        #[inline]
         pub fn send_value(&self, args: &[u8]) -> HostPtr {
             #[link(wasm_import_module = "balance")]
             extern "C" {
