@@ -28,7 +28,7 @@ func TestDeployment(t *testing.T) {
 	firstDeployTest := &chaintest.ActionTest{
 		Name: "deploy contract",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 			Keys:     state.Keys{},
@@ -58,7 +58,7 @@ func TestDeployment(t *testing.T) {
 	secondDeployTest := &chaintest.ActionTest{
 		Name: "deploy same contract again",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 		},
@@ -87,7 +87,7 @@ func TestDeployment(t *testing.T) {
 	factoryDeployTest := &chaintest.ActionTest{
 		Name: "deploy factory contract",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.FactoryABI.Bytecode,
 		},
@@ -119,7 +119,7 @@ func TestDeployment(t *testing.T) {
 		Name: "deploy contract from a contract",
 		Action: &EvmCall{
 			To:       &factoryAddr,
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     deployData,
 		},
@@ -151,7 +151,7 @@ func TestEVMTransfers(t *testing.T) {
 	deployTest := &chaintest.ActionTest{
 		Name: "deploy contract for transfer tests",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 			Keys:     state.Keys{},
@@ -178,7 +178,7 @@ func TestEVMTransfers(t *testing.T) {
 		Name: "direct EOA to EOA transfer",
 		Action: &EvmCall{
 			To:       &to,
-			Value:    common.Big1,
+			Value:    1,
 			GasLimit: testCtx.SufficientGas,
 		},
 		Rules:     testCtx.Rules,
@@ -210,7 +210,7 @@ func TestEVMTransfers(t *testing.T) {
 		Name: "transfer through transferToAddress",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big1,
+			Value:    1,
 			GasLimit: testCtx.SufficientGas,
 			Data:     transferData,
 		},
@@ -243,7 +243,7 @@ func TestEVMTransfers(t *testing.T) {
 		Name: "transfer through transferThroughContract",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big1,
+			Value:    1,
 			GasLimit: testCtx.SufficientGas,
 			Data:     transferThroughData,
 		},
@@ -286,7 +286,7 @@ func TestEVMCalls(t *testing.T) {
 	deployTest := &chaintest.ActionTest{
 		Name: "deploy contract for calls",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 		},
@@ -317,7 +317,7 @@ func TestEVMCalls(t *testing.T) {
 		Name: "call setValue",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     setValueData,
 		},
@@ -343,7 +343,7 @@ func TestEVMCalls(t *testing.T) {
 		Name: "call getValue",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     getValueData,
 		},
@@ -366,7 +366,7 @@ func TestEVMCalls(t *testing.T) {
 	secondDeployTest := &chaintest.ActionTest{
 		Name: "deploy second contract for delegatecall",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 		},
@@ -406,7 +406,7 @@ func TestEVMCalls(t *testing.T) {
 		Name: "perform delegatecall",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     packedData,
 		},
@@ -433,7 +433,7 @@ func TestEVMCalls(t *testing.T) {
 		Name: "verify value after delegatecall",
 		Action: &EvmCall{
 			To:       &contractAddr,
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     getValueData,
 		},
@@ -461,7 +461,7 @@ func TestEVMTstate(t *testing.T) {
 	deployTest := &chaintest.ActionTest{
 		Name: "deploy contract for calls",
 		Action: &EvmCall{
-			Value:    common.Big0,
+			Value:    0,
 			GasLimit: testCtx.SufficientGas,
 			Data:     testCtx.TestContractABI.Bytecode,
 		},
@@ -489,7 +489,7 @@ func TestEVMTstate(t *testing.T) {
 
 	call := &EvmCall{
 		To:       &contractAddr,
-		Value:    common.Big0,
+		Value:    0,
 		GasLimit: testCtx.SufficientGas,
 		Data:     setValueData,
 		Keys:     state.Keys{},

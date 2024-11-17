@@ -27,7 +27,7 @@ var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
 	To       *common.Address `serialize:"true" json:"to"`        // Address of the contract to call (nil means contract creation)
-	Value    *big.Int        `serialize:"true" json:"value"`     // Amount of native tokens to send
+	Value    uint64          `serialize:"true" json:"value"`     // Amount of native tokens to send
 	GasLimit uint64          `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
 	Data     []byte          `serialize:"true" json:"data"`      // Input data for the transaction
 	Keys     state.Keys      `serialize:"true" json:"stateKeys"` // State keys accessed by this call
@@ -38,10 +38,10 @@ func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
-	return &core.Message{
+	coreMessage := &core.Message{
 		From:              from,
 		To:                e.To,
-		Value:             e.Value,
+		Value:             big.NewInt(int64(e.Value)),
 		GasLimit:          e.GasLimit,
 		Data:              e.Data,
 		GasPrice:          big.NewInt(0),
@@ -49,6 +49,10 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		GasTipCap:         big.NewInt(0),
 		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
+	if e.To == nil || *e.To == (common.Address{}) {
+		coreMessage.To = nil
+	}
+	return coreMessage
 }
 
 func (*EvmCall) GetTypeID() uint8 {

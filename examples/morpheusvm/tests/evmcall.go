@@ -6,7 +6,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -53,7 +52,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 
 	transferEVM := &actions.EvmCall{
 		To:       &toAddressEVM,
-		Value:    big.NewInt(1),
+		Value:    1,
 		GasLimit: 1000000,
 	}
 
