@@ -27,7 +27,7 @@ type Mempool interface {
 // GetPreferredTimestampAndBlockGap function accepts the current timestamp and returns
 // the preferred block's timestamp and the current rule's block gap.
 // If it fails to get the block, it should return a non-nil error.
-type GetPreferredTimestampAndBlockGap func(now int64) (preferredTimestamp int64, blockGap int64, err error)
+type GetPreferredTimestampAndBlockGap func(ctx context.Context, now int64) (preferredTimestamp int64, blockGap int64, err error)
 
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
@@ -36,6 +36,7 @@ type Time struct {
 	mempool                          Mempool
 	getPreferredTimestampAndBlockGap GetPreferredTimestampAndBlockGap
 	doneBuild                        chan struct{}
+	cancelCtxFunc                    context.CancelFunc
 
 	timer     *timer.Timer
 	lastQueue int64
@@ -43,14 +44,19 @@ type Time struct {
 }
 
 func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getPreferredTimestampAndBlockGap GetPreferredTimestampAndBlockGap) *Time {
+	cancelCtx, CancelCtxFunc := context.WithCancel(context.Background())
 	b := &Time{
 		engineCh:                         engineCh,
 		logger:                           logger,
 		mempool:                          mempool,
 		getPreferredTimestampAndBlockGap: getPreferredTimestampAndBlockGap,
 		doneBuild:                        make(chan struct{}),
+		cancelCtxFunc:                    CancelCtxFunc,
 	}
-	b.timer = timer.NewTimer(b.handleTimerNotify)
+	b.timer = timer.NewTimer(func() {
+		b.handleTimerNotify(cancelCtx)
+	})
+
 	return b
 }
 
@@ -59,11 +65,11 @@ func (b *Time) Run() {
 	b.timer.Dispatch()      // this blocks
 }
 
-func (b *Time) handleTimerNotify() {
-	if err := b.Force(context.TODO()); err != nil {
+func (b *Time) handleTimerNotify(ctx context.Context) {
+	if err := b.Force(ctx); err != nil {
 		b.logger.Warn("unable to build", zap.Error(err))
 	} else {
-		txs := b.mempool.Len(context.TODO())
+		txs := b.mempool.Len(ctx)
 		b.logger.Debug("trigger to notify", zap.Int("txs", txs))
 	}
 	b.waiting.Store(false)
@@ -83,7 +89,7 @@ func (b *Time) Queue(ctx context.Context) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	preferred, gap, err := b.getPreferredTimestampAndBlockGap(now)
+	preferred, gap, err := b.getPreferredTimestampAndBlockGap(ctx, now)
 	if err != nil {
 		// unable to retrieve block.
 		b.waiting.Store(false)
@@ -95,7 +101,7 @@ func (b *Time) Queue(ctx context.Context) {
 		if err := b.Force(ctx); err != nil {
 			b.logger.Warn("unable to build", zap.Error(err))
 		} else {
-			txs := b.mempool.Len(context.TODO())
+			txs := b.mempool.Len(ctx)
 			b.logger.Debug("notifying to build without waiting", zap.Int("txs", txs))
 		}
 		b.waiting.Store(false)
@@ -118,5 +124,6 @@ func (b *Time) Force(context.Context) error {
 }
 
 func (b *Time) Done() {
+	b.cancelCtxFunc()
 	b.timer.Stop()
 }
