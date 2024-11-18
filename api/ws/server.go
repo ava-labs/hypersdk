@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -32,7 +31,7 @@ const (
 var (
 	_ api.HandlerFactory[api.VM] = (*WebSocketServerFactory)(nil)
 
-	ErrExpired = errors.New("expired buddy boi")
+	ErrExpired = errors.New("expired")
 )
 
 type Config struct {
@@ -173,7 +172,6 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
 		if err := w.removeTx(id, ErrExpired); err != nil {
-			utils.Outf("{{green}} expired tx %s: %s\n", id, err)
 			return err
 		}
 	}

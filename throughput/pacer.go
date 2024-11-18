@@ -27,11 +27,11 @@ func (p *pacer) Run(ctx context.Context, max int) {
 	for range p.inflight {
 		_, wsErr, result, err := p.ws.ListenTx(ctx)
 		if err != nil {
-			p.done <- fmt.Errorf("error Listening To Tx: %w", err)
+			p.done <- fmt.Errorf("error listening to tx: %w", err)
 			return
 		}
 		if wsErr != nil {
-			p.done <- fmt.Errorf("websocket Error: %w", wsErr)
+			p.done <- fmt.Errorf("websocket error: %w", wsErr)
 			return
 		}
 		if !result.Success {

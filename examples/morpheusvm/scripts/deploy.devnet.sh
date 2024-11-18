@@ -74,16 +74,15 @@ cd $pw
 
 # Generate genesis file and configs
 #
-# We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
+# We use a shorter VALIDITY_WINDOW to speed up devnet
 # startup. In a production environment, these should be set to longer values.
 #
 # Addresses:
-# morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu: 323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
-# morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3: ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9
-# morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4: 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
-# morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn: ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
-# morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
-EPOCH_DURATION=60000
+# 323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+# ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9
+# 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
+# ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
+# 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
 VALIDITY_WINDOW=59000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
@@ -99,7 +98,6 @@ cat <<EOF > "${TMPDIR}"/allocations.json
   {"address":"0x00e3ae18f245e3bbb50860db2f44a0fe460e1de92b698d6370ec3112501ec6d9ba26a9d456", "balance":3000000000000000000}
 ]
 EOF
-# --epoch-duration "${EPOCH_DURATION}" \ -> where did the epoch duration go?
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
 --validity-window "${VALIDITY_WINDOW}" \
@@ -195,18 +193,9 @@ trap cleanup SIGINT
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
 $TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,eu-west-1 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
-EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-
-# Wait for epoch initialization
-# SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
-# EPOCH_SEC=$(($EPOCH_DURATION / 1000))
-# VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
-# echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
-# echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
-# sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
 #

@@ -177,7 +177,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 			result.Outputs,
 			string(result.Error),
 		); err != nil {
-			return fmt.Errorf("error storing tx: %w", err)
+			return err
 		}
 	}
 
@@ -199,9 +199,7 @@ func (*Indexer) storeTransaction(
 		outputLength += consts.Uint32Len + len(output)
 	}
 	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
-	if txResultLength > consts.NetworkSizeLimit {
-		return fmt.Errorf("transaction result length %d exceeds network size limit %d", txResultLength, consts.NetworkSizeLimit)
-	}
+
 	writer := codec.NewWriter(txResultLength, consts.NetworkSizeLimit)
 	writer.PackUint64(uint64(timestamp))
 	writer.PackBool(success)
@@ -215,7 +213,6 @@ func (*Indexer) storeTransaction(
 	if err := writer.Err(); err != nil {
 		return err
 	}
-
 	return batch.Put(txID[:], writer.Bytes())
 }
 

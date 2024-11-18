@@ -34,6 +34,7 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
+
 		if len(clusterInfo) > 0 {
 			_, urisFromFile, err := cli.ReadCLIFile(clusterInfo)
 			if err != nil {
@@ -41,8 +42,8 @@ var runSpamCmd = &cobra.Command{
 				return err
 			}
 			uris := onlyAPIs(urisFromFile)
-			utils.Outf("{{green}}Spamming with %s\n", uris)
-			spamConfig, err := hthroughput.NewDefaultCliConfig(uris)
+			key := "323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+			spamConfig, err := hthroughput.NewDefaultCliConfig(uris, key)
 			if err != nil {
 				return err
 			}

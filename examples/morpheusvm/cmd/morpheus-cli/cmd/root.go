@@ -28,6 +28,7 @@ var (
 	maxBlockUnits         []string
 	windowTargetUnits     []string
 	minBlockGap           int64
+	validityWindow        int64
 	hideTxs               bool
 	checkAllChains        bool
 	spamDefaults          bool
@@ -42,9 +43,6 @@ var (
 		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
 	}
-
-	// genesis
-	validityWindow int64
 )
 
 func init() {
