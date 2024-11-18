@@ -139,7 +139,7 @@ user    22880   0.0  0.0 410059824     48 s001  R+    2:42PM   0:00.00 grep aval
 The following command will clean up to ensure that you can start the network:
 
 ```bash
-killlall avalanchego
+killall avalanchego
 ```
 
 ### Build `morpheus-cli`

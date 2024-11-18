@@ -193,6 +193,8 @@ func (vm *VM) Initialize(
 ) error {
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
@@ -213,13 +215,21 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
 
+	blockDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
+		return fmt.Errorf("failed to register blockdb metrics: %w", err)
+	}
 	pebbleConfig := pebble.NewDefaultConfig()
-	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
 	if err != nil {
 		return err
 	}
 
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	rawStateDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
+		return fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+	}
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
 	if err != nil {
 		return err
 	}
@@ -244,24 +254,6 @@ func (vm *VM) Initialize(
 	}
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
-
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return err
-	}
-
-	// Set defaults
-	vm.gossiper = txGossiper
-	options := &Options{}
-	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
-		if err != nil {
-			return err
-		}
-		opt.apply(options)
-	}
-	vm.applyOptions(options)
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -298,9 +290,6 @@ func (vm *VM) Initialize(
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
-
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
 	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
@@ -324,13 +313,20 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+	// Set defaults
+	options := &Options{}
+	for _, Option := range vm.options {
+		config := vm.config.ServiceConfig[Option.Namespace]
+		opt, err := Option.optionFunc(vm, config)
 		if err != nil {
-			return 0, 0, err
+			return err
 		}
-		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
-	})
+		opt.apply(options)
+	}
+	err = vm.applyOptions(options)
+	if err != nil {
+		return fmt.Errorf("failed to apply options : %w", err)
+	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
@@ -530,15 +526,30 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) {
+func (vm *VM) applyOptions(o *Options) error {
 	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
+	} else {
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+			if err != nil {
+				return 0, 0, err
+			}
+			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+		})
 	}
 	if o.gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
+	} else {
+		txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+		if err != nil {
+			return err
+		}
+		vm.gossiper = txGossiper
 	}
+	return nil
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {

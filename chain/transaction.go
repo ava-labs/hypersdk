@@ -323,17 +323,17 @@ func (t *Transaction) Execute(
 	units, err := t.Units(bh, r)
 	if err != nil {
 		// Should never happen
-		return nil, err
+		return nil, fmt.Errorf("failed to calculate tx units: %w", err)
 	}
 	fee, err := feeManager.Fee(units)
 	if err != nil {
 		// Should never happen
-		return nil, err
+		return nil, fmt.Errorf("failed to calculate tx fee: %w", err)
 	}
 	if err := bh.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
-		return nil, err
+		return nil, fmt.Errorf("failed to deduct tx fee: %w", err)
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
@@ -359,7 +359,7 @@ func (t *Transaction) Execute(
 		} else {
 			encodedOutput, err = MarshalTyped(actionOutput)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
 			}
 		}
 
