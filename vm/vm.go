@@ -529,8 +529,8 @@ func (vm *VM) applyOptions(o *Options) error {
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	} else {
-		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 			if err != nil {
 				return 0, 0, err
 			}
