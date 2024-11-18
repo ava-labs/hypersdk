@@ -338,7 +338,16 @@ Options consist of the following:
 - An option function that takes in the VM along with the recieved config value
 
 The option function is especially important, as it's what allows our VM to
-eventually instantiate our JSON-RPC server. 
+eventually instantiate our JSON-RPC server. At this point, your `vm` directory
+should look as follows:
+
+```
+vm
+├── client.go
+├── option.go
+├── server.go
+└── vm.go
+```
 
 ## Adding Our Option To The VM
 
