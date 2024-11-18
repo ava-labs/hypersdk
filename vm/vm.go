@@ -79,7 +79,7 @@ type VM struct {
 	genesis               genesis.Genesis
 	GenesisBytes          []byte
 	ruleFactory           chain.RuleFactory
-	options               []Option
+	options               []api.Option
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow *chain.TimeValidityWindow
