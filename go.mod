@@ -19,6 +19,7 @@ require (
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.8.4
+	github.com/thepudds/fzgen v0.4.3
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
 	go.opentelemetry.io/otel/sdk v1.22.0
@@ -119,6 +120,7 @@ require (
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sanity-io/litter v1.5.1 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
