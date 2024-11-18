@@ -11,9 +11,13 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 )
+
+// create a type alias for the concrete TimeWindowWindow type.
+type ValidityWindow validitywindow.TimeValidityWindow[*Transaction]
 
 type Chain struct {
 	builder     *Builder

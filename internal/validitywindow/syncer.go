@@ -9,6 +9,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
+// GetValidityWindowFunc is a callback function provided by the NewSyncer caller, returning the
+// validity window duration for the given timestamp.
 type GetValidityWindowFunc func(int64) int64
 
 // Syncer marks sequential blocks as accepted until it has observed a full validity window
