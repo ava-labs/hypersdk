@@ -58,7 +58,7 @@ func NewDefaultCliConfig(uris []string) (*Config, error) {
 		sZipf:            1.0001,
 		vZipf:            2.7,
 		txsPerSecond:     100000,
-		minTxsPerSecond:  15000,
+		minTxsPerSecond:  2000,
 		txsPerSecondStep: 1000,
 		numClients:       10,
 		// numAccounts: 10000000,
