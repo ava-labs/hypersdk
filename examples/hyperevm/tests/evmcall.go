@@ -447,7 +447,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	}
 
 	totalSuccess, totalTxs := 0, 0
-	for round := 0; round < 1; round++ {
+	for round := 0; round < 20; round++ {
 		amountIn := big.NewInt(200)
 		// this avoids duplicate txs
 		amountIn = amountIn.Sub(amountIn, big.NewInt(int64(round)))
@@ -485,10 +485,11 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 					Data: calldata,
 				})
 				require.NoError(err)
-				tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+				tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, auth.NewED25519Factory(acct))
 				require.NoError(err)
 
 				err = tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx})
+				require.NoError(err)
 				response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
 				require.NoError(err)
 				if included && response.Success {
@@ -497,7 +498,6 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 
 				txs++
 				if err != nil {
-					success++
 					balanceOfA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
 					balanceOfB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])
 					fmt.Printf(
