@@ -44,14 +44,14 @@ type Time struct {
 }
 
 func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Mempool, getPreferredTimestampAndBlockGap GetPreferredTimestampAndBlockGap) *Time {
-	cancelCtx, CancelCtxFunc := context.WithCancel(context.Background())
+	cancelCtx, cancelCtxFunc := context.WithCancel(context.Background())
 	b := &Time{
 		engineCh:                         engineCh,
 		logger:                           logger,
 		mempool:                          mempool,
 		getPreferredTimestampAndBlockGap: getPreferredTimestampAndBlockGap,
 		doneBuild:                        make(chan struct{}),
-		cancelCtxFunc:                    CancelCtxFunc,
+		cancelCtxFunc:                    cancelCtxFunc,
 	}
 	b.timer = timer.NewTimer(func() {
 		b.handleTimerNotify(cancelCtx)
