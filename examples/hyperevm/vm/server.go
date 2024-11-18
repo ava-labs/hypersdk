@@ -52,6 +52,14 @@ type BalanceReply struct {
 	Amount uint64 `json:"amount"`
 }
 
+type NonceArgs struct {
+	Address codec.Address `json:"address"`
+}
+
+type NonceReply struct {
+	Nonce uint64 `json:"nonce"`
+}
+
 func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
@@ -65,4 +73,19 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	}
 	reply.Amount = balance
 	return err
+}
+
+func (j *JSONRPCServer) Nonce(req *http.Request, args *NonceArgs, reply *NonceReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Nonce")
+	defer span.End()
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	nonce, err := storage.GetNonce(ctx, im, storage.ConvertAddress(args.Address))
+	if err != nil {
+		return err
+	}
+	reply.Nonce = nonce
+	return nil
 }

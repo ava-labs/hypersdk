@@ -46,7 +46,7 @@ func populateKeys(require *require.Assertions, cli *jsonrpc.JSONRPCClient, reque
 	evmCallResult, ok := evmCallResultTyped.(*actions.EvmCallResult)
 	require.True(ok)
 	evmCallStateKeys := actionResult.StateKeys
-	fmt.Println("evmCallResult.Return", evmCallResult.Success, evmCallResult.ErrorCode.String())
+	fmt.Println("evmCallResult", evmCallResult.Success, evmCallResult.ErrorCode.String())
 	require.True(evmCallResult.Success)
 	request.Keys = evmCallStateKeys
 	return request
@@ -182,172 +182,375 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	require.True(ok)
 	require.Equal(common.LeftPadBytes(value.Bytes(), 32), evmCallResult.Return) // should be padded to 32 bytes
 
+	evmTxBuilder := &utils.EvmTxBuilder{
+		Actor: spendingKeyAddr,
+		Lcli:  lcli,
+		Cli:   cli,
+	}
 	t.Log("EVM tests - uniswap v2")
-
 	var (
-		abis      = make(map[string]*utils.ParsedABI)
-		addresses = make(map[string]common.Address)
+		abis     = make(map[string]*utils.ParsedABI)
+		deployed = make(map[string]common.Address)
 	)
 
-	// Loading the contract artifacts
-	tokenXArtifact, err := utils.NewABI("../../contracts/artifacts/contracts/TokenX.sol/TokenX.json")
-	require.NoError(err)
+	for name, fn := range map[string]string{
+		"TokenA":  "../../contracts/artifacts/contracts/TokenX.sol/TokenX.json",
+		"TokenB":  "../../contracts/artifacts/contracts/TokenY.sol/TokenY.json",
+		"WETH9":   "../../contracts/node_modules/@uniswap/v2-periphery/build/WETH9.json",
+		"Factory": "../../contracts/node_modules/@uniswap/v2-core/build/UniswapV2Factory.json",
+		"Router":  "../../contracts/node_modules/@uniswap/v2-periphery/build/UniswapV2Router02.json",
+	} {
+		abi, err := utils.NewABI(fn)
+		require.NoError(err)
+		abis[name] = abi
+	}
 
-	tokenYArtifact, err := utils.NewABI("../../contracts/artifacts/contracts/TokenY.sol/TokenY.json")
-	require.NoError(err)
+	type step struct {
+		abi    string
+		args   func() []interface{}
+		method string
+		to     func() *common.Address
+	}
 
-	weth9Artifact, err := utils.NewABI("../../contracts/node_modules/@uniswap/v2-periphery/build/WETH9.json")
-	require.NoError(err)
-
-	factoryArtifact, err := utils.NewABI("../../contracts/node_modules/@uniswap/v2-core/build/UniswapV2Factory.json")
-	require.NoError(err)
-
-	routerArtifact, err := utils.NewABI("../../contracts/node_modules/@uniswap/v2-periphery/build/UniswapV2Router02.json")
-	require.NoError(err)
-
-	// Setting the parameters for the swap
 	owner := storage.ConvertAddress(spendingKeyAddr)
-	// approvedAmount := big.NewInt(1_000_000_000_000_000_000)
-	// minLiquidity := big.NewInt(1)
-	// maxLiquidty := big.NewInt(1_000_000)
-	// deadline := big.NewInt(time.Now().Unix() + 1000)
+	approvedAmount := big.NewInt(1_000_000_000_000_000_000)
+	minLiquidity := big.NewInt(1)
+	maxLiquidty := big.NewInt(1_000_000)
+	deadline := big.NewInt(time.Now().Unix() + 1000)
 
-	abis["TokenX"] = tokenXArtifact
-	abis["TokenY"] = tokenYArtifact
-	abis["WETH9"] = weth9Artifact
-	abis["Factory"] = factoryArtifact
-	abis["Router"] = routerArtifact
+	steps := []step{
+		{
+			abi: "TokenA",
+		},
+		{
+			abi: "TokenB",
+		},
+		{
+			abi: "WETH9",
+		},
+		{
+			abi: "Factory",
+			args: func() []interface{} {
+				return []interface{}{owner}
+			},
+		},
+		{
+			abi: "Router",
+			args: func() []interface{} {
+				return []interface{}{deployed["Factory"], deployed["WETH9"]}
+			},
+		},
+		{
+			abi:    "Factory",
+			method: "createPair",
+			args: func() []interface{} {
+				return []interface{}{deployed["TokenA"], deployed["TokenB"]}
+			},
+		},
+		{
+			abi:    "TokenA",
+			method: "approve",
+			args: func() []interface{} {
+				return []interface{}{deployed["Router"], approvedAmount}
+			},
+		},
+		{
+			abi:    "TokenB",
+			method: "approve",
+			args: func() []interface{} {
+				return []interface{}{deployed["Router"], approvedAmount}
+			},
+		},
+		{
+			abi:    "Router",
+			method: "addLiquidity",
+			args: func() []interface{} {
+				return []interface{}{
+					deployed["TokenA"],
+					deployed["TokenB"],
+					maxLiquidty,
+					maxLiquidty,
+					minLiquidity,
+					minLiquidity,
+					owner,
+					deadline,
+				}
+			},
+		},
+	}
 
-	nonce := uint64(2)
-	for name, abi := range abis {
-		var deployData []byte
-		deployData = abi.Bytecode
+	for _, step := range steps {
+		isDeploy := step.method == ""
+		var args []interface{}
+		if step.args != nil {
+			args = step.args()
+		}
+		calldata, err := abis[step.abi].Calldata(step.method, args...)
+		require.NoError(err)
 
-		if name == "Factory" {
-			constructorArgs, err := abi.ABI.Pack("", owner) // empty string for constructor
+		var to *common.Address
+		if step.to != nil {
+			to = step.to()
+		} else if !isDeploy {
+			addr := deployed[step.abi]
+			to = &addr
+		}
+		action, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   to,
+			Data: calldata,
+		})
+		require.NoError(err)
+
+		if isDeploy {
+			nonce, err := lcli.Nonce(context.Background(), spendingKeyAddr)
 			require.NoError(err)
-			deployData = append(deployData, constructorArgs...)
-		} else if name == "Router" {
-			factoryAddr := addresses["Factory"]
-			wethAddr := addresses["WETH9"]
-			constructorArgs, err := abi.ABI.Pack("", factoryAddr, wethAddr)
-			require.NoError(err)
-			deployData = append(deployData, constructorArgs...)
+			deployed[step.abi] = crypto.CreateAddress(owner, nonce)
 		}
 
-		deployCall := &actions.EvmCall{
-			To:       &common.Address{}, // nil address for contract creation
-			Value:    0,
-			GasLimit: sufficientGas,
-			Data:     deployData,
-		}
-		fmt.Println("deployCall", name)
-		deployCall = populateKeys(require, cli, deployCall, spendingKeyAddr)
-		tx, err = tn.GenerateTx(context.Background(), []chain.Action{deployCall}, spendingKeyAuthFactory)
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+		require.NoError(err)
+
+		require.NoError(tn.ConfirmTxs(context.Background(), []*chain.Transaction{tx}))
+	}
+
+	t.Log("EVM tests - uniswap v2 transfer erc20 tokens")
+
+	amount := big.NewInt(1_000)
+	tokenA := deployed["TokenA"]
+	tokenB := deployed["TokenB"]
+
+	for _, acct := range networkConfig.Keys() {
+		evmAddr := storage.ConvertAddress(auth.NewED25519Address(acct.PublicKey()))
+		calldataA, err := abis["TokenA"].Calldata("transfer", evmAddr, amount)
+		require.NoError(err)
+		actionA, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   &tokenA,
+			Data: calldataA,
+		})
+		require.NoError(err)
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{actionA}, spendingKeyAuthFactory)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
-		addresses[name] = crypto.CreateAddress(owner, nonce)
-		nonce++
+		calldataB, err := abis["TokenB"].Calldata("transfer", evmAddr, amount)
+		require.NoError(err)
+		actionB, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   &tokenB,
+			Data: calldataB,
+		})
+		require.NoError(err)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionB}, spendingKeyAuthFactory)
+		require.NoError(err)
+
+		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 	}
 
-	// steps := []step{
-	// 	{
-	// 		abi: tokenXArtifact,
-	// 	},
-	// 	{
-	// 		abi: tokenYArtifact,
-	// 	},
-	// 	{
-	// 		abi: weth9Artifact,
-	// 	},
-	// 	{
-	// 		abi: factoryArtifact,
-	// 		args: func() []interface{} {
-	// 			return []interface{}{owner}
-	// 		},
-	// 	},
-	// 	{
-	// 		abi: routerArtifact,
-	// 		args: func() []interface{} {
-	// 			return []interface{}{deployed["Factory"], deployed["WETH9"]}
-	// 		},
-	// 	},
-	// 	{
-	// 		abi: factoryArtifact,
-	// 		method: "createPair",
-	// 		args: func() []interface{} {
-	// 			return []interface{}{deployed["TokenX"], deployed["TokenY"]}
-	// 		},
-	// 	},
-	// 	{
-	// 		abi: tokenXArtifact,
-	// 		method: "approve",
-	// 		args: func() []interface{} {
-	// 			return []interface{}{deployed["Router"], approvedAmount}
-	// 		},
-	// 	},
-	// 	{
-	// 		abi: tokenYArtifact,
-	// 		method: "approve",
-	// 		args: func() []interface{} {
-	// 			return []interface{}{deployed["Router"], approvedAmount}
-	// 		},
-	// 	},
-	// 	{
-	// 		abi: routerArtifact,
-	// 		method: "addLiquidity",
-	// 		args: func() []interface{} {
-	// 			return []interface{}{
-	// 				deployed["TokenX"],
-	// 				deployed["TokenY"],
-	// 				maxLiquidty,
-	// 				maxLiquidty,
-	// 				minLiquidity,
-	// 				minLiquidity,
-	// 				owner,
-	// 				deadline,
-	// 			}
-	// 		},
-	// 	},
-	// }
-	// for _, step := range steps {
-	// 	nonce := uint64(2)
-	// 	isDeploy := step.method == ""
-	// 	var args []interface{}
-	// 	if step.args != nil {
-	// 		args = step.args()
-	// 	}
-	// 	calldata, err := step.abi.ABI.Pack(step.method, args...)
-	// 	require.NoError(err)
+	t.Log("EVM tests - approve erc20 tokens")
 
-	// 	var to *common.Address
-	// 	if step.to != nil {
-	// 		to = step.to()
-	// 	} else if !isDeploy {
-	// 		addr := deployed[
-	// 		to = &addr
-	// 	}
-	// 	action := &actions.EvmCall{
-	// 		To:       to,
-	// 		Value:    0,
-	// 		GasLimit: sufficientGas,
-	// 		Data:     calldata,
-	// 	}
-	// 	action = populateKeys(require, cli, action, spendingKeyAddr)
-	// 	require.NoError(err)
+	amount = big.NewInt(10_000_000)
 
-	// 	if isDeploy {
-	// 		deployed[step.abi] = crypto.CreateAddress(owner, nonce)
-	// 		nonce++
-	// 	}
+	for _, acct := range networkConfig.Keys() {
+		evmTxBuilder := &utils.EvmTxBuilder{
+			Actor: auth.NewED25519Address(acct.PublicKey()),
+			Lcli:  lcli,
+			Cli:   cli,
+		}
 
-	// 	tx, err = tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
-	// 	require.NoError(err)
+		calldataApproveA, err := abis["TokenA"].Calldata("approve", deployed["Router"], amount)
+		require.NoError(err)
+		actionAllowanceA, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   &tokenA,
+			Data: calldataApproveA,
+		})
+		require.NoError(err)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceA}, spendingKeyAuthFactory)
+		require.NoError(err)
 
-	// 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
-	// }
-	t.Log("EVM tests - uniswap v2 all contracts deployed")
+		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+		calldataApproveB, err := abis["TokenB"].Calldata("approve", deployed["Router"], amount)
+		require.NoError(err)
+		actionAllowanceB, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   &tokenB,
+			Data: calldataApproveB,
+		})
+		require.NoError(err)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceB}, spendingKeyAuthFactory)
+		require.NoError(err)
+
+		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+	}
+
+	t.Log("EVM tests - uniswap v2 swap erc20 tokens")
+	router := deployed["Router"]
+	routeAB := []common.Address{deployed["TokenA"], deployed["TokenB"]}
+	routeBA := []common.Address{deployed["TokenB"], deployed["TokenA"]}
+
+	amountOut := func(evmTxBuilder *utils.EvmTxBuilder, amountIn *big.Int, route []common.Address, slippageNum, slippageDen int) *big.Int {
+		calldata, err := abis["Router"].Calldata("getAmountsOut", amountIn, route)
+		require.NoError(err)
+		action, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
+			To:   &router,
+			Data: calldata,
+		})
+		require.NoError(err)
+
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+		require.NoError(err)
+
+		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+		response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+		require.NoError(err)
+		require.True(included)
+		require.True(response.Success)
+
+		reader := codec.NewReader(response.Outputs[0], len(response.Outputs[0]))
+		evmCallResultTyped, err := vm.OutputParser.Unmarshal(reader)
+		require.NoError(err)
+		evmCallResult, ok := evmCallResultTyped.(*actions.EvmCallResult)
+		require.True(ok)
+
+		var amountsOut []*big.Int
+		err = abis["Router"].Unpack("getAmountsOut", evmCallResult.Return, &amountsOut)
+		require.NoError(err)
+		expected := amountsOut[len(amountsOut)-1]
+		expected = expected.Mul(expected, big.NewInt(int64(slippageNum)))
+		expected = expected.Div(expected, big.NewInt(int64(slippageDen)))
+		return expected
+	}
+
+	balanceOf := func(evmTxBuilder *utils.EvmTxBuilder, name string, token common.Address) *big.Int {
+		owner := storage.ConvertAddress(evmTxBuilder.Actor)
+		calldata, err := abis[name].Calldata("balanceOf", owner)
+		require.NoError(err)
+		_, output, err := evmTxBuilder.EvmTraceCall(context.Background(), &utils.Args{
+			To:   &token,
+			Data: calldata,
+		})
+		require.NoError(err)
+
+		var balance *big.Int
+		err = abis[name].Unpack("balanceOf", output.Return, &balance)
+		require.NoError(err)
+		return balance
+	}
+
+	txBuilders := make([]*utils.EvmTxBuilder, len(networkConfig.Keys()))
+	for i, acct := range networkConfig.Keys() {
+		txBuilders[i] = &utils.EvmTxBuilder{
+			Actor: auth.NewED25519Address(acct.PublicKey()),
+			Lcli:  lcli,
+			Cli:   cli,
+		}
+	}
+
+	totalSuccess, totalTxs := 0, 0
+	for round := 0; round < 1; round++ {
+		amountIn := big.NewInt(200)
+		// this avoids duplicate txs
+		amountIn = amountIn.Sub(amountIn, big.NewInt(int64(round)))
+
+		var minAmountOut *big.Int
+		txs := 0
+		success := 0
+		for i, acct := range networkConfig.Keys() {
+			evmAddr := storage.ConvertAddress(auth.NewED25519Address(acct.PublicKey()))
+
+			var route []common.Address
+			if (round+i)%2 == 0 {
+				route = routeAB
+			} else {
+				route = routeBA
+			}
+			amountOut := amountOut(txBuilders[i], amountIn, route, 50, 100)
+			if minAmountOut == nil || amountOut.Cmp(minAmountOut) < 0 {
+				minAmountOut = amountOut
+			}
+			deadline := big.NewInt(time.Now().Unix() + 1000)
+			calldata, err := abis["Router"].Calldata(
+				"swapExactTokensForTokens",
+				amountIn,
+				amountOut,
+				route,
+				evmAddr,
+				deadline,
+			)
+			require.NoError(err)
+			var action *actions.EvmCall
+			for attempt := 0; attempt < 100; attempt++ {
+				action, err = txBuilders[i].EvmCall(context.Background(), &utils.Args{
+					To:   &router,
+					Data: calldata,
+				})
+				require.NoError(err)
+				tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+				require.NoError(err)
+
+				err = tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx})
+				response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+				require.NoError(err)
+				if included && response.Success {
+					success++
+				}
+
+				txs++
+				if err != nil {
+					success++
+					balanceOfA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
+					balanceOfB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])
+					fmt.Printf(
+						"failed to create swap tx\n"+
+							"try: %d\n"+
+							"round: %d\n"+
+							"account: %d\n"+
+							"amountIn: %s\n"+
+							"amountOut: %s\n"+
+							"balanceA: %s\n"+
+							"balanceB: %s\n",
+						attempt, round, i, amountIn, amountOut, balanceOfA, balanceOfB,
+					)
+					continue
+				}
+
+				break
+			}
+
+		}
+		// check balances
+		totalA := big.NewInt(0)
+		totalB := big.NewInt(0)
+		totalNative := uint64(0)
+		for i := range networkConfig.Keys() {
+			native, err := lcli.Balance(context.Background(), auth.NewED25519Address(networkConfig.Keys()[i].PublicKey()))
+			require.NoError(err)
+			balanceA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
+			balanceB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])
+			totalA = totalA.Add(totalA, balanceA)
+			totalB = totalB.Add(totalB, balanceB)
+			totalNative += native
+		}
+		ratio := float64(minAmountOut.Uint64()) / float64(amountIn.Uint64())
+		fmt.Printf(
+			"swap round totals\n"+
+				"round: %d\n"+
+				"success: %d\n"+
+				"txs: %d\n"+
+				"TokenA: %s\n"+
+				"TokenB: %s\n"+
+				"ratio: %f\n"+
+				"native: %d\n",
+			round, success, txs, totalA, totalB, ratio, totalNative,
+		)
+		totalSuccess += success
+		totalTxs += txs
+	}
+	fmt.Printf(
+		"test summary\n"+
+			"totalSuccess: %d\n"+
+			"totalTxs: %d\n",
+		totalSuccess, totalTxs,
+	)
 
 })

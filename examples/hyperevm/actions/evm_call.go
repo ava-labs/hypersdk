@@ -100,9 +100,11 @@ func (e *EvmCall) Execute(
 		return nil, err
 	}
 	if err := shim.Error(); err != nil {
+		fmt.Println("shim error", err)
 		return nil, err
 	}
 	if err := statedb.Error(); err != nil {
+		fmt.Println("statedb error", err)
 		return nil, err
 	}
 	_ = statedb.IntermediateRoot(true)

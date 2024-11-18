@@ -87,6 +87,30 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
+func (cli *JSONRPCClient) Nonce(ctx context.Context, addr codec.Address) (uint64, error) {
+	resp := new(NonceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nonce",
+		&NonceArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Nonce, err
+}
+
+func (cli *JSONRPCClient) WaitForNonce(ctx context.Context, addr codec.Address, min uint64) error {
+	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
+		nonce, err := cli.Nonce(ctx, addr)
+		shouldExit := nonce >= min
+		if !shouldExit {
+			utils.Outf("{{yellow}}waiting for %s nonce: %d{{/}}\n", addr, nonce)
+		}
+		return shouldExit, err
+	})
+}
+
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	g, err := cli.Genesis(ctx)
 	if err != nil {

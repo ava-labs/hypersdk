@@ -2,27 +2,26 @@ package actions
 
 import (
 	"context"
-	"errors"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/coreth/accounts/abi"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	utils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 type TestContext struct {
@@ -37,8 +36,8 @@ type TestContext struct {
 	State           *state.SimpleMutable
 	Nonce           uint64
 	FactoryNonce    uint64
-	TestContractABI *utils.ParsedABI
-	FactoryABI      *utils.ParsedABI
+	TestContractABI *ParsedABI
+	FactoryABI      *ParsedABI
 }
 
 func NewTestContext() *TestContext {
@@ -63,11 +62,11 @@ func NewTestContext() *TestContext {
 	}
 
 	// todo: remove hardhat and only keep the abi files after its done
-	testContractABI, err := utils.NewABI("../contracts/artifacts/contracts/Test.sol/TestContract.json")
+	testContractABI, err := NewABI("../contracts/artifacts/contracts/Test.sol/TestContract.json")
 	if err != nil {
 		panic(err)
 	}
-	testContractFactoryABI, err := utils.NewABI("../contracts/artifacts/contracts/Test.sol/ContractFactory.json")
+	testContractFactoryABI, err := NewABI("../contracts/artifacts/contracts/Test.sol/ContractFactory.json")
 	if err != nil {
 		panic(err)
 	}
@@ -133,35 +132,63 @@ func GetStateKeys(ctx context.Context, call *EvmCall) state.Keys {
 	return call.Keys
 }
 
-func TraceAndExecute(ctx context.Context, require *require.Assertions, call *EvmCall, view state.View, r chain.Rules, time int64, from codec.Address, txID ids.ID, tracer trace.Tracer) state.View {
-	mu := state.NewSimpleMutable(view)
-	err := InitAccount(ctx, mu, from, uint64(10000000))
-	require.NoError(err)
-	recorder := tstate.NewRecorder(mu)
-	result, err := call.Execute(ctx, r, recorder, time, from, txID)
-	require.NoError(err)
-	require.Equal(result.(*EvmCallResult).ErrorCode, NilError)
-	call.Keys = recorder.GetStateKeys()
+type ParsedABI struct {
+	ABI              abi.ABI
+	Bytecode         []byte
+	DeployedBytecode []byte
+}
 
-	stateKeys := call.StateKeys(from, txID)
-	storage := make(map[string][]byte, len(stateKeys))
-	for key := range stateKeys {
-		val, err := view.GetValue(ctx, []byte(key))
-		if errors.Is(err, database.ErrNotFound) {
-			continue
-		}
-		require.NoError(err)
-		storage[key] = val
+type rawJSON string
+
+func (r *rawJSON) UnmarshalJSON(data []byte) error {
+	*r = rawJSON(data)
+	return nil
+}
+
+func (r rawJSON) AsString() string {
+	return string(r[1 : len(r)-1])
+}
+func NewABI(compiledFn string) (*ParsedABI, error) {
+	f, err := os.Open(compiledFn)
+	if err != nil {
+		return nil, err
 	}
-	ts := tstate.New(0) // estimate of changed keys does not need to be accurate
-	tsv := ts.NewView(stateKeys, storage)
-	resultExecute, err := call.Execute(ctx, r, tsv, time, from, txID)
-	require.NoError(err)
-	require.Equal(result.(*EvmCallResult).UsedGas, resultExecute.(*EvmCallResult).UsedGas)
-	require.Equal(result.(*EvmCallResult).Return, resultExecute.(*EvmCallResult).Return)
 
-	tsv.Commit()
-	view, err = ts.ExportMerkleDBView(ctx, tracer, view)
-	require.NoError(err)
-	return view
+	mapData := make(map[string]rawJSON)
+	if err := json.NewDecoder(f).Decode(&mapData); err != nil {
+		return nil, err
+	}
+
+	bytecodeHex := mapData["bytecode"].AsString()
+	bytecodeHex = strings.TrimLeft(bytecodeHex, "0x")
+	bytecode, err := hex.DecodeString(bytecodeHex)
+	if err != nil {
+		return nil, err
+	}
+
+	var deployedBytecode []byte
+	if _, ok := mapData["deployedBytecode"]; ok {
+		deployedBytecodeHex := mapData["deployedBytecode"].AsString()
+		deployedBytecodeHex = strings.TrimLeft(deployedBytecodeHex, "0x")
+		deployedBytecode, err = hex.DecodeString(deployedBytecodeHex)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		deployedBytecode = bytecode
+	}
+
+	abi, err := abi.JSON(strings.NewReader(string(mapData["abi"])))
+	if err != nil {
+		return nil, err
+	}
+	return &ParsedABI{ABI: abi, Bytecode: bytecode, DeployedBytecode: deployedBytecode}, nil
+}
+
+func (p *ParsedABI) BytecodeHex() string {
+	return hex.EncodeToString(p.Bytecode)
+}
+
+func (p *ParsedABI) DeployedBytecodeHex() string {
+	return hex.EncodeToString(p.DeployedBytecode)
 }
