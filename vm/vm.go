@@ -192,6 +192,8 @@ func (vm *VM) Initialize(
 ) error {
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
@@ -252,24 +254,6 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return err
-	}
-
-	// Set defaults
-	vm.gossiper = txGossiper
-	options := &api.Options{}
-	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.OptionFunc(vm, config)
-		if err != nil {
-			return err
-		}
-		opt.Apply(options)
-	}
-	vm.applyOptions(options)
-
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
 		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
@@ -305,9 +289,6 @@ func (vm *VM) Initialize(
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
-
 	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
 	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
@@ -331,13 +312,20 @@ func (vm *VM) Initialize(
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
-	vm.builder = builder.NewTime(toEngine, snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-		blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+	// Set defaults
+	options := &api.Options{}
+	for _, Option := range vm.options {
+		config := vm.config.ServiceConfig[Option.Namespace]
+		opt, err := Option.OptionFunc(vm, config)
 		if err != nil {
-			return 0, 0, err
+			return err
 		}
-		return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
-	})
+		opt.Apply(options)
+	}
+	err = vm.applyOptions(options)
+	if err != nil {
+		return fmt.Errorf("failed to apply options : %w", err)
+	}
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
@@ -535,15 +523,30 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *api.Options) {
+func (vm *VM) applyOptions(o *api.Options) error {
 	vm.blockSubscriptionFactories = o.BlockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.VMAPIHandlerFactories
 	if o.Builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
+	} else {
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+			if err != nil {
+				return 0, 0, err
+			}
+			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+		})
 	}
 	if o.Gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
+	} else {
+		txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+		if err != nil {
+			return err
+		}
+		vm.gossiper = txGossiper
 	}
+	return nil
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
