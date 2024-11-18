@@ -409,10 +409,6 @@ func (vm *VM) RecordBuildCapped() {
 	vm.metrics.buildCapped.Inc()
 }
 
-func (vm *VM) GetTargetBuildDuration() time.Duration {
-	return vm.config.TargetBuildDuration
-}
-
 func (vm *VM) GetTargetGossipDuration() time.Duration {
 	return vm.config.TargetGossipDuration
 }
