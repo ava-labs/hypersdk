@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
@@ -20,6 +21,8 @@ var (
 	ErrUnableToConfirmTx = errors.New("unable to confirm transaction")
 	ErrInvalidURI        = errors.New("invalid uri")
 	ErrTxNotFound        = errors.New("tx not found")
+
+	_ workload.TestNetwork = (*Network)(nil)
 )
 
 type Network struct {
@@ -84,6 +87,10 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (n *Network) FundedKey() *auth.PrivateKey {
+	return n.Configuration().PrivateKeys()[0]
 }
 
 func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulBlock) error {

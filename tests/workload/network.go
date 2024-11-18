@@ -6,6 +6,7 @@ package workload
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 )
 
@@ -14,6 +15,7 @@ type TestNetwork interface {
 	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
 	URIs() []string
 	Configuration() TestNetworkConfiguration
+	FundedKey() *auth.PrivateKey
 }
 
 // TestNetworkConfiguration is an interface, implemented by VM-specific tests
@@ -23,6 +25,7 @@ type TestNetworkConfiguration interface {
 	GenesisBytes() []byte
 	Name() string
 	Parser() chain.Parser
+	PrivateKeys() []*auth.PrivateKey
 }
 
 // DefaultTestNetworkConfiguration struct is the common test configuration that a test framework would need to provide

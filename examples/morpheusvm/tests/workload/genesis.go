@@ -68,13 +68,21 @@ func newDefaultKeys() []ed25519.PrivateKey {
 		}
 		testKeys[i] = ed25519.PrivateKey(bytes)
 	}
-
 	return testKeys
 }
 
+// NetworkConfiguration implements workload.TestNetworkConfiguration interface.
 type NetworkConfiguration struct {
 	workload.DefaultTestNetworkConfiguration
 	keys []ed25519.PrivateKey
+}
+
+func (n *NetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
+	keys := make([]*auth.PrivateKey, 0, len(n.keys))
+	for _, key := range n.keys {
+		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
+	}
+	return keys
 }
 
 func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -21,6 +22,8 @@ import (
 var (
 	ErrUnableToConfirmTx = errors.New("unable to confirm transaction")
 	ErrInvalidURI        = errors.New("invalid uri")
+
+	_ workload.TestNetwork = (*Network)(nil)
 )
 
 const (
@@ -126,4 +129,8 @@ type parser struct {
 
 func (p *parser) Rules(int64) chain.Rules {
 	return p.rules
+}
+
+func (n *Network) FundedKey() *auth.PrivateKey {
+	return n.Configuration().PrivateKeys()[0]
 }

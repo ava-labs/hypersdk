@@ -284,6 +284,14 @@ type NetworkConfiguration struct {
 	keys []ed25519.PrivateKey
 }
 
+func (n *NetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
+	keys := make([]*auth.PrivateKey, 0, len(n.keys))
+	for _, key := range n.keys {
+		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
+	}
+	return keys
+}
+
 func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
 	return n.keys
 }
@@ -380,8 +388,8 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
-	spendingKey := networkConfig.Keys()[0]
+	authFactory, err := auth.GetFactory(tn.FundedKey())
+	require.NoError(err)
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of
@@ -392,7 +400,7 @@ Next, we'll create our test transaction. In short, we'll want to send a value of
 		To:    toAddress,
 		Value: 1,
 	}},
-		auth.NewED25519Factory(spendingKey),
+		authFactory,
 	)
 	require.NoError(err)
 ```
