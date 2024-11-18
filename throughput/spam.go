@@ -363,7 +363,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 
 		// Log progress
-		if i%250 == 0 && i > 0 {
+		if i%500 == 0 && i > 0 {
 			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
 		}
 	}

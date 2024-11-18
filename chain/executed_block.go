@@ -34,6 +34,9 @@ func (e *ExecutedBlock) Marshal() ([]byte, error) {
 	}
 
 	size := codec.BytesLen(blockBytes) + codec.CummSize(e.Results) + fees.DimensionsLen
+	if size > consts.NetworkSizeLimit {
+		return nil, fmt.Errorf("block size exceeds network limit: block size, results size, dimensions size: %d, %d, %d", codec.BytesLen(blockBytes), codec.CummSize(e.Results), fees.DimensionsLen)
+	}
 	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	writer.PackBytes(blockBytes)
