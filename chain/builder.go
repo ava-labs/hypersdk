@@ -181,8 +181,16 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		e := executor.New(streamBatch, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorBuildRecorder)
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
+		totalTxsSize := 0
 		for li, ltx := range txs {
 			txsAttempted++
+			totalTxsSize += ltx.Size()
+			if totalTxsSize > c.config.TargetTxsSize {
+				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.Size()))
+				restorable = append(restorable, txs[li:]...)
+				break
+			}
+
 			i := li
 			tx := ltx
 

@@ -58,7 +58,7 @@ func NewDefaultConfig() Config {
 }
 
 // TODO: replace with AvalancheGo implementation (if still used for Vryx)
-func New(file string, cfg Config) (*Database, *prometheus.Registry, error) {
+func New(file string, cfg Config, registerer prometheus.Registerer) (*Database, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
 	d := &Database{closing: make(chan struct{})}
 	opts := &pebble.Options{
@@ -91,18 +91,18 @@ func New(file string, cfg Config) (*Database, *prometheus.Registry, error) {
 		}
 	}
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
-	registry, metrics, err := newMetrics()
+	metrics, err := newMetrics(registerer)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	d.metrics = metrics
 	db, err := pebble.Open(file, opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	d.db = db
 	go d.collectMetrics()
-	return d, registry, nil
+	return d, nil
 }
 
 func (db *Database) Close() error {
@@ -133,7 +133,8 @@ func (db *Database) Has(key []byte) (bool, error) {
 func (db *Database) Get(key []byte) ([]byte, error) {
 	start := time.Now()
 	data, closer, err := db.db.Get(key)
-	db.metrics.getLatency.Observe(float64(time.Since(start)))
+	db.metrics.getCount.Inc()
+	db.metrics.getSum.Add(float64(time.Since(start)))
 	if err != nil {
 		return nil, updateError(err)
 	}

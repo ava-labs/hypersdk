@@ -3,12 +3,18 @@
 
 package chain
 
-import "time"
+import (
+	"time"
+
+	"github.com/ava-labs/avalanchego/utils/units"
+)
 
 type Config struct {
 	TargetBuildDuration       time.Duration `json:"targetBuildDuration"`
 	TransactionExecutionCores int           `json:"transactionExecutionCores"`
 	StateFetchConcurrency     int           `json:"stateFetchConcurrency"`
+	// We leave room for other block data to be included alongside the transactions
+	TargetTxsSize int `json:"targetTxsSize"`
 }
 
 func NewDefaultConfig() Config {
@@ -16,5 +22,6 @@ func NewDefaultConfig() Config {
 		TargetBuildDuration:       100 * time.Millisecond,
 		TransactionExecutionCores: 1,
 		StateFetchConcurrency:     1,
+		TargetTxsSize:             1.5 * units.MiB,
 	}
 }
