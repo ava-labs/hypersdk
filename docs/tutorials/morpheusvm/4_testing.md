@@ -492,6 +492,18 @@ us to defer most tasks to it and solely focus on defining the tests.
 
 ## Testing Our VM
 
+Before testing, your tests directory should look as follows:
+
+```
+tests
+├── integration
+│   └── integration_test.go
+├── transfer.go
+└── workload
+    ├── generator.go
+    └── genesis.go
+```
+
 Putting everything together, it's now time to test our work! To do this, run the
 following command:
 
