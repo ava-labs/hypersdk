@@ -744,7 +744,7 @@ func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPri
 func (b *ExecutedBlock) Marshal() ([]byte, error) {
 	blockBytes, err := b.Block.Marshal()
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling block bytes: %w", err)
+		return nil, err
 	}
 
 	size := codec.BytesLen(blockBytes) + codec.CummSize(b.Results) + fees.DimensionsLen
@@ -756,16 +756,12 @@ func (b *ExecutedBlock) Marshal() ([]byte, error) {
 	writer.PackBytes(blockBytes)
 	resultBytes, err := MarshalResults(b.Results)
 	if err != nil {
-		return nil, fmt.Errorf("results marshal err: %w", err)
+		return nil, err
 	}
 	writer.PackBytes(resultBytes)
 	writer.PackFixedBytes(b.UnitPrices.Bytes())
 
-	err = writer.Err()
-	if err != nil {
-		return nil, fmt.Errorf("writer error: %w", err)
-	}
-	return writer.Bytes(), nil
+	return writer.Bytes(), writer.Err()
 }
 
 func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {

@@ -110,13 +110,9 @@ func (i *Indexer) initBlocks() error {
 
 func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
 	if err := i.storeTransactions(blk); err != nil {
-		return fmt.Errorf("store transaction err: %w", err)
+		return err
 	}
-	err := i.storeBlock(blk)
-	if err != nil {
-		return fmt.Errorf("store block err: %w", err)
-	}
-	return nil
+	return i.storeBlock(blk)
 }
 
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
@@ -126,15 +122,15 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
-		return fmt.Errorf("marshal blk bytes: %w" , err)
+		return err
 	}
 
 	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
-		return fmt.Errorf("put block: %w", err)
+		return err
 	}
 	// Ignore overflows in key calculation which will simply delete a non-existent key
 	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
-		return fmt.Errorf("delete block: %w", err)
+		return err
 	}
 
 	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
@@ -214,14 +210,10 @@ func (*Indexer) storeTransaction(
 	}
 	writer.PackString(errorStr)
 	if err := writer.Err(); err != nil {
-		return fmt.Errorf("writing error: %w", err)
+		return err
 	}
 
-	err := batch.Put(txID[:], writer.Bytes())
-	if err != nil {
-		return fmt.Errorf("putting tx: %w", err)
-	}
-	return nil
+	return batch.Put(txID[:], writer.Bytes())
 }
 
 func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {
