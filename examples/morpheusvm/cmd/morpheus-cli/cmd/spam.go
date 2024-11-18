@@ -57,9 +57,8 @@ var runSpamCmd = &cobra.Command{
 			}
 			return spammer.Spam(ctx, spamHelper, true, "AVAX")
 		} else {
-			panic("cluster info is required")
+			return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamDefaults)
 		}
-		// return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamDefaults)
 	},
 }
 
