@@ -75,17 +75,18 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	return balance, err
 }
 
-func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
+func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, factory chain.AuthFactory) []chain.Action {
 
 	to := storage.ConvertAddress(address)
 
 	call := &actions.EvmCall{
-		To:    &to,
-		Value: amount,
-		Data:  []byte{},
+		To:       &to,
+		Value:    amount,
+		GasLimit: 1000000,
+		Data:     []byte{},
 	}
 
-	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, address)
+	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
 	if err != nil {
 		fmt.Println("simulate actions error", err)
 		return nil
@@ -96,10 +97,10 @@ func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []b
 	return []chain.Action{call}
 }
 
-func (sh *SpamHelper) GetActions() []chain.Action {
+func (sh *SpamHelper) GetActions(factory chain.AuthFactory) []chain.Action {
 	pkIndex := rand.Int() % len(sh.pks)
 	// transfers 1 unit to a random address
-	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes())
+	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes(), factory)
 }
 
 func (sh *SpamHelper) uniqueBytes() []byte {
