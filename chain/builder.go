@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
@@ -185,7 +184,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		totalTxSize := 0
 		for li, ltx := range txs {
 			txsAttempted++
-			if totalTxSize += ltx.Size(); totalTxSize > consts.MaxTotalTxSizePerBlock {
+			if totalTxSize += ltx.Size(); totalTxSize > c.config.TargetTxsSize {
 				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.Size()))
 				restorable = append(restorable, txs[li:]...)
 				break
