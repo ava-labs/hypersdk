@@ -17,7 +17,6 @@ type ExecutionBlock[Container emap.Item] interface {
 	Timestamp() int64
 	Height() uint64
 	Txs() []Container
-	InitTxs() error
 	ContainsTx(ids.ID) bool
 }
 

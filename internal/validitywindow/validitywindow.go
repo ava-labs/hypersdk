@@ -111,9 +111,6 @@ func (v *timeValidityWindow[Container]) isRepeat(
 			if marker.Contains(i) {
 				continue
 			}
-			if err := ancestorBlk.InitTxs(); err != nil {
-				return marker, err
-			}
 			if ancestorBlk.ContainsTx(tx.ID()) {
 				marker.Add(i)
 				if stop {

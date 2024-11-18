@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
@@ -28,11 +27,7 @@ import (
 type ExecutionBlock struct {
 	*StatelessBlock
 
-	// authCounts can be used by batch signature verification
-	// to preallocate memory
-	authCounts map[uint8]int
-	txsSet     set.Set[ids.ID]
-	sigJob     workers.Job
+	sigJob workers.Job
 }
 
 func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
@@ -41,25 +36,8 @@ func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	}
 }
 
-func (b *ExecutionBlock) InitTxs() error {
-	if b.txsSet.Len() == len(b.StatelessBlock.Txs) {
-		return nil
-	}
-	b.authCounts = make(map[uint8]int)
-	b.txsSet = set.NewSet[ids.ID](len(b.StatelessBlock.Txs))
-	for _, tx := range b.StatelessBlock.Txs {
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	return nil
-}
-
 func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
-	return b.txsSet.Contains(id)
+	return b.StatelessBlock.ContainsTx(id)
 }
 
 func (b *ExecutionBlock) Height() uint64 {
@@ -392,9 +370,6 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 	ctx, span := p.tracer.Start(ctx, "Chain.AsyncVerify")
 	defer span.End()
 
-	if err := block.InitTxs(); err != nil {
-		return err
-	}
 	if block.sigJob != nil {
 		return nil
 	}
