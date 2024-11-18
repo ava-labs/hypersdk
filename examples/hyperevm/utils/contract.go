@@ -170,7 +170,6 @@ func (e *EvmTxBuilder) EvmTraceCall(ctx context.Context, args *Args) (*actions.E
 	if args.Gas != nil {
 		call.GasLimit = *args.Gas
 	}
-	fmt.Println("call", call.To, call.Value, call.GasLimit)
 
 	simRes, err := e.Cli.SimulateActions(ctx, chain.Actions{call}, e.Actor)
 	if err != nil {
@@ -188,7 +187,6 @@ func (e *EvmTxBuilder) EvmTraceCall(ctx context.Context, args *Args) (*actions.E
 		return nil, nil, fmt.Errorf("invalid evm call result")
 	}
 	evmCallStateKeys := actionResult.StateKeys
-	fmt.Println("evmCallResult debug", evmCallResult.Success, evmCallResult.ErrorCode.String(), evmCallResult.Return)
 
 	call.Keys = evmCallStateKeys
 	return call, evmCallResult, nil

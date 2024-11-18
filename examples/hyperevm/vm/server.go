@@ -4,13 +4,18 @@
 package vm
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
 const JSONRPCEndpoint = "/morpheusapi"
@@ -87,5 +92,55 @@ func (j *JSONRPCServer) Nonce(req *http.Request, args *NonceArgs, reply *NonceRe
 		return err
 	}
 	reply.Nonce = nonce
+	return nil
+}
+
+func (j *JSONRPCServer) SimulateActions(
+	req *http.Request,
+	args *SimulatActionsArgs,
+	reply *SimulateActionsReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
+	defer span.End()
+
+	actionRegistry := j.vm.ActionCodec()
+	var actions chain.Actions
+	for _, actionBytes := range args.Actions {
+		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
+		action, err := (*actionRegistry).Unmarshal(actionsReader)
+		if err != nil {
+			return err
+		}
+		if !actionsReader.Empty() {
+			return fmt.Errorf("transaction extra bytes")
+		}
+		actions = append(actions, action)
+	}
+	if len(actions) == 0 {
+		return fmt.Errorf("simulate zero actions")
+	}
+	currentState, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+
+	currentTime := time.Now().UnixMilli()
+	for i, action := range actions {
+		recorder := tstate.NewRecorder(currentState)
+		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+		if err != nil {
+			return fmt.Errorf("failed to execute action: %w", err)
+		}
+
+		actionOutputBytes, err := chain.MarshalTyped(actionOutput)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output simulating action (%d: %v) output = %v: %w", i, action, actionOutput, err)
+		}
+		reply.ActionResults = append(reply.ActionResults, SimulateActionResult{
+			Output:    actionOutputBytes,
+			StateKeys: recorder.GetStateKeys(),
+		})
+		currentState = recorder
+	}
 	return nil
 }

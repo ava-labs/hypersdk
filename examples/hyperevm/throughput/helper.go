@@ -9,10 +9,12 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"sync/atomic"
 
 	"golang.org/x/exp/rand"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -55,6 +57,11 @@ func (sh *SpamHelper) CreateClient(uri string) error {
 	return nil
 }
 
+func (sh *SpamHelper) CreateJSONRPCClient(uri string) (*jsonrpc.JSONRPCClient, error) {
+	cli := jsonrpc.NewJSONRPCClient(uri)
+	return cli, nil
+}
+
 func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
@@ -68,13 +75,25 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	return balance, err
 }
 
-func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
+func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
+
 	to := storage.ConvertAddress(address)
-	return []chain.Action{&actions.EvmCall{
+
+	call := &actions.EvmCall{
 		To:    &to,
 		Value: amount,
-		Data:  memo,
-	}}
+		Data:  []byte{},
+	}
+
+	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, address)
+	if err != nil {
+		fmt.Println("simulate actions error", err)
+		return nil
+	}
+	actionResult := simRes[0]
+	call.Keys = actionResult.StateKeys
+
+	return []chain.Action{call}
 }
 
 func (sh *SpamHelper) GetActions() []chain.Action {

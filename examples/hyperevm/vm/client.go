@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -23,6 +24,20 @@ const balanceCheckInterval = 500 * time.Millisecond
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
 	g         *genesis.DefaultGenesis
+}
+
+type SimulatActionsArgs struct {
+	Actions []codec.Bytes `json:"actions"`
+	Actor   codec.Address `json:"actor"`
+}
+
+type SimulateActionResult struct {
+	Output    codec.Bytes `json:"output"`
+	StateKeys state.Keys  `json:"stateKeys"`
+}
+
+type SimulateActionsReply struct {
+	ActionResults []SimulateActionResult `json:"actionresults"`
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -152,4 +167,31 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 		return nil, err
 	}
 	return NewParser(&genesis), nil
+}
+
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+	args := &SimulatActionsArgs{
+		Actor: actor,
+	}
+
+	for _, action := range actions {
+		marshaledAction, err := chain.MarshalTyped(action)
+		if err != nil {
+			return nil, err
+		}
+		args.Actions = append(args.Actions, marshaledAction)
+	}
+
+	resp := new(SimulateActionsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"simulateActions",
+		args,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.ActionResults, nil
 }
