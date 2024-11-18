@@ -25,16 +25,12 @@ var (
 )
 
 type GenesisAndRuleFactory interface {
-	Load(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
+	Load(genesisBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, chain.RuleFactory, error)
 }
 
 type Genesis interface {
 	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler chain.BalanceHandler) error
 	GetStateBranchFactor() merkledb.BranchFactor
-}
-
-type RuleFactory interface {
-	GetRules(t int64) chain.Rules
 }
 
 type CustomAllocation struct {
@@ -82,7 +78,7 @@ func (g *DefaultGenesis) GetStateBranchFactor() merkledb.BranchFactor {
 
 type DefaultGenesisFactory struct{}
 
-func (DefaultGenesisFactory) Load(genesisBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
+func (DefaultGenesisFactory) Load(genesisBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, chain.RuleFactory, error) {
 	genesis := &DefaultGenesis{}
 	if err := json.Unmarshal(genesisBytes, genesis); err != nil {
 		return nil, nil, err

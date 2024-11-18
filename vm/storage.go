@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -65,7 +64,7 @@ func (vm *VM) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatefulBlock, error) {
+func (vm *VM) GetGenesis(ctx context.Context) (*StatefulBlock, error) {
 	return vm.GetDiskBlock(ctx, 0)
 }
 
@@ -118,7 +117,7 @@ func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 //
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
-func (vm *VM) UpdateLastAccepted(blk *chain.StatefulBlock) error {
+func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
@@ -174,12 +173,12 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatefulBlock) error {
 	return nil
 }
 
-func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatefulBlock, error) {
+func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*StatefulBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockKey(height))
 	if err != nil {
 		return nil, err
 	}
-	return chain.ParseBlock(ctx, b, true, vm)
+	return ParseBlock(ctx, b, true, vm)
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
