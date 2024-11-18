@@ -199,6 +199,7 @@ func (s Spammer) broadcast(
 		select {
 		case <-it.C:
 			start := time.Now()
+			
 			// Check to see if we should wait for pending txs
 			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
@@ -368,7 +369,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 	}
 	if err := p.Wait(); err != nil {
-		utils.Outf("{{orange}}failed to distribute funds:{{/}} %v\n", err)
+		utils.Outf("{{red}}failed to distribute funds:{{/}} %v\n", err)
 		return nil, nil, err
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)

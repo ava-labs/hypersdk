@@ -27,19 +27,19 @@ func (p *pacer) Run(ctx context.Context, max int) {
 	for range p.inflight {
 		_, wsErr, result, err := p.ws.ListenTx(ctx)
 		if err != nil {
-			p.done <- fmt.Errorf("error listen to: %w", err)
+			p.done <- fmt.Errorf("error Listening To Tx: %w", err)
 			return
 		}
 		if wsErr != nil {
-			p.done <- fmt.Errorf("error websocket, %w", wsErr)
+			p.done <- fmt.Errorf("websocket Error: %w", wsErr)
 			return
 		}
 		if !result.Success {
-			p.done <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+			// Should never happen
+			p.done <- fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
 			return
 		}
 	}
-
 	p.done <- nil
 }
 
@@ -47,12 +47,11 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 	if err := p.ws.RegisterTx(tx); err != nil {
 		return err
 	}
-
 	select {
 	case p.inflight <- struct{}{}:
 		return nil
 	case err := <-p.done:
-		utils.Outf("{{red}} Error: %s\n", err)
+		utils.Outf("{{red}} Error adding tx: %s\n", err)
 		return err
 	}
 }
