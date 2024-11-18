@@ -6,7 +6,6 @@ package throughput
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -22,55 +21,26 @@ type pacer struct {
 
 func (p *pacer) Run(ctx context.Context, max int) {
 	p.inflight = make(chan struct{}, max)
-	p.done = make(chan error, 1) 
-
-	var wg sync.WaitGroup
-	errors := make(chan error, 1) 
+	p.done = make(chan error, 1)
 
 	// Start a goroutine to process transaction results
-	go func() {
-		defer close(errors)
-		for range p.inflight {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_, wsErr, result, err := p.ws.ListenTx(ctx)
-				if err != nil {
-					utils.Outf("{{cyan}} Error listen too: %s\n", err)
-					select {
-					case errors <- err:
-					default:
-					}
-					return
-				}
-				if wsErr != nil {
-					utils.Outf("{{cyan}} Error websocket: %s\n", wsErr)
-					select {
-					case errors <- wsErr:
-					default:
-					}
-					return
-				}
-				if !result.Success {
-					select {
-					case errors <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error):
-					default:
-					}
-					return
-				}
-			}()
+	for range p.inflight {
+		_, wsErr, result, err := p.ws.ListenTx(ctx)
+		if err != nil {
+			p.done <- fmt.Errorf("error listen to: %w", err)
+			return
 		}
-		
-		// Wait for all goroutines to complete
-		wg.Wait()
-		select {
-		case err := <-errors:
-			utils.Outf("{{red}} Error after waiting: %s\n", err)
-			p.done <- err
-		default:
-			p.done <- nil
+		if wsErr != nil {
+			p.done <- fmt.Errorf("error websocket, %w", wsErr)
+			return
 		}
-	}()
+		if !result.Success {
+			p.done <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+			return
+		}
+	}
+
+	p.done <- nil
 }
 
 func (p *pacer) Add(tx *chain.Transaction) error {

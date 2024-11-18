@@ -31,13 +31,13 @@ var (
 	hideTxs               bool
 	checkAllChains        bool
 	spamDefaults          bool
-	clusterInfo		      string
+	clusterInfo           string
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	rootCmd = &cobra.Command{
+	rootCmd               = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
@@ -171,7 +171,6 @@ func init() {
 	spamCmd.AddCommand(
 		runSpamCmd,
 	)
-	
 
 	// prometheus
 	generatePrometheusCmd.PersistentFlags().StringVar(

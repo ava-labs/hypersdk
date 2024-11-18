@@ -12,8 +12,9 @@ import (
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	hthroughput "github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
+
+	hthroughput "github.com/ava-labs/hypersdk/throughput"
 )
 
 var spamCmd = &cobra.Command{

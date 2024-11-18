@@ -177,7 +177,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 			result.Outputs,
 			string(result.Error),
 		); err != nil {
-			return fmt.Errorf("error storing tx: %w", err);
+			return fmt.Errorf("error storing tx: %w", err)
 		}
 	}
 

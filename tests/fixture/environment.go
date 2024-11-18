@@ -39,7 +39,7 @@ func NewTestEnvironment(
 	)
 
 	chainID := testEnv.GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
-	setupDefaultChainAlias(testContext, 
+	setupDefaultChainAlias(testContext,
 		testEnv.GetNetwork().Nodes[0].URI,
 		chainID, networkConfig.Name())
 

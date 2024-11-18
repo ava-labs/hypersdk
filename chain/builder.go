@@ -453,11 +453,10 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	bytes, err := blk.Marshal()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error marshalling: %w", err)
-	} 
+	}
 	if len(bytes) > consts.NetworkSizeLimit {
 		return nil, nil, nil, fmt.Errorf("something here marshal blort: %d", len(bytes))
 	}
-
 
 	// Kickoff root generation
 	go func() {

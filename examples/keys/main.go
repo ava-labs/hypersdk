@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -15,7 +18,6 @@ var ed25519HexKeys = []string{
 	"47A785559736053C9F7F6352BE2C1330AA5EB53A3E73D6B486D03086768FCE1C30217F1E3A3BE88DD9BD1B27FDD3FD0C4AA0790FAAF7DA79894625609A3AA0FC",
 }
 
-
 func main() {
 	testKeys := make([]ed25519.PrivateKey, len(ed25519HexKeys))
 	for i, keyHex := range ed25519HexKeys {
@@ -32,7 +34,7 @@ func main() {
 	}
 }
 
-// output 
+// output
 // 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d914969017
 // 0x003020338128fc7babb4e5850aace96e589f55b33bda90d62c44651de110ea5b8c0b5ee37f
 // 0x006cf906f2df7c34d9be247dd384aefb43510d37d6c9ab273199d68c3b85130bcd05081a2c

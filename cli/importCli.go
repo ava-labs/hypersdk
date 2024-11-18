@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package cli
 
 import (
@@ -5,8 +8,9 @@ import (
 	"os"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/utils"
 	"gopkg.in/yaml.v2"
+
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 type ClusterInfo struct {
@@ -54,6 +58,7 @@ func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
 	}
 	return chainID, nodes, nil
 }
+
 func (h *Handler) ImportCLI(cliPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {

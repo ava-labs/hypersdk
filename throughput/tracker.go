@@ -83,6 +83,10 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	}()
 }
 
+func (t *tracker) IncrementSent() int64 {
+	return t.sent.Add(1)
+}
+
 func (t *tracker) uniqueBytes() []byte {
-	return binary.BigEndian.AppendUint64(nil, uint64(t.sent.Add(1)))
+	return binary.BigEndian.AppendUint64(nil, uint64(t.IncrementSent()))
 }
