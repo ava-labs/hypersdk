@@ -106,6 +106,7 @@ func NewTarget[T Tx](
 		serializer:           serializer,
 		submitter:            submitter,
 		validatorSet:         validatorSet,
+		targetStrategy:       targetStrategy,
 		targetGossipDuration: targetGossipDuration,
 		cfg:                  cfg,
 		stop:                 stop,
