@@ -5,8 +5,6 @@ package gossiper
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,9 +23,9 @@ import (
 	"github.com/ava-labs/hypersdk/internal/cache"
 )
 
-var _ Gossiper = (*Proposer[Tx])(nil)
+var _ Gossiper = (*Target[Tx])(nil)
 
-type Proposer[T Tx] struct {
+type Target[T Tx] struct {
 	tracer  trace.Tracer
 	log     logging.Logger
 	metrics *metrics
@@ -39,9 +36,10 @@ type Proposer[T Tx] struct {
 	validatorSet         ValidatorSet
 	targetGossipDuration time.Duration
 
-	cfg        *ProposerConfig
-	client     *p2p.Client
-	doneGossip chan struct{}
+	targetStrategy TargetStrategy[T]
+	cfg            *TargetConfig
+	client         *p2p.Client
+	doneGossip     chan struct{}
 
 	lastVerified int64
 
@@ -58,9 +56,7 @@ type Proposer[T Tx] struct {
 	stop <-chan struct{}
 }
 
-type ProposerConfig struct {
-	GossipProposerDiff  int
-	GossipProposerDepth int
+type TargetConfig struct {
 	GossipMinLife       int64 // ms
 	GossipMaxSize       int
 	GossipMinDelay      int64 // ms
@@ -69,10 +65,13 @@ type ProposerConfig struct {
 	SeenCacheSize       int
 }
 
-func DefaultProposerConfig() *ProposerConfig {
-	return &ProposerConfig{
-		GossipProposerDiff:  4,
-		GossipProposerDepth: 1,
+type GossipContainer[T any] struct {
+	SendConfig common.SendConfig
+	Txs        []T
+}
+
+func DefaultTargetConfig() *TargetConfig {
+	return &TargetConfig{
 		GossipMinLife:       5 * 1000,
 		GossipMaxSize:       consts.NetworkSizeLimit,
 		GossipMinDelay:      50,
@@ -82,7 +81,7 @@ func DefaultProposerConfig() *ProposerConfig {
 	}
 }
 
-func NewProposer[T Tx](
+func NewTarget[T Tx](
 	tracer trace.Tracer,
 	log logging.Logger,
 	registerer prometheus.Registerer,
@@ -91,14 +90,15 @@ func NewProposer[T Tx](
 	submitter Submitter[T],
 	validatorSet ValidatorSet,
 	targetGossipDuration time.Duration,
-	cfg *ProposerConfig,
+	targetStrategy TargetStrategy[T],
+	cfg *TargetConfig,
 	stop <-chan struct{},
-) (*Proposer[T], error) {
+) (*Target[T], error) {
 	metrics, err := newMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}
-	g := &Proposer[T]{
+	g := &Target[T]{
 		tracer:               tracer,
 		log:                  log,
 		metrics:              metrics,
@@ -123,7 +123,7 @@ func NewProposer[T Tx](
 	return g, nil
 }
 
-func (g *Proposer[T]) Force(ctx context.Context) error {
+func (g *Target[T]) Force(ctx context.Context) error {
 	ctx, span := g.tracer.Start(ctx, "Gossiper.Force")
 	defer span.End()
 
@@ -195,7 +195,7 @@ func (g *Proposer[T]) Force(ctx context.Context) error {
 	return g.sendTxs(ctx, txs)
 }
 
-func (g *Proposer[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	txs, err := g.serializer.Unmarshal(msg)
 	if err != nil {
 		g.log.Warn(
@@ -250,7 +250,7 @@ func (g *Proposer[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, ms
 	return nil
 }
 
-func (g *Proposer[T]) notify() {
+func (g *Target[T]) notify() {
 	select {
 	case g.q <- struct{}{}:
 		g.lastQueue = time.Now().UnixMilli()
@@ -258,12 +258,12 @@ func (g *Proposer[T]) notify() {
 	}
 }
 
-func (g *Proposer[T]) handleTimerNotify() {
+func (g *Target[T]) handleTimerNotify() {
 	g.notify()
 	g.waiting.Store(false)
 }
 
-func (g *Proposer[T]) Queue(context.Context) {
+func (g *Target[T]) Queue(context.Context) {
 	if !g.waiting.CompareAndSwap(false, true) {
 		g.log.Debug("unable to start waiting")
 		return
@@ -282,7 +282,7 @@ func (g *Proposer[T]) Queue(context.Context) {
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer[T]) Run(client *p2p.Client) {
+func (g *Target[T]) Run(client *p2p.Client) {
 	g.client = client
 	defer close(g.doneGossip)
 
@@ -323,47 +323,38 @@ func (g *Proposer[T]) Run(client *p2p.Client) {
 	}
 }
 
-func (g *Proposer[T]) BlockVerified(t int64) {
+func (g *Target[T]) BlockVerified(t int64) {
 	if t < g.lastVerified {
 		return
 	}
 	g.lastVerified = t
 }
 
-func (g *Proposer[T]) Done() {
+func (g *Target[T]) Done() {
 	g.timer.Stop()
 	<-g.doneGossip
 }
 
-func (g *Proposer[T]) sendTxs(ctx context.Context, txs []T) error {
+func (g *Target[T]) sendTxs(ctx context.Context, txs []T) error {
 	ctx, span := g.tracer.Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
-	// Marshal gossip
-	b, err := g.serializer.Marshal(txs)
+	gossipContainers, err := g.targetStrategy.Target(ctx, txs)
 	if err != nil {
 		return err
 	}
 
-	// Select next set of proposers and send gossip to them
-	proposers, err := g.validatorSet.Proposers(
-		ctx,
-		g.cfg.GossipProposerDiff,
-		g.cfg.GossipProposerDepth,
-	)
-	if err != nil {
-		return fmt.Errorf("%w: unable to fetch proposers", err)
-	}
-	if proposers.Len() == 0 {
-		return errors.New("no proposers to gossip to")
-	}
-	recipients := set.NewSet[ids.NodeID](len(proposers))
-	for proposer := range proposers {
-		// Don't gossip to self
-		if proposer == g.validatorSet.NodeID() {
-			continue
+	for _, gossipContainer := range gossipContainers {
+		// Marshal gossip
+		b, err := g.serializer.Marshal(gossipContainer.Txs)
+		if err != nil {
+			return err
 		}
-		recipients.Add(proposer)
+
+		// Send gossip to specified peers
+		if err := g.client.AppGossip(ctx, gossipContainer.SendConfig, b); err != nil {
+			return err
+		}
 	}
-	return g.client.AppGossip(ctx, common.SendConfig{NodeIDs: recipients}, b)
+	return nil
 }
