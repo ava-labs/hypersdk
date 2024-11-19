@@ -21,14 +21,18 @@ MORPHEUSVM_PATH=$(
 
 if [[ $# -eq 1 ]]; then
     BINARY_PATH=$1
+    echo "Building MorpheusVM...."
+    go build -o "$BINARY_PATH" ./cmd/morpheusvm
+    exit 0
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
     BINARY_PATH=$MORPHEUSVM_PATH/build/$name
 else
-    echo "Usage: $0 [binary_path]"
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
     exit 1
 fi
 
+echo "Binary path: $BINARY_PATH"
 echo "Building MorpheusVM Hereee"
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "$BINARY_PATH"
