@@ -37,7 +37,7 @@ var importAvalancheCliChainCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().ImportCLI(args[0])
+		return handler.Root().ImportClusterInfo(args[0])
 	},
 }
 

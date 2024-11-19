@@ -4,6 +4,9 @@
 
 set -e
 
+# Get the directory of the script, even if sourced from another directory
+SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+
 # shellcheck source=/scripts/constants.sh
 source "$SCRIPT_DIR"/../../../scripts/constants.sh
 
@@ -56,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT="9833152f5a7c545e206a9f675981eafa1c66d2c2"
+MORPHEUS_VM_COMMIT="b6a6c81b019fefbfdca05a53b64e31d948bf7fb3"
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
