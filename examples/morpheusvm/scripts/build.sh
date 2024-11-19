@@ -22,6 +22,7 @@ MORPHEUSVM_PATH=$(
 if [[ $# -eq 1 ]]; then
     BINARY_PATH=$1
     echo "Building MorpheusVM...."
+    mkdir -p "$(dirname "$BINARY_PATH")"
     go build -o "$BINARY_PATH" ./cmd/morpheusvm
     exit 0
 elif [[ $# -eq 0 ]]; then
@@ -33,6 +34,4 @@ else
     exit 1
 fi
 
-echo "Binary path: $BINARY_PATH"
-echo "Building MorpheusVM Hereee"
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "$BINARY_PATH"
