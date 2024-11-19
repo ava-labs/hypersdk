@@ -189,7 +189,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 }
 ```
 
-In the above, some of the checks that `confirmTX` does are:
+In the above, some of the checks that `confirmTx` does are:
 - Checking that the TX was successful
 - Checking that the balance of the receiver is as expected
 - Checking that the balance of the sender is as expected
