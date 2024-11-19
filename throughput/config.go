@@ -4,7 +4,7 @@
 package throughput
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/ava-labs/hypersdk/auth"
 )
@@ -40,7 +40,7 @@ func NewDefaultConfig(
 
 func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
 	if len(uris) == 0 || len(keyHex) == 0 {
-		return nil, fmt.Errorf("uris and keyHex must be non-empty")
+		return nil, errors.New("uris and keyHex must be non-empty")
 	}
 
 	key, err := auth.FromString(auth.ED25519ID, keyHex)
