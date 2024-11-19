@@ -464,6 +464,16 @@ func (vm *VM) Initialize(
 	if err := vm.initStateSync(); err != nil {
 		return err
 	}
+	if err := vm.network.AddHandler(
+		txGossipHandlerID,
+		gossiper.NewTxGossipHandler(
+			vm,
+			vm.snowCtx.Log,
+			vm.gossiper,
+		),
+	); err != nil {
+		return err
+	}
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
