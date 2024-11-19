@@ -19,4 +19,20 @@ MORPHEUSVM_PATH=$(
   cd .. && pwd
 )
 
-build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+if [[ $# -eq 1 ]]; then
+    BINARY_PATH=$1
+    echo "Building MorpheusVM...."
+    cd "$MORPHEUSVM_PATH"
+    mkdir -p "$(dirname "$BINARY_PATH")"
+    go build -o "$BINARY_PATH" ./cmd/morpheusvm
+    exit 0
+elif [[ $# -eq 0 ]]; then
+    # Set default binary directory location
+    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
+else
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    exit 1
+fi
+
+build_project "$MORPHEUSVM_PATH" "morpheusvm" "$BINARY_PATH"
