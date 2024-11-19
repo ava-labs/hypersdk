@@ -12,7 +12,6 @@ realpath() {
 
 
 build_project() {
-    YELLOW='\033[1;33m'
     local project_path
     project_path=$(realpath "$1")
     local project_name=$2
@@ -31,6 +30,7 @@ build_project() {
     fi
 
     cd "$project_path"
+    echo "Building $project_name in $binary_path"
     mkdir -p "$(dirname "$binary_path")"
 
     go build -o "$binary_path" ./cmd/"$project_name"

@@ -58,8 +58,10 @@ func FromString(typeID uint8, keyHex string) (*PrivateKey, error) {
 		}
 	case SECP256R1ID:
 		// unimplemented
+		fallthrough
 	case BLSID:
 		// unimplemented
+		fallthrough
 	default:
 		return nil, ErrInvalidKeyType
 	}
