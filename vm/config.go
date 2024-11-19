@@ -34,7 +34,6 @@ type Config struct {
 	AcceptedBlockWindow              int                        `json:"acceptedBlockWindow"`
 	AcceptedBlockWindowCache         int                        `json:"acceptedBlockWindowCache"`
 	ContinuousProfilerConfig         profiler.Config            `json:"continuousProfilerConfig"`
-	TargetBuildDuration              time.Duration              `json:"targetBuildDuration"`
 	ProcessingBuildSkip              int                        `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int                        `json:"blockCompactionFrequency"`
@@ -63,7 +62,6 @@ func NewConfig() Config {
 		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
 		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks
 		ContinuousProfilerConfig:         profiler.Config{Enabled: false},
-		TargetBuildDuration:              100 * time.Millisecond,
 		ProcessingBuildSkip:              16,
 		TargetGossipDuration:             20 * time.Millisecond,
 		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks

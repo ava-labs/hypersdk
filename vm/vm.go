@@ -42,13 +42,13 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
-	avasync "github.com/ava-labs/avalanchego/x/sync"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
@@ -60,9 +60,7 @@ const (
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
 
-	rangeProofHandlerID  = 0x0
-	changeProofHandlerID = 0x1
-	txGossipHandlerID    = 0x2
+	txGossipHandlerID = 0x2
 )
 
 type VM struct {
@@ -136,7 +134,8 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient *stateSyncerClient
+	StateSyncClient *statesync.Client[*StatefulBlock]
+	StateSyncServer *statesync.Server[*StatefulBlock]
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -462,31 +461,7 @@ func (vm *VM) Initialize(
 	}
 	go vm.processAcceptedBlocks()
 
-	// Setup state syncing
-	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
-
-	if err := vm.network.AddHandler(
-		rangeProofHandlerID,
-		avasync.NewGetRangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		changeProofHandlerID,
-		avasync.NewGetChangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		txGossipHandlerID,
-		gossiper.NewTxGossipHandler(
-			vm,
-			vm.snowCtx.Log,
-			vm.gossiper,
-		),
-	); err != nil {
+	if err := vm.initStateSync(); err != nil {
 		return err
 	}
 
@@ -534,8 +509,8 @@ func (vm *VM) applyOptions(o *Options) error {
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	} else {
-		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(t int64) (int64, int64, error) {
-			blk, err := vm.GetStatefulBlock(context.TODO(), vm.preferred)
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -597,7 +572,7 @@ func (vm *VM) markReady() {
 	select {
 	case <-vm.stop:
 		return
-	case <-vm.stateSyncClient.done:
+	case <-vm.StateSyncClient.Done():
 	}
 
 	// We can begin partailly verifying blocks here because
@@ -613,7 +588,7 @@ func (vm *VM) markReady() {
 	case <-vm.seenValidityWindow:
 	}
 	vm.snowCtx.Log.Info("validity window ready")
-	if vm.stateSyncClient.Started() {
+	if vm.StateSyncClient.Started() {
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
@@ -621,7 +596,7 @@ func (vm *VM) markReady() {
 	// Mark node ready and attempt to build a block.
 	vm.snowCtx.Log.Info(
 		"node is now ready",
-		zap.Bool("synced", vm.stateSyncClient.Started()),
+		zap.Bool("synced", vm.StateSyncClient.Started()),
 	)
 	vm.checkActivity(context.TODO())
 }
@@ -651,7 +626,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 		return nil
 	case snow.Bootstrapping:
 		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.stateSyncClient.Started()
+		syncStarted := vm.StateSyncClient.Started()
 		if !syncStarted {
 			// We must check if we finished syncing before starting bootstrapping.
 			// This should only ever occur if we began a state sync, restarted, and
@@ -670,7 +645,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
-			vm.stateSyncClient.ForceDone()
+			vm.StateSyncClient.ForceDone()
 
 			// TODO: add a config to FATAL here if could not state sync (likely won't be
 			// able to recover in networks where no one has the full state, bypass
@@ -693,7 +668,7 @@ func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
 		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+			Info("normal operation started", zap.Bool("state sync started", vm.StateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -709,7 +684,7 @@ func (vm *VM) onBootstrapStarted() error {
 // ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
-	vm.stateSyncClient.ForceDone()
+	vm.StateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
@@ -731,7 +706,7 @@ func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
-	if err := vm.stateSyncClient.Shutdown(); err != nil {
+	if err := vm.StateSyncClient.Shutdown(); err != nil {
 		return err
 	}
 
@@ -861,9 +836,7 @@ func (vm *VM) GetValidityWindow() *chain.TimeValidityWindow {
 	return vm.chainTimeValidityWindow
 }
 
-// implements "block.ChainVM.commom.VM.Parser"
-// replaces "core.SnowmanVM.ParseBlock"
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockParse.Observe(float64(time.Since(start)))
@@ -904,6 +877,11 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		zap.Uint64("height", newBlk.Hght),
 	)
 	return newBlk, nil
+}
+
+// implements "block.ChainVM.commom.VM.Parser"
+func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	return vm.ParseStatefulBlock(ctx, source)
 }
 
 // implements "block.ChainVM"
