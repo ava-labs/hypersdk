@@ -6,6 +6,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"gopkg.in/yaml.v2"
@@ -29,7 +30,7 @@ type ClusterInfo struct {
 	} `yaml:"VALIDATOR"`
 }
 
-func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
+func ReadClusterInfoFile(cliPath string) (ids.ID, map[string]string, error) {
 	// Load yaml file
 	yamlFile, err := os.ReadFile(cliPath)
 	if err != nil {
@@ -59,7 +60,7 @@ func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
 	return chainID, nodes, nil
 }
 
-func (h *Handler) ImportCLI(cliPath string) error {
+func (h *Handler) ImportClusterInfo(cliPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {
 		return err
@@ -69,7 +70,7 @@ func (h *Handler) ImportCLI(cliPath string) error {
 	}
 
 	// Load yaml file
-	chainID, nodes, err := ReadCLIFile(cliPath)
+	chainID, nodes, err := ReadClusterInfoFile(cliPath)
 	if err != nil {
 		return err
 	}
@@ -85,4 +86,16 @@ func (h *Handler) ImportCLI(cliPath string) error {
 		)
 	}
 	return h.StoreDefaultChain(chainID)
+}
+
+func OnlyAPIs(uris map[string]string) []string {
+	apis := make([]string, 0, len(uris))
+	for k := range uris {
+		if !strings.Contains(strings.ToLower(k), "api") {
+			continue
+		}
+
+		apis = append(apis, uris[k])
+	}
+	return apis
 }

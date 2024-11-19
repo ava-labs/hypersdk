@@ -4,9 +4,9 @@
 package throughput
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type Config struct {
@@ -38,15 +38,14 @@ func NewDefaultConfig(
 	}
 }
 
-func NewDefaultCliConfig(uris []string, keyHex string) (*Config, error) {
-	bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
+	if len(uris) == 0 || len(keyHex) == 0 {
+		return nil, fmt.Errorf("uris and keyHex must be non-empty")
+	}
+
+	key, err := auth.FromString(auth.ED25519ID, keyHex)
 	if err != nil {
 		return nil, err
-	}
-	privateKey := ed25519.PrivateKey(bytes)
-	key := &auth.PrivateKey{
-		Address: auth.NewED25519Address(privateKey.PublicKey()),
-		Bytes:   bytes,
 	}
 
 	return &Config{

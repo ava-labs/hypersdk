@@ -32,6 +32,7 @@ var (
 	hideTxs               bool
 	checkAllChains        bool
 	spamDefaults          bool
+	spamKey               string
 	clusterInfo           string
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
@@ -163,6 +164,13 @@ func init() {
 		"cluster-info",
 		"",
 		"output from avalanche-cli with cluster info",
+	)
+
+	runSpamCmd.PersistentFlags().StringVar(
+		&spamKey,
+		"key",
+		"",
+		"private key used to distribute funds",
 	)
 
 	// spam

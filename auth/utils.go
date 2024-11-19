@@ -42,3 +42,27 @@ func GetFactory(pk *PrivateKey) (chain.AuthFactory, error) {
 		return nil, ErrInvalidKeyType
 	}
 }
+
+func FromString(typeID uint8, keyHex string) (*PrivateKey, error) {
+	var key *PrivateKey
+	switch typeID {
+	case ED25519ID:
+		bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		privateKey := ed25519.PrivateKey(bytes)
+		key = &PrivateKey{
+			Address: NewED25519Address(privateKey.PublicKey()),
+			Bytes:   bytes,
+		}
+	case SECP256R1ID:
+		// unimplemented
+	case BLSID:
+		// unimplemented
+	default:
+		return nil, ErrInvalidKeyType
+	}
+
+	return key, nil
+}
