@@ -22,6 +22,7 @@ MORPHEUSVM_PATH=$(
 if [[ $# -eq 1 ]]; then
     BINARY_PATH=$1
     echo "Building MorpheusVM...."
+    cd "$MORPHEUSVM_PATH"
     mkdir -p "$(dirname "$BINARY_PATH")"
     go build -o "$BINARY_PATH" ./cmd/morpheusvm
     exit 0
