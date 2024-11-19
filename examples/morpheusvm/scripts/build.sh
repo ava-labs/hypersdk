@@ -25,6 +25,10 @@ elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
     BINARY_PATH=$MORPHEUSVM_PATH/build/$name
+else
+    echo "Usage: $0 [binary_path]"
+    exit 1
+fi
 
 echo "Building MorpheusVM Hereee"
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "$BINARY_PATH"
