@@ -207,7 +207,7 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	return blk, nil
 }
 
-func (*Node[T]) Execute(ctx context.Context, parent Block, block Block) error {
+func (*Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
 	// TODO: Verify header fields
 	// TODO: de-duplicate chunk certificates (internal to block and across history)
 	for _, chunkCert := range block.ChunkCerts {
