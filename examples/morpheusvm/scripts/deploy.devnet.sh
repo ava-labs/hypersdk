@@ -4,11 +4,13 @@
 
 set -e
 
-# Get the directory of the script, even if sourced from another directory
-SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+# # Get the directory of the script, even if sourced from another directory
+# SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 
-# shellcheck source=/scripts/constants.sh
-source "$SCRIPT_DIR"/../../../scripts/constants.sh
+# # shellcheck source=/scripts/constants.sh
+# source "$SCRIPT_DIR"/../../../scripts/constants.sh
+
+export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Set console colors
 RED='\033[1;31m'
@@ -59,7 +61,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT="b6a6c81b019fefbfdca05a53b64e31d948bf7fb3"
+MORPHEUS_VM_COMMIT="a00b96659b14d62254977e1cb4bb77641ea27489"
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
