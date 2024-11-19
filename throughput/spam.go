@@ -144,6 +144,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	defer cancel()
 
 	for _, issuer := range issuers {
+		utils.Outf("{{yellow}}starting issuer %d{{/}}\n", issuer.i)
 		issuer.Start(cctx)
 	}
 
@@ -213,8 +214,8 @@ func (s Spammer) broadcast(
 					}
 					consecutiveAboveBacklog = 0
 				}
-				it.Reset(1 * time.Second)
-				break
+				sleep(it, start)
+				continue 
 			}
 
 			// Issue txs
@@ -222,17 +223,18 @@ func (s Spammer) broadcast(
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
 				senderIndex := z.Uint64()
-				sender := accounts[senderIndex].Address
+				// sender := accounts[senderIndex].Address
 				issuer := getRandomIssuer(issuers)
+				
 				g.Go(func() error {
 					factory := factories[senderIndex]
-					balance, err := sh.LookupBalance(sender)
-					if err != nil {
-						return err
-					}
-					if balance < feePerTx {
-						return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
-					}
+					// balance, err := sh.LookupBalance(sender)
+					// if err != nil {
+					// 	return err
+					// }
+					// if balance < feePerTx {
+					// 	return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
+					// }
 					// Send transaction
 					actions := sh.GetActions()
 					s.tracker.IncrementSent()
@@ -249,10 +251,7 @@ func (s Spammer) broadcast(
 				break
 			}
 
-			// Determine how long to sleep
-			dur := time.Since(start)
-			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
-			it.Reset(time.Duration(sleep) * time.Millisecond)
+			sleep(it, start)
 
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
@@ -436,4 +435,11 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 		symbol,
 	)
 	return nil
+}
+
+func sleep(it *time.Timer, start time.Time) {
+	// Determine how long to sleep
+	dur := time.Since(start)
+	sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+	it.Reset(time.Duration(sleep) * time.Millisecond)
 }

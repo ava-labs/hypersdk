@@ -30,11 +30,11 @@ func NewDefaultConfig(
 		key:              key,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     500,
-		minTxsPerSecond:  100,
-		txsPerSecondStep: 200,
+		txsPerSecond:     10000,
+		minTxsPerSecond:  1000,
+		txsPerSecondStep: 1000,
 		numClients:       10,
-		numAccounts:      25,
+		numAccounts:      10500,
 	}
 }
 
