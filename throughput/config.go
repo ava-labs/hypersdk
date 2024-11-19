@@ -51,14 +51,13 @@ func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
 	return &Config{
 		uris:             uris,
 		key:              key,
-		sZipf:            1.0001,
+		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     100000,
+		txsPerSecond:     25000,
 		minTxsPerSecond:  2000,
-		txsPerSecondStep: 1000,
+		txsPerSecondStep: 2000,
 		numClients:       10,
-		// numAccounts: 10000000,
-		numAccounts: 100000,
+		numAccounts:      100000,
 	}, nil
 }
 
