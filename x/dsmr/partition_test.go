@@ -10,10 +10,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
 	"github.com/thepudds/fzgen/fuzzer"
+
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 // createTestPartition creates a precalculated partition with the provided weights
@@ -242,7 +243,7 @@ func FuzzFilterTxs(f *testing.F) {
 
 		nodeIDIndex := 0
 		fz.Fill(&nodeIDIndex)
-		nodeIDIndex = nodeIDIndex % len(partition.validators)
+		nodeIDIndex %= len(partition.validators)
 		nodeID := partition.validators[nodeIDIndex].nodeID
 
 		r := require.New(t)
@@ -254,9 +255,9 @@ func FuzzFilterTxs(f *testing.F) {
 		}
 
 		for _, tx := range txs {
-			nodeID, ok := partition.AssignTx(tx)
+			assignedNodeID, ok := partition.AssignTx(tx)
 			r.True(ok)
-			expectedIncluded := nodeID == nodeID
+			expectedIncluded := nodeID == assignedNodeID
 			_, included := filteredTxsSet[tx.ID]
 			r.Equal(expectedIncluded, included)
 		}
