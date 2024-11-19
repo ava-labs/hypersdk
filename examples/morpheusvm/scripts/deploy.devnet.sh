@@ -4,12 +4,6 @@
 
 set -e
 
-# # Get the directory of the script, even if sourced from another directory
-# SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
-
-# # shellcheck source=/scripts/constants.sh
-# source "$SCRIPT_DIR"/../../../scripts/constants.sh
-
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Set console colors
