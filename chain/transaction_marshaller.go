@@ -20,7 +20,7 @@ type TxSerializer struct {
 func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
 	p := codec.NewReader(data, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
+	txs := make([]*Transaction, 0, min(txCount, initialCapacity)) // DoS to set size to txCount
 	for i := uint32(0); i < txCount; i++ {
 		tx, err := UnmarshalTx(p, s.ActionRegistry, s.AuthRegistry)
 		if err != nil {
