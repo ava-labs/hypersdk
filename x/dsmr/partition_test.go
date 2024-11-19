@@ -241,9 +241,10 @@ func FuzzFilterTxs(f *testing.F) {
 			return
 		}
 
-		nodeIDIndex := 0
+		nodeIDIndex := uint32(0)
 		fz.Fill(&nodeIDIndex)
-		nodeIDIndex %= len(partition.validators)
+
+		nodeIDIndex %= uint32(len(partition.validators))
 		nodeID := partition.validators[nodeIDIndex].nodeID
 
 		r := require.New(t)
