@@ -9,7 +9,6 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"sync/atomic"
 
 	"golang.org/x/exp/rand"
@@ -20,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -77,24 +75,30 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 
 func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, factory chain.AuthFactory) []chain.Action {
 
-	to := storage.ConvertAddress(address)
+	// to := storage.ConvertAddress(address)
 
-	call := &actions.EvmCall{
-		To:       &to,
-		Value:    amount,
-		GasLimit: 1000000,
-		Data:     []byte{},
+	// call := &actions.EvmCall{
+	// 	To:       &to,
+	// 	Value:    amount,
+	// 	GasLimit: 1000000,
+	// 	Data:     []byte{},
+	// }
+
+	// simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
+	// if err != nil {
+	// 	fmt.Println("simulate actions error", err)
+	// 	return nil
+	// }
+	// actionResult := simRes[0]
+	// call.Keys = actionResult.StateKeys
+
+	transfer := &actions.Transfer{
+		To:    address,
+		Value: amount,
+		Memo:  memo,
 	}
 
-	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
-	if err != nil {
-		fmt.Println("simulate actions error", err)
-		return nil
-	}
-	actionResult := simRes[0]
-	call.Keys = actionResult.StateKeys
-
-	return []chain.Action{call}
+	return []chain.Action{transfer}
 }
 
 func (sh *SpamHelper) GetActions(factory chain.AuthFactory) []chain.Action {

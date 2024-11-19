@@ -235,6 +235,7 @@ func (s Spammer) broadcast(
 					}
 					// Send transaction
 					actions := sh.GetActions(factory)
+					s.tracker.IncrementSent()
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
@@ -363,11 +364,12 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 
 		// Log progress
-		if i%250 == 0 && i > 0 {
+		if i%1000 == 0 && i > 0 {
 			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
 		}
 	}
 	if err := p.Wait(); err != nil {
+		utils.Outf("{{red}}failed to distribute funds:{{/}} %v\n", err)
 		return nil, nil, err
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
