@@ -6,6 +6,7 @@ package cli
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -13,7 +14,7 @@ import (
 
 // BuildSpammer prompts the user for the spammer parameters. If [defaults], the default values are used once the
 // chain and root key are selected. Otherwise, the user is prompted for all parameters.
-func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throughput.Spammer, error) {
+func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, defaults bool) (*throughput.Spammer, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
@@ -24,20 +25,29 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
-	// Select root key
-	keys, err := h.GetKeys()
-	if err != nil {
-		return nil, err
-	}
 	if err := sh.CreateClient(uris[0]); err != nil {
 		return nil, err
 	}
 
-	keyIndex, err := prompt.Choice("select root key", len(keys))
-	if err != nil {
-		return nil, err
+	var key *auth.PrivateKey
+
+	if len(spamKey) == 0 {
+		// Select root key
+		keys, err := h.GetKeys()
+		if err != nil {
+			return nil, err
+		}
+		keyIndex, err := prompt.Choice("select root key", len(keys))
+		if err != nil {
+			return nil, err
+		}
+		key = keys[keyIndex]
+	} else {
+		key, err = auth.FromString(auth.ED25519ID, spamKey)
+		if err != nil {
+			return nil, err
+		}
 	}
-	key := keys[keyIndex]
 	// No longer using db, so we close
 	if err := h.CloseDatabase(); err != nil {
 		return nil, err
@@ -96,8 +106,8 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	return throughput.NewSpammer(sc, sh)
 }
 
-func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults bool) error {
-	spammer, err := h.BuildSpammer(sh, defaults)
+func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, spamKey string, defaults bool) error {
+	spammer, err := h.BuildSpammer(sh, spamKey, defaults)
 	if err != nil {
 		return err
 	}

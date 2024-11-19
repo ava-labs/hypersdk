@@ -3,7 +3,11 @@
 
 package throughput
 
-import "github.com/ava-labs/hypersdk/auth"
+import (
+	"fmt"
+
+	"github.com/ava-labs/hypersdk/auth"
+)
 
 type Config struct {
 	uris             []string
@@ -32,6 +36,30 @@ func NewDefaultConfig(
 		numClients:       10,
 		numAccounts:      25,
 	}
+}
+
+func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
+	if len(uris) == 0 || len(keyHex) == 0 {
+		return nil, fmt.Errorf("uris and keyHex must be non-empty")
+	}
+
+	key, err := auth.FromString(auth.ED25519ID, keyHex)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Config{
+		uris:             uris,
+		key:              key,
+		sZipf:            1.0001,
+		vZipf:            2.7,
+		txsPerSecond:     100000,
+		minTxsPerSecond:  2000,
+		txsPerSecondStep: 1000,
+		numClients:       10,
+		// numAccounts: 10000000,
+		numAccounts: 100000,
+	}, nil
 }
 
 func NewConfig(
