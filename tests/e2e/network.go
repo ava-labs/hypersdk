@@ -54,31 +54,47 @@ func (n *Network) URIs() []string {
 	return n.uris
 }
 
-func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) ([]*chain.Result, error) {
 	c := jsonrpc.NewJSONRPCClient(n.uris[0])
 	txIDs := []ids.ID{}
 	for _, tx := range txs {
 		txID, err := c.SubmitTx(ctx, tx.Bytes())
 		if err != nil {
-			return fmt.Errorf("unable to submit transaction : %w", err)
+			return nil, fmt.Errorf("unable to submit transaction : %w", err)
 		}
 		txIDs = append(txIDs, txID)
 	}
 
+	results := make([]*chain.Result, 0, len(txs))
 	indexerCli := indexer.NewClient(n.uris[0])
 	for _, txID := range txIDs {
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 		if err != nil {
-			return fmt.Errorf("error while waiting for transaction : %w", err)
+			return nil, fmt.Errorf("error while waiting for transaction : %w", err)
 		}
 		if !success {
-			return ErrUnableToConfirmTx
+			return nil, ErrUnableToConfirmTx
 		}
+		txResponse, _, err := indexerCli.GetTx(ctx, txID)
+		if err != nil {
+			return nil, fmt.Errorf("error while fetching transaction : %w", err)
+		}
+		outputs := make([][]byte, 0, len(txResponse.Outputs))
+		for _, output := range txResponse.Outputs {
+			outputs = append(outputs, []byte(output))
+		}
+		results = append(results, &chain.Result{
+			Success: txResponse.Success,
+			Error:   []byte(txResponse.ErrorStr),
+			Fee:     txResponse.Fee,
+			Units:   txResponse.Units,
+			Outputs: outputs,
+		})
 	}
 
 	_, targetHeight, _, err := c.Accepted(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, uri := range n.uris[1:] {
 		if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
@@ -89,10 +105,10 @@ func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) erro
 			}
 			return nodeHeight >= targetHeight, nil
 		}); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return results, nil
 }
 
 func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {

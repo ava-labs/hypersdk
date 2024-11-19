@@ -10,7 +10,7 @@ import (
 )
 
 type TestNetwork interface {
-	ConfirmTxs(context.Context, []*chain.Transaction) error
+	ConfirmTxs(context.Context, []*chain.Transaction) ([]*chain.Result, error)
 	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
 	URIs() []string
 	Configuration() TestNetworkConfiguration

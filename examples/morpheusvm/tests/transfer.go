@@ -45,5 +45,9 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()
 
-	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+	results, err := tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx})
+	require.NoError(err)
+	for _, result := range results {
+		require.True(result.Success)
+	}
 })
