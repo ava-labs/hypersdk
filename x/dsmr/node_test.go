@@ -30,7 +30,7 @@ var (
 )
 
 // Test that chunks can be built through Node.NewChunk
-func TestNode_NewChunk(t *testing.T) {
+func TestNode_BuildChunk(t *testing.T) {
 	tests := []struct {
 		name        string
 		txs         []tx
@@ -119,7 +119,7 @@ func TestNode_NewChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunk, err := node.NewChunk(
+			chunk, err := node.BuildChunk(
 				context.Background(),
 				tt.txs,
 				tt.expiry,
@@ -183,7 +183,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	chunk, err := node.NewChunk(
+	chunk, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
@@ -273,7 +273,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	chunk, err := node.NewChunk(
+	chunk, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
@@ -566,7 +566,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			// Build some chunks
 			wantChunks := make([]Chunk[tx], 0)
 			for _, args := range tt.availableChunks {
-				chunk, err := node.NewChunk(
+				chunk, err := node.BuildChunk(
 					context.Background(),
 					args.txs,
 					args.expiry,
@@ -742,7 +742,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				nil,
 			)
 			r.NoError(err)
-			chunk, err := node2.NewChunk(
+			chunk, err := node2.BuildChunk(
 				context.Background(),
 				[]tx{{ID: ids.Empty, Expiry: 123}},
 				123,
@@ -874,7 +874,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 
 	// Accept a chunk
 	r.NoError(err)
-	chunk, err := node.NewChunk(
+	chunk, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.Empty, Expiry: 123}},
 		123,
@@ -990,7 +990,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	)
 	r.NoError(err)
 
-	chunk, err := node2.NewChunk(
+	chunk, err := node2.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.Empty, Expiry: 1}},
 		1,
@@ -1292,7 +1292,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 
 			wantChunks := make([]Chunk[tx], 0)
 			for _, chunk := range tt.chunks {
-				chunk, err := node.NewChunk(
+				chunk, err := node.BuildChunk(
 					context.Background(),
 					chunk.txs,
 					chunk.expiry,
@@ -1376,7 +1376,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	)
 	r.NoError(err)
 
-	chunk, err := node1.NewChunk(
+	chunk, err := node1.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
 		1,

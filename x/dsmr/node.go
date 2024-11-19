@@ -99,9 +99,9 @@ type Node[T Tx] struct {
 	storage                       *chunkStorage[T]
 }
 
-// NewChunk builds transactions into a Chunk
+// BuildChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
-func (n *Node[T]) NewChunk(
+func (n *Node[T]) BuildChunk(
 	ctx context.Context,
 	txs []T,
 	expiry int64,
