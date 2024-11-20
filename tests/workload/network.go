@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type TestNetwork interface {
@@ -34,6 +35,7 @@ type DefaultTestNetworkConfiguration struct {
 	genesisBytes []byte
 	name         string
 	parser       chain.Parser
+	keys         []ed25519.PrivateKey
 }
 
 func (d DefaultTestNetworkConfiguration) GenesisBytes() []byte {
@@ -48,11 +50,24 @@ func (d DefaultTestNetworkConfiguration) Parser() chain.Parser {
 	return d.parser
 }
 
+func (n DefaultTestNetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
+	keys := make([]*auth.PrivateKey, 0, len(n.keys))
+	for _, key := range n.keys {
+		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
+	}
+	return keys
+}
+
+func (n *DefaultTestNetworkConfiguration) Keys() []ed25519.PrivateKey {
+	return n.keys
+}
+
 // NewDefaultTestNetworkConfiguration creates a new DefaultTestNetworkConfiguration object.
-func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser) DefaultTestNetworkConfiguration {
+func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser, keys []ed25519.PrivateKey) DefaultTestNetworkConfiguration {
 	return DefaultTestNetworkConfiguration{
 		genesisBytes: genesisBytes,
 		name:         name,
 		parser:       parser,
+		keys:         keys,
 	}
 }

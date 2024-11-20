@@ -25,8 +25,6 @@ const (
 	InitialBalance uint64 = 10_000_000_000_000
 )
 
-var _ workload.TestNetworkConfiguration = &NetworkConfiguration{}
-
 // hardcoded initial set of ed25519 keys. Each will be initialized with InitialBalance
 var ed25519HexKeys = []string{
 	"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
@@ -71,36 +69,17 @@ func newDefaultKeys() []ed25519.PrivateKey {
 	return testKeys
 }
 
-// NetworkConfiguration implements workload.TestNetworkConfiguration interface.
-type NetworkConfiguration struct {
-	workload.DefaultTestNetworkConfiguration
-	keys []ed25519.PrivateKey
-}
-
-func (n *NetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
-	keys := make([]*auth.PrivateKey, 0, len(n.keys))
-	for _, key := range n.keys {
-		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
-	}
-	return keys
-}
-
-func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return n.keys
-}
-
-func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
+func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultKeys()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
-		return nil, err
+		return workload.DefaultTestNetworkConfiguration{}, err
 	}
-	return &NetworkConfiguration{
-		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
-			genesisBytes,
-			consts.Name,
-			vm.NewParser(genesis)),
-		keys: keys,
-	}, nil
+	return workload.NewDefaultTestNetworkConfiguration(
+		genesisBytes,
+		consts.Name,
+		vm.NewParser(genesis),
+		keys,
+	), nil
 }
