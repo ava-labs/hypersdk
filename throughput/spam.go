@@ -147,7 +147,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
-	err = s.broadcast(cctx, sh, accounts, factories, issuers, feePerTx, terminate)
+	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
 	cancel()
 	if err != nil {
 		return err
@@ -167,7 +167,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 func (s Spammer) broadcast(
 	ctx context.Context,
 	sh SpamHelper,
-	accounts []*auth.PrivateKey,
 
 	factories []chain.AuthFactory,
 	issuers []*issuer,
