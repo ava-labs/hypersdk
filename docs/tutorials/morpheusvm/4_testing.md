@@ -450,7 +450,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	generator := workload.NewTxGenerator(testingNetworkConfig.Keys()[0])
+	generator := workload.NewTxGenerator(testingNetworkConfig.AuthFactories()[0])
 	// Setup imports the integration test coverage
 	integration.Setup(
 		vm.New,
