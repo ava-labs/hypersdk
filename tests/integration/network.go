@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
@@ -89,8 +88,8 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 	return nil
 }
 
-func (n *Network) FundedAuthFactory() (chain.AuthFactory, error) {
-	return auth.GetFactory(n.Configuration().PrivateKeys()[0])
+func (n *Network) FundedAuthFactory() chain.AuthFactory {
+	return n.Configuration().AuthFactories()[0]
 }
 
 func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulBlock) error {

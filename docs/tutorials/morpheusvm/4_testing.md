@@ -275,41 +275,24 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 ```
 
-Finally, we implement the network configuration required for our VM
+Finally, we initialize the workload.DefaultTestNetworkConfiguration required for our VM
 tests:
 
 ```go
-type NetworkConfiguration struct {
-	workload.DefaultTestNetworkConfiguration
-	keys []ed25519.PrivateKey
-}
-
-func (n *NetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
-	keys := make([]*auth.PrivateKey, 0, len(n.keys))
-	for _, key := range n.keys {
-		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
-	}
-	return keys
-}
-
-func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return n.keys
-}
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
 	keys := newDefaultKeys()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
-		return nil, err
+		return workload.DefaultTestNetworkConfiguration{}, err
 	}
-	return &NetworkConfiguration{
-		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
-			genesisBytes,
-			consts.Name,
-			vm.NewParser(genesis)),
-		keys: keys,
-	}, nil
+	return workload.NewDefaultTestNetworkConfiguration(
+		genesisBytes,
+		consts.Name,
+		vm.NewParser(genesis),
+		keys,
+	), nil
 }
 ```
 
@@ -388,8 +371,7 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	authFactory, err := tn.FundedAuthFactory()
-	require.NoError(err)
+	authFactory := tn.FundedAuthFactory()
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of

@@ -16,7 +16,7 @@ type TestNetwork interface {
 	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
 	URIs() []string
 	Configuration() TestNetworkConfiguration
-	FundedAuthFactory() (chain.AuthFactory, error)
+	FundedAuthFactory() chain.AuthFactory
 }
 
 // TestNetworkConfiguration is an interface, implemented by VM-specific tests
@@ -26,7 +26,7 @@ type TestNetworkConfiguration interface {
 	GenesisBytes() []byte
 	Name() string
 	Parser() chain.Parser
-	PrivateKeys() []*auth.PrivateKey
+	AuthFactories() []chain.AuthFactory
 }
 
 // DefaultTestNetworkConfiguration struct is the common test configuration that a test framework would need to provide
@@ -50,16 +50,16 @@ func (d DefaultTestNetworkConfiguration) Parser() chain.Parser {
 	return d.parser
 }
 
-func (n DefaultTestNetworkConfiguration) PrivateKeys() []*auth.PrivateKey {
-	keys := make([]*auth.PrivateKey, 0, len(n.keys))
-	for _, key := range n.keys {
-		keys = append(keys, auth.NewPrivateKeyFromED25519(key))
+func (d DefaultTestNetworkConfiguration) AuthFactories() []chain.AuthFactory {
+	authFactories := make([]chain.AuthFactory, 0, len(d.keys))
+	for _, key := range d.keys {
+		authFactories = append(authFactories, auth.NewED25519Factory(key))
 	}
-	return keys
+	return authFactories
 }
 
-func (n *DefaultTestNetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return n.keys
+func (d DefaultTestNetworkConfiguration) Keys() []ed25519.PrivateKey {
+	return d.keys
 }
 
 // NewDefaultTestNetworkConfiguration creates a new DefaultTestNetworkConfiguration object.

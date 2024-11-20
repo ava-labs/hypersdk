@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -131,6 +130,6 @@ func (p *parser) Rules(int64) chain.Rules {
 	return p.rules
 }
 
-func (n *Network) FundedAuthFactory() (chain.AuthFactory, error) {
-	return auth.GetFactory(n.Configuration().PrivateKeys()[0])
+func (n *Network) FundedAuthFactory() chain.AuthFactory {
+	return n.Configuration().AuthFactories()[0]
 }
