@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"sort"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -22,6 +23,8 @@ const partitionCacheSize = 100
 type weightedValidator struct {
 	weight uint64
 	nodeID ids.NodeID
+	// set accumulatedWeight up to index in precomputePartition
+	accumulatedWeight uint64
 }
 
 type PrecalculatedPartition[T Tx] struct {
@@ -33,26 +36,41 @@ func (w *weightedValidator) Compare(o *weightedValidator) int {
 	return bytes.Compare(w.nodeID[:], o.nodeID[:])
 }
 
-func CalculatePartition[T Tx](ctx context.Context, state validators.State, pChainHeight uint64, subnetID ids.ID) (*PrecalculatedPartition[T], error) {
+func getWeightedVdrsFromState(ctx context.Context, state validators.State, pChainHeight uint64, subnetID ids.ID) ([]*weightedValidator, error) {
 	vdrs, err := state.GetValidatorSet(ctx, pChainHeight, subnetID)
 	if err != nil {
 		return nil, err
 	}
 	weightedValidators := make([]*weightedValidator, 0, len(vdrs))
-	totalWeight := uint64(0)
 	for _, vdr := range vdrs {
 		weightedValidators = append(weightedValidators, &weightedValidator{
 			weight: vdr.Weight,
 			nodeID: vdr.NodeID,
 		})
-		totalWeight += vdr.Weight
 	}
-	utils.Sort(weightedValidators)
+	return weightedValidators, nil
+}
 
+func precomputePartition[T Tx](validators []*weightedValidator) *PrecalculatedPartition[T] {
+	utils.Sort(validators)
+	accumulatedWeight := uint64(0)
+	for _, weightedVdr := range validators {
+		accumulatedWeight += weightedVdr.weight
+		weightedVdr.accumulatedWeight = accumulatedWeight
+	}
 	return &PrecalculatedPartition[T]{
-		validators:  weightedValidators,
-		totalWeight: totalWeight,
-	}, nil
+		validators:  validators,
+		totalWeight: accumulatedWeight,
+	}
+}
+
+func CalculatePartition[T Tx](ctx context.Context, state validators.State, pChainHeight uint64, subnetID ids.ID) (*PrecalculatedPartition[T], error) {
+	weightedValidators, err := getWeightedVdrsFromState(ctx, state, pChainHeight, subnetID)
+	if err != nil {
+		return nil, err
+	}
+
+	return precomputePartition[T](weightedValidators), nil
 }
 
 func calculateSponsorWeightIndex(sponsor codec.Address, totalWeight uint64) uint64 {
@@ -60,17 +78,21 @@ func calculateSponsorWeightIndex(sponsor codec.Address, totalWeight uint64) uint
 }
 
 func (pp *PrecalculatedPartition[T]) AssignTx(tx T) (ids.NodeID, bool) {
+	if pp.totalWeight == 0 || len(pp.validators) == 0 {
+		return ids.NodeID{}, false
+	}
+
 	sponsor := tx.GetSponsor()
 	sponsorWeightIndex := calculateSponsorWeightIndex(sponsor, pp.totalWeight)
-	weightIndex := uint64(0)
-	for _, vdr := range pp.validators {
-		weightIndex += vdr.weight
-		if weightIndex > sponsorWeightIndex {
-			return vdr.nodeID, true
-		}
+	nodeIDIndex := sort.Search(len(pp.validators), func(i int) bool {
+		return pp.validators[i].accumulatedWeight > sponsorWeightIndex
+	})
+
+	// Defensive: this should never happen
+	if nodeIDIndex >= len(pp.validators) {
+		return ids.NodeID{}, false
 	}
-	// This should only happen if there are no validators
-	return ids.NodeID{}, false
+	return pp.validators[nodeIDIndex].nodeID, true
 }
 
 type indexedTx[T Tx] struct {

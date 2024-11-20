@@ -27,18 +27,13 @@ func createTestPartition(weights []uint64) *PrecalculatedPartition[tx] {
 	utils.Sort(nodeIDs)
 
 	validators := make([]*weightedValidator, 0, len(weights))
-	totalWeight := uint64(0)
 	for i, weight := range weights {
 		validators = append(validators, &weightedValidator{
 			weight: weight,
 			nodeID: nodeIDs[i],
 		})
-		totalWeight += weight
 	}
-	return &PrecalculatedPartition[tx]{
-		validators:  validators,
-		totalWeight: totalWeight,
-	}
+	return precomputePartition[tx](validators)
 }
 
 func createTestPartitionTx(weight uint64) tx {
