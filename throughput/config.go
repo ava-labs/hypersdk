@@ -21,6 +21,7 @@ type Config struct {
 	numAccounts      int
 }
 
+// Default config used for E2E testing and CLI
 func NewDefaultConfig(
 	uris []string,
 	key *auth.PrivateKey,
@@ -30,15 +31,16 @@ func NewDefaultConfig(
 		key:              key,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     10000,
-		minTxsPerSecond:  1000,
-		txsPerSecondStep: 1000,
+		txsPerSecond:     500,
+		minTxsPerSecond:  100,
+		txsPerSecondStep: 200,
 		numClients:       10,
-		numAccounts:      10500,
+		numAccounts:      25,
 	}
 }
 
-func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
+// Default config for using the load test script.
+func NewDefaultLoadTestConfig(uris []string, keyHex string) (*Config, error) {
 	if len(uris) == 0 || len(keyHex) == 0 {
 		return nil, errors.New("uris and keyHex must be non-empty")
 	}

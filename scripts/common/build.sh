@@ -10,7 +10,6 @@ realpath() {
     [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
 }
 
-
 build_project() {
     local project_path
     project_path=$(realpath "$1")
