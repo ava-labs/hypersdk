@@ -88,10 +88,6 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 	return nil
 }
 
-func (n *Network) FundedAuthFactory() chain.AuthFactory {
-	return n.Configuration().AuthFactories()[0]
-}
-
 func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulBlock) error {
 	err := i.vm.SetPreference(ctx, lastAcceptedBlock.ID())
 	if err != nil {

@@ -129,7 +129,3 @@ type parser struct {
 func (p *parser) Rules(int64) chain.Rules {
 	return p.rules
 }
-
-func (n *Network) FundedAuthFactory() chain.AuthFactory {
-	return n.Configuration().AuthFactories()[0]
-}

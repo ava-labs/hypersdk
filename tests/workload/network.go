@@ -6,9 +6,7 @@ package workload
 import (
 	"context"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type TestNetwork interface {
@@ -16,7 +14,6 @@ type TestNetwork interface {
 	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
 	URIs() []string
 	Configuration() TestNetworkConfiguration
-	FundedAuthFactory() chain.AuthFactory
 }
 
 // TestNetworkConfiguration is an interface, implemented by VM-specific tests
@@ -32,10 +29,10 @@ type TestNetworkConfiguration interface {
 // DefaultTestNetworkConfiguration struct is the common test configuration that a test framework would need to provide
 // in order to deploy a network. A test would typically embed this as part of it's network configuration structure.
 type DefaultTestNetworkConfiguration struct {
-	genesisBytes []byte
-	name         string
-	parser       chain.Parser
-	keys         []ed25519.PrivateKey
+	genesisBytes  []byte
+	name          string
+	parser        chain.Parser
+	authFactories []chain.AuthFactory
 }
 
 func (d DefaultTestNetworkConfiguration) GenesisBytes() []byte {
@@ -51,23 +48,15 @@ func (d DefaultTestNetworkConfiguration) Parser() chain.Parser {
 }
 
 func (d DefaultTestNetworkConfiguration) AuthFactories() []chain.AuthFactory {
-	authFactories := make([]chain.AuthFactory, 0, len(d.keys))
-	for _, key := range d.keys {
-		authFactories = append(authFactories, auth.NewED25519Factory(key))
-	}
-	return authFactories
-}
-
-func (d DefaultTestNetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return d.keys
+	return d.authFactories
 }
 
 // NewDefaultTestNetworkConfiguration creates a new DefaultTestNetworkConfiguration object.
-func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser, keys []ed25519.PrivateKey) DefaultTestNetworkConfiguration {
+func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser, authFactories []chain.AuthFactory) DefaultTestNetworkConfiguration {
 	return DefaultTestNetworkConfiguration{
-		genesisBytes: genesisBytes,
-		name:         name,
-		parser:       parser,
-		keys:         keys,
+		genesisBytes:  genesisBytes,
+		name:          name,
+		parser:        parser,
+		authFactories: authFactories,
 	}
 }

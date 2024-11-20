@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -31,12 +32,12 @@ var ed25519HexKeys = []string{
 	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 }
 
-func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.DefaultGenesis {
+func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *genesis.DefaultGenesis {
 	// allocate the initial balance to the addresses
-	customAllocs := make([]*genesis.CustomAllocation, 0, len(keys))
-	for _, key := range keys {
+	customAllocs := make([]*genesis.CustomAllocation, 0, len(authFactories))
+	for _, authFactory := range authFactories {
 		customAllocs = append(customAllocs, &genesis.CustomAllocation{
-			Address: auth.NewED25519Address(key.PublicKey()),
+			Address: authFactory.Address(),
 			Balance: InitialBalance,
 		})
 	}
@@ -57,20 +58,20 @@ func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 	return genesis
 }
 
-func newDefaultKeys() []ed25519.PrivateKey {
-	testKeys := make([]ed25519.PrivateKey, len(ed25519HexKeys))
+func newDefaultAuthFactories() []chain.AuthFactory {
+	authFactories := make([]chain.AuthFactory, len(ed25519HexKeys))
 	for i, keyHex := range ed25519HexKeys {
 		bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
 		if err != nil {
 			panic(err)
 		}
-		testKeys[i] = ed25519.PrivateKey(bytes)
+		authFactories[i] = auth.NewED25519Factory(ed25519.PrivateKey(bytes))
 	}
-	return testKeys
+	return authFactories
 }
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
-	keys := newDefaultKeys()
+	keys := newDefaultAuthFactories()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {

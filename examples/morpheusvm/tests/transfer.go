@@ -30,7 +30,7 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	authFactory := tn.FundedAuthFactory()
+	authFactory := tn.Configuration().AuthFactories()[0]
 	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
 		To:    toAddress,
 		Value: 1,
