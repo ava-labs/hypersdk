@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -27,46 +26,17 @@ var (
 	_ chain.Action = (*action2)(nil)
 )
 
-func TestTransactionTestSuite(t *testing.T) {
-	suite.Run(t, new(TransactionTestSuite))
-}
-
-type TransactionTestSuite struct {
-	suite.Suite
-
-	privateKey  ed25519.PrivateKey
-	factory     *auth.ED25519Factory
-	actionCodec *codec.TypeParser[chain.Action]
-	authCodec   *codec.TypeParser[chain.Auth]
-}
-
-func (s *TransactionTestSuite) SetupTest() {
-	require := require.New(s.T())
-	var err error
-	s.privateKey, err = ed25519.GeneratePrivateKey()
-	require.NoError(err)
-	s.factory = auth.NewED25519Factory(s.privateKey)
-
-	s.actionCodec = codec.NewTypeParser[chain.Action]()
-	s.authCodec = codec.NewTypeParser[chain.Auth]()
-	err = s.authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
-	require.NoError(err)
-	err = s.actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
-	require.NoError(err)
-	err = s.actionCodec.Register(&action2{}, unmarshalAction2)
-	require.NoError(err)
-}
-
-func (s *TransactionTestSuite) TestJSONMarshalUnmarshal() {
-	require := require.New(s.T())
+func TestJSONMarshalUnmarshalTransaction(t *testing.T) {
+	require := require.New(t)
+	testData := setupTransactionTest(require)
 	tx := getTransactionData()
 
-	signedTx, err := tx.Sign(s.factory)
+	signedTx, err := tx.Sign(testData.factory)
 	require.NoError(err)
 
 	b, err := json.Marshal(signedTx)
 	require.NoError(err)
-	parser := chaintest.NewParser(nil, s.actionCodec, s.authCodec, nil)
+	parser := chaintest.NewParser(nil, testData.actionCodec, testData.authCodec, nil)
 	var txFromJSON chain.Transaction
 	err = txFromJSON.UnmarshalJSON(b, parser)
 	require.NoError(err)
@@ -74,8 +44,9 @@ func (s *TransactionTestSuite) TestJSONMarshalUnmarshal() {
 }
 
 // TestMarshalUnmarshalTransactionData roughly validates that a transaction data packs and unpacks correctly.
-func (s *TransactionTestSuite) TestMarshalUnmarshalTransactionData() {
-	require := require.New(s.T())
+func TestMarshalUnmarshalTransactionData(t *testing.T) {
+	require := require.New(t)
+	testData := setupTransactionTest(require)
 	tx := getTransactionData()
 	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err := tx.Marshal(writerPacker)
@@ -84,20 +55,21 @@ func (s *TransactionTestSuite) TestMarshalUnmarshalTransactionData() {
 	require.NoError(err)
 	require.Equal(writerPacker.Bytes(), txDataBytes)
 	readerPacker := codec.NewReader(writerPacker.Bytes(), consts.NetworkSizeLimit)
-	unmarshaledTxData, err := chain.UnmarshalTxData(readerPacker, s.actionCodec)
+	unmarshaledTxData, err := chain.UnmarshalTxData(readerPacker, testData.actionCodec)
 	require.NoError(err)
 	require.Equal(tx, *unmarshaledTxData)
 }
 
 // TestMarshalUnmarshalTransaction roughly validates that a transaction packs and unpacks correctly.
-func (s *TransactionTestSuite) TestMarshalUnmarshalTransaction() {
-	require := require.New(s.T())
+func TestMarshalUnmarshalTransaction(t *testing.T) {
+	require := require.New(t)
+	testData := setupTransactionTest(require)
 	tx := getTransactionData()
 	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
 	originalUnsignedTxBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(s.factory)
+	signedTx, err := tx.Sign(testData.factory)
 	require.NoError(err)
 	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = signedTx.Marshal(writerPacker)
@@ -110,19 +82,20 @@ func (s *TransactionTestSuite) TestMarshalUnmarshalTransaction() {
 	require.Len(unsignedTxBytes, 168)
 
 	readerPacker := codec.NewReader(writerPacker.Bytes(), consts.NetworkSizeLimit)
-	unmarshaledTx, err := chain.UnmarshalTx(readerPacker, s.actionCodec, s.authCodec)
+	unmarshaledTx, err := chain.UnmarshalTx(readerPacker, testData.actionCodec, testData.authCodec)
 	require.NoError(err)
 	require.Equal(writerPacker.Bytes(), unmarshaledTx.Bytes())
 }
 
-func (s *TransactionTestSuite) TestSign() {
-	require := require.New(s.T())
+func TestSignTransaction(t *testing.T) {
+	require := require.New(t)
+	testData := setupTransactionTest(require)
 	tx := getTransactionData()
 
 	txBeforeSignBytes, err := tx.UnsignedBytes()
 	require.NoError(err)
 
-	signedTx, err := tx.Sign(s.factory)
+	signedTx, err := tx.Sign(testData.factory)
 	require.NoError(err)
 	unsignedTxAfterSignBytes, err := signedTx.TransactionData.UnsignedBytes()
 	require.NoError(err)
@@ -134,19 +107,45 @@ func (s *TransactionTestSuite) TestSign() {
 	}
 }
 
-func (s *TransactionTestSuite) TestSignRawActionBytesTx() {
-	require := require.New(s.T())
+func TestSignRawActionBytesTx(t *testing.T) {
+	require := require.New(t)
+	testData := setupTransactionTest(require)
 	tx := getTransactionData()
 
-	signedTx, err := tx.Sign(s.factory)
+	signedTx, err := tx.Sign(testData.factory)
 	require.NoError(err)
 
 	p := codec.NewWriter(0, consts.NetworkSizeLimit)
 	require.NoError(signedTx.Actions.MarshalInto(p))
 	actionsBytes := p.Bytes()
-	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, s.factory)
+	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, testData.factory)
 	require.NoError(err)
 	require.Equal(signedTx.Bytes(), rawSignedTxBytes)
+}
+
+type transactionTestData struct {
+	privateKey  ed25519.PrivateKey
+	factory     *auth.ED25519Factory
+	actionCodec *codec.TypeParser[chain.Action]
+	authCodec   *codec.TypeParser[chain.Auth]
+}
+
+func setupTransactionTest(require *require.Assertions) transactionTestData {
+	var err error
+	testData := transactionTestData{}
+	testData.privateKey, err = ed25519.GeneratePrivateKey()
+	require.NoError(err)
+	testData.factory = auth.NewED25519Factory(testData.privateKey)
+
+	testData.actionCodec = codec.NewTypeParser[chain.Action]()
+	testData.authCodec = codec.NewTypeParser[chain.Auth]()
+	err = testData.authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
+	require.NoError(err)
+	err = testData.actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
+	require.NoError(err)
+	err = testData.actionCodec.Register(&action2{}, unmarshalAction2)
+	require.NoError(err)
+	return testData
 }
 
 // getTransactionData returns a default TransactionData struct used by the tests.
