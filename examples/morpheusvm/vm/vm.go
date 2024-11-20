@@ -6,6 +6,7 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -56,7 +57,7 @@ func init() {
 }
 
 // NewWithOptions returns a VM with the specified options
-func New(options ...vm.Option) (*vm.VM, error) {
+func New(options ...api.Option) (*vm.VM, error) {
 	options = append(options, With()) // Add MorpheusVM API
 	return defaultvm.New(
 		consts.Version,

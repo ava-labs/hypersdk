@@ -77,7 +77,7 @@ type VM struct {
 	genesis               genesis.Genesis
 	GenesisBytes          []byte
 	ruleFactory           chain.RuleFactory
-	options               []Option
+	options               []api.Option
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow *chain.TimeValidityWindow
@@ -153,7 +153,7 @@ func New(
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
-	options ...Option,
+	options ...api.Option,
 ) (*VM, error) {
 	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
@@ -312,14 +312,14 @@ func (vm *VM) Initialize(
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	// Set defaults
-	options := &Options{}
+	options := &api.Options{}
 	for _, Option := range vm.options {
 		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
+		opt, err := Option.OptionFunc(vm, config)
 		if err != nil {
 			return err
 		}
-		opt.apply(options)
+		opt.Apply(options)
 	}
 	err = vm.applyOptions(options)
 	if err != nil {
@@ -502,10 +502,10 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) error {
-	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
-	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
-	if o.builder {
+func (vm *VM) applyOptions(o *api.Options) error {
+	vm.blockSubscriptionFactories = o.BlockSubscriptionFactories
+	vm.vmAPIHandlerFactories = o.VMAPIHandlerFactories
+	if o.Builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	} else {
 		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
@@ -516,7 +516,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 		})
 	}
-	if o.gossiper {
+	if o.Gossiper {
 		vm.gossiper = gossiper.NewManual(vm)
 	} else {
 		txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())

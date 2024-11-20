@@ -320,12 +320,12 @@ VM or not. Finally, we implement a `NewDefaultConfig()` function which returns a
 default config. We now implement the option itself:
 
 ```golang
-func With() vm.Option {
-	return vm.NewOption(Namespace, NewDefaultConfig(), func(v *vm.VM, config Config) error {
+func With() api.Option {
+	return api.NewOption(Namespace, NewDefaultConfig(), func(v *api.VM, config Config) error {
 		if !config.Enabled {
 			return nil
 		}
-		vm.WithVMAPIs(jsonRPCServerFactory{})(v)
+		api.WithVMAPIs(jsonRPCServerFactory{})(v)
 		return nil
 	})
 }

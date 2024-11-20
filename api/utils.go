@@ -6,6 +6,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/gorilla/rpc/v2"
 )
@@ -18,4 +19,9 @@ func NewJSONRPCHandler(
 	server.RegisterCodec(json.NewCodec(), "application/json")
 	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
 	return server, server.RegisterService(service, name)
+}
+
+type TxRemovedEvent struct {
+	TxID ids.ID
+	Err  error
 }
