@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
@@ -51,19 +52,15 @@ func NewDefaultLoadTestConfig(uris []string, keyHex string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	privateKey := ed25519.PrivateKey(bytes)
-	key := &auth.PrivateKey{
-		Address: auth.NewED25519Address(privateKey.PublicKey()),
-		Bytes:   bytes,
-	}
-	
+	authFactory := auth.NewED25519Factory(ed25519.PrivateKey(bytes))
+
 	if err != nil {
 		return nil, err
 	}
 
 	return &Config{
 		uris:             uris,
-		key:              key,
+		authFactory:      authFactory,
 		sZipf:            1.0001,
 		vZipf:            2.7,
 		txsPerSecond:     100000,

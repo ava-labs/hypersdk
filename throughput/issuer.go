@@ -112,7 +112,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 			i.Start(ctx)
 			utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", i.i)
 		}
-		
+
 		// If issuance fails during retry, we should fail
 		return i.ws.RegisterTx(tx)
 	}

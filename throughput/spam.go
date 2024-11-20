@@ -94,7 +94,7 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 // and then sends transactions between the accounts. It returns the funds to
 // the original account after the test is complete.
 // [sh] injects the necessary functions to interact with the network.
-// [terminate] if true, the spammer will stop after reaching the target TPS. 
+// [terminate] if true, the spammer will stop after reaching the target TPS.
 // [symbol] and [decimals] are used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
 	// log distribution
@@ -109,8 +109,8 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	actions := sh.GetTransfer(s.key.Address, 0, []byte{})
-	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
+	actions := sh.GetTransfer(s.authFactory.Address(), 0, []byte{})
+	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	defer cancel()
 
 	for _, issuer := range issuers {
-		utils.Outf("{{yellow}}starting issuer %d{{/}}\n", issuer.i)
 		issuer.Start(cctx)
 	}
 
@@ -211,7 +210,7 @@ func (s Spammer) broadcast(
 					consecutiveAboveBacklog = 0
 				}
 				sleep(it, start)
-				continue 
+				continue
 			}
 
 			// Issue txs
@@ -220,7 +219,7 @@ func (s Spammer) broadcast(
 			for i := 0; i < currentTarget; i++ {
 				senderIndex := z.Uint64()
 				issuer := getRandomIssuer(issuers)
-				
+
 				g.Go(func() error {
 					factory := factories[senderIndex]
 					// Send transaction
@@ -338,7 +337,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -394,7 +393,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.key.Address, returnAmt, []byte{})
+		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err

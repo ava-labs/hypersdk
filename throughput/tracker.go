@@ -24,7 +24,6 @@ type tracker struct {
 	confirmedTxs int
 	totalTxs     int
 
-
 	sent atomic.Int64
 }
 
