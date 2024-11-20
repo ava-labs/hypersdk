@@ -4,12 +4,7 @@
 package throughput
 
 import (
-	"errors"
-
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type Config struct {
@@ -43,21 +38,7 @@ func NewDefaultConfig(
 }
 
 // Default config for using the load test script.
-func NewDefaultLoadTestConfig(uris []string, keyHex string) (*Config, error) {
-	if len(uris) == 0 || len(keyHex) == 0 {
-		return nil, errors.New("uris and keyHex must be non-empty")
-	}
-
-	bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
-	if err != nil {
-		return nil, err
-	}
-	authFactory := auth.NewED25519Factory(ed25519.PrivateKey(bytes))
-
-	if err != nil {
-		return nil, err
-	}
-
+func NewDefaultLoadTestConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
 	return &Config{
 		uris:             uris,
 		authFactory:      authFactory,
