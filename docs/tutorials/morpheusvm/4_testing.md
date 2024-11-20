@@ -388,7 +388,7 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	authFactory, err := auth.GetFactory(tn.FundedKey())
+	authFactory, err := tn.FundedAuthFactory()
 	require.NoError(err)
 ```
 

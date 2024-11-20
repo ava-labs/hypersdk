@@ -89,8 +89,8 @@ func (*Network) SynchronizeNetwork(ctx context.Context) error {
 	return nil
 }
 
-func (n *Network) FundedKey() *auth.PrivateKey {
-	return n.Configuration().PrivateKeys()[0]
+func (n *Network) FundedAuthFactory() (chain.AuthFactory, error) {
+	return auth.GetFactory(n.Configuration().PrivateKeys()[0])
 }
 
 func (i *instance) applyBlk(ctx context.Context, lastAcceptedBlock *vm.StatefulBlock) error {

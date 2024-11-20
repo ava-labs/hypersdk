@@ -131,6 +131,6 @@ func (p *parser) Rules(int64) chain.Rules {
 	return p.rules
 }
 
-func (n *Network) FundedKey() *auth.PrivateKey {
-	return n.Configuration().PrivateKeys()[0]
+func (n *Network) FundedAuthFactory() (chain.AuthFactory, error) {
+	return auth.GetFactory(n.Configuration().PrivateKeys()[0])
 }

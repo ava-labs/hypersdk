@@ -15,7 +15,7 @@ type TestNetwork interface {
 	GenerateTx(context.Context, []chain.Action, chain.AuthFactory) (*chain.Transaction, error)
 	URIs() []string
 	Configuration() TestNetworkConfiguration
-	FundedKey() *auth.PrivateKey
+	FundedAuthFactory() (chain.AuthFactory, error)
 }
 
 // TestNetworkConfiguration is an interface, implemented by VM-specific tests
