@@ -6,6 +6,7 @@ package cli
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -43,8 +44,13 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
+	authFactory, err := auth.GetFactory(key)
+	if err != nil {
+		return nil, err
+	}
+
 	if defaults {
-		sc := throughput.NewDefaultConfig(uris, key)
+		sc := throughput.NewDefaultConfig(uris, authFactory)
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
@@ -83,7 +89,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 
 	sc := throughput.NewConfig(
 		uris,
-		key,
+		authFactory,
 		sZipf,
 		vZipf,
 		txsPerSecond,

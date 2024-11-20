@@ -20,6 +20,8 @@ var (
 	ErrUnableToConfirmTx = errors.New("unable to confirm transaction")
 	ErrInvalidURI        = errors.New("invalid uri")
 	ErrTxNotFound        = errors.New("tx not found")
+
+	_ workload.TestNetwork = (*Network)(nil)
 )
 
 type Network struct {

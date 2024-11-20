@@ -99,9 +99,9 @@ type Node[T Tx] struct {
 	storage                       *chunkStorage[T]
 }
 
-// NewChunk builds transactions into a Chunk
+// BuildChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
-func (n *Node[T]) NewChunk(
+func (n *Node[T]) BuildChunk(
 	ctx context.Context,
 	txs []T,
 	expiry int64,
@@ -171,7 +171,7 @@ func (n *Node[T]) NewChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Timestamp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
@@ -205,6 +205,19 @@ func (n *Node[T]) NewBlock(parent Block, timestamp int64) (Block, error) {
 	blk.blkBytes = packer.Bytes
 	blk.blkID = utils.ToID(blk.blkBytes)
 	return blk, nil
+}
+
+func (*Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
+	// TODO: Verify header fields
+	// TODO: de-duplicate chunk certificates (internal to block and across history)
+	for _, chunkCert := range block.ChunkCerts {
+		// TODO: verify chunks within a provided context
+		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (n *Node[T]) Accept(ctx context.Context, block Block) error {
