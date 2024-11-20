@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/tests/registry"
 
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
@@ -31,14 +30,12 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
-	spendingKey := networkConfig.Keys()[0]
-
+	authFactory := tn.Configuration().AuthFactories()[0]
 	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
 		To:    toAddress,
 		Value: 1,
 	}},
-		auth.NewED25519Factory(spendingKey),
+		authFactory,
 	)
 	require.NoError(err)
 

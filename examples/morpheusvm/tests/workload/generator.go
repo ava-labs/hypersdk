@@ -27,12 +27,12 @@ var _ workload.TxGenerator = (*TxGenerator)(nil)
 const txCheckInterval = 100 * time.Millisecond
 
 type TxGenerator struct {
-	factory *auth.ED25519Factory
+	factory chain.AuthFactory
 }
 
-func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
+func NewTxGenerator(authFactory chain.AuthFactory) *TxGenerator {
 	return &TxGenerator{
-		factory: auth.NewED25519Factory(key),
+		factory: authFactory,
 	}
 }
 

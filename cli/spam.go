@@ -64,8 +64,13 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 		return nil, err
 	}
 
+	authFactory, err := auth.GetFactory(key)
+	if err != nil {
+		return nil, err
+	}
+
 	if defaults {
-		sc := throughput.NewDefaultConfig(uris, key)
+		sc := throughput.NewDefaultConfig(uris, authFactory)
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
@@ -104,7 +109,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 
 	sc := throughput.NewConfig(
 		uris,
-		key,
+		authFactory,
 		sZipf,
 		vZipf,
 		txsPerSecond,
