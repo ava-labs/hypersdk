@@ -16,7 +16,6 @@ import (
 
 // BuildSpammer prompts the user for the spammer parameters.
 // If [spamKey] is provided, the user is not prompted for the root key.
-// If provided the expected key is an e25519 key.
 // If [defaults], the default values are used once the
 // chain and root key are selected. Otherwise, the user is prompted for all parameters.
 func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, defaults bool) (*throughput.Spammer, error) {
