@@ -3,11 +3,13 @@
 
 package throughput
 
-import "github.com/ava-labs/hypersdk/auth"
+import (
+	"github.com/ava-labs/hypersdk/chain"
+)
 
 type Config struct {
 	uris             []string
-	key              *auth.PrivateKey
+	authFactory      chain.AuthFactory
 	sZipf            float64
 	vZipf            float64
 	txsPerSecond     int
@@ -19,11 +21,11 @@ type Config struct {
 
 func NewDefaultConfig(
 	uris []string,
-	key *auth.PrivateKey,
+	authFactory chain.AuthFactory,
 ) *Config {
 	return &Config{
 		uris:             uris,
-		key:              key,
+		authFactory:      authFactory,
 		sZipf:            1.01,
 		vZipf:            2.7,
 		txsPerSecond:     500,
@@ -36,7 +38,7 @@ func NewDefaultConfig(
 
 func NewConfig(
 	uris []string,
-	key *auth.PrivateKey,
+	key chain.AuthFactory,
 	sZipf float64,
 	vZipf float64,
 	txsPerSecond int,

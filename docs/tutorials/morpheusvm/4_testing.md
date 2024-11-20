@@ -286,33 +286,24 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 ```
 
-Finally, we implement the network configuration required for our VM
+Finally, we initialize the workload.DefaultTestNetworkConfiguration required for our VM
 tests:
 
 ```go
-type NetworkConfiguration struct {
-	workload.DefaultTestNetworkConfiguration
-	keys []ed25519.PrivateKey
-}
-
-func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return n.keys
-}
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
 	keys := newDefaultKeys()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
-		return nil, err
+		return workload.DefaultTestNetworkConfiguration{}, err
 	}
-	return &NetworkConfiguration{
-		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
-			genesisBytes,
-			consts.Name,
-			vm.NewParser(genesis)),
-		keys: keys,
-	}, nil
+	return workload.NewDefaultTestNetworkConfiguration(
+		genesisBytes,
+		consts.Name,
+		vm.NewParser(genesis),
+		keys,
+	), nil
 }
 ```
 
@@ -394,8 +385,7 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
-	spendingKey := networkConfig.Keys()[0]
+	authFactory := tn.Configuration().AuthFactories()[0]
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of
@@ -406,7 +396,7 @@ Next, we'll create our test transaction. In short, we'll want to send a value of
 		To:    toAddress,
 		Value: 1,
 	}},
-		auth.NewED25519Factory(spendingKey),
+		authFactory,
 	)
 	require.NoError(err)
 ```
@@ -474,7 +464,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	generator := workload.NewTxGenerator(testingNetworkConfig.Keys()[0])
+	generator := workload.NewTxGenerator(testingNetworkConfig.AuthFactories()[0])
 	// Setup imports the integration test coverage
 	integration.Setup(
 		vm.New,
