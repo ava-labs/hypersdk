@@ -41,7 +41,7 @@ var runSpamCmd = &cobra.Command{
 				return err
 			}
 			uris := cli.OnlyAPIs(urisFromFile)
-			spamConfig, err := hthroughput.NewThroughputConfig(uris, spamKey)
+			spamConfig, err := hthroughput.NewDefaultLoadTestConfig(uris, spamKey)
 			if err != nil {
 				return err
 			}
