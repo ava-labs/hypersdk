@@ -167,7 +167,10 @@ func (*ED25519PrivateKeyFactory) GeneratePrivateKey() (*PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewPrivateKeyFromED25519(p), nil
+	return &PrivateKey{
+		Address: NewED25519Address(p.PublicKey()),
+		Bytes:   p[:],
+	}, nil
 }
 
 func (*ED25519PrivateKeyFactory) LoadPrivateKey(privateKey []byte) (*PrivateKey, error) {

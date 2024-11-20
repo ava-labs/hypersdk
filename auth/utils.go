@@ -22,13 +22,6 @@ type PrivateKey struct {
 	Bytes []byte
 }
 
-func NewPrivateKeyFromED25519(pk ed25519.PrivateKey) *PrivateKey {
-	return &PrivateKey{
-		Address: NewED25519Address(pk.PublicKey()),
-		Bytes:   pk[:],
-	}
-}
-
 // GetFactory returns the [chain.AuthFactory] for a given private key.
 //
 // A [chain.AuthFactory] signs transactions and provides a unit estimate
