@@ -34,7 +34,7 @@ func (e *ExecutedBlock) Marshal() ([]byte, error) {
 	}
 
 	size := codec.BytesLen(blockBytes) + codec.CummSize(e.Results) + fees.DimensionsLen
-	writer := codec.NewWriter(size, consts.NetworkSizeLimit)
+	writer := codec.NewWriter(size, consts.MaxInt)
 
 	writer.PackBytes(blockBytes)
 	resultBytes, err := MarshalResults(e.Results)

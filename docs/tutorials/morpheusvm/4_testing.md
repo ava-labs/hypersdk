@@ -18,7 +18,8 @@ This section will consist of the following:
 
 ## Workload Scripts
 
-We start by reusing the workload script from MorpheusVM. In `tutorial/`, create
+We start by reusing the workload script from MorpheusVM. This script, when
+called, will execute the workload tests we will define. In `tutorial/`, create
 a new directory named `scripts`. Within this scripts directory, create a file
 called `tests.integration.sh` and paste the following:
 
@@ -118,8 +119,10 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 }
 ```
 
-Next, we'll want to implement a method to our `TxGenerator` that will allow it
-to produce a valid transaction with `Transfer` on the fly. We have:
+Here, we started by creating a `TxGenerator` struct which will be responsible
+for generating transactions. Next, we'll want to implement a method to our
+`TxGenerator` that will allow it to produce a valid transaction with `Transfer`
+on the fly. We have:
 
 ```go
 func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
@@ -185,6 +188,12 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
 }
 ```
+
+In the above, some of the checks that `confirmTx` does are:
+- Checking that the TX was successful
+- Checking that the balance of the receiver is as expected
+- Checking that the balance of the sender is as expected
+- Checking that the output of the TX is as expected
 
 With our generator complete, we can now move onto implementing the network
 configuration.
@@ -257,8 +266,10 @@ func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 }
 ```
 
-Next, using the values in `ed25519HexKeys`, we'll implement a function that
-returns our private test keys:
+In addition to defining chain-specific values, `newGenesis()` also defines two
+accounts whose balances will be allocated once the VM is spun up. Next, using 
+the values in `ed25519HexKeys`, we'll implement a function that returns our 
+private test keys:
 
 ```go
 func newDefaultKeys() []ed25519.PrivateKey {
@@ -296,7 +307,10 @@ func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, err
 }
 ```
 
-We now move onto testing against a specific transaction.
+By wrapping our genesis and accounts keys into `NetworkConfiguration`, we can
+pass this into the HyperSDKtest library, which will use the fields of the struct
+to set up and execute our tests. We now move onto testing against a specific 
+transaction.
 
 ## Testing via a Specific Transaction
 
@@ -467,6 +481,18 @@ other values to the HyperSDK test library. Using this pattern allows
 us to defer most tasks to it and solely focus on defining the tests.
 
 ## Testing Our VM
+
+Before testing, your tests directory should look as follows:
+
+```
+tests
+├── integration
+│   └── integration_test.go
+├── transfer.go
+└── workload
+    ├── generator.go
+    └── genesis.go
+```
 
 Putting everything together, it's now time to test our work! To do this, run the
 following command:
