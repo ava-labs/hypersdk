@@ -385,7 +385,7 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	authFactory := tn.FundedAuthFactory()
+	authFactory := tn.Configuration().AuthFactories()[0]
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of
