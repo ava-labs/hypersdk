@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	_ gossiper.VM           = (*VM)(nil)
+	_ gossiper.ValidatorSet = (*VM)(nil)
 	_ block.ChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM = (*VM)(nil)
 )
@@ -254,7 +254,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
@@ -351,18 +351,6 @@ func (vm *VM) RecordStateOperations(c int) {
 
 func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.VerifyAuth
-}
-
-func (vm *VM) RecordTxsGossiped(c int) {
-	vm.metrics.txsGossiped.Add(float64(c))
-}
-
-func (vm *VM) RecordTxsReceived(c int) {
-	vm.metrics.txsReceived.Add(float64(c))
-}
-
-func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordBuildCapped() {

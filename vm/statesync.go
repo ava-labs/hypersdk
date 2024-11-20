@@ -43,17 +43,7 @@ func (vm *VM) initStateSync() error {
 		vm.config.StateSyncMinBlocks,
 		vm.config.StateSyncParallelism,
 	)
-	if err := statesync.RegisterHandlers(vm.snowCtx.Log, vm.network, rangeProofHandlerID, changeProofHandlerID, vm.stateDB); err != nil {
-		return err
-	}
-
-	if err := vm.network.AddHandler(
-		txGossipHandlerID,
-		NewTxGossipHandler(vm),
-	); err != nil {
-		return err
-	}
-	return nil
+	return statesync.RegisterHandlers(vm.snowCtx.Log, vm.network, rangeProofHandlerID, changeProofHandlerID, vm.stateDB)
 }
 
 func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {

@@ -10,47 +10,70 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-var _ Gossiper = (*Manual)(nil)
+var _ Gossiper = (*Manual[Tx])(nil)
 
-type Manual struct {
-	vm         VM
-	client     *p2p.Client
-	doneGossip chan struct{}
+type Manual[T Tx] struct {
+	log                  logging.Logger
+	metrics              *metrics
+	mempool              Mempool[T]
+	serializer           Serializer[T]
+	submitter            Submitter[T]
+	targetGossipDuration time.Duration
+	client               *p2p.Client
+	doneGossip           chan struct{}
 }
 
-func NewManual(vm VM) *Manual {
-	return &Manual{
-		vm:         vm,
-		doneGossip: make(chan struct{}),
+func NewManual[T Tx](
+	log logging.Logger,
+	registerer prometheus.Registerer,
+	mempool Mempool[T],
+	serializer Serializer[T],
+	submitter Submitter[T],
+	targetGossipDuration time.Duration,
+) (*Manual[T], error) {
+	metrics, err := newMetrics(registerer)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Manual[T]{
+		log:                  log,
+		metrics:              metrics,
+		mempool:              mempool,
+		serializer:           serializer,
+		submitter:            submitter,
+		targetGossipDuration: targetGossipDuration,
+		doneGossip:           make(chan struct{}),
+	}, nil
 }
 
-func (g *Manual) Run(client *p2p.Client) {
+func (g *Manual[T]) Run(client *p2p.Client) {
 	g.client = client
 
 	// Only respond to explicitly triggered gossip
 	close(g.doneGossip)
 }
 
-func (g *Manual) Force(ctx context.Context) error {
+func (g *Manual[T]) Force(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
-		txs  = []*chain.Transaction{}
+		txs  = []T{}
 		size = 0
 		now  = time.Now().UnixMilli()
 	)
-	mempoolErr := g.vm.Mempool().Top(
+	mempoolErr := g.mempool.Top(
 		ctx,
-		g.vm.GetTargetGossipDuration(),
-		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		g.targetGossipDuration,
+		func(_ context.Context, next T) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Base.Timestamp < now {
+			if next.Expiry() < now {
 				return true, false, nil
 			}
 
@@ -70,59 +93,55 @@ func (g *Manual) Force(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	b, err := chain.MarshalTxs(txs)
+	b, err := g.serializer.Marshal(txs)
 	if err != nil {
 		return err
 	}
 	if err := g.client.AppGossip(ctx, common.SendConfig{Validators: 10}, b); err != nil {
-		g.vm.Logger().Warn(
+		g.log.Warn(
 			"GossipTxs failed",
 			zap.Error(err),
 		)
 		return err
 	}
-	g.vm.Logger().Debug("gossiped txs", zap.Int("count", len(txs)))
+	g.log.Debug("gossiped txs", zap.Int("count", len(txs)))
 	return nil
 }
 
-func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	actionCodec, authCodec := g.vm.ActionCodec(), g.vm.AuthCodec()
-	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionCodec, authCodec)
+func (g *Manual[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	txs, err := g.serializer.Unmarshal(msg)
 	if err != nil {
-		g.vm.Logger().Warn(
+		g.log.Warn(
 			"AppGossip provided invalid txs",
 			zap.Stringer("peerID", nodeID),
 			zap.Error(err),
 		)
 		return nil
 	}
-	g.vm.RecordTxsReceived(len(txs))
+	g.metrics.txsReceived.Add(float64(len(txs)))
 
 	start := time.Now()
-	for _, err := range g.vm.Submit(ctx, true, txs) {
-		if err == nil {
-			continue
+	numErrs := 0
+	for _, err := range g.submitter.Submit(ctx, txs) {
+		if err != nil {
+			numErrs++
 		}
-		g.vm.Logger().Warn(
-			"AppGossip failed to submit txs",
-			zap.Stringer("peerID", nodeID),
-			zap.Error(err),
-		)
 	}
-	g.vm.Logger().Info(
+	g.log.Info(
 		"tx gossip received",
 		zap.Int("txs", len(txs)),
+		zap.Int("numFailedSubmit", numErrs),
 		zap.Stringer("nodeID", nodeID),
 		zap.Duration("t", time.Since(start)),
 	)
 	return nil
 }
 
-func (*Manual) BlockVerified(int64) {}
+func (*Manual[T]) BlockVerified(int64) {}
 
-func (g *Manual) Done() {
+func (g *Manual[T]) Done() {
 	<-g.doneGossip
 }
 
 // Queue is a no-op in [Manual].
-func (*Manual) Queue(context.Context) {}
+func (*Manual[T]) Queue(context.Context) {}

@@ -33,7 +33,6 @@ type VM interface {
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,
-		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
 	LastAcceptedBlockResult() *chain.ExecutedBlock
