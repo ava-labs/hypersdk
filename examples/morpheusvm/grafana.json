@@ -2279,8 +2279,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "Vryx PoC",
-  "uid": "vryx-poc",
+  "title": "Load Test Dashboard",
+  "uid": "load-test-dashboard",
   "version": 4,
   "weekStart": ""
 }

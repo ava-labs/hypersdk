@@ -8,7 +8,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/throughput"
 )
 
@@ -46,9 +48,14 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 		}
 		key = keys[keyIndex]
 	} else {
-		key, err = auth.FromString(auth.ED25519ID, spamKey)
+		bytes, err := codec.LoadHex(spamKey, ed25519.PrivateKeyLen)
 		if err != nil {
 			return nil, err
+		}
+		privateKey := ed25519.PrivateKey(bytes)
+		key = &auth.PrivateKey{
+			Address: auth.NewED25519Address(privateKey.PublicKey()),
+			Bytes:   bytes,
 		}
 	}
 

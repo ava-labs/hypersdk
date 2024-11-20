@@ -6,7 +6,15 @@ set -e
 
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
+# project name is expected to be the name of the directory containing the project
+# it should be located in the examples directory of the hypersdk.
 PROJECT_NAME="morpheusvm"
+
+# Name of the cli binary for the project
+PROJECT_CLI_NAME="morpheus-cli"
+
+# Commit of the MorpheusVM repository to build and install
+PROJECT_VM_COMMIT="95e107674950667727ce7e42d2a83f47a9b2af48"
 
 # Set console colors
 RED='\033[1;31m'
@@ -42,7 +50,7 @@ fi
 AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
 
 # Create temporary directory for the deployment
-TMPDIR=/tmp/{$}-deploy
+TMPDIR=/tmp/$PROJECT_NAME-deploy
 rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
@@ -56,20 +64,19 @@ git checkout $LOCAL_CLI_COMMIT
 mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
-# Install morpheus-cli
-MORPHEUS_VM_COMMIT="c2d7c8005ba88c1bea8c4c41ef517b31224bf276"
-echo -e "${YELLOW}building morpheus-cli${NC}"
+# Install and build the project and project CLI
+echo -e "${YELLOW}building ${PROJECT_CLI_NAME}${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
 cd hypersdk
-git checkout $MORPHEUS_VM_COMMIT
+git checkout $PROJECT_VM_COMMIT
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
-cd examples/${PROJECT_NAME}
+cd examples/$PROJECT_NAME
 ./scripts/build.sh
-# build morpheus-cli
-go build -o build/morpheus-cli cmd/morpheus-cli/*.go
-mv ./build/morpheus-cli "${TMPDIR}/morpheus-cli"
+# build project cli
+go build -o build/$PROJECT_CLI_NAME cmd/$PROJECT_CLI_NAME/*.go
+mv ./build/$PROJECT_CLI_NAME "${TMPDIR}/${PROJECT_CLI_NAME}"
 cd $pw
 
 # Generate genesis file and configs
@@ -99,7 +106,7 @@ cat <<EOF > "${TMPDIR}"/allocations.json
 ]
 EOF
 
-"${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+"${TMPDIR}/${PROJECT_CLI_NAME}" genesis generate "${TMPDIR}"/allocations.json \
 --validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
 --max-block-units "${MAX_CHUNK_UNITS}" \
@@ -170,7 +177,7 @@ cat <<EOF > "${TMPDIR}"/node.config
 EOF
 
 # Setup devnet
-CLUSTER="vryx-$(date +%s)"
+CLUSTER="${PROJECT_NAME}-$(date +%s)"
 
 interrupted=false
 function showcleanup {
@@ -194,17 +201,17 @@ trap cleanup SIGINT
 echo -e "${YELLOW}creating devnet${NC}"
 $TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,us-west-2 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/${PROJECT_NAME}/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/${PROJECT_NAME}.genesis" --subnet-config="${TMPDIR}/${PROJECT_NAME}.genesis" --chain-config="${TMPDIR}/${PROJECT_NAME}.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/${PROJECT_NAME}/grafana.json"
 
-# Import the cluster into morpheus-cli for local interaction
-$TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
+# Import the cluster into project cli for local interaction
+$TMPDIR/$PROJECT_CLI_NAME chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
 # Start load test on dedicated machine
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
 echo -e "\n${YELLOW}starting load test...${NC}"
-$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region us-west-2 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/${PROJECT_NAME}; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --cluster-info=/home/ubuntu/clusterInfo.yaml --key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region us-west-2 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/${PROJECT_NAME}; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/${PROJECT_CLI_NAME}" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --cluster-info=/home/ubuntu/clusterInfo.yaml --key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 
 # Log dashboard information
 echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"
-echo "* hypersdk (metrics): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc"
+echo "* hypersdk (metrics): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/load-test-dashboard"
 echo "* hypersdk (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=subnet"
 echo "* load test (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs/avalanche-logs?var-app=loadtest"

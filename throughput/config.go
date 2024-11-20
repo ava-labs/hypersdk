@@ -7,6 +7,8 @@ import (
 	"errors"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type Config struct {
@@ -45,7 +47,16 @@ func NewDefaultLoadTestConfig(uris []string, keyHex string) (*Config, error) {
 		return nil, errors.New("uris and keyHex must be non-empty")
 	}
 
-	key, err := auth.FromString(auth.ED25519ID, keyHex)
+	bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+	if err != nil {
+		return nil, err
+	}
+	privateKey := ed25519.PrivateKey(bytes)
+	key := &auth.PrivateKey{
+		Address: auth.NewED25519Address(privateKey.PublicKey()),
+		Bytes:   bytes,
+	}
+	
 	if err != nil {
 		return nil, err
 	}
