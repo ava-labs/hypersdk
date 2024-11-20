@@ -4,26 +4,22 @@
 package storage
 
 import (
-	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/corruptabledb"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-func New(cfg pebble.Config, chainDataDir string, namespace string, gatherer metrics.MultiGatherer) (database.Database, error) {
+func New(cfg pebble.Config, chainDataDir string, namespace string, registerer prometheus.Registerer) (database.Database, error) {
 	path, err := utils.InitSubDirectory(chainDataDir, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	db, registry, err := pebble.New(path, cfg)
+	db, err := pebble.New(path, cfg, registerer)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := gatherer.Register(namespace, registry); err != nil {
 		return nil, err
 	}
 

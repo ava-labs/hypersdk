@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -45,11 +46,11 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 	if blockWindow > maxBlockWindow {
 		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
 	}
-	txDB, _, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig())
+	txDB, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	if err != nil {
 		return nil, err
 	}
-	blockDB, _, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig())
+	blockDB, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (i *Indexer) initBlocks() error {
 			return err
 		}
 
-		i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
+		i.blockIDToHeight.Put(blk.Block.ID(), blk.Block.Hght)
 		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
 		lastHeight = blk.Block.Hght
 	}
@@ -133,7 +134,7 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	i.blockIDToHeight.Put(blk.BlockID, blk.Block.Hght)
+	i.blockIDToHeight.Put(blk.Block.ID(), blk.Block.Hght)
 	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
 	i.lastHeight.Store(blk.Block.Hght)
 

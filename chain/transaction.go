@@ -319,17 +319,17 @@ func (t *Transaction) Execute(
 	units, err := t.Units(bh, r)
 	if err != nil {
 		// Should never happen
-		return nil, err
+		return nil, fmt.Errorf("failed to calculate tx units: %w", err)
 	}
 	fee, err := feeManager.Fee(units)
 	if err != nil {
 		// Should never happen
-		return nil, err
+		return nil, fmt.Errorf("failed to calculate tx fee: %w", err)
 	}
 	if err := bh.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
-		return nil, err
+		return nil, fmt.Errorf("failed to deduct tx fee: %w", err)
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
@@ -355,7 +355,7 @@ func (t *Transaction) Execute(
 		} else {
 			encodedOutput, err = MarshalTyped(actionOutput)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
 			}
 		}
 
@@ -512,31 +512,6 @@ func UnmarshalActions(
 	return actions, nil
 }
 
-func UnmarshalTxs(
-	raw []byte,
-	initialCapacity int,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
-) (map[uint8]int, []*Transaction, error) {
-	p := codec.NewReader(raw, consts.NetworkSizeLimit)
-	txCount := p.UnpackInt(true)
-	authCounts := map[uint8]int{}
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, nil, err
-		}
-		txs = append(txs, tx)
-		authCounts[tx.Auth.GetTypeID()]++
-	}
-	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, nil, ErrInvalidObject
-	}
-	return authCounts, txs, p.Err()
-}
-
 func UnmarshalTx(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action],
@@ -568,21 +543,6 @@ func UnmarshalTx(
 		return nil, err
 	}
 	return tx, nil
-}
-
-func MarshalTxs(txs []*Transaction) ([]byte, error) {
-	if len(txs) == 0 {
-		return nil, ErrNoTxs
-	}
-	size := consts.IntLen + codec.CummSize(txs)
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(uint32(len(txs)))
-	for _, tx := range txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-	}
-	return p.Bytes(), p.Err()
 }
 
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost

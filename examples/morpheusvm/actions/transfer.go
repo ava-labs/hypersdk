@@ -68,7 +68,7 @@ func (t *Transfer) Execute(
 	if err != nil {
 		return nil, err
 	}
-	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value, true)
+	receiverBalance, err := storage.AddBalance(ctx, mu, t.To, t.Value)
 	if err != nil {
 		return nil, err
 	}

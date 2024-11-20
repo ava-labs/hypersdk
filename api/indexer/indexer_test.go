@@ -50,7 +50,7 @@ func checkBlocks(
 	expectedLatestBlk := expectedBlocks[len(expectedBlocks)-1]
 	latestBlk, err := indexer.GetLatestBlock()
 	require.NoError(err)
-	require.Equal(expectedLatestBlk.BlockID, latestBlk.BlockID)
+	require.Equal(expectedLatestBlk.Block.ID(), latestBlk.Block.ID())
 
 	// Confirm all blocks in the window are retrievable
 	for i := 0; i < blockWindow; i++ {
@@ -58,11 +58,11 @@ func checkBlocks(
 		height := expectedBlk.Block.Hght
 		blkByHeight, err := indexer.GetBlockByHeight(height)
 		require.NoError(err)
-		require.Equal(expectedBlk.BlockID, blkByHeight.BlockID)
+		require.Equal(expectedBlk.Block.ID(), blkByHeight.Block.ID())
 
-		blkByID, err := indexer.GetBlock(expectedBlk.BlockID)
+		blkByID, err := indexer.GetBlock(expectedBlk.Block.ID())
 		require.NoError(err)
-		require.Equal(expectedBlk.BlockID, blkByID.BlockID)
+		require.Equal(expectedBlk.Block.ID(), blkByID.Block.ID())
 	}
 
 	// Confirm blocks outside the window are not retrievable
