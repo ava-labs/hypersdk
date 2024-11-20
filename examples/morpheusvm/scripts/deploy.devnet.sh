@@ -15,7 +15,7 @@ PROJECT_NAME="morpheusvm"
 PROJECT_CLI_NAME="morpheus-cli"
 
 # Commit of the MorpheusVM repository to build and install
-PROJECT_VM_COMMIT="95e107674950667727ce7e42d2a83f47a9b2af48"
+PROJECT_VM_COMMIT="c3c9cafd5726aeb4b608e3315922910aeb0baeeb"
 
 # Set console colors
 RED='\033[1;31m'
