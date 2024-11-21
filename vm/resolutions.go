@@ -279,6 +279,8 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 				})
 			}
 		}
+	} else {
+		vm.chainTimeValidityWindow.Accept(b.ExecutionBlock)
 	}
 
 	// Update timestamp in mempool

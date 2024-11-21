@@ -46,10 +46,7 @@ func (v *timeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	evicted := v.seen.SetMin(blk.Timestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	v.seen.Add(blk.Txs())
-	// we want to increase only here, since we might be backfilling by the syncher.
-	if currentBlkHeight := blk.Height(); currentBlkHeight > v.lastAcceptedBlockHeight {
-		v.lastAcceptedBlockHeight = currentBlkHeight
-	}
+	v.lastAcceptedBlockHeight = blk.Height()
 }
 
 func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
