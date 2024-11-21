@@ -4,15 +4,20 @@
 package indexer
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 func TestEncodingValidate(t *testing.T) {
@@ -49,36 +54,74 @@ func TestEncodingValidate(t *testing.T) {
 	}
 }
 
-func TestBlockResponse(t *testing.T) {
-	blocks := chaintest.GenerateEmptyExecutedBlocks(require.New(t), ids.GenerateTestID(), 0, 0, 0, 1)
-	t.Run("JSON", func(t *testing.T) {
-		require := require.New(t)
-		r := GetBlockResponse{}
-		err := r.setResponse(blocks[0], JSON)
-		require.NoError(err)
-		marshaledBlock, err := json.Marshal(blocks[0])
-		require.NoError(err)
-		res, err := json.Marshal(r)
-		require.NoError(err)
-		require.Equal([]byte(fmt.Sprintf(`{"block":%s}`, string(marshaledBlock))), res)
-	})
-	t.Run("Hex", func(t *testing.T) {
-		require := require.New(t)
-		r := GetBlockResponse{}
-		err := r.setResponse(blocks[0], Hex)
-		require.NoError(err)
-		blockBytes, err := blocks[0].Marshal()
-		require.NoError(err)
-		res, err := json.Marshal(r)
-		require.NoError(err)
-		marshaledBlock, err := codec.Bytes(blockBytes).MarshalText()
-		require.NoError(err)
-		require.Equal([]byte(fmt.Sprintf(`{"block":"%s"}`, string(marshaledBlock))), res)
-	})
-	t.Run("Unknown", func(t *testing.T) {
-		require := require.New(t)
-		r := GetBlockResponse{}
-		err := r.setResponse(blocks[0], Encoding("unknown"))
-		require.EqualError(err, ErrUnsupportedEncoding.Error())
-	})
+func TestGetBlock(t *testing.T) {
+	require := require.New(t)
+	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
+	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
+	defer server.Close()
+	res, err := client.GetBlock(context.Background(), blocks[0].BlockID, chaintest.NewEmptyParser())
+	require.NoError(err)
+	require.Equal(blocks[0].BlockID, res.BlockID)
+}
+
+func TestGetBlockByHeight(t *testing.T) {
+	require := require.New(t)
+	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
+	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
+	defer server.Close()
+	res, err := client.GetBlockByHeight(context.Background(), blocks[0].Block.Hght, chaintest.NewEmptyParser())
+	require.NoError(err)
+	require.Equal(blocks[0].BlockID, res.BlockID)
+}
+
+func TestGetLatestBlock(t *testing.T) {
+	require := require.New(t)
+	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
+	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
+	defer server.Close()
+	res, err := client.GetLatestBlock(context.Background(), chaintest.NewEmptyParser())
+	require.NoError(err)
+	require.Equal(blocks[0].BlockID, res.BlockID)
+}
+
+func newIndexerHTTPServerAndClient(require *require.Assertions, block *chain.ExecutedBlock) (*httptest.Server, *Client) {
+	rpcServer := &Server{
+		tracer: trace.Noop,
+		indexer: &mockIndexer{
+			execuredBlock: block,
+		},
+	}
+	handler, err := api.NewJSONRPCHandler(Name, rpcServer)
+	require.NoError(err)
+	mux := http.NewServeMux()
+	mux.Handle(Endpoint, handler)
+	testServer := httptest.NewServer(mux)
+	client := NewClient(testServer.URL)
+	return testServer, client
+}
+
+type mockIndexer struct {
+	execuredBlock *chain.ExecutedBlock
+}
+
+func (m *mockIndexer) GetBlock(blockID ids.ID) (*chain.ExecutedBlock, error) {
+	if blockID == m.execuredBlock.BlockID {
+		return m.execuredBlock, nil
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *mockIndexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
+	if height == m.execuredBlock.Block.Hght {
+		return m.execuredBlock, nil
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *mockIndexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
+	return m.execuredBlock, nil
+}
+
+func (*mockIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {
+	panic("unimplemented")
 }
