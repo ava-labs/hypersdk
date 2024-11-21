@@ -105,7 +105,7 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errTransactionExtraBytes
 	}
-	txID := tx.ID()
+	txID := tx.GetID()
 	reply.TxID = txID
 	return j.vm.Submit(ctx, []*chain.Transaction{tx})[0]
 }

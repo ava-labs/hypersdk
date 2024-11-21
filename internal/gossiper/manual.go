@@ -73,7 +73,7 @@ func (g *Manual[T]) Force(ctx context.Context) error {
 		g.targetGossipDuration,
 		func(_ context.Context, next T) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Expiry() < now {
+			if next.GetExpiry() < now {
 				return true, false, nil
 			}
 

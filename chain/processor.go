@@ -39,10 +39,10 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 	authCounts := make(map[uint8]int)
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
 	for _, tx := range block.Txs {
-		if txsSet.Contains(tx.ID()) {
+		if txsSet.Contains(tx.GetID()) {
 			return nil, ErrDuplicateTx
 		}
-		txsSet.Add(tx.ID())
+		txsSet.Add(tx.GetID())
 		authCounts[tx.Auth.GetTypeID()]++
 	}
 
@@ -336,7 +336,7 @@ func (p *Processor) executeTxs(
 		}
 
 		// Prefetch state keys from disk
-		txID := tx.ID()
+		txID := tx.GetID()
 		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
 			return nil, nil, err
 		}
