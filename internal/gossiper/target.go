@@ -99,21 +99,21 @@ func NewTarget[T Tx](
 		return nil, err
 	}
 	g := &Target[T]{
-		tracer:               tracer,
-		log:                  log,
-		metrics:              metrics,
-		mempool:              mempool,
-		serializer:           serializer,
-		submitter:            submitter,
-		validatorSet:         validatorSet,
-		targetStrategy:       targetStrategy,
-		targetGossipDuration: targetGossipDuration,
-		cfg:                  cfg,
-		stop:                 stop,
-		doneGossip:           make(chan struct{}),
-		latestVerifiedTimestamp:         -1,
-		q:                    make(chan struct{}),
-		lastQueue:            -1,
+		tracer:                  tracer,
+		log:                     log,
+		metrics:                 metrics,
+		mempool:                 mempool,
+		serializer:              serializer,
+		submitter:               submitter,
+		validatorSet:            validatorSet,
+		targetStrategy:          targetStrategy,
+		targetGossipDuration:    targetGossipDuration,
+		cfg:                     cfg,
+		stop:                    stop,
+		doneGossip:              make(chan struct{}),
+		latestVerifiedTimestamp: -1,
+		q:                       make(chan struct{}),
+		lastQueue:               -1,
 	}
 	g.timer = timer.NewTimer(g.handleTimerNotify)
 	cache, err := cache.NewFIFO[ids.ID, any](cfg.SeenCacheSize)
