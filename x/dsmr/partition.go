@@ -125,55 +125,6 @@ func (pp *PrecalculatedPartition[T]) calculateIndexedTxs(txs []T) []*indexedTx[T
 	return indexedTxs
 }
 
-func (pp *PrecalculatedPartition[T]) AssignTxs(txs []T) (map[ids.NodeID][]T, error) {
-	indexedTxs := pp.calculateIndexedTxs(txs)
-
-	assignments := make(map[ids.NodeID][]T)
-	weightIndex := uint64(0)
-	txIndex := 0
-	for _, vdr := range pp.validators {
-		weightIndex += vdr.weight
-		for txIndex < len(indexedTxs) && weightIndex > indexedTxs[txIndex].index {
-			assignments[vdr.nodeID] = append(assignments[vdr.nodeID], indexedTxs[txIndex].tx)
-			txIndex++
-		}
-		if txIndex >= len(indexedTxs) {
-			break
-		}
-	}
-	return assignments, nil
-}
-
-func (pp *PrecalculatedPartition[T]) FilterTxs(nodeID ids.NodeID, txs []T) ([]T, error) {
-	// Return early if there are no transactions to filter
-	if len(txs) == 0 {
-		return nil, nil
-	}
-
-	// Calculate the weight index boundaries for the provided nodeID
-	weightIndex := uint64(0)
-	startWeight := uint64(0)
-	endWeight := uint64(0)
-	for _, vdr := range pp.validators {
-		if vdr.nodeID == nodeID {
-			startWeight = weightIndex
-			endWeight = weightIndex + vdr.weight
-			break
-		}
-		weightIndex += vdr.weight
-	}
-
-	filteredTxs := make([]T, 0, len(txs)/2)
-	for _, tx := range txs {
-		txIndexWeight := calculateSponsorWeightIndex(tx.GetSponsor(), pp.totalWeight)
-		if endWeight > txIndexWeight && startWeight <= txIndexWeight {
-			filteredTxs = append(filteredTxs, tx)
-		}
-	}
-
-	return filteredTxs, nil
-}
-
 type Partition[T Tx] struct {
 	state    validators.State
 	subnetID ids.ID

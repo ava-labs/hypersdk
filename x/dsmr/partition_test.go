@@ -9,9 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/stretchr/testify/require"
-	"github.com/thepudds/fzgen/fuzzer"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -163,99 +161,4 @@ func TestAssignTx(t *testing.T) {
 			r.Equal(partition.validators[test.expectedIndex].nodeID, nodeID)
 		})
 	}
-}
-
-func createFuzzPartitionAndTxs(fz *fuzzer.Fuzzer, numVdrs int, numTxs int) (*PrecalculatedPartition[tx], []tx, bool) {
-	vdrs := make([]uint64, 0, numVdrs)
-	for i := 0; i < numVdrs; i++ {
-		vdrWeight := uint64(0)
-		fz.Fill(&vdrWeight)
-		if vdrWeight == 0 {
-			vdrWeight = 1
-		}
-		vdrs = append(vdrs, vdrWeight)
-	}
-
-	sum := uint64(0)
-	for _, vdrWeight := range vdrs {
-		updatedSum, err := math.Add(sum, vdrWeight)
-		if err != nil {
-			return nil, nil, false
-		}
-		sum = updatedSum
-	}
-
-	txs := make([]tx, 0, numTxs)
-	for i := 0; i < numTxs; i++ {
-		txWeight := uint64(0)
-		fz.Fill(&txWeight)
-		txs = append(txs, createTestPartitionTx(txWeight))
-	}
-
-	return createTestPartition(vdrs), txs, true
-}
-
-func FuzzAssignTxs(f *testing.F) {
-	for i := 0; i < 100; i++ {
-		f.Add([]byte{byte(i)})
-	}
-	f.Fuzz(func(t *testing.T, data []byte) {
-		fz := fuzzer.NewFuzzer(data)
-		partition, txs, ok := createFuzzPartitionAndTxs(fz, 4, 4)
-		if !ok {
-			return
-		}
-
-		r := require.New(t)
-		assignedTxs, err := partition.AssignTxs(txs)
-		r.NoError(err)
-
-		expectedAssignments := make(map[ids.NodeID][]tx)
-		for _, tx := range txs {
-			nodeID, ok := partition.AssignTx(tx)
-			r.True(ok)
-			expectedAssignments[nodeID] = append(expectedAssignments[nodeID], tx)
-		}
-		r.Equal(len(expectedAssignments), len(assignedTxs))
-		for nodeID, txs := range assignedTxs {
-			expectedTxs, ok := expectedAssignments[nodeID]
-			r.True(ok)
-			r.ElementsMatch(expectedTxs, txs)
-		}
-	})
-}
-
-func FuzzFilterTxs(f *testing.F) {
-	for i := 0; i < 100; i++ {
-		f.Add([]byte{byte(i)})
-	}
-	f.Fuzz(func(t *testing.T, data []byte) {
-		fz := fuzzer.NewFuzzer(data)
-		partition, txs, ok := createFuzzPartitionAndTxs(fz, 4, 4)
-		if !ok {
-			return
-		}
-
-		nodeIDIndex := uint32(0)
-		fz.Fill(&nodeIDIndex)
-
-		nodeIDIndex %= uint32(len(partition.validators))
-		nodeID := partition.validators[nodeIDIndex].nodeID
-
-		r := require.New(t)
-		filteredTxs, err := partition.FilterTxs(nodeID, txs)
-		r.NoError(err)
-		filteredTxsSet := make(map[ids.ID]struct{})
-		for _, tx := range filteredTxs {
-			filteredTxsSet[tx.ID] = struct{}{}
-		}
-
-		for _, tx := range txs {
-			assignedNodeID, ok := partition.AssignTx(tx)
-			r.True(ok)
-			expectedIncluded := nodeID == assignedNodeID
-			_, included := filteredTxsSet[tx.ID]
-			r.Equal(expectedIncluded, included)
-		}
-	})
 }
