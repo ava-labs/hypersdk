@@ -19,8 +19,8 @@ type Config struct {
 	numAccounts      int
 }
 
-// Default config used for E2E testing and CLI
-func NewDefaultConfig(
+// Config used for E2E testing and CLI
+func NewFastConfig(
 	uris []string,
 	authFactory chain.AuthFactory,
 ) *Config {
@@ -37,8 +37,8 @@ func NewDefaultConfig(
 	}
 }
 
-// Default config for using the load test script.
-func NewDefaultLoadTestConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
+// Config used for load testing script
+func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
 	return &Config{
 		uris:             uris,
 		authFactory:      authFactory,

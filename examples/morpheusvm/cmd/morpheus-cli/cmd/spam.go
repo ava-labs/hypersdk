@@ -55,7 +55,7 @@ var runSpamCmd = &cobra.Command{
 			}
 			authFactory := auth.NewED25519Factory(ed25519.PrivateKey(bytes))
 
-			spamConfig, err := hthroughput.NewDefaultLoadTestConfig(uris, authFactory)
+			spamConfig, err := hthroughput.NewLongRunningConfig(uris, authFactory)
 			if err != nil {
 				return err
 			}

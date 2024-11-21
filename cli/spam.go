@@ -69,7 +69,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 	}
 
 	if defaults {
-		sc := throughput.NewDefaultConfig(uris, authFactory)
+		sc := throughput.NewFastConfig(uris, authFactory)
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
