@@ -19,6 +19,7 @@ const InitialChunkSize = 250 * 1024
 type Tx interface {
 	GetID() ids.ID
 	GetExpiry() int64
+	GetSponsor() codec.Address
 }
 
 type UnsignedChunk[T Tx] struct {
