@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"encoding/binary"
+	"strconv"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,21 +18,21 @@ import (
 
 // createTestPartition creates a precalculated partition with the provided weights
 // and generates sorted nodeIDs to match the original ordering of weights
-func createTestPartition(weights []uint64) *PrecalculatedPartition[tx] {
+func createTestPartition(weights []uint64) *Partition[tx] {
 	nodeIDs := make([]ids.NodeID, 0, len(weights))
 	for i := 0; i < len(weights); i++ {
 		nodeIDs = append(nodeIDs, ids.GenerateTestNodeID())
 	}
 	utils.Sort(nodeIDs)
 
-	validators := make([]*weightedValidator, 0, len(weights))
+	validators := make([]Validator, len(weights))
 	for i, weight := range weights {
-		validators = append(validators, &weightedValidator{
-			weight: weight,
-			nodeID: nodeIDs[i],
-		})
+		validators[i] = Validator{
+			Weight: weight,
+			NodeID: nodeIDs[i],
+		}
 	}
-	return precomputePartition[tx](validators)
+	return NewPartition[tx](validators)
 }
 
 func createTestPartitionTx(weight uint64) tx {
@@ -160,5 +161,63 @@ func TestAssignTx(t *testing.T) {
 			r.Equal(test.expectedIndex, foundNodeIDIndex)
 			r.Equal(partition.validators[test.expectedIndex].nodeID, nodeID)
 		})
+	}
+}
+
+// Running tool: /usr/local/go/bin/go test -benchmem -run=^$ -bench ^BenchmarkAssignTx$ github.com/ava-labs/hypersdk/x/dsmr
+//
+// goos: darwin
+// goarch: arm64
+// pkg: github.com/ava-labs/hypersdk/x/dsmr
+// BenchmarkAssignTx/Vdrs-10-Txs-10-12         	  332629	      3400 ns/op	    1792 B/op	       1 allocs/op
+// BenchmarkAssignTx/Vdrs-10-Txs-100-12        	   36576	     32696 ns/op	   14360 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-10-Txs-1000-12       	    3703	    325971 ns/op	  229401 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-10-Txs-10000-12      	     356	   3234778 ns/op	 1777688 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-100-Txs-10-12        	  324730	      3539 ns/op	    1812 B/op	       1 allocs/op
+// BenchmarkAssignTx/Vdrs-100-Txs-100-12       	   34230	     34997 ns/op	   14378 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-100-Txs-1000-12      	    3499	    341810 ns/op	  229400 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-100-Txs-10000-12     	     355	   3340795 ns/op	 1777688 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-1000-Txs-10-12       	  314222	      3685 ns/op	    1812 B/op	       1 allocs/op
+// BenchmarkAssignTx/Vdrs-1000-Txs-100-12      	   33060	     36677 ns/op	   15559 B/op	       6 allocs/op
+// BenchmarkAssignTx/Vdrs-1000-Txs-1000-12     	    3241	    368321 ns/op	  229408 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-1000-Txs-10000-12    	     327	   3657135 ns/op	 1777688 B/op	       2 allocs/op
+// BenchmarkAssignTx/Vdrs-10000-Txs-10-12      	  295610	      3920 ns/op	    1812 B/op	       1 allocs/op
+// BenchmarkAssignTx/Vdrs-10000-Txs-100-12     	   30014	     39876 ns/op	   15843 B/op	       6 allocs/op
+// BenchmarkAssignTx/Vdrs-10000-Txs-1000-12    	    2899	    416381 ns/op	  229482 B/op	       5 allocs/op
+// BenchmarkAssignTx/Vdrs-10000-Txs-10000-12   	     286	   4145923 ns/op	 1777898 B/op	       7 allocs/op
+func BenchmarkAssignTx(b *testing.B) {
+	vdrSetSizes := []int{10, 100, 1000, 10_000}
+	txBatchSizes := []int{10, 100, 1000, 10_000}
+	for _, numVdrs := range vdrSetSizes {
+		// Create validator set with equal weights
+		vdrWeights := make([]uint64, numVdrs)
+		for i := 0; i < numVdrs; i++ {
+			vdrWeights[i] = 100
+		}
+		partition := createTestPartition(vdrWeights)
+
+		// Create txs once for largest batch size
+		testTxs := make([]tx, txBatchSizes[len(txBatchSizes)-1])
+		for i := range testTxs {
+			testTxs[i] = tx{
+				ID:      ids.GenerateTestID(),
+				Expiry:  100,
+				Sponsor: codec.CreateAddress(0, ids.GenerateTestID()),
+			}
+		}
+
+		for _, numTxs := range txBatchSizes {
+			b.Run("Vdrs-"+strconv.Itoa(numVdrs)+"-Txs-"+strconv.Itoa(numTxs), func(b *testing.B) {
+				r := require.New(b)
+				for n := 0; n < b.N; n++ {
+					assignments := make(map[ids.NodeID]tx, numTxs)
+					for _, tx := range testTxs[:numTxs] {
+						nodeID, ok := partition.AssignTx(tx)
+						r.True(ok)
+						assignments[nodeID] = tx
+					}
+				}
+			})
+		}
 	}
 }
