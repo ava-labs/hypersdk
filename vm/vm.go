@@ -40,6 +40,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/statesync"
@@ -80,8 +81,8 @@ type VM struct {
 	options               []Option
 
 	chain                   *chain.Chain
-	chainTimeValidityWindow *chain.TimeValidityWindow
-	syncer                  *chain.Syncer
+	chainTimeValidityWindow chain.ValidityWindow
+	syncer                  *validitywindow.Syncer[*chain.Transaction]
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
@@ -353,8 +354,7 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
-
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
@@ -370,13 +370,15 @@ func (vm *VM) Initialize(
 		vm.BalanceHandler(),
 		vm.AuthVerifiers(),
 		vm,
-		vm.GetValidityWindow(),
+		vm.chainTimeValidityWindow,
 		vm.config.ChainConfig,
 	)
 	if err != nil {
 		return err
 	}
-	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
+	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
+		return vm.ruleFactory.GetRules(time).GetValidityWindow()
+	})
 	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
 		AcceptF: func(b *StatefulBlock) error {
 			seenValidityWindow, err := vm.syncer.Accept(context.TODO(), b.ExecutionBlock)
@@ -500,6 +502,8 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+	// accept the last block in order to initialize the internal lastBlockHeight
+	vm.chainTimeValidityWindow.Accept(vm.lastAccepted.ExecutionBlock)
 	go vm.processAcceptedBlocks()
 
 	if err := vm.initStateSync(); err != nil {
@@ -878,21 +882,6 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
-	defer span.End()
-
-	blk, err := vm.GetStatefulBlock(ctx, blkID)
-	if err != nil {
-		return nil, err
-	}
-	return blk.ExecutionBlock, nil
-}
-
-func (vm *VM) GetValidityWindow() *chain.TimeValidityWindow {
-	return vm.chainTimeValidityWindow
-}
-
 func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
 	start := time.Now()
 	defer func() {
@@ -1135,9 +1124,6 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 
 	return vm.network.Disconnected(ctx, nodeID)
 }
-
-// VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM
-func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.

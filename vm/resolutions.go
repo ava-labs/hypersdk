@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -32,9 +33,10 @@ import (
 )
 
 var (
-	_ gossiper.ValidatorSet = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ gossiper.ValidatorSet                         = (*VM)(nil)
+	_ block.ChainVM                                 = (*VM)(nil)
+	_ block.StateSyncableVM                         = (*VM)(nil)
+	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
@@ -89,8 +91,15 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.ExecutionBlock {
-	return vm.lastAccepted.ExecutionBlock
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+	defer span.End()
+
+	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
 }
 
 func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
@@ -191,7 +200,7 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 	}
 
 	// TODO: consider removing this (unused and requires an extra iteration)
-	for _, tx := range b.Txs {
+	for _, tx := range b.StatelessBlock.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
 	}

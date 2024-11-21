@@ -5,10 +5,10 @@ A command-line interface for interacting with HyperSDK-based chains.
 ## Installation
 
 ```bash
-go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@4510f51720d2e0fdecfd7fa08350e7c3eab3cf53
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@main
 ```
 
-FIXME: Has to point to the commit with the latest update from main, or just `@main` later on.
+<!--FIXME: Point to the latest tag once tagged.-->
 
 ## Configuration
 

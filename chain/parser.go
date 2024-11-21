@@ -32,5 +32,5 @@ func (b *BlockParser) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionB
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlock(blk), nil
+	return NewExecutionBlock(blk)
 }
