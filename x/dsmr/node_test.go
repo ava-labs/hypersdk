@@ -1479,8 +1479,9 @@ func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeI
 }
 
 type tx struct {
-	ID     ids.ID `serialize:"true"`
-	Expiry int64  `serialize:"true"`
+	ID      ids.ID        `serialize:"true"`
+	Expiry  int64         `serialize:"true"`
+	Sponsor codec.Address `serialize:"true"`
 }
 
 func (t tx) GetID() ids.ID {
@@ -1489,6 +1490,10 @@ func (t tx) GetID() ids.ID {
 
 func (t tx) GetExpiry() int64 {
 	return t.Expiry
+}
+
+func (t tx) GetSponsor() codec.Address {
+	return t.Sponsor
 }
 
 type failVerifier struct{}

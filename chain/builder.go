@@ -67,7 +67,7 @@ type Builder struct {
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
 	mempool         Mempool
-	validityWindow  *TimeValidityWindow
+	validityWindow  ValidityWindow
 	metrics         *chainMetrics
 	config          Config
 }
@@ -79,7 +79,7 @@ func NewBuilder(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	mempool Mempool,
-	validityWindow *TimeValidityWindow,
+	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
 ) *Builder {
@@ -476,7 +476,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", timestamp),
 	)
-	return NewExecutionBlock(blk), &ExecutedBlock{
+	execBlock, err := NewExecutionBlock(blk)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return execBlock, &ExecutedBlock{
 		Block:         blk,
 		Results:       results,
 		UnitPrices:    feeManager.UnitPrices(),
