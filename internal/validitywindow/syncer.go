@@ -15,22 +15,22 @@ type GetValidityWindowFunc func(int64) int64
 
 // Syncer marks sequential blocks as accepted until it has observed a full validity window
 // and signals to the caller that it can begin processing blocks from that block forward.
-type syncer[Container emap.Item] struct {
+type Syncer[Container emap.Item] struct {
 	chainIndex         ChainIndex[Container]
-	timeValidityWindow TimeValidityWindow[Container]
+	timeValidityWindow *TimeValidityWindow[Container]
 	getValidityWindow  GetValidityWindowFunc
 	initialBlock       ExecutionBlock[Container]
 }
 
-func NewSyncer[Container emap.Item](chainIndex ChainIndex[Container], timeValidityWindow TimeValidityWindow[Container], getValidityWindow GetValidityWindowFunc) Syncer[Container] {
-	return &syncer[Container]{
+func NewSyncer[Container emap.Item](chainIndex ChainIndex[Container], timeValidityWindow *TimeValidityWindow[Container], getValidityWindow GetValidityWindowFunc) *Syncer[Container] {
+	return &Syncer[Container]{
 		chainIndex:         chainIndex,
 		timeValidityWindow: timeValidityWindow,
 		getValidityWindow:  getValidityWindow,
 	}
 }
 
-func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock ExecutionBlock[Container]) (bool, error) {
+func (s *Syncer[Container]) start(ctx context.Context, lastAcceptedBlock ExecutionBlock[Container]) (bool, error) {
 	s.initialBlock = lastAcceptedBlock
 	// Attempt to backfill the validity window
 	var (
@@ -64,7 +64,7 @@ func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock Executi
 	return seenValidityWindow, nil
 }
 
-func (s *syncer[Container]) Accept(ctx context.Context, blk ExecutionBlock[Container]) (bool, error) {
+func (s *Syncer[Container]) Accept(ctx context.Context, blk ExecutionBlock[Container]) (bool, error) {
 	if s.initialBlock == nil {
 		return s.start(ctx, blk)
 	}

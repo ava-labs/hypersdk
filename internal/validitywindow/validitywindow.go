@@ -19,7 +19,7 @@ import (
 
 var ErrDuplicateContainer = errors.New("duplicate container")
 
-type timeValidityWindow[Container emap.Item] struct {
+type TimeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
 
@@ -29,8 +29,8 @@ type timeValidityWindow[Container emap.Item] struct {
 	lastAcceptedBlockHeight uint64
 }
 
-func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[Container]) TimeValidityWindow[Container] {
-	return &timeValidityWindow[Container]{
+func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[Container]) *TimeValidityWindow[Container] {
+	return &TimeValidityWindow[Container]{
 		log:        log,
 		tracer:     tracer,
 		chainIndex: chainIndex,
@@ -38,7 +38,7 @@ func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace
 	}
 }
 
-func (v *timeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
+func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	// Grab the lock before modifiying seen
 	v.lock.Lock()
 	defer v.lock.Unlock()
@@ -49,7 +49,7 @@ func (v *timeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	v.lastAcceptedBlockHeight = blk.Height()
 }
 
-func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
+func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	ctx context.Context,
 	blk ExecutionBlock[Container],
 	oldestAllowed int64,
@@ -72,7 +72,7 @@ func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	return nil
 }
 
-func (v *timeValidityWindow[Container]) IsRepeat(
+func (v *TimeValidityWindow[Container]) IsRepeat(
 	ctx context.Context,
 	parentBlk ExecutionBlock[Container],
 	txs []Container,
@@ -81,7 +81,7 @@ func (v *timeValidityWindow[Container]) IsRepeat(
 	return v.isRepeat(ctx, parentBlk, oldestAllowed, txs, false)
 }
 
-func (v *timeValidityWindow[Container]) isRepeat(
+func (v *TimeValidityWindow[Container]) isRepeat(
 	ctx context.Context,
 	ancestorBlk ExecutionBlock[Container],
 	oldestAllowed int64,

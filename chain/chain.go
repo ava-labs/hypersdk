@@ -17,7 +17,7 @@ import (
 )
 
 // create a type alias for the concrete TimeWindowWindow type.
-type ValidityWindow validitywindow.TimeValidityWindow[*Transaction]
+type ValidityWindow = *validitywindow.TimeValidityWindow[*Transaction]
 
 type Chain struct {
 	builder     *Builder

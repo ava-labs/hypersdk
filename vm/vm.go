@@ -82,7 +82,7 @@ type VM struct {
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow chain.ValidityWindow
-	syncer                  validitywindow.Syncer[*chain.Transaction]
+	syncer                  *validitywindow.Syncer[*chain.Transaction]
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
