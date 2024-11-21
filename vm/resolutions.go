@@ -206,7 +206,7 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	for _, subscription := range vm.acceptedSubscriptions {
+	for _, subscription := range vm.asyncAcceptedSubscriptions {
 		if err := subscription.Accept(b.executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
@@ -255,48 +255,15 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
-	// Update replay protection heap
-	//
-	// Transactions are added to [seen] with their [expiry], so we don't need to
-	// transform [blkTime] when calling [SetMin] here.
-	blkTime := b.Tmstmp
-
-	// Verify if emap is now sufficient (we need a consecutive run of blocks with
-	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.IsReady() {
-		select {
-		case <-vm.seenValidityWindow:
-			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow]).
-		default:
-			seenValidityWindow, err := vm.syncer.Accept(ctx, b.ExecutionBlock)
-			if err != nil {
-				vm.Fatal("syncer failed to accept block", zap.Error(err))
-			}
-			if seenValidityWindow {
-				vm.seenValidityWindowOnce.Do(func() {
-					close(vm.seenValidityWindow)
-				})
-			}
+	for _, sub := range vm.acceptedSubscriptions {
+		if err := sub.Accept(b); err != nil {
+			vm.Fatal("subscription failed to process accepted block", zap.Error(err))
 		}
 	}
 
-	// Update timestamp in mempool
-	//
-	// We rely on the [vm.waiters] map to notify listeners of dropped
-	// transactions instead of the mempool because we won't need to iterate
-	// through as many transactions.
-	removed := vm.mempool.SetMinTimestamp(ctx, blkTime)
-
-	// Enqueue block for processing
+	// Enqueue block for async processing
 	vm.acceptedQueue <- b
-
-	vm.snowCtx.Log.Info(
-		"accepted block",
-		zap.Stringer("blk", b),
-		zap.Int("dropped mempool txs", len(removed)),
-		zap.Bool("state ready", vm.StateSyncClient.StateReady()),
-	)
+	vm.snowCtx.Log.Info("accepted block", zap.Stringer("blk", b))
 }
 
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {

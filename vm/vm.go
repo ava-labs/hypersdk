@@ -88,10 +88,11 @@ type VM struct {
 	builder  builder.Builder
 	gossiper gossiper.Gossiper
 
-	acceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
-	acceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	verifiedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	rejectedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	asyncAcceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	asyncAcceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	acceptedSubscriptions              []event.Subscription[*StatefulBlock]
+	verifiedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
+	rejectedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -258,6 +259,16 @@ func (vm *VM) Initialize(
 
 	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
+		AcceptF: func(b *StatefulBlock) error {
+			droppedTxs := vm.mempool.SetMinTimestamp(context.TODO(), b.Tmstmp)
+			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
+				zap.Stringer("blkID", b.ID()),
+				zap.Int("numTxs", len(droppedTxs)),
+			)
+			return nil
+		},
+	})
 	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
 		AcceptF: func(b *chain.ExecutedBlock) error {
 			vm.mempool.Remove(context.TODO(), b.Block.Txs)
@@ -343,6 +354,7 @@ func (vm *VM) Initialize(
 	}
 
 	vm.chainTimeValidityWindow = chain.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
 		return err
@@ -365,6 +377,20 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.syncer = chain.NewSyncer(vm, vm.chainTimeValidityWindow, vm.ruleFactory)
+	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
+		AcceptF: func(b *StatefulBlock) error {
+			seenValidityWindow, err := vm.syncer.Accept(context.TODO(), b.ExecutionBlock)
+			if err != nil {
+				vm.Fatal("syncer failed to accept block", zap.Error(err))
+			}
+			if seenValidityWindow {
+				vm.seenValidityWindowOnce.Do(func() {
+					close(vm.seenValidityWindow)
+				})
+			}
+			return nil
+		},
+	})
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -497,13 +523,13 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	for _, factory := range vm.acceptedSubscriptionFactories {
+	for _, factory := range vm.asyncAcceptedSubscriptionFactories {
 		subscription, err := factory.New()
 		if err != nil {
 			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
 
-		vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, subscription)
+		vm.asyncAcceptedSubscriptions = append(vm.asyncAcceptedSubscriptions, subscription)
 	}
 
 	vm.handlers = make(map[string]http.Handler)
@@ -529,7 +555,7 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) applyOptions(o *Options) error {
-	vm.acceptedSubscriptionFactories = o.blockSubscriptionFactories
+	vm.asyncAcceptedSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
@@ -768,7 +794,7 @@ func (vm *VM) Shutdown(context.Context) error {
 		return err
 	}
 
-	for _, subscription := range vm.acceptedSubscriptions {
+	for _, subscription := range vm.asyncAcceptedSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
 		}
