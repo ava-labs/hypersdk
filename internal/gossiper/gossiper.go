@@ -15,6 +15,5 @@ type Gossiper interface {
 	Queue(context.Context)
 	Force(context.Context) error // may be triggered by run already
 	HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error
-	BlockVerified(int64)
 	Done() // wait after stop
 }

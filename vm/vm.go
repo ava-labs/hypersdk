@@ -85,10 +85,12 @@ type VM struct {
 	seenValidityWindowOnce  sync.Once
 	seenValidityWindow      chan struct{}
 
-	builder                    builder.Builder
-	gossiper                   gossiper.Gossiper
-	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
-	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	builder  builder.Builder
+	gossiper gossiper.Gossiper
+
+	acceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	acceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	verifiedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -255,6 +257,12 @@ func (vm *VM) Initialize(
 
 	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+		AcceptF: func(b *chain.ExecutedBlock) error {
+			vm.mempool.Remove(context.TODO(), b.Block.Txs)
+			return nil
+		},
+	})
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -482,13 +490,13 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	for _, factory := range vm.blockSubscriptionFactories {
+	for _, factory := range vm.acceptedSubscriptionFactories {
 		subscription, err := factory.New()
 		if err != nil {
 			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
 
-		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
+		vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, subscription)
 	}
 
 	vm.handlers = make(map[string]http.Handler)
@@ -514,7 +522,7 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) applyOptions(o *Options) error {
-	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
+	vm.acceptedSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
@@ -568,6 +576,12 @@ func (vm *VM) applyOptions(o *Options) error {
 			return err
 		}
 		vm.gossiper = txGossiper
+		vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+			AcceptF: func(b *chain.ExecutedBlock) error {
+				txGossiper.BlockVerified(b.Block.Tmstmp)
+				return nil
+			},
+		})
 	}
 	return nil
 }
@@ -747,7 +761,7 @@ func (vm *VM) Shutdown(context.Context) error {
 		return err
 	}
 
-	for _, subscription := range vm.blockSubscriptions {
+	for _, subscription := range vm.acceptedSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
 		}

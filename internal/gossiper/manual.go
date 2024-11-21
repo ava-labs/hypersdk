@@ -137,8 +137,6 @@ func (g *Manual[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 	return nil
 }
 
-func (*Manual[T]) BlockVerified(int64) {}
-
 func (g *Manual[T]) Done() {
 	<-g.doneGossip
 }

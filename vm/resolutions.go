@@ -130,8 +130,12 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.mempool.Remove(ctx, b.Txs)
-	vm.gossiper.BlockVerified(b.Tmstmp)
+
+	for _, sub := range vm.verifiedSubscriptions {
+		if err := sub.Accept(b.executedBlock); err != nil {
+			vm.Fatal("subscription failed to process verified block", zap.Error(err))
+		}
+	}
 	vm.checkActivity(ctx)
 
 	if b.Processed() {
@@ -197,7 +201,7 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	for _, subscription := range vm.blockSubscriptions {
+	for _, subscription := range vm.acceptedSubscriptions {
 		if err := subscription.Accept(b.executedBlock); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}
