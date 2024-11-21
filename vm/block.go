@@ -98,7 +98,7 @@ func (b *StatefulBlock) Verify(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
+			attribute.Int("txs", len(b.StatelessBlock.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Bool("built", b.Processed()),

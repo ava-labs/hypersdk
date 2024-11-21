@@ -14,14 +14,14 @@ import (
 
 type PreExecutor struct {
 	ruleFactory     RuleFactory
-	validityWindow  *TimeValidityWindow
+	validityWindow  ValidityWindow
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
 }
 
 func NewPreExecutor(
 	ruleFactory RuleFactory,
-	validityWindow *TimeValidityWindow,
+	validityWindow ValidityWindow,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 ) *PreExecutor {

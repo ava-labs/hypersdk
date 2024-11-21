@@ -49,6 +49,9 @@ func (a *Assembler) AssembleBlock(
 	if err != nil {
 		return nil, nil, err
 	}
-	executionBlock := NewExecutionBlock(sb)
+	executionBlock, err := NewExecutionBlock(sb)
+	if err != nil {
+		return nil, nil, err
+	}
 	return a.processor.Execute(ctx, parentView, executionBlock)
 }
