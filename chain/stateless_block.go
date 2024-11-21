@@ -125,7 +125,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	}
 	b.bytes = raw
 	b.id = utils.ToID(raw)
-
 	return &b, p.Err()
 }
 

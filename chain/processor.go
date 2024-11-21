@@ -57,10 +57,6 @@ func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) AuthCounts() map[uint8]int {
-	return b.authCounts
-}
-
 func (b *ExecutionBlock) Height() uint64 {
 	return b.Hght
 }
