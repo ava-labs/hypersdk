@@ -165,7 +165,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 }
 
 func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
+	_, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
 	vm.verifiedL.Lock()
@@ -248,7 +248,7 @@ func (vm *VM) processAcceptedBlocks() {
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
+	_, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
 	// Update accepted blocks on-disk and caches
