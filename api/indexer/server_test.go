@@ -54,32 +54,21 @@ func TestEncodingValidate(t *testing.T) {
 	}
 }
 
-func TestGetBlock(t *testing.T) {
+func TestBlockRequests(t *testing.T) {
 	require := require.New(t)
 	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
 	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
 	defer server.Close()
+
 	res, err := client.GetBlock(context.Background(), blocks[0].BlockID, chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(blocks[0].BlockID, res.BlockID)
-}
 
-func TestGetBlockByHeight(t *testing.T) {
-	require := require.New(t)
-	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
-	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
-	defer server.Close()
-	res, err := client.GetBlockByHeight(context.Background(), blocks[0].Block.Hght, chaintest.NewEmptyParser())
+	res, err = client.GetBlockByHeight(context.Background(), blocks[0].Block.Hght, chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(blocks[0].BlockID, res.BlockID)
-}
 
-func TestGetLatestBlock(t *testing.T) {
-	require := require.New(t)
-	blocks := chaintest.GenerateEmptyExecutedBlocks(require, ids.GenerateTestID(), 0, 0, 0, 1)
-	server, client := newIndexerHTTPServerAndClient(require, blocks[0])
-	defer server.Close()
-	res, err := client.GetLatestBlock(context.Background(), chaintest.NewEmptyParser())
+	res, err = client.GetLatestBlock(context.Background(), chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(blocks[0].BlockID, res.BlockID)
 }
