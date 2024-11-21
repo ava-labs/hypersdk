@@ -32,6 +32,7 @@ var (
 
 type Validator struct {
 	NodeID ids.NodeID
+	Weight uint64
 }
 
 func New[T Tx](
