@@ -162,7 +162,12 @@ func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.mempool.Add(ctx, b.Txs)
+
+	for _, sub := range vm.rejectedSubscriptions {
+		if err := sub.Accept(b.executedBlock); err != nil {
+			vm.Fatal("subscription failed to process rejected block", zap.Error(err))
+		}
+	}
 
 	// Ensure children of block are cleared, they may never be
 	// verified

@@ -91,6 +91,7 @@ type VM struct {
 	acceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
 	acceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
 	verifiedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	rejectedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -260,6 +261,12 @@ func (vm *VM) Initialize(
 	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
 		AcceptF: func(b *chain.ExecutedBlock) error {
 			vm.mempool.Remove(context.TODO(), b.Block.Txs)
+			return nil
+		},
+	})
+	vm.rejectedSubscriptions = append(vm.rejectedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+		AcceptF: func(b *chain.ExecutedBlock) error {
+			vm.mempool.Add(context.TODO(), b.Block.Txs)
 			return nil
 		},
 	})
