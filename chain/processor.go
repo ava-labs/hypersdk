@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
@@ -27,17 +28,37 @@ import (
 type ExecutionBlock struct {
 	*StatelessBlock
 
-	sigJob workers.Job
+	// authCounts can be used by batch signature verification
+	// to preallocate memory
+	authCounts map[uint8]int
+	txsSet     set.Set[ids.ID]
+	sigJob     workers.Job
 }
 
-func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
-	return &ExecutionBlock{
-		StatelessBlock: block,
+func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
+	authCounts := make(map[uint8]int)
+	txsSet := set.NewSet[ids.ID](len(block.Txs))
+	for _, tx := range block.Txs {
+		if txsSet.Contains(tx.ID()) {
+			return nil, ErrDuplicateTx
+		}
+		txsSet.Add(tx.ID())
+		authCounts[tx.Auth.GetTypeID()]++
 	}
+
+	return &ExecutionBlock{
+		authCounts:     authCounts,
+		txsSet:         txsSet,
+		StatelessBlock: block,
+	}, nil
 }
 
 func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
-	return b.StatelessBlock.ContainsTx(id)
+	return b.txsSet.Contains(id)
+}
+
+func (b *ExecutionBlock) AuthCounts() map[uint8]int {
+	return b.authCounts
 }
 
 func (b *ExecutionBlock) Height() uint64 {

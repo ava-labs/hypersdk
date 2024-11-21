@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -35,11 +34,6 @@ type StatelessBlock struct {
 
 	bytes []byte
 	id    ids.ID
-
-	// authCounts can be used by batch signature verification
-	// to preallocate memory
-	authCounts map[uint8]int
-	txsSet     set.Set[ids.ID]
 }
 
 func NewStatelessBlock(
@@ -61,10 +55,7 @@ func NewStatelessBlock(
 		return nil, err
 	}
 	block.bytes = blkBytes
-	err = block.initTxsID()
-	if err != nil {
-		return nil, err
-	}
+	block.id = utils.ToID(blkBytes)
 	return block, nil
 }
 
@@ -75,14 +66,6 @@ func (b *StatelessBlock) GetStateRoot() ids.ID { return b.StateRoot }
 
 func (b *StatelessBlock) String() string {
 	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, Size=%d)", b.id, b.Hght, b.Prnt, len(b.bytes))
-}
-
-func (b *StatelessBlock) ContainsTx(id ids.ID) bool {
-	return b.txsSet.Contains(id)
-}
-
-func (b *StatelessBlock) AuthCounts() map[uint8]int {
-	return b.authCounts
 }
 
 func (b *StatelessBlock) Marshal() ([]byte, error) {
@@ -110,20 +93,6 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 		return nil, err
 	}
 	return bytes, nil
-}
-
-func (b *StatelessBlock) initTxsID() error {
-	b.id = utils.ToID(b.bytes)
-	b.authCounts = make(map[uint8]int)
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-	return nil
 }
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
@@ -155,10 +124,8 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	b.bytes = raw
-	err := b.initTxsID()
-	if err != nil {
-		return nil, err
-	}
+	b.id = utils.ToID(raw)
+
 	return &b, p.Err()
 }
 
@@ -181,5 +148,5 @@ func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlock(sb), nil
+	return NewExecutionBlock(sb)
 }
