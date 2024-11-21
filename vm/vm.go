@@ -462,6 +462,8 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+	// accept the last block in order to initialize the internal lastBlockHeight
+	vm.chainTimeValidityWindow.Accept(vm.lastAccepted.ExecutionBlock)
 	go vm.processAcceptedBlocks()
 
 	if err := vm.initStateSync(); err != nil {

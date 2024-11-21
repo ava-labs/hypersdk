@@ -17,15 +17,16 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-var ErrDuplicateTx = errors.New("duplicate transaction")
+var ErrDuplicateContainer = errors.New("duplicate container")
 
 type timeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
 
-	lock       sync.Mutex
-	chainIndex ChainIndex[Container]
-	seen       *emap.EMap[Container]
+	lock                    sync.Mutex
+	chainIndex              ChainIndex[Container]
+	seen                    *emap.EMap[Container]
+	lastAcceptedBlockHeight uint64
 }
 
 func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[Container]) TimeValidityWindow[Container] {
@@ -45,6 +46,10 @@ func (v *timeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	evicted := v.seen.SetMin(blk.Timestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	v.seen.Add(blk.Txs())
+	// we want to increase only here, since we might be backfilling by the syncher.
+	if currentBlkHeight := blk.Height(); currentBlkHeight > v.lastAcceptedBlockHeight {
+		v.lastAcceptedBlockHeight = currentBlkHeight
+	}
 }
 
 func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
@@ -52,8 +57,7 @@ func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	blk ExecutionBlock[Container],
 	oldestAllowed int64,
 ) error {
-	lastAcceptedBlkHeight := v.chainIndex.LastAcceptedBlockHeight()
-	if blk.Height() <= lastAcceptedBlkHeight {
+	if blk.Height() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
 	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
@@ -66,7 +70,7 @@ func (v *timeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return err
 	}
 	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
 	}
 	return nil
 }
@@ -95,15 +99,13 @@ func (v *timeValidityWindow[Container]) isRepeat(
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	lastAcceptedBlkHeight := v.chainIndex.LastAcceptedBlockHeight()
-
 	var err error
 	for {
 		if ancestorBlk.Timestamp() < oldestAllowed {
 			return marker, nil
 		}
 
-		if ancestorBlk.Height() <= lastAcceptedBlkHeight || ancestorBlk.Height() == 0 {
+		if ancestorBlk.Height() <= v.lastAcceptedBlockHeight || ancestorBlk.Height() == 0 {
 			return v.seen.Contains(txs, marker, stop), nil
 		}
 

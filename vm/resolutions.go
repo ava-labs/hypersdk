@@ -91,10 +91,6 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) LastAcceptedBlockHeight() uint64 {
-	return vm.lastAccepted.ExecutionBlock.Height()
-}
-
 func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()

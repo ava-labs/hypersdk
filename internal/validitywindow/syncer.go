@@ -32,12 +32,12 @@ func NewSyncer[Container emap.Item](chainIndex ChainIndex[Container], timeValidi
 
 func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock ExecutionBlock[Container]) (bool, error) {
 	s.initialBlock = lastAcceptedBlock
-
 	// Attempt to backfill the validity window
 	var (
 		parent             = s.initialBlock
 		parents            = []ExecutionBlock[Container]{parent}
 		seenValidityWindow = false
+		validityWindow     = s.getValidityWindow(lastAcceptedBlock.Timestamp())
 		err                error
 	)
 	for {
@@ -46,7 +46,7 @@ func (s *syncer[Container]) start(ctx context.Context, lastAcceptedBlock Executi
 			break // If we can't fetch far enough back or we've gone past genesis, execute what we can
 		}
 		parents = append(parents, parent)
-		seenValidityWindow = lastAcceptedBlock.Timestamp()-parent.Timestamp() > s.getValidityWindow(lastAcceptedBlock.Timestamp())
+		seenValidityWindow = lastAcceptedBlock.Timestamp()-parent.Timestamp() > validityWindow
 		if seenValidityWindow {
 			break
 		}
