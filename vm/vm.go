@@ -1089,9 +1089,6 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	return vm.network.Disconnected(ctx, nodeID)
 }
 
-// VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM
-func (*VM) VerifyHeightIndex(context.Context) error { return nil }
-
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
 //
