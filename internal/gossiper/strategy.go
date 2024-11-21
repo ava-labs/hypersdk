@@ -65,7 +65,7 @@ func (g *TargetProposers[T]) Target(ctx context.Context, txs []T) ([]GossipConta
 }
 
 type TxAssigner[T any] interface {
-	AssignTxs(ctx context.Context, txs []T) (map[ids.NodeID][]T, error)
+	AssignTx(ctx context.Context, tx T) (ids.NodeID, bool)
 }
 
 type TargetAssigner[T Tx] struct {
@@ -74,20 +74,17 @@ type TargetAssigner[T Tx] struct {
 }
 
 func (t *TargetAssigner[T]) Target(ctx context.Context, txs []T) ([]GossipContainer[T], error) {
-	targetedGossip, err := t.Assigner.AssignTxs(ctx, txs)
-	if err != nil {
-		return nil, err
+	targetedGossip := make(map[ids.NodeID][]T)
+	for _, tx := range txs {
+		nodeID, ok := t.Assigner.AssignTx(ctx, tx)
+		if !ok || nodeID == t.NodeID {
+			continue
+		}
+		targetedGossip[nodeID] = append(targetedGossip[nodeID], tx)
 	}
 
 	gossipContainers := make([]GossipContainer[T], 0, len(targetedGossip))
-
 	for targetedNodeID, txs := range targetedGossip {
-		if targetedNodeID == t.NodeID {
-			// Don't gossip to self
-			continue
-		}
-
-		// Send gossip to partitioned node
 		gossipContainers = append(gossipContainers, GossipContainer[T]{
 			SendConfig: common.SendConfig{NodeIDs: set.Of(targetedNodeID)},
 			Txs:        txs,
