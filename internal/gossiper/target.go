@@ -41,7 +41,7 @@ type Target[T Tx] struct {
 	client         *p2p.Client
 	doneGossip     chan struct{}
 
-	lastVerified int64
+	latestVerifiedTimestamp int64
 
 	fl sync.Mutex
 
@@ -111,7 +111,7 @@ func NewTarget[T Tx](
 		cfg:                  cfg,
 		stop:                 stop,
 		doneGossip:           make(chan struct{}),
-		lastVerified:         -1,
+		latestVerifiedTimestamp:         -1,
 		q:                    make(chan struct{}),
 		lastQueue:            -1,
 	}
@@ -297,7 +297,7 @@ func (g *Target[T]) Run(client *p2p.Client) {
 
 			// Check if we are going to propose if it has been less than
 			// [VerifyTimeout] since the last time we verified a block.
-			if time.Now().UnixMilli()-g.lastVerified < g.cfg.VerifyTimeout {
+			if time.Now().UnixMilli()-g.latestVerifiedTimestamp < g.cfg.VerifyTimeout {
 				proposers, err := g.validatorSet.Proposers(
 					tctx,
 					g.cfg.NoGossipBuilderDiff,
@@ -312,7 +312,7 @@ func (g *Target[T]) Run(client *p2p.Client) {
 				}
 			}
 
-			// Gossip to proposers who will produce next
+			// Gossip to targeted nodes
 			if err := g.Force(tctx); err != nil {
 				g.log.Warn("gossip txs failed", zap.Error(err))
 				continue
@@ -325,10 +325,10 @@ func (g *Target[T]) Run(client *p2p.Client) {
 }
 
 func (g *Target[T]) BlockVerified(t int64) {
-	if t < g.lastVerified {
+	if t < g.latestVerifiedTimestamp {
 		return
 	}
-	g.lastVerified = t
+	g.latestVerifiedTimestamp = t
 }
 
 func (g *Target[T]) Done() {

@@ -88,10 +88,8 @@ func (t *TargetAssigner[T]) Target(ctx context.Context, txs []T) ([]GossipContai
 		}
 
 		// Send gossip to partitioned node
-		targetedVdrSet := set.NewSet[ids.NodeID](1)
-		targetedVdrSet.Add(targetedNodeID)
 		gossipContainers = append(gossipContainers, GossipContainer[T]{
-			SendConfig: common.SendConfig{NodeIDs: targetedVdrSet},
+			SendConfig: common.SendConfig{NodeIDs: set.Of(targetedNodeID)},
 			Txs:        txs,
 		})
 	}
