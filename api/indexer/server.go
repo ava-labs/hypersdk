@@ -93,6 +93,7 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	if err != nil {
 		return err
 	}
+
 	return reply.setResponse(block, args.Encoding)
 }
 
@@ -141,7 +142,7 @@ type GetTxResponse struct {
 
 type Server struct {
 	tracer  trace.Tracer
-	indexer *Indexer
+	indexer AbstractIndexer
 }
 
 func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
@@ -184,4 +185,11 @@ func (e *Encoding) Validate() error {
 		return ErrInvalidEncodingParameter
 	}
 	return nil
+}
+
+type AbstractIndexer interface {
+	GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error)
+	GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error)
+	GetLatestBlock() (*chain.ExecutedBlock, error)
+	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error)
 }
