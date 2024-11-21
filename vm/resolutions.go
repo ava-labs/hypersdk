@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	_ gossiper.VM                                   = (*VM)(nil)
+	_ gossiper.ValidatorSet                         = (*VM)(nil)
 	_ block.ChainVM                                 = (*VM)(nil)
 	_ block.StateSyncableVM                         = (*VM)(nil)
 	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
@@ -116,7 +116,7 @@ func (vm *VM) IsBootstrapped() bool {
 
 func (vm *VM) State() (merkledb.MerkleDB, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
+	if !vm.StateSyncClient.StateReady() {
 		return nil, ErrStateMissing
 	}
 	return vm.stateDB, nil
@@ -151,7 +151,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 		vm.snowCtx.Log.Info(
 			"verified block",
 			zap.Stringer("blk", b.executedBlock),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	} else {
 		// [b.FeeManager] is not populated if the block
@@ -159,7 +159,7 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 		vm.snowCtx.Log.Info(
 			"skipped block verification",
 			zap.Stringer("blk", b),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	}
 }
@@ -267,7 +267,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
@@ -299,7 +299,7 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 		"accepted block",
 		zap.Stringer("blk", b),
 		zap.Int("dropped mempool txs", len(removed)),
-		zap.Bool("state ready", vm.StateReady()),
+		zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 	)
 }
 
@@ -342,33 +342,6 @@ func (vm *VM) Gossiper() gossiper.Gossiper {
 	return vm.gossiper
 }
 
-func (vm *VM) AcceptedSyncableBlock(
-	ctx context.Context,
-	sb *SyncableBlock,
-) (block.StateSyncMode, error) {
-	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
-}
-
-func (vm *VM) StateReady() bool {
-	if vm.stateSyncClient == nil {
-		// Can occur in test
-		return false
-	}
-	return vm.stateSyncClient.StateReady()
-}
-
-func (vm *VM) UpdateSyncTarget(b *StatefulBlock) (bool, error) {
-	return vm.stateSyncClient.UpdateSyncTarget(b)
-}
-
-func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
-}
-
-func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return vm.stateSyncClient.StateSyncEnabled(ctx)
-}
-
 func (vm *VM) Genesis() genesis.Genesis {
 	return vm.genesis
 }
@@ -391,18 +364,6 @@ func (vm *VM) RecordStateOperations(c int) {
 
 func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.VerifyAuth
-}
-
-func (vm *VM) RecordTxsGossiped(c int) {
-	vm.metrics.txsGossiped.Add(float64(c))
-}
-
-func (vm *VM) RecordTxsReceived(c int) {
-	vm.metrics.txsReceived.Add(float64(c))
-}
-
-func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordBuildCapped() {

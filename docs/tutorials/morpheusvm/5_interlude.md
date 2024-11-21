@@ -105,14 +105,10 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
-	firstKey := testingNetworkConfig.Keys()[0]
-	generator := workload.NewTxGenerator(firstKey)
-	spamKey := &auth.PrivateKey{
-		Address: auth.NewED25519Address(firstKey.PublicKey()),
-		Bytes:   firstKey[:],
-	}
+	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
+	generator := workload.NewTxGenerator(firstAuthFactory)
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, spamKey)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, firstAuthFactory)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {

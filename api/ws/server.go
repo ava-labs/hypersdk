@@ -248,20 +248,11 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 				return
 			}
 
-			// Verify tx
-			if w.vm.GetVerifyAuth() {
-				if err := tx.VerifyAuth(ctx); err != nil {
-					w.logger.Error("failed to verify sig",
-						zap.Error(err),
-					)
-					return
-				}
-			}
 			w.AddTxListener(tx, c)
 
 			// Submit will remove from [txListeners] if it is not added
 			txID := tx.ID()
-			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+			if err := w.vm.Submit(ctx, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),
