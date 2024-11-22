@@ -11,14 +11,14 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 const InitialChunkSize = 250 * 1024
 
 type Tx interface {
-	GetID() ids.ID
-	GetExpiry() int64
+	emap.Item
 	GetSponsor() codec.Address
 }
 
@@ -49,6 +49,14 @@ func (c *Chunk[T]) init() error {
 	c.id = utils.ToID(c.bytes)
 
 	return nil
+}
+
+func (c Chunk[T]) GetID() ids.ID {
+	return c.id
+}
+
+func (c Chunk[T]) GetExpiry() int64 {
+	return c.Expiry
 }
 
 func signChunk[T Tx](

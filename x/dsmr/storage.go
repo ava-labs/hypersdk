@@ -59,7 +59,7 @@ type chunkStorage[T Tx] struct {
 
 	lock sync.RWMutex
 	// Chunk storage
-	chunkEMap     *emap.EMap[emapChunk[T]]
+	chunkEMap     *emap.EMap[Chunk[T]]
 	minimumExpiry int64
 	// pendingByte | slot | chunkID -> chunkBytes
 	// acceptedByte | slot | chunkID -> chunkBytes
@@ -90,7 +90,7 @@ func newChunkStorage[T Tx](
 
 	storage := &chunkStorage[T]{
 		minimumExpiry: minSlot,
-		chunkEMap:     emap.NewEMap[emapChunk[T]](),
+		chunkEMap:     emap.NewEMap[Chunk[T]](),
 		chunkMap:      make(map[ids.ID]*StoredChunkSignature[T]),
 		chunkDB:       db,
 		verifier:      verifier,
@@ -173,7 +173,7 @@ func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
 	}
-	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
+	s.chunkEMap.Add([]Chunk[T]{c})
 
 	chunkCert := &StoredChunkSignature[T]{
 		Chunk:          c,
@@ -307,18 +307,4 @@ func parsePendingChunkKey(key []byte) (slot int64, chunkID ids.ID, err error) {
 
 func acceptedChunkKey(slot int64, chunkID ids.ID) []byte {
 	return createChunkKey(acceptedByte, slot, chunkID)
-}
-
-var _ emap.Item = (*emapChunk[Tx])(nil)
-
-type emapChunk[T Tx] struct {
-	chunk Chunk[T]
-}
-
-func (e emapChunk[_]) GetID() ids.ID {
-	return e.chunk.id
-}
-
-func (e emapChunk[_]) GetExpiry() int64 {
-	return e.chunk.Expiry
 }
