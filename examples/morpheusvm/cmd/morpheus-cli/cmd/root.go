@@ -4,9 +4,6 @@
 package cmd
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/cli"
@@ -22,20 +19,15 @@ const (
 var (
 	handler *Handler
 
-	dbPath                string
-	genesisFile           string
-	minUnitPrice          []string
-	maxBlockUnits         []string
-	windowTargetUnits     []string
-	minBlockGap           int64
-	hideTxs               bool
-	checkAllChains        bool
-	spamDefaults          bool
-	prometheusBaseURI     string
-	prometheusOpenBrowser bool
-	prometheusFile        string
-	prometheusData        string
-	startPrometheus       bool
+	dbPath            string
+	genesisFile       string
+	minUnitPrice      []string
+	maxBlockUnits     []string
+	windowTargetUnits []string
+	minBlockGap       int64
+	hideTxs           bool
+	checkAllChains    bool
+	spamDefaults      bool
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -52,7 +44,6 @@ func init() {
 		chainCmd,
 		actionCmd,
 		spamCmd,
-		prometheusCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -153,41 +144,6 @@ func init() {
 	// spam
 	spamCmd.AddCommand(
 		runSpamCmd,
-	)
-
-	// prometheus
-	generatePrometheusCmd.PersistentFlags().StringVar(
-		&prometheusBaseURI,
-		"prometheus-base-uri",
-		"http://localhost:9090",
-		"prometheus server location",
-	)
-	generatePrometheusCmd.PersistentFlags().BoolVar(
-		&prometheusOpenBrowser,
-		"prometheus-open-browser",
-		true,
-		"open browser to prometheus dashboard",
-	)
-	generatePrometheusCmd.PersistentFlags().StringVar(
-		&prometheusFile,
-		"prometheus-file",
-		"/tmp/prometheus.yaml",
-		"prometheus file location",
-	)
-	generatePrometheusCmd.PersistentFlags().StringVar(
-		&prometheusData,
-		"prometheus-data",
-		fmt.Sprintf("/tmp/prometheus-%d", time.Now().Unix()),
-		"prometheus data location",
-	)
-	generatePrometheusCmd.PersistentFlags().BoolVar(
-		&startPrometheus,
-		"prometheus-start",
-		true,
-		"start local prometheus server",
-	)
-	prometheusCmd.AddCommand(
-		generatePrometheusCmd,
 	)
 }
 
