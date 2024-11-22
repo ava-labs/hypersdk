@@ -65,7 +65,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
+		confirmTx(ctx, require, uri, tx.GetID(), toAddress, 1)
 	}, nil
 }
 

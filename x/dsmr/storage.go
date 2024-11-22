@@ -315,10 +315,10 @@ type emapChunk[T Tx] struct {
 	chunk Chunk[T]
 }
 
-func (e emapChunk[_]) ID() ids.ID {
+func (e emapChunk[_]) GetID() ids.ID {
 	return e.chunk.id
 }
 
-func (e emapChunk[_]) Expiry() int64 {
+func (e emapChunk[_]) GetExpiry() int64 {
 	return e.chunk.Expiry
 }

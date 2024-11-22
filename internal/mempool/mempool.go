@@ -116,7 +116,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 		sender := item.Sponsor()
 
 		// Ensure no duplicate
-		itemID := item.ID()
+		itemID := item.GetID()
 		if m.streamedItems != nil && m.streamedItems.Contains(itemID) {
 			continue
 		}
@@ -182,7 +182,7 @@ func (m *Mempool[T]) popNext() (T, bool) {
 		return *new(T), false
 	}
 	v := m.queue.Remove(first)
-	m.eh.Remove(v.ID())
+	m.eh.Remove(v.GetID())
 	m.removeFromOwned(v)
 	m.pendingSize -= v.Size()
 	return v, true
@@ -197,7 +197,7 @@ func (m *Mempool[T]) Remove(ctx context.Context, items []T) {
 	defer m.mu.Unlock()
 
 	for _, item := range items {
-		elem, ok := m.eh.Remove(item.ID())
+		elem, ok := m.eh.Remove(item.GetID())
 		if !ok {
 			continue
 		}
@@ -335,7 +335,7 @@ func (m *Mempool[T]) streamItems(count int) []T {
 		if !ok {
 			break
 		}
-		m.streamedItems.Add(item.ID())
+		m.streamedItems.Add(item.GetID())
 		txs = append(txs, item)
 	}
 	return txs

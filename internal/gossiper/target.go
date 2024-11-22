@@ -5,8 +5,6 @@ package gossiper
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,9 +24,9 @@ import (
 	"github.com/ava-labs/hypersdk/internal/cache"
 )
 
-var _ Gossiper = (*Proposer[Tx])(nil)
+var _ Gossiper = (*Target[Tx])(nil)
 
-type Proposer[T Tx] struct {
+type Target[T Tx] struct {
 	tracer  trace.Tracer
 	log     logging.Logger
 	metrics *metrics
@@ -39,11 +37,12 @@ type Proposer[T Tx] struct {
 	validatorSet         ValidatorSet
 	targetGossipDuration time.Duration
 
-	cfg        *ProposerConfig
-	client     *p2p.Client
-	doneGossip chan struct{}
+	targetStrategy TargetStrategy[T]
+	cfg            *TargetConfig
+	client         *p2p.Client
+	doneGossip     chan struct{}
 
-	lastVerified int64
+	latestVerifiedTimestamp int64
 
 	fl sync.Mutex
 
@@ -58,9 +57,7 @@ type Proposer[T Tx] struct {
 	stop <-chan struct{}
 }
 
-type ProposerConfig struct {
-	GossipProposerDiff  int
-	GossipProposerDepth int
+type TargetConfig struct {
 	GossipMinLife       int64 // ms
 	GossipMaxSize       int
 	GossipMinDelay      int64 // ms
@@ -69,10 +66,13 @@ type ProposerConfig struct {
 	SeenCacheSize       int
 }
 
-func DefaultProposerConfig() *ProposerConfig {
-	return &ProposerConfig{
-		GossipProposerDiff:  4,
-		GossipProposerDepth: 1,
+type GossipContainer[T any] struct {
+	NodeIDs set.Set[ids.NodeID]
+	Txs     []T
+}
+
+func DefaultTargetConfig() *TargetConfig {
+	return &TargetConfig{
 		GossipMinLife:       5 * 1000,
 		GossipMaxSize:       consts.NetworkSizeLimit,
 		GossipMinDelay:      50,
@@ -82,7 +82,7 @@ func DefaultProposerConfig() *ProposerConfig {
 	}
 }
 
-func NewProposer[T Tx](
+func NewTarget[T Tx](
 	tracer trace.Tracer,
 	log logging.Logger,
 	registerer prometheus.Registerer,
@@ -91,28 +91,30 @@ func NewProposer[T Tx](
 	submitter Submitter[T],
 	validatorSet ValidatorSet,
 	targetGossipDuration time.Duration,
-	cfg *ProposerConfig,
+	targetStrategy TargetStrategy[T],
+	cfg *TargetConfig,
 	stop <-chan struct{},
-) (*Proposer[T], error) {
+) (*Target[T], error) {
 	metrics, err := newMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}
-	g := &Proposer[T]{
-		tracer:               tracer,
-		log:                  log,
-		metrics:              metrics,
-		mempool:              mempool,
-		serializer:           serializer,
-		submitter:            submitter,
-		validatorSet:         validatorSet,
-		targetGossipDuration: targetGossipDuration,
-		cfg:                  cfg,
-		stop:                 stop,
-		doneGossip:           make(chan struct{}),
-		lastVerified:         -1,
-		q:                    make(chan struct{}),
-		lastQueue:            -1,
+	g := &Target[T]{
+		tracer:                  tracer,
+		log:                     log,
+		metrics:                 metrics,
+		mempool:                 mempool,
+		serializer:              serializer,
+		submitter:               submitter,
+		validatorSet:            validatorSet,
+		targetStrategy:          targetStrategy,
+		targetGossipDuration:    targetGossipDuration,
+		cfg:                     cfg,
+		stop:                    stop,
+		doneGossip:              make(chan struct{}),
+		latestVerifiedTimestamp: -1,
+		q:                       make(chan struct{}),
+		lastQueue:               -1,
 	}
 	g.timer = timer.NewTimer(g.handleTimerNotify)
 	cache, err := cache.NewFIFO[ids.ID, any](cfg.SeenCacheSize)
@@ -123,7 +125,7 @@ func NewProposer[T Tx](
 	return g, nil
 }
 
-func (g *Proposer[T]) Force(ctx context.Context) error {
+func (g *Target[T]) Force(ctx context.Context) error {
 	ctx, span := g.tracer.Start(ctx, "Gossiper.Force")
 	defer span.End()
 
@@ -153,12 +155,12 @@ func (g *Proposer[T]) Force(ctx context.Context) error {
 		g.targetGossipDuration,
 		func(_ context.Context, next T) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Expiry() < now {
+			if next.GetExpiry() < now {
 				return true, false, nil
 			}
 
 			// Don't gossip txs that are about to expire
-			life := next.Expiry() - now
+			life := next.GetExpiry() - now
 			if life < g.cfg.GossipMinLife {
 				return true, true, nil
 			}
@@ -172,7 +174,7 @@ func (g *Proposer[T]) Force(ctx context.Context) error {
 			// Don't remove anything from mempool
 			// that will be dropped (this seems
 			// like we sent it then got sent it back?)
-			txID := next.ID()
+			txID := next.GetID()
 			if _, ok := g.cache.Get(txID); ok {
 				return true, true, nil
 			}
@@ -195,7 +197,7 @@ func (g *Proposer[T]) Force(ctx context.Context) error {
 	return g.sendTxs(ctx, txs)
 }
 
-func (g *Proposer[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	txs, err := g.serializer.Unmarshal(msg)
 	if err != nil {
 		g.log.Warn(
@@ -211,7 +213,7 @@ func (g *Proposer[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, ms
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone
 		// else will)
-		if g.cache.Put(tx.ID(), nil) {
+		if g.cache.Put(tx.GetID(), nil) {
 			seen++
 		}
 	}
@@ -250,7 +252,7 @@ func (g *Proposer[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, ms
 	return nil
 }
 
-func (g *Proposer[T]) notify() {
+func (g *Target[T]) notify() {
 	select {
 	case g.q <- struct{}{}:
 		g.lastQueue = time.Now().UnixMilli()
@@ -258,12 +260,12 @@ func (g *Proposer[T]) notify() {
 	}
 }
 
-func (g *Proposer[T]) handleTimerNotify() {
+func (g *Target[T]) handleTimerNotify() {
 	g.notify()
 	g.waiting.Store(false)
 }
 
-func (g *Proposer[T]) Queue(context.Context) {
+func (g *Target[T]) Queue(context.Context) {
 	if !g.waiting.CompareAndSwap(false, true) {
 		g.log.Debug("unable to start waiting")
 		return
@@ -282,7 +284,7 @@ func (g *Proposer[T]) Queue(context.Context) {
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer[T]) Run(client *p2p.Client) {
+func (g *Target[T]) Run(client *p2p.Client) {
 	g.client = client
 	defer close(g.doneGossip)
 
@@ -296,7 +298,7 @@ func (g *Proposer[T]) Run(client *p2p.Client) {
 
 			// Check if we are going to propose if it has been less than
 			// [VerifyTimeout] since the last time we verified a block.
-			if time.Now().UnixMilli()-g.lastVerified < g.cfg.VerifyTimeout {
+			if time.Now().UnixMilli()-g.latestVerifiedTimestamp < g.cfg.VerifyTimeout {
 				proposers, err := g.validatorSet.Proposers(
 					tctx,
 					g.cfg.NoGossipBuilderDiff,
@@ -311,7 +313,7 @@ func (g *Proposer[T]) Run(client *p2p.Client) {
 				}
 			}
 
-			// Gossip to proposers who will produce next
+			// Gossip to targeted nodes
 			if err := g.Force(tctx); err != nil {
 				g.log.Warn("gossip txs failed", zap.Error(err))
 				continue
@@ -323,47 +325,38 @@ func (g *Proposer[T]) Run(client *p2p.Client) {
 	}
 }
 
-func (g *Proposer[T]) BlockVerified(t int64) {
-	if t < g.lastVerified {
+func (g *Target[T]) BlockVerified(t int64) {
+	if t < g.latestVerifiedTimestamp {
 		return
 	}
-	g.lastVerified = t
+	g.latestVerifiedTimestamp = t
 }
 
-func (g *Proposer[T]) Done() {
+func (g *Target[T]) Done() {
 	g.timer.Stop()
 	<-g.doneGossip
 }
 
-func (g *Proposer[T]) sendTxs(ctx context.Context, txs []T) error {
+func (g *Target[T]) sendTxs(ctx context.Context, txs []T) error {
 	ctx, span := g.tracer.Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
-	// Marshal gossip
-	b, err := g.serializer.Marshal(txs)
+	gossipContainers, err := g.targetStrategy.Target(ctx, txs)
 	if err != nil {
 		return err
 	}
 
-	// Select next set of proposers and send gossip to them
-	proposers, err := g.validatorSet.Proposers(
-		ctx,
-		g.cfg.GossipProposerDiff,
-		g.cfg.GossipProposerDepth,
-	)
-	if err != nil {
-		return fmt.Errorf("%w: unable to fetch proposers", err)
-	}
-	if proposers.Len() == 0 {
-		return errors.New("no proposers to gossip to")
-	}
-	recipients := set.NewSet[ids.NodeID](len(proposers))
-	for proposer := range proposers {
-		// Don't gossip to self
-		if proposer == g.validatorSet.NodeID() {
-			continue
+	for _, gossipContainer := range gossipContainers {
+		// Marshal gossip
+		b, err := g.serializer.Marshal(gossipContainer.Txs)
+		if err != nil {
+			return err
 		}
-		recipients.Add(proposer)
+
+		// Send gossip to specified peers
+		if err := g.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, b); err != nil {
+			return err
+		}
 	}
-	return g.client.AppGossip(ctx, common.SendConfig{NodeIDs: recipients}, b)
+	return nil
 }
