@@ -14,7 +14,6 @@ require (
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/oasisprotocol/curve25519-voi v0.0.0-20230110094441-db37f07504ce
 	github.com/onsi/ginkgo/v2 v2.13.1
-	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
@@ -31,7 +30,6 @@ require (
 	golang.org/x/text v0.14.0
 	google.golang.org/grpc v1.62.0
 	google.golang.org/protobuf v1.34.2
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -152,6 +150,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
