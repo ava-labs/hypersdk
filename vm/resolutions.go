@@ -212,7 +212,7 @@ func (vm *VM) processAcceptedBlock(ctx context.Context, b *StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	if err := event.NotifyAll(ctx, b, vm.acceptedSubscriptions...); err != nil {
+	if err := event.NotifyAll(ctx, b.executedBlock, vm.asyncAcceptedSubscriptions...); err != nil {
 		vm.Fatal("subscription failed to process block", zap.Error(err))
 	}
 
