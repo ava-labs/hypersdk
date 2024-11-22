@@ -114,9 +114,9 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 }
 
 type Block struct {
-	ParentID  ids.ID `serialize:"true"`
-	Height    uint64 `serialize:"true"`
-	Timestamp int64  `serialize:"true"`
+	ParentID ids.ID `serialize:"true"`
+	Hght     uint64 `serialize:"true"`
+	Tmstmp   int64  `serialize:"true"`
 
 	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
@@ -126,4 +126,29 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+func (b Block) Parent() ids.ID {
+	return b.ParentID
+}
+
+func (b Block) Timestamp() int64 {
+	return b.Tmstmp
+}
+
+func (b Block) Height() uint64 {
+	return uint64(b.Hght)
+}
+
+func (b Block) Txs() []*ChunkCertificate {
+	return b.ChunkCerts
+}
+
+func (b Block) ContainsTx(id ids.ID) bool {
+	for _, c := range b.ChunkCerts {
+		if c.ChunkID == id {
+			return true
+		}
+	}
+	return false
 }

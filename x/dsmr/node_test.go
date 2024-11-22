@@ -193,9 +193,9 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 
 	blk, err := node.BuildBlock(
 		Block{
-			ParentID:  ids.GenerateTestID(),
-			Height:    0,
-			Timestamp: 1,
+			ParentID: ids.GenerateTestID(),
+			Hght:     0,
+			Tmstmp:   1,
 		},
 		2,
 	)
@@ -579,9 +579,9 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 
 			block, err := node.BuildBlock(
 				Block{
-					ParentID:  ids.GenerateTestID(),
-					Height:    0,
-					Timestamp: 1,
+					ParentID: ids.GenerateTestID(),
+					Hght:     0,
+					Tmstmp:   1,
 				},
 				2,
 			)
@@ -883,9 +883,9 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(err)
 	blk, err := node.BuildBlock(
 		Block{
-			ParentID:  ids.GenerateTestID(),
-			Height:    0,
-			Timestamp: 1,
+			ParentID: ids.GenerateTestID(),
+			Hght:     0,
+			Tmstmp:   1,
 		},
 		2,
 	)
@@ -1004,9 +1004,9 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	for {
 		blk, err = node1.BuildBlock(
 			Block{
-				ParentID:  ids.Empty,
-				Height:    0,
-				Timestamp: 0,
+				ParentID: ids.Empty,
+				Hght:     0,
+				Tmstmp:   0,
 			},
 			1,
 		)
@@ -1062,10 +1062,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		{
 			name: "no chunk certs",
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 2,
 			// TODO should we be able to build empty blocks?
@@ -1074,10 +1074,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		{
 			name: "timestamp equal to parent",
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 1,
 			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
@@ -1085,10 +1085,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		{
 			name: "timestamp older than parent",
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 0,
 			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
@@ -1107,10 +1107,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				},
 			},
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 2,
 			wantErr:   ErrNoAvailableChunkCerts,
@@ -1147,10 +1147,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				},
 			},
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 5,
 			wantErr:   ErrNoAvailableChunkCerts,
@@ -1169,10 +1169,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				},
 			},
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 2,
 		},
@@ -1208,10 +1208,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				},
 			},
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 2,
 		},
@@ -1238,10 +1238,10 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				},
 			},
 			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
 			timestamp: 2,
 		},
@@ -1315,8 +1315,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 			}
 
 			r.Equal(tt.parent.GetID(), blk.ParentID)
-			r.Equal(tt.parent.Height+1, blk.Height)
-			r.Greater(blk.Timestamp, tt.parent.Timestamp)
+			r.Equal(tt.parent.Hght+1, blk.Hght)
+			r.Greater(blk.Tmstmp, tt.parent.Tmstmp)
 			r.NotEmpty(blk.GetID())
 			r.Len(blk.ChunkCerts, len(wantChunks))
 
@@ -1384,9 +1384,9 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	)
 	r.NoError(err)
 	blk, err := node1.BuildBlock(Block{
-		ParentID:  ids.GenerateTestID(),
-		Height:    0,
-		Timestamp: 0,
+		ParentID: ids.GenerateTestID(),
+		Hght:     0,
+		Tmstmp:   0,
 	}, 1)
 	r.NoError(err)
 	r.NoError(node1.Accept(context.Background(), blk))

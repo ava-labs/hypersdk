@@ -14,12 +14,15 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -52,7 +55,7 @@ func New[T Tx](
 		return nil, err
 	}
 
-	return &Node[T]{
+	node := &Node[T]{
 		nodeID:         nodeID,
 		networkID:      networkID,
 		chainID:        chainID,
@@ -80,25 +83,35 @@ func New[T Tx](
 			storage: storage,
 		},
 		storage: storage,
-	}, nil
+		log:     logging.NewLogger("dsmr"),
+	}
+	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, node)
+	return node, nil
 }
 
-type Node[T Tx] struct {
-	nodeID                       ids.NodeID
-	networkID                    uint32
-	chainID                      ids.ID
-	pk                           *bls.PublicKey
-	signer                       warp.Signer
-	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
-	getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
-	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
-	validators                   []Validator
+type (
+	validityWindow[T Tx] *validitywindow.TimeValidityWindow[Chunk[T]]
 
-	GetChunkHandler               *GetChunkHandler[T]
-	GetChunkSignatureHandler      *acp118.Handler
-	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
-	storage                       *chunkStorage[T]
-}
+	Node[T Tx] struct {
+		nodeID                       ids.NodeID
+		networkID                    uint32
+		chainID                      ids.ID
+		pk                           *bls.PublicKey
+		signer                       warp.Signer
+		getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
+		getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
+		chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
+		validators                   []Validator
+		validityWindow               validityWindow[T]
+
+		GetChunkHandler               *GetChunkHandler[T]
+		GetChunkSignatureHandler      *acp118.Handler
+		ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
+		storage                       *chunkStorage[T]
+		log                           logging.Logger
+		tracer                        trace.Tracer
+	}
+)
 
 // BuildChunk builds transactions into a Chunk
 // TODO handle frozen sponsor + validator assignments
@@ -172,8 +185,9 @@ func (n *Node[T]) BuildChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
+// BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error)
 func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
-	if timestamp <= parent.Timestamp {
+	if timestamp <= parent.Tmstmp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
@@ -193,8 +207,8 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 
 	blk := Block{
 		ParentID:   parent.GetID(),
-		Height:     parent.Height + 1,
-		Timestamp:  timestamp,
+		Hght:       parent.Hght + 1,
+		Tmstmp:     timestamp,
 		ChunkCerts: availableChunkCerts,
 	}
 
@@ -264,5 +278,9 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		}
 	}
 
-	return n.storage.SetMin(block.Timestamp, chunkIDs)
+	return n.storage.SetMin(block.Tmstmp, chunkIDs)
+}
+
+func (n *Node[T]) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[Chunk[T]], error) {
+	return nil, nil
 }
