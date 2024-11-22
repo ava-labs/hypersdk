@@ -68,8 +68,8 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	webSocketFactory := NewWebSocketServerFactory(handler)
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
-		AcceptF: func(event *chain.ExecutedBlock) error {
-			return server.AcceptBlock(event)
+		AcceptF: func(ctx context.Context, event *chain.ExecutedBlock) error {
+			return server.AcceptBlock(ctx, event)
 		},
 	}
 
@@ -181,7 +181,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
+func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := b.Marshal()
 		if err != nil {

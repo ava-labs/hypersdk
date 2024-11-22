@@ -55,7 +55,7 @@ func NewExternalSubscriberClient(
 	}, nil
 }
 
-func (e *ExternalSubscriberClient) Accept(blk *chain.ExecutedBlock) error {
+func (e *ExternalSubscriberClient) Accept(ctx context.Context, blk *chain.ExecutedBlock) error {
 	blockBytes, err := blk.Marshal()
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (e *ExternalSubscriberClient) Accept(blk *chain.ExecutedBlock) error {
 		zap.Stringer("blockID", blk.Block.ID()),
 		zap.Uint64("blockHeight", blk.Block.Hght),
 	)
-	_, err = e.client.AcceptBlock(context.TODO(), req)
+	_, err = e.client.AcceptBlock(ctx, req)
 	return err
 }
 

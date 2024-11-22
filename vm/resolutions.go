@@ -19,6 +19,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
@@ -140,10 +141,8 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
 
-	for _, sub := range vm.verifiedSubscriptions {
-		if err := sub.Accept(b.executedBlock); err != nil {
-			vm.Fatal("subscription failed to process verified block", zap.Error(err))
-		}
+	if err := event.NotifyAll[*chain.ExecutedBlock](ctx, b.executedBlock, vm.verifiedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process verified block", zap.Error(err))
 	}
 	vm.checkActivity(ctx)
 
@@ -172,10 +171,8 @@ func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
-	for _, sub := range vm.rejectedSubscriptions {
-		if err := sub.Accept(b.executedBlock); err != nil {
-			vm.Fatal("subscription failed to process rejected block", zap.Error(err))
-		}
+	if err := event.NotifyAll(ctx, b.executedBlock, vm.rejectedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process rejected block", zap.Error(err))
 	}
 
 	// Ensure children of block are cleared, they may never be
@@ -183,7 +180,7 @@ func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("blk", b))
 }
 
-func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
+func (vm *VM) processAcceptedBlock(ctx context.Context, b *StatefulBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -215,10 +212,8 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	for _, subscription := range vm.asyncAcceptedSubscriptions {
-		if err := subscription.Accept(b.executedBlock); err != nil {
-			vm.Fatal("subscription failed to process block", zap.Error(err))
-		}
+	if err := event.NotifyAll(ctx, b, vm.acceptedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process block", zap.Error(err))
 	}
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
@@ -238,7 +233,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+		vm.processAcceptedBlock(context.TODO(), b)
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
@@ -264,10 +259,8 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
-	for _, sub := range vm.acceptedSubscriptions {
-		if err := sub.Accept(b); err != nil {
-			vm.Fatal("subscription failed to process accepted block", zap.Error(err))
-		}
+	if err := event.NotifyAll(ctx, b, vm.acceptedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process accepted block", zap.Error(err))
 	}
 
 	// Enqueue block for async processing

@@ -131,7 +131,7 @@ func setInstances() {
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
 		event.SubscriptionFunc[*chain.ExecutedBlock]{
-			AcceptF: func(blk *chain.ExecutedBlock) error {
+			AcceptF: func(_ context.Context, blk *chain.ExecutedBlock) error {
 				externalSubscriberAcceptedBlocksCh <- blk.Block.ID()
 				return nil
 			},

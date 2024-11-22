@@ -261,8 +261,8 @@ func (vm *VM) Initialize(
 	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
-		AcceptF: func(b *StatefulBlock) error {
-			droppedTxs := vm.mempool.SetMinTimestamp(context.TODO(), b.Tmstmp)
+		AcceptF: func(ctx context.Context, b *StatefulBlock) error {
+			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
 			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
 				zap.Stringer("blkID", b.ID()),
 				zap.Int("numTxs", len(droppedTxs)),
@@ -271,14 +271,14 @@ func (vm *VM) Initialize(
 		},
 	})
 	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-		AcceptF: func(b *chain.ExecutedBlock) error {
-			vm.mempool.Remove(context.TODO(), b.Block.Txs)
+		AcceptF: func(ctx context.Context, b *chain.ExecutedBlock) error {
+			vm.mempool.Remove(ctx, b.Block.Txs)
 			return nil
 		},
 	})
 	vm.rejectedSubscriptions = append(vm.rejectedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-		AcceptF: func(b *chain.ExecutedBlock) error {
-			vm.mempool.Add(context.TODO(), b.Block.Txs)
+		AcceptF: func(ctx context.Context, b *chain.ExecutedBlock) error {
+			vm.mempool.Add(ctx, b.Block.Txs)
 			return nil
 		},
 	})
@@ -380,8 +380,8 @@ func (vm *VM) Initialize(
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
 	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
-		AcceptF: func(b *StatefulBlock) error {
-			seenValidityWindow, err := vm.syncer.Accept(context.TODO(), b.ExecutionBlock)
+		AcceptF: func(ctx context.Context, b *StatefulBlock) error {
+			seenValidityWindow, err := vm.syncer.Accept(ctx, b.ExecutionBlock)
 			if err != nil {
 				vm.Fatal("syncer failed to accept block", zap.Error(err))
 			}
@@ -618,7 +618,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		}
 		vm.gossiper = txGossiper
 		vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-			AcceptF: func(b *chain.ExecutedBlock) error {
+			AcceptF: func(_ context.Context, b *chain.ExecutedBlock) error {
 				txGossiper.BlockVerified(b.Block.Tmstmp)
 				return nil
 			},
