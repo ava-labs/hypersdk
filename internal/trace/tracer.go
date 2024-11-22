@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/sdk/resource"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -25,6 +24,7 @@ const (
 )
 
 type Config struct {
+	ExporterConfig
 	// Used to flag if tracing should be performed
 	Enabled bool `json:"enabled"`
 
@@ -55,10 +55,7 @@ func New(config *Config) (trace.Tracer, error) {
 		return &noOpTracer{}, nil
 	}
 
-	// TODO: remove zipkin exporter
-	exporter, err := zipkin.New(
-		"http://localhost:9411/api/v2/spans",
-	)
+	exporter, err := newExporter(config.ExporterConfig)
 	if err != nil {
 		return nil, err
 	}
