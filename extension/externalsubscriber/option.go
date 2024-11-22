@@ -44,8 +44,8 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	}
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
-		AcceptF: func(blk *chain.ExecutedBlock) error {
-			return server.Accept(blk)
+		NotifyF: func(ctx context.Context, blk *chain.ExecutedBlock) error {
+			return server.Notify(ctx, blk)
 		},
 	}
 
