@@ -35,7 +35,7 @@ func createTestIndexer(
 		numExecutedBlocks,
 	)
 	for _, blk := range executedBlocks {
-		err = indexer.Accept(ctx, blk)
+		err = indexer.Notify(ctx, blk)
 		require.NoError(err)
 	}
 	return indexer, executedBlocks, tempDir

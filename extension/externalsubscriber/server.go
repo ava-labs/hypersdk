@@ -58,7 +58,7 @@ func (e *ExternalSubscriberServer) Initialize(_ context.Context, initRequest *pb
 	return &emptypb.Empty{}, nil
 }
 
-func (e *ExternalSubscriberServer) AcceptBlock(ctx context.Context, b *pb.BlockRequest) (*emptypb.Empty, error) {
+func (e *ExternalSubscriberServer) Notify(ctx context.Context, b *pb.BlockRequest) (*emptypb.Empty, error) {
 	// Continue only if we can parse
 	if e.parser == nil {
 		return &emptypb.Empty{}, ErrParserNotInitialized
@@ -74,7 +74,7 @@ func (e *ExternalSubscriberServer) AcceptBlock(ctx context.Context, b *pb.BlockR
 
 	// Forward to subscribers
 	for _, s := range e.acceptedSubscribers {
-		if err := s.Accept(ctx, blk); err != nil {
+		if err := s.Notify(ctx, blk); err != nil {
 			return &emptypb.Empty{}, err
 		}
 	}

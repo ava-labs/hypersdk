@@ -68,7 +68,7 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	webSocketFactory := NewWebSocketServerFactory(handler)
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
-		AcceptF: func(ctx context.Context, event *chain.ExecutedBlock) error {
+		NotifyF: func(ctx context.Context, event *chain.ExecutedBlock) error {
 			return server.AcceptBlock(ctx, event)
 		},
 	}

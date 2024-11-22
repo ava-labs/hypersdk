@@ -20,14 +20,14 @@ type SubscriptionFactory[T any] interface {
 
 // Subscription defines how to consume events
 type Subscription[T any] interface {
-	// Accept returns fatal errors
-	Accept(ctx context.Context, t T) error
+	// Notify returns fatal errors
+	Notify(ctx context.Context, t T) error
 	// Close returns fatal errors
 	Close() error
 }
 
 type SubscriptionFuncFactory[T any] struct {
-	AcceptF func(ctx context.Context, t T) error
+	NotifyF func(ctx context.Context, t T) error
 }
 
 func (s SubscriptionFuncFactory[T]) New() (Subscription[T], error) {
@@ -35,11 +35,11 @@ func (s SubscriptionFuncFactory[T]) New() (Subscription[T], error) {
 }
 
 type SubscriptionFunc[T any] struct {
-	AcceptF func(ctx context.Context, t T) error
+	NotifyF func(ctx context.Context, t T) error
 }
 
-func (s SubscriptionFunc[T]) Accept(ctx context.Context, t T) error {
-	return s.AcceptF(ctx, t)
+func (s SubscriptionFunc[T]) Notify(ctx context.Context, t T) error {
+	return s.NotifyF(ctx, t)
 }
 
 func (SubscriptionFunc[_]) Close() error {
@@ -49,7 +49,7 @@ func (SubscriptionFunc[_]) Close() error {
 func NotifyAll[T any](ctx context.Context, e T, subs ...Subscription[T]) error {
 	var errs []error
 	for _, sub := range subs {
-		if err := sub.Accept(ctx, e); err != nil {
+		if err := sub.Notify(ctx, e); err != nil {
 			errs = append(errs, err)
 		}
 	}
