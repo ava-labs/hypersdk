@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
@@ -58,8 +57,8 @@ func (g *TargetProposers[T]) Target(ctx context.Context, txs []T) ([]GossipConta
 
 	return []GossipContainer[T]{
 		{
-			SendConfig: common.SendConfig{NodeIDs: recipients},
-			Txs:        txs,
+			NodeIDs: recipients,
+			Txs:     txs,
 		},
 	}, nil
 }
@@ -86,8 +85,8 @@ func (t *TargetAssigner[T]) Target(ctx context.Context, txs []T) ([]GossipContai
 	gossipContainers := make([]GossipContainer[T], 0, len(targetedGossip))
 	for targetedNodeID, txs := range targetedGossip {
 		gossipContainers = append(gossipContainers, GossipContainer[T]{
-			SendConfig: common.SendConfig{NodeIDs: set.Of(targetedNodeID)},
-			Txs:        txs,
+			NodeIDs: set.Of(targetedNodeID),
+			Txs:     txs,
 		})
 	}
 	return gossipContainers, nil

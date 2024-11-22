@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,8 +67,8 @@ type TargetConfig struct {
 }
 
 type GossipContainer[T any] struct {
-	SendConfig common.SendConfig
-	Txs        []T
+	NodeIDs set.Set[ids.NodeID]
+	Txs     []T
 }
 
 func DefaultTargetConfig() *TargetConfig {
@@ -353,7 +354,7 @@ func (g *Target[T]) sendTxs(ctx context.Context, txs []T) error {
 		}
 
 		// Send gossip to specified peers
-		if err := g.client.AppGossip(ctx, gossipContainer.SendConfig, b); err != nil {
+		if err := g.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, b); err != nil {
 			return err
 		}
 	}
