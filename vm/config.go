@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
 type Config struct {

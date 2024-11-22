@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -38,7 +39,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
-	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
@@ -48,7 +48,6 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
-	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -104,7 +103,7 @@ type VM struct {
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
 
-	tracer  avatrace.Tracer
+	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
@@ -247,7 +246,7 @@ func (vm *VM) Initialize(
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
 	// Setup tracer
-	vm.tracer, err = trace.New(&vm.config.TraceConfig)
+	vm.tracer, err = trace.New(vm.config.TraceConfig)
 	if err != nil {
 		return err
 	}

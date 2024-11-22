@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
 var testSponsor = codec.CreateAddress(1, ids.GenerateTestID())
@@ -51,7 +51,7 @@ func TestMempool(t *testing.T) {
 	require := require.New(t)
 
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	txm := New[*TestItem](tracer, 3, 16)
 
 	for _, i := range []int64{100, 200, 300, 400} {
@@ -69,7 +69,7 @@ func TestMempool(t *testing.T) {
 func TestMempoolAddDuplicates(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	txm := New[*TestItem](tracer, 3, 16)
 	// Generate item
 	item := GenerateTestItem(testSponsor, 300)
@@ -89,7 +89,7 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	// Sponsor2 is exempt from max size
 	require := require.New(t)
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
 	// Non exempt sponsors max of 4
 	txm := New[*TestItem](tracer, 20, 4)
@@ -105,7 +105,7 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 func TestMempoolAddExceedMaxSize(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*TestItem](tracer, 3, 20)
 	// Add more tx's than txm.maxSize
@@ -133,7 +133,7 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 func TestMempoolRemoveTxs(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*TestItem](tracer, 3, 20)
 	// Add
@@ -151,7 +151,7 @@ func TestMempoolRemoveTxs(t *testing.T) {
 func TestMempoolSetMinTimestamp(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*TestItem](tracer, 20, 20)
 	// Add more tx's than txm.maxSize
