@@ -26,15 +26,16 @@ var TestsRegistry = &registry.Registry{}
 var _ = registry.Register(TestsRegistry, "Transfer Transaction",
 	func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories ...chain.AuthFactory) {
 		require := require.New(t)
+		ctx := context.Background()
 		targetFactory := authFactories[0]
+		authFactory := tn.Configuration().AuthFactories()[0]
 
 		client := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
-		balance, err := client.GetBalance(context.Background(), targetFactory.Address())
+		balance, err := client.GetBalance(ctx, targetFactory.Address())
 		require.NoError(err)
 		require.Equal(uint64(1000), balance)
 
-		authFactory := tn.Configuration().AuthFactories()[0]
-		tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
+		tx, err := tn.GenerateTx(ctx, []chain.Action{&actions.Transfer{
 			To:    targetFactory.Address(),
 			Value: 1,
 		}},
@@ -46,7 +47,7 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction",
 		defer timeoutCtxFnc()
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
-		balance, err = client.GetBalance(context.Background(), targetFactory.Address())
+		balance, err = client.GetBalance(ctx, targetFactory.Address())
 		require.NoError(err)
 		require.Equal(uint64(1001), balance)
 	}, 1000)
