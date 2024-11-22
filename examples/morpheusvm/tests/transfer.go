@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/tests/registry"
@@ -27,6 +28,11 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction",
 		require := require.New(t)
 		targetFactory := authFactories[0]
 
+		client := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
+		balance, err := client.GetBalance(context.Background(), targetFactory.Address())
+		require.NoError(err)
+		require.Equal(uint64(1000), balance)
+
 		authFactory := tn.Configuration().AuthFactories()[0]
 		tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
 			To:    targetFactory.Address(),
@@ -38,6 +44,9 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction",
 
 		timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 		defer timeoutCtxFnc()
-
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+		balance, err = client.GetBalance(context.Background(), targetFactory.Address())
+		require.NoError(err)
+		require.Equal(uint64(1001), balance)
 	}, 1000)
