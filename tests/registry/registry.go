@@ -6,9 +6,7 @@ package registry
 import (
 	"github.com/onsi/ginkgo/v2"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
@@ -16,37 +14,46 @@ import (
 type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork, authFactories ...chain.AuthFactory)
 
 type namedTest struct {
-	Fnc           TestFunc
-	Name          string
-	AuthFactories []chain.AuthFactory
+	Fnc               TestFunc
+	Name              string
+	AuthFactories     []chain.AuthFactory
+	requestedBalances []uint64
 }
 type Registry struct {
-	tests                []namedTest
-	requestedAllocations []*genesis.CustomAllocation
+	tests []*namedTest
 }
 
 func (r *Registry) Add(name string, f TestFunc, requestedBalances ...uint64) {
-	allocations := make([]*genesis.CustomAllocation, 0, len(requestedBalances))
-	authFactories := make([]chain.AuthFactory, 0, len(requestedBalances))
-	for _, requestedBalance := range requestedBalances {
-		private, _ := ed25519.GeneratePrivateKey()
-		authFactory := auth.NewED25519Factory(private)
-		authFactories = append(authFactories, authFactory)
-		allocations = append(allocations, &genesis.CustomAllocation{Address: authFactory.Address(), Balance: requestedBalance})
-	}
-	r.tests = append(r.tests, namedTest{Fnc: f, Name: name, AuthFactories: authFactories})
-	r.requestedAllocations = append(r.requestedAllocations, allocations...)
+	r.tests = append(r.tests, &namedTest{Fnc: f, Name: name, requestedBalances: requestedBalances})
 }
 
-func (r *Registry) List() []namedTest {
+func (r *Registry) List() []*namedTest {
 	if r == nil {
-		return []namedTest{}
+		return []*namedTest{}
 	}
 	return r.tests
 }
 
-func (r *Registry) GetRequestedAllocations() []*genesis.CustomAllocation {
-	return r.requestedAllocations
+func (r *Registry) GenerateCustomAllocations(generateAuthFactory func() (chain.AuthFactory, error)) ([]*genesis.CustomAllocation, error) {
+	requestedAllocations := make([]*genesis.CustomAllocation, 0)
+	for index, test := range r.tests {
+		for _, requestedBalance := range test.requestedBalances {
+			authFactory, err := generateAuthFactory()
+			if err != nil {
+				return nil, err
+			}
+			test.AuthFactories = append(test.AuthFactories, authFactory)
+			requestedAllocations = append(
+				requestedAllocations,
+				&genesis.CustomAllocation{
+					Address: authFactory.Address(),
+					Balance: requestedBalance,
+				},
+			)
+		}
+		r.tests[index] = test
+	}
+	return requestedAllocations, nil
 }
 
 // we need to pre-register all the test registries that are created externally in order to comply with the ginko execution order.

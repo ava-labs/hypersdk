@@ -74,7 +74,16 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	testsLocalAllocations := tests.TestsRegistry.GetRequestedAllocations()
+	testsLocalAllocations, err := tests.TestsRegistry.GenerateCustomAllocations(func() (chain.AuthFactory, error) {
+		privateKey, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		return auth.NewED25519Factory(privateKey), nil
+	})
+	if err != nil {
+		return workload.DefaultTestNetworkConfiguration{}, err
+	}
 	genesis := newGenesis(keys, testsLocalAllocations, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
