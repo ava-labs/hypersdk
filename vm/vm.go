@@ -554,7 +554,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			return fmt.Errorf("failed to create manual gossiper: %w", err)
 		}
 	} else {
-		txGossiper, err := gossiper.NewProposer[*chain.Transaction](
+		txGossiper, err := gossiper.NewTarget[*chain.Transaction](
 			vm.tracer,
 			vm.snowCtx.Log,
 			gossipRegistry,
@@ -566,7 +566,11 @@ func (vm *VM) applyOptions(o *Options) error {
 			vm,
 			vm,
 			vm.config.TargetGossipDuration,
-			gossiper.DefaultProposerConfig(),
+			&gossiper.TargetProposers[*chain.Transaction]{
+				Validators: vm,
+				Config:     gossiper.DefaultTargetProposerConfig(),
+			},
+			gossiper.DefaultTargetConfig(),
 			vm.stop,
 		)
 		if err != nil {
