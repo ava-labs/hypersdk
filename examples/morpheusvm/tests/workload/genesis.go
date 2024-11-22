@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -32,7 +33,7 @@ var ed25519HexKeys = []string{
 	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 }
 
-func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *genesis.DefaultGenesis {
+func newGenesis(authFactories []chain.AuthFactory, testsLocalAllocations []*genesis.CustomAllocation, minBlockGap time.Duration) *genesis.DefaultGenesis {
 	// allocate the initial balance to the addresses
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(authFactories))
 	for _, authFactory := range authFactories {
@@ -41,6 +42,7 @@ func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *g
 			Balance: InitialBalance,
 		})
 	}
+	customAllocs = append(customAllocs, testsLocalAllocations...)
 
 	genesis := genesis.NewDefaultGenesis(customAllocs)
 
@@ -72,7 +74,8 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	genesis := newGenesis(keys, minBlockGap)
+	testsLocalAllocations := tests.TestsRegistry.GetRequestedAllocations()
+	genesis := newGenesis(keys, testsLocalAllocations, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
 		return workload.DefaultTestNetworkConfiguration{}, err
