@@ -99,7 +99,7 @@ func NewTarget[T Tx](
 	if err != nil {
 		return nil, err
 	}
-	g := &Target[T]{
+	t := &Target[T]{
 		tracer:                  tracer,
 		log:                     log,
 		metrics:                 metrics,
@@ -116,43 +116,33 @@ func NewTarget[T Tx](
 		q:                       make(chan struct{}),
 		lastQueue:               -1,
 	}
-	g.timer = timer.NewTimer(g.handleTimerNotify)
+	t.timer = timer.NewTimer(t.handleTimerNotify)
 	cache, err := cache.NewFIFO[ids.ID, any](cfg.SeenCacheSize)
 	if err != nil {
 		return nil, err
 	}
-	g.cache = cache
-	return g, nil
+	t.cache = cache
+	return t, nil
 }
 
-func (g *Target[T]) Force(ctx context.Context) error {
-	ctx, span := g.tracer.Start(ctx, "Gossiper.Force")
+func (t *Target[T]) Force(ctx context.Context) error {
+	ctx, span := t.tracer.Start(ctx, "Gossiper.Force")
 	defer span.End()
 
-	g.fl.Lock()
-	defer g.fl.Unlock()
+	t.fl.Lock()
+	defer t.fl.Unlock()
 
-	// Gossip newest transactions
-	//
-	// We remove these transactions from the mempool
-	// otherwise we'll just keep sending the same FIFO txs
-	// to the network over and over.
-	//
-	// If we are going to build, we should never be attempting
-	// to gossip and we should hold on to the txs we
-	// could execute. By gossiping, we are basically saying that
-	// it is better if someone else builds with these txs because
-	// that increases the probability they'll be accepted
-	// before they expire.
+	// Select txs eligible to gossip from the mempool and which
+	// should be removed from the local mempool.
 	var (
 		txs   = []T{}
 		size  = 0
 		start = time.Now()
 		now   = start.UnixMilli()
 	)
-	mempoolErr := g.mempool.Top(
+	mempoolErr := t.mempool.Top(
 		ctx,
-		g.targetGossipDuration,
+		t.targetGossipDuration,
 		func(_ context.Context, next T) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Expiry() < now {
@@ -161,13 +151,13 @@ func (g *Target[T]) Force(ctx context.Context) error {
 
 			// Don't gossip txs that are about to expire
 			life := next.Expiry() - now
-			if life < g.cfg.GossipMinLife {
+			if life < t.cfg.GossipMinLife {
 				return true, true, nil
 			}
 
 			// Gossip up to [GossipMaxSize]
 			txSize := next.Size()
-			if txSize+size > g.cfg.GossipMaxSize {
+			if txSize+size > t.cfg.GossipMaxSize {
 				return false, true, nil
 			}
 
@@ -175,54 +165,55 @@ func (g *Target[T]) Force(ctx context.Context) error {
 			// that will be dropped (this seems
 			// like we sent it then got sent it back?)
 			txID := next.ID()
-			if _, ok := g.cache.Get(txID); ok {
+			if _, ok := t.cache.Get(txID); ok {
 				return true, true, nil
 			}
-			g.cache.Put(txID, nil)
+			t.cache.Put(txID, nil)
 
 			txs = append(txs, next)
 			size += txSize
 			return true, false, nil
 		},
 	)
+	t.metrics.selectTxsToGossipCount.Inc()
+	t.metrics.selectTxsToGossipSum.Add(float64(time.Since(start)))
+	t.metrics.selectedTxsToGossip.Add(float64(len(txs)))
 	if mempoolErr != nil {
 		return mempoolErr
 	}
 	if len(txs) == 0 {
-		g.log.Debug("no transactions to gossip")
+		t.log.Debug("no transactions to gossip")
 		return nil
 	}
-	g.log.Debug("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
-	g.metrics.txsGossiped.Add(float64(len(txs)))
-	return g.sendTxs(ctx, txs)
+	return t.sendTxs(ctx, txs)
 }
 
-func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	txs, err := g.serializer.Unmarshal(msg)
+func (t *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	txs, err := t.serializer.Unmarshal(msg)
 	if err != nil {
-		g.log.Warn(
+		t.log.Warn(
 			"received invalid txs",
 			zap.Stringer("peerID", nodeID),
 			zap.Error(err),
 		)
 		return nil
 	}
-	g.metrics.txsReceived.Add(float64(len(txs)))
+	t.metrics.txsReceived.Add(float64(len(txs)))
 	var seen int
 	for _, tx := range txs {
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone
 		// else will)
-		if g.cache.Put(tx.ID(), nil) {
+		if t.cache.Put(tx.ID(), nil) {
 			seen++
 		}
 	}
-	g.metrics.seenTxsReceived.Add(float64(seen))
+	t.metrics.seenTxsReceived.Add(float64(seen))
 
 	// Mark incoming gossip as held by [nodeID], if it is a validator
-	isValidator, err := g.validatorSet.IsValidator(ctx, nodeID)
+	isValidator, err := t.validatorSet.IsValidator(ctx, nodeID)
 	if err != nil {
-		g.log.Warn(
+		t.log.Warn(
 			"unable to determine if nodeID is validator",
 			zap.Stringer("peerID", nodeID),
 			zap.Error(err),
@@ -232,12 +223,12 @@ func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 	// Submit incoming gossip to mempool
 	start := time.Now()
 	numErrs := 0
-	for _, err := range g.submitter.Submit(ctx, txs) {
+	for _, err := range t.submitter.Submit(ctx, txs) {
 		if err != nil {
 			numErrs++
 		}
 	}
-	g.log.Debug(
+	t.log.Debug(
 		"tx gossip received",
 		zap.Int("txs", len(txs)),
 		zap.Int("numFailedSubmit", numErrs),
@@ -252,111 +243,115 @@ func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 	return nil
 }
 
-func (g *Target[T]) notify() {
+func (t *Target[T]) notify() {
 	select {
-	case g.q <- struct{}{}:
-		g.lastQueue = time.Now().UnixMilli()
+	case t.q <- struct{}{}:
+		t.lastQueue = time.Now().UnixMilli()
 	default:
 	}
 }
 
-func (g *Target[T]) handleTimerNotify() {
-	g.notify()
-	g.waiting.Store(false)
+func (t *Target[T]) handleTimerNotify() {
+	t.notify()
+	t.waiting.Store(false)
 }
 
-func (g *Target[T]) Queue(context.Context) {
-	if !g.waiting.CompareAndSwap(false, true) {
-		g.log.Debug("unable to start waiting")
+func (t *Target[T]) Queue(context.Context) {
+	if !t.waiting.CompareAndSwap(false, true) {
+		t.log.Debug("unable to start waiting")
 		return
 	}
 	now := time.Now().UnixMilli()
-	force := g.lastQueue + g.cfg.GossipMinDelay
+	force := t.lastQueue + t.cfg.GossipMinDelay
 	if now >= force {
-		g.notify()
-		g.waiting.Store(false)
+		t.notify()
+		t.waiting.Store(false)
 		return
 	}
 	sleep := force - now
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
-	g.timer.SetTimeoutIn(sleepDur)
-	g.log.Debug("waiting to notify to gossip", zap.Duration("t", sleepDur))
+	t.timer.SetTimeoutIn(sleepDur)
+	t.log.Debug("waiting to notify to gossip", zap.Duration("t", sleepDur))
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Target[T]) Run(client *p2p.Client) {
-	g.client = client
-	defer close(g.doneGossip)
+func (t *Target[T]) Run(client *p2p.Client) {
+	t.client = client
+	defer close(t.doneGossip)
 
 	// Timer blocks until stopped
-	go g.timer.Dispatch()
+	go t.timer.Dispatch()
 
 	for {
 		select {
-		case <-g.q:
+		case <-t.q:
 			tctx := context.Background()
 
 			// Check if we are going to propose if it has been less than
 			// [VerifyTimeout] since the last time we verified a block.
-			if time.Now().UnixMilli()-g.latestVerifiedTimestamp < g.cfg.VerifyTimeout {
-				proposers, err := g.validatorSet.Proposers(
+			if time.Now().UnixMilli()-t.latestVerifiedTimestamp < t.cfg.VerifyTimeout {
+				proposers, err := t.validatorSet.Proposers(
 					tctx,
-					g.cfg.NoGossipBuilderDiff,
+					t.cfg.NoGossipBuilderDiff,
 					1,
 				)
-				if err == nil && proposers.Contains(g.validatorSet.NodeID()) {
-					g.Queue(tctx) // requeue later in case peer validator
-					g.log.Debug("not gossiping because soon to propose")
+				if err == nil && proposers.Contains(t.validatorSet.NodeID()) {
+					t.Queue(tctx) // requeue later in case peer validator
+					t.log.Debug("not gossiping because soon to propose")
 					continue
 				} else if err != nil {
-					g.log.Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
+					t.log.Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
 				}
 			}
 
 			// Gossip to targeted nodes
-			if err := g.Force(tctx); err != nil {
-				g.log.Warn("gossip txs failed", zap.Error(err))
+			if err := t.Force(tctx); err != nil {
+				t.log.Warn("gossip txs failed", zap.Error(err))
 				continue
 			}
-		case <-g.stop:
-			g.log.Info("stopping gossip loop")
+		case <-t.stop:
+			t.log.Info("stopping gossip loop")
 			return
 		}
 	}
 }
 
-func (g *Target[T]) BlockVerified(t int64) {
-	if t < g.latestVerifiedTimestamp {
+func (t *Target[T]) BlockVerified(verifiedTimestamp int64) {
+	if verifiedTimestamp < t.latestVerifiedTimestamp {
 		return
 	}
-	g.latestVerifiedTimestamp = t
+	t.latestVerifiedTimestamp = verifiedTimestamp
 }
 
-func (g *Target[T]) Done() {
-	g.timer.Stop()
-	<-g.doneGossip
+func (t *Target[T]) Done() {
+	t.timer.Stop()
+	<-t.doneGossip
 }
 
-func (g *Target[T]) sendTxs(ctx context.Context, txs []T) error {
-	ctx, span := g.tracer.Start(ctx, "Gossiper.sendTxs")
+func (t *Target[T]) sendTxs(ctx context.Context, txs []T) error {
+	ctx, span := t.tracer.Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
-	gossipContainers, err := g.targetStrategy.Target(ctx, txs)
+	start := time.Now()
+	gossipContainers, err := t.targetStrategy.Target(ctx, txs)
 	if err != nil {
 		return err
 	}
 
+	numTxsGossipped := 0
 	for _, gossipContainer := range gossipContainers {
-		// Marshal gossip
-		b, err := g.serializer.Marshal(gossipContainer.Txs)
+		numTxsGossipped += len(gossipContainer.Txs)
+		b, err := t.serializer.Marshal(gossipContainer.Txs)
 		if err != nil {
 			return err
 		}
 
 		// Send gossip to specified peers
-		if err := g.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, b); err != nil {
+		if err := t.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, b); err != nil {
 			return err
 		}
 	}
+	t.metrics.txsGossiped.Add(float64(numTxsGossipped))
+	t.metrics.targetTxsSum.Add(float64(time.Since(start)))
 	return nil
 }
