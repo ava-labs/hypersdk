@@ -611,7 +611,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// Read decision from connection
 		txID, dErr, result, err := cli.ListenTx(context.TODO())
 		require.NoError(err)
-		require.Equal(txID, tx.ID())
+		require.Equal(txID, tx.GetID())
 		require.NoError(dErr)
 		require.True(result.Success)
 		require.Equal(result, results[0])

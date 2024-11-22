@@ -169,7 +169,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 		result := blk.Results[j]
 		if err := i.storeTransaction(
 			batch,
-			tx.ID(),
+			tx.GetID(),
 			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,

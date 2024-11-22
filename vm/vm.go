@@ -982,7 +982,7 @@ func (vm *VM) Submit(
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
 		// Avoid any sig verification or state lookup if we already have tx in mempool
-		txID := tx.ID()
+		txID := tx.GetID()
 		if vm.mempool.Has(ctx, txID) {
 			// Don't remove from listeners, it will be removed elsewhere if not
 			// included

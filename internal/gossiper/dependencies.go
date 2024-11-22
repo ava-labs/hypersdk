@@ -35,7 +35,7 @@ type ValidatorSet interface {
 }
 
 type Tx interface {
-	ID() ids.ID
-	Expiry() int64
+	GetID() ids.ID
+	GetExpiry() int64
 	Size() int
 }

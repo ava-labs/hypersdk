@@ -221,7 +221,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 			// We track pending transactions because an error may cause us
 			// not to execute restorable transactions.
 			pendingLock.Lock()
-			pending[tx.ID()] = tx
+			pending[tx.GetID()] = tx
 			pendingLock.Unlock()
 			e.Run(stateKeys, func() error {
 				// We use defer here instead of covering all returns because it is
@@ -229,7 +229,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				var restore bool
 				defer func() {
 					pendingLock.Lock()
-					delete(pending, tx.ID())
+					delete(pending, tx.GetID())
 					pendingLock.Unlock()
 
 					if !restore {
