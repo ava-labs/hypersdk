@@ -100,7 +100,7 @@ func SignRawActionBytesTx(
 	return p.Bytes(), p.Err()
 }
 
-func (t *TransactionData) Expiry() int64 { return t.Base.Timestamp }
+func (t *TransactionData) GetExpiry() int64 { return t.Base.Timestamp }
 
 func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
 
@@ -184,7 +184,7 @@ func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() int { return t.size }
 
-func (t *Transaction) ID() ids.ID { return t.id }
+func (t *Transaction) GetID() ids.ID { return t.id }
 
 func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	if t.stateKeys != nil {
@@ -194,7 +194,7 @@ func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 
 	// Verify the formatting of state keys passed by the controller
 	for i, action := range t.Actions {
-		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i))) {
 			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
@@ -341,7 +341,7 @@ func (t *Transaction) Execute(
 		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
@@ -407,7 +407,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(txJSON{
-		ID:      t.ID(),
+		ID:      t.GetID(),
 		Actions: actionsPacker.Bytes(),
 		Auth:    authPacker.Bytes(),
 		Base:    t.Base,

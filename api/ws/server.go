@@ -143,7 +143,7 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	defer w.txL.Unlock()
 
 	// TODO: limit max number of tx listeners a single connection can create
-	txID := tx.ID()
+	txID := tx.GetID()
 	connections, ok := w.txListeners[txID]
 	if !ok {
 		connections = pubsub.NewConnections()
@@ -197,7 +197,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 	defer w.txL.Unlock()
 	results := b.Results
 	for i, tx := range b.Block.Txs {
-		txID := tx.ID()
+		txID := tx.GetID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
 			continue
@@ -251,7 +251,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			w.AddTxListener(tx, c)
 
 			// Submit will remove from [txListeners] if it is not added
-			txID := tx.ID()
+			txID := tx.GetID()
 			if err := w.vm.Submit(ctx, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),

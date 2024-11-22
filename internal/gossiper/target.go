@@ -145,12 +145,12 @@ func (t *Target[T]) Force(ctx context.Context) error {
 		t.targetGossipDuration,
 		func(_ context.Context, next T) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Expiry() < now {
+			if next.GetExpiry() < now {
 				return true, false, nil
 			}
 
 			// Don't gossip txs that are about to expire
-			life := next.Expiry() - now
+			life := next.GetExpiry() - now
 			if life < t.cfg.GossipMinLife {
 				return true, true, nil
 			}
@@ -164,7 +164,7 @@ func (t *Target[T]) Force(ctx context.Context) error {
 			// Don't remove anything from mempool
 			// that will be dropped (this seems
 			// like we sent it then got sent it back?)
-			txID := next.ID()
+			txID := next.GetID()
 			if _, ok := t.cache.Get(txID); ok {
 				return true, true, nil
 			}
@@ -204,7 +204,7 @@ func (t *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone
 		// else will)
-		if t.cache.Put(tx.ID(), nil) {
+		if t.cache.Put(tx.GetID(), nil) {
 			seen++
 		}
 	}

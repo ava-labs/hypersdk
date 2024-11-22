@@ -18,8 +18,8 @@ type TestTx struct {
 	t  int64
 }
 
-func (tx *TestTx) ID() ids.ID    { return tx.id }
-func (tx *TestTx) Expiry() int64 { return tx.t }
+func (tx *TestTx) GetID() ids.ID    { return tx.id }
+func (tx *TestTx) GetExpiry() int64 { return tx.t }
 
 func TestEmapNew(t *testing.T) {
 	require := require.New(t)
@@ -46,7 +46,7 @@ func TestEmapAddIDGenesis(t *testing.T) {
 	txs := []*TestTx{tx}
 	e.Add(txs)
 	// Seen was updated
-	_, okSeen := e.seen[tx.ID()]
+	_, okSeen := e.seen[tx.GetID()]
 	require.False(okSeen, "Genesis timestamp was incorrectly added")
 	// Get bucket
 	_, okBucket := e.times[0]
@@ -71,7 +71,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	e.Add(txs)
 
 	// seen was updated
-	_, okSeen := e.seen[tx.ID()]
+	_, okSeen := e.seen[tx.GetID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
 	b, okBucket := e.times[timestamp]
@@ -94,7 +94,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	}
 	txs := []*TestTx{tx1}
 	e.Add(txs)
-	_, okSeen := e.seen[tx1.ID()]
+	_, okSeen := e.seen[tx1.GetID()]
 	require.True(okSeen, "Could not find id in seen map")
 
 	entry, ok := e.bh.Get(id)
@@ -140,12 +140,12 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 	}
 	txs := []*TestTx{tx1}
 	e.Add(txs)
-	_, okSeen := e.seen[tx1.ID()]
+	_, okSeen := e.seen[tx1.GetID()]
 	require.True(okSeen, "Could not find id in seen map")
 	txs = []*TestTx{tx2}
 	e.Add(txs)
 	// seen was updated
-	_, okSeen = e.seen[tx2.ID()]
+	_, okSeen = e.seen[tx2.GetID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
 	b, okBucket := e.times[timestamp]

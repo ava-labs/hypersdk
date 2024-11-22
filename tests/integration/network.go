@@ -120,7 +120,7 @@ func (i *instance) confirmTxs(ctx context.Context, txs []*chain.Transaction) err
 	expectBlk(i)(false)
 
 	for _, tx := range txs {
-		err := i.confirmTx(ctx, tx.ID())
+		err := i.confirmTx(ctx, tx.GetID())
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func (i *instance) confirmTx(ctx context.Context, txid ids.ID) error {
 			return ErrTxNotFound
 		}
 		for _, tx := range stflBlk.StatelessBlock.Txs {
-			if tx.ID() == txid {
+			if tx.GetID() == txid {
 				// found.
 				return nil
 			}
