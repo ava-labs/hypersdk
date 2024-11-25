@@ -5,10 +5,10 @@ A command-line interface for interacting with HyperSDK-based chains.
 ## Installation
 
 ```bash
-go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@4510f51720d2e0fdecfd7fa08350e7c3eab3cf53
+go install github.com/ava-labs/hypersdk/cmd/hypersdk-cli@main
 ```
 
-FIXME: Has to point to the commit with the latest update from main, or just `@main` later on.
+<!--FIXME: Point to the latest tag once tagged.-->
 
 ## Configuration
 
@@ -103,7 +103,7 @@ hypersdk-cli actions -o json
 Simulate a single action transaction.
 
 ```bash
-hypersdk-cli read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12
+hypersdk-cli read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9,value=12,memo=0xdeadc0de
 ```
 
 For interactive input remove --data from the comand line:
@@ -117,7 +117,7 @@ hypersdk-cli read Transfer
 Send a transaction with a single action.
 
 ```bash
-hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000,value=12,memo=0x001234
+hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9,value=12,memo=0x001234
 ```
 
 For interactive input:
@@ -131,7 +131,7 @@ hypersdk-cli tx Transfer
 Query the balance of an address
 
 ```bash
-hypersdk-cli balance --sender 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
+hypersdk-cli balance --sender 0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9
 ```
 
 If `--sender` isn't provided, the address associated with the private key in

@@ -4,9 +4,6 @@
 package dsmr
 
 import (
-	"context"
-	"time"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -22,6 +19,7 @@ const InitialChunkSize = 250 * 1024
 type Tx interface {
 	GetID() ids.ID
 	GetExpiry() int64
+	GetSponsor() codec.Address
 }
 
 type UnsignedChunk[T Tx] struct {
@@ -120,51 +118,4 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
-}
-
-// TODO: implement snowman.Block interface and integrate assembler
-type StatefulBlock[T Tx, State any, B any, Result any] struct {
-	handler *BlockHandler[T, State, B, Result]
-	block   *Block
-}
-
-func (s *StatefulBlock[T, S, B, R]) ID() ids.ID {
-	return s.block.blkID
-}
-
-func (s *StatefulBlock[T, S, B, R]) Parent() ids.ID {
-	return s.block.ParentID
-}
-
-func (s *StatefulBlock[T, S, B, R]) Verify(ctx context.Context) error {
-	// TODO: Verify header fields
-	// TODO: de-duplicate chunk certificates (internal to block and across history)
-	for _, chunkCert := range s.block.ChunkCerts {
-		// TODO: verify chunks within a provided context
-		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *StatefulBlock[T, S, B, R]) Accept(ctx context.Context) error {
-	return s.handler.Accept(ctx, s.block)
-}
-
-func (*StatefulBlock[T, S, B, R]) Reject(context.Context) error {
-	return nil
-}
-
-func (s *StatefulBlock[T, S, B, R]) Bytes() []byte {
-	return s.block.blkBytes
-}
-
-func (s *StatefulBlock[T, S, B, R]) Height() uint64 {
-	return s.block.Height
-}
-
-func (s *StatefulBlock[T, S, B, R]) Timestamp() time.Time {
-	return time.Unix(0, s.block.Timestamp)
 }

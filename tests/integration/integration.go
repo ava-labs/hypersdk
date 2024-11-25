@@ -131,7 +131,7 @@ func setInstances() {
 	externalSubscriberAcceptedBlocksCh = make(chan ids.ID, 1)
 	externalSubscriber0 := externalsubscriber.NewExternalSubscriberServer(log, createParserFromBytes, []event.Subscription[*chain.ExecutedBlock]{
 		event.SubscriptionFunc[*chain.ExecutedBlock]{
-			AcceptF: func(blk *chain.ExecutedBlock) error {
+			NotifyF: func(_ context.Context, blk *chain.ExecutedBlock) error {
 				externalSubscriberAcceptedBlocksCh <- blk.Block.ID()
 				return nil
 			},
@@ -611,7 +611,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		// Read decision from connection
 		txID, dErr, result, err := cli.ListenTx(context.TODO())
 		require.NoError(err)
-		require.Equal(txID, tx.ID())
+		require.Equal(txID, tx.GetID())
 		require.NoError(dErr)
 		require.True(result.Success)
 		require.Equal(result, results[0])

@@ -19,11 +19,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -32,9 +34,10 @@ import (
 )
 
 var (
-	_ gossiper.VM           = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ gossiper.ValidatorSet                         = (*VM)(nil)
+	_ block.ChainVM                                 = (*VM)(nil)
+	_ block.StateSyncableVM                         = (*VM)(nil)
+	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
@@ -89,8 +92,15 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.ExecutionBlock {
-	return vm.lastAccepted.ExecutionBlock
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+	defer span.End()
+
+	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return blk.ExecutionBlock, nil
 }
 
 func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
@@ -103,7 +113,7 @@ func (vm *VM) IsBootstrapped() bool {
 
 func (vm *VM) State() (merkledb.MerkleDB, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
+	if !vm.StateSyncClient.StateReady() {
 		return nil, ErrStateMissing
 	}
 	return vm.stateDB, nil
@@ -130,15 +140,17 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.mempool.Remove(ctx, b.Txs)
-	vm.gossiper.BlockVerified(b.Tmstmp)
+
+	if err := event.NotifyAll[*chain.ExecutedBlock](ctx, b.executedBlock, vm.verifiedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process verified block", zap.Error(err))
+	}
 	vm.checkActivity(ctx)
 
 	if b.Processed() {
 		vm.snowCtx.Log.Info(
 			"verified block",
 			zap.Stringer("blk", b.executedBlock),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	} else {
 		// [b.FeeManager] is not populated if the block
@@ -146,26 +158,29 @@ func (vm *VM) Verified(ctx context.Context, b *StatefulBlock) {
 		vm.snowCtx.Log.Info(
 			"skipped block verification",
 			zap.Stringer("blk", b),
-			zap.Bool("state ready", vm.StateReady()),
+			zap.Bool("state ready", vm.StateSyncClient.StateReady()),
 		)
 	}
 }
 
 func (vm *VM) Rejected(ctx context.Context, b *StatefulBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
+	_, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.mempool.Add(ctx, b.Txs)
+
+	if err := event.NotifyAll(ctx, b.executedBlock, vm.rejectedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process rejected block", zap.Error(err))
+	}
 
 	// Ensure children of block are cleared, they may never be
 	// verified
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("blk", b))
 }
 
-func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
+func (vm *VM) processAcceptedBlock(ctx context.Context, b *StatefulBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -182,7 +197,7 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 	}
 
 	// TODO: consider removing this (unused and requires an extra iteration)
-	for _, tx := range b.Txs {
+	for _, tx := range b.StatelessBlock.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
 	}
@@ -197,10 +212,8 @@ func (vm *VM) processAcceptedBlock(b *StatefulBlock) {
 
 	// Subscriptions must be updated before setting the last processed height
 	// key to guarantee at-least-once delivery semantics
-	for _, subscription := range vm.blockSubscriptions {
-		if err := subscription.Accept(b.executedBlock); err != nil {
-			vm.Fatal("subscription failed to process block", zap.Error(err))
-		}
+	if err := event.NotifyAll(ctx, b.executedBlock, vm.asyncAcceptedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process block", zap.Error(err))
 	}
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
@@ -220,7 +233,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+		vm.processAcceptedBlock(context.TODO(), b)
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
@@ -230,7 +243,7 @@ func (vm *VM) processAcceptedBlocks() {
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
+	_, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
 	// Update accepted blocks on-disk and caches
@@ -246,48 +259,13 @@ func (vm *VM) Accepted(ctx context.Context, b *StatefulBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
-	// Update replay protection heap
-	//
-	// Transactions are added to [seen] with their [expiry], so we don't need to
-	// transform [blkTime] when calling [SetMin] here.
-	blkTime := b.Tmstmp
-
-	// Verify if emap is now sufficient (we need a consecutive run of blocks with
-	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.isReady() {
-		select {
-		case <-vm.seenValidityWindow:
-			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow]).
-		default:
-			seenValidityWindow, err := vm.syncer.Accept(ctx, b.ExecutionBlock)
-			if err != nil {
-				vm.Fatal("syncer failed to accept block", zap.Error(err))
-			}
-			if seenValidityWindow {
-				vm.seenValidityWindowOnce.Do(func() {
-					close(vm.seenValidityWindow)
-				})
-			}
-		}
+	if err := event.NotifyAll(ctx, b, vm.acceptedSubscriptions...); err != nil {
+		vm.Fatal("subscription failed to process accepted block", zap.Error(err))
 	}
 
-	// Update timestamp in mempool
-	//
-	// We rely on the [vm.waiters] map to notify listeners of dropped
-	// transactions instead of the mempool because we won't need to iterate
-	// through as many transactions.
-	removed := vm.mempool.SetMinTimestamp(ctx, blkTime)
-
-	// Enqueue block for processing
+	// Enqueue block for async processing
 	vm.acceptedQueue <- b
-
-	vm.snowCtx.Log.Info(
-		"accepted block",
-		zap.Stringer("blk", b),
-		zap.Int("dropped mempool txs", len(removed)),
-		zap.Bool("state ready", vm.StateReady()),
-	)
+	vm.snowCtx.Log.Info("accepted block", zap.Stringer("blk", b))
 }
 
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
@@ -329,33 +307,6 @@ func (vm *VM) Gossiper() gossiper.Gossiper {
 	return vm.gossiper
 }
 
-func (vm *VM) AcceptedSyncableBlock(
-	ctx context.Context,
-	sb *SyncableBlock,
-) (block.StateSyncMode, error) {
-	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
-}
-
-func (vm *VM) StateReady() bool {
-	if vm.stateSyncClient == nil {
-		// Can occur in test
-		return false
-	}
-	return vm.stateSyncClient.StateReady()
-}
-
-func (vm *VM) UpdateSyncTarget(b *StatefulBlock) (bool, error) {
-	return vm.stateSyncClient.UpdateSyncTarget(b)
-}
-
-func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
-}
-
-func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return vm.stateSyncClient.StateSyncEnabled(ctx)
-}
-
 func (vm *VM) Genesis() genesis.Genesis {
 	return vm.genesis
 }
@@ -378,18 +329,6 @@ func (vm *VM) RecordStateOperations(c int) {
 
 func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.VerifyAuth
-}
-
-func (vm *VM) RecordTxsGossiped(c int) {
-	vm.metrics.txsGossiped.Add(float64(c))
-}
-
-func (vm *VM) RecordTxsReceived(c int) {
-	vm.metrics.txsReceived.Add(float64(c))
-}
-
-func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordBuildCapped() {

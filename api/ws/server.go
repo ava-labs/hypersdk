@@ -68,8 +68,8 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 	webSocketFactory := NewWebSocketServerFactory(handler)
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{
-		AcceptF: func(event *chain.ExecutedBlock) error {
-			return server.AcceptBlock(event)
+		NotifyF: func(ctx context.Context, event *chain.ExecutedBlock) error {
+			return server.AcceptBlock(ctx, event)
 		},
 	}
 
@@ -143,7 +143,7 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	defer w.txL.Unlock()
 
 	// TODO: limit max number of tx listeners a single connection can create
-	txID := tx.ID()
+	txID := tx.GetID()
 	connections, ok := w.txListeners[txID]
 	if !ok {
 		connections = pubsub.NewConnections()
@@ -181,7 +181,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
+func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := b.Marshal()
 		if err != nil {
@@ -197,7 +197,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.ExecutedBlock) error {
 	defer w.txL.Unlock()
 	results := b.Results
 	for i, tx := range b.Block.Txs {
-		txID := tx.ID()
+		txID := tx.GetID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
 			continue
@@ -248,20 +248,11 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 				return
 			}
 
-			// Verify tx
-			if w.vm.GetVerifyAuth() {
-				if err := tx.VerifyAuth(ctx); err != nil {
-					w.logger.Error("failed to verify sig",
-						zap.Error(err),
-					)
-					return
-				}
-			}
 			w.AddTxListener(tx, c)
 
 			// Submit will remove from [txListeners] if it is not added
-			txID := tx.ID()
-			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+			txID := tx.GetID()
+			if err := w.vm.Submit(ctx, []*chain.Transaction{tx})[0]; err != nil {
 				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),

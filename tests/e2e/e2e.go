@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -31,11 +31,11 @@ var (
 	networkConfig workload.TestNetworkConfiguration
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
-	spamKey       *auth.PrivateKey
+	spamKey       chain.AuthFactory
 	spamHelper    throughput.SpamHelper
 )
 
-func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key *auth.PrivateKey) {
+func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key chain.AuthFactory) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
@@ -116,7 +116,6 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		if spamKey == nil || spamHelper == nil {
 			return
 		}
-
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
@@ -126,7 +125,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		err := spamHelper.CreateClient(uris[0])
 		require.NoError(err)
 
-		spamConfig := throughput.NewDefaultConfig(uris, key)
+		spamConfig := throughput.NewFastConfig(uris, key)
 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
 		require.NoError(err)
 

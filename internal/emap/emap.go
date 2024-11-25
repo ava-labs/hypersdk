@@ -19,8 +19,8 @@ type bucket struct {
 
 // Item defines an interface accepted by EMap
 type Item interface {
-	ID() ids.ID    // method for returning an id of the item
-	Expiry() int64 // method for returning this items timestamp
+	GetID() ids.ID    // method for returning an id of the item
+	GetExpiry() int64 // method for returning this items timestamp
 }
 
 // A Emap implements en eviction map that stores the status
@@ -49,7 +49,7 @@ func (e *EMap[T]) Add(items []T) {
 	defer e.mu.Unlock()
 
 	for _, item := range items {
-		e.add(item.ID(), item.Expiry())
+		e.add(item.GetID(), item.GetExpiry())
 	}
 }
 
@@ -118,7 +118,7 @@ func (e *EMap[T]) Any(items []T) bool {
 	defer e.mu.RUnlock()
 
 	for _, item := range items {
-		if e.seen.Contains(item.ID()) {
+		if e.seen.Contains(item.GetID()) {
 			return true
 		}
 	}
@@ -133,7 +133,7 @@ func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {
 		if marker.Contains(i) {
 			continue
 		}
-		if e.seen.Contains(item.ID()) {
+		if e.seen.Contains(item.GetID()) {
 			marker.Add(i)
 			if stop {
 				return marker

@@ -105,12 +105,9 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errTransactionExtraBytes
 	}
-	if err := tx.VerifyAuth(ctx); err != nil {
-		return err
-	}
-	txID := tx.ID()
+	txID := tx.GetID()
 	reply.TxID = txID
-	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, []*chain.Transaction{tx})[0]
 }
 
 type LastAcceptedReply struct {

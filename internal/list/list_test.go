@@ -17,7 +17,7 @@ type TestItem struct {
 	timestamp int64
 }
 
-func (mti *TestItem) ID() ids.ID {
+func (mti *TestItem) GetID() ids.ID {
 	return mti.id
 }
 
@@ -25,7 +25,7 @@ func (mti *TestItem) Str() string {
 	return mti.str
 }
 
-func (mti *TestItem) Expiry() int64 {
+func (mti *TestItem) GetExpiry() int64 {
 	return mti.timestamp
 }
 

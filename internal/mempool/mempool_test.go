@@ -22,7 +22,7 @@ type TestItem struct {
 	timestamp int64
 }
 
-func (mti *TestItem) ID() ids.ID {
+func (mti *TestItem) GetID() ids.ID {
 	return mti.id
 }
 
@@ -30,7 +30,7 @@ func (mti *TestItem) Sponsor() codec.Address {
 	return mti.sponsor
 }
 
-func (mti *TestItem) Expiry() int64 {
+func (mti *TestItem) GetExpiry() int64 {
 	return mti.timestamp
 }
 
@@ -61,7 +61,7 @@ func TestMempool(t *testing.T) {
 	}
 	next, ok := txm.PeekNext(ctx)
 	require.True(ok)
-	require.Equal(int64(100), next.Expiry())
+	require.Equal(int64(100), next.GetExpiry())
 	require.Equal(3, txm.Len(ctx))
 	require.Equal(6, txm.Size(ctx))
 }
@@ -78,7 +78,7 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	require.Equal(1, txm.Len(ctx), "Item not added.")
 	next, ok := txm.PeekNext(ctx)
 	require.True(ok)
-	require.Equal(int64(300), next.Expiry())
+	require.Equal(int64(300), next.GetExpiry())
 	// Add again
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
@@ -114,16 +114,16 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		if i < 3 {
-			require.True(txm.Has(ctx, item.ID()), "TX not included")
+			require.True(txm.Has(ctx, item.GetID()), "TX not included")
 		} else {
-			require.False(txm.Has(ctx, item.ID()), "TX included")
+			require.False(txm.Has(ctx, item.GetID()), "TX included")
 		}
 	}
 	// Pop and check values
 	for i := int64(0); i < 3; i++ {
 		popped, ok := txm.PopNext(ctx)
 		require.True(ok)
-		require.Equal(i, popped.Expiry(), "Mempool did not pop correct tx.")
+		require.Equal(i, popped.GetExpiry(), "Mempool did not pop correct tx.")
 	}
 	_, ok := txm.owned[testSponsor]
 	require.False(ok, "Sponsor not removed from owned.")
@@ -140,7 +140,7 @@ func TestMempoolRemoveTxs(t *testing.T) {
 	item := GenerateTestItem(testSponsor, 10)
 	items := []*TestItem{item}
 	txm.Add(ctx, items)
-	require.True(txm.Has(ctx, item.ID()), "TX not included")
+	require.True(txm.Has(ctx, item.GetID()), "TX not included")
 	// Remove
 	itemNotIn := GenerateTestItem(testSponsor, 10)
 	items = []*TestItem{item, itemNotIn}
@@ -159,7 +159,7 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 		item := GenerateTestItem(testSponsor, i)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
-		require.True(txm.Has(ctx, item.ID()), "TX not included")
+		require.True(txm.Has(ctx, item.GetID()), "TX not included")
 	}
 	// Remove half
 	removed := txm.SetMinTimestamp(ctx, 5)
@@ -167,10 +167,10 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	// All timestamps less than 5
 	seen := make(map[int64]bool)
 	for _, item := range removed {
-		require.Less(item.Expiry(), int64(5))
-		_, ok := seen[item.Expiry()]
+		require.Less(item.GetExpiry(), int64(5))
+		_, ok := seen[item.GetExpiry()]
 		require.False(ok)
-		seen[item.Expiry()] = true
+		seen[item.GetExpiry()] = true
 	}
 	// Mempool has same length
 	require.Equal(5, txm.Len(ctx), "Mempool has incorrect number of txs.")

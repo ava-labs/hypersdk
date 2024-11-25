@@ -4,6 +4,7 @@
 package indexer
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -109,7 +110,7 @@ func (i *Indexer) initBlocks() error {
 	return nil
 }
 
-func (i *Indexer) Accept(blk *chain.ExecutedBlock) error {
+func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	if err := i.storeTransactions(blk); err != nil {
 		return err
 	}
@@ -169,7 +170,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 		result := blk.Results[j]
 		if err := i.storeTransaction(
 			batch,
-			tx.ID(),
+			tx.GetID(),
 			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
