@@ -8,7 +8,7 @@ Let's quickly recap what we've done so far:
 
 With the above, our code should work exactly like the version of MorpheusVM
 found in `examples/`. To verify this though, we're going to apply the same 
-workload tests used in MorpheusVM against our VM.
+workload/`e2e` tests used in MorpheusVM against our VM.
 
 This section will consist of the following:
 
@@ -16,6 +16,8 @@ This section will consist of the following:
 - Implementing workload tests that generate a large quantity of generic transactions
 - Implementing workload tests that test for a specific transaction
 - Registering our workload tests
+- Implementing bash scripts to run `e2e` tests
+- Registering our `e2e` tests
 
 ## Workload Scripts
 
@@ -515,11 +517,12 @@ Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
-If you see this, then your VM passed the tests!
+If you see this, then your VM passed the workload tests!
 
 ## Setting Up `e2e` Tests
 
-To get started, in `examples/tutorial`, run the following commands:
+We'll now focus on adding `e2e` tests to our VM. To get started, in
+`examples/tutorial`, run the following commands:
 
 ```bash
 cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
@@ -529,7 +532,7 @@ chmod +x ./scripts/run.sh
 chmod +x ./scripts/stop.sh
 ```
 
-The commands above created a new folder named `scripts` and copied the run/stop scripts from MorpheusVM into our scripts folder, along with giving them execute permissions.
+The commands above copied the run/stop scripts from MorpheusVM into our scripts folder, along with giving them execute permissions.
 
 Before moving forward, in lines 68-70 of `run.sh`, make sure to change it from this:
 
@@ -620,6 +623,11 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 })
 
 ```
+
+If the above looks familar to `integration_test.go`, that's because `e2e` tests
+follow the same logic as integration tests! The HyperSDK also has a framework
+for `e2e` tests, which only requires us to pass in required values like the ABI
+and a transaction generator.
 
 ## Running `e2e` Tests
 
