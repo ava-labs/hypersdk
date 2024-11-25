@@ -23,8 +23,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ExternalSubscriber_Initialize_FullMethodName  = "/externalsubscriber.ExternalSubscriber/Initialize"
-	ExternalSubscriber_AcceptBlock_FullMethodName = "/externalsubscriber.ExternalSubscriber/AcceptBlock"
+	ExternalSubscriber_Initialize_FullMethodName = "/externalsubscriber.ExternalSubscriber/Initialize"
+	ExternalSubscriber_Notify_FullMethodName     = "/externalsubscriber.ExternalSubscriber/Notify"
 )
 
 // ExternalSubscriberClient is the client API for ExternalSubscriber service.
@@ -32,7 +32,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExternalSubscriberClient interface {
 	Initialize(ctx context.Context, in *InitializeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	AcceptBlock(ctx context.Context, in *BlockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Notify(ctx context.Context, in *BlockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type externalSubscriberClient struct {
@@ -52,9 +52,9 @@ func (c *externalSubscriberClient) Initialize(ctx context.Context, in *Initializ
 	return out, nil
 }
 
-func (c *externalSubscriberClient) AcceptBlock(ctx context.Context, in *BlockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *externalSubscriberClient) Notify(ctx context.Context, in *BlockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, ExternalSubscriber_AcceptBlock_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ExternalSubscriber_Notify_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (c *externalSubscriberClient) AcceptBlock(ctx context.Context, in *BlockReq
 // for forward compatibility
 type ExternalSubscriberServer interface {
 	Initialize(context.Context, *InitializeRequest) (*emptypb.Empty, error)
-	AcceptBlock(context.Context, *BlockRequest) (*emptypb.Empty, error)
+	Notify(context.Context, *BlockRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedExternalSubscriberServer()
 }
 
@@ -77,8 +77,8 @@ type UnimplementedExternalSubscriberServer struct {
 func (UnimplementedExternalSubscriberServer) Initialize(context.Context, *InitializeRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Initialize not implemented")
 }
-func (UnimplementedExternalSubscriberServer) AcceptBlock(context.Context, *BlockRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AcceptBlock not implemented")
+func (UnimplementedExternalSubscriberServer) Notify(context.Context, *BlockRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Notify not implemented")
 }
 func (UnimplementedExternalSubscriberServer) mustEmbedUnimplementedExternalSubscriberServer() {}
 
@@ -111,20 +111,20 @@ func _ExternalSubscriber_Initialize_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ExternalSubscriber_AcceptBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ExternalSubscriber_Notify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BlockRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ExternalSubscriberServer).AcceptBlock(ctx, in)
+		return srv.(ExternalSubscriberServer).Notify(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ExternalSubscriber_AcceptBlock_FullMethodName,
+		FullMethod: ExternalSubscriber_Notify_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExternalSubscriberServer).AcceptBlock(ctx, req.(*BlockRequest))
+		return srv.(ExternalSubscriberServer).Notify(ctx, req.(*BlockRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -141,8 +141,8 @@ var ExternalSubscriber_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ExternalSubscriber_Initialize_Handler,
 		},
 		{
-			MethodName: "AcceptBlock",
-			Handler:    _ExternalSubscriber_AcceptBlock_Handler,
+			MethodName: "Notify",
+			Handler:    _ExternalSubscriber_Notify_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

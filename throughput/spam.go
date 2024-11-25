@@ -108,7 +108,8 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-	actions := sh.GetTransfer(s.authFactory.Address(), 0, s.tracker.uniqueBytes())
+
+	actions := sh.GetTransfer(s.authFactory.Address(), 0, []byte{})
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
 		return err
@@ -146,7 +147,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	s.tracker.logState(cctx, issuers[0].cli)
 
 	// broadcast transactions
-	err = s.broadcast(cctx, sh, accounts, factories, issuers, feePerTx, terminate)
+	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
 	cancel()
 	if err != nil {
 		return err
@@ -166,7 +167,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 func (s Spammer) broadcast(
 	ctx context.Context,
 	sh SpamHelper,
-	accounts []*auth.PrivateKey,
 
 	factories []chain.AuthFactory,
 	issuers []*issuer,
@@ -208,8 +208,8 @@ func (s Spammer) broadcast(
 					}
 					consecutiveAboveBacklog = 0
 				}
-				it.Reset(1 * time.Second)
-				break
+				sleep(it, start)
+				continue
 			}
 
 			// Issue txs
@@ -217,19 +217,14 @@ func (s Spammer) broadcast(
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
 				senderIndex := z.Uint64()
-				sender := accounts[senderIndex].Address
 				issuer := getRandomIssuer(issuers)
+
 				g.Go(func() error {
 					factory := factories[senderIndex]
-					balance, err := sh.LookupBalance(sender)
-					if err != nil {
-						return err
-					}
-					if balance < feePerTx {
-						return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, feePerTx)
-					}
 					// Send transaction
 					actions := sh.GetActions()
+					s.tracker.IncrementSent()
+					// assumes the sender has the funds to pay for the transaction
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})
 			}
@@ -243,10 +238,7 @@ func (s Spammer) broadcast(
 				break
 			}
 
-			// Determine how long to sleep
-			dur := time.Since(start)
-			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
-			it.Reset(time.Duration(sleep) * time.Millisecond)
+			sleep(it, start)
 
 			// Check to see if we should increase target
 			consecutiveAboveBacklog = 0
@@ -343,7 +335,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, s.tracker.uniqueBytes())
+		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
@@ -353,11 +345,12 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 
 		// Log progress
-		if i%250 == 0 && i > 0 {
+		if i%1000 == 0 && i > 0 {
 			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
 		}
 	}
 	if err := p.Wait(); err != nil {
+		utils.Outf("{{red}}failed to distribute funds:{{/}} %v\n", err)
 		return nil, nil, err
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", s.numAccounts)
@@ -399,7 +392,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, s.tracker.uniqueBytes())
+		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
@@ -424,4 +417,12 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 		symbol,
 	)
 	return nil
+}
+
+// sleep updates the timer to tick immediately if >= 1s has elapsed
+// and otherwise tick after 1s has elapsed since start
+func sleep(it *time.Timer, start time.Time) {
+	dur := time.Since(start)
+	sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+	it.Reset(time.Duration(sleep) * time.Millisecond)
 }

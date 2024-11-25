@@ -23,7 +23,7 @@ import (
 
 const (
 	// default initial balance for each address
-	InitialBalance uint64 = 10_000_000_000_000
+	InitialBalance uint64 = 3_000_000_000_000_000_000
 )
 
 // hardcoded initial set of ed25519 keys. Each will be initialized with InitialBalance

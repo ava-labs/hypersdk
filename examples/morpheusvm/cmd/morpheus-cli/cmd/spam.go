@@ -5,11 +5,19 @@ package cmd
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/utils"
+
+	hthroughput "github.com/ava-labs/hypersdk/throughput"
 )
 
 var spamCmd = &cobra.Command{
@@ -29,6 +37,40 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
-		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamDefaults)
+
+		if len(clusterInfo) > 0 {
+			_, urisFromFile, err := cli.ReadClusterInfoFile(clusterInfo)
+			if err != nil {
+				utils.Outf("{{red}} failed to read cluster info: %s \n", err)
+				return err
+			}
+			uris := cli.OnlyAPIs(urisFromFile)
+
+			if len(uris) == 0 || len(spamKey) == 0 {
+				return errors.New("uris and keyHex must be non-empty")
+			}
+			bytes, err := codec.LoadHex(spamKey, ed25519.PrivateKeyLen)
+			if err != nil {
+				return err
+			}
+			authFactory := auth.NewED25519Factory(ed25519.PrivateKey(bytes))
+
+			spamConfig, err := hthroughput.NewLongRunningConfig(uris, authFactory)
+			if err != nil {
+				return err
+			}
+
+			spamHelper := &throughput.SpamHelper{KeyType: args[0]}
+			if err := spamHelper.CreateClient(uris[0]); err != nil {
+				return err
+			}
+			spammer, err := hthroughput.NewSpammer(spamConfig, spamHelper)
+			if err != nil {
+				return err
+			}
+			return spammer.Spam(ctx, spamHelper, true, "AVAX")
+		}
+
+		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamKey, spamDefaults)
 	},
 }
