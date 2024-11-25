@@ -12,9 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
-	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/proto/pb/sdk"
+	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -82,17 +84,19 @@ func TestNode_BuildChunk(t *testing.T) {
 
 			networkID := uint32(123)
 			chainID := ids.Empty
-			sk, err := bls.NewSecretKey()
+
+			sk1, err := bls.NewSecretKey()
 			r.NoError(err)
-			pk := bls.PublicFromSecretKey(sk)
-			signer := warp.NewSigner(sk, networkID, chainID)
-			nodeID := ids.GenerateTestNodeID()
-			node, err := New[tx](
-				nodeID,
+			pk1 := bls.PublicFromSecretKey(sk1)
+			signer1 := warp.NewSigner(sk1, networkID, chainID)
+			nodeID1 := ids.GenerateTestNodeID()
+			node1, err := New[tx](
+				logging.NoLog{},
+				nodeID1,
 				networkID,
 				chainID,
-				pk,
-				signer,
+				pk1,
+				signer1,
 				NoVerifier[tx]{},
 				p2ptest.NewClient(
 					t,
@@ -116,10 +120,105 @@ func TestNode_BuildChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				0,
+				1,
 			)
 			r.NoError(err)
 
-			chunk, err := node.BuildChunk(
+			sk2, err := bls.NewSecretKey()
+			r.NoError(err)
+			pk2 := bls.PublicFromSecretKey(sk2)
+			signer2 := warp.NewSigner(sk2, networkID, chainID)
+			nodeID2 := ids.GenerateTestNodeID()
+			node2, err := New[tx](
+				logging.NoLog{},
+				nodeID2,
+				networkID,
+				chainID,
+				pk2,
+				signer2,
+				NoVerifier[tx]{},
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				nil,
+				0,
+				1,
+			)
+			r.NoError(err)
+
+			sk3, err := bls.NewSecretKey()
+			r.NoError(err)
+			pk3 := bls.PublicFromSecretKey(sk3)
+			signer3 := warp.NewSigner(sk3, networkID, chainID)
+			nodeID3 := ids.GenerateTestNodeID()
+			node3, err := New[tx](
+				logging.NoLog{},
+				nodeID3,
+				networkID,
+				chainID,
+				pk3,
+				signer3,
+				NoVerifier[tx]{},
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				p2ptest.NewClientWithPeers(
+					t,
+					context.Background(),
+					ids.EmptyNodeID,
+					map[ids.NodeID]p2p.Handler{
+						nodeID1: node1.GetChunkSignatureHandler,
+						nodeID2: node2.GetChunkSignatureHandler,
+					},
+				),
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				[]Validator{
+					{
+						NodeID:    nodeID1,
+						Weight:    1,
+						PublicKey: pk1,
+					},
+					{
+						NodeID:    nodeID2,
+						Weight:    1,
+						PublicKey: pk2,
+					},
+				},
+				1,
+				1,
+			)
+			r.NoError(err)
+
+			chunk, err := node3.BuildChunk(
 				context.Background(),
 				tt.txs,
 				tt.expiry,
@@ -130,13 +229,56 @@ func TestNode_BuildChunk(t *testing.T) {
 				return
 			}
 
-			r.Equal(nodeID, chunk.Producer)
+			r.Equal(nodeID3, chunk.Producer)
 			r.Equal(tt.beneficiary, chunk.Beneficiary)
 			r.Equal(tt.expiry, chunk.Expiry)
 			r.ElementsMatch(tt.txs, chunk.Txs)
-			// TODO verify signature + signer
-			r.NotEmpty(chunk.Signature)
-			r.NotEmpty(chunk.Signer)
+
+			wantPkBytes := [bls.PublicKeyLen]byte{}
+			copy(wantPkBytes[:], bls.PublicKeyToCompressedBytes(pk3))
+			r.Equal(wantPkBytes, chunk.Signer)
+
+			packer := &wrappers.Packer{MaxSize: MaxMessageSize}
+			r.NoError(codec.LinearCodec.MarshalInto(chunk, packer))
+			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+			r.NoError(err)
+
+			signers := set.NewBits(0, 1)
+			signature := &warp.BitSetSignature{
+				Signers:   signers.Bytes(),
+				Signature: [96]byte{},
+			}
+			copy(signature.Signature[:], chunk.Signature[:])
+
+			pChain := &validatorstest.State{
+				GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
+					return ids.Empty, nil
+				},
+				GetValidatorSetF: func(context.Context, uint64, ids.ID) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
+					return map[ids.NodeID]*snowValidators.GetValidatorOutput{
+						nodeID1: {
+							NodeID:    nodeID1,
+							PublicKey: pk1,
+							Weight:    1,
+						},
+						nodeID2: {
+							NodeID:    nodeID2,
+							PublicKey: pk2,
+							Weight:    1,
+						},
+					}, nil
+				},
+			}
+
+			r.NoError(signature.Verify(
+				context.Background(),
+				msg,
+				networkID,
+				pChain,
+				0,
+				1,
+				1,
+			))
 		})
 	}
 }
@@ -152,6 +294,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	pk := bls.PublicFromSecretKey(sk)
 	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
+		logging.NoLog{},
 		ids.GenerateTestNodeID(),
 		networkID,
 		chainID,
@@ -180,6 +323,8 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		0,
+		1,
 	)
 	r.NoError(err)
 
@@ -237,12 +382,15 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 
 	networkID := uint32(123)
 	chainID := ids.Empty
+
+	nodeID := ids.GenerateTestNodeID()
 	sk, err := bls.NewSecretKey()
 	r.NoError(err)
 	pk := bls.PublicFromSecretKey(sk)
 	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
-		ids.GenerateTestNodeID(),
+		logging.NoLog{},
+		nodeID,
 		networkID,
 		chainID,
 		pk,
@@ -270,6 +418,8 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		0,
+		1,
 	)
 	r.NoError(err)
 
@@ -286,7 +436,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 		context.Background(),
 		node.GetChunkHandler,
 		ids.EmptyNodeID,
-		ids.EmptyNodeID,
+		nodeID,
 	))
 
 	done := make(chan struct{})
@@ -298,7 +448,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 
 	r.NoError(client.AppRequest(
 		context.Background(),
-		ids.EmptyNodeID,
+		nodeID,
 		&dsmr.GetChunkRequest{
 			ChunkId: chunk.id[:],
 			Expiry:  chunk.Expiry,
@@ -319,6 +469,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	pk := bls.PublicFromSecretKey(sk)
 	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
+		logging.NoLog{},
 		ids.GenerateTestNodeID(),
 		networkID,
 		chainID,
@@ -347,6 +498,8 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		2,
+		3,
 	)
 	r.NoError(err)
 
@@ -532,6 +685,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			pk := bls.PublicFromSecretKey(sk)
 			signer := warp.NewSigner(sk, networkID, chainID)
 			node, err := New[tx](
+				logging.NoLog{},
 				nodeID,
 				networkID,
 				chainID,
@@ -560,6 +714,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				0,
+				1,
 			)
 			r.NoError(err)
 
@@ -658,13 +814,30 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 			networkID := uint32(123)
 			chainID := ids.Empty
+
+			nodeID1 := ids.GenerateTestNodeID()
 			sk1, err := bls.NewSecretKey()
 			r.NoError(err)
 			pk1 := bls.PublicFromSecretKey(sk1)
 			signer1 := warp.NewSigner(sk1, networkID, chainID)
 
+			nodeID2 := ids.GenerateTestNodeID()
+			sk2, err := bls.NewSecretKey()
+			r.NoError(err)
+			pk2 := bls.PublicFromSecretKey(sk2)
+			signer2 := warp.NewSigner(sk2, networkID, chainID)
+
+			validators := []Validator{
+				{
+					NodeID:    nodeID1,
+					Weight:    1,
+					PublicKey: pk1,
+				},
+			}
+
 			node1, err := New[tx](
-				ids.GenerateTestNodeID(),
+				logging.NoLog{},
+				nodeID1,
 				networkID,
 				chainID,
 				pk1,
@@ -691,28 +864,15 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				validators,
+				1,
+				1,
 			)
 			r.NoError(err)
 
-			client := NewGetChunkSignatureClient(
-				networkID,
-				chainID,
-				p2ptest.NewClient(
-					t,
-					context.Background(),
-					node1.GetChunkSignatureHandler,
-					ids.EmptyNodeID,
-					ids.EmptyNodeID,
-				),
-			)
-
-			sk2, err := bls.NewSecretKey()
-			r.NoError(err)
-			pk2 := bls.PublicFromSecretKey(sk2)
-			signer2 := warp.NewSigner(sk2, networkID, chainID)
 			node2, err := New[tx](
-				ids.GenerateTestNodeID(),
+				logging.NoLog{},
+				nodeID2,
 				networkID,
 				chainID,
 				pk2,
@@ -740,6 +900,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				0,
+				1,
 			)
 			r.NoError(err)
 			chunk, err := node2.BuildChunk(
@@ -751,7 +913,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			r.NoError(err)
 
 			done := make(chan struct{})
-			onResponse := func(_ context.Context, _ ids.NodeID, response *dsmr.GetChunkSignatureResponse, err error) {
+			onResponse := func(_ context.Context, _ ids.NodeID, response *sdk.SignatureResponse, err error) {
 				defer close(done)
 
 				r.ErrorIs(err, tt.wantErr)
@@ -768,16 +930,11 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 						context.Context,
 						uint64,
 						ids.ID,
-					) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
-						return map[ids.NodeID]*validators.GetValidatorOutput{
+					) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
+						return map[ids.NodeID]*snowValidators.GetValidatorOutput{
 							node1.nodeID: {
 								NodeID:    node1.nodeID,
 								PublicKey: pk1,
-								Weight:    1,
-							},
-							node2.nodeID: {
-								NodeID:    node2.nodeID,
-								PublicKey: pk2,
 								Weight:    1,
 							},
 						}, nil
@@ -800,17 +957,30 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					pChain,
 					0,
 					1,
-					2,
+					1,
 				))
 			}
 
 			packer := wrappers.Packer{MaxSize: MaxMessageSize}
 			r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
+			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+			r.NoError(err)
 
+			client := NewGetChunkSignatureClient(
+				networkID,
+				chainID,
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					node1.GetChunkSignatureHandler,
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+			)
 			r.NoError(client.AppRequest(
 				context.Background(),
 				ids.EmptyNodeID,
-				&dsmr.GetChunkSignatureRequest{Chunk: packer.Bytes},
+				&sdk.SignatureRequest{Message: msg.Bytes()},
 				onResponse,
 			))
 
@@ -830,6 +1000,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	pk := bls.PublicFromSecretKey(sk)
 	signer := warp.NewSigner(sk, networkID, chainID)
 	node, err := New[tx](
+		logging.NoLog{},
 		ids.EmptyNodeID,
 		networkID,
 		chainID,
@@ -858,19 +1029,10 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		0,
+		1,
 	)
 	r.NoError(err)
-
-	client := NewGetChunkSignatureClient(
-		networkID,
-		chainID,
-		p2ptest.NewClient(
-			t,
-			context.Background(),
-			node.GetChunkSignatureHandler,
-			ids.EmptyNodeID,
-			ids.EmptyNodeID,
-		))
 
 	// Accept a chunk
 	r.NoError(err)
@@ -893,7 +1055,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(node.Accept(context.Background(), blk))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, _ *dsmr.GetChunkSignatureResponse, err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ *sdk.SignatureResponse, err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrDuplicateChunk)
@@ -901,11 +1063,24 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	r.NoError(err)
 
+	client := NewGetChunkSignatureClient(
+		networkID,
+		chainID,
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			node.GetChunkSignatureHandler,
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+	)
 	r.NoError(client.AppRequest(
 		context.Background(),
 		ids.EmptyNodeID,
-		&dsmr.GetChunkSignatureRequest{Chunk: packer.Bytes},
+		&sdk.SignatureRequest{Message: msg.Bytes()},
 		onResponse,
 	))
 
@@ -918,12 +1093,30 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	networkID := uint32(23)
 	chainID := ids.Empty
+
+	nodeID1 := ids.GenerateTestNodeID()
 	sk1, err := bls.NewSecretKey()
 	r.NoError(err)
 	pk1 := bls.PublicFromSecretKey(sk1)
 	signer1 := warp.NewSigner(sk1, networkID, chainID)
+
+	nodeID2 := ids.GenerateTestNodeID()
+	sk2, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk2 := bls.PublicFromSecretKey(sk2)
+	signer2 := warp.NewSigner(sk2, networkID, chainID)
+
+	validators := []Validator{
+		{
+			NodeID:    nodeID1,
+			Weight:    1,
+			PublicKey: pk1,
+		},
+	}
+
 	node1, err := New[tx](
-		ids.EmptyNodeID,
+		logging.NoLog{},
+		nodeID1,
 		networkID,
 		chainID,
 		pk1,
@@ -950,15 +1143,14 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		validators,
+		2,
+		3,
 	)
 	r.NoError(err)
 
-	sk2, err := bls.NewSecretKey()
-	r.NoError(err)
-	pk2 := bls.PublicFromSecretKey(sk2)
-	signer2 := warp.NewSigner(sk2, networkID, chainID)
 	node2, err := New[tx](
+		logging.NoLog{},
 		ids.EmptyNodeID,
 		networkID,
 		chainID,
@@ -969,24 +1161,26 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			t,
 			context.Background(),
 			node1.GetChunkHandler,
-			ids.EmptyNodeID,
-			ids.EmptyNodeID,
+			nodeID2,
+			nodeID1,
 		),
 		p2ptest.NewClient(
 			t,
 			context.Background(),
 			node1.GetChunkSignatureHandler,
-			ids.EmptyNodeID,
-			ids.EmptyNodeID,
+			nodeID2,
+			nodeID1,
 		),
 		p2ptest.NewClient(
 			t,
 			context.Background(),
 			node1.ChunkCertificateGossipHandler,
-			ids.EmptyNodeID,
-			ids.EmptyNodeID,
+			nodeID2,
+			nodeID1,
 		),
-		[]Validator{{NodeID: node1.nodeID}},
+		validators,
+		2,
+		3,
 	)
 	r.NoError(err)
 
@@ -1253,13 +1447,16 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 
 			networkID := uint32(123)
 			chainID := ids.Empty
+
+			nodeID := ids.GenerateTestNodeID()
 			sk, err := bls.NewSecretKey()
 			r.NoError(err)
 			pk := bls.PublicFromSecretKey(sk)
 			signer := warp.NewSigner(sk, networkID, chainID)
 
 			node, err := New[tx](
-				ids.EmptyNodeID,
+				logging.NoLog{},
+				nodeID,
 				networkID,
 				chainID,
 				pk,
@@ -1286,7 +1483,15 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					ids.EmptyNodeID,
 					ids.EmptyNodeID,
 				),
-				nil,
+				[]Validator{
+					{
+						NodeID:    nodeID,
+						Weight:    1,
+						PublicKey: pk,
+					},
+				},
+				0,
+				1,
 			)
 			r.NoError(err)
 
@@ -1339,13 +1544,31 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 
 	networkID := uint32(123)
 	chainID := ids.Empty
+
+	nodeID1 := ids.GenerateTestNodeID()
 	sk1, err := bls.NewSecretKey()
 	r.NoError(err)
 	pk1 := bls.PublicFromSecretKey(sk1)
 	signer1 := warp.NewSigner(sk1, networkID, chainID)
 	r.NoError(err)
+
+	nodeID2 := ids.GenerateTestNodeID()
+	sk2, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk2 := bls.PublicFromSecretKey(sk2)
+	signer2 := warp.NewSigner(sk2, networkID, chainID)
+
+	validators := []Validator{
+		{
+			NodeID:    nodeID1,
+			Weight:    1,
+			PublicKey: pk1,
+		},
+	}
+
 	node1, err := New[tx](
-		ids.GenerateTestNodeID(),
+		logging.NoLog{},
+		nodeID1,
 		networkID,
 		chainID,
 		pk1,
@@ -1372,7 +1595,9 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		nil,
+		validators,
+		0,
+		1,
 	)
 	r.NoError(err)
 
@@ -1391,12 +1616,9 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node1.Accept(context.Background(), blk))
 
-	sk2, err := bls.NewSecretKey()
-	r.NoError(err)
-	pk2 := bls.PublicFromSecretKey(sk2)
-	signer2 := warp.NewSigner(sk2, networkID, chainID)
 	node2, err := New[tx](
-		ids.GenerateTestNodeID(),
+		logging.NoLog{},
+		nodeID2,
 		networkID,
 		chainID,
 		pk2,
@@ -1406,8 +1628,8 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			t,
 			context.Background(),
 			node1.GetChunkHandler,
-			ids.EmptyNodeID,
-			ids.EmptyNodeID,
+			nodeID2,
+			nodeID1,
 		),
 		p2ptest.NewClient(
 			t,
@@ -1423,7 +1645,9 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 			ids.EmptyNodeID,
 		),
-		[]Validator{{NodeID: node1.nodeID}},
+		validators,
+		2,
+		3,
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))
@@ -1455,7 +1679,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	<-done
 }
 
-func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeID) set.Bits {
+func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.NodeID) set.Bits {
 	validators, _, err := warp.GetCanonicalValidatorSet(
 		context.Background(),
 		pChain,

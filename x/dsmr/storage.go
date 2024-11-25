@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
@@ -40,10 +41,9 @@ func (NoVerifier[T]) Verify(Chunk[T]) error {
 }
 
 type StoredChunkSignature[T Tx] struct {
-	Chunk          Chunk[T]
-	LocalSignature NoVerifyChunkSignatureShare // Decouple signature share / certificate types
-	Cert           *ChunkCertificate
-	Available      bool
+	Chunk     Chunk[T]
+	Cert      *ChunkCertificate
+	Available bool
 }
 
 // chunkStorage provides chunk, signature share, and chunk certificate storage
@@ -152,21 +152,21 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
-func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (NoVerifyChunkSignatureShare, error) {
+func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	chunkCertInfo, ok := s.chunkMap[c.id]
 	if ok {
-		return chunkCertInfo.LocalSignature, nil
+		return chunkCertInfo.Cert.Signature, nil
 	}
 	if err := s.verifier.Verify(c); err != nil {
-		return NoVerifyChunkSignatureShare{}, err
+		return nil, err
 	}
 	if err := s.putVerifiedChunk(c, nil); err != nil {
-		return NoVerifyChunkSignatureShare{}, err
+		return nil, err
 	}
-	return NoVerifyChunkSignatureShare{}, nil
+	return nil, nil
 }
 
 func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
@@ -176,9 +176,8 @@ func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
 	chunkCert := &StoredChunkSignature[T]{
-		Chunk:          c,
-		LocalSignature: NoVerifyChunkSignatureShare{}, // TODO: add signer to generate actual signature share
-		Cert:           cert,
+		Chunk: c,
+		Cert:  cert,
 	}
 	s.chunkMap[c.id] = chunkCert
 	return nil

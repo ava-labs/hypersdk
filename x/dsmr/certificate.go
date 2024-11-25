@@ -39,19 +39,11 @@ func init() {
 	}
 }
 
-type NoVerifyChunkSignatureShare struct{}
-
-func (NoVerifyChunkSignatureShare) Verify(_ ids.ID) error { return nil }
-
-type NoVerifyChunkSignature struct{}
-
-func (NoVerifyChunkSignature) Verify() error { return nil }
-
 type ChunkCertificate struct {
 	ChunkID ids.ID `serialize:"true"`
 	Expiry  int64  `serialize:"true"`
 
-	Signature NoVerifyChunkSignature `serialize:"true"`
+	Signature *warp.BitSetSignature `serialize:"true"`
 }
 
 func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
@@ -66,8 +58,33 @@ func (c *ChunkCertificate) Bytes() []byte {
 	return bytes
 }
 
-func (c *ChunkCertificate) Verify(_ context.Context, _ interface{}) error {
-	return c.Signature.Verify()
+func (c *ChunkCertificate) Verify(
+	ctx context.Context,
+	networkID uint32,
+	chainID ids.ID,
+	pChainState validators.State,
+	pChainHeight uint64,
+	quorumNum uint64,
+	quorumDen uint64,
+) error {
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, c.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed to initialize unsigned message: %w", err)
+	}
+
+	if err := c.Signature.Verify(
+		ctx,
+		msg,
+		networkID,
+		pChainState,
+		pChainHeight,
+		quorumNum,
+		quorumDen,
+	); err != nil {
+		return fmt.Errorf("failed verification: %w", err)
+	}
+
+	return nil
 }
 
 type WarpChunkPayload struct {

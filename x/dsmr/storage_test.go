@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -124,7 +125,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -159,7 +160,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -198,7 +199,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -228,7 +229,7 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 	chunkCert := &ChunkCertificate{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -267,7 +268,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		chunkCert := &ChunkCertificate{
 			ChunkID:   chunk.id,
 			Expiry:    chunk.Expiry,
-			Signature: NoVerifyChunkSignature{},
+			Signature: &warp.BitSetSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}
