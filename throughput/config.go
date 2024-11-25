@@ -30,11 +30,11 @@ func NewDefaultConfig(
 		key:              key,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     500,
-		minTxsPerSecond:  100,
-		txsPerSecondStep: 200,
-		numClients:       10,
-		numAccounts:      25,
+		txsPerSecond:     50000,
+		minTxsPerSecond:  10000,
+		txsPerSecondStep: 10000,
+		numClients:       100,
+		numAccounts:      1000,
 	}
 }
 
@@ -53,10 +53,10 @@ func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
 		key:              key,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     25000,
+		txsPerSecond:     100000,
 		minTxsPerSecond:  10000,
-		txsPerSecondStep: 2000,
-		numClients:       50,
+		txsPerSecondStep: 5000,
+		numClients:       100,
 		numAccounts:      1000,
 	}, nil
 }
