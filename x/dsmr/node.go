@@ -213,7 +213,8 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 
 	availableChunkCerts := make([]*ChunkCertificate, 0)
 	for i, chunkCert := range chunkCerts {
-		if dup.Contains(i) {
+		// avoid building blocks with duplicate or expired chunk certs
+		if chunkCert.Expiry < timestamp || dup.Contains(i) {
 			continue
 		}
 		availableChunkCerts = append(availableChunkCerts, chunkCert)

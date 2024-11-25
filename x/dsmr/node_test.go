@@ -1115,41 +1115,41 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		parent    Block
 		timestamp int64
 		wantErr   error
-	}{ /*
-			{
-				name: "no chunk certs",
-				parent: Block{
-					ParentID: ids.GenerateTestID(),
-					Hght:     1,
-					Tmstmp:   1,
-					blkID:    ids.GenerateTestID(),
-				},
-				timestamp: 2,
-				// TODO should we be able to build empty blocks?
-				wantErr: ErrNoAvailableChunkCerts,
+	}{
+		{
+			name: "no chunk certs",
+			parent: Block{
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
-			{
-				name: "timestamp equal to parent",
-				parent: Block{
-					ParentID: ids.GenerateTestID(),
-					Hght:     1,
-					Tmstmp:   1,
-					blkID:    ids.GenerateTestID(),
-				},
-				timestamp: 1,
-				wantErr:   ErrTimestampNotMonotonicallyIncreasing,
+			timestamp: 2,
+			// TODO should we be able to build empty blocks?
+			wantErr: ErrNoAvailableChunkCerts,
+		},
+		{
+			name: "timestamp equal to parent",
+			parent: Block{
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
 			},
-			{
-				name: "timestamp older than parent",
-				parent: Block{
-					ParentID: ids.GenerateTestID(),
-					Hght:     1,
-					Tmstmp:   1,
-					blkID:    ids.GenerateTestID(),
-				},
-				timestamp: 0,
-				wantErr:   ErrTimestampNotMonotonicallyIncreasing,
-			},*/
+			timestamp: 1,
+			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
+		},
+		{
+			name: "timestamp older than parent",
+			parent: Block{
+				ParentID: ids.GenerateTestID(),
+				Hght:     1,
+				Tmstmp:   1,
+				blkID:    ids.GenerateTestID(),
+			},
+			timestamp: 0,
+			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
+		},
 		{
 			name: "expired chunk cert",
 			chunks: []chunk{
