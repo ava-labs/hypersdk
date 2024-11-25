@@ -6,8 +6,9 @@ package genesis
 import (
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 )
 
 const minBlockGap = 100
