@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pendingTargetMultiplier        = 1
+	pendingTargetMultiplier        = 20
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
 
@@ -213,8 +213,9 @@ func (s Spammer) broadcast(
 					}
 					consecutiveAboveBacklog = 0
 				}
-				it.Reset(1 * time.Second)
-				break
+				// Wait for some transactions to complete before trying again
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
 
 			// Issue txs

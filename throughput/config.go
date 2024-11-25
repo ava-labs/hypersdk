@@ -54,9 +54,9 @@ func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
 		sZipf:            1.01,
 		vZipf:            2.7,
 		txsPerSecond:     25000,
-		minTxsPerSecond:  2000,
+		minTxsPerSecond:  10000,
 		txsPerSecondStep: 2000,
-		numClients:       10,
+		numClients:       50,
 		numAccounts:      1000,
 	}, nil
 }
