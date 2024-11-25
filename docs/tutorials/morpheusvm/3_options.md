@@ -364,5 +364,5 @@ that the function caller passed in.
 ## Conclusion
 
 In this section, we've built upon our existing VM implementation by adding a
-JSON-RPC server option. In the final section of this MorpheusVM tutorial, we
-will utilize the workload tests from MorpheusVM to test our VM. 
+JSON-RPC server option. With options implemented, we are now ready to deploy our
+VM!
