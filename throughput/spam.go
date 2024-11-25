@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pendingTargetMultiplier        = 10
+	pendingTargetMultiplier        = 1
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
 
