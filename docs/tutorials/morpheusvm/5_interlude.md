@@ -61,6 +61,13 @@ Flags:
 Use "avalanche [command] --help" for more information about a command.
 ```
 
+To verify that your version is at least `2.0.0`, run the following:
+
+```bash
+AVL-0W5L7Y:avalanche-cli rodrigo.villar$ avalanche --version
+avalanche version 2.0.0
+```
+
 ## Adding our Genesis
 
 In `/tutorial`, create a file named `genesis.json` and paste the following:
