@@ -14,7 +14,9 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -28,6 +30,16 @@ var (
 	_ Tx           = (*tx)(nil)
 	_ Verifier[tx] = (*failVerifier)(nil)
 )
+
+func newTestingLog() logging.Logger {
+	return logging.NewLogger("dsmr")
+}
+
+func newTestingTracer(t *testing.T) trace.Tracer {
+	tracer, err := trace.New(trace.Config{})
+	require.NoError(t, err)
+	return tracer
+}
 
 // Test that chunks can be built through Node.NewChunk
 func TestNode_BuildChunk(t *testing.T) {
@@ -116,6 +128,8 @@ func TestNode_BuildChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				newTestingLog(),
+				newTestingTracer(t),
 			)
 			r.NoError(err)
 
@@ -180,6 +194,8 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -271,6 +287,8 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -348,6 +366,8 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -561,6 +581,8 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				newTestingLog(),
+				newTestingTracer(t),
 			)
 			r.NoError(err)
 
@@ -694,6 +716,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				newTestingLog(),
+				newTestingTracer(t),
 			)
 			r.NoError(err)
 
@@ -742,6 +766,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				newTestingLog(),
+				newTestingTracer(t),
 			)
 			r.NoError(err)
 			chunk, err := node2.BuildChunk(
@@ -860,6 +886,8 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -954,6 +982,8 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -990,6 +1020,8 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		[]Validator{{NodeID: node1.nodeID}},
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -1291,6 +1323,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				newTestingLog(),
+				newTestingTracer(t),
 			)
 			r.NoError(err)
 
@@ -1377,6 +1411,8 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 
@@ -1431,6 +1467,8 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		[]Validator{{NodeID: node1.nodeID}},
+		newTestingLog(),
+		newTestingTracer(t),
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))

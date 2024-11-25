@@ -49,6 +49,8 @@ func New[T Tx](
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
 	validators []Validator,
+	log logging.Logger,
+	tracer trace.Tracer,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -83,9 +85,10 @@ func New[T Tx](
 			storage: storage,
 		},
 		storage: storage,
-		log:     logging.NewLogger("dsmr"),
+		log:     log,
+		tracer:  tracer,
 	}
-	node.tracer, err = trace.New(trace.Config{})
+
 	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, node)
 	return node, err
 }
