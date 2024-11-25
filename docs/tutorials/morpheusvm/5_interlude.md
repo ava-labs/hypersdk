@@ -13,53 +13,9 @@ In this section, we'll:
 
 Let's get started!
 
-### Avalanche-CLI Installation
+## Avalanche-CLI Installation
 
-Start by running the following in your command line:
-
-```bash
-curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s
-```
-
-This will install the `Avalanche-CLI` binary into `~/bin`. Next, you'll need to
-add the following to your `.bashrc` file:
-
-```bash
-export PATH=~/bin:$PATH
-```
-
-After restarting your terminal, running `avalanche` should give you the
-following:
-
-```bash
-Usage:
-  avalanche [command]
-
-Available Commands:
-  blockchain            Create and deploy blockchains
-  config                Modify configuration for Avalanche-CLI
-  contract              Manage smart contracts
-  help                  Help about any command
-  ictt                  Manage Interchain Token Transferrers (shorthand for `interchain TokenTransferrer`)
-  interchain            Set and manage interoperability between blockchains
-  key                   Create and manage testnet signing keys
-  network               Manage locally deployed subnets
-  node                  Set up fuji and mainnet validator on cloud service
-  primary               Interact with the Primary Network
-  subnet                Create and deploy blockchains (deprecation notice: use 'avalanche blockchain')
-  teleporter            Interact with teleporter-enabled subnets
-  transaction           Sign and execute specific transactions
-  update                Check for latest updates of Avalanche-CLI
-
-Flags:
-      --config string       config file (default is $HOME/.avalanche-cli/config.json)
-  -h, --help                help for avalanche
-      --log-level string    log level for the application (default "ERROR")
-      --skip-update-check   skip check for new versions
-  -v, --version             version for avalanche
-
-Use "avalanche [command] --help" for more information about a command.
-```
+To head over, follow the installation instructions in the Avalanche-CLI [README](https://github.com/ava-labs/avalanche-cli?tab=readme-ov-file#installation).
 
 To verify that your version is at least `2.0.0`, run the following:
 
