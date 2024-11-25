@@ -150,6 +150,9 @@ func (n *Node[T]) BuildChunk(
 			Signature: [bls.SignatureLen]byte{},
 		},
 	)
+	if err != nil {
+		return Chunk[T]{}, fmt.Errorf("failed to initialize warp message: %w", err)
+	}
 
 	validators := make([]warp.Validator, 0, len(n.validators))
 	for _, v := range n.validators {
