@@ -33,6 +33,8 @@ var (
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
+const validityWindowDuration = int64(5)
+
 type (
 	ChainIndex         = validitywindow.ChainIndex[*ChunkCertificate]
 	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
@@ -63,7 +65,7 @@ func New[T Tx](
 		return nil, err
 	}
 
-	node := &Node[T]{
+	return &Node[T]{
 		nodeID:         nodeID,
 		networkID:      networkID,
 		chainID:        chainID,
@@ -90,13 +92,11 @@ func New[T Tx](
 		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
 			storage: storage,
 		},
-		storage: storage,
-		log:     log,
-		tracer:  tracer,
-	}
-
-	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, chainIndex)
-	return node, err
+		storage:        storage,
+		log:            log,
+		tracer:         tracer,
+		validityWindow: validitywindow.NewTimeValidityWindow(log, tracer, chainIndex),
+	}, nil
 }
 
 type (
@@ -193,8 +193,6 @@ func (n *Node[T]) BuildChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-const validityWindowDuration = int64(5)
-
 // BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error)
 func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Tmstmp {
@@ -219,7 +217,6 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		}
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
-
 	if len(availableChunkCerts) == 0 {
 		return Block{}, ErrNoAvailableChunkCerts
 	}
