@@ -57,7 +57,7 @@ func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
 		minTxsPerSecond:  2000,
 		txsPerSecondStep: 2000,
 		numClients:       10,
-		numAccounts:      5000,
+		numAccounts:      1000,
 	}, nil
 }
 
