@@ -85,12 +85,13 @@ func New[T Tx](
 		storage: storage,
 		log:     logging.NewLogger("dsmr"),
 	}
+	node.tracer, err = trace.New(trace.Config{})
 	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, node)
-	return node, nil
+	return node, err
 }
 
 type (
-	validityWindow[T Tx] *validitywindow.TimeValidityWindow[Chunk[T]]
+	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
 
 	Node[T Tx] struct {
 		nodeID                       ids.NodeID
@@ -102,7 +103,7 @@ type (
 		getChunkSignatureClient      *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]
 		chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
 		validators                   []Validator
-		validityWindow               validityWindow[T]
+		validityWindow               timeValidityWindow
 
 		GetChunkHandler               *GetChunkHandler[T]
 		GetChunkSignatureHandler      *acp118.Handler
@@ -185,24 +186,34 @@ func (n *Node[T]) BuildChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
+const validityWindowDuration = int64(5)
+
 // BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error)
-func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Tmstmp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
+	oldestAllowed := timestamp - validityWindowDuration
+	if oldestAllowed < 0 {
+		oldestAllowed = 0
+	}
+	dup, err := n.validityWindow.IsRepeat(ctx, parent, chunkCerts, oldestAllowed)
+	if err != nil {
+		return Block{}, err
+	}
+
+	if dup.Len() == len(chunkCerts) {
+		return Block{}, ErrNoAvailableChunkCerts
+	}
+
 	availableChunkCerts := make([]*ChunkCertificate, 0)
-	for _, chunkCert := range chunkCerts {
-		// avoid building blocks with expired chunk certs
-		if chunkCert.Expiry < timestamp {
+	for i, chunkCert := range chunkCerts {
+		if dup.Contains(i) {
 			continue
 		}
-
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
-	}
-	if len(availableChunkCerts) == 0 {
-		return Block{}, ErrNoAvailableChunkCerts
 	}
 
 	blk := Block{
@@ -222,9 +233,14 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	return blk, nil
 }
 
-func (*Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
+func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) error {
 	// TODO: Verify header fields
-	// TODO: de-duplicate chunk certificates (internal to block and across history)
+
+	// Find repeats
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, block, parentBlock.Tmstmp); err != nil {
+		return err
+	}
+
 	for _, chunkCert := range block.ChunkCerts {
 		// TODO: verify chunks within a provided context
 		if err := chunkCert.Verify(ctx, struct{}{}); err != nil {
@@ -277,10 +293,12 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 			}
 		}
 	}
+	// update the validity window with the accepted block.
+	n.validityWindow.Accept(block)
 
 	return n.storage.SetMin(block.Tmstmp, chunkIDs)
 }
 
-func (n *Node[T]) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[Chunk[T]], error) {
+func (n *Node[T]) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
 	return nil, nil
 }

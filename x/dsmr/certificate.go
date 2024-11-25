@@ -54,7 +54,8 @@ type ChunkCertificate struct {
 	Signature NoVerifyChunkSignature `serialize:"true"`
 }
 
-func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
+func (c ChunkCertificate) GetID() ids.ID    { return c.ChunkID }
+func (c ChunkCertificate) GetExpiry() int64 { return c.Expiry }
 
 func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
 
@@ -209,7 +210,7 @@ func ParseWarpChunkCertificate(b []byte) (*WarpChunkCertificate, error) {
 	}, nil
 }
 
-func (c *WarpChunkCertificate) GetChunkID() ids.ID { return c.UnsignedCertificate.ChunkID() }
+func (c *WarpChunkCertificate) GetID() ids.ID { return c.UnsignedCertificate.ChunkID() }
 
 func (c *WarpChunkCertificate) GetSlot() int64 { return c.UnsignedCertificate.Slot() }
 
