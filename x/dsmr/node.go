@@ -302,6 +302,6 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	return n.storage.SetMin(block.Tmstmp, chunkIDs)
 }
 
-func (n *Node[T]) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
+func (*Node[T]) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
 	return nil, nil
 }

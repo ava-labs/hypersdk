@@ -137,7 +137,7 @@ func (b Block) Timestamp() int64 {
 }
 
 func (b Block) Height() uint64 {
-	return uint64(b.Hght)
+	return b.Hght
 }
 
 func (b Block) Txs() []*ChunkCertificate {
