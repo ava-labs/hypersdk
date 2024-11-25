@@ -33,6 +33,11 @@ var (
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
+type (
+	ChainIndex         = validitywindow.ChainIndex[*ChunkCertificate]
+	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
+)
+
 type Validator struct {
 	NodeID ids.NodeID
 	Weight uint64
@@ -51,6 +56,7 @@ func New[T Tx](
 	validators []Validator,
 	log logging.Logger,
 	tracer trace.Tracer,
+	chainIndex ChainIndex,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -89,13 +95,11 @@ func New[T Tx](
 		tracer:  tracer,
 	}
 
-	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, node)
+	node.validityWindow = validitywindow.NewTimeValidityWindow(node.log, node.tracer, chainIndex)
 	return node, err
 }
 
 type (
-	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
-
 	Node[T Tx] struct {
 		nodeID                       ids.NodeID
 		networkID                    uint32
@@ -207,16 +211,16 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		return Block{}, err
 	}
 
-	if dup.Len() == len(chunkCerts) {
-		return Block{}, ErrNoAvailableChunkCerts
-	}
-
 	availableChunkCerts := make([]*ChunkCertificate, 0)
 	for i, chunkCert := range chunkCerts {
 		if dup.Contains(i) {
 			continue
 		}
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
+	}
+
+	if len(availableChunkCerts) == 0 {
+		return Block{}, ErrNoAvailableChunkCerts
 	}
 
 	blk := Block{
@@ -300,8 +304,4 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	n.validityWindow.Accept(block)
 
 	return n.storage.SetMin(block.Tmstmp, chunkIDs)
-}
-
-func (*Node[T]) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
-	return nil, nil
 }

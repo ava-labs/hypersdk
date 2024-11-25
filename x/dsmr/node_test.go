@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
@@ -39,6 +40,16 @@ func newTestingTracer(t *testing.T) trace.Tracer {
 	tracer, err := trace.New(trace.Config{})
 	require.NoError(t, err)
 	return tracer
+}
+
+type testingChainIndex struct{}
+
+func (*testingChainIndex) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
+	return nil, nil
+}
+
+func newChainIndexer() ChainIndex {
+	return &testingChainIndex{}
 }
 
 // Test that chunks can be built through Node.NewChunk
@@ -130,6 +141,7 @@ func TestNode_BuildChunk(t *testing.T) {
 				nil,
 				newTestingLog(),
 				newTestingTracer(t),
+				newChainIndexer(),
 			)
 			r.NoError(err)
 
@@ -196,6 +208,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -289,6 +302,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -368,6 +382,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -583,6 +598,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				nil,
 				newTestingLog(),
 				newTestingTracer(t),
+				newChainIndexer(),
 			)
 			r.NoError(err)
 
@@ -718,6 +734,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				nil,
 				newTestingLog(),
 				newTestingTracer(t),
+				newChainIndexer(),
 			)
 			r.NoError(err)
 
@@ -768,6 +785,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				nil,
 				newTestingLog(),
 				newTestingTracer(t),
+				newChainIndexer(),
 			)
 			r.NoError(err)
 			chunk, err := node2.BuildChunk(
@@ -888,6 +906,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -984,6 +1003,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -1022,6 +1042,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 		[]Validator{{NodeID: node1.nodeID}},
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -1325,6 +1346,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				nil,
 				newTestingLog(),
 				newTestingTracer(t),
+				newChainIndexer(),
 			)
 			r.NoError(err)
 
@@ -1413,6 +1435,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		nil,
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 
@@ -1469,6 +1492,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		[]Validator{{NodeID: node1.nodeID}},
 		newTestingLog(),
 		newTestingTracer(t),
+		newChainIndexer(),
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))

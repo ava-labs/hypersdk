@@ -144,7 +144,7 @@ func (b Block) Txs() []*ChunkCertificate {
 	return b.ChunkCerts
 }
 
-func (b Block) ContainsTx(id ids.ID) bool {
+func (b Block) Contains(id ids.ID) bool {
 	for _, c := range b.ChunkCerts {
 		if c.ChunkID == id {
 			return true

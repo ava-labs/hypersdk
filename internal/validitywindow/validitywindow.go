@@ -110,7 +110,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(tx.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil

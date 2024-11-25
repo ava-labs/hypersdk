@@ -53,7 +53,7 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 	}, nil
 }
 
-func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
+func (b *ExecutionBlock) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
