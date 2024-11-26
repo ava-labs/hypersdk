@@ -28,19 +28,19 @@ type Network struct {
 	uris []string
 }
 
-func (*Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (*Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) ([]*chain.Result, error) {
 	err := instances[0].confirmTxs(ctx, txs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	lastAcceptedBlock := instances[0].vm.LastAcceptedStatefulBlock()
 	for i := 1; i < len(instances); i++ {
 		err = instances[i].applyBlk(ctx, lastAcceptedBlock)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return instances[0].vm.LastAcceptedBlockResult().Results, nil
 }
 
 func (*Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {

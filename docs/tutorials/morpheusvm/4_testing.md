@@ -408,15 +408,19 @@ This step will consist of the following:
   - If the test takes longer than 2 seconds, it will fail
 - Calling `ConfirmTxs` with our TX being passed in
 
-The function `ConfirmTXs` is useful as it checks that our TX was
-sent and that, if finalized, our transaction has the expected outputs. We have
+The function `ConfirmTxs` is useful as it checks that our TX was
+sent and that, if finalized, it returns the txs results. We have
 the following:
 
 ```go
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()
 
-	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+	results, err := tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx})
+	require.NoError(err)
+	for _, result := range results {
+		require.True(result.Success)
+	}
 ```
 
 ## Registering our Tests
