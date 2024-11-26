@@ -30,6 +30,7 @@ import (
 var (
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
+	ErrAllChunkCertsDuplicate              = errors.New("all chunk certs are duplicated")
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
@@ -193,7 +194,6 @@ func (n *Node[T]) BuildChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-// BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error)
 func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Tmstmp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
@@ -218,6 +218,9 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
+		if dup.Len() == len(chunkCerts) && len(chunkCerts) > 0 {
+			return Block{}, ErrAllChunkCertsDuplicate
+		}
 		return Block{}, ErrNoAvailableChunkCerts
 	}
 

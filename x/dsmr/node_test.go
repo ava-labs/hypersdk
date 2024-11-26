@@ -32,14 +32,25 @@ var (
 	_ Verifier[tx] = (*failVerifier)(nil)
 )
 
-type testingChainIndex struct{}
+type testingChainIndex struct {
+	blocks map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]
+}
 
-func (*testingChainIndex) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
+func (ti *testingChainIndex) GetExecutionBlock(_ context.Context, id ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], error) {
+	if blk, has := ti.blocks[id]; has {
+		return blk, nil
+	}
 	return nil, nil
 }
 
-func newTestingChainIndexer() ChainIndex {
-	return &testingChainIndex{}
+func (ti *testingChainIndex) set(id ids.ID, blk validitywindow.ExecutionBlock[*ChunkCertificate]) {
+	ti.blocks[id] = blk
+}
+
+func newTestingChainIndexer() *testingChainIndex {
+	return &testingChainIndex{
+		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]),
+	}
 }
 
 // Test that chunks can be built through Node.NewChunk
@@ -1468,7 +1479,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 
 	r.NoError(node.storage.AddLocalChunkWithCert(chunk, chunkCert))
 	_, err = node.BuildBlock(context.Background(), blk, 3)
-	r.ErrorIs(err, ErrNoAvailableChunkCerts)
+	r.ErrorIs(err, ErrAllChunkCertsDuplicate)
 
 	// make sure that it's not the case with any other chunk.
 	chunk, err = node.BuildChunk(
@@ -1493,6 +1504,149 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	r.NoError(node.storage.AddLocalChunkWithCert(chunk, chunkCert))
 	_, err = node.BuildBlock(context.Background(), blk, 3)
 	r.NoError(err)
+}
+
+func TestNode_Execute_Chunks(t *testing.T) {
+	r := require.New(t)
+	networkID := uint32(123)
+	chainID := ids.Empty
+	sk1, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk := bls.PublicFromSecretKey(sk1)
+	signer := warp.NewSigner(sk1, networkID, chainID)
+	r.NoError(err)
+
+	makeChunkCert := func(chunk Chunk[tx]) *ChunkCertificate {
+		return &ChunkCertificate{
+			ChunkID:   chunk.GetID(),
+			Expiry:    chunk.GetExpiry(),
+			Signature: NoVerifyChunkSignature{},
+		}
+	}
+	initChunks := func(node *Node[tx]) []Chunk[tx] {
+		var chunks []Chunk[tx]
+		for expiry := int64(0); expiry < 5; expiry++ {
+			chunk, err := node.BuildChunk(
+				context.Background(),
+				[]tx{
+					{
+						ID:     ids.GenerateTestID(),
+						Expiry: expiry,
+					},
+				},
+				expiry,
+				codec.Address{},
+			)
+			r.NoError(err)
+			chunks = append(chunks, chunk)
+
+		}
+		return chunks
+	}
+	testCases := []struct {
+		name           string
+		parentBlocks   [][]int // for each parent, a list of the chunks included.
+		chunks         []int
+		timestamp      int64
+		executeWantErr error
+		buildWantErr   error
+	}{
+		{
+			name:           "three empty blocks",
+			parentBlocks:   [][]int{{}, {}, {}},
+			chunks:         []int{},
+			timestamp:      4,
+			executeWantErr: nil,
+		},
+		{
+			name:           "three blocks, unique chunks",
+			parentBlocks:   [][]int{{1}, {2}, {3}},
+			chunks:         []int{},
+			timestamp:      4,
+			executeWantErr: nil,
+		},
+		{
+			name:           "two blocks one duplicate chunk",
+			parentBlocks:   [][]int{{0, 1}, {1, 2}},
+			chunks:         []int{},
+			timestamp:      4,
+			executeWantErr: validitywindow.ErrDuplicateContainer,
+		},
+		{
+			name:           "one block duplicate chunks",
+			parentBlocks:   [][]int{{1, 1}},
+			chunks:         []int{},
+			timestamp:      4,
+			executeWantErr: validitywindow.ErrDuplicateContainer,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			indexer := newTestingChainIndexer()
+			node, err := New[tx](
+				ids.EmptyNodeID,
+				networkID,
+				chainID,
+				pk,
+				signer,
+				NoVerifier[tx]{},
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				p2ptest.NewClient(
+					t,
+					context.Background(),
+					&p2p.NoOpHandler{},
+					ids.EmptyNodeID,
+					ids.EmptyNodeID,
+				),
+				nil,
+				logging.NoLog{},
+				trace.Noop,
+				indexer,
+			)
+			r.NoError(err)
+
+			chunks := initChunks(node)
+
+			// initialize node history.
+			var parentBlk Block
+			for blockNum, chunkList := range testCase.parentBlocks {
+				blk := Block{
+					ParentID: parentBlk.GetID(),
+					Hght:     uint64(blockNum),
+					Tmstmp:   int64(blockNum),
+					blkID:    ids.GenerateTestID(),
+				}
+				for _, chunkIndex := range chunkList {
+					blk.ChunkCerts = append(blk.ChunkCerts, makeChunkCert(chunks[chunkIndex]))
+				}
+				if blockNum > 0 {
+					r.ErrorIs(node.Execute(context.Background(), parentBlk, blk), testCase.executeWantErr)
+				}
+				r.NoError(node.Accept(context.Background(), blk))
+				indexer.set(blk.GetID(), blk)
+				parentBlk = blk
+			}
+			// feed the chunks into the storage and build a block.
+			for _, chunkIdx := range testCase.chunks {
+				r.NoError(node.storage.AddLocalChunkWithCert(chunks[chunkIdx], makeChunkCert(chunks[chunkIdx])))
+			}
+			_, err = node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			r.ErrorIs(err, testCase.buildWantErr)
+		})
+	}
 }
 
 // Nodes should request chunks referenced in accepted blocks
