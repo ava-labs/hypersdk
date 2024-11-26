@@ -9,8 +9,6 @@ set -o pipefail
 # Get the directory of the script, even if sourced from another directory
 SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 
-# shellcheck source=/scripts/common/build.sh
-source "$SCRIPT_DIR"/../../../scripts/common/build.sh
 # shellcheck source=/scripts/constants.sh
 source "$SCRIPT_DIR"/../../../scripts/constants.sh
 # Construct the correct path to morpheusvm directory
@@ -19,4 +17,17 @@ MORPHEUSVM_PATH=$(
   cd .. && pwd
 )
 
-build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+if [[ $# -eq 1 ]]; then
+    BINARY_PATH=$1
+elif [[ $# -eq 0 ]]; then
+    # Set default binary directory location
+    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
+else
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    exit 1
+fi
+
+cd "$MORPHEUSVM_PATH"
+mkdir -p "$(dirname "$BINARY_PATH")"
+go build -o "$BINARY_PATH" ./cmd/morpheusvm

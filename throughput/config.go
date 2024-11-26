@@ -19,7 +19,8 @@ type Config struct {
 	numAccounts      int
 }
 
-func NewDefaultConfig(
+// Config used for E2E testing and CLI
+func NewFastConfig(
 	uris []string,
 	authFactory chain.AuthFactory,
 ) *Config {
@@ -34,6 +35,22 @@ func NewDefaultConfig(
 		numClients:       10,
 		numAccounts:      25,
 	}
+}
+
+// Config used for load testing script
+func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
+	return &Config{
+		uris:             uris,
+		authFactory:      authFactory,
+		sZipf:            1.0001,
+		vZipf:            2.7,
+		txsPerSecond:     100000,
+		minTxsPerSecond:  2000,
+		txsPerSecondStep: 1000,
+		numClients:       10,
+		// numAccounts: 10000000,
+		numAccounts: 100000,
+	}, nil
 }
 
 func NewConfig(
