@@ -239,46 +239,12 @@ func TestNode_BuildChunk(t *testing.T) {
 			r.Equal(wantPkBytes, chunk.Signer)
 
 			packer := &wrappers.Packer{MaxSize: MaxMessageSize}
-			r.NoError(codec.LinearCodec.MarshalInto(chunk, packer))
+			r.NoError(codec.LinearCodec.MarshalInto(chunk.UnsignedChunk, packer))
 			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 			r.NoError(err)
-
-			signers := set.NewBits(0, 1)
-			signature := &warp.BitSetSignature{
-				Signers:   signers.Bytes(),
-				Signature: [96]byte{},
-			}
-			copy(signature.Signature[:], chunk.Signature[:])
-
-			pChain := &validatorstest.State{
-				GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
-					return ids.Empty, nil
-				},
-				GetValidatorSetF: func(context.Context, uint64, ids.ID) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
-					return map[ids.NodeID]*snowValidators.GetValidatorOutput{
-						nodeID1: {
-							NodeID:    nodeID1,
-							PublicKey: pk1,
-							Weight:    1,
-						},
-						nodeID2: {
-							NodeID:    nodeID2,
-							PublicKey: pk2,
-							Weight:    1,
-						},
-					}, nil
-				},
-			}
-
-			r.NoError(signature.Verify(
-				context.Background(),
-				msg,
-				networkID,
-				pChain,
-				0,
-				1,
-				1,
-			))
+			wantSignature, err := signer3.Sign(msg)
+			r.NoError(err)
+			r.Equal(wantSignature, chunk.Signature[:])
 		})
 	}
 }
