@@ -109,7 +109,7 @@ type getChunkSignatureMarshaler struct {
 	chainID   ids.ID
 }
 
-func (g getChunkSignatureMarshaler) MarshalRequest(request *sdk.SignatureRequest) ([]byte, error) {
+func (getChunkSignatureMarshaler) MarshalRequest(request *sdk.SignatureRequest) ([]byte, error) {
 	return proto.Marshal(request)
 }
 
