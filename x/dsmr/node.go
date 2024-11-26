@@ -154,13 +154,12 @@ func (n *Node[T]) BuildChunk(
 		return Chunk[T]{}, fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
-	validators := make([]warp.Validator, 0, len(n.validators))
+	validators := make([]acp118.Validator, 0, len(n.validators))
 	for _, v := range n.validators {
-		validators = append(validators, warp.Validator{
-			PublicKey:      v.PublicKey,
-			PublicKeyBytes: bls.PublicKeyToCompressedBytes(v.PublicKey),
-			Weight:         v.Weight,
-			NodeIDs:        []ids.NodeID{v.NodeID},
+		validators = append(validators, acp118.Validator{
+			PublicKey: v.PublicKey,
+			Weight:    v.Weight,
+			NodeID:    v.NodeID,
 		})
 	}
 
