@@ -42,7 +42,7 @@ func (NoVerifier[T]) Verify(Chunk[T]) error {
 
 type StoredChunkSignature[T Tx] struct {
 	Chunk     Chunk[T]
-	Cert      *ChunkCertificate
+	Cert      *ChunkCertificate[T]
 	Available bool
 }
 
@@ -124,7 +124,7 @@ func (s *chunkStorage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
-func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate) error {
+func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate[T]) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -133,7 +133,7 @@ func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 
 // SetChunkCert sets the chunk certificate for the given chunkID
 // Assumes the caller has already verified the cert references the provided chunkID
-func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
+func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate[T]) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -169,7 +169,7 @@ func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	return nil, nil
 }
 
-func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
+func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate[T]) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
 	}
@@ -230,11 +230,11 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 // GatherChunkCerts provides a slice of chunk certificates to build
 // a chunk based block.
 // TODO: switch from returning random chunk certs to ordered by expiry
-func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
+func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate[T] {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
+	chunkCerts := make([]*ChunkCertificate[T], 0, len(s.chunkMap))
 	for _, chunk := range s.chunkMap {
 		if chunk.Cert == nil {
 			continue

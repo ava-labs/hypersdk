@@ -303,7 +303,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r.NoError(err)
 
 	blk, err := node.BuildBlock(
-		Block{
+		Block[tx]{
 			ParentID:  ids.GenerateTestID(),
 			Height:    0,
 			Timestamp: 1,
@@ -700,7 +700,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 			}
 
 			block, err := node.BuildBlock(
-				Block{
+				Block[tx]{
 					ParentID:  ids.GenerateTestID(),
 					Height:    0,
 					Timestamp: 1,
@@ -1010,7 +1010,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	)
 	r.NoError(err)
 	blk, err := node.BuildBlock(
-		Block{
+		Block[tx]{
 			ParentID:  ids.GenerateTestID(),
 			Height:    0,
 			Timestamp: 1,
@@ -1160,10 +1160,10 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	// Keep trying to build a block until we hear about the newly generated
 	// chunk cert
-	var blk Block
+	var blk Block[tx]
 	for {
 		blk, err = node1.BuildBlock(
-			Block{
+			Block[tx]{
 				ParentID:  ids.Empty,
 				Height:    0,
 				Timestamp: 0,
@@ -1215,13 +1215,13 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 	tests := []struct {
 		name      string
 		chunks    []chunk
-		parent    Block
+		parent    Block[tx]
 		timestamp int64
 		wantErr   error
 	}{
 		{
 			name: "no chunk certs",
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1233,7 +1233,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		},
 		{
 			name: "timestamp equal to parent",
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1244,7 +1244,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		},
 		{
 			name: "timestamp older than parent",
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1266,7 +1266,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					expiry: 1,
 				},
 			},
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1306,7 +1306,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					expiry: 3,
 				},
 			},
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1328,7 +1328,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					expiry: 2,
 				},
 			},
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1367,7 +1367,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					expiry: 2,
 				},
 			},
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1397,7 +1397,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					expiry: 3,
 				},
 			},
-			parent: Block{
+			parent: Block[tx]{
 				ParentID:  ids.GenerateTestID(),
 				Height:    1,
 				Timestamp: 1,
@@ -1574,7 +1574,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node1.BuildBlock(Block{
+	blk, err := node1.BuildBlock(Block[tx]{
 		ParentID:  ids.GenerateTestID(),
 		Height:    0,
 		Timestamp: 0,
@@ -1666,6 +1666,120 @@ func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.N
 	}
 
 	return signerBitSet
+}
+
+func Test_Execute(t *testing.T) {
+	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
+
+	nodeID1 := ids.GenerateTestNodeID()
+	sk1, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk1 := bls.PublicFromSecretKey(sk1)
+	signer1 := warp.NewSigner(sk1, networkID, chainID)
+	r.NoError(err)
+
+	nodeID2 := ids.GenerateTestNodeID()
+	sk2, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk2 := bls.PublicFromSecretKey(sk2)
+	signer2 := warp.NewSigner(sk2, networkID, chainID)
+
+	validators := []Validator{
+		{
+			NodeID:    nodeID1,
+			Weight:    1,
+			PublicKey: pk1,
+		},
+	}
+
+	node1, err := New[tx](
+		logging.NoLog{},
+		nodeID1,
+		networkID,
+		chainID,
+		pk1,
+		signer1,
+		NoVerifier[tx]{},
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		validators,
+		0,
+		1,
+	)
+	r.NoError(err)
+
+	node2, err := New[tx](
+		logging.NoLog{},
+		nodeID2,
+		networkID,
+		chainID,
+		pk2,
+		signer2,
+		NoVerifier[tx]{},
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			node1.GetChunkHandler,
+			nodeID2,
+			nodeID1,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			node1.GetChunkSignatureHandler,
+			nodeID2,
+			nodeID1,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		validators,
+		1,
+		1,
+	)
+	r.NoError(err)
+
+	_, err = node2.BuildChunk(
+		context.Background(),
+		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
+		1,
+		codec.Address{123},
+	)
+	r.NoError(err)
+	blk, err := node2.BuildBlock(Block[tx]{
+		ParentID:  ids.GenerateTestID(),
+		Height:    0,
+		Timestamp: 0,
+	}, 1)
+	r.NoError(err)
+	r.NoError(node2.Accept(context.Background(), blk))
+	r.NoError(node2.Execute(context.Background(), blk))
 }
 
 type tx struct {

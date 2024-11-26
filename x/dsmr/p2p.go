@@ -155,13 +155,13 @@ type ChunkCertificateGossipHandler[T Tx] struct {
 }
 
 // TODO error handling + logs
-func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
+func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
 		return
 	}
 
-	chunkCert := ChunkCertificate{}
+	chunkCert := ChunkCertificate[T]{}
 	packer := wrappers.Packer{MaxSize: MaxMessageSize, Bytes: gossip.ChunkCertificate}
 	if err := codec.LinearCodec.UnmarshalFrom(&packer, &chunkCert); err != nil {
 		return

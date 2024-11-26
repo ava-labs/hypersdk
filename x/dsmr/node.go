@@ -180,7 +180,7 @@ func (n *Node[T]) BuildChunk(
 		return Chunk[T]{}, fmt.Errorf("failed to replicate to sufficient stake: %w", err)
 	}
 
-	chunkCert := ChunkCertificate{
+	chunkCert := ChunkCertificate[T]{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
 		Signature: aggregatedMsg.Signature.(*warp.BitSetSignature),
@@ -201,13 +201,13 @@ func (n *Node[T]) BuildChunk(
 	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error) {
 	if timestamp <= parent.Timestamp {
-		return Block{}, ErrTimestampNotMonotonicallyIncreasing
+		return Block[T]{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
-	availableChunkCerts := make([]*ChunkCertificate, 0)
+	availableChunkCerts := make([]*ChunkCertificate[T], 0)
 	for _, chunkCert := range chunkCerts {
 		// avoid building blocks with expired chunk certs
 		if chunkCert.Expiry < timestamp {
@@ -217,10 +217,10 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
-		return Block{}, ErrNoAvailableChunkCerts
+		return Block[T]{}, ErrNoAvailableChunkCerts
 	}
 
-	blk := Block{
+	blk := Block[T]{
 		ParentID:   parent.GetID(),
 		Height:     parent.Height + 1,
 		Timestamp:  timestamp,
@@ -229,7 +229,7 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
-		return Block{}, err
+		return Block[T]{}, err
 	}
 
 	blk.blkBytes = packer.Bytes
@@ -237,16 +237,17 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	return blk, nil
 }
 
-func (n *Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
+func (n *Node[T]) Execute(ctx context.Context, block Block[T]) error {
 	// TODO: Verify header fields
 	// TODO: de-duplicate chunk certificates (internal to block and across history)
 	for _, chunkCert := range block.ChunkCerts {
 		// TODO: verify chunks within a provided context
 		if err := chunkCert.Verify(
 			ctx,
+			n.storage,
 			n.networkID,
 			n.chainID,
-			pChain{n.validators},
+			pChain{validators: n.validators},
 			0,
 			n.quorumNum,
 			n.quorumDen,
@@ -258,7 +259,7 @@ func (n *Node[T]) Execute(ctx context.Context, _ Block, block Block) error {
 	return nil
 }
 
-func (n *Node[T]) Accept(ctx context.Context, block Block) error {
+func (n *Node[T]) Accept(ctx context.Context, block Block[T]) error {
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {
 		chunkIDs = append(chunkIDs, chunkCert.ChunkID)

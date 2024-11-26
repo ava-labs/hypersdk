@@ -39,18 +39,18 @@ func init() {
 	}
 }
 
-type ChunkCertificate struct {
+type ChunkCertificate[T Tx] struct {
 	ChunkID ids.ID `serialize:"true"`
 	Expiry  int64  `serialize:"true"`
 
 	Signature *warp.BitSetSignature `serialize:"true"`
 }
 
-func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
+func (c *ChunkCertificate[_]) GetChunkID() ids.ID { return c.ChunkID }
 
-func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
+func (c *ChunkCertificate[_]) GetSlot() int64 { return c.Expiry }
 
-func (c *ChunkCertificate) Bytes() []byte {
+func (c *ChunkCertificate[_]) Bytes() []byte {
 	bytes, err := Codec.Marshal(CodecVersion, c)
 	if err != nil {
 		panic(err)
@@ -58,8 +58,9 @@ func (c *ChunkCertificate) Bytes() []byte {
 	return bytes
 }
 
-func (c *ChunkCertificate) Verify(
+func (c *ChunkCertificate[T]) Verify(
 	ctx context.Context,
+	storage *chunkStorage[T],
 	networkID uint32,
 	chainID ids.ID,
 	pChainState validators.State,
@@ -67,7 +68,12 @@ func (c *ChunkCertificate) Verify(
 	quorumNum uint64,
 	quorumDen uint64,
 ) error {
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, c.Bytes())
+	chunkBytes, ok, err := storage.GetChunkBytes(c.Expiry, c.ChunkID)
+	if !ok {
+		return errors.New("chunk is not available")
+	}
+
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkBytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned message: %w", err)
 	}
