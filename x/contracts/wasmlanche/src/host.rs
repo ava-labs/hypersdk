@@ -209,7 +209,7 @@ mod test_wrappers {
             Self {
                 state: RefCell::new(hashbrown::HashMap::new()),
                 deploys: Cell::new(0),
-                fuel: u64::MAX,
+                fuel: u64::MAX.into(),
             }
         }
 

@@ -33,6 +33,7 @@ type callContractInput struct {
 	Contract     codec.Address
 	FunctionName string
 	Params       []byte
+	PassAll      bool
 	Fuel         uint64
 	Value        uint64
 }
@@ -64,15 +65,22 @@ func NewContractModule(r *WasmRuntime) *ImportModule {
 			"call_contract": {FuelCost: callContractCost, Function: Function[callContractInput, Result[RawBytes, ContractCallErrorCode]](func(callInfo *CallInfo, input callContractInput) (Result[RawBytes, ContractCallErrorCode], error) {
 				newInfo := *callInfo
 
-				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
-					return Err[RawBytes, ContractCallErrorCode](OutOfFuel), nil //nolint:nilerr
+				if input.PassAll {
+					if input.Fuel > 0 {
+						return Err[RawBytes, ContractCallErrorCode](ExecutionFailure), nil
+					}
+					newInfo.Fuel = callInfo.RemainingFuel()
+				} else {
+					if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
+						return Err[RawBytes, ContractCallErrorCode](OutOfFuel), nil //nolint:nilerr
+					}
+					newInfo.Fuel = input.Fuel
 				}
 
 				newInfo.Actor = callInfo.Contract
 				newInfo.Contract = input.Contract
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.Fuel = input.Fuel
 				newInfo.Value = input.Value
 
 				result, err := r.CallContract(

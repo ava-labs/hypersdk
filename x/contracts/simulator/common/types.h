@@ -18,6 +18,11 @@ typedef struct {
     size_t length;
 } Bytes;
 
+typedef struct {
+    uint8_t pass_all;
+    uint64_t units;
+} Gas;
+
 typedef Bytes ContractId;
 
 // Bytes with an additional error field
@@ -40,8 +45,8 @@ typedef struct {
     const char* method;
     // params borsh serialized as byte vector
     Bytes params;
-    // max allowed gas during execution
-    uint64_t max_gas;
+    // passed gas during execution
+    Gas gas;
 } SimulatorCallContext;
 
 // Response from calling a contract
