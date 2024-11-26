@@ -27,10 +27,11 @@ import (
 )
 
 var (
-	_                                      validators.State = (*pChain)(nil)
-	ErrEmptyChunk                                           = errors.New("empty chunk")
-	ErrNoAvailableChunkCerts                                = errors.New("no available chunk certs")
-	ErrTimestampNotMonotonicallyIncreasing                  = errors.New("block timestamp must be greater than parent timestamp")
+	_ validators.State = (*pChain)(nil)
+
+	ErrEmptyChunk                          = errors.New("empty chunk")
+	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
+	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
 type Validator struct {
