@@ -308,19 +308,19 @@ type pChain struct {
 	validators []Validator
 }
 
-func (p pChain) GetMinimumHeight(context.Context) (uint64, error) {
+func (pChain) GetMinimumHeight(context.Context) (uint64, error) {
 	return 0, nil
 }
 
-func (p pChain) GetCurrentHeight(context.Context) (uint64, error) {
+func (pChain) GetCurrentHeight(context.Context) (uint64, error) {
 	return 0, nil
 }
 
-func (p pChain) GetSubnetID(context.Context, ids.ID) (ids.ID, error) {
+func (pChain) GetSubnetID(context.Context, ids.ID) (ids.ID, error) {
 	return ids.Empty, nil
 }
 
-func (p pChain) GetValidatorSet(ctx context.Context, height uint64, subnetID ids.ID) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
 	result := make(map[ids.NodeID]*validators.GetValidatorOutput)
 	for _, v := range p.validators {
 		result[v.NodeID] = &validators.GetValidatorOutput{
