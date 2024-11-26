@@ -1383,6 +1383,118 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 	}
 }
 
+// TestDuplicateChunksElimination tests that duplicate chunks that have appeared before are getting correctly eliminated.
+func TestDuplicateChunksElimination(t *testing.T) {
+	r := require.New(t)
+
+	networkID := uint32(123)
+	chainID := ids.Empty
+	sk, err := bls.NewSecretKey()
+	r.NoError(err)
+	pk := bls.PublicFromSecretKey(sk)
+	signer := warp.NewSigner(sk, networkID, chainID)
+
+	node, err := New[tx](
+		ids.EmptyNodeID,
+		networkID,
+		chainID,
+		pk,
+		signer,
+		NoVerifier[tx]{},
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		p2ptest.NewClient(
+			t,
+			context.Background(),
+			&p2p.NoOpHandler{},
+			ids.EmptyNodeID,
+			ids.EmptyNodeID,
+		),
+		nil,
+		logging.NoLog{},
+		trace.Noop,
+		newTestingChainIndexer(),
+	)
+	r.NoError(err)
+
+	blk := Block{
+		ParentID: ids.GenerateTestID(),
+		Hght:     1,
+		Tmstmp:   1,
+		blkID:    ids.GenerateTestID(),
+	}
+	r.NoError(node.Accept(context.Background(), blk))
+
+	chunk, err := node.BuildChunk(
+		context.Background(),
+		[]tx{
+			{
+				ID:     ids.GenerateTestID(),
+				Expiry: 4,
+			},
+		},
+		4,
+		codec.Address{},
+	)
+	r.NoError(err)
+	chunkCert := &ChunkCertificate{
+		ChunkID:   chunk.GetID(),
+		Expiry:    chunk.GetExpiry(),
+		Signature: NoVerifyChunkSignature{},
+	}
+
+	blk = Block{
+		ParentID: ids.GenerateTestID(),
+		Hght:     2,
+		Tmstmp:   2,
+		blkID:    ids.GenerateTestID(),
+		ChunkCerts: []*ChunkCertificate{
+			chunkCert,
+		},
+	}
+	r.NoError(node.Accept(context.Background(), blk))
+
+	r.NoError(node.storage.AddLocalChunkWithCert(chunk, chunkCert))
+	_, err = node.BuildBlock(context.Background(), blk, 3)
+	r.ErrorIs(err, ErrNoAvailableChunkCerts)
+
+	// make sure that it's not the case with any other chunk.
+	chunk, err = node.BuildChunk(
+		context.Background(),
+		[]tx{
+			{
+				ID:     ids.GenerateTestID(),
+				Expiry: 4,
+			},
+		},
+		4,
+		codec.Address{},
+	)
+	r.NoError(err)
+	chunkCert = &ChunkCertificate{
+		ChunkID:   chunk.GetID(),
+		Expiry:    chunk.GetExpiry(),
+		Signature: NoVerifyChunkSignature{},
+	}
+	r.NoError(node.Accept(context.Background(), blk))
+
+	r.NoError(node.storage.AddLocalChunkWithCert(chunk, chunkCert))
+	_, err = node.BuildBlock(context.Background(), blk, 3)
+	r.NoError(err)
+}
+
 // Nodes should request chunks referenced in accepted blocks
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
