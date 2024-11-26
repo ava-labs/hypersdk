@@ -69,6 +69,9 @@ func (c *ChunkCertificate[T]) Verify(
 	quorumDen uint64,
 ) error {
 	chunkBytes, ok, err := storage.GetChunkBytes(c.Expiry, c.ChunkID)
+	if err != nil {
+		return fmt.Errorf("failed to get chunk from storage: %w", err)
+	}
 	if !ok {
 		return errors.New("chunk is not available")
 	}
