@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests"
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
 
 	"github.com/ava-labs/hypersdk/abi"
@@ -40,7 +41,9 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
-	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
+	customAllocs, err := tests.TestsRegistry.GenerateCustomAllocations(auth.GenerateED25519AuthFactory)
+	require.NoError(err)
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100*time.Millisecond, customAllocs)
 	require.NoError(err)
 
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())

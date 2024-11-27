@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -72,13 +71,9 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 	return authFactories
 }
 
-func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
+func NewTestNetworkConfig(minBlockGap time.Duration, customAllocs []*genesis.CustomAllocation) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	testsLocalAllocations, err := tests.TestsRegistry.GenerateCustomAllocations(auth.GenerateED25519AuthFactory)
-	if err != nil {
-		return workload.DefaultTestNetworkConfiguration{}, err
-	}
-	genesis := newGenesis(keys, testsLocalAllocations, minBlockGap)
+	genesis := newGenesis(keys, customAllocs, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
 		return workload.DefaultTestNetworkConfiguration{}, err

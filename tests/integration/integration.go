@@ -624,7 +624,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(fmt.Sprintf("Custom VM Test '%s'", test.Name), func() {
 				require.NoError(testNetwork.SynchronizeNetwork(context.Background()))
-				test.Fnc(ginkgo.GinkgoT(), testNetwork, test.AuthFactories...)
+				test.Fnc(ginkgo.GinkgoT(), testNetwork, test.AuthFactories)
 			})
 		}
 	}
