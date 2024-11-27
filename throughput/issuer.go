@@ -90,8 +90,8 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {
-		i.l.Lock()
 		if i.ws.Closed() {
+			i.l.Lock()
 			if i.abandoned != nil {
 				i.l.Unlock()
 				return i.abandoned

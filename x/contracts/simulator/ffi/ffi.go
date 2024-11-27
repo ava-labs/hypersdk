@@ -157,7 +157,7 @@ func newCallContractResponse(result []byte, fuel uint64, err error) C.CallContra
 	}
 }
 
-// getBalance returns the balance of [account].
+// GetBalance returns the balance of [account].
 // Panics if there is an error.
 //
 //export GetBalance

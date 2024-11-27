@@ -79,7 +79,7 @@ type MetadataManager interface {
 }
 
 type BalanceHandler interface {
-	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
+	// SponsorStateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
 	//

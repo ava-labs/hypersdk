@@ -4,10 +4,11 @@ Let's quickly recap what we've done so far:
 
 - We've built a base implementation of MorpheusVM
 - We've extended our implementation by adding a JSON-RPC server option
+- We deployed our implementation of MorpheusVM and interacted with it
 
 With the above, our code should work exactly like the version of MorpheusVM
 found in `examples/`. To verify this though, we're going to apply the same 
-workload tests used in MorpheusVM against our VM.
+workload/`e2e` tests used in MorpheusVM against our VM.
 
 This section will consist of the following:
 
@@ -15,6 +16,8 @@ This section will consist of the following:
 - Implementing workload tests that generate a large quantity of generic transactions
 - Implementing workload tests that test for a specific transaction
 - Registering our workload tests
+- Implementing bash scripts to run `e2e` tests
+- Registering our `e2e` tests
 
 ## Workload Scripts
 
@@ -522,13 +525,129 @@ Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
-If you see this, then your VM passed the tests!
+If you see this, then your VM passed the workload tests!
+
+## Setting Up `e2e` Tests
+
+We'll now focus on adding `e2e` tests to our VM. To get started, in
+`examples/tutorial`, run the following commands:
+
+```bash
+cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
+cp ../morpheusvm/scripts/stop.sh ./scripts/stop.sh
+
+chmod +x ./scripts/run.sh
+chmod +x ./scripts/stop.sh
+```
+
+The commands above copied the run/stop scripts from MorpheusVM into our scripts folder, along with giving them execute permissions.
+
+Before moving forward, in lines 68-70 of `run.sh`, make sure to change it from this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/morpheusvm
+```
+
+to this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/tutorialvm
+```
+
+## Adding `e2e` Tests
+
+A caveat of the scripts above is that we need to define end-to-end (e2e) tests for our VM. To start, run the following:
+
+```bash
+mkdir tests/e2e
+touch tests/e2e/e2e_test.go
+```
+
+Then, in `e2e_test.go`, write the following:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package e2e_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/tutorial/tests" // include the tests that are shared between the integration and e2e
+
+	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
+	"github.com/ava-labs/hypersdk/tests/fixture"
+
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const owner = "tutorial-e2e-tests"
+
+var flagVars *e2e.FlagVars
+
+func TestE2e(t *testing.T) {
+	ginkgo.RunSpecs(t, "tutorial e2e test suites")
+}
+
+func init() {
+	flagVars = e2e.RegisterFlags()
+}
+
+// Construct tmpnet network with a single tutorial Subnet
+var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
+	require := require.New(ginkgo.GinkgoT())
+
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
+	require.NoError(err)
+
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	require.NoError(err)
+
+	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
+	generator := workload.NewTxGenerator(firstAuthFactory)
+	tc := e2e.NewTestContext()
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, firstAuthFactory)
+
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+}, func(envBytes []byte) {
+	// Run in every ginkgo process
+
+	// Initialize the local test environment from the global state
+	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+})
+
+```
+
+If the above looks familar to `integration_test.go`, that's because `e2e` tests
+follow the same logic as integration tests! The HyperSDK also has a framework
+for `e2e` tests, which only requires us to pass in required values like the ABI
+and a transaction generator.
+
+## Running `e2e` Tests
+
+To run your `e2e` tests, execute the following:
+
+```bash
+MODE=TEST ./scripts/run.sh
+```
+
+In your command-line, you should see a sequence of tests being executed.
 
 ## Conclusion
 
-Assuming the above went well, you've just built a VM which is functionally
-equivalent to MorpheusVM. Having built a base VM and extending it with options, we added tests to make sure our VM works as expected. 
-
-In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
-interact with our VM by reading from it and being able to send TXs in real time
-from the command line!
+Assuming the above went well, you've just verified that your VM is functionally
+equivalent to MorpheusVM. 

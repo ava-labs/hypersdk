@@ -64,6 +64,9 @@ var genGenesisCmd = &cobra.Command{
 		if minBlockGap >= 0 {
 			genesis.Rules.MinBlockGap = minBlockGap
 		}
+		if validityWindow >= 0 {
+			genesis.Rules.ValidityWindow = validityWindow
+		}
 
 		b, err := json.Marshal(genesis)
 		if err != nil {

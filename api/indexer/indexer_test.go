@@ -4,6 +4,7 @@
 package indexer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,6 +16,7 @@ import (
 
 func createTestIndexer(
 	t *testing.T,
+	ctx context.Context,
 	numExecutedBlocks int,
 	blockWindow int,
 ) (indexer *Indexer, executedBlocks []*chain.ExecutedBlock, indexerDir string) {
@@ -33,7 +35,7 @@ func createTestIndexer(
 		numExecutedBlocks,
 	)
 	for _, blk := range executedBlocks {
-		err = indexer.Accept(blk)
+		err = indexer.Notify(ctx, blk)
 		require.NoError(err)
 	}
 	return indexer, executedBlocks, tempDir
@@ -74,11 +76,12 @@ func checkBlocks(
 
 func TestBlockIndex(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
@@ -86,11 +89,12 @@ func TestBlockIndex(t *testing.T) {
 
 func TestBlockIndexRestart(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
 
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)

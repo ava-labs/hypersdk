@@ -116,7 +116,6 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		if spamKey == nil || spamHelper == nil {
 			return
 		}
-
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
@@ -126,7 +125,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		err := spamHelper.CreateClient(uris[0])
 		require.NoError(err)
 
-		spamConfig := throughput.NewDefaultConfig(uris, key)
+		spamConfig := throughput.NewFastConfig(uris, key)
 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
 		require.NoError(err)
 
