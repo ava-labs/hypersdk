@@ -1539,7 +1539,6 @@ func TestNode_Execute_Chunks(t *testing.T) {
 			)
 			r.NoError(err)
 			chunks = append(chunks, chunk)
-
 		}
 		return chunks
 	}
