@@ -41,8 +41,9 @@ func (NoVerifier[T]) Verify(Chunk[T]) error {
 }
 
 type StoredChunkSignature[T Tx] struct {
-	Chunk     Chunk[T]
-	Cert      *ChunkCertificate[T]
+	Chunk Chunk[T]
+	Cert  *ChunkCertificate[T]
+	// TODO what do we need this flag for?
 	Available bool
 }
 

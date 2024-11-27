@@ -156,7 +156,7 @@ func (n *Node[T]) BuildChunk(
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
 		ctx,
 		msg,
-		nil,
+		nil, // justification is unused and is safe to be nil
 		canonicalValidators,
 		n.quorumNum,
 		n.quorumDen,
@@ -230,7 +230,6 @@ func (n *Node[T]) Execute(ctx context.Context, block Block[T]) error {
 	// TODO: Verify header fields
 	// TODO: de-duplicate chunk certificates (internal to block and across history)
 	for _, chunkCert := range block.ChunkCerts {
-		// TODO: verify chunks within a provided context
 		if err := chunkCert.Verify(
 			ctx,
 			n.storage,

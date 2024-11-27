@@ -1114,8 +1114,8 @@ func Test_Execute(t *testing.T) {
 	}, 1)
 	r.NoError(err)
 
-	r.NoError(node.Accept(context.Background(), blk))
 	r.NoError(node.Execute(context.Background(), blk))
+	r.NoError(node.Accept(context.Background(), blk))
 }
 
 type tx struct {
