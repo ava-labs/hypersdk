@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -26,12 +27,22 @@ import (
 	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
+const (
+	maxTimeSkew = 30 * time.Second
+)
+
 var (
 	_ snowValidators.State = (*pChain)(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
+	ErrEmptyBlock                          = errors.New("block must reference chunks")
+	ErrInvalidBlockParent                  = errors.New("invalid referenced block parent")
+	ErrInvalidBlockHeight                  = errors.New("invalid block height")
+	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
+	ErrInvalidChunkCert                    = errors.New("invalid chunk cert")
+	ErrDuplicateChunkCert                  = errors.New("duplicate chunk cert")
 )
 
 type Validator struct {
@@ -55,11 +66,13 @@ func New[T Tx](
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
 	validators []Validator, // TODO remove hard-coded validator set
+	lastAccepted Block[T],
 	quorumNum uint64,
 	quorumDen uint64,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
+		LastAccepted:                  lastAccepted,
 		networkID:                     networkID,
 		chainID:                       chainID,
 		PublicKey:                     pk,
@@ -81,6 +94,7 @@ type Node[T Tx] struct {
 	ID                           ids.NodeID
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
+	LastAccepted                 Block[T]
 	networkID                    uint32
 	chainID                      ids.ID
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
@@ -103,9 +117,9 @@ func (n *Node[T]) BuildChunk(
 	txs []T,
 	expiry int64,
 	beneficiary codec.Address,
-) (Chunk[T], error) {
+) (Chunk[T], ChunkCertificate[T], error) {
 	if len(txs) == 0 {
-		return Chunk[T]{}, ErrEmptyChunk
+		return Chunk[T]{}, ChunkCertificate[T]{}, ErrEmptyChunk
 	}
 
 	chunk, err := signChunk[T](
@@ -121,17 +135,17 @@ func (n *Node[T]) BuildChunk(
 		n.Signer,
 	)
 	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(chunk, &packer); err != nil {
-		return Chunk[T]{}, err
+		return Chunk[T]{}, ChunkCertificate[T]{}, err
 	}
 
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
 	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to initialize unsigned warp message: %w", err)
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
 	msg, err := warp.NewMessage(
 		unsignedMsg,
@@ -140,7 +154,7 @@ func (n *Node[T]) BuildChunk(
 		},
 	)
 	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to initialize warp message: %w", err)
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
 	canonicalValidators, _, err := warp.GetCanonicalValidatorSet(
@@ -150,7 +164,7 @@ func (n *Node[T]) BuildChunk(
 		ids.Empty,
 	)
 	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to get canonical validator set: %w", err)
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to get canonical validator set: %w", err)
 	}
 
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
@@ -162,16 +176,16 @@ func (n *Node[T]) BuildChunk(
 		n.quorumDen,
 	)
 	if err != nil {
-		return Chunk[T]{}, fmt.Errorf("failed to aggregate signatures: %w", err)
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to aggregate signatures: %w", err)
 	}
 
 	if !ok {
-		return Chunk[T]{}, errors.New("failed to replicate to sufficient stake")
+		return Chunk[T]{}, ChunkCertificate[T]{}, errors.New("failed to replicate to sufficient stake")
 	}
 
 	bitSetSignature, ok := aggregatedMsg.Signature.(*warp.BitSetSignature)
 	if !ok {
-		return Chunk[T]{}, errors.New("invalid signature type")
+		return Chunk[T]{}, ChunkCertificate[T]{}, errors.New("invalid signature type")
 	}
 
 	chunkCert := ChunkCertificate[T]{
@@ -182,17 +196,17 @@ func (n *Node[T]) BuildChunk(
 
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
-		return Chunk[T]{}, err
+		return Chunk[T]{}, ChunkCertificate[T]{}, err
 	}
 
 	if err := n.chunkCertificateGossipClient.AppGossip(
 		ctx,
 		&dsmr.ChunkCertificateGossip{ChunkCertificate: packer.Bytes},
 	); err != nil {
-		return Chunk[T]{}, err
+		return Chunk[T]{}, ChunkCertificate[T]{}, err
 	}
 
-	return chunk, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
+	return chunk, chunkCert, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
 func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error) {
@@ -231,10 +245,44 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 	return blk, nil
 }
 
-func (n *Node[T]) Execute(ctx context.Context, block Block[T]) error {
-	// TODO: Verify header fields
-	// TODO: de-duplicate chunk certificates (internal to block and across history)
+func (n *Node[T]) Execute(ctx context.Context, parent Block[T], block Block[T]) error {
+	if block.ParentID != parent.GetID() {
+		return fmt.Errorf(
+			"%w %s: expected %s",
+			ErrInvalidBlockParent,
+			block.ParentID,
+			parent.GetID(),
+		)
+	}
+
+	if block.Height != parent.Height+1 {
+		return fmt.Errorf(
+			"%w %d: expected %d",
+			ErrInvalidBlockHeight,
+			block.Height,
+			parent.Height+1,
+		)
+	}
+
+	if block.Timestamp <= parent.Timestamp ||
+		block.Timestamp > parent.Timestamp+maxTimeSkew.Nanoseconds() {
+		return fmt.Errorf("%w %d: parent - %d", ErrInvalidBlockTimestamp, block.Timestamp, parent.Timestamp)
+	}
+
+	if len(block.ChunkCerts) == 0 {
+		return fmt.Errorf("%w: %s", ErrEmptyBlock, block.GetID())
+	}
+
 	for _, chunkCert := range block.ChunkCerts {
+		_, ok, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
+		if err != nil && !errors.Is(err, database.ErrNotFound) {
+			return fmt.Errorf("failed to get chunk: %w", err)
+		}
+
+		if ok {
+			return fmt.Errorf("%w: %s", ErrDuplicateChunkCert, chunkCert.ChunkID)
+		}
+
 		if err := chunkCert.Verify(
 			ctx,
 			n.storage,
@@ -245,7 +293,7 @@ func (n *Node[T]) Execute(ctx context.Context, block Block[T]) error {
 			n.quorumNum,
 			n.quorumDen,
 		); err != nil {
-			return err
+			return fmt.Errorf("%w %s: %w", ErrInvalidChunkCert, chunkCert.ChunkID, err)
 		}
 	}
 
@@ -295,7 +343,12 @@ func (n *Node[T]) Accept(ctx context.Context, block Block[T]) error {
 		}
 	}
 
-	return n.storage.SetMin(block.Timestamp, chunkIDs)
+	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
+		return fmt.Errorf("failed to prune chunks: %w", err)
+	}
+
+	n.LastAccepted = block
+	return nil
 }
 
 type pChain struct {
