@@ -55,7 +55,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
 	generator := workload.NewTxGenerator(firstAuthFactory)
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, firstAuthFactory)
+	bm, err := throughput.NewBenchmark()
+	require.NoError(err)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, bm, firstAuthFactory)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {

@@ -25,6 +25,9 @@ type tracker struct {
 	totalTxs     int
 
 	sent atomic.Int64
+
+	// Injected by VM
+	bm Benchmark
 }
 
 func (t *tracker) logResult(
@@ -35,6 +38,9 @@ func (t *tracker) logResult(
 	if result != nil {
 		if result.Success {
 			t.confirmedTxs++
+			if err := t.bm.LogOutputs(result.Outputs); err != nil {
+				utils.Outf("{{orange}}failed to log outputs:{{/}} %v\n", err)
+			}
 		} else {
 			utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
 		}
@@ -72,6 +78,7 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 						current-psent,
 						unitPrices,
 					)
+					t.bm.LogState()
 				}
 				t.l.Unlock()
 				psent = current

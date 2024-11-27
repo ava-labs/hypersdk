@@ -64,13 +64,22 @@ var runSpamCmd = &cobra.Command{
 			if err := spamHelper.CreateClient(uris[0]); err != nil {
 				return err
 			}
-			spammer, err := hthroughput.NewSpammer(spamConfig, spamHelper)
+			bm, err := throughput.NewBenchmark()
+			if err != nil {
+				return err
+			}
+			spammer, err := hthroughput.NewSpammer(spamConfig, spamHelper, bm)
 			if err != nil {
 				return err
 			}
 			return spammer.Spam(ctx, spamHelper, true, "AVAX")
 		}
 
-		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, spamKey, spamDefaults)
+		bm, err := throughput.NewBenchmark()
+		if err != nil {
+			return err
+		}
+
+		return handler.Root().Spam(ctx, &throughput.SpamHelper{KeyType: args[0]}, bm, spamKey, spamDefaults)
 	},
 }

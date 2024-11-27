@@ -60,12 +60,15 @@ type Spammer struct {
 
 	// keep track of variables shared across issuers
 	tracker *tracker
+	bm      Benchmark
 }
 
-func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
+func NewSpammer(sc *Config, sh SpamHelper, bm Benchmark) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
-	tracker := &tracker{}
+	tracker := &tracker{
+		bm: bm,
+	}
 	balance, err := sh.LookupBalance(sc.authFactory.Address())
 	if err != nil {
 		return nil, err
@@ -86,6 +89,7 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 		numAccounts:      sc.numAccounts,
 
 		tracker: tracker,
+		bm:      bm,
 	}, nil
 }
 

@@ -33,9 +33,10 @@ var (
 	expectedABI   abi.ABI
 	spamKey       chain.AuthFactory
 	spamHelper    throughput.SpamHelper
+	benchmark     throughput.Benchmark
 )
 
-func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key chain.AuthFactory) {
+func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, bm throughput.Benchmark, key chain.AuthFactory) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{
 		Generator: generator,
@@ -43,6 +44,7 @@ func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator 
 	expectedABI = abi
 	spamHelper = sh
 	spamKey = key
+	benchmark = bm
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -126,7 +128,7 @@ var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		spamConfig := throughput.NewFastConfig(uris, key)
-		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
+		spammer, err := throughput.NewSpammer(spamConfig, spamHelper, benchmark)
 		require.NoError(err)
 
 		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")

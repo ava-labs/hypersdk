@@ -18,7 +18,7 @@ import (
 // If [spamKey] is provided, the user is not prompted for the root key.
 // If [defaults], the default values are used once the
 // chain and root key are selected. Otherwise, the user is prompted for all parameters.
-func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, defaults bool) (*throughput.Spammer, error) {
+func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, bm throughput.Benchmark, defaults bool) (*throughput.Spammer, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
@@ -70,7 +70,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 
 	if defaults {
 		sc := throughput.NewFastConfig(uris, authFactory)
-		return throughput.NewSpammer(sc, sh)
+		return throughput.NewSpammer(sc, sh, bm)
 	}
 	// Collect parameters
 	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
@@ -118,14 +118,14 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 		numAccounts,
 	)
 
-	return throughput.NewSpammer(sc, sh)
+	return throughput.NewSpammer(sc, sh, bm)
 }
 
-func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, spamKey string, defaults bool) error {
-	spammer, err := h.BuildSpammer(sh, spamKey, defaults)
+func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, bm throughput.Benchmark, spamKey string, defaults bool) error {
+	spammer, err := h.BuildSpammer(sh, spamKey, bm, defaults)
 	if err != nil {
 		return err
 	}
 
-	return spammer.Spam(ctx, sh, false, h.c.Symbol())
+	return spammer.Spam(ctx, sh, true, h.c.Symbol())
 }
