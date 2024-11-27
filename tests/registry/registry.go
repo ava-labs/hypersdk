@@ -5,6 +5,7 @@ package registry
 
 import (
 	"github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -62,11 +63,19 @@ func (r *Registry) GenerateCustomAllocations(generateAuthFactory func() (chain.A
 var testRegistries = map[*Registry]bool{}
 
 func Register(registry *Registry, name string, f TestFunc, requestedBalances ...uint64) bool {
-	registry.Add(name, f, requestedBalances...)
+	registry.Add(name, withRequiredPrefundedAuthFactories(f, len(requestedBalances)), requestedBalances...)
 	testRegistries[registry] = true
 	return true
 }
 
 func GetTestsRegistries() map[*Registry]bool {
 	return testRegistries
+}
+
+// withRequiredPrefundedAuthFactories wraps the TestFunc in a new TestFunc adding length validation over the provided authFactories
+func withRequiredPrefundedAuthFactories(f TestFunc, requiredLength int) TestFunc {
+	return func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork, authFactories []chain.AuthFactory) {
+		require.Len(t, authFactories, requiredLength, "required pre-funded authFactories have not been initialized")
+		f(t, tn, authFactories)
+	}
 }
