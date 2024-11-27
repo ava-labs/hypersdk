@@ -1207,79 +1207,46 @@ func newNodes(t *testing.T, networkID uint32, chainID ids.ID, n int) []*Node[tx]
 			chunkCertGossipPeers[validators[j].NodeID] = nodes[j].ChunkCertificateGossipHandler
 		}
 
-		result = append(result, newTestNode(
-			t,
+		node, err := New[tx](
+			logging.NoLog{},
+			validators[i].NodeID,
 			networkID,
 			chainID,
-			validators[i].NodeID,
-			warp.NewSigner(n.Sk, networkID, chainID),
 			validators[i].PublicKey,
+			warp.NewSigner(n.Sk, networkID, chainID),
 			n.ChunkStorage,
 			n.GetChunkHandler,
 			n.ChunkSignatureRequestHandler,
 			n.ChunkCertificateGossipHandler,
-			getChunkPeers,
-			chunkSignaturePeers,
-			chunkCertGossipPeers,
+			p2ptest.NewClientWithPeers(
+				t,
+				context.Background(),
+				validators[i].NodeID,
+				n.GetChunkHandler,
+				getChunkPeers,
+			),
+			p2ptest.NewClientWithPeers(
+				t,
+				context.Background(),
+				validators[i].NodeID,
+				n.ChunkSignatureRequestHandler,
+				chunkSignaturePeers,
+			),
+			p2ptest.NewClientWithPeers(
+				t,
+				context.Background(),
+				validators[i].NodeID,
+				n.ChunkCertificateGossipHandler,
+				chunkCertGossipPeers,
+			),
 			validators,
-		))
+			1,
+			1,
+		)
+		require.NoError(t, err)
+
+		result = append(result, node)
 	}
 
 	return result
-}
-
-func newTestNode(
-	t *testing.T,
-	networkID uint32,
-	chainID ids.ID,
-	nodeID ids.NodeID,
-	signer warp.Signer,
-	pk *bls.PublicKey,
-	chunkStorage *ChunkStorage[tx],
-	getChunkHandler p2p.Handler,
-	chunkSignatureRequestHandler p2p.Handler,
-	chunkCertificateGossipHandler p2p.Handler,
-	getChunkPeers map[ids.NodeID]p2p.Handler,
-	chunkSignatureRequestPeers map[ids.NodeID]p2p.Handler,
-	chunkCertGossipPeers map[ids.NodeID]p2p.Handler,
-	validators []Validator,
-) *Node[tx] {
-	node, err := New[tx](
-		logging.NoLog{},
-		nodeID,
-		networkID,
-		chainID,
-		pk,
-		signer,
-		chunkStorage,
-		getChunkHandler,
-		chunkSignatureRequestHandler,
-		chunkCertificateGossipHandler,
-		p2ptest.NewClientWithPeers(
-			t,
-			context.Background(),
-			nodeID,
-			getChunkHandler,
-			getChunkPeers,
-		),
-		p2ptest.NewClientWithPeers(
-			t,
-			context.Background(),
-			nodeID,
-			chunkSignatureRequestHandler,
-			chunkSignatureRequestPeers,
-		),
-		p2ptest.NewClientWithPeers(
-			t,
-			context.Background(),
-			nodeID,
-			chunkCertificateGossipHandler,
-			chunkCertGossipPeers,
-		),
-		validators,
-		1,
-		1,
-	)
-	require.NoError(t, err)
-	return node
 }

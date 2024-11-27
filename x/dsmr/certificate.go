@@ -68,12 +68,9 @@ func (c *ChunkCertificate[T]) Verify(
 	quorumNum uint64,
 	quorumDen uint64,
 ) error {
-	chunkBytes, ok, err := storage.GetChunkBytes(c.Expiry, c.ChunkID)
+	chunkBytes, _, err := storage.GetChunkBytes(c.Expiry, c.ChunkID)
 	if err != nil {
 		return fmt.Errorf("failed to get chunk from storage: %w", err)
-	}
-	if !ok {
-		return errors.New("chunk is not available")
 	}
 
 	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkBytes)
