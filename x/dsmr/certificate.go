@@ -60,7 +60,7 @@ func (c *ChunkCertificate[_]) Bytes() []byte {
 
 func (c *ChunkCertificate[T]) Verify(
 	ctx context.Context,
-	storage *chunkStorage[T],
+	storage *ChunkStorage[T],
 	networkID uint32,
 	chainID ids.ID,
 	pChainState validators.State,

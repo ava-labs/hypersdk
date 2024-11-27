@@ -45,7 +45,7 @@ var (
 )
 
 type GetChunkHandler[T Tx] struct {
-	storage *chunkStorage[T]
+	storage *ChunkStorage[T]
 }
 
 func (*GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {}
@@ -111,7 +111,7 @@ type ChunkSignature struct {
 
 type ChunkSignatureRequestVerifier[T Tx] struct {
 	verifier Verifier[T]
-	storage  *chunkStorage[T]
+	storage  *ChunkStorage[T]
 }
 
 func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *warp.UnsignedMessage, _ []byte) *common.AppError {
@@ -151,7 +151,7 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *war
 }
 
 type ChunkCertificateGossipHandler[T Tx] struct {
-	storage *chunkStorage[T]
+	storage *ChunkStorage[T]
 }
 
 // TODO error handling + logs

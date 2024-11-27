@@ -46,7 +46,7 @@ type StoredChunkSignature[T Tx] struct {
 	Available bool
 }
 
-// chunkStorage provides chunk, signature share, and chunk certificate storage
+// ChunkStorage provides chunk, signature share, and chunk certificate storage
 //
 // Note: we only require chunk persistence until it has either been included
 // or expired.
@@ -54,7 +54,7 @@ type StoredChunkSignature[T Tx] struct {
 // We do not require persistence of chunk certificates.
 // If a valid chunk certificate is included in a block, we already have it.
 // If a valid chunk certificate is dropped, the network may drop the chunk.
-type chunkStorage[T Tx] struct {
+type ChunkStorage[T Tx] struct {
 	verifier Verifier[T]
 
 	lock sync.RWMutex
@@ -70,10 +70,10 @@ type chunkStorage[T Tx] struct {
 	chunkMap map[ids.ID]*StoredChunkSignature[T]
 }
 
-func newChunkStorage[T Tx](
+func NewChunkStorage[T Tx](
 	verifier Verifier[T],
 	db database.Database,
-) (*chunkStorage[T], error) {
+) (*ChunkStorage[T], error) {
 	minSlot := int64(0)
 	minSlotBytes, err := db.Get(minSlotKey)
 	if err != nil && err != database.ErrNotFound {
@@ -88,7 +88,7 @@ func newChunkStorage[T Tx](
 		minSlot = int64(minSlotUint64)
 	}
 
-	storage := &chunkStorage[T]{
+	storage := &ChunkStorage[T]{
 		minimumExpiry: minSlot,
 		chunkEMap:     emap.NewEMap[emapChunk[T]](),
 		chunkMap:      make(map[ids.ID]*StoredChunkSignature[T]),
@@ -98,7 +98,7 @@ func newChunkStorage[T Tx](
 	return storage, storage.init()
 }
 
-func (s *chunkStorage[T]) init() error {
+func (s *ChunkStorage[T]) init() error {
 	iter := s.chunkDB.NewIteratorWithPrefix([]byte{pendingByte})
 	defer iter.Release()
 
@@ -124,7 +124,7 @@ func (s *chunkStorage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
-func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate[T]) error {
+func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate[T]) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -133,7 +133,7 @@ func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 
 // SetChunkCert sets the chunk certificate for the given chunkID
 // Assumes the caller has already verified the cert references the provided chunkID
-func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate[T]) error {
+func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate[T]) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -142,7 +142,6 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate[T]
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
 	}
 	storedChunk.Cert = cert
-	storedChunk.Available = true
 	return nil
 }
 
@@ -152,7 +151,7 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate[T]
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
-func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
+func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -169,7 +168,7 @@ func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	return nil, nil
 }
 
-func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate[T]) error {
+func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate[T]) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
 	}
@@ -186,7 +185,7 @@ func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate[T]
 // TODO need to call this to expire chunks in server
 // SetMin sets the minimum timestamp on the expiring storage and marks the chunks that
 // must be saved, which would otherwise expire.
-func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
+func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -230,7 +229,7 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 // GatherChunkCerts provides a slice of chunk certificates to build
 // a chunk based block.
 // TODO: switch from returning random chunk certs to ordered by expiry
-func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate[T] {
+func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate[T] {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -247,7 +246,7 @@ func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate[T] {
 // GetChunkBytes returns the corresponding chunk bytes of the requested chunk
 // Both the slot and chunkID must be provided to create the relevant DB key, which
 // includes the slot to create a more sequential DB workload.
-func (s *chunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, bool, error) {
+func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, bool, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 

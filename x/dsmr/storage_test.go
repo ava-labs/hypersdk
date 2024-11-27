@@ -36,10 +36,10 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*chunkStorage[tx],
+	*ChunkStorage[tx],
 	[]Chunk[tx],
 	[]Chunk[tx],
-	func() *chunkStorage[tx],
+	func() *ChunkStorage[tx],
 ) {
 	require := require.New(t)
 
@@ -85,18 +85,18 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	}
 
 	testVerifier := testVerifier[tx]{correctIDs: set.Of(validChunkIDs...)}
-	storage, err := newChunkStorage[tx](
+	storage, err := NewChunkStorage[tx](
 		testVerifier,
 		db,
 	)
 	require.NoError(err)
 
-	restart := func() *chunkStorage[tx] {
+	restart := func() *ChunkStorage[tx] {
 		require.NoError(db.Close())
 		db, err = pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 		require.NoError(err)
 
-		storage, err := newChunkStorage[tx](
+		storage, err := NewChunkStorage[tx](
 			testVerifier,
 			db,
 		)
@@ -302,7 +302,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].id,
 	}))
 
-	confirmChunkStorage := func(storage *chunkStorage[tx]) {
+	confirmChunkStorage := func(storage *ChunkStorage[tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
 		for i, expectedChunk := range []Chunk[tx]{
 			validChunks[0],
