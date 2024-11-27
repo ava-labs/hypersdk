@@ -102,6 +102,14 @@ func (d *ED25519Factory) Address() codec.Address {
 	return NewED25519Address(d.priv.PublicKey())
 }
 
+func GenerateED25519AuthFactory() (chain.AuthFactory, error) {
+	privateKey, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	return NewED25519Factory(privateKey), nil
+}
+
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
