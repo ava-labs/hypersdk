@@ -24,7 +24,7 @@ import (
 var TestsRegistry = &registry.Registry{}
 
 var _ = registry.Register(TestsRegistry, "Transfer Transaction",
-	func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories ...chain.AuthFactory) {
+	func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories []chain.AuthFactory) {
 		require := require.New(t)
 		ctx := context.Background()
 		targetFactory := authFactories[0]

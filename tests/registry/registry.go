@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork, authFactories ...chain.AuthFactory)
+type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork, authFactories []chain.AuthFactory)
 
 type namedTest struct {
 	Fnc               TestFunc
