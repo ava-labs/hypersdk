@@ -89,7 +89,7 @@ func TestNode_BuildChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t, networkID, chainID)
+			node := newNode(t)
 			chunk, err := node.BuildChunk(
 				context.Background(),
 				tt.txs,
@@ -125,7 +125,7 @@ func TestNode_BuildChunk(t *testing.T) {
 func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r := require.New(t)
 
-	nodes := newNodes(t, networkID, chainID, 2)
+	nodes := newNodes(t, 2)
 	node := nodes[0]
 
 	chunk, err := node.BuildChunk(
@@ -179,7 +179,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t, networkID, chainID)
+	node := newNode(t)
 	chunk, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
@@ -220,7 +220,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t, networkID, chainID)
+	node := newNode(t)
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
@@ -396,7 +396,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t, networkID, chainID)
+			node := newNode(t)
 
 			// Build some chunks
 			wantChunks := make([]Chunk[tx], 0)
@@ -648,7 +648,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t, networkID, chainID)
+	node := newNode(t)
 	chunk, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.Empty, Expiry: 123}},
@@ -705,7 +705,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
 
-	nodes := newNodes(t, networkID, chainID, 2)
+	nodes := newNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -971,7 +971,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t, networkID, chainID)
+			node := newNode(t)
 			wantChunks := make([]Chunk[tx], 0)
 			for _, chunk := range tt.chunks {
 				chunk, err := node.BuildChunk(
@@ -1019,7 +1019,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
 
-	nodes := newNodes(t, networkID, chainID, 2)
+	nodes := newNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1093,7 +1093,7 @@ func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.N
 func Test_Execute(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t, networkID, chainID)
+	node := newNode(t)
 
 	_, err := node.BuildChunk(
 		context.Background(),
@@ -1146,11 +1146,11 @@ type testNode struct {
 	Sk                            *bls.SecretKey
 }
 
-func newNode(t *testing.T, networkID uint32, chainID ids.ID) *Node[tx] {
-	return newNodes(t, networkID, chainID, 1)[0]
+func newNode(t *testing.T) *Node[tx] {
+	return newNodes(t, 1)[0]
 }
 
-func newNodes(t *testing.T, networkID uint32, chainID ids.ID, n int) []*Node[tx] {
+func newNodes(t *testing.T, n int) []*Node[tx] {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
