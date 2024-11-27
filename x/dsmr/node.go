@@ -169,10 +169,15 @@ func (n *Node[T]) BuildChunk(
 		return Chunk[T]{}, errors.New("failed to replicate to sufficient stake")
 	}
 
+	bitSetSignature, ok := aggregatedMsg.Signature.(*warp.BitSetSignature)
+	if !ok {
+		return Chunk[T]{}, errors.New("invalid signature type")
+	}
+
 	chunkCert := ChunkCertificate[T]{
 		ChunkID:   chunk.id,
 		Expiry:    chunk.Expiry,
-		Signature: aggregatedMsg.Signature.(*warp.BitSetSignature),
+		Signature: bitSetSignature,
 	}
 
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}
