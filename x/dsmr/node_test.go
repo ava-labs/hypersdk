@@ -1679,14 +1679,14 @@ func TestNode_Execute_Chunks(t *testing.T) {
 			for _, chunkIdx := range testCase.chunks {
 				r.NoError(node.storage.AddLocalChunkWithCert(chunks[chunkIdx], makeChunkCert(chunks[chunkIdx])))
 			}
-			newBlk, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			_, err = node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
 			r.ErrorIs(err, testCase.buildWantErr)
 
 			// create the block so that we can test it against the execute directly.
-			newBlk = Block{
+			newBlk := Block{
 				ParentID: parentBlk.GetID(),
 				Hght:     uint64(testCase.timestamp),
-				Tmstmp:   int64(testCase.timestamp),
+				Tmstmp:   testCase.timestamp,
 				blkID:    ids.GenerateTestID(),
 			}
 			for _, chunkIndex := range testCase.chunks {

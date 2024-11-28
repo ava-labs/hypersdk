@@ -244,6 +244,9 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 
 func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) error {
 	// TODO: Verify header fields
+	if block.Tmstmp <= parentBlock.Tmstmp {
+		return ErrTimestampNotMonotonicallyIncreasing
+	}
 
 	// Find repeats
 
