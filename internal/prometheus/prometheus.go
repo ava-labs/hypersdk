@@ -240,8 +240,8 @@ func generateChainPanels(chainID ids.ID) []string {
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
 	utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_size", chainID))
-	utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_size", chainID))
+	// utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
 
 	panels = append(panels, "avalanche_resource_tracker_cpu_usage")
 	utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
