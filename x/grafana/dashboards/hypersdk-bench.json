@@ -40,6 +40,122 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.3.1",
+      "targets": [
+        {
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avalanche_process_go_memstats_alloc_bytes",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "avalanchego",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_process_go_memstats_alloc_bytes",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "hypersdk (might be broken)",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "Memory usage",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 37,
             "gradientMode": "opacity",
             "hideFrom": {
@@ -82,10 +198,107 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.3.1",
+      "targets": [
+        {
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avalanche_resource_tracker_cpu_usage",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "CPU Usage",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 37,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
         "w": 8,
         "x": 0,
-        "y": 0
+        "y": 6
       },
       "id": 12,
       "options": {
@@ -176,15 +389,15 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 24,
+        "h": 7,
+        "w": 16,
         "x": 0,
-        "y": 5
+        "y": 12
       },
       "id": 11,
       "options": {
@@ -205,7 +418,7 @@
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
-          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_build_sum[15s]) / 1000000 / 15",
+          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_build_sum[15s]) / 1000000 / 15 / 10",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
@@ -221,7 +434,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_parse_sum[15s]) / 1000000 / 15",
+          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_parse_sum[15s]) / 1000000 / 15 / 10",
           "hide": false,
           "instant": false,
           "legendFormat": "parse",
@@ -234,7 +447,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_verify_sum[15s]) / 1000000 / 15",
+          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_verify_sum[15s]) / 1000000 / 15 / 10",
           "hide": false,
           "instant": false,
           "legendFormat": "verify",
@@ -247,7 +460,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_accept_sum[15s]) / 1000000 / 15",
+          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_accept_sum[15s]) / 1000000 / 15 / 10",
           "hide": false,
           "instant": false,
           "legendFormat": "accept",
@@ -260,7 +473,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_process_sum[15s]) / 1000000 / 15",
+          "expr": "increase(avalanche_qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u_vm_hypersdk_chain_block_process_sum[15s]) / 1000000 / 15 / 10",
           "hide": false,
           "instant": false,
           "legendFormat": "process",
@@ -268,7 +481,7 @@
           "refId": "D"
         }
       ],
-      "title": "Time working on block, ms",
+      "title": "Time working on block, %",
       "transparent": true,
       "type": "timeseries"
     }
@@ -288,6 +501,6 @@
   "timezone": "browser",
   "title": "HyperSDK benchmark",
   "uid": "de4okc3qcxou8f",
-  "version": 2,
+  "version": 1,
   "weekStart": ""
 }
