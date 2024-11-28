@@ -4,7 +4,6 @@
 package vm
 
 import (
-	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -44,53 +43,63 @@ type Metrics struct {
 	storageReadPrice         prometheus.Gauge
 	storageAllocatePrice     prometheus.Gauge
 	storageWritePrice        prometheus.Gauge
-	blockBuild               prometheus.Histogram
-	blockParse               metric.Averager
-	blockVerify              metric.Averager
-	blockAccept              metric.Averager
-	blockProcess             metric.Averager
+	blockBuild               prometheus.Summary
+	blockParse               prometheus.Histogram
+	blockVerify              prometheus.Histogram
+	blockAccept              prometheus.Histogram
+	blockProcess             prometheus.Histogram
 
 	executorBuildRecorder  executor.Metrics
 	executorVerifyRecorder executor.Metrics
 }
 
+var blockBuckets = []float64{0.001, 0.01, 0.1, 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000}
+
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
-	r := prometheus.NewRegistry()
+	registry := prometheus.NewRegistry()
 
-	blockParse, err := metric.NewAverager(
-		"chain_block_parse",
-		"time spent parsing blocks",
-		r,
+	blockBuild := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_build",
+			Help:      "time spent building blocks",
+			Buckets:   blockBuckets,
+		},
 	)
-	if err != nil {
-		return nil, nil, err
-	}
-	blockVerify, err := metric.NewAverager(
-		"chain_block_verify",
-		"time spent verifying blocks",
-		r,
+	blockParse := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_parse",
+			Help:      "time spent parsing blocks",
+			Buckets:   blockBuckets,
+		},
 	)
-	if err != nil {
-		return nil, nil, err
-	}
-	blockAccept, err := metric.NewAverager(
-		"chain_block_accept",
-		"time spent accepting blocks",
-		r,
+	blockVerify := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_verify",
+			Help:      "time spent verifying blocks",
+			Buckets:   blockBuckets,
+		},
 	)
-	if err != nil {
-		return nil, nil, err
-	}
-	blockProcess, err := metric.NewAverager(
-		"chain_block_process",
-		"time spent processing blocks",
-		r,
+	blockAccept := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_accept",
+			Help:      "time spent accepting blocks",
+			Buckets:   blockBuckets,
+		},
 	)
-	if err != nil {
-		return nil, nil, err
-	}
+	blockProcess := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_process",
+			Help:      "time spent processing blocks",
+			Buckets:   blockBuckets,
+		},
+	)
 
-	m := &Metrics{
+	metrics := &Metrics{
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -186,41 +195,41 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "storage_modify_price",
 			Help:      "unit price of storage modifications",
 		}),
-		blockBuild: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: "chain",
-			Name:      "block_build",
-			Help:      "time spent building blocks",
-			Buckets:   []float64{0.05, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 2.00, 5.00, 10.00, 20.00},
-		}),
+		blockBuild:   blockBuild,
 		blockParse:   blockParse,
 		blockVerify:  blockVerify,
 		blockAccept:  blockAccept,
 		blockProcess: blockProcess,
 	}
-	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
-	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
+	metrics.executorBuildRecorder = &executorMetrics{blocked: metrics.executorBuildBlocked, executable: metrics.executorBuildExecutable}
+	metrics.executorVerifyRecorder = &executorMetrics{blocked: metrics.executorVerifyBlocked, executable: metrics.executorVerifyExecutable}
 
 	errs := wrappers.Errs{}
 	errs.Add(
-		r.Register(m.txsSubmitted),
-		r.Register(m.stateChanges),
-		r.Register(m.stateOperations),
-		r.Register(m.mempoolSize),
-		r.Register(m.buildCapped),
-		r.Register(m.emptyBlockBuilt),
-		r.Register(m.clearedMempool),
-		r.Register(m.deletedBlocks),
-		r.Register(m.blocksFromDisk),
-		r.Register(m.blocksHeightsFromDisk),
-		r.Register(m.executorBuildBlocked),
-		r.Register(m.executorBuildExecutable),
-		r.Register(m.executorVerifyBlocked),
-		r.Register(m.executorVerifyExecutable),
-		r.Register(m.bandwidthPrice),
-		r.Register(m.computePrice),
-		r.Register(m.storageReadPrice),
-		r.Register(m.storageAllocatePrice),
-		r.Register(m.storageWritePrice),
+		registry.Register(metrics.txsSubmitted),
+		registry.Register(metrics.stateChanges),
+		registry.Register(metrics.stateOperations),
+		registry.Register(metrics.mempoolSize),
+		registry.Register(metrics.buildCapped),
+		registry.Register(metrics.emptyBlockBuilt),
+		registry.Register(metrics.clearedMempool),
+		registry.Register(metrics.deletedBlocks),
+		registry.Register(metrics.blocksFromDisk),
+		registry.Register(metrics.blocksHeightsFromDisk),
+		registry.Register(metrics.executorBuildBlocked),
+		registry.Register(metrics.executorBuildExecutable),
+		registry.Register(metrics.executorVerifyBlocked),
+		registry.Register(metrics.executorVerifyExecutable),
+		registry.Register(metrics.bandwidthPrice),
+		registry.Register(metrics.computePrice),
+		registry.Register(metrics.storageReadPrice),
+		registry.Register(metrics.storageAllocatePrice),
+		registry.Register(metrics.storageWritePrice),
+		registry.Register(metrics.blockBuild),
+		registry.Register(metrics.blockParse),
+		registry.Register(metrics.blockVerify),
+		registry.Register(metrics.blockAccept),
+		registry.Register(metrics.blockProcess),
 	)
-	return r, m, errs.Err
+	return registry, metrics, errs.Err
 }

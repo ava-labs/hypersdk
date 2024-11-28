@@ -20,7 +20,7 @@ services:
     network_mode: host
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ORG_ROLE=viewer
+      - GF_AUTH_ORG_ROLE=admin
 
 volumes:
   prometheus_data:
