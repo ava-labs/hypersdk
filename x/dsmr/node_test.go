@@ -1610,6 +1610,14 @@ func TestNode_Execute_Chunks(t *testing.T) {
 			executeWantErr:             nil,
 			validalidityWindowDuration: 1,
 		},
+		{
+			name:           "monotonic timestamping",
+			parentBlocks:   [][]int{{}, {}},
+			chunks:         []int{2},
+			timestamp:      0,
+			executeWantErr: ErrTimestampNotMonotonicallyIncreasing,
+			buildWantErr:   ErrTimestampNotMonotonicallyIncreasing,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
