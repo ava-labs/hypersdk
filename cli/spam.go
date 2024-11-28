@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/throughput"
 )
@@ -73,38 +72,46 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
-	numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
-	if err != nil {
-		return nil, err
-	}
+	numAccounts := 100
+	// numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	if numAccounts < 2 {
 		return nil, ErrInsufficientAccounts
 	}
-	sZipf, err := prompt.Float("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
-	if err != nil {
-		return nil, err
-	}
-	vZipf, err := prompt.Float("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
-	if err != nil {
-		return nil, err
-	}
 
-	txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
-	if err != nil {
-		return nil, err
-	}
-	minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
-	if err != nil {
-		return nil, err
-	}
-	txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
-	if err != nil {
-		return nil, err
-	}
-	numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
-	if err != nil {
-		return nil, err
-	}
+	sZipf := 1.01
+	// sZipf, err := prompt.Float("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	vZipf := 2.7
+	// vZipf, err := prompt.Float("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	txsPerSecond := 1000
+	// txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	minTxsPerSecond := 100
+	// minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	txsPerSecondStep := 100
+	// txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	numClients := 1000
+	// numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	sc := throughput.NewConfig(
 		uris,
