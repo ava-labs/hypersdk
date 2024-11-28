@@ -72,7 +72,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
-	numAccounts := 100
+	numAccounts := 500
 	// numAccounts, err := prompt.Int("number of accounts", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err
@@ -92,22 +92,22 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 	// 	return nil, err
 	// }
 
-	txsPerSecond := 1000
+	txsPerSecond := 10000
 	// txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	minTxsPerSecond := 100
+	minTxsPerSecond := 500
 	// minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	txsPerSecondStep := 100
+	txsPerSecondStep := 200
 	// txsPerSecondStep, err := prompt.Int("txs to increase per second", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	numClients := 1000
+	numClients := 100
 	// numClients, err := prompt.Int("number of clients per node", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err

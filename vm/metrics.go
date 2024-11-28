@@ -44,7 +44,7 @@ type Metrics struct {
 	storageReadPrice         prometheus.Gauge
 	storageAllocatePrice     prometheus.Gauge
 	storageWritePrice        prometheus.Gauge
-	blockBuild               metric.Averager
+	blockBuild               prometheus.Histogram
 	blockParse               metric.Averager
 	blockVerify              metric.Averager
 	blockAccept              metric.Averager
@@ -57,14 +57,6 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
-	blockBuild, err := metric.NewAverager(
-		"chain_block_build",
-		"time spent building blocks",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 	blockParse, err := metric.NewAverager(
 		"chain_block_parse",
 		"time spent parsing blocks",
@@ -194,7 +186,12 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "storage_modify_price",
 			Help:      "unit price of storage modifications",
 		}),
-		blockBuild:   blockBuild,
+		blockBuild: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "chain",
+			Name:      "block_build",
+			Help:      "time spent building blocks",
+			Buckets:   []float64{0.05, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 2.00, 5.00, 10.00, 20.00},
+		}),
 		blockParse:   blockParse,
 		blockVerify:  blockVerify,
 		blockAccept:  blockAccept,

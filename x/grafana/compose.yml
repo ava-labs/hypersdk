@@ -4,6 +4,7 @@ services:
     container_name: prometheus
     volumes:
       - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     network_mode: host
@@ -20,3 +21,6 @@ services:
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ORG_ROLE=viewer
+
+volumes:
+  prometheus_data:
