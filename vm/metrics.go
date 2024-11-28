@@ -53,7 +53,26 @@ type Metrics struct {
 	executorVerifyRecorder executor.Metrics
 }
 
-var blockBuckets = []float64{0.001, 0.01, 0.1, 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000}
+// blockBuckets defines the histogram buckets for block-related metrics.
+// The values are in nanoseconds.
+var blockBuckets = []float64{
+	10_000,        // 10 microseconds
+	25_000,        // 25 microseconds
+	50_000,        // 50 microseconds
+	100_000,       // 100 microseconds
+	250_000,       // 250 microseconds
+	500_000,       // 500 microseconds
+	1_000_000,     // 1 millisecond
+	2_500_000,     // 2.5 milliseconds
+	5_000_000,     // 5 milliseconds
+	10_000_000,    // 10 milliseconds
+	25_000_000,    // 25 milliseconds
+	50_000_000,    // 50 milliseconds
+	100_000_000,   // 100 milliseconds
+	250_000_000,   // 250 milliseconds
+	500_000_000,   // 500 milliseconds
+	1_000_000_000, // 1 second
+}
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	registry := prometheus.NewRegistry()
