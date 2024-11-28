@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -68,6 +69,15 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+	}
+	// make sure we have no repeats within the block itself.
+	blkTxsIDs := make(map[ids.ID]bool, len(blk.Txs()))
+	for _, tx := range blk.Txs() {
+		id := tx.GetID()
+		if _, has := blkTxsIDs[id]; has {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkTxsIDs[id] = true
 	}
 	return nil
 }

@@ -34,8 +34,6 @@ var (
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 )
 
-const validityWindowDuration = int64(5)
-
 type (
 	ChainIndex         = validitywindow.ChainIndex[*ChunkCertificate]
 	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
@@ -60,6 +58,7 @@ func New[T Tx](
 	log logging.Logger,
 	tracer trace.Tracer,
 	chainIndex ChainIndex,
+	validityWindowDuration int64,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -93,10 +92,11 @@ func New[T Tx](
 		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
 			storage: storage,
 		},
-		storage:        storage,
-		log:            log,
-		tracer:         tracer,
-		validityWindow: validitywindow.NewTimeValidityWindow(log, tracer, chainIndex),
+		storage:                storage,
+		log:                    log,
+		tracer:                 tracer,
+		validityWindow:         validitywindow.NewTimeValidityWindow(log, tracer, chainIndex),
+		validityWindowDuration: validityWindowDuration,
 	}, nil
 }
 
@@ -119,6 +119,7 @@ type (
 		storage                       *chunkStorage[T]
 		log                           logging.Logger
 		tracer                        trace.Tracer
+		validityWindowDuration        int64
 	}
 )
 
@@ -200,7 +201,7 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
-	oldestAllowed := timestamp - validityWindowDuration
+	oldestAllowed := timestamp - n.validityWindowDuration
 	if oldestAllowed < 0 {
 		oldestAllowed = 0
 	}
@@ -245,7 +246,12 @@ func (n *Node[T]) Execute(ctx context.Context, parentBlock Block, block Block) e
 	// TODO: Verify header fields
 
 	// Find repeats
-	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, block, parentBlock.Tmstmp); err != nil {
+
+	oldestAllowed := block.Timestamp() - n.validityWindowDuration
+	if oldestAllowed < 0 {
+		oldestAllowed = 0
+	}
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, block, oldestAllowed); err != nil {
 		return err
 	}
 

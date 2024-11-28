@@ -32,6 +32,8 @@ var (
 	_ Verifier[tx] = (*failVerifier)(nil)
 )
 
+const testingDefaultValidityWindowDuration = int64(5)
+
 type testingChainIndex struct {
 	blocks map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]
 }
@@ -143,6 +145,7 @@ func TestNode_BuildChunk(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				newTestingChainIndexer(),
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -210,6 +213,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -304,6 +308,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -384,6 +389,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -600,6 +606,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				newTestingChainIndexer(),
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -736,6 +743,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				newTestingChainIndexer(),
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -787,6 +795,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				newTestingChainIndexer(),
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 			chunk, err := node2.BuildChunk(
@@ -908,6 +917,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -1005,6 +1015,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -1044,6 +1055,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -1348,6 +1360,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				newTestingChainIndexer(),
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -1437,6 +1450,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -1543,12 +1557,13 @@ func TestNode_Execute_Chunks(t *testing.T) {
 		return chunks
 	}
 	testCases := []struct {
-		name           string
-		parentBlocks   [][]int // for each parent, a list of the chunks included.
-		chunks         []int
-		timestamp      int64
-		executeWantErr error
-		buildWantErr   error
+		name                       string
+		parentBlocks               [][]int // for each parent, a list of the chunks included.
+		chunks                     []int
+		timestamp                  int64
+		executeWantErr             error
+		buildWantErr               error
+		validalidityWindowDuration int64
 	}{
 		{
 			name:           "three empty blocks",
@@ -1566,22 +1581,43 @@ func TestNode_Execute_Chunks(t *testing.T) {
 		},
 		{
 			name:           "two blocks one duplicate chunk",
-			parentBlocks:   [][]int{{0, 1}, {1, 2}},
-			chunks:         []int{},
-			timestamp:      4,
+			parentBlocks:   [][]int{{0, 1}},
+			chunks:         []int{1, 2},
+			timestamp:      2,
 			executeWantErr: validitywindow.ErrDuplicateContainer,
+			buildWantErr:   nil, // build would filter out duplicate chunks, hence no error.
 		},
 		{
 			name:           "one block duplicate chunks",
-			parentBlocks:   [][]int{{1, 1}},
-			chunks:         []int{},
-			timestamp:      4,
+			parentBlocks:   [][]int{{}},
+			chunks:         []int{1, 1},
+			timestamp:      2,
 			executeWantErr: validitywindow.ErrDuplicateContainer,
+			buildWantErr:   nil, // build would filter out duplicate chunks, hence no error.
+		},
+		{
+			name:           "three blocks non consecutive duplicate chunks",
+			parentBlocks:   [][]int{{1}, {2}},
+			chunks:         []int{1},
+			timestamp:      3,
+			executeWantErr: validitywindow.ErrDuplicateContainer,
+		},
+		{
+			name:                       "three blocks non consecutive duplicate chunks outside validity window",
+			parentBlocks:               [][]int{{1}, {2}},
+			chunks:                     []int{1},
+			timestamp:                  3,
+			executeWantErr:             nil,
+			validalidityWindowDuration: 1,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			indexer := newTestingChainIndexer()
+			valWind := testCase.validalidityWindowDuration
+			if valWind == 0 {
+				valWind = testingDefaultValidityWindowDuration
+			}
 			node, err := New[tx](
 				ids.EmptyNodeID,
 				networkID,
@@ -1614,6 +1650,7 @@ func TestNode_Execute_Chunks(t *testing.T) {
 				logging.NoLog{},
 				trace.Noop,
 				indexer,
+				valWind,
 			)
 			r.NoError(err)
 
@@ -1631,9 +1668,9 @@ func TestNode_Execute_Chunks(t *testing.T) {
 				for _, chunkIndex := range chunkList {
 					blk.ChunkCerts = append(blk.ChunkCerts, makeChunkCert(chunks[chunkIndex]))
 				}
-				if blockNum > 0 {
-					r.ErrorIs(node.Execute(context.Background(), parentBlk, blk), testCase.executeWantErr)
-				}
+
+				r.NoError(node.Execute(context.Background(), parentBlk, blk))
+
 				r.NoError(node.Accept(context.Background(), blk))
 				indexer.set(blk.GetID(), blk)
 				parentBlk = blk
@@ -1642,8 +1679,20 @@ func TestNode_Execute_Chunks(t *testing.T) {
 			for _, chunkIdx := range testCase.chunks {
 				r.NoError(node.storage.AddLocalChunkWithCert(chunks[chunkIdx], makeChunkCert(chunks[chunkIdx])))
 			}
-			_, err = node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			newBlk, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
 			r.ErrorIs(err, testCase.buildWantErr)
+
+			// create the block so that we can test it against the execute directly.
+			newBlk = Block{
+				ParentID: parentBlk.GetID(),
+				Hght:     uint64(testCase.timestamp),
+				Tmstmp:   int64(testCase.timestamp),
+				blkID:    ids.GenerateTestID(),
+			}
+			for _, chunkIndex := range testCase.chunks {
+				newBlk.ChunkCerts = append(newBlk.ChunkCerts, makeChunkCert(chunks[chunkIndex]))
+			}
+			r.ErrorIs(node.Execute(context.Background(), parentBlk, newBlk), testCase.executeWantErr)
 		})
 	}
 }
@@ -1691,6 +1740,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 
@@ -1748,6 +1798,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		logging.NoLog{},
 		trace.Noop,
 		newTestingChainIndexer(),
+		testingDefaultValidityWindowDuration,
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))
