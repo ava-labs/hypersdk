@@ -175,8 +175,9 @@ func generateChainPanels(chainID ids.ID) []string {
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_empty_block_built[5s])", chainID))
 	utils.Outf("{{yellow}}empty blocks built (5s):{{/}} %s\n", panels[len(panels)-1])
 
-	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
-	// utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
+	//FIXME: no data
+	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
+	utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
 
 	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
@@ -237,17 +238,17 @@ func generateChainPanels(chainID ids.ID) []string {
 	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
 	// utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_calculated_sum[5s])/1000000/5", chainID))
-	utils.Outf("{{yellow}}root calcuation (ms/s):{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_calculated_sum[5s])/1000000/5", chainID))
+	// utils.Outf("{{yellow}}root calcuation (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_root_sum[5s])/1000000/5", chainID))
-	utils.Outf("{{yellow}}wait root calculation (ms/s):{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_root_sum[5s])/1000000/5", chainID))
+	// utils.Outf("{{yellow}}wait root calculation (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_signatures_sum[5s])/1000000/5", chainID))
-	utils.Outf("{{yellow}}signature verification wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_signatures_sum[5s])/1000000/5", chainID))
+	// utils.Outf("{{yellow}}signature verification wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
-	utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
+	// utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
 	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_size", chainID))
 	// utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
