@@ -92,12 +92,12 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, default
 	// 	return nil, err
 	// }
 
-	txsPerSecond := 1000
+	txsPerSecond := 5000
 	// txsPerSecond, err := prompt.Int("txs to try and issue per second", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	minTxsPerSecond := 500
+	minTxsPerSecond := 100
 	// minTxsPerSecond, err := prompt.Int("minimum txs to issue per second", consts.MaxInt)
 	// if err != nil {
 	// 	return nil, err

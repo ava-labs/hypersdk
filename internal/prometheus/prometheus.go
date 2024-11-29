@@ -171,62 +171,71 @@ rm -rf prometheus-2.43.0.darwin-amd64
 func generateChainPanels(chainID ids.ID) []string {
 	panels := []string{}
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_empty_block_built[5s])", chainID))
 	utils.Outf("{{yellow}}empty blocks built (5s):{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
-	utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
+	// utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
 	utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_blks_accepted_count[5s])/5", chainID))
 	utils.Outf("{{yellow}}blocks accepted per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_blks_rejected_count[5s])/5", chainID))
 	utils.Outf("{{yellow}}blocks rejected per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_deleted_blocks[5s])/5", chainID))
 	utils.Outf("{{yellow}}blocks deleted per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_bandwidth_price", chainID))
-	utils.Outf("{{yellow}}bandwidth unit price:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_bandwidth_price", chainID))
+	// utils.Outf("{{yellow}}bandwidth unit price:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_compute_price", chainID))
-	utils.Outf("{{yellow}}compute unit price:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_compute_price", chainID))
+	// utils.Outf("{{yellow}}compute unit price:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_read_price", chainID))
-	utils.Outf("{{yellow}}storage read unit price:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_read_price", chainID))
+	// utils.Outf("{{yellow}}storage read unit price:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_create_price", chainID))
-	utils.Outf("{{yellow}}storage create unit price:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_create_price", chainID))
+	// utils.Outf("{{yellow}}storage create unit price:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_modify_price", chainID))
-	utils.Outf("{{yellow}}storage modify unit price:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_modify_price", chainID))
+	// utils.Outf("{{yellow}}storage modify unit price:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_submitted[5s])/5", chainID))
-	utils.Outf("{{yellow}}transactions submitted per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_submitted[5s])/5", chainID))
+	// utils.Outf("{{yellow}}transactions submitted per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_gossiped[5s])/5", chainID))
-	utils.Outf("{{yellow}}transactions gossiped per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_gossiped[5s])/5", chainID))
+	// utils.Outf("{{yellow}}transactions gossiped per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_received[5s])/5", chainID))
 	utils.Outf("{{yellow}}transactions received per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_seen_txs_received[5s])/5", chainID))
 	utils.Outf("{{yellow}}seen transactions received per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_verified[5s])/5", chainID))
 	utils.Outf("{{yellow}}transactions verified per second:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_accepted[5s])/5", chainID))
 	utils.Outf("{{yellow}}transactions accepted per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
-	utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
+	// utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
-	utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
+	// utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_calculated_sum[5s])/1000000/5", chainID))
 	utils.Outf("{{yellow}}root calcuation (ms/s):{{/}} %s\n", panels[len(panels)-1])
