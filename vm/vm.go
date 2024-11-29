@@ -938,7 +938,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start).Nanoseconds()))
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
 	}()
 
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
