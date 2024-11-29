@@ -262,6 +262,7 @@ func generateChainPanels(chainID ids.ID) []string {
 	// panels = append(panels, fmt.Sprintf("avalanche_%s_vm_go_memstats_alloc_bytes", chainID))
 	// utils.Outf("{{yellow}}memory (morpheusvm) usage:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 	utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
@@ -301,17 +302,19 @@ func generateChainPanels(chainID ids.ID) []string {
 	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_process_sum[5s])/1000000/5", chainID))
 	// utils.Outf("{{yellow}}block process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s]))", chainID, chainID, chainID))
 	utils.Outf("{{yellow}}intermediate node cache hit rate:{{/}} %s\n", panels[len(panels)-1])
 
+	//FIXME: no data
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_value_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s]))", chainID, chainID, chainID))
 	utils.Outf("{{yellow}}value node cache hit rate:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_build_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_build_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_build_executable[5s]))", chainID, chainID, chainID))
-	utils.Outf("{{yellow}}build txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_build_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_build_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_build_executable[5s]))", chainID, chainID, chainID))
+	// utils.Outf("{{yellow}}build txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
 
-	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_verify_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_verify_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_verify_executable[5s]))", chainID, chainID, chainID))
-	utils.Outf("{{yellow}}verify txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
+	// panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_chain_chain_executor_verify_executable[5s]) / (increase(avalanche_%s_vm_chain_chain_executor_verify_blocked[5s]) + increase(avalanche_%s_vm_chain_chain_executor_verify_executable[5s]))", chainID, chainID, chainID))
+	// utils.Outf("{{yellow}}verify txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
 
 	return panels
 }
