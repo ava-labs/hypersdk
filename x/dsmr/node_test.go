@@ -1193,7 +1193,7 @@ func Test_Execute_BadBlock(t *testing.T) {
 		},
 		{
 			name: "invalid timestamp - too far into future",
-			blk: func(chunkCert ChunkCertificate[tx], parent Block[tx]) Block[tx] {
+			blk: func(_ ChunkCertificate[tx], parent Block[tx]) Block[tx] {
 				return Block[tx]{
 					ParentID:  parent.GetID(),
 					Height:    parent.Height + 1,
