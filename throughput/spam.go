@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pendingTargetMultiplier        = 20
+	pendingTargetMultiplier        = 10
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
 
@@ -305,7 +305,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
 
-	distAmount := (s.balance - withholding) / uint64(s.numAccounts*100)
+	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
