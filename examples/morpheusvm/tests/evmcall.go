@@ -16,12 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	utils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/registry"
@@ -58,11 +56,10 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	toAddress := codec.CreateAddress(uint8(8), ids.GenerateTestID())
 	toAddressEVM := storage.ConvertAddress(toAddress)
 
-	networkConfig := tn.Configuration().(*workload.Config)
-	spendingKey := networkConfig.Keys()[0]
+	networkConfig := tn.Configuration()
+	spendingKey := networkConfig.AuthFactories()[0]
 
-	spendingKeyAuthFactory := auth.NewED25519Factory(spendingKey)
-	spendingKeyAddr := auth.NewED25519Address(networkConfig.Keys()[0].PublicKey())
+	spendingKeyAddr := spendingKey.Address()
 
 	cli := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
 	lcli := vm.NewJSONRPCClient(tn.URIs()[0])
@@ -88,7 +85,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	transferCall = populateKeys(require, cli, transferCall, spendingKeyAddr)
 
 	// generating the transaction
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{transferCall}, spendingKeyAuthFactory)
+	tx, err := tn.GenerateTx(context.Background(), []chain.Action{transferCall}, spendingKey)
 	require.NoError(err)
 
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
@@ -98,7 +95,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
 	// checking the transaction was included in the chain and succeeded
-	response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+	response, included, err := indexerClient.GetTx(timeoutCtx, tx.GetID())
 	require.NoError(err)
 	require.True(included)
 	require.True(response.Success)
@@ -117,12 +114,12 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	}
 
 	deployCall = populateKeys(require, cli, deployCall, spendingKeyAddr)
-	tx, err = tn.GenerateTx(context.Background(), []chain.Action{deployCall}, spendingKeyAuthFactory)
+	tx, err = tn.GenerateTx(context.Background(), []chain.Action{deployCall}, spendingKey)
 	require.NoError(err)
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
-	response, included, err = indexerClient.GetTx(timeoutCtx, tx.ID())
+	response, included, err = indexerClient.GetTx(timeoutCtx, tx.GetID())
 	require.NoError(err)
 	require.True(included)
 	require.True(response.Success)
@@ -142,13 +139,13 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		Data:     setValueData,
 	}
 	setValueCall = populateKeys(require, cli, setValueCall, spendingKeyAddr)
-	tx, err = tn.GenerateTx(context.Background(), []chain.Action{setValueCall}, spendingKeyAuthFactory)
+	tx, err = tn.GenerateTx(context.Background(), []chain.Action{setValueCall}, spendingKey)
 	require.NoError(err)
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
 	// checking the transaction was included in the chain and succeeded
-	response, included, err = indexerClient.GetTx(timeoutCtx, tx.ID())
+	response, included, err = indexerClient.GetTx(timeoutCtx, tx.GetID())
 	require.NoError(err)
 	require.True(included)
 	require.True(response.Success)
@@ -163,12 +160,12 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		Data:     getValueData,
 	}
 	getValueCall = populateKeys(require, cli, getValueCall, spendingKeyAddr)
-	tx, err = tn.GenerateTx(context.Background(), []chain.Action{getValueCall}, spendingKeyAuthFactory)
+	tx, err = tn.GenerateTx(context.Background(), []chain.Action{getValueCall}, spendingKey)
 	require.NoError(err)
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
-	response, included, err = indexerClient.GetTx(timeoutCtx, tx.ID())
+	response, included, err = indexerClient.GetTx(timeoutCtx, tx.GetID())
 	require.NoError(err)
 	require.True(included)
 	require.True(response.Success)
@@ -307,7 +304,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 			deployed[step.abi] = crypto.CreateAddress(owner, nonce)
 		}
 
-		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(context.Background(), []*chain.Transaction{tx}))
@@ -319,8 +316,8 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	tokenA := deployed["TokenA"]
 	tokenB := deployed["TokenB"]
 
-	for _, acct := range networkConfig.Keys() {
-		evmAddr := storage.ConvertAddress(auth.NewED25519Address(acct.PublicKey()))
+	for _, acct := range networkConfig.AuthFactories() {
+		evmAddr := storage.ConvertAddress(acct.Address())
 		calldataA, err := abis["TokenA"].Calldata("transfer", evmAddr, amount)
 		require.NoError(err)
 		actionA, err := evmTxBuilder.EvmCall(context.Background(), &utils.Args{
@@ -328,7 +325,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 			Data: calldataA,
 		})
 		require.NoError(err)
-		tx, err := tn.GenerateTx(context.Background(), []chain.Action{actionA}, spendingKeyAuthFactory)
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{actionA}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
@@ -340,7 +337,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 			Data: calldataB,
 		})
 		require.NoError(err)
-		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionB}, spendingKeyAuthFactory)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionB}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
@@ -350,9 +347,9 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 
 	amount = big.NewInt(10_000_000)
 
-	for _, acct := range networkConfig.Keys() {
+	for _, acct := range networkConfig.AuthFactories() {
 		evmTxBuilder := &utils.EvmTxBuilder{
-			Actor: auth.NewED25519Address(acct.PublicKey()),
+			Actor: acct.Address(),
 			Lcli:  lcli,
 			Cli:   cli,
 		}
@@ -364,7 +361,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 			Data: calldataApproveA,
 		})
 		require.NoError(err)
-		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceA}, spendingKeyAuthFactory)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceA}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
@@ -376,7 +373,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 			Data: calldataApproveB,
 		})
 		require.NoError(err)
-		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceB}, spendingKeyAuthFactory)
+		tx, err = tn.GenerateTx(context.Background(), []chain.Action{actionAllowanceB}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
@@ -396,12 +393,12 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		})
 		require.NoError(err)
 
-		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKeyAuthFactory)
+		tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, spendingKey)
 		require.NoError(err)
 
 		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
 
-		response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+		response, included, err := indexerClient.GetTx(timeoutCtx, tx.GetID())
 		require.NoError(err)
 		require.True(included)
 		require.True(response.Success)
@@ -437,10 +434,10 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		return balance
 	}
 
-	txBuilders := make([]*utils.EvmTxBuilder, len(networkConfig.Keys()))
-	for i, acct := range networkConfig.Keys() {
+	txBuilders := make([]*utils.EvmTxBuilder, len(networkConfig.AuthFactories()))
+	for i, acct := range networkConfig.AuthFactories() {
 		txBuilders[i] = &utils.EvmTxBuilder{
-			Actor: auth.NewED25519Address(acct.PublicKey()),
+			Actor: acct.Address(),
 			Lcli:  lcli,
 			Cli:   cli,
 		}
@@ -455,8 +452,8 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		var minAmountOut *big.Int
 		txs := 0
 		success := 0
-		for i, acct := range networkConfig.Keys() {
-			evmAddr := storage.ConvertAddress(auth.NewED25519Address(acct.PublicKey()))
+		for i, acct := range networkConfig.AuthFactories() {
+			evmAddr := storage.ConvertAddress(acct.Address())
 
 			var route []common.Address
 			if (round+i)%2 == 0 {
@@ -485,12 +482,12 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 					Data: calldata,
 				})
 				require.NoError(err)
-				tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, auth.NewED25519Factory(acct))
+				tx, err := tn.GenerateTx(context.Background(), []chain.Action{action}, acct)
 				require.NoError(err)
 
 				err = tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx})
 				require.NoError(err)
-				response, included, err := indexerClient.GetTx(timeoutCtx, tx.ID())
+				response, included, err := indexerClient.GetTx(timeoutCtx, tx.GetID())
 				require.NoError(err)
 				if included && response.Success {
 					success++
@@ -522,8 +519,8 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 		totalA := big.NewInt(0)
 		totalB := big.NewInt(0)
 		totalNative := uint64(0)
-		for i := range networkConfig.Keys() {
-			native, err := lcli.Balance(context.Background(), auth.NewED25519Address(networkConfig.Keys()[i].PublicKey()))
+		for i := range networkConfig.AuthFactories() {
+			native, err := lcli.Balance(context.Background(), networkConfig.AuthFactories()[i].Address())
 			require.NoError(err)
 			balanceA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
 			balanceB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])

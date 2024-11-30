@@ -5,11 +5,7 @@ package workload
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
 	"time"
-
-	"math/rand"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -43,17 +39,12 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
 
-	// we directly generate the address to speed up the test
-	addr := make([]byte, 32)
-	_, err := rand.Read(addr)
+	to, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
-	address, err := hex.DecodeString(fmt.Sprintf("00%s", hex.EncodeToString(addr)))
-	if err != nil {
-		return nil, nil, err
-	}
-	toAddress := codec.Address(address)
+
+	toAddress := auth.NewED25519Address(to.PublicKey())
 
 	call := &actions.Transfer{
 		To:    toAddress,

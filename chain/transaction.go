@@ -320,18 +320,15 @@ func (t *Transaction) Execute(
 	if err != nil {
 		// Should never happen
 		return nil, fmt.Errorf("failed to calculate tx units: %w", err)
-		return nil, fmt.Errorf("failed to calculate tx units: %w", err)
 	}
 	fee, err := feeManager.Fee(units)
 	if err != nil {
 		// Should never happen
 		return nil, fmt.Errorf("failed to calculate tx fee: %w", err)
-		return nil, fmt.Errorf("failed to calculate tx fee: %w", err)
 	}
 	if err := bh.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
-		return nil, fmt.Errorf("failed to deduct tx fee: %w", err)
 		return nil, fmt.Errorf("failed to deduct tx fee: %w", err)
 	}
 
@@ -349,10 +346,17 @@ func (t *Transaction) Execute(
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
 		}
-		// TODO: skip check for nil and require action returns non-nil codec.Typed output if it does not return an error
-		encodedOutput, err := MarshalTyped(actionOutput)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
+
+		var encodedOutput []byte
+		if actionOutput == nil {
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			encodedOutput = []byte{}
+		} else {
+			encodedOutput, err = MarshalTyped(actionOutput)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
+			}
 		}
 
 		actionOutputs = append(actionOutputs, encodedOutput)
