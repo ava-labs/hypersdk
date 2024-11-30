@@ -446,7 +446,7 @@ Going back to `storage.go`, you should see that the errors from behind are now g
 Now, we'll implement the `chain.BalanceHandler` interface to tell the HyperSDK
 how to modify account balances.
 
-Let's start off by creating a new `state_manager.go` file in `storage/` and adding a new
+Let's start off by creating a new `balance_handler.go` file in `storage/` and adding a new
 `BalanceHandler` type with function stubs for each of the required functions:
 
 ```golang
@@ -837,8 +837,28 @@ func New(options ...vm.Option) (*vm.VM, error) {
 ```
 
 Note: if you see an error when importing
-`"github.com/ava-labs/hypersdk/vm/defaultvm"`, running `go mod tidy` should fix it
+`"github.com/ava-labs/hypersdk/vm/defaultvm"`, running `go mod tidy` should fix
+it.
 
-At this point, we've implemented the necessary components of MorpheusVM. It's
-time to move onto the next section, where we will implement options and extend
-the functionality of MorpheusVM.
+At this point, your directory should look as follows:
+
+```
+.
+├── actions
+│   ├── transfer.go
+├── consts
+│   ├── consts.go
+│   └── types.go
+├── go.mod
+├── go.sum
+├── storage
+│   ├── balance_handler.go
+│   ├── errors.go
+│   └── storage.go
+└── vm
+    └── vm.go
+```
+
+In this section, we've implemented the necessary components of MorpheusVM. It's
+time to move onto the next section, where we will test our implementation of
+`Transfer` via action tests.

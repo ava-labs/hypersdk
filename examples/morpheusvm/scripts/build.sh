@@ -9,8 +9,6 @@ set -o pipefail
 # Get the directory of the script, even if sourced from another directory
 SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 
-# shellcheck source=/scripts/common/build.sh
-source "$SCRIPT_DIR"/../../../scripts/common/build.sh
 # shellcheck source=/scripts/constants.sh
 source "$SCRIPT_DIR"/../../../scripts/constants.sh
 # Construct the correct path to morpheusvm directory
@@ -21,11 +19,6 @@ MORPHEUSVM_PATH=$(
 
 if [[ $# -eq 1 ]]; then
     BINARY_PATH=$1
-    echo "Building MorpheusVM...."
-    cd "$MORPHEUSVM_PATH"
-    mkdir -p "$(dirname "$BINARY_PATH")"
-    go build -o "$BINARY_PATH" ./cmd/morpheusvm
-    exit 0
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
@@ -35,4 +28,6 @@ else
     exit 1
 fi
 
-build_project "$MORPHEUSVM_PATH" "morpheusvm" "$BINARY_PATH"
+cd "$MORPHEUSVM_PATH"
+mkdir -p "$(dirname "$BINARY_PATH")"
+go build -o "$BINARY_PATH" ./cmd/morpheusvm

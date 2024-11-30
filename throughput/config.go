@@ -4,14 +4,12 @@
 package throughput
 
 import (
-	"errors"
-
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 type Config struct {
 	uris             []string
-	key              *auth.PrivateKey
+	authFactory      chain.AuthFactory
 	sZipf            float64
 	vZipf            float64
 	txsPerSecond     int
@@ -21,49 +19,43 @@ type Config struct {
 	numAccounts      int
 }
 
-func NewDefaultConfig(
+// Config used for E2E testing and CLI
+func NewFastConfig(
 	uris []string,
-	key *auth.PrivateKey,
+	authFactory chain.AuthFactory,
 ) *Config {
 	return &Config{
 		uris:             uris,
-		key:              key,
+		authFactory:      authFactory,
 		sZipf:            1.01,
 		vZipf:            2.7,
-		txsPerSecond:     50000,
-		minTxsPerSecond:  10000,
-		txsPerSecondStep: 10000,
-		numClients:       100,
-		numAccounts:      1000,
+		txsPerSecond:     500,
+		minTxsPerSecond:  100,
+		txsPerSecondStep: 200,
+		numClients:       10,
+		numAccounts:      25,
 	}
 }
 
-func NewThroughputConfig(uris []string, keyHex string) (*Config, error) {
-	if len(uris) == 0 || len(keyHex) == 0 {
-		return nil, errors.New("uris and keyHex must be non-empty")
-	}
-
-	key, err := auth.FromString(auth.ED25519ID, keyHex)
-	if err != nil {
-		return nil, err
-	}
-
+// Config used for load testing script
+func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
 	return &Config{
 		uris:             uris,
-		key:              key,
-		sZipf:            1.01,
+		authFactory:      authFactory,
+		sZipf:            1.0001,
 		vZipf:            2.7,
 		txsPerSecond:     100000,
-		minTxsPerSecond:  10000,
-		txsPerSecondStep: 5000,
-		numClients:       100,
-		numAccounts:      1000,
+		minTxsPerSecond:  2000,
+		txsPerSecondStep: 1000,
+		numClients:       10,
+		// numAccounts: 10000000,
+		numAccounts: 100000,
 	}, nil
 }
 
 func NewConfig(
 	uris []string,
-	key *auth.PrivateKey,
+	key chain.AuthFactory,
 	sZipf float64,
 	vZipf float64,
 	txsPerSecond int,

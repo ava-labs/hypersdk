@@ -18,7 +18,7 @@ type TestItem struct {
 	timestamp int64
 }
 
-func (mti *TestItem) ID() ids.ID {
+func (mti *TestItem) GetID() ids.ID {
 	return mti.id
 }
 
@@ -26,7 +26,7 @@ func (mti *TestItem) Sponsor() string {
 	return mti.sponsor
 }
 
-func (mti *TestItem) Expiry() int64 {
+func (mti *TestItem) GetExpiry() int64 {
 	return mti.timestamp
 }
 
@@ -53,7 +53,7 @@ func TestExpiryHeapAdd(t *testing.T) {
 	item := GenerateTestItem("sponsor", 1)
 	eheap.Add(item)
 	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
-	require.True(eheap.minHeap.Has(item.ID()), "MinHeap does not have ID")
+	require.True(eheap.minHeap.Has(item.GetID()), "MinHeap does not have ID")
 }
 
 func TestExpiryHeapRemove(t *testing.T) {
@@ -64,11 +64,11 @@ func TestExpiryHeapRemove(t *testing.T) {
 	// Add first
 	eheap.Add(item)
 	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
-	require.True(eheap.minHeap.Has(item.ID()), "MinHeap does not have ID")
+	require.True(eheap.minHeap.Has(item.GetID()), "MinHeap does not have ID")
 	// Remove
-	eheap.Remove(item.ID())
+	eheap.Remove(item.GetID())
 	require.Zero(eheap.minHeap.Len(), "MinHeap not removed")
-	require.False(eheap.minHeap.Has(item.ID()), "MinHeap still has ID")
+	require.False(eheap.minHeap.Has(item.GetID()), "MinHeap still has ID")
 }
 
 func TestExpiryHeapRemoveEmpty(t *testing.T) {
@@ -78,7 +78,7 @@ func TestExpiryHeapRemoveEmpty(t *testing.T) {
 	eheap := New[*TestItem](0)
 	item := GenerateTestItem("sponsor", 1)
 	// Require this returns
-	eheap.Remove(item.ID())
+	eheap.Remove(item.GetID())
 	require.True(true, "not true")
 }
 
@@ -89,7 +89,7 @@ func TestSetMin(t *testing.T) {
 	for i := int64(0); i <= 9; i++ {
 		item := GenerateTestItem(sponsor, i)
 		eheap.Add(item)
-		require.True(eheap.Has(item.ID()), "TX not included")
+		require.True(eheap.Has(item.GetID()), "TX not included")
 	}
 	// Remove half
 	removed := eheap.SetMin(5)
@@ -97,10 +97,10 @@ func TestSetMin(t *testing.T) {
 	// All timestamps less than 5
 	seen := make(map[int64]bool)
 	for _, item := range removed {
-		require.Less(item.Expiry(), int64(5))
-		_, ok := seen[item.Expiry()]
+		require.Less(item.GetExpiry(), int64(5))
+		_, ok := seen[item.GetExpiry()]
 		require.False(ok, "Incorrect item removed.")
-		seen[item.Expiry()] = true
+		seen[item.GetExpiry()] = true
 	}
 	// ExpiryHeap has same length
 	require.Equal(5, eheap.Len(), "ExpiryHeap has incorrect number of txs.")
@@ -115,7 +115,7 @@ func TestSetMinRemovesAll(t *testing.T) {
 		item := GenerateTestItem(sponsor, i)
 		items = append(items, item)
 		eheap.Add(item)
-		require.True(eheap.Has(item.ID()), "TX not included")
+		require.True(eheap.Has(item.GetID()), "TX not included")
 	}
 	// Remove more than exists
 	removed := eheap.SetMin(10)
@@ -136,19 +136,19 @@ func TestPeekMin(t *testing.T) {
 	require.Nil(min, "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	eheap.Add(itemMed)
-	require.True(eheap.Has(itemMed.ID()), "TX not included")
+	require.True(eheap.Has(itemMed.GetID()), "TX not included")
 	min, ok = eheap.PeekMin()
 	require.True(ok)
 	require.Equal(itemMed, min, "Peek value is incorrect")
 
 	eheap.Add(itemMin)
-	require.True(eheap.Has(itemMin.ID()), "TX not included")
+	require.True(eheap.Has(itemMin.GetID()), "TX not included")
 	min, ok = eheap.PeekMin()
 	require.True(ok)
 	require.Equal(itemMin, min, "Peek value is incorrect")
 
 	eheap.Add(itemMax)
-	require.True(eheap.Has(itemMax.ID()), "TX not included")
+	require.True(eheap.Has(itemMax.GetID()), "TX not included")
 	min, ok = eheap.PeekMin()
 	require.True(ok)
 	require.Equal(itemMin, min, "Peek value is incorrect")
@@ -185,9 +185,9 @@ func TestHas(t *testing.T) {
 
 	eheap := New[*TestItem](0)
 	item := GenerateTestItem(testSponsor, 1)
-	require.False(eheap.Has(item.ID()), "Found an item that was not added.")
+	require.False(eheap.Has(item.GetID()), "Found an item that was not added.")
 	eheap.Add(item)
-	require.True(eheap.Has(item.ID()), "Did not find item.")
+	require.True(eheap.Has(item.GetID()), "Did not find item.")
 }
 
 func TestLen(t *testing.T) {
@@ -197,7 +197,7 @@ func TestLen(t *testing.T) {
 	for i := int64(0); i <= 4; i++ {
 		item := GenerateTestItem(testSponsor, i)
 		eheap.Add(item)
-		require.True(eheap.Has(item.ID()), "TX not included")
+		require.True(eheap.Has(item.GetID()), "TX not included")
 	}
 	require.Equal(5, eheap.Len(), "Length of mempool is not as expected.")
 }

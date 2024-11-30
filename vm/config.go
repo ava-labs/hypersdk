@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
@@ -19,8 +20,6 @@ type Config struct {
 	AuthVerificationCores            int                        `json:"authVerificationCores"`
 	VerifyAuth                       bool                       `json:"verifyAuth"`
 	RootGenerationCores              int                        `json:"rootGenerationCores"`
-	TransactionExecutionCores        int                        `json:"transactionExecutionCores"`
-	StateFetchConcurrency            int                        `json:"stateFetchConcurrency"`
 	MempoolSponsorSize               int                        `json:"mempoolSponsorSize"`
 	StateHistoryLength               int                        `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
 	IntermediateNodeCacheSize        int                        `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
@@ -35,10 +34,10 @@ type Config struct {
 	AcceptedBlockWindow              int                        `json:"acceptedBlockWindow"`
 	AcceptedBlockWindowCache         int                        `json:"acceptedBlockWindowCache"`
 	ContinuousProfilerConfig         profiler.Config            `json:"continuousProfilerConfig"`
-	TargetBuildDuration              time.Duration              `json:"targetBuildDuration"`
 	ProcessingBuildSkip              int                        `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int                        `json:"blockCompactionFrequency"`
+	ChainConfig                      chain.Config               `json:"executionConfig"`
 	ServiceConfig                    map[string]json.RawMessage `json:"services"` // Config of service namespace -> raw service config
 }
 
@@ -49,8 +48,6 @@ func NewConfig() Config {
 		AuthVerificationCores:            1,
 		VerifyAuth:                       true,
 		RootGenerationCores:              1,
-		TransactionExecutionCores:        1,
-		StateFetchConcurrency:            1,
 		MempoolSponsorSize:               32,
 		StateHistoryLength:               256,
 		IntermediateNodeCacheSize:        4 * units.GiB,
@@ -65,9 +62,9 @@ func NewConfig() Config {
 		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
 		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks
 		ContinuousProfilerConfig:         profiler.Config{Enabled: false},
-		TargetBuildDuration:              100 * time.Millisecond,
 		ProcessingBuildSkip:              16,
 		TargetGossipDuration:             20 * time.Millisecond,
 		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks
+		ChainConfig:                      chain.NewDefaultConfig(),
 	}
 }

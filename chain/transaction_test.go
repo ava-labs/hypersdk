@@ -190,7 +190,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
 	err = signedTx.Marshal(writerPacker)
 	require.NoError(err)
-	require.Equal(signedTx.ID(), utils.ToID(writerPacker.Bytes()))
+	require.Equal(signedTx.GetID(), utils.ToID(writerPacker.Bytes()))
 	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
 
 	unsignedTxBytes, err := signedTx.UnsignedBytes()

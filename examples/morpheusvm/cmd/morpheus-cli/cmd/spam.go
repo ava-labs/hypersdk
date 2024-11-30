@@ -5,14 +5,19 @@ package cmd
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	hthroughput "github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
+
+	hthroughput "github.com/ava-labs/hypersdk/throughput"
 )
 
 var spamCmd = &cobra.Command{
@@ -40,7 +45,17 @@ var runSpamCmd = &cobra.Command{
 				return err
 			}
 			uris := cli.OnlyAPIs(urisFromFile)
-			spamConfig, err := hthroughput.NewThroughputConfig(uris, spamKey)
+
+			if len(uris) == 0 || len(spamKey) == 0 {
+				return errors.New("uris and keyHex must be non-empty")
+			}
+			bytes, err := codec.LoadHex(spamKey, ed25519.PrivateKeyLen)
+			if err != nil {
+				return err
+			}
+			authFactory := auth.NewED25519Factory(ed25519.PrivateKey(bytes))
+
+			spamConfig, err := hthroughput.NewLongRunningConfig(uris, authFactory)
 			if err != nil {
 				return err
 			}

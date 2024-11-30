@@ -67,6 +67,10 @@ var genGenesisCmd = &cobra.Command{
 		if validityWindow >= 0 {
 			genesis.Rules.ValidityWindow = validityWindow
 		}
+		if validityWindow >= 0 {
+			genesis.Rules.ValidityWindow = validityWindow
+		}
+
 		b, err := json.Marshal(genesis)
 		if err != nil {
 			return err

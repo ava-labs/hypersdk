@@ -39,8 +39,7 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-
-	rootCmd = &cobra.Command{
+	rootCmd               = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
@@ -159,6 +158,20 @@ func init() {
 		false,
 		"use default spam parameters",
 	)
+	runSpamCmd.PersistentFlags().StringVar(
+		&clusterInfo,
+		"cluster-info",
+		"",
+		"output from avalanche-cli with cluster info",
+	)
+
+	runSpamCmd.PersistentFlags().StringVar(
+		&spamKey,
+		"key",
+		"",
+		"private key used to distribute funds",
+	)
+
 	runSpamCmd.PersistentFlags().StringVar(
 		&clusterInfo,
 		"cluster-info",

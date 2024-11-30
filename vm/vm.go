@@ -35,21 +35,21 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
-	avasync "github.com/ava-labs/avalanchego/x/sync"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
@@ -61,9 +61,7 @@ const (
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
 
-	rangeProofHandlerID  = 0x0
-	changeProofHandlerID = 0x1
-	txGossipHandlerID    = 0x2
+	txGossipHandlerID = 0x2
 )
 
 type VM struct {
@@ -76,18 +74,26 @@ type VM struct {
 
 	config Config
 
-	genesisAndRuleFactory      genesis.GenesisAndRuleFactory
-	genesis                    genesis.Genesis
-	GenesisBytes               []byte
-	ruleFactory                genesis.RuleFactory
-	options                    []Option
-	builder                    builder.Builder
-	gossiper                   gossiper.Gossiper
-	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
-	blockSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	// TODO remove by returning an verification error from the submit tx api
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
-	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
+	genesisAndRuleFactory genesis.GenesisAndRuleFactory
+	genesis               genesis.Genesis
+	GenesisBytes          []byte
+	ruleFactory           chain.RuleFactory
+	options               []Option
+
+	chain                   *chain.Chain
+	chainTimeValidityWindow chain.ValidityWindow
+	syncer                  *validitywindow.Syncer[*chain.Transaction]
+	seenValidityWindowOnce  sync.Once
+	seenValidityWindow      chan struct{}
+
+	builder  builder.Builder
+	gossiper gossiper.Gossiper
+
+	asyncAcceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	asyncAcceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
+	acceptedSubscriptions              []event.Subscription[*StatefulBlock]
+	verifiedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
+	rejectedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
@@ -105,27 +111,21 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// track all accepted but still valid txs (replay protection)
-	seen                   *emap.EMap[*chain.Transaction]
-	startSeenTime          int64
-	seenValidityWindowOnce sync.Once
-	seenValidityWindow     chan struct{}
-
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *chain.StatefulBlock]
+	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*chain.StatefulBlock
+	verifiedBlocks map[ids.ID]*StatefulBlock
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatefulBlock]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatefulBlock
+	acceptedQueue chan *StatefulBlock
 	acceptorDone  chan struct{}
 
 	// authVerifiers are used to verify signatures in parallel
@@ -133,13 +133,14 @@ type VM struct {
 	authVerifiers workers.Workers
 
 	bootstrapped avautils.Atomic[bool]
-	genesisBlk   *chain.StatefulBlock
+	genesisBlk   *StatefulBlock
 	preferred    ids.ID
-	lastAccepted *chain.StatefulBlock
+	lastAccepted *StatefulBlock
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient *stateSyncerClient
+	StateSyncClient *statesync.Client[*StatefulBlock]
+	StateSyncServer *statesync.Server[*StatefulBlock]
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -195,12 +196,9 @@ func (vm *VM) Initialize(
 ) error {
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
+	// Init channels before initializing other structs
+	vm.toEngine = toEngine
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	// This will be overwritten when we accept the first block (in state sync) or
-	// backfill existing blocks (during normal bootstrapping).
-	vm.startSeenTime = -1
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -220,13 +218,21 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
 
+	blockDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
+		return fmt.Errorf("failed to register blockdb metrics: %w", err)
+	}
 	pebbleConfig := pebble.NewDefaultConfig()
-	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
 	if err != nil {
 		return err
 	}
 
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	rawStateDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
+		return fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+	}
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
 	if err != nil {
 		return err
 	}
@@ -252,24 +258,30 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return err
-	}
-
 	// Set defaults
-	vm.builder = builder.NewTime(vm)
-	vm.gossiper = txGossiper
-	options := &Options{}
-	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
-		if err != nil {
-			return err
-		}
-		opt.apply(options)
-	}
-	vm.applyOptions(options)
+	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
+		NotifyF: func(ctx context.Context, b *StatefulBlock) error {
+			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
+			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
+				zap.Stringer("blkID", b.ID()),
+				zap.Int("numTxs", len(droppedTxs)),
+			)
+			return nil
+		},
+	})
+	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+		NotifyF: func(ctx context.Context, b *chain.ExecutedBlock) error {
+			vm.mempool.Remove(ctx, b.Block.Txs)
+			return nil
+		},
+	})
+	vm.rejectedSubscriptions = append(vm.rejectedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+		NotifyF: func(ctx context.Context, b *chain.ExecutedBlock) error {
+			vm.mempool.Add(ctx, b.Block.Txs)
+			return nil
+		},
+	})
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
@@ -306,12 +318,9 @@ func (vm *VM) Initialize(
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
-
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatefulBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatefulBlock](vm.config.AcceptedBlockWindowCache)
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
+	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
@@ -327,10 +336,63 @@ func (vm *VM) Initialize(
 	if acceptedBlockWindow < MinAcceptedBlockWindow {
 		return fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
 	}
-	vm.acceptedQueue = make(chan *chain.StatefulBlock, vm.config.AcceptorSize)
+	vm.acceptedQueue = make(chan *StatefulBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
-	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	// Set defaults
+	options := &Options{}
+	for _, Option := range vm.options {
+		config := vm.config.ServiceConfig[Option.Namespace]
+		opt, err := Option.optionFunc(vm, config)
+		if err != nil {
+			return err
+		}
+		opt.apply(options)
+	}
+	err = vm.applyOptions(options)
+	if err != nil {
+		return fmt.Errorf("failed to apply options : %w", err)
+	}
+
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	registerer := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
+		return err
+	}
+	vm.chain, err = chain.NewChain(
+		vm.Tracer(),
+		registerer,
+		vm,
+		vm.Mempool(),
+		vm.Logger(),
+		vm.ruleFactory,
+		vm.MetadataManager(),
+		vm.BalanceHandler(),
+		vm.AuthVerifiers(),
+		vm,
+		vm.chainTimeValidityWindow,
+		vm.config.ChainConfig,
+	)
+	if err != nil {
+		return err
+	}
+	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
+		return vm.ruleFactory.GetRules(time).GetValidityWindow()
+	})
+	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
+		NotifyF: func(ctx context.Context, b *StatefulBlock) error {
+			seenValidityWindow, err := vm.syncer.Accept(ctx, b.ExecutionBlock)
+			if err != nil {
+				vm.Fatal("syncer failed to accept block", zap.Error(err))
+			}
+			if seenValidityWindow {
+				vm.seenValidityWindowOnce.Do(func() {
+					close(vm.seenValidityWindow)
+				})
+			}
+			return nil
+		},
+	})
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -377,16 +439,24 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisBlk, err := chain.ParseStatefulBlock(
+		genesisExecutionBlk, err := chain.NewGenesisBlock(root)
+		if err != nil {
+			snowCtx.Log.Error("could not create genesis block", zap.Error(err))
+			return err
+		}
+		genesisBlk, err := ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root),
-			nil,
+			genesisExecutionBlk,
 			true,
 			vm,
 		)
 		if err != nil {
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
+		}
+		// Set executed block, since we will never execute the genesis block
+		genesisBlk.executedBlock = &chain.ExecutedBlock{
+			Block: genesisExecutionBlk.StatelessBlock,
 		}
 
 		// Update chain metadata
@@ -432,28 +502,20 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+	// accept the last block in order to initialize the internal lastBlockHeight
+	vm.chainTimeValidityWindow.Accept(vm.lastAccepted.ExecutionBlock)
 	go vm.processAcceptedBlocks()
 
-	// Setup state syncing
-	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
-
-	if err := vm.network.AddHandler(
-		rangeProofHandlerID,
-		avasync.NewGetRangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
+	if err := vm.initStateSync(); err != nil {
 		return err
 	}
-
-	if err := vm.network.AddHandler(
-		changeProofHandlerID,
-		avasync.NewGetChangeProofHandler(vm.snowCtx.Log, vm.stateDB),
-	); err != nil {
-		return err
-	}
-
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
-		NewTxGossipHandler(vm),
+		gossiper.NewTxGossipHandler(
+			vm,
+			vm.snowCtx.Log,
+			vm.gossiper,
+		),
 	); err != nil {
 		return err
 	}
@@ -465,22 +527,13 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	for _, factory := range vm.blockSubscriptionFactories {
+	for _, factory := range vm.asyncAcceptedSubscriptionFactories {
 		subscription, err := factory.New()
 		if err != nil {
 			return fmt.Errorf("failed to initialize block subscription: %w", err)
 		}
 
-		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
-	}
-
-	for _, factory := range vm.txRemovedSubscriptionFactories {
-		subscription, err := factory.New()
-		if err != nil {
-			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
-		}
-
-		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
+		vm.asyncAcceptedSubscriptions = append(vm.asyncAcceptedSubscriptions, subscription)
 	}
 
 	vm.handlers = make(map[string]http.Handler)
@@ -505,16 +558,73 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) {
-	vm.blockSubscriptionFactories = o.blockSubscriptionFactories
-	vm.txRemovedSubscriptionFactories = o.txRemovedSubscriptionFactories
+func (vm *VM) applyOptions(o *Options) error {
+	vm.asyncAcceptedSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm)
+		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
+	} else {
+		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
+			blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+			if err != nil {
+				return 0, 0, err
+			}
+			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+		})
+	}
+
+	gossipRegistry := prometheus.NewRegistry()
+	err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry)
+	if err != nil {
+		return fmt.Errorf("failed to register gossiper metrics: %w", err)
 	}
 	if o.gossiper {
-		vm.gossiper = gossiper.NewManual(vm)
+		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
+			vm.snowCtx.Log,
+			gossipRegistry,
+			vm.mempool,
+			&chain.TxSerializer{
+				ActionRegistry: vm.actionCodec,
+				AuthRegistry:   vm.authCodec,
+			},
+			vm,
+			vm.config.TargetGossipDuration,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create manual gossiper: %w", err)
+		}
+	} else {
+		txGossiper, err := gossiper.NewTarget[*chain.Transaction](
+			vm.tracer,
+			vm.snowCtx.Log,
+			gossipRegistry,
+			vm.mempool,
+			&chain.TxSerializer{
+				ActionRegistry: vm.actionCodec,
+				AuthRegistry:   vm.authCodec,
+			},
+			vm,
+			vm,
+			vm.config.TargetGossipDuration,
+			&gossiper.TargetProposers[*chain.Transaction]{
+				Validators: vm,
+				Config:     gossiper.DefaultTargetProposerConfig(),
+			},
+			gossiper.DefaultTargetConfig(),
+			vm.stop,
+		)
+		if err != nil {
+			return err
+		}
+		vm.gossiper = txGossiper
+		vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
+			NotifyF: func(_ context.Context, b *chain.ExecutedBlock) error {
+				txGossiper.BlockVerified(b.Block.Tmstmp)
+				return nil
+			},
+		})
 	}
+	return nil
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
@@ -527,7 +637,7 @@ func (vm *VM) markReady() {
 	select {
 	case <-vm.stop:
 		return
-	case <-vm.stateSyncClient.done:
+	case <-vm.StateSyncClient.Done():
 	}
 
 	// We can begin partailly verifying blocks here because
@@ -543,7 +653,7 @@ func (vm *VM) markReady() {
 	case <-vm.seenValidityWindow:
 	}
 	vm.snowCtx.Log.Info("validity window ready")
-	if vm.stateSyncClient.Started() {
+	if vm.StateSyncClient.Started() {
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
@@ -551,12 +661,12 @@ func (vm *VM) markReady() {
 	// Mark node ready and attempt to build a block.
 	vm.snowCtx.Log.Info(
 		"node is now ready",
-		zap.Bool("synced", vm.stateSyncClient.Started()),
+		zap.Bool("synced", vm.StateSyncClient.Started()),
 	)
 	vm.checkActivity(context.TODO())
 }
 
-func (vm *VM) isReady() bool {
+func (vm *VM) IsReady() bool {
 	select {
 	case <-vm.ready:
 		return true
@@ -567,21 +677,21 @@ func (vm *VM) isReady() bool {
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
 	}
 	// Atomic read to ensure consistency
 	return vm.stateDB.GetValues(ctx, keys)
 }
 
-func (vm *VM) SetState(_ context.Context, state snow.State) error {
+func (vm *VM) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		vm.Logger().Info("state sync started")
 		return nil
 	case snow.Bootstrapping:
 		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.stateSyncClient.Started()
+		syncStarted := vm.StateSyncClient.Started()
 		if !syncStarted {
 			// We must check if we finished syncing before starting bootstrapping.
 			// This should only ever occur if we began a state sync, restarted, and
@@ -600,24 +710,30 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
-			vm.stateSyncClient.ForceDone()
+			vm.StateSyncClient.ForceDone()
 
 			// TODO: add a config to FATAL here if could not state sync (likely won't be
 			// able to recover in networks where no one has the full state, bypass
 			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
 		}
 
-		// Backfill seen transactions, if any. This will exit as soon as we reach
-		// a block we no longer have on disk or if we have walked back the full
-		// [ValidityWindow].
-		vm.backfillSeenTransactions()
+		// Start the chain syncer and mark the validity window as completed if possible.
+		seenValidityWindow, err := vm.syncer.Accept(ctx, vm.lastAccepted.ExecutionBlock)
+		if err != nil {
+			return err
+		}
+		if seenValidityWindow {
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+		}
 
 		// Trigger that bootstrapping has started
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
 		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+			Info("normal operation started", zap.Bool("state sync started", vm.StateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -633,7 +749,7 @@ func (vm *VM) onBootstrapStarted() error {
 // ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
-	vm.stateSyncClient.ForceDone()
+	vm.StateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
@@ -655,7 +771,7 @@ func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
-	if err := vm.stateSyncClient.Shutdown(); err != nil {
+	if err := vm.StateSyncClient.Shutdown(); err != nil {
 		return err
 	}
 
@@ -686,14 +802,7 @@ func (vm *VM) Shutdown(context.Context) error {
 		return err
 	}
 
-	// Close subscriptions
-	for _, subscription := range vm.txRemovedSubscriptions {
-		if err := subscription.Close(); err != nil {
-			return err
-		}
-	}
-
-	for _, subscription := range vm.blockSubscriptions {
+	for _, subscription := range vm.asyncAcceptedSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
 		}
@@ -719,7 +828,7 @@ func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 	//
 	// We return "unhealthy" here until synced to block RPC traffic in the
 	// meantime.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return http.StatusServiceUnavailable, ErrNotReady
 	}
 	return http.StatusOK, nil
@@ -737,7 +846,7 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	return vm.GetStatefulBlock(ctx, id)
 }
 
-func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.StatefulBlock, error) {
+func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock, error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
 	defer span.End()
 
@@ -777,9 +886,7 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*chain.Statef
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-// implements "block.ChainVM.commom.VM.Parser"
-// replaces "core.SnowmanVM.ParseBlock"
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockParse.Observe(float64(time.Since(start)))
@@ -803,7 +910,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	if exist {
 		return blk, nil
 	}
-	newBlk, err := chain.ParseBlock(
+	newBlk, err := ParseBlock(
 		ctx,
 		source,
 		false,
@@ -822,6 +929,11 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
+// implements "block.ChainVM.commom.VM.Parser"
+func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	return vm.ParseStatefulBlock(ctx, source)
+}
+
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	start := time.Now()
@@ -836,7 +948,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
 	// early here should not cause us to stop producing blocks.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
@@ -861,20 +973,34 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk)
+	preferredView, err := preferredBlk.View(ctx, true)
+	if err != nil {
+		vm.snowCtx.Log.Warn("unable to get preferred block view", zap.Error(err))
+		return nil, err
+	}
+	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
 		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	blk := &StatefulBlock{
+		ExecutionBlock: executionBlk,
+		accepted:       false,
+		t:              time.UnixMilli(executionBlk.Tmstmp),
+		executedBlock:  executedBlk,
+		vm:             vm,
+		executor:       vm.chain,
+		view:           view,
+	}
+
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
 
 func (vm *VM) Submit(
 	ctx context.Context,
-	verifyAuth bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
@@ -884,7 +1010,7 @@ func (vm *VM) Submit(
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
 	// is good to be defensive.
-	if !vm.isReady() {
+	if !vm.IsReady() {
 		return []error{ErrNotReady}
 	}
 
@@ -898,35 +1024,11 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()))
-	if err != nil {
-		return []error{err}
-	}
-	feeManager := internalfees.NewManager(feeRaw)
-	now := time.Now().UnixMilli()
-	r := vm.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return []error{err}
-	}
-
-	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
-	if err != nil {
-		return []error{err}
-	}
 
 	validTxs := []*chain.Transaction{}
-	for i, tx := range txs {
-		// Check if transaction is a repeat before doing any extra work
-		if repeats.Contains(i) {
-			errs = append(errs, chain.ErrDuplicateTx)
-			continue
-		}
-
+	for _, tx := range txs {
 		// Avoid any sig verification or state lookup if we already have tx in mempool
-		txID := tx.ID()
+		txID := tx.GetID()
 		if vm.mempool.Has(ctx, txID) {
 			// Don't remove from listeners, it will be removed elsewhere if not
 			// included
@@ -934,45 +1036,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.balanceHandler)
-		if err != nil {
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-
-		// Verify auth if not already verified by caller
-		if verifyAuth && vm.config.VerifyAuth {
-			if err := tx.VerifyAuth(ctx); err != nil {
-				// Failed signature verification is the only safe place to remove
-				// a transaction in listeners. Every other case may still end up with
-				// the transaction in a block.
-				event := TxRemovedEvent{
-					TxID: txID,
-					Err:  err,
-				}
-
-				for _, subscription := range vm.txRemovedSubscriptions {
-					if err := subscription.Accept(event); err != nil {
-						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
-					}
-				}
-
-				errs = append(errs, err)
-				continue
-			}
-		}
-
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		//
-		// Note, [PreExecute] ensures that the pending transaction does not have
-		// an expiry time further ahead than [ValidityWindow]. This ensures anything
-		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.balanceHandler, r, view, now); err != nil {
+		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, vm.config.VerifyAuth); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -1065,9 +1129,6 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	return vm.network.Disconnected(ctx, nodeID)
 }
 
-// VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM
-func (*VM) VerifyHeightIndex(context.Context) error { return nil }
-
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
 //
@@ -1085,72 +1146,6 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	}
 	vm.metrics.blocksHeightsFromDisk.Inc()
 	return vm.GetBlockHeightID(height)
-}
-
-// backfillSeenTransactions makes a best effort to populate [vm.seen]
-// with whatever transactions we already have on-disk. This will lead
-// a node to becoming ready faster during a restart.
-func (vm *VM) backfillSeenTransactions() {
-	// Exit early if we don't have any blocks other than genesis (which
-	// contains no transactions)
-	blk := vm.lastAccepted
-	if blk.Hght == 0 {
-		vm.snowCtx.Log.Info("no seen transactions to backfill")
-		vm.startSeenTime = 0
-		vm.seenValidityWindowOnce.Do(func() {
-			close(vm.seenValidityWindow)
-		})
-		return
-	}
-
-	// Backfill [vm.seen] with lifeline worth of transactions
-	r := vm.Rules(vm.lastAccepted.Tmstmp)
-	oldest := uint64(0)
-	for {
-		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
-			// We are assured this function won't be running while we accept
-			// a block, so we don't need to protect against closing this channel
-			// twice.
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
-		vm.startSeenTime = blk.Tmstmp
-		oldest = blk.Hght
-
-		// Exit early if next block to fetch is genesis (which contains no
-		// txs)
-		if blk.Hght <= 1 {
-			// If we have walked back from the last accepted block to genesis, then
-			// we can be sure we have all required transactions to start validation.
-			vm.startSeenTime = 0
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// Set next blk in lookback
-		tblk, err := vm.GetStatefulBlock(context.Background(), blk.Prnt)
-		if err != nil {
-			vm.snowCtx.Log.Info("could not load block, exiting backfill",
-				zap.Uint64("height", blk.Height()-1),
-				zap.Stringer("blockID", blk.Prnt),
-				zap.Error(err),
-			)
-			return
-		}
-		blk = tblk
-	}
-	vm.snowCtx.Log.Info(
-		"backfilled seen txs",
-		zap.Uint64("start", oldest),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
-	)
 }
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) {

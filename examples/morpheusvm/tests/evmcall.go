@@ -58,7 +58,7 @@ var _ = registry.Register(TestsRegistry, "EVM Calls", func(t ginkgo.FullGinkgoTI
 	toAddress := codec.CreateAddress(uint8(8), ids.GenerateTestID())
 	toAddressEVM := storage.ConvertAddress(toAddress)
 
-	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
+	networkConfig := tn.Configuration().(*workload.Config)
 	spendingKey := networkConfig.Keys()[0]
 
 	spendingKeyAuthFactory := auth.NewED25519Factory(spendingKey)

@@ -13,11 +13,10 @@ import (
 )
 
 type Options struct {
-	builder                        bool
-	gossiper                       bool
-	blockSubscriptionFactories     []event.SubscriptionFactory[*chain.ExecutedBlock]
-	vmAPIHandlerFactories          []api.HandlerFactory[api.VM]
-	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	builder                    bool
+	gossiper                   bool
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
+	vmAPIHandlerFactories      []api.HandlerFactory[api.VM]
 }
 
 type optionFunc func(vm api.VM, configBytes []byte) (Opt, error)
@@ -88,12 +87,6 @@ func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.Ex
 func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Opt {
 	return newFuncOption(func(o *Options) {
 		o.vmAPIHandlerFactories = append(o.vmAPIHandlerFactories, apiHandlerFactories...)
-	})
-}
-
-func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Opt {
-	return newFuncOption(func(o *Options) {
-		o.txRemovedSubscriptionFactories = append(o.txRemovedSubscriptionFactories, subscriptions...)
 	})
 }
 

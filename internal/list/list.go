@@ -11,8 +11,8 @@ import "github.com/ava-labs/avalanchego/ids"
 // allows us to avoid wrapping [Element] when using it with [emap]
 // and/or [eheap].
 type Item interface {
-	ID() ids.ID    // method for returning an id of the item
-	Expiry() int64 // method for returning this items timestamp
+	GetID() ids.ID    // method for returning an id of the item
+	GetExpiry() int64 // method for returning this items timestamp
 }
 
 // List implements a double-linked list. It offers
@@ -56,12 +56,12 @@ func (e *Element[T]) Value() T {
 	return e.value
 }
 
-func (e *Element[T]) ID() ids.ID {
-	return e.value.ID()
+func (e *Element[T]) GetID() ids.ID {
+	return e.value.GetID()
 }
 
-func (e *Element[T]) Expiry() int64 {
-	return e.value.Expiry()
+func (e *Element[T]) GetExpiry() int64 {
+	return e.value.GetExpiry()
 }
 
 func (l *List[T]) First() *Element[T] {

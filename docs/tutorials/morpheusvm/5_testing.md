@@ -4,10 +4,11 @@ Let's quickly recap what we've done so far:
 
 - We've built a base implementation of MorpheusVM
 - We've extended our implementation by adding a JSON-RPC server option
+- We deployed our implementation of MorpheusVM and interacted with it
 
 With the above, our code should work exactly like the version of MorpheusVM
 found in `examples/`. To verify this though, we're going to apply the same 
-workload tests used in MorpheusVM against our VM.
+workload/`e2e` tests used in MorpheusVM against our VM.
 
 This section will consist of the following:
 
@@ -15,10 +16,13 @@ This section will consist of the following:
 - Implementing workload tests that generate a large quantity of generic transactions
 - Implementing workload tests that test for a specific transaction
 - Registering our workload tests
+- Implementing bash scripts to run `e2e` tests
+- Registering our `e2e` tests
 
 ## Workload Scripts
 
-We start by reusing the workload script from MorpheusVM. In `tutorial/`, create
+We start by reusing the workload script from MorpheusVM. This script, when
+called, will execute the workload tests we will define. In `tutorial/`, create
 a new directory named `scripts`. Within this scripts directory, create a file
 called `tests.integration.sh` and paste the following:
 
@@ -118,8 +122,10 @@ func NewTxGenerator(key ed25519.PrivateKey) *TxGenerator {
 }
 ```
 
-Next, we'll want to implement a method to our `TxGenerator` that will allow it
-to produce a valid transaction with `Transfer` on the fly. We have:
+Here, we started by creating a `TxGenerator` struct which will be responsible
+for generating transactions. Next, we'll want to implement a method to our
+`TxGenerator` that will allow it to produce a valid transaction with `Transfer`
+on the fly. We have:
 
 ```go
 func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transaction, workload.TxAssertion, error) {
@@ -151,7 +157,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
-		confirmTx(ctx, require, uri, tx.ID(), toAddress, 1)
+		confirmTx(ctx, require, uri, tx.GetID(), toAddress, 1)
 	}, nil
 }
 ```
@@ -185,6 +191,12 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
 }
 ```
+
+In the above, some of the checks that `confirmTx` does are:
+- Checking that the TX was successful
+- Checking that the balance of the receiver is as expected
+- Checking that the balance of the sender is as expected
+- Checking that the output of the TX is as expected
 
 With our generator complete, we can now move onto implementing the network
 configuration.
@@ -257,8 +269,10 @@ func newGenesis(keys []ed25519.PrivateKey, minBlockGap time.Duration) *genesis.D
 }
 ```
 
-Next, using the values in `ed25519HexKeys`, we'll implement a function that
-returns our private test keys:
+In addition to defining chain-specific values, `newGenesis()` also defines two
+accounts whose balances will be allocated once the VM is spun up. Next, using 
+the values in `ed25519HexKeys`, we'll implement a function that returns our 
+private test keys:
 
 ```go
 func newDefaultKeys() []ed25519.PrivateKey {
@@ -275,37 +289,31 @@ func newDefaultKeys() []ed25519.PrivateKey {
 }
 ```
 
-Finally, we implement the network configuration required for our VM
+Finally, we initialize the workload.DefaultTestNetworkConfiguration required for our VM
 tests:
 
 ```go
-type NetworkConfiguration struct {
-	workload.DefaultTestNetworkConfiguration
-	keys []ed25519.PrivateKey
-}
-
-func (n *NetworkConfiguration) Keys() []ed25519.PrivateKey {
-	return n.keys
-}
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (*NetworkConfiguration, error) {
 	keys := newDefaultKeys()
 	genesis := newGenesis(keys, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
-		return nil, err
+		return workload.DefaultTestNetworkConfiguration{}, err
 	}
-	return &NetworkConfiguration{
-		DefaultTestNetworkConfiguration: workload.NewDefaultTestNetworkConfiguration(
-			genesisBytes,
-			consts.Name,
-			vm.NewParser(genesis)),
-		keys: keys,
-	}, nil
+	return workload.NewDefaultTestNetworkConfiguration(
+		genesisBytes,
+		consts.Name,
+		vm.NewParser(genesis),
+		keys,
+	), nil
 }
 ```
 
-We now move onto testing against a specific transaction.
+By wrapping our genesis and accounts keys into `NetworkConfiguration`, we can
+pass this into the HyperSDKtest library, which will use the fields of the struct
+to set up and execute our tests. We now move onto testing against a specific 
+transaction.
 
 ## Testing via a Specific Transaction
 
@@ -380,8 +388,7 @@ function:
 	require.NoError(err)
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
-	networkConfig := tn.Configuration().(*workload.NetworkConfiguration)
-	spendingKey := networkConfig.Keys()[0]
+	authFactory := tn.Configuration().AuthFactories()[0]
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of
@@ -392,7 +399,7 @@ Next, we'll create our test transaction. In short, we'll want to send a value of
 		To:    toAddress,
 		Value: 1,
 	}},
-		auth.NewED25519Factory(spendingKey),
+		authFactory,
 	)
 	require.NoError(err)
 ```
@@ -460,7 +467,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	generator := workload.NewTxGenerator(testingNetworkConfig.Keys()[0])
+	generator := workload.NewTxGenerator(testingNetworkConfig.AuthFactories()[0])
 	// Setup imports the integration test coverage
 	integration.Setup(
 		vm.New,
@@ -477,6 +484,18 @@ other values to the HyperSDK test library. Using this pattern allows
 us to defer most tasks to it and solely focus on defining the tests.
 
 ## Testing Our VM
+
+Before testing, your tests directory should look as follows:
+
+```
+tests
+├── integration
+│   └── integration_test.go
+├── transfer.go
+└── workload
+    ├── generator.go
+    └── genesis.go
+```
 
 Putting everything together, it's now time to test our work! To do this, run the
 following command:
@@ -498,13 +517,129 @@ Ginkgo ran 1 suite in 10.274886041s
 Test Suite Passed
 ```
 
-If you see this, then your VM passed the tests!
+If you see this, then your VM passed the workload tests!
+
+## Setting Up `e2e` Tests
+
+We'll now focus on adding `e2e` tests to our VM. To get started, in
+`examples/tutorial`, run the following commands:
+
+```bash
+cp ../morpheusvm/scripts/run.sh ./scripts/run.sh
+cp ../morpheusvm/scripts/stop.sh ./scripts/stop.sh
+
+chmod +x ./scripts/run.sh
+chmod +x ./scripts/stop.sh
+```
+
+The commands above copied the run/stop scripts from MorpheusVM into our scripts folder, along with giving them execute permissions.
+
+Before moving forward, in lines 68-70 of `run.sh`, make sure to change it from this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/morpheusvm
+```
+
+to this:
+
+```bash
+go build \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/tutorialvm
+```
+
+## Adding `e2e` Tests
+
+A caveat of the scripts above is that we need to define end-to-end (e2e) tests for our VM. To start, run the following:
+
+```bash
+mkdir tests/e2e
+touch tests/e2e/e2e_test.go
+```
+
+Then, in `e2e_test.go`, write the following:
+
+```go
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package e2e_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/ava-labs/hypersdk/examples/tutorial/tests" // include the tests that are shared between the integration and e2e
+
+	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/examples/tutorial/consts"
+	"github.com/ava-labs/hypersdk/examples/tutorial/tests/workload"
+	"github.com/ava-labs/hypersdk/examples/tutorial/vm"
+	"github.com/ava-labs/hypersdk/tests/fixture"
+
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const owner = "tutorial-e2e-tests"
+
+var flagVars *e2e.FlagVars
+
+func TestE2e(t *testing.T) {
+	ginkgo.RunSpecs(t, "tutorial e2e test suites")
+}
+
+func init() {
+	flagVars = e2e.RegisterFlags()
+}
+
+// Construct tmpnet network with a single tutorial Subnet
+var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
+	require := require.New(ginkgo.GinkgoT())
+
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
+	require.NoError(err)
+
+	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
+	require.NoError(err)
+
+	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
+	generator := workload.NewTxGenerator(firstAuthFactory)
+	tc := e2e.NewTestContext()
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, nil, firstAuthFactory)
+
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+}, func(envBytes []byte) {
+	// Run in every ginkgo process
+
+	// Initialize the local test environment from the global state
+	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+})
+
+```
+
+If the above looks familar to `integration_test.go`, that's because `e2e` tests
+follow the same logic as integration tests! The HyperSDK also has a framework
+for `e2e` tests, which only requires us to pass in required values like the ABI
+and a transaction generator.
+
+## Running `e2e` Tests
+
+To run your `e2e` tests, execute the following:
+
+```bash
+MODE=TEST ./scripts/run.sh
+```
+
+In your command-line, you should see a sequence of tests being executed.
 
 ## Conclusion
 
-Assuming the above went well, you've just built a VM which is functionally
-equivalent to MorpheusVM. Having built a base VM and extending it with options, we added tests to make sure our VM works as expected. 
-
-In the final two sections, we'll explore the HyperSDK-CLI which will allow us to
-interact with our VM by reading from it and being able to send TXs in real time
-from the command line!
+Assuming the above went well, you've just verified that your VM is functionally
+equivalent to MorpheusVM. 

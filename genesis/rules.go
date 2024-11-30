@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	_ chain.Rules = (*Rules)(nil)
-	_ RuleFactory = (*ImmutableRuleFactory)(nil)
+	_ chain.Rules       = (*Rules)(nil)
+	_ chain.RuleFactory = (*ImmutableRuleFactory)(nil)
 )
 
 type Rules struct {

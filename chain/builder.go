@@ -13,8 +13,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -59,60 +60,80 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-// TODO: This code is terrible and will be removed during the Vryx integration.
-func BuildBlock(
-	ctx context.Context,
-	vm VM,
-	parent *StatefulBlock,
-) (*StatefulBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
-	defer span.End()
-	log := vm.Logger()
+type Builder struct {
+	tracer          trace.Tracer
+	ruleFactory     RuleFactory
+	log             logging.Logger
+	metadataManager MetadataManager
+	balanceHandler  BalanceHandler
+	mempool         Mempool
+	validityWindow  ValidityWindow
+	metrics         *chainMetrics
+	config          Config
+}
 
-	// We don't need to fetch the [VerifyContext] because
-	// we will always have a block to build on.
+func NewBuilder(
+	tracer trace.Tracer,
+	ruleFactory RuleFactory,
+	log logging.Logger,
+	metadataManager MetadataManager,
+	balanceHandler BalanceHandler,
+	mempool Mempool,
+	validityWindow ValidityWindow,
+	metrics *chainMetrics,
+	config Config,
+) *Builder {
+	return &Builder{
+		tracer:          tracer,
+		ruleFactory:     ruleFactory,
+		log:             log,
+		metadataManager: metadataManager,
+		balanceHandler:  balanceHandler,
+		mempool:         mempool,
+		validityWindow:  validityWindow,
+		metrics:         metrics,
+		config:          config,
+	}
+}
+
+func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
+	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
+	defer span.End()
 
 	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
-	r := vm.Rules(nextTime)
+	r := c.ruleFactory.GetRules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
-		log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
-		return nil, ErrTimestampTooEarly
+		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
+		return nil, nil, nil, ErrTimestampTooEarly
 	}
-	b := NewBlock(vm, parent, nextTime)
-
-	// Fetch view where we will apply block state transitions
-	//
-	// If the parent block is not yet verified, we will attempt to
-	// execute it.
-	parentView, err := parent.View(ctx, true)
-	if err != nil {
-		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
-		return nil, err
-	}
+	var (
+		parentID          = parent.ID()
+		timestamp         = nextTime
+		height            = parent.Hght + 1
+		blockTransactions = []*Transaction{}
+	)
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(vm.MetadataManager().FeePrefix())
+	feeKey := FeeKey(c.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	mempoolSize := vm.Mempool().Len(ctx)
+	mempoolSize := c.mempool.Len(ctx)
 	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
 		ts            = tstate.New(changesEstimate)
 		oldestAllowed = nextTime - r.GetValidityWindow()
-
-		mempool = vm.Mempool()
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
@@ -128,8 +149,6 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		bh = vm.BalanceHandler()
-
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
 		prepareStreamLock sync.Mutex
@@ -139,32 +158,39 @@ func BuildBlock(
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
-	mempool.StartStreaming(ctx)
-	b.Txs = []*Transaction{}
-	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
+	c.mempool.StartStreaming(ctx)
+	for time.Since(start) < c.config.TargetBuildDuration && !stop {
 		prepareStreamLock.Lock()
-		txs := mempool.Stream(ctx, streamBatch)
+		txs := c.mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
 		if len(txs) == 0 {
-			b.vm.RecordClearedMempool()
+			c.metrics.clearedMempool.Inc()
 			break
 		}
-		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
+		ctx, executeSpan := c.tracer.Start(ctx, "Chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
+		dup, err := c.validityWindow.IsRepeat(ctx, parent, txs, oldestAllowed)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break
 		}
 
-		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
+		e := executor.New(streamBatch, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorBuildRecorder)
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
+		totalTxsSize := 0
 		for li, ltx := range txs {
 			txsAttempted++
+			totalTxsSize += ltx.Size()
+			if totalTxsSize > c.config.TargetTxsSize {
+				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.Size()))
+				restorable = append(restorable, txs[li:]...)
+				break
+			}
+
 			i := li
 			tx := ltx
 
@@ -173,7 +199,7 @@ func BuildBlock(
 				continue
 			}
 
-			stateKeys, err := tx.StateKeys(bh)
+			stateKeys, err := tx.StateKeys(c.balanceHandler)
 			if err != nil {
 				// Drop bad transaction and continue
 				//
@@ -187,7 +213,7 @@ func BuildBlock(
 			if i == streamPrefetchThreshold {
 				prepareStreamLock.Lock()
 				go func() {
-					mempool.PrepareStream(ctx, streamBatch)
+					c.mempool.PrepareStream(ctx, streamBatch)
 					prepareStreamLock.Unlock()
 				}()
 			}
@@ -195,7 +221,7 @@ func BuildBlock(
 			// We track pending transactions because an error may cause us
 			// not to execute restorable transactions.
 			pendingLock.Lock()
-			pending[tx.ID()] = tx
+			pending[tx.GetID()] = tx
 			pendingLock.Unlock()
 			e.Run(stateKeys, func() error {
 				// We use defer here instead of covering all returns because it is
@@ -203,7 +229,7 @@ func BuildBlock(
 				var restore bool
 				defer func() {
 					pendingLock.Lock()
-					delete(pending, tx.ID())
+					delete(pending, tx.GetID())
 					pendingLock.Unlock()
 
 					if !restore {
@@ -265,10 +291,10 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, bh, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
-					if HandlePreExecute(log, err) {
+					if HandlePreExecute(c.log, err) {
 						restore = true
 					}
 					return nil
@@ -276,7 +302,7 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					bh,
+					c.balanceHandler,
 					r,
 					tsv,
 					nextTime,
@@ -284,7 +310,7 @@ func BuildBlock(
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
 					// all units for the transaction should be consumed and a fee should be charged.
-					log.Warn("unexpected post-execution error", zap.Error(err))
+					c.log.Warn("unexpected post-execution error", zap.Error(err))
 					restore = true
 					return err
 				}
@@ -294,7 +320,7 @@ func BuildBlock(
 
 				// Ensure block isn't too big
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
-					log.Debug(
+					c.log.Debug(
 						"skipping tx: too many units",
 						zap.Int("dimension", int(dimension)),
 						zap.Uint64("tx", result.Units[dimension]),
@@ -317,7 +343,7 @@ func BuildBlock(
 
 				// Update block with new transaction
 				tsv.Commit()
-				b.Txs = append(b.Txs, tx)
+				blockTransactions = append(blockTransactions, tx)
 				results = append(results, result)
 				return nil
 			})
@@ -336,11 +362,11 @@ func BuildBlock(
 				// sure all transactions are returned to the mempool.
 				go func() {
 					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
-					restored := mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
-					b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+					restored := c.mempool.FinishStreaming(ctx, append(blockTransactions, restorable...))
+					c.log.Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
-				b.vm.Logger().Warn("build failed", zap.Error(execErr))
-				return nil, execErr
+				c.log.Warn("build failed", zap.Error(execErr))
+				return nil, nil, nil, execErr
 			}
 			break
 		}
@@ -350,31 +376,31 @@ func BuildBlock(
 	// sure all transactions are returned to the mempool.
 	go func() {
 		prepareStreamLock.Lock()
-		restored := mempool.FinishStreaming(ctx, restorable)
-		b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+		restored := c.mempool.FinishStreaming(ctx, restorable)
+		c.log.Debug("transactions restored to mempool", zap.Int("count", restored))
 	}()
 
 	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
-		attribute.Int("added", len(b.Txs)),
+		attribute.Int("added", len(blockTransactions)),
 	)
-	if time.Since(start) > b.vm.GetTargetBuildDuration() {
-		b.vm.RecordBuildCapped()
+	if time.Since(start) > c.config.TargetBuildDuration {
+		c.metrics.buildCapped.Inc()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
-	if len(b.Txs) == 0 {
+	if len(blockTransactions) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
+			return nil, nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
-		vm.RecordEmptyBlockBuilt()
+		c.metrics.emptyBlockBuilt.Inc()
 	}
 
 	// Update chain metadata
-	heightKey := HeightKey(b.vm.MetadataManager().HeightPrefix())
+	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	heightKeyStr := string(heightKey)
-	timestampKey := TimestampKey(b.vm.MetadataManager().TimestampPrefix())
+	timestampKey := TimestampKey(c.metadataManager.TimestampPrefix())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 
@@ -387,35 +413,40 @@ func BuildBlock(
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, fmt.Errorf("%w: unable to insert height", err)
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(timestamp))); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, fmt.Errorf("%w: unable to insert fees", err)
+		return nil, nil, nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 	tsv.Commit()
 
 	// Fetch [parentView] root as late as possible to allow
 	// for async processing to complete
-	root, err := parentView.GetMerkleRoot(ctx)
+	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
+	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
-	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
-		log.Warn("block failed", zap.Int("txs", len(b.Txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
-		return nil, err
+	// Initialize finalized metadata fields
+	blk, err := NewStatelessBlock(
+		parentID,
+		timestamp,
+		height,
+		blockTransactions,
+		parentStateRoot,
+	)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	// Kickoff root generation
@@ -423,26 +454,36 @@ func BuildBlock(
 		start := time.Now()
 		root, err := view.GetMerkleRoot(ctx)
 		if err != nil {
-			log.Error("merkle root generation failed", zap.Error(err))
+			c.log.Error("merkle root generation failed", zap.Error(err))
 			return
 		}
-		log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
+		c.log.Info("merkle root generated",
+			zap.Uint64("height", blk.Hght),
+			zap.Stringer("blkID", blk.ID()),
 			zap.Stringer("root", root),
 		)
-		b.vm.RecordRootCalculated(time.Since(start))
+		c.metrics.rootCalculatedCount.Inc()
+		c.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
-	log.Info(
+	c.log.Info(
 		"built block",
-		zap.Uint64("hght", b.Hght),
+		zap.Uint64("hght", height),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.Txs)),
+		zap.Int("added", len(blockTransactions)),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
-		zap.Int64("block (t)", b.Tmstmp),
+		zap.Int64("block (t)", timestamp),
 	)
-	return b, nil
+	execBlock, err := NewExecutionBlock(blk)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return execBlock, &ExecutedBlock{
+		Block:         blk,
+		Results:       results,
+		UnitPrices:    feeManager.UnitPrices(),
+		UnitsConsumed: feeManager.UnitsConsumed(),
+	}, view, nil
 }

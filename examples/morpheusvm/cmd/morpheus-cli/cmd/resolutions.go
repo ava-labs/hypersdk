@@ -44,20 +44,20 @@ func sendAndWait(
 		if txErr != nil {
 			return false, ids.Empty, txErr
 		}
-		if txID == tx.ID() {
+		if txID == tx.GetID() {
 			result = txResult
 			break
 		}
-		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
+		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.GetID())
 	}
 	if printStatus {
 		status := "❌"
 		if result.Success {
 			status = "✅"
 		}
-		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.ID())
+		utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, tx.GetID())
 	}
-	return result.Success, tx.ID(), nil
+	return result.Success, tx.GetID(), nil
 }
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {
@@ -66,7 +66,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		utils.Outf(
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
-			tx.ID(),
+			tx.GetID(),
 			actor,
 			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
@@ -86,7 +86,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		utils.Outf(
 			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"✅",
-			tx.ID(),
+			tx.GetID(),
 			actor,
 			reflect.TypeOf(action),
 			summaryStr,
