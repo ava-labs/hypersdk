@@ -82,19 +82,19 @@ func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []b
 	call := &actions.EvmCall{
 		To:       &to,
 		Value:    amount,
-		GasLimit: 1000000,
+		GasLimit: 100000,
 		Data:     []byte{},
 	}
 
 	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
 	if err != nil {
 		fmt.Println("simulate actions error", err)
-		return nil
+		return []chain.Action{} // TODO: handle this better, return err
 	}
 	actionResult := simRes[0]
 	call.Keys = actionResult.StateKeys
 
-	// transfer := &actions.Transfer{
+	// call := &actions.Transfer{
 	// 	To:    address,
 	// 	Value: amount,
 	// 	Memo:  memo,

@@ -305,7 +305,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
 
-	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
+	distAmount := (s.balance - withholding) / (uint64(s.numAccounts) * 100) // lowering the amount to avoid insufficient funds errors
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
@@ -335,7 +335,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, []byte{}, factories[i])
+		actions := sh.GetTransfer(pk.Address, distAmount, []byte{}, s.authFactory)
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
