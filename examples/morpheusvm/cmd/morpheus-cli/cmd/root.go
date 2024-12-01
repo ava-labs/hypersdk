@@ -158,6 +158,7 @@ func init() {
 		false,
 		"use default spam parameters",
 	)
+
 	runSpamCmd.PersistentFlags().StringVar(
 		&clusterInfo,
 		"cluster-info",
