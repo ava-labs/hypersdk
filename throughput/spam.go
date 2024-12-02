@@ -274,7 +274,7 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 }
 
-// createIssuer creates an [numClients] transaction issuers for each URI in [uris]
+// createIssuers creates an [numClients] transaction issuers for each URI in [uris]
 func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
 
