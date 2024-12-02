@@ -146,7 +146,6 @@ func (n *Node[T]) BuildChunk(
 		Expiry:   chunk.Expiry,
 	}, &packer); err != nil {
 		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to marshal chunk reference: %w", err)
-
 	}
 
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
