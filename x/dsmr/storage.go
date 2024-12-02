@@ -175,10 +175,7 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate[T]
 	}
 	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
-	chunkCert := &StoredChunkSignature[T]{
-		Chunk: c,
-		Cert:  cert,
-	}
+	chunkCert := &StoredChunkSignature[T]{Chunk: c, Cert: cert}
 	s.chunkMap[c.id] = chunkCert
 	return nil
 }
