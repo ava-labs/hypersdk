@@ -136,7 +136,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk, err := node.BuildBlock(node.LastAccepted, 2)
+	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
@@ -406,10 +406,10 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			block, err := node.BuildBlock(node.LastAccepted, 2)
+			blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
 			r.NoError(err)
-			r.NoError(node.Verify(context.Background(), node.LastAccepted, block))
-			r.NoError(node.Accept(context.Background(), block))
+			r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
+			r.NoError(node.Accept(context.Background(), blk))
 
 			client := NewGetChunkClient[tx](p2ptest.NewClient(
 				t,
@@ -655,7 +655,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node.BuildBlock(node.LastAccepted, 2)
+	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
@@ -709,11 +709,10 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	node1 := nodes[0]
 	node2 := nodes[1]
 
-	timestamp := node2.LastAccepted.Timestamp + 1
 	chunk, _, err := node1.BuildChunk(
 		context.Background(),
-		[]tx{{ID: ids.Empty, Expiry: timestamp}},
-		timestamp,
+		[]tx{{ID: ids.Empty, Expiry: 123}},
+		123,
 		codec.Address{123},
 	)
 	r.NoError(err)
@@ -722,7 +721,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	// chunk cert
 	var blk Block
 	for {
-		blk, err = node2.BuildBlock(node2.LastAccepted, timestamp)
+		blk, err = node2.BuildBlock(node2.LastAccepted, node2.LastAccepted.Timestamp+1)
 		if err == nil {
 			break
 		}
@@ -1018,15 +1017,14 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	node1 := nodes[0]
 	node2 := nodes[1]
 
-	timestamp := node1.LastAccepted.Timestamp + 1
 	chunk, _, err := node1.BuildChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: timestamp}},
-		timestamp,
+		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		123,
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node1.BuildBlock(node1.LastAccepted, timestamp)
+	blk, err := node1.BuildBlock(node1.LastAccepted, node1.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node1.Verify(context.Background(), node1.LastAccepted, blk))
 	r.NoError(node1.Accept(context.Background(), blk))
@@ -1430,22 +1428,21 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 
 	// create a valid parent block for tests to verify off of
 	node := result[0]
-	timestamp := node.LastAccepted.Timestamp + 1
 	_, _, err := node.BuildChunk(
 		context.Background(),
 		[]tx{
 			{
 				ID:      ids.ID{},
-				Expiry:  0,
+				Expiry:  123,
 				Sponsor: codec.Address{},
 			},
 		},
-		timestamp,
+		123,
 		codec.Address{},
 	)
 	require.NoError(t, err)
 
-	blk, err := node.BuildBlock(node.LastAccepted, timestamp)
+	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
