@@ -4,6 +4,7 @@
 package fees
 
 import (
+	"math/big"
 	"sort"
 )
 
@@ -14,30 +15,44 @@ import (
 // deterministic.
 func LargestSet(dimensions []Dimensions, limit Dimensions) ([]uint64, Dimensions) {
 	outIndices := make([]uint64, len(dimensions))
-	weights := make([]float64, len(dimensions))
+	weights := make([]*big.Int, len(dimensions))
+	shift := big.NewInt(65536)
 	for i := range dimensions {
 		outIndices[i] = uint64(i)
-		size := float64(0)
+		size := big.NewInt(0)
 		for k := 0; k < FeeDimensions; k++ {
-			w := float64(0)
+			w := big.NewInt(0)
 			if limit[k] > 0 {
-				w = float64(dimensions[i][k]) / float64(limit[k])
+				// calculate w = (shift * dimensions[i][k] ^ 2) / (limit[k] ^ 2)
+				d := big.NewInt(int64(dimensions[i][k]))
+				d.Mul(d, d)
+				d.Mul(d, shift)
+
+				b := big.NewInt(int64(limit[k]))
+				b = b.Mul(b, b)
+
+				w = w.Div(d, b)
 			}
-			size += w * w
+			size = size.Add(size, w)
 		}
 		weights[i] = size
 	}
+
 	sort.SliceStable(outIndices, func(i, j int) bool {
-		return weights[outIndices[i]] < weights[outIndices[j]]
+		return weights[outIndices[i]].Cmp(weights[outIndices[j]]) < 0
 	})
+
 	// find where we pass the limit threshold.
 	var accumulator Dimensions
 	var err error
-	for i, j := range outIndices {
-		if !accumulator.CanAdd(dimensions[j], limit) {
-			return outIndices[:i], accumulator
+	for i := 0; i < len(outIndices); i++ {
+		dim := dimensions[outIndices[i]]
+		if !accumulator.CanAdd(dim, limit) {
+			outIndices = append(outIndices[:i], outIndices[i+1:]...)
+			i--
+			continue
 		}
-		accumulator, err = accumulator.AddDimentions(dimensions[j])
+		accumulator, err = accumulator.AddDimentions(dim)
 		if err != nil {
 			return []uint64{}, Dimensions{}
 		}

@@ -20,7 +20,7 @@ func TestLargestSet(t *testing.T) {
 		expectedDim     Dimensions
 	}{
 		{
-			name: "case1",
+			name: "trivial",
 			dim: []Dimensions{
 				{1, 0, 0, 0, 0},
 				{2, 0, 0, 0, 0},
@@ -33,7 +33,7 @@ func TestLargestSet(t *testing.T) {
 			expectedDim:     Dimensions{3, 0, 0, 0, 0},
 		},
 		{
-			name: "case2",
+			name: "trivial2",
 			dim: []Dimensions{
 				{1, 0, 0, 0, 0},
 				{2, 0, 0, 0, 0},
@@ -46,7 +46,7 @@ func TestLargestSet(t *testing.T) {
 			expectedDim:     Dimensions{6, 0, 0, 0, 0},
 		},
 		{
-			name: "case3",
+			name: "ordering",
 			dim: []Dimensions{
 				{1, 0, 0, 0, 0},
 				{4, 0, 0, 0, 0},
@@ -57,6 +57,32 @@ func TestLargestSet(t *testing.T) {
 			limit:           Dimensions{6, 0, 0, 0, 0},
 			expectedIndices: []uint64{0, 2, 4},
 			expectedDim:     Dimensions{6, 0, 0, 0, 0},
+		},
+		{
+			name: "multi-dimension",
+			dim: []Dimensions{
+				{1, 0, 0, 0, 0},
+				{0, 2, 0, 0, 0},
+				{0, 0, 3, 0, 0},
+				{0, 0, 0, 4, 0},
+				{0, 0, 0, 0, 5},
+			},
+			limit:           Dimensions{6, 6, 6, 3, 3},
+			expectedIndices: []uint64{0, 1, 2},
+			expectedDim:     Dimensions{1, 2, 3, 0, 0},
+		},
+		{
+			name: "multi-dimension2",
+			dim: []Dimensions{
+				{5, 1, 1, 1, 1},
+				{1, 5, 1, 1, 1},
+				{1, 1, 5, 1, 1},
+				{1, 1, 1, 5, 1},
+				{1, 1, 1, 1, 5},
+			},
+			limit:           Dimensions{7, 7, 7, 7, 7},
+			expectedIndices: []uint64{0, 1, 2},
+			expectedDim:     Dimensions{7, 7, 7, 3, 3},
 		},
 	}
 
@@ -73,7 +99,7 @@ func BenchmarkLargestSet(b *testing.B) {
 	r := require.New(b)
 
 	for n := 0; n < b.N; n++ {
-		dimensions := make([]Dimensions, 20)
+		dimensions := make([]Dimensions, 20000)
 
 		for i := range dimensions {
 			d := uint64(i)
