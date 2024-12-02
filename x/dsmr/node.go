@@ -41,7 +41,8 @@ var (
 	ErrInvalidBlockParent                  = errors.New("invalid referenced block parent")
 	ErrInvalidBlockHeight                  = errors.New("invalid block height")
 	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
-	ErrInvalidChunkCert                    = errors.New("invalid chunk cert")
+	ErrInvalidWarpSignature                = errors.New("invalid warp signature")
+	ErrMissingChunkSignature               = errors.New("missing chunk signature")
 	ErrDuplicateChunkCert                  = errors.New("duplicate chunk cert")
 )
 
@@ -139,8 +140,13 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(chunk, &packer); err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, err
+	if err := codec.LinearCodec.MarshalInto(ChunkReference{
+		ChunkID:  chunk.id,
+		Producer: chunk.Producer,
+		Expiry:   chunk.Expiry,
+	}, &packer); err != nil {
+		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to marshal chunk reference: %w", err)
+
 	}
 
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
@@ -170,7 +176,7 @@ func (n *Node[T]) BuildChunk(
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
 		ctx,
 		msg,
-		nil, // justification is unused and is safe to be nil
+		chunk.bytes,
 		canonicalValidators,
 		n.quorumNum,
 		n.quorumDen,
@@ -189,8 +195,11 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	chunkCert := ChunkCertificate[T]{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
+		ChunkReference: ChunkReference{
+			ChunkID:  chunk.id,
+			Producer: chunk.Producer,
+			Expiry:   chunk.Expiry,
+		},
 		Signature: bitSetSignature,
 	}
 
@@ -274,6 +283,10 @@ func (n *Node[T]) Execute(ctx context.Context, parent Block[T], block Block[T]) 
 	}
 
 	for _, chunkCert := range block.ChunkCerts {
+		if chunkCert.Signature == nil {
+			return fmt.Errorf("%w: %s", ErrMissingChunkSignature, chunkCert.ChunkID)
+		}
+
 		_, ok, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if err != nil && !errors.Is(err, database.ErrNotFound) {
 			return fmt.Errorf("failed to get chunk: %w", err)
@@ -285,7 +298,6 @@ func (n *Node[T]) Execute(ctx context.Context, parent Block[T], block Block[T]) 
 
 		if err := chunkCert.Verify(
 			ctx,
-			n.storage,
 			n.networkID,
 			n.chainID,
 			pChain{validators: n.validators},
@@ -293,7 +305,7 @@ func (n *Node[T]) Execute(ctx context.Context, parent Block[T], block Block[T]) 
 			n.quorumNum,
 			n.quorumDen,
 		); err != nil {
-			return fmt.Errorf("%w %s: %w", ErrInvalidChunkCert, chunkCert.ChunkID, err)
+			return fmt.Errorf("%w %s: %w", ErrInvalidWarpSignature, chunkCert.ChunkID, err)
 		}
 	}
 

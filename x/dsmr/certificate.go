@@ -12,8 +12,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
+	"github.com/ava-labs/hypersdk/codec"
 
 	acodec "github.com/ava-labs/avalanchego/codec"
 )
@@ -39,11 +41,15 @@ func init() {
 	}
 }
 
-type ChunkCertificate[T Tx] struct {
-	ChunkID ids.ID `serialize:"true"`
-	Expiry  int64  `serialize:"true"`
+type ChunkReference struct {
+	ChunkID  ids.ID     `serialize:"true"`
+	Producer ids.NodeID `serialize:"true"`
+	Expiry   int64      `serialize:"true"`
+}
 
-	Signature *warp.BitSetSignature `serialize:"true"`
+type ChunkCertificate[T Tx] struct {
+	ChunkReference `serialize:"true"`
+	Signature      *warp.BitSetSignature `serialize:"true"`
 }
 
 func (c *ChunkCertificate[_]) GetChunkID() ids.ID { return c.ChunkID }
@@ -60,7 +66,6 @@ func (c *ChunkCertificate[_]) Bytes() []byte {
 
 func (c *ChunkCertificate[T]) Verify(
 	ctx context.Context,
-	storage *ChunkStorage[T],
 	networkID uint32,
 	chainID ids.ID,
 	pChainState validators.State,
@@ -68,14 +73,14 @@ func (c *ChunkCertificate[T]) Verify(
 	quorumNum uint64,
 	quorumDen uint64,
 ) error {
-	chunkBytes, _, err := storage.GetChunkBytes(c.Expiry, c.ChunkID)
-	if err != nil {
-		return fmt.Errorf("failed to get chunk from storage: %w", err)
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(c.ChunkReference, &packer); err != nil {
+		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkBytes)
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 	if err != nil {
-		return fmt.Errorf("failed to initialize unsigned message: %w", err)
+		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
 
 	if err := c.Signature.Verify(

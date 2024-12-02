@@ -572,6 +572,15 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				codec.Address{123},
 			)
 			r.NoError(err)
+
+			packer := wrappers.Packer{MaxSize: MaxMessageSize}
+			r.NoError(codec.LinearCodec.MarshalInto(ChunkReference{
+				ChunkID:  chunk.id,
+				Producer: chunk.Producer,
+				Expiry:   chunk.Expiry,
+			}, &packer))
+			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+			r.NoError(err)
 			done := make(chan struct{})
 			onResponse := func(_ context.Context, _ ids.NodeID, response *sdk.SignatureResponse, err error) {
 				defer close(done)
@@ -608,8 +617,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 				copy(signature.Signature[:], response.Signature)
 
-				msg, err := warp.NewUnsignedMessage(networkID, chainID, chunk.bytes)
-				r.NoError(err)
 				r.NoError(signature.Verify(
 					context.Background(),
 					msg,
@@ -620,11 +627,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					1,
 				))
 			}
-
-			packer := wrappers.Packer{MaxSize: MaxMessageSize}
-			r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
-			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
-			r.NoError(err)
 
 			client := NewGetChunkSignatureClient(
 				networkID,
@@ -641,7 +643,10 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			r.NoError(client.AppRequest(
 				context.Background(),
 				node.ID,
-				&sdk.SignatureRequest{Message: msg.Bytes()},
+				&sdk.SignatureRequest{
+					Message:       msg.Bytes(),
+					Justification: chunk.bytes,
+				},
 				onResponse,
 			))
 
@@ -681,7 +686,11 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	r.NoError(codec.LinearCodec.MarshalInto(chunk, &packer))
+	r.NoError(codec.LinearCodec.MarshalInto(ChunkReference{
+		ChunkID:  chunk.id,
+		Producer: chunk.Producer,
+		Expiry:   chunk.Expiry,
+	}, &packer))
 	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 	r.NoError(err)
 
@@ -700,7 +709,10 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r.NoError(client.AppRequest(
 		context.Background(),
 		node.ID,
-		&sdk.SignatureRequest{Message: msg.Bytes()},
+		&sdk.SignatureRequest{
+			Message:       msg.Bytes(),
+			Justification: chunk.bytes,
+		},
 		onResponse,
 	))
 
@@ -1246,14 +1258,17 @@ func Test_Execute_BadBlock(t *testing.T) {
 					Timestamp: parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate[tx]{
 						{
-							ChunkID:   ids.GenerateTestID(),
-							Expiry:    1,
+							ChunkReference: ChunkReference{
+								ChunkID:  ids.GenerateTestID(),
+								Producer: ids.GenerateTestNodeID(),
+								Expiry:   1,
+							},
 							Signature: nil,
 						},
 					},
 				}
 			},
-			wantErr: ErrInvalidChunkCert,
+			wantErr: ErrMissingChunkSignature,
 		},
 		{
 			name: "invalid signature",
@@ -1264,8 +1279,11 @@ func Test_Execute_BadBlock(t *testing.T) {
 					Timestamp: parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate[tx]{
 						{
-							ChunkID: ids.GenerateTestID(),
-							Expiry:  1,
+							ChunkReference: ChunkReference{
+								ChunkID:  ids.GenerateTestID(),
+								Producer: ids.GenerateTestNodeID(),
+								Expiry:   1,
+							},
 							Signature: &warp.BitSetSignature{
 								Signers:   set.NewBits(1, 2, 3).Bytes(),
 								Signature: [96]byte{1, 2, 3},
@@ -1274,7 +1292,7 @@ func Test_Execute_BadBlock(t *testing.T) {
 					},
 				}
 			},
-			wantErr: ErrInvalidChunkCert,
+			wantErr: ErrInvalidWarpSignature,
 		},
 	}
 	for _, tt := range tests {

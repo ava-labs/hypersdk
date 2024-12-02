@@ -123,8 +123,11 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	require.Empty(chunkCerts)
 
 	chunkCert := &ChunkCertificate[tx]{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
 		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
@@ -158,8 +161,11 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	require.Empty(chunkCerts)
 
 	chunkCert := &ChunkCertificate[tx]{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
 		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
@@ -197,8 +203,11 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate[tx]{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
 		Signature: &warp.BitSetSignature{},
 	}
 
@@ -227,8 +236,11 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate[tx]{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
 		Signature: &warp.BitSetSignature{},
 	}
 
@@ -266,8 +278,11 @@ func TestRestartSavedChunks(t *testing.T) {
 	chunkCerts := make([]*ChunkCertificate[tx], 0, numChunks)
 	for _, chunk := range validChunks {
 		chunkCert := &ChunkCertificate[tx]{
-			ChunkID:   chunk.id,
-			Expiry:    chunk.Expiry,
+			ChunkReference: ChunkReference{
+				ChunkID:  chunk.id,
+				Producer: chunk.Producer,
+				Expiry:   chunk.Expiry,
+			},
 			Signature: &warp.BitSetSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)

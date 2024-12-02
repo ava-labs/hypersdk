@@ -114,8 +114,12 @@ type ChunkSignatureRequestVerifier[T Tx] struct {
 	storage  *ChunkStorage[T]
 }
 
-func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *warp.UnsignedMessage, _ []byte) *common.AppError {
-	chunk, err := ParseChunk[T](message.Payload)
+func (c ChunkSignatureRequestVerifier[T]) Verify(
+	_ context.Context,
+	_ *warp.UnsignedMessage,
+	justification []byte,
+) *common.AppError {
+	chunk, err := ParseChunk[T](justification)
 	if err != nil {
 		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
