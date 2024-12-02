@@ -136,15 +136,9 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk, err := node.BuildBlock(
-		Block[tx]{
-			ParentID:  ids.GenerateTestID(),
-			Height:    0,
-			Timestamp: 1,
-		},
-		2,
-	)
+	blk, err := node.BuildBlock(node.LastAccepted, 2)
 	r.NoError(err)
+	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
 
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
@@ -412,15 +406,9 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			block, err := node.BuildBlock(
-				Block[tx]{
-					ParentID:  ids.GenerateTestID(),
-					Height:    0,
-					Timestamp: 1,
-				},
-				2,
-			)
+			block, err := node.BuildBlock(node.LastAccepted, 2)
 			r.NoError(err)
+			r.NoError(node.Verify(context.Background(), node.LastAccepted, block))
 			r.NoError(node.Accept(context.Background(), block))
 
 			client := NewGetChunkClient[tx](p2ptest.NewClient(
@@ -667,15 +655,9 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node.BuildBlock(
-		Block[tx]{
-			ParentID:  ids.GenerateTestID(),
-			Height:    0,
-			Timestamp: 1,
-		},
-		2,
-	)
+	blk, err := node.BuildBlock(node.LastAccepted, 2)
 	r.NoError(err)
+	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
 
 	done := make(chan struct{})
@@ -727,10 +709,11 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	node1 := nodes[0]
 	node2 := nodes[1]
 
+	timestamp := node2.LastAccepted.Timestamp + 1
 	chunk, _, err := node1.BuildChunk(
 		context.Background(),
-		[]tx{{ID: ids.Empty, Expiry: 1}},
-		1,
+		[]tx{{ID: ids.Empty, Expiry: timestamp}},
+		timestamp,
 		codec.Address{123},
 	)
 	r.NoError(err)
@@ -739,20 +722,14 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	// chunk cert
 	var blk Block[tx]
 	for {
-		blk, err = node2.BuildBlock(
-			Block[tx]{
-				ParentID:  ids.Empty,
-				Height:    0,
-				Timestamp: 0,
-			},
-			1,
-		)
+		blk, err = node2.BuildBlock(node2.LastAccepted, timestamp)
 		if err == nil {
 			break
 		}
 
 		time.Sleep(time.Second)
 	}
+	r.NoError(node2.Verify(context.Background(), node2.LastAccepted, blk))
 	r.NoError(node2.Accept(context.Background(), blk))
 
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
@@ -1041,20 +1018,19 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	node1 := nodes[0]
 	node2 := nodes[1]
 
+	timestamp := node1.LastAccepted.Timestamp + 1
 	chunk, _, err := node1.BuildChunk(
 		context.Background(),
-		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
-		1,
+		[]tx{{ID: ids.GenerateTestID(), Expiry: timestamp}},
+		timestamp,
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node1.BuildBlock(Block[tx]{
-		ParentID:  ids.GenerateTestID(),
-		Height:    0,
-		Timestamp: 0,
-	}, 1)
+	blk, err := node1.BuildBlock(node1.LastAccepted, timestamp)
 	r.NoError(err)
+	r.NoError(node1.Verify(context.Background(), node1.LastAccepted, blk))
 	r.NoError(node1.Accept(context.Background(), blk))
+	r.NoError(node2.Verify(context.Background(), node2.LastAccepted, blk))
 	r.NoError(node2.Accept(context.Background(), blk))
 
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
@@ -1300,22 +1276,6 @@ func Test_Verify_BadBlock(t *testing.T) {
 			r := require.New(t)
 
 			node := newNode(t)
-			_, _, err := node.BuildChunk(
-				context.Background(),
-				[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
-				100,
-				codec.Address{123},
-			)
-			r.NoError(err)
-
-			parentBlk, err := node.BuildBlock(
-				node.LastAccepted,
-				node.LastAccepted.Timestamp+1,
-			)
-			r.NoError(err)
-			r.NoError(node.Verify(context.Background(), node.LastAccepted, parentBlk))
-			r.NoError(node.Accept(context.Background(), parentBlk))
-
 			_, chunkCert, err := node.BuildChunk(
 				context.Background(),
 				[]tx{{ID: ids.GenerateTestID(), Expiry: 2}},
@@ -1325,8 +1285,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			r.NoError(err)
 			r.ErrorIs(node.Verify(
 				context.Background(),
-				parentBlk,
-				tt.blk(chunkCert, parentBlk),
+				node.LastAccepted,
+				tt.blk(chunkCert, node.LastAccepted),
 			), tt.wantErr)
 		})
 	}
@@ -1455,10 +1415,10 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 			),
 			validators,
 			Block[tx]{
-				ParentID:  ids.GenerateTestID(),
+				ParentID:  ids.Empty,
 				Height:    0,
 				Timestamp: 0,
-				blkID:     ids.GenerateTestID(),
+				blkID:     ids.Empty,
 			},
 			1,
 			1,
@@ -1466,6 +1426,34 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 		require.NoError(t, err)
 
 		result = append(result, node)
+	}
+
+	// create a valid parent block for tests to verify off of
+	node := result[0]
+	timestamp := node.LastAccepted.Timestamp + 1
+	_, _, err := node.BuildChunk(
+		context.Background(),
+		[]tx{
+			{
+				ID:      ids.ID{},
+				Expiry:  0,
+				Sponsor: codec.Address{},
+			},
+		},
+		timestamp,
+		codec.Address{},
+	)
+	require.NoError(t, err)
+
+	blk, err := node.BuildBlock(node.LastAccepted, timestamp)
+	require.NoError(t, err)
+
+	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
+	require.NoError(t, node.Accept(context.Background(), blk))
+
+	for _, n := range result[1:] {
+		require.NoError(t, n.Verify(context.Background(), n.LastAccepted, blk))
+		require.NoError(t, n.Accept(context.Background(), blk))
 	}
 
 	return result
