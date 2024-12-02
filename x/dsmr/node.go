@@ -42,7 +42,6 @@ var (
 	ErrInvalidBlockHeight                  = errors.New("invalid block height")
 	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
 	ErrInvalidWarpSignature                = errors.New("invalid warp signature")
-	ErrMissingChunkSignature               = errors.New("missing chunk signature")
 	ErrDuplicateChunkCert                  = errors.New("duplicate chunk cert")
 )
 
@@ -282,10 +281,6 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	}
 
 	for _, chunkCert := range block.ChunkCerts {
-		if chunkCert.Signature == nil {
-			return fmt.Errorf("%w: %s", ErrMissingChunkSignature, chunkCert.ChunkID)
-		}
-
 		_, ok, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if err != nil && !errors.Is(err, database.ErrNotFound) {
 			return fmt.Errorf("failed to get chunk: %w", err)

@@ -1224,27 +1224,6 @@ func Test_Verify_BadBlock(t *testing.T) {
 			wantErr: ErrEmptyBlock,
 		},
 		{
-			name: "missing signature",
-			blk: func(_ ChunkCertificate, parent Block) Block {
-				return Block{
-					ParentID:  parent.GetID(),
-					Height:    parent.Height + 1,
-					Timestamp: parent.Timestamp + 1,
-					ChunkCerts: []*ChunkCertificate{
-						{
-							ChunkReference: ChunkReference{
-								ChunkID:  ids.GenerateTestID(),
-								Producer: ids.GenerateTestNodeID(),
-								Expiry:   1,
-							},
-							Signature: nil,
-						},
-					},
-				}
-			},
-			wantErr: ErrMissingChunkSignature,
-		},
-		{
 			name: "invalid signature",
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{
