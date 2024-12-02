@@ -89,7 +89,7 @@ func TestNode_BuildChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t)
+			node := newTestNode(t)
 			chunk, _, err := node.BuildChunk(
 				context.Background(),
 				tt.txs,
@@ -173,7 +173,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 func TestNode_GetChunk_PendingChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t)
+	node := newTestNode(t)
 	chunk, _, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 123}},
@@ -214,7 +214,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t)
+	node := newTestNode(t)
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
 		context.Background(),
@@ -390,7 +390,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t)
+			node := newTestNode(t)
 
 			// Build some chunks
 			wantChunks := make([]Chunk[tx], 0)
@@ -647,7 +647,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t)
+	node := newTestNode(t)
 	chunk, _, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.Empty, Expiry: 123}},
@@ -965,7 +965,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t)
+			node := newTestNode(t)
 			wantChunks := make([]Chunk[tx], 0)
 			for _, chunk := range tt.chunks {
 				chunk, _, err := node.BuildChunk(
@@ -1085,7 +1085,7 @@ func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.N
 func Test_Verify(t *testing.T) {
 	r := require.New(t)
 
-	node := newNode(t)
+	node := newTestNode(t)
 	_, _, err := node.BuildChunk(
 		context.Background(),
 		[]tx{{ID: ids.GenerateTestID(), Expiry: 1}},
@@ -1240,7 +1240,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			node := newNode(t)
+			node := newTestNode(t)
 			_, chunkCert, err := node.BuildChunk(
 				context.Background(),
 				[]tx{{ID: ids.GenerateTestID(), Expiry: 2}},
@@ -1289,7 +1289,7 @@ type testNode struct {
 	Sk                            *bls.SecretKey
 }
 
-func newNode(t *testing.T) *Node[tx] {
+func newTestNode(t *testing.T) *Node[tx] {
 	return newNodes(t, 1)[0]
 }
 

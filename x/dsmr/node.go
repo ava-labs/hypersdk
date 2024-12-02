@@ -42,6 +42,8 @@ var (
 	ErrInvalidBlockHeight                  = errors.New("invalid block height")
 	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
 	ErrInvalidWarpSignature                = errors.New("invalid warp signature")
+	ErrInvalidSignatureType                = errors.New("invalid signature type")
+	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
 
 type Validator struct {
@@ -183,12 +185,12 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	if !ok {
-		return Chunk[T]{}, ChunkCertificate{}, errors.New("failed to replicate to sufficient stake")
+		return Chunk[T]{}, ChunkCertificate{}, ErrFailedToReplicate
 	}
 
 	bitSetSignature, ok := aggregatedMsg.Signature.(*warp.BitSetSignature)
 	if !ok {
-		return Chunk[T]{}, ChunkCertificate{}, errors.New("invalid signature type")
+		return Chunk[T]{}, ChunkCertificate{}, ErrInvalidSignatureType
 	}
 
 	chunkCert := ChunkCertificate{
@@ -364,7 +366,7 @@ func (pChain) GetSubnetID(context.Context, ids.ID) (ids.ID, error) {
 }
 
 func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
-	result := make(map[ids.NodeID]*snowValidators.GetValidatorOutput)
+	result := make(map[ids.NodeID]*snowValidators.GetValidatorOutput, len(p.validators))
 	for _, v := range p.validators {
 		result[v.NodeID] = &snowValidators.GetValidatorOutput{
 			NodeID:    v.NodeID,
