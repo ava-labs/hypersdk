@@ -1108,7 +1108,7 @@ func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.N
 	return signerBitSet
 }
 
-func Test_Execute(t *testing.T) {
+func Test_Verify(t *testing.T) {
 	r := require.New(t)
 
 	node := newNode(t)
@@ -1122,10 +1122,10 @@ func Test_Execute(t *testing.T) {
 
 	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
-	r.NoError(node.Execute(context.Background(), node.LastAccepted, blk))
+	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 }
 
-func Test_Execute_BadBlock(t *testing.T) {
+func Test_Verify_BadBlock(t *testing.T) {
 	tests := []struct {
 		name    string
 		blk     func(chunkCert ChunkCertificate[tx], parent Block[tx]) Block[tx]
@@ -1313,7 +1313,7 @@ func Test_Execute_BadBlock(t *testing.T) {
 				node.LastAccepted.Timestamp+1,
 			)
 			r.NoError(err)
-			r.NoError(node.Execute(context.Background(), node.LastAccepted, parentBlk))
+			r.NoError(node.Verify(context.Background(), node.LastAccepted, parentBlk))
 			r.NoError(node.Accept(context.Background(), parentBlk))
 
 			_, chunkCert, err := node.BuildChunk(
@@ -1323,7 +1323,7 @@ func Test_Execute_BadBlock(t *testing.T) {
 				codec.Address{123},
 			)
 			r.NoError(err)
-			r.ErrorIs(node.Execute(
+			r.ErrorIs(node.Verify(
 				context.Background(),
 				parentBlk,
 				tt.blk(chunkCert, parentBlk),

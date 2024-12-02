@@ -254,7 +254,7 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 	return blk, nil
 }
 
-func (n *Node[T]) Execute(ctx context.Context, parent Block[T], block Block[T]) error {
+func (n *Node[T]) Verify(ctx context.Context, parent Block[T], block Block[T]) error {
 	if block.ParentID != parent.GetID() {
 		return fmt.Errorf(
 			"%w %s: expected %s",
