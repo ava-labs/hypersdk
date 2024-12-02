@@ -354,19 +354,22 @@ We're now ready to use the HyperSDK-CLI!
 ## CLI Setup
 
 We want to store the private key of our (test!) account
-and the RPC endpoint. We can do this by executing the following commands:
+and the RPC endpoint. We first store the private key:
 
 ```bash
 ./hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/tutorial/ 
-./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+
+# Output
+Endpoint set to: http://localhost:9650/ext/bc/tutorial/
 ```
 
-You should see the following outputs:
+Now storing our RPC endpoint:
 
 ```bash
-Endpoint set to: http://localhost:9650/ext/bc/tutorial/ # Endpoint output
+./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
 
-✅ Key added successfully! # Key output
+# Output
+✅ Key added successfully! 
 Address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 ```
 
