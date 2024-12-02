@@ -27,33 +27,33 @@ type SyncableBlock[T StateSummaryBlock] struct {
 	accepter  Accepter[T] // accepter is nil if the SyncableBlock is constructed by the server
 }
 
-func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *SyncableBlock[T] {
-	return &SyncableBlock[T]{
+func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *SyncableBlock {
+	return &SyncableBlock{
 		container: container,
 		accepter:  accepter,
 	}
 }
 
-func (sb *SyncableBlock[T]) ID() ids.ID {
+func (sb *SyncableBlock) ID() ids.ID {
 	return sb.container.ID()
 }
 
-func (sb *SyncableBlock[T]) Height() uint64 {
+func (sb *SyncableBlock) Height() uint64 {
 	return sb.container.Height()
 }
 
-func (sb *SyncableBlock[T]) Bytes() []byte {
+func (sb *SyncableBlock) Bytes() []byte {
 	return sb.container.Bytes()
 }
 
-func (sb *SyncableBlock[T]) Accept(ctx context.Context) (block.StateSyncMode, error) {
+func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.accepter.Accept(ctx, sb.container)
 }
 
-func (sb *SyncableBlock[T]) MarkAccepted(ctx context.Context) {
+func (sb *SyncableBlock) MarkAccepted(ctx context.Context) {
 	sb.container.MarkAccepted(ctx)
 }
 
-func (sb *SyncableBlock[T]) String() string {
+func (sb *SyncableBlock) String() string {
 	return sb.container.String()
 }

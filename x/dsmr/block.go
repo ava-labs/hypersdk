@@ -105,7 +105,7 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
-type Block[T Tx] struct {
+type Block struct {
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
@@ -116,6 +116,6 @@ type Block[T Tx] struct {
 	blkBytes []byte
 }
 
-func (b Block[_]) GetID() ids.ID {
+func (b Block) GetID() ids.ID {
 	return b.blkID
 }

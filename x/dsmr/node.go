@@ -67,7 +67,7 @@ func New[T Tx](
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
 	validators []Validator, // TODO remove hard-coded validator set
-	lastAccepted Block[T],
+	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
 ) (*Node[T], error) {
@@ -95,7 +95,7 @@ type Node[T Tx] struct {
 	ID                           ids.NodeID
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
-	LastAccepted                 Block[T]
+	LastAccepted                 Block
 	networkID                    uint32
 	chainID                      ids.ID
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
@@ -217,9 +217,9 @@ func (n *Node[T]) BuildChunk(
 	return chunk, chunkCert, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error) {
+func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Timestamp {
-		return Block[T]{}, ErrTimestampNotMonotonicallyIncreasing
+		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
@@ -233,10 +233,10 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
-		return Block[T]{}, ErrNoAvailableChunkCerts
+		return Block{}, ErrNoAvailableChunkCerts
 	}
 
-	blk := Block[T]{
+	blk := Block{
 		ParentID:   parent.GetID(),
 		Height:     parent.Height + 1,
 		Timestamp:  timestamp,
@@ -245,7 +245,7 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
-		return Block[T]{}, err
+		return Block{}, err
 	}
 
 	blk.blkBytes = packer.Bytes
@@ -253,7 +253,7 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 	return blk, nil
 }
 
-func (n *Node[T]) Verify(ctx context.Context, parent Block[T], block Block[T]) error {
+func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	if block.ParentID != parent.GetID() {
 		return fmt.Errorf(
 			"%w %s: expected %s",
@@ -311,7 +311,7 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block[T], block Block[T]) e
 	return nil
 }
 
-func (n *Node[T]) Accept(ctx context.Context, block Block[T]) error {
+func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	for _, chunkCert := range block.ChunkCerts {
 		chunkIDs = append(chunkIDs, chunkCert.ChunkID)

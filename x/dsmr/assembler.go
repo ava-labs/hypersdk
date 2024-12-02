@@ -30,7 +30,7 @@ type BlockHandler[T Tx, State any, Block any, Result any] struct {
 	Assembler          Assembler[T, State, Block, Result]
 }
 
-func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block[T]) error {
+func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block) error {
 	// Collect and store chunks in the accepted block
 	chunks, err := b.chunkGatherer.CollectChunks(block.ChunkCerts)
 	if err != nil {
