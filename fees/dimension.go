@@ -78,7 +78,7 @@ func (d Dimensions) AddDimentions(a Dimensions) (Dimensions, error) {
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		combined, err := math.Add(d[i], a[i])
 		if err != nil {
-			return Dimensions{}, errors.New("abc")
+			return Dimensions{}, err
 		}
 		out[i] = combined
 	}

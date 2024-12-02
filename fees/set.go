@@ -4,50 +4,8 @@
 package fees
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
-	"slices"
+	"sort"
 )
-
-const uint64Size = int(8)
-
-type (
-	stateKey [sha256.Size]byte
-	setState struct {
-		accumulatedDimentions Dimensions
-		pendingDimentions     []uint64
-		includedDimentions    []uint64
-	}
-)
-
-func (s *setState) stateKey() stateKey {
-	o := make([]byte, len(s.includedDimentions)*uint64Size)
-	for i, d := range s.includedDimentions {
-		binary.BigEndian.PutUint64(o[i*uint64Size:], d)
-	}
-	return sha256.Sum256(o)
-}
-
-func (s *setState) includeDimension(k int, dimensions []Dimensions) *setState {
-	dim := s.pendingDimentions[k]
-	newAcc, err := s.accumulatedDimentions.AddDimentions(dimensions[dim])
-	if err != nil {
-		return nil
-	}
-	newSet := &setState{
-		accumulatedDimentions: newAcc,
-		pendingDimentions:     make([]uint64, k, len(s.pendingDimentions)-1),
-		includedDimentions:    make([]uint64, len(s.includedDimentions)+1),
-	}
-	i, _ := slices.BinarySearch(s.includedDimentions, dim)
-	copy(newSet.includedDimentions, s.includedDimentions[:i])
-	newSet.includedDimentions[i] = dim
-	copy(newSet.includedDimentions[i+1:], s.includedDimentions[i:])
-
-	copy(newSet.pendingDimentions, s.pendingDimentions[:k])
-	newSet.pendingDimentions = append(newSet.pendingDimentions, s.pendingDimentions[k+1:]...)
-	return newSet
-}
 
 // LargestSet takes a slice of dimensions and a dimensions limit, and find the
 // largests set of dimensions that would fit within the provided limit. The return
@@ -55,43 +13,34 @@ func (s *setState) includeDimension(k int, dimensions []Dimensions) *setState {
 // note that the solution of the largest set is not
 // deterministic.
 func LargestSet(dimensions []Dimensions, limit Dimensions) ([]uint64, Dimensions) {
-	initialState := setState{
-		pendingDimentions: make([]uint64, len(dimensions)),
-	}
+	outIndices := make([]uint64, len(dimensions))
+	weights := make([]float64, len(dimensions))
 	for i := range dimensions {
-		initialState.pendingDimentions[i] = uint64(i)
-	}
-	options := []*setState{
-		&initialState,
-	}
-	progress := true
-	for progress {
-		progress = false
-		nextOptions := []*setState{}
-		nextOptionsMap := map[stateKey]bool{}
-		// iterate on the options and try to make progress on each one of them.
-		for _, opt := range options {
-			for i, dimIdx := range opt.pendingDimentions {
-				if !opt.accumulatedDimentions.CanAdd(dimensions[dimIdx], limit) {
-					continue
-				}
-				newDim := opt.includeDimension(i, dimensions)
-				newKey := newDim.stateKey()
-				if nextOptionsMap[newKey] {
-					continue
-				}
-				nextOptionsMap[newKey] = true
-				nextOptions = append(nextOptions, newDim)
-				progress = true
+		outIndices[i] = uint64(i)
+		size := float64(0)
+		for k := 0; k < FeeDimensions; k++ {
+			w := float64(0)
+			if limit[k] > 0 {
+				w = float64(dimensions[i][k]) / float64(limit[k])
 			}
+			size += w * w
 		}
-		if progress {
-			options = nextOptions
+		weights[i] = size
+	}
+	sort.SliceStable(outIndices, func(i, j int) bool {
+		return weights[outIndices[i]] < weights[outIndices[j]]
+	})
+	// find where we pass the limit threshold.
+	var accumulator Dimensions
+	var err error
+	for i, j := range outIndices {
+		if !accumulator.CanAdd(dimensions[j], limit) {
+			return outIndices[:i], accumulator
+		}
+		accumulator, err = accumulator.AddDimentions(dimensions[j])
+		if err != nil {
+			return []uint64{}, Dimensions{}
 		}
 	}
-	// return any of the remaining sets.
-	for _, v := range options {
-		return v.includedDimentions, v.accumulatedDimentions
-	}
-	return []uint64{}, Dimensions{}
+	return outIndices, accumulator
 }
