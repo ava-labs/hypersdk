@@ -1189,18 +1189,6 @@ func Test_Verify_BadBlock(t *testing.T) {
 			wantErr: ErrInvalidBlockTimestamp,
 		},
 		{
-			name: "duplicate chunk cert",
-			blk: func(_ ChunkCertificate, parent Block) Block {
-				return Block{
-					ParentID:   parent.GetID(),
-					Height:     parent.Height + 1,
-					Timestamp:  parent.Timestamp + 1,
-					ChunkCerts: parent.ChunkCerts,
-				}
-			},
-			wantErr: ErrDuplicateChunkCert,
-		},
-		{
 			name: "nil chunk certs",
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{

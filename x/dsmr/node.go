@@ -42,7 +42,6 @@ var (
 	ErrInvalidBlockHeight                  = errors.New("invalid block height")
 	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
 	ErrInvalidWarpSignature                = errors.New("invalid warp signature")
-	ErrDuplicateChunkCert                  = errors.New("duplicate chunk cert")
 )
 
 type Validator struct {
@@ -281,15 +280,6 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	}
 
 	for _, chunkCert := range block.ChunkCerts {
-		_, ok, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
-		if err != nil && !errors.Is(err, database.ErrNotFound) {
-			return fmt.Errorf("failed to get chunk: %w", err)
-		}
-
-		if ok {
-			return fmt.Errorf("%w: %s", ErrDuplicateChunkCert, chunkCert.ChunkID)
-		}
-
 		if err := chunkCert.Verify(
 			ctx,
 			n.networkID,

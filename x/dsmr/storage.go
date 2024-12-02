@@ -233,7 +233,7 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 
 	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
 	for _, chunk := range s.chunkMap {
-		if chunk.Cert == nil {
+		if chunk.Cert == nil || chunk.Available {
 			continue
 		}
 		chunkCerts = append(chunkCerts, chunk.Cert)
