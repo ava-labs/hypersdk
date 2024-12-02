@@ -15,13 +15,13 @@ PROJECT_NAME="morpheusvm"
 PROJECT_CLI_NAME="morpheus-cli"
 
 # Commit of the MorpheusVM repository to build and install
-PROJECT_VM_COMMIT=6930eeb5c7a40fc41f2face9b8802f1b252a091f
+PROJECT_VM_COMMIT=fd36681b939cd28b26526eaf1e5089c2c21fb91d
 
 # Set AvalancheGo Build (should have canPop disabled)
 AVALANCHEGO_COMMIT=94be34ac64cba099d7be198965f0dd551f7cdefb
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=96046e3a34d7e1e6973142632cafd07244589469
+LOCAL_CLI_COMMIT=18e5259b499bb9b487bb5e1e620d3107e68f2171
 
 # Set console colors
 RED='\033[1;31m'
