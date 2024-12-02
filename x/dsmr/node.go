@@ -100,7 +100,18 @@ type Node[T Tx] struct {
 	storage                       *chunkStorage[T]
 }
 
+// selectTxsForChunk select a subset of the provided transactionx [txs] that would be
+// used to be included within a single chunk.
+func (n *Node[T]) selectTxsForChunk(
+	txs []T,
+) []T {
+	// var c fee.Dimensions
+	return txs
+}
+
 // BuildChunk builds transactions into a Chunk
+// The outputed chunk might contain only a subset of the give transactions
+// in order to align with the block limits requirements.
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) BuildChunk(
 	ctx context.Context,
@@ -112,12 +123,14 @@ func (n *Node[T]) BuildChunk(
 		return Chunk[T]{}, ErrEmptyChunk
 	}
 
+	chunkTxs := n.selectTxsForChunk(txs)
+
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.nodeID,
 			Beneficiary: beneficiary,
 			Expiry:      expiry,
-			Txs:         txs,
+			Txs:         chunkTxs,
 		},
 		n.networkID,
 		n.chainID,
