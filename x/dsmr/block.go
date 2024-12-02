@@ -110,7 +110,7 @@ type Block[T Tx] struct {
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
 
-	ChunkCerts []*ChunkCertificate[T] `serialize:"true"`
+	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
 	blkID    ids.ID
 	blkBytes []byte

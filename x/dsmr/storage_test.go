@@ -122,7 +122,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &ChunkCertificate[tx]{
+	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
 			ChunkID:  ids.GenerateTestID(),
 			Producer: ids.GenerateTestNodeID(),
@@ -160,7 +160,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	chunkCerts := storage.GatherChunkCerts()
 	require.Empty(chunkCerts)
 
-	chunkCert := &ChunkCertificate[tx]{
+	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
 			ChunkID:  ids.GenerateTestID(),
 			Producer: ids.GenerateTestNodeID(),
@@ -202,7 +202,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &ChunkCertificate[tx]{
+	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
 			ChunkID:  ids.GenerateTestID(),
 			Producer: ids.GenerateTestNodeID(),
@@ -235,7 +235,7 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
-	chunkCert := &ChunkCertificate[tx]{
+	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
 			ChunkID:  ids.GenerateTestID(),
 			Producer: ids.GenerateTestNodeID(),
@@ -275,9 +275,9 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 6. Pending remote chunk
 	numChunks := 6
 	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0)
-	chunkCerts := make([]*ChunkCertificate[tx], 0, numChunks)
+	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
-		chunkCert := &ChunkCertificate[tx]{
+		chunkCert := &ChunkCertificate{
 			ChunkReference: ChunkReference{
 				ChunkID:  chunk.id,
 				Producer: chunk.Producer,

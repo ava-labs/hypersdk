@@ -118,9 +118,9 @@ func (n *Node[T]) BuildChunk(
 	txs []T,
 	expiry int64,
 	beneficiary codec.Address,
-) (Chunk[T], ChunkCertificate[T], error) {
+) (Chunk[T], ChunkCertificate, error) {
 	if len(txs) == 0 {
-		return Chunk[T]{}, ChunkCertificate[T]{}, ErrEmptyChunk
+		return Chunk[T]{}, ChunkCertificate{}, ErrEmptyChunk
 	}
 
 	chunk, err := signChunk[T](
@@ -136,7 +136,7 @@ func (n *Node[T]) BuildChunk(
 		n.Signer,
 	)
 	if err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to sign chunk: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
@@ -145,12 +145,12 @@ func (n *Node[T]) BuildChunk(
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
 	}, &packer); err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to marshal chunk reference: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
 	if err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to initialize unsigned warp message: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
 	msg, err := warp.NewMessage(
 		unsignedMsg,
@@ -159,7 +159,7 @@ func (n *Node[T]) BuildChunk(
 		},
 	)
 	if err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to initialize warp message: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
 	canonicalValidators, _, err := warp.GetCanonicalValidatorSet(
@@ -169,7 +169,7 @@ func (n *Node[T]) BuildChunk(
 		ids.Empty,
 	)
 	if err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to get canonical validator set: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to get canonical validator set: %w", err)
 	}
 
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
@@ -181,19 +181,19 @@ func (n *Node[T]) BuildChunk(
 		n.quorumDen,
 	)
 	if err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, fmt.Errorf("failed to aggregate signatures: %w", err)
+		return Chunk[T]{}, ChunkCertificate{}, fmt.Errorf("failed to aggregate signatures: %w", err)
 	}
 
 	if !ok {
-		return Chunk[T]{}, ChunkCertificate[T]{}, errors.New("failed to replicate to sufficient stake")
+		return Chunk[T]{}, ChunkCertificate{}, errors.New("failed to replicate to sufficient stake")
 	}
 
 	bitSetSignature, ok := aggregatedMsg.Signature.(*warp.BitSetSignature)
 	if !ok {
-		return Chunk[T]{}, ChunkCertificate[T]{}, errors.New("invalid signature type")
+		return Chunk[T]{}, ChunkCertificate{}, errors.New("invalid signature type")
 	}
 
-	chunkCert := ChunkCertificate[T]{
+	chunkCert := ChunkCertificate{
 		ChunkReference: ChunkReference{
 			ChunkID:  chunk.id,
 			Producer: chunk.Producer,
@@ -204,14 +204,14 @@ func (n *Node[T]) BuildChunk(
 
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, err
+		return Chunk[T]{}, ChunkCertificate{}, err
 	}
 
 	if err := n.chunkCertificateGossipClient.AppGossip(
 		ctx,
 		&dsmr.ChunkCertificateGossip{ChunkCertificate: packer.Bytes},
 	); err != nil {
-		return Chunk[T]{}, ChunkCertificate[T]{}, err
+		return Chunk[T]{}, ChunkCertificate{}, err
 	}
 
 	return chunk, chunkCert, n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
@@ -223,7 +223,7 @@ func (n *Node[T]) BuildBlock(parent Block[T], timestamp int64) (Block[T], error)
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
-	availableChunkCerts := make([]*ChunkCertificate[T], 0)
+	availableChunkCerts := make([]*ChunkCertificate, 0)
 	for _, chunkCert := range chunkCerts {
 		// avoid building blocks with expired chunk certs
 		if chunkCert.Expiry < timestamp {

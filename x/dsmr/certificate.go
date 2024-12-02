@@ -48,16 +48,16 @@ type ChunkReference struct {
 	Expiry   int64      `serialize:"true"`
 }
 
-type ChunkCertificate[T Tx] struct {
+type ChunkCertificate struct {
 	ChunkReference `serialize:"true"`
 	Signature      *warp.BitSetSignature `serialize:"true"`
 }
 
-func (c *ChunkCertificate[_]) GetChunkID() ids.ID { return c.ChunkID }
+func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
 
-func (c *ChunkCertificate[_]) GetSlot() int64 { return c.Expiry }
+func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
 
-func (c *ChunkCertificate[_]) Bytes() []byte {
+func (c *ChunkCertificate) Bytes() []byte {
 	bytes, err := Codec.Marshal(CodecVersion, c)
 	if err != nil {
 		panic(err)
@@ -65,7 +65,7 @@ func (c *ChunkCertificate[_]) Bytes() []byte {
 	return bytes
 }
 
-func (c *ChunkCertificate[T]) Verify(
+func (c *ChunkCertificate) Verify(
 	ctx context.Context,
 	networkID uint32,
 	chainID ids.ID,

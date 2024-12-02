@@ -19,7 +19,7 @@ type Assembler[T Tx, State any, Block any, Result any] interface {
 type ChunkGatherer[T Tx] interface {
 	// CollectChunks gathers the corresponding chunks and writes any chunks to
 	// storage that were not already persisted.
-	CollectChunks(chunkCerts []*ChunkCertificate[T]) ([]*Chunk[T], error)
+	CollectChunks(chunkCerts []*ChunkCertificate) ([]*Chunk[T], error)
 }
 
 type BlockHandler[T Tx, State any, Block any, Result any] struct {

@@ -165,7 +165,7 @@ func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	chunkCert := ChunkCertificate[T]{}
+	chunkCert := ChunkCertificate{}
 	packer := wrappers.Packer{MaxSize: MaxMessageSize, Bytes: gossip.ChunkCertificate}
 	if err := codec.LinearCodec.UnmarshalFrom(&packer, &chunkCert); err != nil {
 		return
