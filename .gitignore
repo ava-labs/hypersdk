@@ -52,7 +52,6 @@ genesis.json
 *.test
 
 dist/
-*.pk
 tmp-storage-testing
 .token-cli*
 deploys/
