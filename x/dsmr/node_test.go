@@ -768,196 +768,173 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		chunks    []chunk
-		parent    Block
-		timestamp int64
+		chunks    func(parent Block) []chunk
+		timestamp func(parent Block) int64
 		wantErr   error
 	}{
 		{
 			name: "no chunk certs",
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 1
 			},
-			timestamp: 2,
 			// TODO should we be able to build empty blocks?
 			wantErr: ErrNoAvailableChunkCerts,
 		},
 		{
 			name: "timestamp equal to parent",
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp
 			},
-			timestamp: 1,
-			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
+			wantErr: ErrTimestampNotMonotonicallyIncreasing,
 		},
 		{
 			name: "timestamp older than parent",
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp - 1
 			},
-			timestamp: 0,
-			wantErr:   ErrTimestampNotMonotonicallyIncreasing,
+			wantErr: ErrTimestampNotMonotonicallyIncreasing,
 		},
 		{
 			name: "expired chunk cert",
-			chunks: []chunk{
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1,
+							},
 						},
+						expiry: parent.Timestamp + 1,
 					},
-					expiry: 1,
-				},
+				}
 			},
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
 			},
-			timestamp: 2,
-			wantErr:   ErrNoAvailableChunkCerts,
+			wantErr: ErrNoAvailableChunkCerts,
 		},
 		{
 			name: "multiple expired chunk certs",
-			chunks: []chunk{
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1,
+							},
 						},
+						expiry: parent.Timestamp + 1,
 					},
-					expiry: 1,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 2,
+							},
 						},
+						expiry: parent.Timestamp + 2,
 					},
-					expiry: 2,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 3,
+							},
 						},
+						expiry: parent.Timestamp + 3,
 					},
-					expiry: 3,
-				},
+				}
 			},
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
 			},
-			timestamp: 5,
-			wantErr:   ErrNoAvailableChunkCerts,
+			wantErr: ErrNoAvailableChunkCerts,
 		},
 		{
 			name: "single chunk cert",
-			chunks: []chunk{
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1,
+							},
 						},
+						expiry: parent.Timestamp + 1,
 					},
-					expiry: 2,
-				},
+				}
 			},
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 1
 			},
-			timestamp: 2,
 		},
 		{
 			name: "multiple chunk certs",
-			chunks: []chunk{
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
 						},
+						expiry: parent.Timestamp + 1_000,
 					},
-					expiry: 2,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 2_000,
+							},
 						},
+						expiry: parent.Timestamp + 2_000,
 					},
-					expiry: 2,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 2,
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 3_000,
+							},
 						},
+						expiry: parent.Timestamp + 3_000,
 					},
-					expiry: 2,
-				},
+				}
 			},
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
 			},
-			timestamp: 2,
 		},
 		{
 			name: "one expired and one pending chunk cert",
-			chunks: []chunk{
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 1,
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
 						},
+						expiry: parent.Timestamp + 1_000,
 					},
-					expiry: 1,
-				},
-				{
-					txs: []tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: 3,
+					{
+						txs: []tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1,
+							},
 						},
+						expiry: parent.Timestamp + 1,
 					},
-					expiry: 3,
-				},
+				}
 			},
-			parent: Block{
-				ParentID:  ids.GenerateTestID(),
-				Height:    1,
-				Timestamp: 1,
-				blkID:     ids.GenerateTestID(),
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
 			},
-			timestamp: 2,
 		},
 	}
 
@@ -966,8 +943,16 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
+
+			timestamp := tt.timestamp(node.LastAccepted)
+			chunks := []chunk{}
+
+			if tt.chunks != nil {
+				chunks = tt.chunks(node.LastAccepted)
+			}
+
 			wantChunks := make([]Chunk[tx], 0)
-			for _, chunk := range tt.chunks {
+			for _, chunk := range chunks {
 				chunk, _, err := node.BuildChunk(
 					context.Background(),
 					chunk.txs,
@@ -977,22 +962,22 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 				r.NoError(err)
 
 				// Only expect chunks that have not expired
-				if chunk.Expiry < tt.timestamp {
+				if chunk.Expiry < timestamp {
 					continue
 				}
 
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			blk, err := node.BuildBlock(tt.parent, tt.timestamp)
+			blk, err := node.BuildBlock(node.LastAccepted, timestamp)
 			r.ErrorIs(err, tt.wantErr)
 			if err != nil {
 				return
 			}
 
-			r.Equal(tt.parent.GetID(), blk.ParentID)
-			r.Equal(tt.parent.Height+1, blk.Height)
-			r.Greater(blk.Timestamp, tt.parent.Timestamp)
+			r.Equal(node.LastAccepted.GetID(), blk.ParentID)
+			r.Equal(node.LastAccepted.Height+1, blk.Height)
+			r.Greater(blk.Timestamp, node.LastAccepted.Timestamp)
 			r.NotEmpty(blk.GetID())
 			r.Len(blk.ChunkCerts, len(wantChunks))
 
