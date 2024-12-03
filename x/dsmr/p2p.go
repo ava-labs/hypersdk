@@ -45,7 +45,7 @@ var (
 )
 
 type GetChunkHandler[T Tx] struct {
-	storage *chunkStorage[T]
+	storage *ChunkStorage[T]
 }
 
 func (*GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {}
@@ -111,11 +111,15 @@ type ChunkSignature struct {
 
 type ChunkSignatureRequestVerifier[T Tx] struct {
 	verifier Verifier[T]
-	storage  *chunkStorage[T]
+	storage  *ChunkStorage[T]
 }
 
-func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *warp.UnsignedMessage, _ []byte) *common.AppError {
-	chunk, err := ParseChunk[T](message.Payload)
+func (c ChunkSignatureRequestVerifier[T]) Verify(
+	_ context.Context,
+	_ *warp.UnsignedMessage,
+	justification []byte,
+) *common.AppError {
+	chunk, err := ParseChunk[T](justification)
 	if err != nil {
 		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
@@ -151,11 +155,11 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(_ context.Context, message *war
 }
 
 type ChunkCertificateGossipHandler[T Tx] struct {
-	storage *chunkStorage[T]
+	storage *ChunkStorage[T]
 }
 
 // TODO error handling + logs
-func (c ChunkCertificateGossipHandler[_]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
+func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
 		return
