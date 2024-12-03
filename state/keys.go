@@ -25,6 +25,20 @@ const (
 	All              = Read | Allocate | Write
 )
 
+// SimulatedKeys holds the name of the key and its permission
+// (Read/Allocate/Write).
+// For duplicate insertions, the permissions of the key are unioned
+type SimulatedKeys map[string]Permissions
+
+func (s SimulatedKeys) Has(key string, perm Permissions) bool {
+	s[key] |= perm
+	return true
+}
+
+func (s SimulatedKeys) Len() int {
+	return len(s)
+}
+
 // StateKey holds the name of the key and its permission (Read/Allocate/Write). By default,
 // initialization of Keys with duplicate key will not work. And to prevent duplicate
 // insertions from overriding the original permissions, use the Add function below.
@@ -46,6 +60,14 @@ func (k Keys) Add(key string, permission Permissions) bool {
 	// state keys from both Actions and Auth
 	k[key] |= permission
 	return true
+}
+
+func (k Keys) Has(key string, perm Permissions) bool {
+	return k[key].Has(perm)
+}
+
+func (k Keys) Len() int {
+	return len(k)
 }
 
 // Returns the chunk sizes of each key

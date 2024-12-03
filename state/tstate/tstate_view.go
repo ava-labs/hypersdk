@@ -32,11 +32,17 @@ type op struct {
 	pastWrites    *uint16
 }
 
-// immutableScopeStorage implements [state.Immutable], allowing the map to be used
-// as a read-only state source, and making it compatible with error-generating backing storage.
-type immutableScopeStorage map[string][]byte
+// Scope is the set of keys that a view has access to.
+type Scope interface {
+	Has(key string, perm state.Permissions) bool
+	Len() int
+}
 
-func (i immutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+// ImmutableScopeStorage implements [state.Immutable], allowing the map to be used
+// as a read-only state source, and making it compatible with error-generating backing storage.
+type ImmutableScopeStorage map[string][]byte
+
+func (i ImmutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	if v, has := i[string(key)]; has {
 		return v, nil
 	}
@@ -55,41 +61,30 @@ type TStateView struct {
 	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
 	// key, see issue below)
 	// https://github.com/ava-labs/hypersdk/issues/709
-	scope        state.Keys
+	scope        Scope
 	scopeStorage state.Immutable
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
-
-	// simulationMode flag is used to determine whether we're in execution mode or simulation mode.
-	// while in simulation mode, we don't enforce any scope limitations. instead, we record the accessed keys.
-	// during execution mode, we use the configured scope to enforce the access to the keys.
-	simulationMode bool
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
-	return newView(ts, scope, immutableScopeStorage(storage), false)
+func (ts *TState) NewView(scope Scope, storage state.Immutable) *TStateView {
+	return newView(ts, scope, storage)
 }
 
-func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
-	return newView(New(0), state.Keys{}, immutableState, true)
-}
-
-func newView(ts *TState, scope state.Keys, storage state.Immutable, simulationMode bool) *TStateView {
+func newView(ts *TState, scope Scope, storage state.Immutable) *TStateView {
 	return &TStateView{
 		ts:                 ts,
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], scope.Len()),
 
 		ops: make([]*op, 0, defaultOps),
 
 		scope:        scope,
 		scopeStorage: storage,
 
-		allocates: make(map[string]uint16, len(scope)),
-		writes:    make(map[string]uint16, len(scope)),
-
-		simulationMode: simulationMode,
+		allocates: make(map[string]uint16, scope.Len()),
+		writes:    make(map[string]uint16, scope.Len()),
 	}
 }
 
@@ -170,13 +165,9 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
-// the method always return true in case we're in simulation mode.
+// the method should return true if we're in simulation mode.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
-	if ts.simulationMode {
-		ts.scope.Add(string(k), perm)
-		return true
-	}
-	return ts.scope[string(k)].Has(perm)
+	return ts.scope.Has(string(k), perm)
 }
 
 // GetValue returns the value associated from tempStorage with the
@@ -344,11 +335,6 @@ func (ts *TStateView) Commit() {
 		ts.ts.changedKeys[k] = v
 	}
 	ts.ts.ops += len(ts.ops)
-}
-
-// getStateKeys returns the keys that have been touched along with their respective permissions.
-func (ts *TStateView) getStateKeys() state.Keys {
-	return ts.scope
 }
 
 // chunks gets the number of chunks for a key in [m]
