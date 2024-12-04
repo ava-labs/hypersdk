@@ -112,6 +112,8 @@ func (t *TransactionData) Marshal(p *codec.Packer) error {
 	return t.marshal(p)
 }
 
+func (*TransactionData) Priority() uint64 { return 0 }
+
 func (t *TransactionData) marshal(p *codec.Packer) error {
 	t.Base.Marshal(p)
 	return t.Actions.MarshalInto(p)

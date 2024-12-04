@@ -15,6 +15,7 @@ import (
 type Item interface {
 	GetID() ids.ID    // method for returning an id of the item
 	GetExpiry() int64 // method for returning this items timestamp
+	Priority() uint64
 }
 
 // List implements a double-linked list. It offers

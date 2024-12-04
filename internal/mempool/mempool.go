@@ -21,14 +21,17 @@ import (
 
 const maxPrealloc = 4_096
 
+type GeneralMempool[T Item] Mempool[T, *list.Element[T]]
+
 type Item interface {
 	eheap.Item
 
 	Sponsor() codec.Address
 	Size() int
+	Priority() uint64
 }
 
-type Mempool[T Item] struct {
+type Mempool[T Item, E eheap.Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex
@@ -38,9 +41,9 @@ type Mempool[T Item] struct {
 	maxSize        int
 	maxSponsorSize int // Maximum items allowed by a single sponsor
 
-	// queue *list.List[T]
-	queue queue.Queue[T, *list.Element[T]]
-	eh    *eheap.ExpiryHeap[*list.Element[T]]
+	// queue *list.List[T, E]
+	queue queue.Queue[T, E]
+	eh    *eheap.ExpiryHeap[E]
 
 	// owned tracks the number of items in the mempool owned by a single
 	// [Sponsor]
@@ -54,27 +57,25 @@ type Mempool[T Item] struct {
 	nextStreamFetched bool
 }
 
-// New creates a new [Mempool]. [maxSize] must be > 0 or else the
-// implementation may panic.
-func New[T Item](
+// NewGeneralMempool is creating a mempool using a FIFO queue.
+func NewGeneralMempool[T Item](
 	tracer trace.Tracer,
 	maxSize int,
 	maxSponsorSize int,
-) *Mempool[T] {
-	return &Mempool[T]{
-		tracer: tracer,
-
-		maxSize:        maxSize,
-		maxSponsorSize: maxSponsorSize,
-
-		queue: NewList[T](),
-		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
-
-		owned: map[codec.Address]int{},
-	}
+) AbstractMempool[T] {
+	return newGeneralMempool[T](tracer, maxSize, maxSponsorSize)
 }
 
-func (m *Mempool[T]) removeFromOwned(item T) {
+// NewPriorityMempool is creating a mempool using a Priority queue.
+func NewPriorityMempool[T Item](
+	tracer trace.Tracer,
+	maxSize int,
+	maxSponsorSize int,
+) AbstractMempool[T] {
+	return newPriorityMempool[T](tracer, maxSize, maxSponsorSize)
+}
+
+func (m *Mempool[T, E]) removeFromOwned(item T) {
 	sender := item.Sponsor()
 	items, ok := m.owned[sender]
 	if !ok {
@@ -89,7 +90,7 @@ func (m *Mempool[T]) removeFromOwned(item T) {
 }
 
 // Has returns if the eh of [m] contains [itemID]
-func (m *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
+func (m *Mempool[T, E]) Has(ctx context.Context, itemID ids.ID) bool {
 	_, span := m.tracer.Start(ctx, "Mempool.Has")
 	defer span.End()
 
@@ -103,7 +104,7 @@ func (m *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 // the item sponsor is not exempt and their items in the mempool exceed m.maxSponsorSize.
 // If the size of m exceeds m.maxSize, Add pops the lowest value item
 // from m.eh.
-func (m *Mempool[T]) Add(ctx context.Context, items []T) {
+func (m *Mempool[T, E]) Add(ctx context.Context, items []T) {
 	_, span := m.tracer.Start(ctx, "Mempool.Add")
 	defer span.End()
 
@@ -113,7 +114,7 @@ func (m *Mempool[T]) Add(ctx context.Context, items []T) {
 	m.add(items, false)
 }
 
-func (m *Mempool[T]) add(items []T, front bool) {
+func (m *Mempool[T, E]) add(items []T, front bool) {
 	for _, item := range items {
 		sender := item.Sponsor()
 
@@ -138,7 +139,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 		}
 
 		// Add to mempool
-		var elem *list.Element[T]
+		var elem E
 		if !front {
 			elem = m.queue.Push(item)
 		} else {
@@ -152,23 +153,23 @@ func (m *Mempool[T]) add(items []T, front bool) {
 
 // PeekNext returns the highest valued item in m.eh.
 // Assumes there is non-zero items in [Mempool]
-func (m *Mempool[T]) PeekNext(ctx context.Context) (T, bool) {
+func (m *Mempool[T, E]) PeekNext(ctx context.Context) (T, bool) {
 	_, span := m.tracer.Start(ctx, "Mempool.PeekNext")
 	defer span.End()
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	first := m.queue.First()
-	if first == nil {
+	firstValue, ok := m.queue.FirstValue()
+	if !ok {
 		return *new(T), false
 	}
-	return first.Value(), true
+	return firstValue, true
 }
 
 // PopNext removes and returns the highest valued item in m.eh.
 // Assumes there is non-zero items in [Mempool]
-func (m *Mempool[T]) PopNext(ctx context.Context) (T, bool) { // O(log N)
+func (m *Mempool[T, E]) PopNext(ctx context.Context) (T, bool) { // O(log N)
 	_, span := m.tracer.Start(ctx, "Mempool.PopNext")
 	defer span.End()
 
@@ -178,9 +179,9 @@ func (m *Mempool[T]) PopNext(ctx context.Context) (T, bool) { // O(log N)
 	return m.popNext()
 }
 
-func (m *Mempool[T]) popNext() (T, bool) {
-	first := m.queue.First()
-	if first == nil {
+func (m *Mempool[T, E]) popNext() (T, bool) {
+	first, ok := m.queue.First()
+	if !ok {
 		return *new(T), false
 	}
 	v := m.queue.Remove(first)
@@ -191,7 +192,7 @@ func (m *Mempool[T]) popNext() (T, bool) {
 }
 
 // Remove removes [items] from m.
-func (m *Mempool[T]) Remove(ctx context.Context, items []T) {
+func (m *Mempool[T, E]) Remove(ctx context.Context, items []T) {
 	_, span := m.tracer.Start(ctx, "Mempool.Remove")
 	defer span.End()
 
@@ -210,7 +211,7 @@ func (m *Mempool[T]) Remove(ctx context.Context, items []T) {
 }
 
 // Len returns the number of items in m.
-func (m *Mempool[T]) Len(ctx context.Context) int {
+func (m *Mempool[T, E]) Len(ctx context.Context) int {
 	_, span := m.tracer.Start(ctx, "Mempool.Len")
 	defer span.End()
 
@@ -221,15 +222,15 @@ func (m *Mempool[T]) Len(ctx context.Context) int {
 }
 
 // Size returns the size (in bytes) of items in m.
-func (m *Mempool[T]) Size(context.Context) int {
+func (m *Mempool[T, E]) Size(context.Context) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	return m.pendingSize
 }
 
-// SetMinTimestamp removes and returns all items with a lower expiry than [t] from m.
-func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
+// SetMinTimestamp removes and returns all items with a lower expiry than [T, E] from m.
+func (m *Mempool[T, E]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	_, span := m.tracer.Start(ctx, "Mempool.SetMinTimesamp")
 	defer span.End()
 
@@ -239,8 +240,7 @@ func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	removedElems := m.eh.SetMin(t)
 	removed := make([]T, len(removedElems))
 	for i, remove := range removedElems {
-		m.queue.Remove(remove)
-		v := remove.Value()
+		v := m.queue.Remove(remove)
 		m.removeFromOwned(v)
 		m.pendingSize -= v.Size()
 		removed[i] = v
@@ -249,7 +249,7 @@ func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 }
 
 // Top iterates over the highest-valued items in the mempool.
-func (m *Mempool[T]) Top(
+func (m *Mempool[T, E]) Top(
 	ctx context.Context,
 	targetDuration time.Duration,
 	f func(context.Context, T) (cont bool, restore bool, err error),
@@ -291,7 +291,7 @@ func (m *Mempool[T]) Top(
 // Streaming is useful for block building because we can get a feed of the
 // best txs to build without holding the lock during the duration of the build
 // process. Streaming in batches allows for various state prefetching operations.
-func (m *Mempool[T]) StartStreaming(_ context.Context) {
+func (m *Mempool[T, E]) StartStreaming(_ context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -301,7 +301,7 @@ func (m *Mempool[T]) StartStreaming(_ context.Context) {
 
 // PrepareStream prefetches the next [count] items from the mempool to
 // reduce the latency of calls to [StreamItems].
-func (m *Mempool[T]) PrepareStream(ctx context.Context, count int) {
+func (m *Mempool[T, E]) PrepareStream(ctx context.Context, count int) {
 	_, span := m.tracer.Start(ctx, "Mempool.PrepareStream")
 	defer span.End()
 
@@ -314,7 +314,7 @@ func (m *Mempool[T]) PrepareStream(ctx context.Context, count int) {
 
 // Stream gets the next highest-valued [count] items from the mempool, not
 // including what has already been streamed.
-func (m *Mempool[T]) Stream(ctx context.Context, count int) []T {
+func (m *Mempool[T, E]) Stream(ctx context.Context, count int) []T {
 	_, span := m.tracer.Start(ctx, "Mempool.Stream")
 	defer span.End()
 
@@ -330,7 +330,7 @@ func (m *Mempool[T]) Stream(ctx context.Context, count int) []T {
 	return m.streamItems(count)
 }
 
-func (m *Mempool[T]) streamItems(count int) []T {
+func (m *Mempool[T, E]) streamItems(count int) []T {
 	txs := make([]T, 0, count)
 	for len(txs) < count {
 		item, ok := m.popNext()
@@ -345,7 +345,7 @@ func (m *Mempool[T]) streamItems(count int) []T {
 
 // FinishStreaming restores [restorable] items to the mempool and clears
 // the set of all previously streamed items.
-func (m *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
+func (m *Mempool[T, E]) FinishStreaming(ctx context.Context, restorable []T) int {
 	_, span := m.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
 
@@ -367,4 +367,42 @@ func (m *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
 	}
 	m.streamLock.Unlock()
 	return restored
+}
+
+// newGeneralMempool is creating a mempool using a FIFO queue.
+func newGeneralMempool[T Item](
+	tracer trace.Tracer,
+	maxSize int,
+	maxSponsorSize int,
+) *Mempool[T, *list.Element[T]] {
+	return &Mempool[T, *list.Element[T]]{
+		tracer: tracer,
+
+		maxSize:        maxSize,
+		maxSponsorSize: maxSponsorSize,
+
+		queue: queue.NewList[T](),
+		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
+
+		owned: map[codec.Address]int{},
+	}
+}
+
+// NewPriorityMempool is creating a mempool using a Priority queue.
+func newPriorityMempool[T Item](
+	tracer trace.Tracer,
+	maxSize int,
+	maxSponsorSize int,
+) *Mempool[T, T] {
+	return &Mempool[T, T]{
+		tracer: tracer,
+
+		maxSize:        maxSize,
+		maxSponsorSize: maxSponsorSize,
+
+		queue: queue.NewPriorityQueue[T](),
+		eh:    eheap.New[T](min(maxSize, maxPrealloc)),
+
+		owned: map[codec.Address]int{},
+	}
 }

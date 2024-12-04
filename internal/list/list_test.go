@@ -29,6 +29,10 @@ func (mti *TestItem) GetExpiry() int64 {
 	return mti.timestamp
 }
 
+func (*TestItem) Priority() uint64 {
+	return 0
+}
+
 func GenerateTestItem(str string) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{

@@ -20,6 +20,7 @@ type TestItem struct {
 	id        ids.ID
 	sponsor   codec.Address
 	timestamp int64
+	priority  uint64
 }
 
 func (mti *TestItem) GetID() ids.ID {
@@ -34,28 +35,33 @@ func (mti *TestItem) GetExpiry() int64 {
 	return mti.timestamp
 }
 
+func (mti *TestItem) Priority() uint64 {
+	return mti.priority
+}
+
 func (*TestItem) Size() int {
 	return 2 // distinguish from len
 }
 
-func GenerateTestItem(sponsor codec.Address, t int64) *TestItem {
+func GenerateTestItem(sponsor codec.Address, t int64, p uint64) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{
 		id:        id,
 		sponsor:   sponsor,
 		timestamp: t,
+		priority:  p,
 	}
 }
 
-func TestMempool(t *testing.T) {
+func TestGeneralMempool(t *testing.T) {
 	require := require.New(t)
 
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*TestItem](tracer, 3, 16)
+	txm := newGeneralMempool[*TestItem](tracer, 3, 16)
 
 	for _, i := range []int64{100, 200, 300, 400} {
-		item := GenerateTestItem(testSponsor, i)
+		item := GenerateTestItem(testSponsor, i, 0)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 	}
@@ -66,13 +72,32 @@ func TestMempool(t *testing.T) {
 	require.Equal(6, txm.Size(ctx))
 }
 
+func TestPriorityMempool(t *testing.T) {
+	require := require.New(t)
+
+	ctx := context.TODO()
+	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	txm := NewPriorityMempool[*TestItem](tracer, 3, 16)
+
+	for _, i := range []int64{100, 200, 300, 400} {
+		item := GenerateTestItem(testSponsor, i, uint64(i))
+		items := []*TestItem{item}
+		txm.Add(ctx, items)
+	}
+	next, ok := txm.PeekNext(ctx)
+	require.True(ok)
+	require.Equal(int64(300), next.GetExpiry())
+	require.Equal(3, txm.Len(ctx))
+	require.Equal(6, txm.Size(ctx))
+}
+
 func TestMempoolAddDuplicates(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*TestItem](tracer, 3, 16)
+	txm := newGeneralMempool[*TestItem](tracer, 3, 16)
 	// Generate item
-	item := GenerateTestItem(testSponsor, 300)
+	item := GenerateTestItem(testSponsor, 300, 0)
 	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
@@ -92,10 +117,10 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
 	// Non exempt sponsors max of 4
-	txm := New[*TestItem](tracer, 20, 4)
+	txm := newGeneralMempool[*TestItem](tracer, 20, 4)
 	// Add 6 transactions for each sponsor
 	for i := int64(0); i <= 5; i++ {
-		itemSponsor := GenerateTestItem(sponsor, i)
+		itemSponsor := GenerateTestItem(sponsor, i, 0)
 		txm.Add(ctx, []*TestItem{itemSponsor})
 	}
 	require.Equal(4, txm.Len(ctx), "Mempool has incorrect txs.")
@@ -107,10 +132,10 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 3, 20)
+	txm := newGeneralMempool[*TestItem](tracer, 3, 20)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
-		item := GenerateTestItem(testSponsor, i)
+		item := GenerateTestItem(testSponsor, i, 0)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		if i < 3 {
@@ -135,14 +160,14 @@ func TestMempoolRemoveTxs(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 3, 20)
+	txm := newGeneralMempool[*TestItem](tracer, 3, 20)
 	// Add
-	item := GenerateTestItem(testSponsor, 10)
+	item := GenerateTestItem(testSponsor, 10, 0)
 	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.True(txm.Has(ctx, item.GetID()), "TX not included")
 	// Remove
-	itemNotIn := GenerateTestItem(testSponsor, 10)
+	itemNotIn := GenerateTestItem(testSponsor, 10, 0)
 	items = []*TestItem{item, itemNotIn}
 	txm.Remove(ctx, items)
 	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
@@ -153,10 +178,10 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 20, 20)
+	txm := newGeneralMempool[*TestItem](tracer, 20, 20)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
-		item := GenerateTestItem(testSponsor, i)
+		item := GenerateTestItem(testSponsor, i, 0)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		require.True(txm.Has(ctx, item.GetID()), "TX not included")
