@@ -3,7 +3,9 @@
 
 package list
 
-import "github.com/ava-labs/avalanchego/ids"
+import (
+	"github.com/ava-labs/avalanchego/ids"
+)
 
 // Item defines an interface accepted by [List].
 //

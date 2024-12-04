@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/eheap"
 	"github.com/ava-labs/hypersdk/internal/list"
+	"github.com/ava-labs/hypersdk/internal/mempool/queue"
 )
 
 const maxPrealloc = 4_096
@@ -37,7 +38,8 @@ type Mempool[T Item] struct {
 	maxSize        int
 	maxSponsorSize int // Maximum items allowed by a single sponsor
 
-	queue *list.List[T]
+	// queue *list.List[T]
+	queue queue.Queue[T, *list.Element[T]]
 	eh    *eheap.ExpiryHeap[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
@@ -65,7 +67,7 @@ func New[T Item](
 		maxSize:        maxSize,
 		maxSponsorSize: maxSponsorSize,
 
-		queue: &list.List[T]{},
+		queue: NewList[T](),
 		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
 
 		owned: map[codec.Address]int{},
@@ -138,9 +140,9 @@ func (m *Mempool[T]) add(items []T, front bool) {
 		// Add to mempool
 		var elem *list.Element[T]
 		if !front {
-			elem = m.queue.PushBack(item)
+			elem = m.queue.Push(item)
 		} else {
-			elem = m.queue.PushFront(item)
+			elem = m.queue.Restore(item)
 		}
 		m.eh.Add(elem)
 		m.owned[sender]++
