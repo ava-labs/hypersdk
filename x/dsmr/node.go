@@ -20,6 +20,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -46,6 +47,7 @@ func New[T Tx](
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
 	validators []Validator,
+	chunkFeeLimit fees.Dimensions,
 ) (*Node[T], error) {
 	storage, err := newChunkStorage[T](NoVerifier[T]{}, memdb.New())
 	if err != nil {
@@ -79,7 +81,8 @@ func New[T Tx](
 		ChunkCertificateGossipHandler: &ChunkCertificateGossipHandler[T]{
 			storage: storage,
 		},
-		storage: storage,
+		storage:       storage,
+		chunkFeeLimit: chunkFeeLimit,
 	}, nil
 }
 
@@ -98,6 +101,7 @@ type Node[T Tx] struct {
 	GetChunkSignatureHandler      *acp118.Handler
 	ChunkCertificateGossipHandler *ChunkCertificateGossipHandler[T]
 	storage                       *chunkStorage[T]
+	chunkFeeLimit                 fees.Dimensions
 }
 
 // selectTxsForChunk select a subset of the provided transactionx [txs] that would be
@@ -105,8 +109,16 @@ type Node[T Tx] struct {
 func (n *Node[T]) selectTxsForChunk(
 	txs []T,
 ) []T {
-	// var c fee.Dimensions
-	return txs
+	dims := make([]fees.Dimensions, len(txs))
+	for i, tx := range txs {
+		dims[i] = tx.GetFees()
+	}
+	indices, _ := fees.LargestSet(dims, n.chunkFeeLimit)
+	outTxn := make([]T, len(indices))
+	for i, k := range indices {
+		outTxn[i] = txs[k]
+	}
+	return outTxn
 }
 
 // BuildChunk builds transactions into a Chunk

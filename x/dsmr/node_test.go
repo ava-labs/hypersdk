@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
@@ -28,6 +29,8 @@ var (
 	_ Tx           = (*tx)(nil)
 	_ Verifier[tx] = (*failVerifier)(nil)
 )
+
+var defaultTestingFeeChunkLimit = fees.Dimensions{100, 100, 100, 100, 100}
 
 // Test that chunks can be built through Node.NewChunk
 func TestNode_BuildChunk(t *testing.T) {
@@ -116,6 +119,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				defaultTestingFeeChunkLimit,
 			)
 			r.NoError(err)
 
@@ -180,6 +184,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -270,6 +275,7 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -347,6 +353,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -560,6 +567,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				defaultTestingFeeChunkLimit,
 			)
 			r.NoError(err)
 
@@ -692,6 +700,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				defaultTestingFeeChunkLimit,
 			)
 			r.NoError(err)
 
@@ -740,6 +749,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				defaultTestingFeeChunkLimit,
 			)
 			r.NoError(err)
 			chunk, err := node2.BuildChunk(
@@ -858,6 +868,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -951,6 +962,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -987,6 +999,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		[]Validator{{NodeID: node1.nodeID}},
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -1287,6 +1300,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 					ids.EmptyNodeID,
 				),
 				nil,
+				defaultTestingFeeChunkLimit,
 			)
 			r.NoError(err)
 
@@ -1373,6 +1387,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		nil,
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 
@@ -1424,6 +1439,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 			ids.EmptyNodeID,
 		),
 		[]Validator{{NodeID: node1.nodeID}},
+		defaultTestingFeeChunkLimit,
 	)
 	r.NoError(err)
 	r.NoError(node2.Accept(context.Background(), blk))
@@ -1479,9 +1495,10 @@ func getSignerBitSet(t *testing.T, pChain validators.State, nodeIDs ...ids.NodeI
 }
 
 type tx struct {
-	ID      ids.ID        `serialize:"true"`
-	Expiry  int64         `serialize:"true"`
-	Sponsor codec.Address `serialize:"true"`
+	ID      ids.ID          `serialize:"true"`
+	Expiry  int64           `serialize:"true"`
+	Sponsor codec.Address   `serialize:"true"`
+	Fees    fees.Dimensions `serialize:"true"`
 }
 
 func (t tx) GetID() ids.ID {
@@ -1494,6 +1511,10 @@ func (t tx) GetExpiry() int64 {
 
 func (t tx) GetSponsor() codec.Address {
 	return t.Sponsor
+}
+
+func (t tx) GetFees() fees.Dimensions {
+	return t.Fees
 }
 
 type failVerifier struct{}
