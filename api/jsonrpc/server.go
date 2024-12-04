@@ -222,7 +222,10 @@ func (j *JSONRPCServer) ExecuteActions(
 			storage[string(storageKeysToRead[i])] = value
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage)
+		tsv := ts.NewView(
+			stateKeysWithPermissions,
+			tstate.ImmutableScopeStorage(storage),
+		)
 
 		output, err := action.Execute(
 			ctx,
@@ -294,8 +297,17 @@ func (j *JSONRPCServer) SimulateActions(
 
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
-		recorder := tstate.NewRecorder(currentState)
-		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+		ts := tstate.New(0)
+		simulatedKeys := make(state.SimulatedKeys)
+		tsv := ts.NewView(simulatedKeys, currentState)
+		actionOutput, err := action.Execute(
+			ctx,
+			j.vm.Rules(currentTime),
+			tsv,
+			currentTime,
+			args.Actor,
+			ids.Empty,
+		)
 
 		var actionResult SimulateActionResult
 		if actionOutput == nil {
@@ -309,9 +321,8 @@ func (j *JSONRPCServer) SimulateActions(
 		if err != nil {
 			return err
 		}
-		actionResult.StateKeys = recorder.GetStateKeys()
+		actionResult.StateKeys = state.Keys(simulatedKeys)
 		reply.ActionResults = append(reply.ActionResults, actionResult)
-		currentState = recorder
 	}
 	return nil
 }
