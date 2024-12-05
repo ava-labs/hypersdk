@@ -20,5 +20,5 @@ type ExecutionBlock[Container emap.Item] interface {
 }
 
 type ChainIndex[Container emap.Item] interface {
-	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[Container], error)
+	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[Container], bool, error)
 }

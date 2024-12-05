@@ -58,8 +58,8 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	if blk.Height() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
-	if err != nil {
+	parent, hasBlock, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	if err != nil || !hasBlock {
 		return err
 	}
 
@@ -107,6 +107,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	defer v.lock.Unlock()
 
 	var err error
+	var hasBlock bool
 	for {
 		if ancestorBlk.Timestamp() < oldestAllowed {
 			return marker, nil
@@ -128,8 +129,8 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
-		if err != nil {
+		ancestorBlk, hasBlock, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		if err != nil || !hasBlock {
 			return marker, err
 		}
 	}

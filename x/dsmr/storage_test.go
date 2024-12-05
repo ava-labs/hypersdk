@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -35,10 +36,10 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*chunkStorage[tx],
+	*ChunkStorage[tx],
 	[]Chunk[tx],
 	[]Chunk[tx],
-	func() *chunkStorage[tx],
+	func() *ChunkStorage[tx],
 ) {
 	require := require.New(t)
 
@@ -84,18 +85,18 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 	}
 
 	testVerifier := testVerifier[tx]{correctIDs: set.Of(validChunkIDs...)}
-	storage, err := newChunkStorage[tx](
+	storage, err := NewChunkStorage[tx](
 		testVerifier,
 		db,
 	)
 	require.NoError(err)
 
-	restart := func() *chunkStorage[tx] {
+	restart := func() *ChunkStorage[tx] {
 		require.NoError(db.Close())
 		db, err = pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 		require.NoError(err)
 
-		storage, err := newChunkStorage[tx](
+		storage, err := NewChunkStorage[tx](
 			testVerifier,
 			db,
 		)
@@ -122,9 +123,12 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 	require.Empty(chunkCerts)
 
 	chunkCert := &ChunkCertificate{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
+		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -157,9 +161,12 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 	require.Empty(chunkCerts)
 
 	chunkCert := &ChunkCertificate{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
+		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -196,9 +203,12 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
+		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -226,9 +236,12 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 	storage, validChunks, _, _ := createTestStorage(t, 1, 0)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
-		ChunkID:   chunk.id,
-		Expiry:    chunk.Expiry,
-		Signature: NoVerifyChunkSignature{},
+		ChunkReference: ChunkReference{
+			ChunkID:  ids.GenerateTestID(),
+			Producer: ids.GenerateTestNodeID(),
+			Expiry:   1,
+		},
+		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -265,9 +278,12 @@ func TestRestartSavedChunks(t *testing.T) {
 	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
 		chunkCert := &ChunkCertificate{
-			ChunkID:   chunk.id,
-			Expiry:    chunk.Expiry,
-			Signature: NoVerifyChunkSignature{},
+			ChunkReference: ChunkReference{
+				ChunkID:  chunk.id,
+				Producer: chunk.Producer,
+				Expiry:   chunk.Expiry,
+			},
+			Signature: &warp.BitSetSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}
@@ -301,7 +317,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].id,
 	}))
 
-	confirmChunkStorage := func(storage *chunkStorage[tx]) {
+	confirmChunkStorage := func(storage *ChunkStorage[tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
 		for i, expectedChunk := range []Chunk[tx]{
 			validChunks[0],
