@@ -46,15 +46,15 @@ type testingChainIndex struct {
 	blocks map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]
 }
 
-func (ti *testingChainIndex) GetExecutionBlock(_ context.Context, id ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], bool, error) {
-	if blk, has := ti.blocks[id]; has {
+func (t *testingChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], bool, error) {
+	if blk, ok := t.blocks[blkID]; ok {
 		return blk, true, nil
 	}
 	return nil, false, nil
 }
 
-func (ti *testingChainIndex) set(id ids.ID, blk validitywindow.ExecutionBlock[*ChunkCertificate]) {
-	ti.blocks[id] = blk
+func (t *testingChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*ChunkCertificate]) {
+	t.blocks[blkID] = blk
 }
 
 func newTestingChainIndexer() *testingChainIndex {

@@ -71,13 +71,14 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
 	}
 	// make sure we have no repeats within the block itself.
-	blkTxsIDs := make(map[ids.ID]bool, len(blk.Txs()))
+	// set.Set
+	blkTxsIDs := set.NewSet[ids.ID](len(blk.Txs()))
 	for _, tx := range blk.Txs() {
 		id := tx.GetID()
-		if _, has := blkTxsIDs[id]; has {
+		if blkTxsIDs.Contains(id) {
 			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
 		}
-		blkTxsIDs[id] = true
+		blkTxsIDs.Add(id)
 	}
 	return nil
 }
