@@ -4,13 +4,12 @@
 package queue
 
 import (
-	"github.com/ava-labs/hypersdk/internal/list"
 	"github.com/ava-labs/hypersdk/internal/pheap"
 )
 
-var _ Queue[list.Item, list.Item] = (*PriorityQueue[list.Item])(nil)
+var _ Queue[Item, Item] = (*PriorityQueue[Item])(nil)
 
-type PriorityQueue[T list.Item] struct {
+type PriorityQueue[T Item] struct {
 	*pheap.PriorityHeap[T]
 }
 

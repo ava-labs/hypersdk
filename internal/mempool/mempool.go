@@ -31,7 +31,7 @@ type Item interface {
 	Priority() uint64
 }
 
-type Mempool[T Item, E eheap.Item] struct {
+type Mempool[T Item, E queue.Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex

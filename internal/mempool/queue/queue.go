@@ -13,11 +13,11 @@ type Item interface {
 	Priority() uint64
 }
 
-type Queue[T Item, Elem any] interface {
+type Queue[T Item, E Item] interface {
 	Size() int
-	First() (Elem, bool)
+	First() (E, bool)
 	FirstValue() (T, bool)
-	Remove(Elem) T
-	Push(T) Elem
-	Restore(T) Elem
+	Remove(E) T
+	Push(T) E
+	Restore(T) E
 }

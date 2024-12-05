@@ -7,7 +7,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/list"
 )
 
-var _ Queue[list.Item, *list.Element[list.Item]] = (*FIFOQueue[list.Item])(nil)
+var _ Queue[Item, *list.Element[Item]] = (*FIFOQueue[Item])(nil)
 
 type FIFOQueue[T list.Item] struct {
 	*list.List[T]

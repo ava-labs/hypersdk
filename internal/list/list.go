@@ -67,6 +67,10 @@ func (e *Element[T]) GetExpiry() int64 {
 	return e.value.GetExpiry()
 }
 
+func (e *Element[T]) Priority() uint64 {
+	return e.value.Priority()
+}
+
 func (l *List[T]) First() *Element[T] {
 	if l.size == 0 {
 		return nil
