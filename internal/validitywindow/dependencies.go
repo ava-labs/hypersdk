@@ -16,9 +16,9 @@ type ExecutionBlock[Container emap.Item] interface {
 	Timestamp() int64
 	Height() uint64
 	Txs() []Container
-	ContainsTx(ids.ID) bool
+	Contains(ids.ID) bool
 }
 
 type ChainIndex[Container emap.Item] interface {
-	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[Container], error)
+	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[Container], bool, error)
 }

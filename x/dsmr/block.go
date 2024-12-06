@@ -6,19 +6,20 @@ package dsmr
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 const InitialChunkSize = 250 * 1024
 
 type Tx interface {
-	GetID() ids.ID
-	GetExpiry() int64
+	emap.Item
 	GetSponsor() codec.Address
 }
 
@@ -49,6 +50,14 @@ func (c *Chunk[T]) init() error {
 	c.id = utils.ToID(c.bytes)
 
 	return nil
+}
+
+func (c Chunk[T]) GetID() ids.ID {
+	return c.id
+}
+
+func (c Chunk[T]) GetExpiry() int64 {
+	return c.Expiry
 }
 
 func signChunk[T Tx](
@@ -106,16 +115,54 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 }
 
 type Block struct {
-	ParentID  ids.ID `serialize:"true"`
-	Height    uint64 `serialize:"true"`
-	Timestamp int64  `serialize:"true"`
+	ParentID ids.ID `serialize:"true"`
+	Hght     uint64 `serialize:"true"`
+	Tmstmp   int64  `serialize:"true"`
 
 	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
 	blkID    ids.ID
 	blkBytes []byte
+	certSet  set.Set[ids.ID]
+}
+
+func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*ChunkCertificate) Block {
+	blk := Block{
+		ParentID:   parentID,
+		Hght:       height,
+		Tmstmp:     timestamp,
+		ChunkCerts: chunkCerts,
+	}
+	blk.init()
+	return blk
 }
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+func (b Block) Parent() ids.ID {
+	return b.ParentID
+}
+
+func (b Block) Timestamp() int64 {
+	return b.Tmstmp
+}
+
+func (b Block) Height() uint64 {
+	return b.Hght
+}
+
+func (b Block) Txs() []*ChunkCertificate {
+	return b.ChunkCerts
+}
+
+func (b Block) Contains(id ids.ID) bool {
+	return b.certSet.Contains(id)
+}
+
+func (b Block) init() {
+	for _, c := range b.ChunkCerts {
+		b.certSet.Add(c.ChunkID)
+	}
 }
