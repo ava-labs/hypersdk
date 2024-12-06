@@ -49,11 +49,6 @@ var (
 	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
 
-type (
-	ChainIndex         = validitywindow.ChainIndex[*ChunkCertificate]
-	timeValidityWindow = *validitywindow.TimeValidityWindow[*ChunkCertificate]
-)
-
 type Validator struct {
 	NodeID    ids.NodeID
 	Weight    uint64
@@ -79,7 +74,7 @@ func New[T Tx](
 	quorumNum uint64,
 	quorumDen uint64,
 	tracer trace.Tracer,
-	chainIndex ChainIndex,
+	chainIndex validitywindow.ChainIndex[*ChunkCertificate],
 	validityWindowDuration int64,
 ) (*Node[T], error) {
 	return &Node[T]{
@@ -127,7 +122,7 @@ type Node[T Tx] struct {
 	log                           logging.Logger
 	tracer                        trace.Tracer
 	validityWindowDuration        int64
-	validityWindow                timeValidityWindow
+	validityWindow                *validitywindow.TimeValidityWindow[*ChunkCertificate]
 }
 
 // BuildChunk builds transactions into a Chunk
