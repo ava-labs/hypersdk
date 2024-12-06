@@ -40,7 +40,7 @@ var (
 	chainID = ids.Empty
 )
 
-const testingDefaultValidityWindowDuration = int64(5)
+const testingDefaultValidityWindowDuration = time.Duration(5)
 
 type testingChainIndex struct {
 	blocks map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]
@@ -1120,63 +1120,56 @@ func TestNode_Verify_Chunks(t *testing.T) {
 		parentBlocks               [][]int // for each parent, a list of the chunks included.
 		chunks                     []int
 		timestamp                  int64
-		executeWantErr             error
+		verifyWantErr              error
 		buildWantErr               error
-		validalidityWindowDuration int64
-	}{ /*
-			{
-				name:           "three empty blocks",
-				parentBlocks:   [][]int{{}, {}, {}},
-				chunks:         []int{},
-				timestamp:      4,
-				executeWantErr: nil,
-			},
-			{
-				name:           "three blocks, unique chunks",
-				parentBlocks:   [][]int{{1}, {2}, {3}},
-				chunks:         []int{},
-				timestamp:      4,
-				executeWantErr: nil,
-			},
-			{
-				name:           "two blocks one duplicate chunk",
-				parentBlocks:   [][]int{{0, 1}},
-				chunks:         []int{1, 2},
-				timestamp:      2,
-				executeWantErr: validitywindow.ErrDuplicateContainer,
-				buildWantErr:   nil, // build would filter out duplicate chunks, hence no error.
-			},
-			{
-				name:           "one block duplicate chunks",
-				parentBlocks:   [][]int{{}},
-				chunks:         []int{1, 1},
-				timestamp:      2,
-				executeWantErr: validitywindow.ErrDuplicateContainer,
-				buildWantErr:   nil, // build would filter out duplicate chunks, hence no error.
-			},
-			{
-				name:           "three blocks non consecutive duplicate chunks",
-				parentBlocks:   [][]int{{1}, {2}},
-				chunks:         []int{1},
-				timestamp:      3,
-				executeWantErr: validitywindow.ErrDuplicateContainer,
-			},*/
+		validalidityWindowDuration time.Duration
+	}{
+		{
+			name:          "three blocks, unique chunks",
+			parentBlocks:  [][]int{{1}, {2}, {3}},
+			chunks:        []int{4},
+			timestamp:     4,
+			verifyWantErr: nil,
+		},
+		{
+			name:          "two blocks one duplicate chunk",
+			parentBlocks:  [][]int{{0, 2}},
+			chunks:        []int{2, 4},
+			timestamp:     2,
+			verifyWantErr: validitywindow.ErrDuplicateContainer,
+			buildWantErr:  nil, // build would filter out duplicate chunks, hence no error.
+		},
+		{
+			name:          "one block duplicate chunks",
+			parentBlocks:  [][]int{},
+			chunks:        []int{1, 1},
+			timestamp:     1,
+			verifyWantErr: validitywindow.ErrDuplicateContainer,
+			buildWantErr:  nil, // build would filter out duplicate chunks, hence no error.
+		},
+		{
+			name:          "three blocks non consecutive duplicate chunks",
+			parentBlocks:  [][]int{{3}, {2}},
+			chunks:        []int{3},
+			timestamp:     3,
+			verifyWantErr: validitywindow.ErrDuplicateContainer,
+		},
 		{
 			name:                       "three blocks non consecutive duplicate chunks outside validity window",
 			parentBlocks:               [][]int{{1}, {2}},
 			chunks:                     []int{1},
 			timestamp:                  3,
-			executeWantErr:             nil,
+			verifyWantErr:              nil,
 			validalidityWindowDuration: 1,
-		}, /*
-			{
-				name:           "monotonic timestamping",
-				parentBlocks:   [][]int{{}, {}},
-				chunks:         []int{2},
-				timestamp:      0,
-				executeWantErr: ErrTimestampNotMonotonicallyIncreasing,
-				buildWantErr:   ErrTimestampNotMonotonicallyIncreasing,
-			},*/
+		},
+		{
+			name:          "monotonic timestamping",
+			parentBlocks:  [][]int{},
+			chunks:        []int{2},
+			timestamp:     0,
+			verifyWantErr: ErrInvalidBlockHeight,
+			buildWantErr:  ErrTimestampNotMonotonicallyIncreasing,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1268,6 +1261,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 
 			chunks, chunkCerts := initChunks(node)
 
+			indexer.set(genesisBlk.GetID(), genesisBlk)
 			// initialize node history.
 			parentBlk := genesisBlk
 			for blockNum, chunkList := range testCase.parentBlocks {
@@ -1304,7 +1298,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			for _, chunkIndex := range testCase.chunks {
 				newBlk.ChunkCerts = append(newBlk.ChunkCerts, chunkCerts[chunkIndex])
 			}
-			r.ErrorIs(node.Verify(context.Background(), parentBlk, newBlk), testCase.executeWantErr)
+			r.ErrorIs(node.Verify(context.Background(), parentBlk, newBlk), testCase.verifyWantErr)
 		})
 	}
 }

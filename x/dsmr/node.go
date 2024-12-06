@@ -75,7 +75,7 @@ func New[T Tx](
 	quorumDen uint64,
 	tracer trace.Tracer,
 	chainIndex validitywindow.ChainIndex[*ChunkCertificate],
-	validityWindowDuration int64,
+	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
@@ -121,7 +121,7 @@ type Node[T Tx] struct {
 	storage                       *ChunkStorage[T]
 	log                           logging.Logger
 	tracer                        trace.Tracer
-	validityWindowDuration        int64
+	validityWindowDuration        time.Duration
 	validityWindow                *validitywindow.TimeValidityWindow[*ChunkCertificate]
 }
 
@@ -237,10 +237,8 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
-	oldestAllowed := timestamp - n.validityWindowDuration
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
+	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
+
 	dup, err := n.validityWindow.IsRepeat(ctx, parent, chunkCerts, oldestAllowed)
 	if err != nil {
 		return Block{}, err
@@ -307,11 +305,8 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	}
 
 	// Find repeats
+	oldestAllowed := max(0, block.Timestamp()-int64(n.validityWindowDuration))
 
-	oldestAllowed := block.Timestamp() - n.validityWindowDuration
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
 	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, block, oldestAllowed); err != nil {
 		return err
 	}
