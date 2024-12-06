@@ -12,14 +12,15 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 const InitialChunkSize = 250 * 1024
 
+// Tx implements emap.Item
 type Tx interface {
-	emap.Item
+	GetID() ids.ID
+	GetExpiry() int64
 	GetSponsor() codec.Address
 }
 
