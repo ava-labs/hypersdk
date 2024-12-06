@@ -1,0 +1,7 @@
+scrape_configs:
+  - job_name: 'hypersdk'
+    scrape_interval: 2s
+
+    static_configs:
+      - targets: ['localhost:9650']
+    metrics_path: '/ext/metrics'
