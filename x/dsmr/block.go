@@ -6,6 +6,7 @@ package dsmr
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -122,6 +123,18 @@ type Block struct {
 
 	blkID    ids.ID
 	blkBytes []byte
+	certSet  set.Set[ids.ID]
+}
+
+func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*ChunkCertificate) Block {
+	blk := Block{
+		ParentID:   parentID,
+		Hght:       height,
+		Tmstmp:     timestamp,
+		ChunkCerts: chunkCerts,
+	}
+	blk.init()
+	return blk
 }
 
 func (b Block) GetID() ids.ID {
@@ -145,10 +158,11 @@ func (b Block) Txs() []*ChunkCertificate {
 }
 
 func (b Block) Contains(id ids.ID) bool {
+	return b.certSet.Contains(id)
+}
+
+func (b Block) init() {
 	for _, c := range b.ChunkCerts {
-		if c.ChunkID == id {
-			return true
-		}
+		b.certSet.Add(c.ChunkID)
 	}
-	return false
 }

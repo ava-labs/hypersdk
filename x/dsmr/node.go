@@ -266,12 +266,12 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		return Block{}, ErrNoAvailableChunkCerts
 	}
 
-	blk := Block{
-		ParentID:   parent.GetID(),
-		Hght:       parent.Hght + 1,
-		Tmstmp:     timestamp,
-		ChunkCerts: availableChunkCerts,
-	}
+	blk := NewBlock(
+		parent.GetID(),
+		parent.Hght+1,
+		timestamp,
+		availableChunkCerts,
+	)
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
