@@ -533,6 +533,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 			node, err := New[tx](
 				logging.NoLog{},
+				trace.Noop,
 				nodeID,
 				networkID,
 				chainID,
@@ -575,7 +576,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				trace.Noop,
 				newTestingChainIndexer(),
 				testingDefaultValidityWindowDuration,
 			)
@@ -1219,6 +1219,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 
 			node, err := New[tx](
 				logging.NoLog{},
+				trace.Noop,
 				nodeID,
 				networkID,
 				chainID,
@@ -1253,7 +1254,6 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				genesisBlk,
 				1,
 				1,
-				trace.Noop,
 				indexer,
 				valWind,
 			)
@@ -1642,6 +1642,7 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 
 		node, err := New[tx](
 			logging.NoLog{},
+			trace.Noop,
 			validators[i].NodeID,
 			networkID,
 			chainID,
@@ -1681,7 +1682,6 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 			},
 			1,
 			1,
-			trace.Noop,
 			newTestingChainIndexer(),
 			testingDefaultValidityWindowDuration,
 		)

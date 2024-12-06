@@ -57,6 +57,7 @@ type Validator struct {
 
 func New[T Tx](
 	log logging.Logger,
+	tracer trace.Tracer,
 	nodeID ids.NodeID,
 	networkID uint32,
 	chainID ids.ID,
@@ -73,7 +74,6 @@ func New[T Tx](
 	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
-	tracer trace.Tracer,
 	chainIndex validitywindow.ChainIndex[*ChunkCertificate],
 	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
