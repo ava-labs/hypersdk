@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const balanceCheckInterval = 500 * time.Millisecond
@@ -194,4 +195,31 @@ func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Act
 	}
 
 	return resp.ActionResults, nil
+}
+
+func (cli *JSONRPCClient) EvmGetCode(ctx context.Context, addr common.Address) ([]byte, error) {
+	resp := new(EVMGetCodeReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"evmGetCode",
+		&EVMGetCodeArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Code, err
+}
+
+func (cli *JSONRPCClient) GetBalanceEVM(ctx context.Context, addr common.Address) (uint64, error) {
+	args := &GetBalanceEVMArgs{
+		Address: addr,
+	}
+	resp := new(GetBalanceEVMReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getBalanceEVM",
+		args,
+		resp,
+	)
+	return resp.Balance, err
 }

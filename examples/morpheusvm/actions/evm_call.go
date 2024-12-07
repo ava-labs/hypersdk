@@ -21,9 +21,12 @@ import (
 	"github.com/ava-labs/subnet-evm/params"
 	"github.com/ava-labs/subnet-evm/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var _ chain.Action = (*EvmCall)(nil)
+
+var zeroAddress = common.HexToAddress("0x0000000000000000000000000000000000000000")
 
 type EvmCall struct {
 	To       *common.Address `serialize:"true" json:"to"`        // Address of the contract to call (nil means contract creation)
@@ -31,6 +34,7 @@ type EvmCall struct {
 	GasLimit uint64          `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
 	Data     []byte          `serialize:"true" json:"data"`      // Input data for the transaction
 	Keys     state.Keys      `serialize:"true" json:"stateKeys"` // State keys accessed by this call
+	From     common.Address  `serialize:"true" json:"from"`      // Address of the sender
 }
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
@@ -87,7 +91,12 @@ func (e *EvmCall) Execute(
 	}
 
 	statedb, shim := shim.NewStateDB(ctx, mu)
-	from := storage.ConvertAddress(actor)
+	var from common.Address
+	if e.From != (common.Address{}) {
+		from = e.From
+	} else {
+		from = storage.ConvertAddress(actor)
+	}
 	msg := e.toMessage(from)
 	txContext := core.NewEVMTxContext(msg)
 	chainConfig := params.SubnetEVMDefaultChainConfig
@@ -119,21 +128,28 @@ func (e *EvmCall) Execute(
 		resultErrCode = ErrExecutionFailed
 	}
 
+	var contractAddress common.Address
+	if msg.To == nil || *msg.To == (common.Address{}) || *msg.To == zeroAddress {
+		nonce := statedb.GetNonce(from)
+		contractAddress = crypto.CreateAddress(from, nonce)
+	}
 	return &EvmCallResult{
-		Success:   result.Err == nil,
-		Return:    result.ReturnData,
-		UsedGas:   result.UsedGas,
-		ErrorCode: resultErrCode,
+		Success:         result.Err == nil,
+		Return:          result.ReturnData,
+		UsedGas:         result.UsedGas,
+		ErrorCode:       resultErrCode,
+		ContractAddress: contractAddress,
 	}, nil
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)
 
 type EvmCallResult struct {
-	Success   bool      `serialize:"true" json:"success"`
-	Return    []byte    `serialize:"true" json:"return"`
-	UsedGas   uint64    `serialize:"true" json:"usedGas"`
-	ErrorCode ErrorCode `serialize:"true" json:"errorCode"`
+	Success         bool           `serialize:"true" json:"success"`
+	Return          []byte         `serialize:"true" json:"return"`
+	UsedGas         uint64         `serialize:"true" json:"usedGas"`
+	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
+	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
 }
 
 // The result.Err field returned by core.ApplyMessage contains an error type, but

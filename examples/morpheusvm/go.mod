@@ -7,13 +7,16 @@ require (
 	github.com/ava-labs/coreth v0.13.9-rc.1
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/ava-labs/subnet-evm v0.6.11
+	github.com/davecgh/go-spew v1.1.1
 	github.com/ethereum/go-ethereum v1.13.14
 	github.com/fatih/color v1.13.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.9.0
+	github.com/tyler-smith/go-bip39 v1.1.0
 	golang.org/x/exp v0.0.0-20231127185646-65229373498e
+
 )
 
 require (
@@ -38,7 +41,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20231025140028-3c0104f4b233 // indirect
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
@@ -131,7 +133,6 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/urfave/cli/v2 v2.25.7 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect

@@ -47,7 +47,7 @@ func init() {
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
-
+		AuthParser.Register(&auth.SECP256K1{}, auth.UnmarshalSECP256K1),
 		OutputParser.Register(&actions.EvmCallResult{}, nil),
 		OutputParser.Register(&actions.TransferResult{}, nil),
 	)

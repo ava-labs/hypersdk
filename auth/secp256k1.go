@@ -5,12 +5,13 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256k1"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Auth = (*SECP256K1)(nil)
@@ -103,7 +104,20 @@ func (d *SECP256K1Factory) Address() codec.Address {
 }
 
 func NewSECP256K1Address(pk secp256k1.PublicKey) codec.Address {
-	return codec.CreateAddress(SECP256K1ID, utils.ToID(pk[:]))
+	// return codec.CreateAddress(SECP256K1ID, utils.ToID(pk[:]))
+	addr, err := secp256k1.PublicKeyToAddress(pk)
+	if err != nil {
+		return codec.EmptyAddress
+	}
+
+	paddedAddr := codec.Address{}
+	paddedAddr[0] = SECP256K1ID
+	id := ids.ID{}
+	copy(id[12:], addr[:])
+	copy(paddedAddr[1:], id[:])
+	fmt.Println("paddedAddr: ", paddedAddr)
+	fmt.Println("addr: ", addr)
+	return paddedAddr
 }
 
 type SECP256K1PrivateKeyFactory struct{}

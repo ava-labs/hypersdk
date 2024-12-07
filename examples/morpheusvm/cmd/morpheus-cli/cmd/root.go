@@ -55,6 +55,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		MakeEVMCmd(),
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,

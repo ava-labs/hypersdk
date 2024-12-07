@@ -131,24 +131,6 @@ func (e *EvmTxBuilder) EvmCall(ctx context.Context, args *Args) (*actions.EvmCal
 	return call, nil
 }
 
-// func populateKeys(require *require.Assertions, cli *jsonrpc.JSONRPCClient, request *actions.EvmCall, spenderAddr codec.Address) (populatedCall *actions.EvmCall) {
-// 	simRes, err := cli.SimulateActions(context.Background(), chain.Actions{request}, spenderAddr)
-// 	require.NoError(err)
-// 	require.Len(simRes, 1)
-// 	actionResult := simRes[0]
-// 	evmCallOutputBytes := actionResult.Output
-// 	reader := codec.NewReader(evmCallOutputBytes, len(evmCallOutputBytes))
-// 	evmCallResultTyped, err := vm.OutputParser.Unmarshal(reader)
-// 	require.NoError(err)
-// 	evmCallResult, ok := evmCallResultTyped.(*actions.EvmCallResult)
-// 	require.True(ok)
-// 	evmCallStateKeys := actionResult.StateKeys
-// 	fmt.Println("evmCallResult", evmCallResult.Success, evmCallResult.ErrorCode.String(), evmCallResult.Return)
-// 	require.True(evmCallResult.Success)
-// 	request.Keys = evmCallStateKeys
-// 	return request
-// }
-
 func (e *EvmTxBuilder) EvmTraceCall(ctx context.Context, args *Args) (*actions.EvmCall, *actions.EvmCallResult, error) {
 	const maxGas = uint64(25000000)
 

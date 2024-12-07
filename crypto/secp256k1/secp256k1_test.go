@@ -2,11 +2,13 @@ package secp256k1_test
 
 import (
 	"crypto/rand"
+	"fmt"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/secp256k1"
 )
 
@@ -51,6 +53,7 @@ func TestSignVerify(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		// Generate private keys
 		priv, err := secp256k1.GeneratePrivateKey()
+		fmt.Println("priv", priv)
 		require.NoError(err)
 
 		// Sign message
@@ -92,6 +95,19 @@ func TestEmptyPublicKey(t *testing.T) {
 	sig := priv.Sign(msg)
 
 	require.False(secp256k1.Verify(msg, secp256k1.EmptyPublicKey, sig))
+}
+
+func TestPublicKeyToAddress(t *testing.T) {
+	require := require.New(t)
+	priv, err := secp256k1.GeneratePrivateKey()
+	fmt.Println("priv", priv)
+	require.NoError(err)
+	addr, err := secp256k1.PublicKeyToAddress(priv.PublicKey())
+	require.NoError(err)
+	debug := codec.Address{}
+	copy(debug[13:], addr.Bytes())
+	require.Equal(debug[13:], addr[:])
+
 }
 
 func BenchmarkSignVerify(b *testing.B) {

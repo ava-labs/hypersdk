@@ -21,7 +21,7 @@ import (
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 func ConvertAddress(addr codec.Address) common.Address {
-	return common.BytesToAddress(addr[:])
+	return common.Address(addr[13:])
 }
 
 // State
