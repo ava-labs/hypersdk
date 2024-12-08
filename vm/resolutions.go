@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
@@ -35,7 +36,7 @@ import (
 
 var (
 	_ gossiper.ValidatorSet                         = (*VM)(nil)
-	_ block.ChainVM                                 = (*VM)(nil)
+	_ snow.ConcreteVM[*StatefulBlock]               = (*VM)(nil)
 	_ block.StateSyncableVM                         = (*VM)(nil)
 	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
@@ -96,7 +97,7 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
-	blk, err := vm.GetStatefulBlock(ctx, blkID)
+	blk, err := vm.GetBlock(ctx, blkID)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +288,7 @@ func (vm *VM) NodeID() ids.NodeID {
 }
 
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
-	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	preferredBlk, err := vm.GetBlock(ctx, vm.preferred)
 	if err != nil {
 		return 0, err
 	}

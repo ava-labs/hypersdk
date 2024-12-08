@@ -25,7 +25,7 @@ type ChainClient[T StateSummaryBlock] interface {
 	LastAcceptedStatefulBlock() T
 	GetDiskIsSyncing() (bool, error)
 	PutDiskIsSyncing(bool) error
-	ParseStatefulBlock(ctx context.Context, bytes []byte) (T, error)
+	ParseBlock(ctx context.Context, bytes []byte) (T, error)
 }
 
 type Accepter[T StateSummaryBlock] interface {
@@ -104,7 +104,7 @@ func (*Client[T]) GetOngoingSyncStateSummary(
 }
 
 func (s *Client[T]) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
-	sb, err := s.chain.ParseStatefulBlock(ctx, bytes)
+	sb, err := s.chain.ParseBlock(ctx, bytes)
 	if err != nil {
 		return nil, err
 	}

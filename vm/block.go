@@ -68,7 +68,7 @@ func ParseStatefulBlock(
 	accepted bool,
 	vm *VM,
 ) (*StatefulBlock, error) {
-	_, span := vm.Tracer().Start(ctx, "vm.ParseStatefulBlock")
+	_, span := vm.Tracer().Start(ctx, "vm.ParseBlock")
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
@@ -396,7 +396,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 	// or may not be verified yet).
 	lastAcceptedBlock := b.vm.lastAccepted
 	if blockHeight-1 > lastAcceptedBlock.Hght {
-		blk, err := b.vm.GetStatefulBlock(ctx, parent)
+		blk, err := b.vm.GetBlock(ctx, parent)
 		if err != nil {
 			return nil, err
 		}

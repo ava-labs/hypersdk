@@ -14,7 +14,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/cmd/morpheusvm/version"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	mvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
+	"github.com/ava-labs/hypersdk/snow"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var rootCmd = &cobra.Command{
@@ -47,9 +49,10 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	vm, err := vm.New()
+	v, err := mvm.New()
 	if err != nil {
 		return err
 	}
-	return rpcchainvm.Serve(context.TODO(), vm)
+
+	return rpcchainvm.Serve(context.TODO(), snow.NewVM[*vm.StatefulBlock](v))
 }

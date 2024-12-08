@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
@@ -42,6 +41,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
@@ -185,15 +185,17 @@ func New(
 // implements "block.ChainVM.common.VM"
 func (vm *VM) Initialize(
 	ctx context.Context,
-	snowCtx *snow.Context,
-	_ database.Database,
-	genesisBytes []byte,
-	upgradeBytes []byte,
-	configBytes []byte,
-	toEngine chan<- common.Message,
-	_ []*common.Fx,
-	appSender common.AppSender,
+	chainInput hsnow.ChainInput,
+	snowOptions *hsnow.Options,
 ) error {
+	var (
+		snowCtx      = chainInput.SnowCtx
+		genesisBytes = chainInput.GenesisBytes
+		upgradeBytes = chainInput.UpgradeBytes
+		configBytes  = chainInput.ConfigBytes
+		toEngine     = chainInput.ToEngine
+		appSender    = chainInput.AppSender
+	)
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	// Init channels before initializing other structs
@@ -217,6 +219,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
+	hsnow.WithP2PNetwork(vm.network)(snowOptions)
 
 	blockDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
@@ -509,6 +512,8 @@ func (vm *VM) Initialize(
 	if err := vm.initStateSync(); err != nil {
 		return err
 	}
+	hsnow.WithStateSyncableVM(vm)(snowOptions)
+
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
 		gossiper.NewTxGossipHandler(
@@ -565,7 +570,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	} else {
 		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
-			blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+			blk, err := vm.GetBlock(ctx, vm.preferred)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -834,20 +839,8 @@ func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 	return http.StatusOK, nil
 }
 
-// implements "block.ChainVM.commom.VM.Getter"
-// replaces "core.SnowmanVM.GetBlock"
-//
-// This is ONLY called on accepted blocks pre-ProposerVM fork.
-func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetBlock")
-	defer span.End()
-
-	// We purposely don't return parsed but unverified blocks from here
-	return vm.GetStatefulBlock(ctx, id)
-}
-
-func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock, error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
+func (vm *VM) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock, error) {
+	_, span := vm.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
 
 	// Check if verified block
@@ -886,7 +879,7 @@ func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
-func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
+func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockParse.Observe(float64(time.Since(start)))
@@ -900,7 +893,7 @@ func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulB
 
 	// If we have seen this block before, return it with the most
 	// up-to-date info
-	if oldBlk, err := vm.GetStatefulBlock(ctx, id); err == nil {
+	if oldBlk, err := vm.GetBlock(ctx, id); err == nil {
 		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
@@ -929,13 +922,8 @@ func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulB
 	return newBlk, nil
 }
 
-// implements "block.ChainVM.commom.VM.Parser"
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
-	return vm.ParseStatefulBlock(ctx, source)
-}
-
 // implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+func (vm *VM) BuildBlock(ctx context.Context) (*StatefulBlock, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
@@ -968,7 +956,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 
 	// Build block and store as parsed
-	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	preferredBlk, err := vm.GetBlock(ctx, vm.preferred)
 	if err != nil {
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
@@ -1015,7 +1003,7 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	blk, err := vm.GetBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
@@ -1197,7 +1185,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
 		}
 
-		blk, err := vm.GetStatefulBlock(ctx, blkID)
+		blk, err := vm.GetBlock(ctx, blkID)
 		if err != nil {
 			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}

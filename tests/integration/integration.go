@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
+	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
@@ -79,6 +80,7 @@ type instance struct {
 	chainID         ids.ID
 	nodeID          ids.NodeID
 	vm              *vm.VM
+	snowVM          *hsnow.VM[*vm.StatefulBlock]
 	toEngine        chan common.Message
 	routerServer    *httptest.Server
 	JSONRPCServer   *httptest.Server
@@ -212,8 +214,9 @@ func setInstances() {
 		v, err := createVM(
 			vm.WithManual(),
 		)
+		snowVM := hsnow.NewVM(v)
 		require.NoError(err)
-		require.NoError(v.Initialize(
+		require.NoError(snowVM.Initialize(
 			context.TODO(),
 			snowCtx,
 			db,
@@ -240,6 +243,7 @@ func setInstances() {
 			chainID:         snowCtx.ChainID,
 			nodeID:          snowCtx.NodeID,
 			vm:              v,
+			snowVM:          snowVM,
 			toEngine:        toEngine,
 			routerServer:    routerServer,
 			JSONRPCServer:   jsonRPCServer,

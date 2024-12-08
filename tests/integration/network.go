@@ -159,11 +159,7 @@ func (i *instance) confirmTx(ctx context.Context, txid ids.ID) error {
 		return err
 	}
 	for {
-		stflBlk, ok := blk.(*vm.StatefulBlock)
-		if !ok {
-			return ErrTxNotFound
-		}
-		for _, tx := range stflBlk.StatelessBlock.Txs {
+		for _, tx := range blk.StatelessBlock.Txs {
 			if tx.GetID() == txid {
 				// found.
 				return nil
