@@ -44,11 +44,11 @@ func StorageKey(addr common.Address, key []byte) []byte {
 	return k
 }
 
-func CodeKey(codeHash common.Hash) []byte {
-	k := make([]byte, consts.ByteLen+common.HashLength+consts.Uint16Len)
+func CodeKey(addr common.Address) []byte {
+	k := make([]byte, consts.ByteLen+common.AddressLength+consts.Uint16Len)
 	k[0] = codePrefix
-	copy(k[1:1+common.HashLength], codeHash[:])
-	binary.BigEndian.PutUint16(k[1+common.HashLength:], CodeChunks)
+	copy(k[1:1+common.AddressLength], addr.Bytes())
+	binary.BigEndian.PutUint16(k[1+common.AddressLength:], CodeChunks)
 	return k
 }
 
@@ -137,10 +137,9 @@ func DeleteAccount(
 func GetCode(
 	ctx context.Context,
 	im state.Immutable,
-	_ common.Address,
-	codeHash common.Hash,
+	addr common.Address,
 ) ([]byte, error) {
-	k := CodeKey(codeHash)
+	k := CodeKey(addr)
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
@@ -154,11 +153,10 @@ func GetCode(
 func SetCode(
 	ctx context.Context,
 	mu state.Mutable,
-	_ common.Address,
-	codeHash common.Hash,
+	addr common.Address,
 	code []byte,
 ) error {
-	k := CodeKey(codeHash)
+	k := CodeKey(addr)
 	return mu.Insert(ctx, k, code)
 }
 

@@ -131,7 +131,7 @@ func (e *EvmCall) Execute(
 	var contractAddress common.Address
 	if msg.To == nil || *msg.To == (common.Address{}) || *msg.To == zeroAddress {
 		nonce := statedb.GetNonce(from)
-		contractAddress = crypto.CreateAddress(from, nonce)
+		contractAddress = crypto.CreateAddress(from, nonce-1)
 	}
 	return &EvmCallResult{
 		Success:         result.Err == nil,

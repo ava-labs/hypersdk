@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/subnet-evm/core/types"
@@ -54,12 +54,11 @@ var (
 	EvmRelayAddress string
 )
 
+// We convert evm address to codec address by extending it
 func padder(address common.Address) codec.Address {
 	codecAddr := codec.Address{}
 	codecAddr[0] = auth.SECP256K1ID
 	id := ids.ID{}
-	zeroBytes := make([]byte, 32)
-	copy(id[:], zeroBytes)
 	copy(id[12:], address[:])
 	copy(codecAddr[1:], id[:])
 	return codecAddr
@@ -72,15 +71,14 @@ func (s *API) ChainId() *hexutil.Big {
 func (s *API) BlockNumber(ctx context.Context) (hexutil.Big, error) {
 	_, number, _, err := s.cli.Accepted(ctx)
 	utils.Outf("{{yellow}}BlockNumber: %d{{/}}\n", number)
-	big := new(big.Int).SetUint64(number)
-	return hexutil.Big(*big), err
+
+	return hexutil.Big(*new(big.Int).SetUint64(number)), err
 }
 
 func (s *API) GetBalance(ctx context.Context, address common.Address, blockNrOrHash eth_rpc.BlockNumberOrHash) (*hexutil.Big, error) {
 	bal, err := s.bcli.GetBalanceEVM(ctx, address)
 	balance_big := new(big.Int).SetUint64(bal)
-	// multiply by 10^10
-	balance_big = balance_big.Mul(balance_big, big.NewInt(1000000000))
+	// balance_big = balance_big.Mul(balance_big, big.NewInt(1000000000)) // // todo something is wrong here
 	utils.Outf("{{yellow}}GetBalance: %s %d{{/}}\n", address.Hex(), balance_big)
 	return (*hexutil.Big)(balance_big), err
 }
@@ -88,8 +86,9 @@ func (s *API) GetBalance(ctx context.Context, address common.Address, blockNrOrH
 func (s *API) GetTransactionCount(ctx context.Context, address common.Address, blockNrOrHash eth_rpc.BlockNumberOrHash) (*hexutil.Uint64, error) {
 	paddedAddress := padder(address)
 	nonce, err := s.bcli.Nonce(ctx, paddedAddress)
+
 	utils.Outf("{{yellow}}GetTransactionCount: %s %d{{/}}\n", address.Hex(), nonce)
-	utils.Outf("{{blue}}GetTransactionCount storage: %s{{/}}\n", storage.ConvertAddress(paddedAddress))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
@@ -98,12 +97,65 @@ func (s *API) GetTransactionCount(ctx context.Context, address common.Address, b
 
 func (s *API) GetBlockByNumber(ctx context.Context, number eth_rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	utils.Outf("{{yellow}}GetBlockByNumber: %d{{/}}\n", number.Int64())
-	header := &types.Header{
-		BaseFee: new(big.Int),
-		Number:  big.NewInt(number.Int64()),
+
+	_, latestBlock, timestamp, err := s.cli.Accepted(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest block: %w", err)
 	}
+
+	blockNum := number.Int64()
+	switch blockNum {
+	case -2: // pending
+		fallthrough
+	case -1: // latest
+		blockNum = int64(latestBlock)
+	case -3: // earliest
+		blockNum = 0
+	}
+
+	if blockNum > int64(latestBlock) {
+		return nil, fmt.Errorf("requested block number %d is beyond latest block %d", blockNum, latestBlock)
+	}
+
+	header := &types.Header{
+		ParentHash:  common.Hash{},
+		UncleHash:   common.Hash{},
+		Coinbase:    common.Address{},
+		Root:        common.Hash{},
+		TxHash:      common.Hash{},
+		ReceiptHash: common.Hash{},
+		Bloom:       types.Bloom{},
+		Difficulty:  big.NewInt(0),
+		Number:      big.NewInt(blockNum),
+		GasLimit:    uint64(25000000),
+		GasUsed:     uint64(0),
+		Time:        uint64(timestamp),
+		Extra:       []byte{},
+		MixDigest:   common.Hash{},
+		Nonce:       types.BlockNonce{},
+		BaseFee:     new(big.Int),
+	}
+
+	utils.Outf("{{blue}}GetBlockByNumber DEBUG: %d (resolved to %d){{/}}\n", number, blockNum)
 	block := types.NewBlock(header, nil, nil, nil, nil)
-	return RPCMarshalBlock(block, false, fullTx, s.chainConfig), nil
+	result := RPCMarshalBlock(block, true, fullTx, s.chainConfig)
+
+	numericFields := []string{"number", "timestamp", "difficulty", "gasLimit", "gasUsed", "nonce", "size"}
+	for _, field := range numericFields {
+		if val, ok := result[field].(string); ok {
+			if !strings.HasPrefix(val, "0x") {
+				result[field] = "0x" + strings.TrimPrefix(val, "0x")
+			}
+		}
+	}
+
+	result["totalDifficulty"] = (*hexutil.Big)(new(big.Int))
+	result["size"] = hexutil.Uint64(0)
+	result["uncles"] = []common.Hash{}
+	result["transactions"] = []interface{}{}
+	result["hash"] = block.Hash()
+
+	return result, nil
 }
 
 func (s *API) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (map[string]interface{}, error) {
@@ -114,13 +166,6 @@ func (s *API) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool)
 	block := types.NewBlock(header, nil, nil, nil, nil)
 	return RPCMarshalBlock(block, false, fullTx, s.chainConfig), nil
 }
-
-// type feeHistoryResult struct {
-// 	OldestBlock  *hexutil.Big     `json:"oldestBlock"`
-// 	Reward       [][]*hexutil.Big `json:"reward,omitempty"`
-// 	BaseFee      []*hexutil.Big   `json:"baseFeePerGas,omitempty"`
-// 	GasUsedRatio []float64        `json:"gasUsedRatio"`
-// }
 
 func (s *API) FeeHistory(ctx context.Context, blockCount math.HexOrDecimal64, lastBlock eth_rpc.BlockNumber, rewardPercentiles []float64) (*feeHistoryResult, error) {
 	_, number, _, err := s.cli.Accepted(ctx)
@@ -149,14 +194,12 @@ func (s *API) FeeHistory(ctx context.Context, blockCount math.HexOrDecimal64, la
 func (s *API) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *eth_rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
 	lotsOfGas := uint64(25000000)
 	paddedAddress := padder(*args.From)
+
 	to := args.To
 	if to == nil {
 		args.To = &common.Address{}
 	}
-	// nonce, err := s.bcli.Nonce(ctx, paddedAddress)
-	// if err != nil {
-	// 	return 0, fmt.Errorf("failed to get nonce: %w", err)
-	// }
+
 	call := &actions.EvmCall{
 		From:     *args.From,
 		To:       args.To,
@@ -170,11 +213,9 @@ func (s *API) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHa
 	if args.Data != nil {
 		call.Data = ([]byte)(*args.Data)
 	}
-	// if args.Nonce != nil {
-	// 	call.Nonce = uint64(*args.Nonce)
-	// }
+
 	simulated, err := s.cli.SimulateActions(ctx, []chain.Action{call}, paddedAddress)
-	utils.Outf("{{yellow}}EstimateGas debug: %+v{{/}}\n", err)
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to simulate action: %w", err)
 	}
@@ -192,12 +233,8 @@ func (s *API) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHa
 func (s *API) Call(ctx context.Context, args TransactionArgs, blockNrOrHash eth_rpc.BlockNumberOrHash, overrides *StateOverride, blockOverrides *BlockOverrides) (hexutil.Bytes, error) {
 	utils.Outf("{{red}}Call: %+v{{/}}\n", args)
 
-	lotsOfGas := uint64(25000000)
+	lotsOfGas := uint64(2500000)
 
-	// _, nonce, err := s.bcli.EvmAccount(ctx, evmAddr.Hex())
-	// if err != nil {
-	// 	return nil, err
-	// }
 	from := *args.From
 	to := args.To
 	if to == nil {
@@ -207,8 +244,7 @@ func (s *API) Call(ctx context.Context, args TransactionArgs, blockNrOrHash eth_
 		From:     from,
 		To:       to,
 		GasLimit: lotsOfGas,
-		Value:    uint64(0),
-		Data:     []byte{},
+		Value:    uint64(1),
 	}
 	if args.Value != nil {
 		call.Value = args.Value.ToInt().Uint64()
@@ -216,17 +252,17 @@ func (s *API) Call(ctx context.Context, args TransactionArgs, blockNrOrHash eth_
 	if args.Data != nil {
 		call.Data = ([]byte)(*args.Data)
 	}
-	// if args.Gas != nil {
-	// 	call.GasLimit = uint64(*args.Gas)
-	// }
-	utils.Outf("{{blue}}Call: %+v %+v{{/}}\n", call)
-	trace, err := s.cli.SimulateActions(ctx, []chain.Action{call}, padder(*args.From))
-	utils.Outf("{{yellow}}Call: %+v{{/}}\n", err)
+	if args.Gas != nil {
+		call.GasLimit = uint64(*args.Gas)
+	}
+	trace, err := s.cli.SimulateActions(ctx, []chain.Action{call}, padder(from))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate action: %w", err)
 	}
-	utils.Outf("{{yellow}}Call: %+v %+v{{/}}\n", args, trace[0].Output)
-	evmCallResultTyped, err := brpc.OutputParser.Unmarshal(codec.NewReader(trace[0].Output, len(trace[0].Output)))
+
+	reader := codec.NewReader(trace[0].Output, len(trace[0].Output))
+	evmCallResultTyped, err := brpc.OutputParser.Unmarshal(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal evm call result: %w", err)
 	}
@@ -234,6 +270,7 @@ func (s *API) Call(ctx context.Context, args TransactionArgs, blockNrOrHash eth_
 	if !evmCallResult.Success {
 		return nil, fmt.Errorf("transaction failed: %v", evmCallResult.ErrorCode)
 	}
+	utils.Outf("{{red}}Call result: %+v{{/}}\n", hexutil.Bytes(evmCallResult.Return))
 	return hexutil.Bytes(evmCallResult.Return), nil
 }
 
@@ -276,7 +313,7 @@ func (s *API) SendRawTransaction(ctx context.Context, input hexutil.Bytes) (comm
 	if !evmCallResult.Success {
 		return common.Hash{}, fmt.Errorf("transaction failed: %v", evmCallResult.ErrorCode)
 	}
-	utils.Outf("{{yellow}}SendRawTransaction Error code, success: %+v %+v{{/}}\n", evmCallResult.ErrorCode, evmCallResult.Success)
+
 	call.Keys = trace[0].StateKeys
 
 	parser, err := s.bcli.Parser(ctx)
@@ -291,15 +328,38 @@ func (s *API) SendRawTransaction(ctx context.Context, input hexutil.Bytes) (comm
 	if err := s.ws.RegisterTx(sentTx); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to register transaction: %w", err)
 	}
+	var result *chain.Result
+	for {
+		txID, txErr, txResult, err := s.ws.ListenTx(ctx)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to listen for transaction: %w", err)
+		}
+		if txErr != nil {
+			return common.Hash{}, fmt.Errorf("transaction failed: %w", txErr)
+		}
+		if txID == sentTx.GetID() {
+			result = txResult
+			break
+		}
+		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", common.Hash(sentTx.GetID()))
+	}
+	if !result.Success {
+		return common.Hash{}, fmt.Errorf("transaction failed: %v tx hash: %s", result.Error, common.Hash(sentTx.GetID()))
+	}
 	utils.Outf("{{yellow}}Sent transaction: %s{{/}}\n", common.Hash(sentTx.GetID()))
 	callerNonce, err := s.bcli.Nonce(ctx, padder(from))
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to get nonce: %w", err)
 	}
 	callerNonce -= 1
-	if call.To == nil {
+	if call.To == nil || *to == (common.Address{}) {
 		contractAddress := crypto.CreateAddress(from, callerNonce)
-		utils.Outf("{{yellow}}Contract created: %s{{/}}\n", contractAddress)
+		utils.Outf("{{red}}Contract created: %s{{/}}\n", contractAddress)
+		code, err := s.bcli.EvmGetCode(ctx, contractAddress)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to get contract code sent: %w", err)
+		}
+		utils.Outf("{{red}}Contract code sent: %s{{/}}\n", hexutil.Bytes(code))
 	}
 	return common.Hash(sentTx.GetID()), nil
 }
@@ -311,6 +371,18 @@ func (s *API) NetworkID(ctx context.Context) (hexutil.Uint64, error) {
 
 func (s *API) GetTransactionReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
 	utils.Outf("{{yellow}}GetTransactionReceipt: %s{{/}}\n", hash)
+
+	ctxDeadline, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*15))
+	defer cancel()
+
+	success, _, err := s.icli.WaitForTransaction(ctxDeadline, time.Second, ids.ID(hash))
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for transaction: %w", err)
+	}
+	if !success {
+		utils.Outf("{{yellow}}GetTransactionReceipt: %v not found{{/}}\n", hash)
+		return nil, fmt.Errorf("transaction not found: %w", err)
+	}
 
 	txresponse, success, err := s.icli.GetTx(ctx, ids.ID(hash))
 	utils.Outf("{{yellow}}GetTransactionReceipt: %+v %+v{{/}}\n", txresponse, success)
@@ -408,26 +480,33 @@ func (s *API) GetTransactionByHash(ctx context.Context, hash common.Hash) (*RPCT
 
 func (s *API) GetCode(ctx context.Context, address common.Address, blockNrOrHash eth_rpc.BlockNumberOrHash) (hexutil.Bytes, error) {
 	code, err := s.bcli.EvmGetCode(ctx, address)
-	utils.Outf("{{yellow}}Contract address: %s code: %s{{/}}\n", address.Hex(), hexutil.Bytes(code).String())
+	utils.Outf("{{yellow}}EVM GetCode: %s code: %s{{/}}\n", address.Hex(), hexutil.Bytes(code).String())
 	return code, err
 }
 
 func LogRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Read the request body
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			fmt.Println("Error reading request body:", err)
 			return
 		}
-		// Restore the request body to its original state
+
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		// Log information about the request including the body
 		fmt.Printf("Received %s request for %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
 		fmt.Println("Request body:", string(body))
 
-		// Call the next handler in the chain
 		next.ServeHTTP(w, r)
 	})
 }
@@ -452,15 +531,15 @@ func (s *API) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
 	return (*hexutil.Big)(big.NewInt(0)), nil
 }
 
-// func (s *API) PendingNonceAt(ctx context.Context, address common.Address) (hexutil.Uint64, error) {
-// 	utils.Outf("{{yellow}}PendingNonceAt: %s{{/}}\n", address.Hex())
-// 	utils.Outf("{{yellow}}PendingNonceAt storage: %s{{/}}\n", storage.ConvertAddress(padder(address)))
-// 	nonce, err := s.bcli.Nonce(ctx, padder(address))
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to get nonce: %w", err)
-// 	}
-// 	return hexutil.Uint64(nonce), nil
-// }
+func (s *API) PendingNonceAt(ctx context.Context, address common.Address) (hexutil.Uint64, error) {
+	utils.Outf("{{yellow}}PendingNonceAt: %s{{/}}\n", address.Hex())
+	utils.Outf("{{yellow}}PendingNonceAt storage: %s{{/}}\n", padder(address))
+	nonce, err := s.bcli.Nonce(ctx, padder(address))
+	if err != nil {
+		return 0, fmt.Errorf("failed to get nonce: %w", err)
+	}
+	return hexutil.Uint64(nonce), nil
+}
 
 var evmRelayCmd = &cobra.Command{
 	Use: "evm-relay",

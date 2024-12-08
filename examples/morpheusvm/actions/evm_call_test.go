@@ -74,13 +74,14 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success:   true,
-			UsedGas:   0x8459a,
-			Return:    testCtx.TestContractABI.DeployedBytecode,
-			ErrorCode: NilError,
+			Success:         true,
+			UsedGas:         0x8459a,
+			Return:          testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode:       NilError,
+			ContractAddress: crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce),
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -103,13 +104,14 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success:   true,
-			UsedGas:   0x8459a,
-			Return:    testCtx.TestContractABI.DeployedBytecode,
-			ErrorCode: NilError,
+			Success:         true,
+			UsedGas:         0x8459a,
+			Return:          testCtx.TestContractABI.DeployedBytecode,
+			ErrorCode:       NilError,
+			ContractAddress: crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce),
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.TestContractABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
@@ -132,13 +134,14 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success:   true,
-			UsedGas:   0x98bf6,
-			Return:    testCtx.FactoryABI.DeployedBytecode,
-			ErrorCode: NilError,
+			Success:         true,
+			UsedGas:         0x98bf6,
+			Return:          testCtx.FactoryABI.DeployedBytecode,
+			ErrorCode:       NilError,
+			ContractAddress: crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce),
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
-			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce), crypto.Keccak256Hash(testCtx.FactoryABI.DeployedBytecode))
+			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
 			require.ElementsMatch(code, testCtx.FactoryABI.DeployedBytecode)
@@ -148,7 +151,7 @@ func TestDeployment(t *testing.T) {
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 	testCtx.Nonce++
 
-	factoryAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce-1) // we just deployed the factory
+	factoryAddr := crypto.CreateAddress(storage.ConvertAddress(testCtx.From), testCtx.Nonce) // we just deployed the factory
 	deployData := testCtx.FactoryABI.ABI.Methods["deployContract"].ID
 	deployFromFactoryTest := &chaintest.ActionTest{
 		Name: "deploy contract from a contract",
@@ -164,10 +167,11 @@ func TestDeployment(t *testing.T) {
 		Actor:     testCtx.From,
 		ActionID:  testCtx.ActionID,
 		ExpectedOutputs: &EvmCallResult{
-			Success:   true,
-			UsedGas:   0x7c5bc,
-			Return:    common.LeftPadBytes(crypto.CreateAddress(factoryAddr, testCtx.FactoryNonce+1).Bytes(), 32), // each contract increases its nonce by 1
-			ErrorCode: NilError,
+			Success:         true,
+			UsedGas:         0x5248,
+			Return:          nil,
+			ErrorCode:       NilError,
+			ContractAddress: common.Address{},
 		},
 		Assertion: func(ctx context.Context, t *testing.T, mu state.Mutable) {
 		},

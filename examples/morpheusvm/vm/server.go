@@ -175,7 +175,7 @@ func (j *JSONRPCServer) EvmGetCode(req *http.Request, args *EVMGetCodeArgs, repl
 	if err != nil {
 		return err
 	}
-	code, err := storage.GetCode(ctx, im, args.Address, common.Hash{})
+	code, err := storage.GetCode(ctx, im, args.Address)
 	if err != nil {
 		return err
 	}
