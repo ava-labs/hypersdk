@@ -1062,7 +1062,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 
 	r.NoError(node.storage.AddLocalChunkWithCert(chunk, &chunkCert))
 	_, err = node.BuildBlock(context.Background(), blk, 3)
-	r.ErrorIs(err, ErrAllChunkCertsDuplicate)
+	r.ErrorIs(err, ErrNoAvailableChunkCerts)
 
 	// make sure that it's not the case with any other chunk.
 	anotherChunk, anotherChunkCert, err := node.BuildChunk(
@@ -1169,6 +1169,14 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			timestamp:     0,
 			verifyWantErr: ErrInvalidBlockHeight,
 			buildWantErr:  ErrTimestampNotMonotonicallyIncreasing,
+		},
+		{
+			name:          "empty block",
+			parentBlocks:  [][]int{{1}, {2}, {3}, {4}},
+			chunks:        []int{},
+			timestamp:     5,
+			verifyWantErr: ErrEmptyBlock,
+			buildWantErr:  ErrNoAvailableChunkCerts,
 		},
 	}
 	for _, testCase := range testCases {

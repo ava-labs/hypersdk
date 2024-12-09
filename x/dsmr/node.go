@@ -253,9 +253,6 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
-		if dup.Len() == len(chunkCerts) && len(chunkCerts) > 0 {
-			return Block{}, ErrAllChunkCertsDuplicate
-		}
 		return Block{}, ErrNoAvailableChunkCerts
 	}
 
