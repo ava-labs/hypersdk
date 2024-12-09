@@ -28,22 +28,30 @@ type Subscription[T any] interface {
 
 type SubscriptionFuncFactory[T any] struct {
 	NotifyF func(ctx context.Context, t T) error
+	Closer  func() error
 }
 
 func (s SubscriptionFuncFactory[T]) New() (Subscription[T], error) {
-	return SubscriptionFunc[T](s), nil
+	return SubscriptionFunc[T]{
+		NotifyF: s.NotifyF,
+		Closer:  s.Closer,
+	}, nil
 }
 
 type SubscriptionFunc[T any] struct {
 	NotifyF func(ctx context.Context, t T) error
+	Closer  func() error
 }
 
 func (s SubscriptionFunc[T]) Notify(ctx context.Context, t T) error {
 	return s.NotifyF(ctx, t)
 }
 
-func (SubscriptionFunc[_]) Close() error {
-	return nil
+func (s SubscriptionFunc[_]) Close() error {
+	if s.Closer == nil {
+		return nil
+	}
+	return s.Closer()
 }
 
 func NotifyAll[T any](ctx context.Context, e T, subs ...Subscription[T]) error {

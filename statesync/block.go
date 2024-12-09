@@ -19,7 +19,7 @@ type StateSummaryBlock interface {
 	Height() uint64
 	Bytes() []byte
 	GetStateRoot() ids.ID
-	MarkAccepted(context.Context)
+	MarkAccepted(context.Context) error
 }
 
 type SyncableBlock[T StateSummaryBlock] struct {
@@ -50,8 +50,8 @@ func (sb *SyncableBlock[T]) Accept(ctx context.Context) (block.StateSyncMode, er
 	return sb.accepter.Accept(ctx, sb.container)
 }
 
-func (sb *SyncableBlock[T]) MarkAccepted(ctx context.Context) {
-	sb.container.MarkAccepted(ctx)
+func (sb *SyncableBlock[T]) MarkAccepted(ctx context.Context) error {
+	return sb.container.MarkAccepted(ctx)
 }
 
 func (sb *SyncableBlock[T]) String() string {

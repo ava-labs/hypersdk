@@ -21,10 +21,10 @@ import (
 
 var _ Accepter[StateSummaryBlock] = (*Client[StateSummaryBlock])(nil)
 
+var isSyncing = []byte("is_syncing")
+
 type ChainClient[T StateSummaryBlock] interface {
-	LastAcceptedStatefulBlock() T
-	GetDiskIsSyncing() (bool, error)
-	PutDiskIsSyncing(bool) error
+	LastAcceptedBlock(ctx context.Context) T
 	ParseBlock(ctx context.Context, bytes []byte) (T, error)
 }
 
@@ -36,7 +36,8 @@ type Client[T StateSummaryBlock] struct {
 	chain                                     ChainClient[T]
 	log                                       logging.Logger
 	registerer                                prometheus.Registerer
-	db                                        merkledb.MerkleDB
+	db                                        database.Database
+	merkleDB                                  merkledb.MerkleDB
 	network                                   *p2p.Network
 	rangeProofHandlerID, changeProofHandlerID uint64
 	syncManager                               *avasync.Manager
@@ -61,7 +62,8 @@ func NewClient[T StateSummaryBlock](
 	chain ChainClient[T],
 	log logging.Logger,
 	registerer prometheus.Registerer,
-	db merkledb.MerkleDB,
+	db database.Database,
+	merkleDB merkledb.MerkleDB,
 	network *p2p.Network,
 	rangeProofHandlerID uint64,
 	changeProofHandlerID uint64,
@@ -74,6 +76,7 @@ func NewClient[T StateSummaryBlock](
 		log:                   log,
 		registerer:            registerer,
 		db:                    db,
+		merkleDB:              merkleDB,
 		network:               network,
 		rangeProofHandlerID:   rangeProofHandlerID,
 		changeProofHandlerID:  changeProofHandlerID,
@@ -114,7 +117,7 @@ func (s *Client[T]) ParseStateSummary(ctx context.Context, bytes []byte) (block.
 }
 
 func (s *Client[T]) Accept(
-	_ context.Context,
+	ctx context.Context,
 	sb T,
 ) (block.StateSyncMode, error) {
 	s.init = true
@@ -124,15 +127,16 @@ func (s *Client[T]) Accept(
 	)
 
 	// If we did not finish syncing, we must state sync.
-	syncing, err := s.chain.GetDiskIsSyncing()
+	syncing, err := s.GetDiskIsSyncing()
 	if err != nil {
 		s.log.Warn("could not determine if syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}
-	if !syncing && (s.chain.LastAcceptedStatefulBlock().Height()+s.minBlocks > sb.Height()) {
+	lastAcceptedBlk := s.chain.LastAcceptedBlock(ctx)
+	if !syncing && (lastAcceptedBlk.Height()+s.minBlocks > sb.Height()) {
 		s.log.Info(
 			"bypassing state sync",
-			zap.Uint64("lastAccepted", s.chain.LastAcceptedStatefulBlock().Height()),
+			zap.Uint64("lastAccepted", lastAcceptedBlk.Height()),
 			zap.Uint64("syncableHeight", sb.Height()),
 		)
 		s.startedSync = true
@@ -167,7 +171,7 @@ func (s *Client[T]) Accept(
 
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.merkleBranchFactor,
-		DB:                    s.db,
+		DB:                    s.merkleDB,
 		RangeProofClient:      s.network.NewClient(s.rangeProofHandlerID),
 		ChangeProofClient:     s.network.NewClient(s.changeProofHandlerID),
 		SimultaneousWorkLimit: s.simultaneousWorkLimit,
@@ -187,14 +191,16 @@ func (s *Client[T]) Accept(
 	// Since the sync will write directly into the state trie,
 	// the node cannot continue from the previous state once
 	// it starts state syncing.
-	if err := s.chain.PutDiskIsSyncing(true); err != nil {
+	if err := s.PutDiskIsSyncing(true); err != nil {
 		return block.StateSyncSkipped, err
 	}
 
 	// Update the last accepted to the state target block,
 	// since we don't want bootstrapping to fetch all the blocks
 	// from genesis to the sync target.
-	s.target.MarkAccepted(context.Background())
+	if err := s.target.MarkAccepted(context.Background()); err != nil {
+		return block.StateSyncSkipped, err
+	}
 
 	// Kickoff state syncing from [s.target]
 	if err := s.syncManager.Start(context.Background()); err != nil {
@@ -234,9 +240,11 @@ func (s *Client[T]) finishSync() error {
 		//
 		// NOTE: There may be a number of verified but unaccepted blocks above this
 		// block.
-		s.target.MarkAccepted(context.Background())
+		if err := s.target.MarkAccepted(context.Background()); err != nil {
+			return err
+		}
 	}
-	return s.chain.PutDiskIsSyncing(false)
+	return s.PutDiskIsSyncing(false)
 }
 
 func (s *Client[T]) Started() bool {
@@ -301,4 +309,22 @@ func (s *Client[T]) UpdateSyncTarget(b T) (bool, error) {
 	s.target = b           // Remember the new target
 	s.targetUpdated = true // Set [targetUpdated] so we call SetLastAccepted on finish
 	return true, nil       // Sync root target updated successfully
+}
+
+func (s *Client[T]) GetDiskIsSyncing() (bool, error) {
+	v, err := s.db.Get(isSyncing)
+	if errors.Is(err, database.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return v[0] == 0x1, nil
+}
+
+func (s *Client[T]) PutDiskIsSyncing(v bool) error {
+	if v {
+		return s.db.Put(isSyncing, []byte{0x1})
+	}
+	return s.db.Put(isSyncing, []byte{0x0})
 }

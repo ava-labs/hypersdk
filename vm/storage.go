@@ -4,9 +4,7 @@
 package vm
 
 import (
-	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -15,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -64,9 +63,9 @@ func (vm *VM) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis(ctx context.Context) (*StatefulBlock, error) {
-	return vm.GetDiskBlock(ctx, 0)
-}
+// func (vm *VM) GetGenesis(ctx context.Context) (*StatefulBlock, error) {
+// 	return vm.GetDiskBlock(ctx, 0)
+// }
 
 func (vm *VM) SetLastAcceptedHeight(height uint64) error {
 	return vm.vmDB.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, height))
@@ -117,7 +116,7 @@ func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 //
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
-func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
+func (vm *VM) UpdateLastAccepted(blk *chain.OutputBlock) error {
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
@@ -157,9 +156,6 @@ func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
-	vm.lastAccepted = blk
-	vm.acceptedBlocksByID.Put(blk.ID(), blk)
-	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	if expired && vm.shouldCompact(expiryHeight) {
 		go func() {
 			start := time.Now()
@@ -171,14 +167,6 @@ func (vm *VM) UpdateLastAccepted(blk *StatefulBlock) error {
 		}()
 	}
 	return nil
-}
-
-func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*StatefulBlock, error) {
-	b, err := vm.vmDB.Get(PrefixBlockKey(height))
-	if err != nil {
-		return nil, err
-	}
-	return ParseBlock(ctx, b, true, vm)
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
@@ -207,22 +195,4 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 // of waiting for the database to run a compaction (and potentially delete GBs of data at once).
 func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
 	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
-}
-
-func (vm *VM) GetDiskIsSyncing() (bool, error) {
-	v, err := vm.vmDB.Get(isSyncing)
-	if errors.Is(err, database.ErrNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return v[0] == 0x1, nil
-}
-
-func (vm *VM) PutDiskIsSyncing(v bool) error {
-	if v {
-		return vm.vmDB.Put(isSyncing, []byte{0x1})
-	}
-	return vm.vmDB.Put(isSyncing, []byte{0x0})
 }

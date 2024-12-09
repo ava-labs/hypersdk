@@ -68,7 +68,7 @@ func NewSnowVM(
 	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
-) (*snow.VM[*vm.StatefulBlock], error) {
+) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], error) {
 	options = append(options, NewDefaultOptions()...)
 	concreteVM, err := New(
 		v,
@@ -85,5 +85,5 @@ func NewSnowVM(
 		return nil, err
 	}
 
-	return snow.NewVM(concreteVM), nil
+	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](concreteVM), nil
 }

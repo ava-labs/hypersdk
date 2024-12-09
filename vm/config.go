@@ -7,15 +7,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/internal/trace"
 )
 
 type Config struct {
-	TraceConfig                      trace.Config               `json:"traceConfig"`
 	MempoolSize                      int                        `json:"mempoolSize"`
 	AuthVerificationCores            int                        `json:"authVerificationCores"`
 	VerifyAuth                       bool                       `json:"verifyAuth"`
@@ -33,7 +30,6 @@ type Config struct {
 	ParsedBlockCacheSize             int                        `json:"parsedBlockCacheSize"`
 	AcceptedBlockWindow              int                        `json:"acceptedBlockWindow"`
 	AcceptedBlockWindowCache         int                        `json:"acceptedBlockWindowCache"`
-	ContinuousProfilerConfig         profiler.Config            `json:"continuousProfilerConfig"`
 	ProcessingBuildSkip              int                        `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int                        `json:"blockCompactionFrequency"`
@@ -43,7 +39,6 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		TraceConfig:                      trace.Config{Enabled: false},
 		MempoolSize:                      2_048,
 		AuthVerificationCores:            1,
 		VerifyAuth:                       true,
@@ -61,7 +56,6 @@ func NewConfig() Config {
 		ParsedBlockCacheSize:             128,
 		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
 		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks
-		ContinuousProfilerConfig:         profiler.Config{Enabled: false},
 		ProcessingBuildSkip:              16,
 		TargetGossipDuration:             20 * time.Millisecond,
 		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks

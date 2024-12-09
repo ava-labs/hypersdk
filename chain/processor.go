@@ -35,6 +35,13 @@ type ExecutionBlock struct {
 	sigJob     workers.Job
 }
 
+type OutputBlock struct {
+	*ExecutionBlock
+
+	View             merkledb.View
+	ExecutionResults ExecutionResults
+}
+
 func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 	authCounts := make(map[uint8]int)
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
@@ -55,18 +62,6 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 
 func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
 	return b.txsSet.Contains(id)
-}
-
-func (b *ExecutionBlock) Height() uint64 {
-	return b.Hght
-}
-
-func (b *ExecutionBlock) Parent() ids.ID {
-	return b.Prnt
-}
-
-func (b *ExecutionBlock) Timestamp() int64 {
-	return b.Tmstmp
 }
 
 func (b *ExecutionBlock) Txs() []*Transaction {
@@ -114,38 +109,39 @@ func NewProcessor(
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	parentView state.View,
+	parentBlock *OutputBlock,
 	b *ExecutionBlock,
-) (*ExecutedBlock, merkledb.View, error) {
+) (*OutputBlock, error) {
 	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
 
 	var (
 		r   = p.ruleFactory.GetRules(b.Tmstmp)
 		log = p.log
+		parentView = parentBlock.View
 	)
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, nil, ErrTimestampTooLate
+		return nil, ErrTimestampTooLate
 	}
 	// AsyncVerify should have been called already. We call it here defensively.
 	if err := p.AsyncVerify(ctx, b); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Fetch parent height key and ensure block height is valid
 	heightKey := HeightKey(p.metadataManager.HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if b.Hght != parentHeight+1 {
-		return nil, nil, ErrInvalidBlockHeight
+		return nil, ErrInvalidBlockHeight
 	}
 
 	// Fetch parent timestamp and confirm block timestamp is valid
@@ -155,41 +151,41 @@ func (p *Processor) Execute(
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return nil, nil, ErrTimestampTooEarly
+		return nil, ErrTimestampTooEarly
 	}
 	if len(b.StatelessBlock.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return nil, nil, ErrTimestampTooEarly
+		return nil, ErrTimestampTooEarly
 	}
 
 	if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Compute next unit prices to use
 	feeKey := FeeKey(p.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Process transactions
 	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Update chain metadata
@@ -207,13 +203,13 @@ func (p *Processor) Execute(
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	tsv.Commit()
 
@@ -226,12 +222,12 @@ func (p *Processor) Execute(
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	p.metrics.waitRootCount.Inc()
 	p.metrics.waitRootSum.Add(float64(time.Since(start)))
 	if b.StateRoot != computedRoot {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
@@ -245,7 +241,7 @@ func (p *Processor) Execute(
 	err = b.sigJob.Wait()
 	sspan.End()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	p.metrics.waitSignaturesCount.Inc()
 	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
@@ -255,7 +251,7 @@ func (p *Processor) Execute(
 	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
 	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Kickoff root generation
@@ -275,12 +271,15 @@ func (p *Processor) Execute(
 		p.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
-	return &ExecutedBlock{
-		Block:         b.StatelessBlock,
-		Results:       results,
-		UnitPrices:    feeManager.UnitPrices(),
-		UnitsConsumed: feeManager.UnitsConsumed(),
-	}, view, nil
+	return &OutputBlock{
+		ExecutionBlock: b,
+		View:           view,
+		ExecutionResults: ExecutionResults{
+			Results:       results,
+			UnitPrices:    feeManager.UnitPrices(),
+			UnitsConsumed: feeManager.UnitsConsumed(),
+		},
+	}, nil
 }
 
 type fetchData struct {

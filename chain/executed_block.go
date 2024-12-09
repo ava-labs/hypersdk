@@ -11,19 +11,25 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-type ExecutedBlock struct {
-	Block         *StatelessBlock `json:"block"`
+type ExecutionResults struct {
 	Results       []*Result       `json:"results"`
 	UnitPrices    fees.Dimensions `json:"unitPrices"`
 	UnitsConsumed fees.Dimensions `json:"unitsConsumed"`
 }
 
+type ExecutedBlock struct {
+	Block *StatelessBlock `json:"block"`
+	ExecutionResults
+}
+
 func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions, unitsConsumed fees.Dimensions) *ExecutedBlock {
 	return &ExecutedBlock{
-		Block:         statelessBlock,
-		Results:       results,
-		UnitPrices:    unitPrices,
-		UnitsConsumed: unitsConsumed,
+		Block: statelessBlock,
+		ExecutionResults: ExecutionResults{
+			Results:       results,
+			UnitPrices:    unitPrices,
+			UnitsConsumed: unitsConsumed,
+		},
 	}
 }
 
