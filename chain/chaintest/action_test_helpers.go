@@ -5,6 +5,8 @@ package chaintest
 
 import (
 	"context"
+	"encoding/binary"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -45,6 +48,27 @@ func (i *InMemoryStore) Insert(_ context.Context, key []byte, value []byte) erro
 func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	delete(i.Storage, string(key))
 	return nil
+}
+
+// This function returns a copy of i with suffix appended to each value in the mapping
+func (i *InMemoryStore) AddSuffix(suffix uint64) *InMemoryStore {
+	newStore := NewInMemoryStore()
+	for k, v := range i.Storage {
+		newStore.Storage[k] = binary.BigEndian.AppendUint64(v, suffix)
+	}
+	return newStore
+}
+
+// Returns a copy of i with the suffix removed from each value in the mapping
+func (i *InMemoryStore) RemoveSuffixes() (*InMemoryStore, error) {
+	newStore := NewInMemoryStore()
+	for k, v := range i.Storage {
+		if len(v) < consts.Uint64Len {
+			return nil, fmt.Errorf("value %v is too short to have a suffix", v)
+		}
+		newStore.Storage[k] = v[:len(v)-consts.Uint64Len]
+	}
+	return newStore, nil
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters

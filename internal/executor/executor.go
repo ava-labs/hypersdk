@@ -165,7 +165,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		lt, ok := e.nodes[k]
 		if ok {
 			lt.l.Lock()
-			if v == state.Read {
+			if v == state.ReadFromStorage || v == state.ReadFromMemory {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
 				//

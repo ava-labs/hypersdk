@@ -59,7 +59,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate different read keys
-			stateKeys.Add(ids.GenerateTestID().String(), state.Read)
+			stateKeys.Add(ids.GenerateTestID().String(), state.ReadFromMemory)
 		}
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
@@ -101,7 +101,7 @@ func TestFetchSameKeys(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.ReadFromMemory)
 		}
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
@@ -139,7 +139,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.ReadFromMemory)
 		}
 		txID := ids.GenerateTestID()
 
@@ -186,7 +186,7 @@ func TestFetcherStop(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.ReadFromMemory)
 		}
 		txID := ids.GenerateTestID()
 		err := f.Fetch(ctx, txID, stateKeys)

@@ -41,7 +41,7 @@ func TestExecutorNoConflicts(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -71,7 +71,7 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
 			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+				s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 			}
 			ti := i
 			e.Run(s, func() error {
@@ -105,10 +105,10 @@ func TestExecutorSimpleConflict(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 		}
 		if i%10 == 0 {
-			s.Add(conflictKey, state.Read|state.Write)
+			s.Add(conflictKey, state.ReadFromMemory|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -143,13 +143,13 @@ func TestExecutorMultiConflict(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 		}
 		if i%10 == 0 {
-			s.Add(conflictKey, state.Read|state.Write)
+			s.Add(conflictKey, state.ReadFromMemory|state.Write)
 		}
 		if i == 15 || i == 20 {
-			s.Add(conflictKey2, state.Read|state.Write)
+			s.Add(conflictKey2, state.ReadFromMemory|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -187,7 +187,7 @@ func TestEarlyExit(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -214,7 +214,7 @@ func TestStop(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -285,10 +285,10 @@ func TestManyReads(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
 			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read)
+				s.Add(ids.GenerateTestID().String(), state.ReadFromMemory)
 			}
 			// mimic concurrent reading for all txns
-			s.Add(conflictKey, state.Read)
+			s.Add(conflictKey, state.ReadFromMemory)
 			ti := i
 			e.Run(s, func() error {
 				// add some delays for the first 5 even numbers
@@ -331,7 +331,7 @@ func TestWriteThenRead(t *testing.T) {
 				s.Add(conflictKey, state.Write)
 			} else {
 				// add concurrent reading only after the first Write
-				s.Add(conflictKey, state.Read)
+				s.Add(conflictKey, state.ReadFromMemory)
 			}
 			ti := i
 			e.Run(s, func() error {
@@ -375,7 +375,7 @@ func TestReadThenWrite(t *testing.T) {
 				// add a Write after some concurrent Reads
 				s.Add(conflictKey, state.Write)
 			} else {
-				s.Add(conflictKey, state.Read)
+				s.Add(conflictKey, state.ReadFromMemory)
 			}
 			ti := i
 			e.Run(s, func() error {
@@ -420,7 +420,7 @@ func TestWriteThenReadRepeated(t *testing.T) {
 			if i == 0 || i == 49 {
 				s.Add(conflictKey, state.Write)
 			} else {
-				s.Add(conflictKey, state.Read)
+				s.Add(conflictKey, state.ReadFromMemory)
 			}
 			ti := i
 			e.Run(s, func() error {
@@ -463,7 +463,7 @@ func TestReadThenWriteRepeated(t *testing.T) {
 			if i == 10 || i == 12 {
 				s.Add(conflictKey, state.Write)
 			} else {
-				s.Add(conflictKey, state.Read)
+				s.Add(conflictKey, state.ReadFromMemory)
 			}
 			ti := i
 			e.Run(s, func() error {
@@ -504,7 +504,7 @@ func TestTwoConflictKeys(t *testing.T) {
 			for k := 0; k < i+1; k++ {
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
-			s.Add(conflictKey1, state.Read)
+			s.Add(conflictKey1, state.ReadFromMemory)
 			s.Add(conflictKey2, state.Write)
 			ti := i
 			e.Run(s, func() error {
@@ -571,13 +571,13 @@ func TestLargeConcurrentRead(t *testing.T) {
 
 		// add the random keys to tx
 		for k := range randomConflictingKeys {
-			s.Add(conflictKeys[k], state.Read)
+			s.Add(conflictKeys[k], state.ReadFromMemory)
 		}
 
 		// fill in rest with unique keys that are Reads
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
-			s.Add(ids.GenerateTestID().String(), state.Read)
+			s.Add(ids.GenerateTestID().String(), state.ReadFromMemory)
 		}
 
 		// pass into executor
@@ -722,7 +722,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 			mode := (i / 10000) % 2
 			switch mode {
 			case 0:
-				s.Add(conflictKeys[j], state.Read)
+				s.Add(conflictKeys[j], state.ReadFromMemory)
 			case 1:
 				s.Add(conflictKeys[j], state.Write)
 			}
@@ -802,7 +802,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 			case 0:
 				s.Add(conflictKeys[j], state.Write)
 			case 1:
-				s.Add(conflictKeys[j], state.Read)
+				s.Add(conflictKeys[j], state.ReadFromMemory)
 			}
 		}
 
@@ -881,7 +881,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			// randomly pick if conflict key is Read/Write
 			switch rand.Intn(2) { //nolint:gosec
 			case 0:
-				s.Add(conflictKeys[k], state.Read)
+				s.Add(conflictKeys[k], state.ReadFromMemory)
 			case 1:
 				s.Add(conflictKeys[k], state.Write)
 			}
@@ -893,7 +893,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			// randomly pick the permission for unique keys
 			switch rand.Intn(2) { //nolint:gosec
 			case 0:
-				s.Add(ids.GenerateTestID().String(), state.Read)
+				s.Add(ids.GenerateTestID().String(), state.ReadFromMemory)
 			case 1:
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}

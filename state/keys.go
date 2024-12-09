@@ -17,12 +17,14 @@ import (
 var errInvalidHexadecimalString = errors.New("invalid hexadecimal string")
 
 const (
-	Read     Permissions = 1
-	Allocate             = 1<<1 | Read
-	Write                = 1<<2 | Read
+	ReadFromMemory  Permissions = 1
+	ReadFromStorage             = 1<<1 | ReadFromMemory
+	Allocate                    = 1<<2 | ReadFromStorage
+	Write                       = 1<<3 | ReadFromStorage
 
 	None Permissions = 0
-	All              = Read | Allocate | Write
+	// ReadFromStorage contains ReadFromMemory
+	All = ReadFromStorage | Allocate | Write
 )
 
 // StateKey holds the name of the key and its permission (Read/Allocate/Write). By default,
@@ -101,8 +103,10 @@ func (k *Keys) UnmarshalJSON(b []byte) error {
 
 func (p *Permissions) UnmarshalText(in []byte) error {
 	switch str := strings.ToLower(string(in)); str {
-	case "read":
-		*p = Read
+	case "readfrommemory":
+		*p = ReadFromMemory
+	case "readfromstorage":
+		*p = ReadFromStorage
 	case "write":
 		*p = Write
 	case "allocate":
@@ -132,8 +136,10 @@ func (p Permissions) Has(require Permissions) bool {
 
 func (p Permissions) String() string {
 	switch p {
-	case Read:
-		return "read"
+	case ReadFromMemory:
+		return "readFromMemory"
+	case ReadFromStorage:
+		return "readFromStorage"
 	case Write:
 		return "write"
 	case Allocate:

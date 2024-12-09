@@ -23,7 +23,7 @@ func TestAddPermissions(t *testing.T) {
 		{
 			name:       "key is given Read, Write",
 			key:        "test",
-			permission: Read | Write,
+			permission: ReadFromMemory | Write,
 		},
 		{
 			name:       "key is just given allocate",
@@ -57,15 +57,15 @@ func TestUnionPermissions(t *testing.T) {
 			name:               "key has no perms then Read, Write",
 			key:                "test",
 			permission1:        None,
-			permission2:        Read | Write,
-			expectedPermission: Read | Write,
+			permission2:        ReadFromMemory | Write,
+			expectedPermission: ReadFromMemory | Write,
 		},
 		{
 			name:               "key has Read then Allocate and Write",
 			key:                "test1",
-			permission1:        Read,
+			permission1:        ReadFromMemory,
 			permission2:        Allocate | Write,
-			expectedPermission: Read | Allocate | Write,
+			expectedPermission: ReadFromMemory | Allocate | Write,
 		},
 	}
 
@@ -87,28 +87,28 @@ func TestUnionPermissions(t *testing.T) {
 func TestMalformedKey(t *testing.T) {
 	require := require.New(t)
 	keys := make(Keys)
-	require.False(keys.Add("", Read))
+	require.False(keys.Add("", ReadFromMemory))
 }
 
 func TestHasPermissions(t *testing.T) {
 	require := require.New(t)
-	allPerms := []Permissions{Read, Allocate, Write, None, All}
+	allPerms := []Permissions{ReadFromMemory, Allocate, Write, None, All}
 
 	tests := []struct {
 		perm Permissions
 		has  []Permissions
 	}{
 		{
-			perm: Read,
-			has:  []Permissions{Read, None},
+			perm: ReadFromMemory,
+			has:  []Permissions{ReadFromMemory, None},
 		},
 		{
 			perm: Write,
-			has:  []Permissions{Read, Write, None},
+			has:  []Permissions{ReadFromMemory, Write, None},
 		},
 		{
 			perm: Allocate,
-			has:  []Permissions{Read, Allocate, None},
+			has:  []Permissions{ReadFromMemory, Allocate, None},
 		},
 		{
 			perm: None,
@@ -133,25 +133,25 @@ func TestKeysMarshalingSimple(t *testing.T) {
 
 	// test with read permission.
 	keys := Keys{}
-	require.True(keys.Add("key1", Read))
+	require.True(keys.Add("key1", ReadFromMemory))
 	bytes, err := keys.MarshalJSON()
 	require.NoError(err)
-	require.Equal(`{"6b657931":"read"}`, string(bytes))
+	require.Equal(`{"6b657931":"readFromMemory"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
-	require.Equal(Read, keys["key1"])
+	require.Equal(ReadFromMemory, keys["key1"])
 
 	// test with read+write permission.
 	keys = Keys{}
-	require.True(keys.Add("key2", Read|Write))
+	require.True(keys.Add("key2", ReadFromMemory|Write))
 	bytes, err = keys.MarshalJSON()
 	require.NoError(err)
 	require.Equal(`{"6b657932":"write"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
-	require.Equal(Read|Write, keys["key2"])
+	require.Equal(ReadFromMemory|Write, keys["key2"])
 }
 
 func (k Keys) compare(k2 Keys) bool {
@@ -190,8 +190,8 @@ func TestNewPermissionFromString(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			strPerm: "read",
-			perm:    Read,
+			strPerm: "readFromMemory",
+			perm:    ReadFromMemory,
 		},
 		{
 			strPerm: "write",
@@ -236,7 +236,8 @@ func TestNewPermissionFromString(t *testing.T) {
 
 func TestPermissionStringer(t *testing.T) {
 	require := require.New(t)
-	require.Equal("read", Read.String())
+	require.Equal("readFromMemory", ReadFromMemory.String())
+	require.Equal("readFromStorage", ReadFromStorage.String())
 	require.Equal("write", Write.String())
 	require.Equal("allocate", Allocate.String())
 	require.Equal("all", All.String())
@@ -248,7 +249,7 @@ func TestUnmarshalIntoNilKeys(t *testing.T) {
 	require := require.New(t)
 
 	keys := Keys{}
-	require.True(keys.Add("key1", Read))
+	require.True(keys.Add("key1", ReadFromMemory))
 	bytes, err := keys.MarshalJSON()
 	require.NoError(err)
 

@@ -70,7 +70,8 @@ func GetBalanceFromState(
 ) (uint64, error) {
 	k := BalanceKey(addr)
 	values, errs := f(ctx, [][]byte{k})
-	bal, _, err := innerGetBalance(values[0], errs[0])
+	// TODO: remove this from MorpheusVM and place instead in VM package
+	bal, _, err := innerGetBalance(values[0][:len(values[0])-consts.Uint64Len], errs[0])
 	return bal, err
 }
 

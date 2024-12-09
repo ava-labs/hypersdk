@@ -45,6 +45,19 @@ func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, 
 	return nil, false, false
 }
 
+func (ts *TState) GetChangedKeys() map[string]maybe.Maybe[[]byte] {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	return ts.changedKeys
+}
+
+func (ts *TState) SetChangedKeys(mp map[string]maybe.Maybe[[]byte]) {
+	ts.l.Lock()
+	ts.changedKeys = mp
+	ts.l.Unlock()
+}
+
 func (ts *TState) PendingChanges() int {
 	ts.l.RLock()
 	defer ts.l.RUnlock()

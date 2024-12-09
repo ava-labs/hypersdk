@@ -19,6 +19,8 @@ import (
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
+const genesisBlockHeight = 0
+
 var (
 	_ Genesis               = (*DefaultGenesis)(nil)
 	_ GenesisAndRuleFactory = (*DefaultGenesisFactory)(nil)
@@ -57,15 +59,16 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 	defer span.End()
 
 	var (
-		supply uint64
-		err    error
+		supply          uint64
+		err             error
+		translatedState = state.NewTranslatedMutable(mu, genesisBlockHeight)
 	)
 	for _, alloc := range g.CustomAllocation {
 		supply, err = safemath.Add(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
-		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance); err != nil {
+		if err := balanceHandler.AddBalance(ctx, alloc.Address, translatedState, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

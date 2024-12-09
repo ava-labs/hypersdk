@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
@@ -142,7 +143,7 @@ func (p *Processor) Execute(
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to parse parent height: %w", err)
 	}
 	if b.Hght != parentHeight+1 {
 		return nil, nil, ErrInvalidBlockHeight
@@ -159,7 +160,7 @@ func (p *Processor) Execute(
 	}
 	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to parse parent timestamp: %w", err)
 	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
@@ -192,6 +193,19 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
+	// We need to update suffixes here
+	// If we update suffixes after updating chain metadata, we run the risk of
+	// doing something like suffixing the block height, which would be very bad
+	ms := make(map[string]maybe.Maybe[[]byte])
+	for k, v := range ts.GetChangedKeys() {
+		if v.HasValue() {
+			ms[k] = maybe.Some(
+				binary.BigEndian.AppendUint64(v.Value(), b.Height()),
+			)
+		}
+	}
+	ts.SetChangedKeys(ms)
+
 	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
@@ -201,11 +215,15 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv := ts.NewView(
+		keys,
+		map[string][]byte{
+			heightKeyStr:    parentHeightRaw,
+			timestampKeyStr: parentTimestampRaw,
+			feeKeyStr:       parentFeeManager.Bytes(),
+		},
+		b.Height(),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
 	}
@@ -351,10 +369,10 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(stateKeys, storage, b.Height())
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t, true); err != nil {
 				return err
 			}
 

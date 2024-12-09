@@ -9,12 +9,17 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
+	"github.com/ava-labs/avalanchego/utils/set"
 
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
 
-const defaultOps = 4
+const (
+	defaultOps = 4
+	epsilon    = 100
+)
 
 type opType uint8
 
@@ -66,10 +71,41 @@ type TStateView struct {
 	// while in simulation mode, we don't enforce any scope limitations. instead, we record the accessed keys.
 	// during execution mode, we use the configured scope to enforce the access to the keys.
 	simulationMode bool
+
+	blockHeight uint64
+	oldKeys     set.Set[string]
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
-	return newView(ts, scope, immutableScopeStorage(storage), false)
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, blockHeight uint64) *TStateView {
+	oldKeys := set.NewSet[string](len(storage))
+
+	for k, v := range storage {
+		// Extract suffix
+		suffix, _ := keys.DecodeSuffix(v)
+		if suffix-blockHeight > epsilon {
+			oldKeys.Add(k)
+		}
+		// We always extract suffix from the value to avoid translation bugs
+		// Invariant: storage must follow the value suffix format
+		// Otherwise, this will panic
+		storage[k] = v[:len(v)-consts.Uint64Len]
+	}
+
+	return &TStateView{
+		ts:                 ts,
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
+
+		ops: make([]*op, 0, defaultOps),
+
+		scope:        scope,
+		scopeStorage: immutableScopeStorage(storage),
+
+		allocates: make(map[string]uint16, len(scope)),
+		writes:    make(map[string]uint16, len(scope)),
+
+		oldKeys:     oldKeys,
+		blockHeight: blockHeight,
+	}
 }
 
 func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
@@ -183,8 +219,15 @@ func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permiss
 // associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+	// Check for storage
+	if ts.oldKeys.Contains(string(key)) {
+		if !ts.checkScope(ctx, key, state.ReadFromStorage) {
+			return nil, ErrInvalidKeyOrPermission
+		}
+	}
+
 	// Getting a value requires a Read permission, so we pass state.Read
-	if !ts.checkScope(ctx, key, state.Read) {
+	if !ts.checkScope(ctx, key, state.ReadFromMemory) {
 		return nil, ErrInvalidKeyOrPermission
 	}
 	k := string(key)

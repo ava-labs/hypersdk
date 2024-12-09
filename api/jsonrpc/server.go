@@ -222,7 +222,7 @@ func (j *JSONRPCServer) ExecuteActions(
 			storage[string(storageKeysToRead[i])] = value
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage)
+		tsv := ts.NewView(stateKeysWithPermissions, storage, j.vm.LastAcceptedBlockResult().Block.Hght)
 
 		output, err := action.Execute(
 			ctx,

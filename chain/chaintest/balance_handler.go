@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
+const sampleBlockHeight = 0
+
 // TestBalanceHandler tests b by requiring that it upholds the invariants
 // described in the BalanceHandler interface.
 func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.BalanceHandler) {
@@ -75,7 +77,8 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			ms.AddSuffix(sampleBlockHeight).Storage,
+			sampleBlockHeight,
 		)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
@@ -95,7 +98,8 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			ms.AddSuffix(sampleBlockHeight).Storage,
+			sampleBlockHeight,
 		)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
@@ -115,7 +119,8 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			ms.AddSuffix(sampleBlockHeight).Storage,
+			sampleBlockHeight,
 		)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
@@ -135,7 +140,8 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			ms.AddSuffix(sampleBlockHeight).Storage,
+			sampleBlockHeight,
 		)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))

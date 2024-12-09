@@ -80,3 +80,14 @@ func DecodeChunks(key []byte) (uint16, bool) {
 	}
 	return binary.BigEndian.Uint16(key[len(key)-2:]), true
 }
+
+func EncodeSuffix(key []byte, suffix uint64) []byte {
+	return binary.BigEndian.AppendUint64(key, suffix)
+}
+
+func DecodeSuffix(key []byte) (uint64, bool) {
+	if len(key) < consts.Uint64Len {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(key[len(key)-consts.Uint64Len:]), true
+}

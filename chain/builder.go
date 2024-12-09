@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -290,8 +291,8 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
+				tsv := ts.NewView(stateKeys, storage, height)
+				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime, true); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(c.log, err) {
@@ -397,6 +398,17 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
+	// For each value that was modified, update the values with the block suffix
+	ms := ts.GetChangedKeys()
+	for k, v := range ms {
+		if v.HasValue() {
+			ms[k] = maybe.Some(
+				binary.BigEndian.AppendUint64(v.Value(), height),
+			)
+		}
+	}
+	ts.SetChangedKeys(ms)
+
 	// Update chain metadata
 	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	heightKeyStr := string(heightKey)
@@ -408,11 +420,14 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
-		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv := ts.NewView(
+		keys, map[string][]byte{
+			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+			feeKeyStr:       parentFeeManager.Bytes(),
+		},
+		height,
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
