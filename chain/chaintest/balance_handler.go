@@ -75,11 +75,12 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
-		tsv := ts.NewView(
+		tsv, err := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
 			sampleBlockHeight,
 		)
+		r.NoError(err)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
 
@@ -96,11 +97,12 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
-		tsv := ts.NewView(
+		tsv, err := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
 			sampleBlockHeight,
 		)
+		r.NoError(err)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
 
@@ -117,11 +119,12 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
-		tsv := ts.NewView(
+		tsv, err := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
 			sampleBlockHeight,
 		)
+		r.NoError(err)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
 
@@ -138,11 +141,12 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
-		tsv := ts.NewView(
+		tsv, err := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
 			sampleBlockHeight,
 		)
+		r.NoError(err)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))
 

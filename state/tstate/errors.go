@@ -10,4 +10,6 @@ var (
 	ErrInvalidKeyOrPermission = errors.New("invalid key or key permission")
 	ErrInvalidKeyValue        = errors.New("invalid key or value")
 	ErrAllocationDisabled     = errors.New("allocation disabled")
+
+	ErrNonSuffixedValue = errors.New("value was expected to be suffixed")
 )

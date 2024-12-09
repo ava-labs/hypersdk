@@ -68,7 +68,8 @@ func TestScope(t *testing.T) {
 	ts := New(10)
 
 	// No Scope
-	tsv := ts.NewView(state.Keys{}, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(ErrInvalidKeyOrPermission, err)
 	require.Nil(val)
@@ -84,7 +85,8 @@ func TestGetValue(t *testing.T) {
 	ts := New(10)
 
 	// Set Scope
-	tsv := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	require.NoError(err)
 	val, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err, "unable to get value")
 	require.Equal(testVal, val, "value was not saved correctly")
@@ -96,12 +98,14 @@ func TestDeleteCommitGet(t *testing.T) {
 	ts := New(10)
 
 	// Delete value
-	tsv := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	require.NoError(err)
 	require.NoError(tsv.Remove(ctx, testKey))
 	tsv.Commit()
 
 	// Check deleted
-	tsv = ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	tsv, err = ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	require.NoError(err)
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Nil(val)
@@ -113,8 +117,9 @@ func TestGetValueNoStorage(t *testing.T) {
 	ts := New(10)
 
 	// SetScope but dont add to storage
-	tsv := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{}, blockHeight)
-	_, err := tsv.GetValue(ctx, testKey)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
+	_, err = tsv.GetValue(ctx, testKey)
 	require.ErrorIs(database.ErrNotFound, err, "data should not exist")
 }
 
@@ -124,7 +129,8 @@ func TestInsertNew(t *testing.T) {
 	ts := New(10)
 
 	// SetScope
-	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 
 	// Insert key
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
@@ -145,10 +151,11 @@ func TestInsertInvalid(t *testing.T) {
 
 	// SetScope
 	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
-	tsv := ts.NewView(state.Keys{string(key): state.ReadFromMemory | state.Write}, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(key): state.ReadFromMemory | state.Write}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 
 	// Insert key
-	err := tsv.Insert(ctx, key, []byte("cool"))
+	err = tsv.Insert(ctx, key, []byte("cool"))
 	require.ErrorIs(err, ErrInvalidKeyValue)
 
 	// Get key value
@@ -162,7 +169,8 @@ func TestInsertUpdate(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	require.NoError(err)
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key
@@ -178,7 +186,8 @@ func TestInsertUpdate(t *testing.T) {
 
 	// Check value after commit
 	tsv.Commit()
-	tsv = ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	tsv, err = ts.NewView(state.Keys{string(testKey): state.ReadFromMemory | state.Write}, map[string][]byte{string(testKey): translatedTestVal}, blockHeight)
+	require.NoError(err)
 	val, err = tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(newVal, val, "value was not committed correctly")
@@ -190,7 +199,8 @@ func TestInsertRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key for first time
@@ -262,7 +272,8 @@ func TestModifyRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	require.NoError(err)
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -316,7 +327,8 @@ func TestModifyRevert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.ReadFromMemory | state.Write}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{key2str: state.ReadFromMemory | state.Write}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	require.NoError(err)
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -356,7 +368,8 @@ func TestModifyModify(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.ReadFromMemory | state.Write}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{key2str: state.ReadFromMemory | state.Write}, map[string][]byte{key2str: translatedTestVal}, blockHeight)
+	require.NoError(err)
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -403,7 +416,8 @@ func TestRemoveInsertRollback(t *testing.T) {
 	ctx := context.TODO()
 
 	// Insert
-	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
@@ -449,7 +463,8 @@ func TestRestoreInsert(t *testing.T) {
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Store keys
-	tsv := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	for i, key := range keys {
 		require.NoError(tsv.Insert(ctx, key, vals[i]))
 	}
@@ -509,11 +524,12 @@ func TestRestoreDelete(t *testing.T) {
 		binary.BigEndian.AppendUint64([]byte("val3"), 0),
 	}
 	// vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	tsv := ts.NewView(keySet, map[string][]byte{
+	tsv, err := ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
 		string(keys[1]): vals[1],
 		string(keys[2]): vals[2],
 	}, blockHeight)
+	require.NoError(err)
 
 	// Check scope
 	for i, key := range keys {
@@ -577,7 +593,8 @@ func TestCreateView(t *testing.T) {
 	// vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Add
-	tsv := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	tsv, err := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	for i, key := range keys {
 		require.NoError(tsv.Insert(ctx, key, vals[i]), "error inserting value")
 		val, err := tsv.GetValue(ctx, key)
@@ -594,7 +611,8 @@ func TestCreateView(t *testing.T) {
 	require.Equal(writeMap, writes)
 
 	// Test warm modification
-	tsvM := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	tsvM, err := ts.NewView(keySet, map[string][]byte{}, blockHeight)
+	require.NoError(err)
 	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
 	allocates, writes = tsvM.KeyOperations()
 	require.Empty(allocates)
@@ -613,11 +631,12 @@ func TestCreateView(t *testing.T) {
 
 	// Remove
 	ts = New(10)
-	tsv = ts.NewView(keySet, map[string][]byte{
+	tsv, err = ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
 		string(keys[1]): vals[1],
 		string(keys[2]): vals[2],
 	}, blockHeight)
+	require.NoError(err)
 	for _, key := range keys {
 		err := tsv.Remove(ctx, key)
 		require.NoError(err, "error removing from ts")
@@ -676,8 +695,9 @@ func TestGetValuePermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
-			_, err := tsv.GetValue(ctx, []byte(tt.key))
+			tsv, err := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+			require.NoError(err)
+			_, err = tsv.GetValue(ctx, []byte(tt.key))
 			require.ErrorIs(err, tt.expectedErr)
 		})
 	}
@@ -721,8 +741,9 @@ func TestInsertPermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
-			err := tsv.Insert(ctx, []byte(tt.key), []byte("val"))
+			tsv, err := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+			require.NoError(err)
+			err = tsv.Insert(ctx, []byte(tt.key), []byte("val"))
 			require.ErrorIs(err, tt.expectedErr)
 		})
 	}
@@ -766,8 +787,9 @@ func TestDeletePermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
-			err := tsv.Remove(ctx, []byte(tt.key))
+			tsv, err := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+			require.NoError(err)
+			err = tsv.Remove(ctx, []byte(tt.key))
 			require.ErrorIs(err, tt.expectedErr)
 		})
 	}
@@ -823,7 +845,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 			ts := New(10)
 
 			keys := state.Keys{tt.key: tt.permission1}
-			tsv := ts.NewView(keys, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+			tsv, err := ts.NewView(keys, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+			require.NoError(err)
 
 			// Check permissions
 			perm := keys[tt.key]
@@ -837,7 +860,7 @@ func TestUpdatingKeyPermission(t *testing.T) {
 			require.Equal(tt.after, perm)
 
 			// All tests have appropriate permissions
-			_, err := tsv.GetValue(ctx, []byte(tt.key))
+			_, err = tsv.GetValue(ctx, []byte(tt.key))
 			require.NoError(err)
 			require.NoError(tsv.Insert(ctx, []byte(tt.key), []byte("val")))
 			require.NoError(tsv.Remove(ctx, []byte(tt.key)))
@@ -913,12 +936,16 @@ func TestInsertAllocate(t *testing.T) {
 			ts := New(10)
 
 			keys := state.Keys{tt.key: tt.permission}
-			var tsv *TStateView
+			var (
+				tsv *TStateView
+				err error
+			)
 			if tt.keyExists {
-				tsv = ts.NewView(keys, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
+				tsv, err = ts.NewView(keys, map[string][]byte{tt.key: translatedTestVal}, blockHeight)
 			} else {
-				tsv = ts.NewView(keys, map[string][]byte{}, blockHeight)
+				tsv, err = ts.NewView(keys, map[string][]byte{}, blockHeight)
 			}
+			require.NoError(err)
 
 			// Try to update key
 			if tt.shouldFail {
@@ -930,12 +957,3 @@ func TestInsertAllocate(t *testing.T) {
 		})
 	}
 }
-
-// func TestInvalidReadPermissions(t *testing.T) {
-// 	require := require.New(t)
-
-// 	ts := New(10)
-// 	keys := state.Keys {
-
-// 	}
-// }

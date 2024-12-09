@@ -76,12 +76,15 @@ type TStateView struct {
 	oldKeys     set.Set[string]
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, blockHeight uint64) *TStateView {
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, blockHeight uint64) (*TStateView, error) {
 	oldKeys := set.NewSet[string](len(storage))
 
 	for k, v := range storage {
 		// Extract suffix
-		suffix, _ := keys.DecodeSuffix(v)
+		suffix, ok := keys.DecodeSuffix(v)
+		if !ok {
+			return nil, ErrNonSuffixedValue
+		}
 		if suffix-blockHeight > epsilon {
 			oldKeys.Add(k)
 		}
@@ -105,7 +108,7 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, blockHeig
 
 		oldKeys:     oldKeys,
 		blockHeight: blockHeight,
-	}
+	}, nil
 }
 
 func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {

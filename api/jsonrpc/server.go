@@ -222,7 +222,11 @@ func (j *JSONRPCServer) ExecuteActions(
 			storage[string(storageKeysToRead[i])] = value
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage, j.vm.LastAcceptedBlockResult().Block.Hght)
+		tsv, err := ts.NewView(stateKeysWithPermissions, storage, j.vm.LastAcceptedBlockResult().Block.Hght)
+		if err != nil {
+			reply.Error = fmt.Sprintf("failed to create view: %s", err)
+			return nil
+		}
 
 		output, err := action.Execute(
 			ctx,

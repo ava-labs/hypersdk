@@ -291,7 +291,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage, height)
+				tsv, err := ts.NewView(stateKeys, storage, height)
+				if err != nil {
+					c.log.Error("failed to create view", zap.Error(err))
+					return err
+				}
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime, true); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -420,7 +424,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(
+	tsv, err := ts.NewView(
 		keys, map[string][]byte{
 			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
@@ -428,6 +432,9 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		},
 		height,
 	)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: unable to create view", err)
+	}
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
