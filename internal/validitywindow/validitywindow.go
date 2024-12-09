@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -57,8 +58,8 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	if blk.Height() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
-	if err != nil {
+	parent, hasBlock, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	if err != nil || !hasBlock {
 		return err
 	}
 
@@ -68,6 +69,16 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+	}
+	// make sure we have no repeats within the block itself.
+	// set.Set
+	blkTxsIDs := set.NewSet[ids.ID](len(blk.Txs()))
+	for _, tx := range blk.Txs() {
+		id := tx.GetID()
+		if blkTxsIDs.Contains(id) {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkTxsIDs.Add(id)
 	}
 	return nil
 }
@@ -97,6 +108,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	defer v.lock.Unlock()
 
 	var err error
+	var hasBlock bool
 	for {
 		if ancestorBlk.Timestamp() < oldestAllowed {
 			return marker, nil
@@ -110,7 +122,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(tx.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil
@@ -118,8 +130,8 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
-		if err != nil {
+		ancestorBlk, hasBlock, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		if err != nil || !hasBlock {
 			return marker, err
 		}
 	}
