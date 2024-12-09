@@ -161,7 +161,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Tmstmp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
@@ -431,7 +431,7 @@ func TestNode_BuiltChunksAvailableOverGetChunk(t *testing.T) {
 				wantChunks = append(wantChunks, chunk)
 			}
 
-			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Tmstmp+1)
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 			r.NoError(err)
 			r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 			r.NoError(node.Accept(context.Background(), blk))
@@ -569,10 +569,10 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				),
 				validators,
 				Block{
-					ParentID: ids.GenerateTestID(),
-					Hght:     0,
-					Tmstmp:   0,
-					blkID:    ids.GenerateTestID(),
+					ParentID:  ids.GenerateTestID(),
+					Height:    0,
+					Timestamp: 0,
+					blkID:     ids.GenerateTestID(),
 				},
 				1,
 				1,
@@ -683,7 +683,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Tmstmp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
@@ -749,7 +749,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	// chunk cert
 	var blk Block
 	for {
-		blk, err = node2.BuildBlock(context.Background(), node2.LastAccepted, node2.LastAccepted.Tmstmp+1)
+		blk, err = node2.BuildBlock(context.Background(), node2.LastAccepted, node2.LastAccepted.Timestamp+1)
 		if err == nil {
 			break
 		}
@@ -803,7 +803,7 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		{
 			name: "no chunk certs",
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 1
+				return parent.Timestamp + 1
 			},
 			// TODO should we be able to build empty blocks?
 			wantErr: ErrNoAvailableChunkCerts,
@@ -811,14 +811,14 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 		{
 			name: "timestamp equal to parent",
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp
+				return parent.Timestamp
 			},
 			wantErr: ErrTimestampNotMonotonicallyIncreasing,
 		},
 		{
 			name: "timestamp older than parent",
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp - 1
+				return parent.Timestamp - 1
 			},
 			wantErr: ErrTimestampNotMonotonicallyIncreasing,
 		},
@@ -830,15 +830,15 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1,
+								Expiry: parent.Timestamp + 1,
 							},
 						},
-						expiry: parent.Tmstmp + 1,
+						expiry: parent.Timestamp + 1,
 					},
 				}
 			},
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 100
+				return parent.Timestamp + 100
 			},
 			wantErr: ErrNoAvailableChunkCerts,
 		},
@@ -850,33 +850,33 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1,
+								Expiry: parent.Timestamp + 1,
 							},
 						},
-						expiry: parent.Tmstmp + 1,
+						expiry: parent.Timestamp + 1,
 					},
 					{
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 2,
+								Expiry: parent.Timestamp + 2,
 							},
 						},
-						expiry: parent.Tmstmp + 2,
+						expiry: parent.Timestamp + 2,
 					},
 					{
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 3,
+								Expiry: parent.Timestamp + 3,
 							},
 						},
-						expiry: parent.Tmstmp + 3,
+						expiry: parent.Timestamp + 3,
 					},
 				}
 			},
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 100
+				return parent.Timestamp + 100
 			},
 			wantErr: ErrNoAvailableChunkCerts,
 		},
@@ -888,15 +888,15 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1,
+								Expiry: parent.Timestamp + 1,
 							},
 						},
-						expiry: parent.Tmstmp + 1,
+						expiry: parent.Timestamp + 1,
 					},
 				}
 			},
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 1
+				return parent.Timestamp + 1
 			},
 		},
 		{
@@ -907,33 +907,33 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1_000,
+								Expiry: parent.Timestamp + 1_000,
 							},
 						},
-						expiry: parent.Tmstmp + 1_000,
+						expiry: parent.Timestamp + 1_000,
 					},
 					{
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 2_000,
+								Expiry: parent.Timestamp + 2_000,
 							},
 						},
-						expiry: parent.Tmstmp + 2_000,
+						expiry: parent.Timestamp + 2_000,
 					},
 					{
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 3_000,
+								Expiry: parent.Timestamp + 3_000,
 							},
 						},
-						expiry: parent.Tmstmp + 3_000,
+						expiry: parent.Timestamp + 3_000,
 					},
 				}
 			},
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 100
+				return parent.Timestamp + 100
 			},
 		},
 		{
@@ -944,24 +944,24 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1_000,
+								Expiry: parent.Timestamp + 1_000,
 							},
 						},
-						expiry: parent.Tmstmp + 1_000,
+						expiry: parent.Timestamp + 1_000,
 					},
 					{
 						txs: []tx{
 							{
 								ID:     ids.GenerateTestID(),
-								Expiry: parent.Tmstmp + 1,
+								Expiry: parent.Timestamp + 1,
 							},
 						},
-						expiry: parent.Tmstmp + 1,
+						expiry: parent.Timestamp + 1,
 					},
 				}
 			},
 			timestamp: func(parent Block) int64 {
-				return parent.Tmstmp + 100
+				return parent.Timestamp + 100
 			},
 		},
 	}
@@ -1004,8 +1004,8 @@ func TestNode_NewBlock_IncludesChunkCerts(t *testing.T) {
 			}
 
 			r.Equal(node.LastAccepted.GetID(), blk.ParentID)
-			r.Equal(node.LastAccepted.Hght+1, blk.Hght)
-			r.Greater(blk.Tmstmp, node.LastAccepted.Tmstmp)
+			r.Equal(node.LastAccepted.Height+1, blk.Height)
+			r.Greater(blk.Timestamp, node.LastAccepted.Timestamp)
 			r.NotEmpty(blk.GetID())
 			r.Len(blk.ChunkCerts, len(wantChunks))
 
@@ -1029,10 +1029,10 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	node := newTestNode(t)
 
 	blk := Block{
-		ParentID: ids.GenerateTestID(),
-		Hght:     1,
-		Tmstmp:   1,
-		blkID:    ids.GenerateTestID(),
+		ParentID:  ids.GenerateTestID(),
+		Height:    1,
+		Timestamp: 1,
+		blkID:     ids.GenerateTestID(),
 	}
 	r.NoError(node.Accept(context.Background(), blk))
 
@@ -1050,10 +1050,10 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	r.NoError(err)
 
 	blk = Block{
-		ParentID: ids.GenerateTestID(),
-		Hght:     2,
-		Tmstmp:   2,
-		blkID:    ids.GenerateTestID(),
+		ParentID:  ids.GenerateTestID(),
+		Height:    2,
+		Timestamp: 2,
+		blkID:     ids.GenerateTestID(),
 		ChunkCerts: []*ChunkCertificate{
 			&chunkCert,
 		},
@@ -1205,10 +1205,10 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				storage: chunkStorage,
 			}
 			genesisBlk := Block{
-				ParentID: ids.Empty,
-				Hght:     0,
-				Tmstmp:   0,
-				blkID:    ids.Empty,
+				ParentID:  ids.Empty,
+				Height:    0,
+				Timestamp: 0,
+				blkID:     ids.Empty,
 			}
 
 			nodeID := ids.GenerateTestNodeID()
@@ -1269,15 +1269,15 @@ func TestNode_Verify_Chunks(t *testing.T) {
 
 			chunks, chunkCerts := initChunks(node)
 
-			indexer.set(genesisBlk.GetID(), genesisBlk)
+			indexer.set(genesisBlk.GetID(), NewExecutionBlock(genesisBlk))
 			// initialize node history.
 			parentBlk := genesisBlk
 			for blockNum, chunkList := range testCase.parentBlocks {
 				blk := Block{
-					ParentID: parentBlk.GetID(),
-					Hght:     uint64(blockNum + 1),
-					Tmstmp:   int64(blockNum + 1),
-					blkID:    ids.GenerateTestID(),
+					ParentID:  parentBlk.GetID(),
+					Height:    uint64(blockNum + 1),
+					Timestamp: int64(blockNum + 1),
+					blkID:     ids.GenerateTestID(),
 				}
 				for _, chunkIndex := range chunkList {
 					blk.ChunkCerts = append(blk.ChunkCerts, chunkCerts[chunkIndex])
@@ -1286,7 +1286,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				r.NoError(node.Verify(context.Background(), parentBlk, blk))
 
 				r.NoError(node.Accept(context.Background(), blk))
-				indexer.set(blk.GetID(), blk)
+				indexer.set(blk.GetID(), NewExecutionBlock(blk))
 				parentBlk = blk
 			}
 			// feed the chunks into the storage and build a block.
@@ -1298,10 +1298,10 @@ func TestNode_Verify_Chunks(t *testing.T) {
 
 			// create the block so that we can test it against the execute directly.
 			newBlk := Block{
-				ParentID: parentBlk.GetID(),
-				Hght:     uint64(testCase.timestamp),
-				Tmstmp:   testCase.timestamp,
-				blkID:    ids.GenerateTestID(),
+				ParentID:  parentBlk.GetID(),
+				Height:    uint64(testCase.timestamp),
+				Timestamp: testCase.timestamp,
+				blkID:     ids.GenerateTestID(),
 			}
 			for _, chunkIndex := range testCase.chunks {
 				newBlk.ChunkCerts = append(newBlk.ChunkCerts, chunkCerts[chunkIndex])
@@ -1326,7 +1326,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		codec.Address{123},
 	)
 	r.NoError(err)
-	blk, err := node1.BuildBlock(context.Background(), node1.LastAccepted, node1.LastAccepted.Tmstmp+1)
+	blk, err := node1.BuildBlock(context.Background(), node1.LastAccepted, node1.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node1.Verify(context.Background(), node1.LastAccepted, blk))
 	r.NoError(node1.Accept(context.Background(), blk))
@@ -1396,7 +1396,7 @@ func Test_Verify(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Tmstmp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 }
@@ -1412,8 +1412,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   ids.GenerateTestID(),
-					Hght:       parent.Hght + 1,
-					Tmstmp:     parent.Tmstmp + 1,
+					Height:     parent.Height + 1,
+					Timestamp:  parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1424,8 +1424,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght - 1,
-					Tmstmp:     parent.Tmstmp + 1,
+					Height:     parent.Height - 1,
+					Timestamp:  parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1436,8 +1436,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght,
-					Tmstmp:     parent.Tmstmp + 1,
+					Height:     parent.Height,
+					Timestamp:  parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1448,8 +1448,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght + 2,
-					Tmstmp:     parent.Tmstmp + 1,
+					Height:     parent.Height + 2,
+					Timestamp:  parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1460,8 +1460,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght + 1,
-					Tmstmp:     parent.Tmstmp - 1,
+					Height:     parent.Height + 1,
+					Timestamp:  parent.Timestamp - 1,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1472,8 +1472,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(chunkCert ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght + 1,
-					Tmstmp:     parent.Tmstmp,
+					Height:     parent.Height + 1,
+					Timestamp:  parent.Timestamp,
 					ChunkCerts: []*ChunkCertificate{&chunkCert},
 				}
 			},
@@ -1483,9 +1483,9 @@ func Test_Verify_BadBlock(t *testing.T) {
 			name: "invalid timestamp - too far into future",
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{
-					ParentID: parent.GetID(),
-					Hght:     parent.Hght + 1,
-					Tmstmp:   parent.Tmstmp + time.Minute.Nanoseconds(),
+					ParentID:  parent.GetID(),
+					Height:    parent.Height + 1,
+					Timestamp: parent.Timestamp + time.Minute.Nanoseconds(),
 				}
 			},
 			wantErr: ErrInvalidBlockTimestamp,
@@ -1494,9 +1494,9 @@ func Test_Verify_BadBlock(t *testing.T) {
 			name: "nil chunk certs",
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{
-					ParentID: parent.GetID(),
-					Hght:     parent.Hght + 1,
-					Tmstmp:   parent.Tmstmp + 1,
+					ParentID:  parent.GetID(),
+					Height:    parent.Height + 1,
+					Timestamp: parent.Timestamp + 1,
 				}
 			},
 			wantErr: ErrEmptyBlock,
@@ -1506,8 +1506,8 @@ func Test_Verify_BadBlock(t *testing.T) {
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{
 					ParentID:   parent.GetID(),
-					Hght:       parent.Hght + 1,
-					Tmstmp:     parent.Tmstmp + 1,
+					Height:     parent.Height + 1,
+					Timestamp:  parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{},
 				}
 			},
@@ -1517,9 +1517,9 @@ func Test_Verify_BadBlock(t *testing.T) {
 			name: "invalid signature",
 			blk: func(_ ChunkCertificate, parent Block) Block {
 				return Block{
-					ParentID: parent.GetID(),
-					Hght:     parent.Hght + 1,
-					Tmstmp:   parent.Tmstmp + 1,
+					ParentID:  parent.GetID(),
+					Height:    parent.Height + 1,
+					Timestamp: parent.Timestamp + 1,
 					ChunkCerts: []*ChunkCertificate{
 						{
 							ChunkReference: ChunkReference{
@@ -1683,10 +1683,10 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 			),
 			validators,
 			Block{
-				ParentID: ids.Empty,
-				Hght:     0,
-				Tmstmp:   0,
-				blkID:    ids.Empty,
+				ParentID:  ids.Empty,
+				Height:    0,
+				Timestamp: 0,
+				blkID:     ids.Empty,
 			},
 			1,
 			1,
@@ -1714,7 +1714,7 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 	)
 	require.NoError(t, err)
 
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Tmstmp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))

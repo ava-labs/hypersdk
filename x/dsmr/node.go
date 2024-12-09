@@ -232,14 +232,14 @@ func (n *Node[T]) BuildChunk(
 }
 
 func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
-	if timestamp <= parent.Tmstmp {
+	if timestamp <= parent.Timestamp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
 	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
 
-	dup, err := n.validityWindow.IsRepeat(ctx, parent, chunkCerts, oldestAllowed)
+	dup, err := n.validityWindow.IsRepeat(ctx, NewExecutionBlock(parent), chunkCerts, oldestAllowed)
 	if err != nil {
 		return Block{}, err
 	}
@@ -258,7 +258,7 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 
 	blk := NewBlock(
 		parent.GetID(),
-		parent.Hght+1,
+		parent.Height+1,
 		timestamp,
 		availableChunkCerts,
 	)
@@ -283,18 +283,18 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 		)
 	}
 
-	if block.Hght != parent.Hght+1 {
+	if block.Height != parent.Height+1 {
 		return fmt.Errorf(
 			"%w %d: expected %d",
 			ErrInvalidBlockHeight,
-			block.Hght,
-			parent.Hght+1,
+			block.Height,
+			parent.Height+1,
 		)
 	}
 
-	if block.Tmstmp <= parent.Tmstmp ||
-		block.Tmstmp > parent.Tmstmp+maxTimeSkew.Nanoseconds() {
-		return fmt.Errorf("%w %d: parent - %d", ErrInvalidBlockTimestamp, block.Tmstmp, parent.Tmstmp)
+	if block.Timestamp <= parent.Timestamp ||
+		block.Timestamp > parent.Timestamp+maxTimeSkew.Nanoseconds() {
+		return fmt.Errorf("%w %d: parent - %d", ErrInvalidBlockTimestamp, block.Timestamp, parent.Timestamp)
 	}
 
 	if len(block.ChunkCerts) == 0 {
@@ -302,9 +302,9 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	}
 
 	// Find repeats
-	oldestAllowed := max(0, block.Timestamp()-int64(n.validityWindowDuration))
+	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
 
-	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, block, oldestAllowed); err != nil {
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewExecutionBlock(block), oldestAllowed); err != nil {
 		return err
 	}
 
@@ -368,9 +368,9 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		}
 	}
 	// update the validity window with the accepted block.
-	n.validityWindow.Accept(block)
+	n.validityWindow.Accept(NewExecutionBlock(block))
 
-	if err := n.storage.SetMin(block.Tmstmp, chunkIDs); err != nil {
+	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
 		return fmt.Errorf("failed to prune chunks: %w", err)
 	}
 

@@ -57,7 +57,7 @@ func (b *BlockHandler[T, S, B, R]) Accept(ctx context.Context, block *Block) err
 	}
 
 	// Assemble and execute the block
-	innerBlock, result, state, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedState, b.lastAcceptedBlock, block.Tmstmp, block.Hght+1, txs)
+	innerBlock, result, state, err := b.Assembler.AssembleBlock(ctx, b.lastAcceptedState, b.lastAcceptedBlock, block.Timestamp, block.Height+1, txs)
 	if err != nil {
 		return err
 	}
