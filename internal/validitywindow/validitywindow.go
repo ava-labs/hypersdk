@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -17,7 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-var ErrDuplicateContainer = errors.New("duplicate container")
+var (
+	ErrDuplicateContainer            = errors.New("duplicate container")
+	ErrExecutionBlockRetrievalFailed = errors.New("unable to retrieve block")
+)
 
 type TimeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
@@ -57,9 +61,15 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	if blk.Height() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	parent, hasBlock, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
 	if err != nil {
 		return err
+	}
+	if !hasBlock {
+		// if we can't get the block, we won't be able to determine if any of the transaction are duplicate.
+		// this is not an expected result, and is equivilient to the case where we cannot perform the validation
+		// due to disk issue.
+		return ErrExecutionBlockRetrievalFailed
 	}
 
 	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
@@ -68,6 +78,16 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+	}
+	// make sure we have no repeats within the block itself.
+	// set.Set
+	blkTxsIDs := set.NewSet[ids.ID](len(blk.Txs()))
+	for _, tx := range blk.Txs() {
+		id := tx.GetID()
+		if blkTxsIDs.Contains(id) {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkTxsIDs.Add(id)
 	}
 	return nil
 }
@@ -97,6 +117,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	defer v.lock.Unlock()
 
 	var err error
+	var hasBlock bool
 	for {
 		if ancestorBlk.Timestamp() < oldestAllowed {
 			return marker, nil
@@ -110,7 +131,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(tx.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil
@@ -118,8 +139,8 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
-		if err != nil {
+		ancestorBlk, hasBlock, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		if err != nil || !hasBlock {
 			return marker, err
 		}
 	}
