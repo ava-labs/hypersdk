@@ -137,7 +137,7 @@ func (e ExecutionBlock) Parent() ids.ID {
 }
 
 func (e ExecutionBlock) Txs() []*ChunkCertificate {
-	return e.innerBlock.Containers()
+	return e.innerBlock.ChunkCerts
 }
 
 func NewExecutionBlock(innerBlock Block) ExecutionBlock {
@@ -171,14 +171,6 @@ func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*Chu
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
-}
-
-func (b Block) Parent() ids.ID {
-	return b.ParentID
-}
-
-func (b Block) Containers() []*ChunkCertificate {
-	return b.ChunkCerts
 }
 
 func (b Block) init() {
