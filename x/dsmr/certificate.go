@@ -46,12 +46,12 @@ type ChunkReference struct {
 	Expiry   int64      `serialize:"true"`
 }
 
-type emapChunkCertification struct {
+type emapChunkCertificate struct {
 	ChunkCertificate
 }
 
-func (e emapChunkCertification) GetID() ids.ID    { return e.ChunkID }
-func (e emapChunkCertification) GetExpiry() int64 { return e.Expiry }
+func (e emapChunkCertificate) GetID() ids.ID    { return e.ChunkID }
+func (e emapChunkCertificate) GetExpiry() int64 { return e.Expiry }
 
 type ChunkCertificate struct {
 	ChunkReference `serialize:"true"`
