@@ -50,7 +50,8 @@ type emapChunkCertificate struct {
 	ChunkCertificate
 }
 
-func (e emapChunkCertificate) GetID() ids.ID    { return e.ChunkID }
+func (e emapChunkCertificate) GetID() ids.ID { return e.ChunkID }
+
 func (e emapChunkCertificate) GetExpiry() int64 { return e.Expiry }
 
 type ChunkCertificate struct {
@@ -58,8 +59,9 @@ type ChunkCertificate struct {
 	Signature      *warp.BitSetSignature `serialize:"true"`
 }
 
-func (c ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
-func (c ChunkCertificate) GetSlot() int64     { return c.Expiry }
+func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
+
+func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
 
 func (c *ChunkCertificate) Bytes() []byte {
 	bytes, err := Codec.Marshal(CodecVersion, c)
