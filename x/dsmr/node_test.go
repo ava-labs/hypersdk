@@ -1126,28 +1126,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 	signer := warp.NewSigner(sk1, networkID, chainID)
 	r.NoError(err)
 
-	initChunks := func(node *Node[tx]) ([]Chunk[tx], []*ChunkCertificate) {
-		var chunks []Chunk[tx]
-		var chunksCerts []*ChunkCertificate
-		for expiry := int64(0); expiry < 5; expiry++ {
-			chunk, cert, err := node.BuildChunk(
-				context.Background(),
-				[]tx{
-					{
-						ID:     ids.GenerateTestID(),
-						Expiry: expiry,
-					},
-				},
-				expiry,
-				codec.Address{},
-			)
-			r.NoError(err)
-			chunks = append(chunks, chunk)
-			chunksCerts = append(chunksCerts, &cert)
-		}
-		return chunks, chunksCerts
-	}
-	testCases := []struct {
+	tests := []struct {
 		name                       string
 		parentBlocks               [][]int // for each parent, a list of the chunks included.
 		chunks                     []int
@@ -1211,7 +1190,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			buildWantErr:  ErrNoAvailableChunkCerts,
 		},
 	}
-	for _, testCase := range testCases {
+	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			indexer := newTestingChainIndexer()
 			valWind := testCase.validalidityWindowDuration
@@ -1299,7 +1278,24 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunks, chunkCerts := initChunks(node)
+			var chunks []Chunk[tx]
+			var chunkCerts []*ChunkCertificate
+			for expiry := int64(0); expiry < 5; expiry++ {
+				chunk, cert, err := node.BuildChunk(
+					context.Background(),
+					[]tx{
+						{
+							ID:     ids.GenerateTestID(),
+							Expiry: expiry,
+						},
+					},
+					expiry,
+					codec.Address{},
+				)
+				r.NoError(err)
+				chunks = append(chunks, chunk)
+				chunkCerts = append(chunkCerts, &cert)
+			}
 
 			indexer.set(genesisBlk.GetID(), NewExecutionBlock(genesisBlk))
 			// initialize node history.
