@@ -9,17 +9,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/utils/set"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
 
-const (
-	defaultOps = 4
-	epsilon    = 100
-)
+const defaultOps = 4
 
 type opType uint8
 
@@ -37,11 +32,11 @@ type op struct {
 	pastWrites    *uint16
 }
 
-// immutableScopeStorage implements [state.Immutable], allowing the map to be used
+// ImmutableScopeStorage implements [state.Immutable], allowing the map to be used
 // as a read-only state source, and making it compatible with error-generating backing storage.
-type immutableScopeStorage map[string][]byte
+type ImmutableScopeStorage map[string][]byte
 
-func (i immutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+func (i ImmutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	if v, has := i[string(key)]; has {
 		return v, nil
 	}
@@ -60,75 +55,24 @@ type TStateView struct {
 	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
 	// key, see issue below)
 	// https://github.com/ava-labs/hypersdk/issues/709
-	scope        state.Keys
-	scopeStorage state.Immutable
+	scope state.Scope
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
-
-	// simulationMode flag is used to determine whether we're in execution mode or simulation mode.
-	// while in simulation mode, we don't enforce any scope limitations. instead, we record the accessed keys.
-	// during execution mode, we use the configured scope to enforce the access to the keys.
-	simulationMode bool
-
-	blockHeight uint64
-	oldKeys     set.Set[string]
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte, blockHeight uint64) (*TStateView, error) {
-	oldKeys := set.NewSet[string](len(storage))
-
-	for k, v := range storage {
-		// Extract suffix
-		suffix, ok := keys.DecodeSuffix(v)
-		if !ok {
-			return nil, ErrNonSuffixedValue
-		}
-		if suffix-blockHeight > epsilon {
-			oldKeys.Add(k)
-		}
-		// We always extract suffix from the value to avoid translation bugs
-		// Invariant: storage must follow the value suffix format
-		// Otherwise, this will panic
-		storage[k] = v[:len(v)-consts.Uint64Len]
-	}
-
+func (ts *TState) NewView(scope state.Scope) *TStateView {
 	return &TStateView{
 		ts:                 ts,
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], scope.Len()),
 
 		ops: make([]*op, 0, defaultOps),
 
-		scope:        scope,
-		scopeStorage: immutableScopeStorage(storage),
+		scope: scope,
 
-		allocates: make(map[string]uint16, len(scope)),
-		writes:    make(map[string]uint16, len(scope)),
-
-		oldKeys:     oldKeys,
-		blockHeight: blockHeight,
-	}, nil
-}
-
-func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {
-	return newView(New(0), state.Keys{}, immutableState, true)
-}
-
-func newView(ts *TState, scope state.Keys, storage state.Immutable, simulationMode bool) *TStateView {
-	return &TStateView{
-		ts:                 ts,
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
-
-		ops: make([]*op, 0, defaultOps),
-
-		scope:        scope,
-		scopeStorage: storage,
-
-		allocates: make(map[string]uint16, len(scope)),
-		writes:    make(map[string]uint16, len(scope)),
-
-		simulationMode: simulationMode,
+		allocates: make(map[string]uint16, scope.Len()),
+		writes:    make(map[string]uint16, scope.Len()),
 	}
 }
 
@@ -211,25 +155,14 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 // checkScope returns whether [k] is in scope and has appropriate permissions.
 // the method always return true in case we're in simulation mode.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
-	if ts.simulationMode {
-		ts.scope.Add(string(k), perm)
-		return true
-	}
-	return ts.scope[string(k)].Has(perm)
+	return ts.scope.Has(k, perm)
 }
 
 // GetValue returns the value associated from tempStorage with the
 // associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	// Check for storage
-	if ts.oldKeys.Contains(string(key)) {
-		if !ts.checkScope(ctx, key, state.ReadFromStorage) {
-			return nil, ErrInvalidKeyOrPermission
-		}
-	}
-
-	// Getting a value requires a Read permission, so we pass state.Read
+	// Getting a value requires, at a minimum, ReadFromMemory permission
 	if !ts.checkScope(ctx, key, state.ReadFromMemory) {
 		return nil, ErrInvalidKeyOrPermission
 	}
@@ -244,13 +177,14 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, error) 
 		}
 		return v.Value(), nil
 	}
+	// TODO: figure out if this violates any tiered storage invariants
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		if exists {
 			return v, nil
 		}
 		return v, database.ErrNotFound
 	}
-	return ts.scopeStorage.GetValue(ctx, []byte(key))
+	return ts.scope.GetValue(ctx, key)
 }
 
 // isUnchanged determines if a [key] is unchanged from the parent view (or
@@ -260,7 +194,8 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval), nil
 	}
-	scopeVal, err := ts.scopeStorage.GetValue(ctx, []byte(key))
+	// TODO: check if this is correct
+	scopeVal, err := ts.scope.GetValue(ctx, key)
 	switch err {
 	case nil:
 		return nexists && bytes.Equal(scopeVal, nval), nil
@@ -390,11 +325,6 @@ func (ts *TStateView) Commit() {
 		ts.ts.changedKeys[k] = v
 	}
 	ts.ts.ops += len(ts.ops)
-}
-
-// getStateKeys returns the keys that have been touched along with their respective permissions.
-func (ts *TStateView) getStateKeys() state.Keys {
-	return ts.scope
 }
 
 // chunks gets the number of chunks for a key in [m]

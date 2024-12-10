@@ -12,10 +12,14 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
-const sampleBlockHeight = 0
+const (
+	sampleBlockHeight = 0
+	sampleEpsilon     = 100
+)
 
 // TestBalanceHandler tests b by requiring that it upholds the invariants
 // described in the BalanceHandler interface.
@@ -74,13 +78,17 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		ts := tstate.New(1)
-		tsv, err := ts.NewView(
+		scope, err := state.NewTieredScope(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
+			nil,
 			sampleBlockHeight,
+			sampleEpsilon,
 		)
 		r.NoError(err)
+
+		ts := tstate.New(1)
+		tsv := ts.NewView(scope)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
 
@@ -96,13 +104,17 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		ts := tstate.New(1)
-		tsv, err := ts.NewView(
+		scope, err := state.NewTieredScope(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
+			nil,
 			sampleBlockHeight,
+			sampleEpsilon,
 		)
 		r.NoError(err)
+
+		ts := tstate.New(1)
+		tsv := ts.NewView(scope)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
 
@@ -118,13 +130,17 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		ts := tstate.New(1)
-		tsv, err := ts.NewView(
+		scope, err := state.NewTieredScope(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
+			nil,
 			sampleBlockHeight,
+			sampleEpsilon,
 		)
 		r.NoError(err)
+
+		ts := tstate.New(1)
+		tsv := ts.NewView(scope)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
 
@@ -140,12 +156,17 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
-		ts := tstate.New(1)
-		tsv, err := ts.NewView(
+		scope, err := state.NewTieredScope(
 			bh.SponsorStateKeys(addrOne),
 			ms.AddSuffix(sampleBlockHeight).Storage,
+			nil,
 			sampleBlockHeight,
+			sampleEpsilon,
 		)
+		r.NoError(err)
+
+		ts := tstate.New(1)
+		tsv := ts.NewView(scope)
 		r.NoError(err)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))

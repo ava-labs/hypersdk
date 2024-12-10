@@ -290,12 +290,20 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}()
 				}
 
-				// Execute block
-				tsv, err := ts.NewView(stateKeys, storage, height)
+				scope, err := state.NewTieredScope(
+					stateKeys,
+					storage,
+					parentView,
+					height,
+					c.config.Epsilon,
+				)
 				if err != nil {
-					c.log.Error("failed to create view", zap.Error(err))
+					c.log.Error("failed to create state key scope", zap.Error(err))
 					return err
 				}
+
+				// Execute block
+				tsv := ts.NewView(scope)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime, true); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -312,6 +320,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					tsv,
 					nextTime,
 				)
+				c.log.Debug("executed transaction", zap.Stringer("tx", tx.GetID()), zap.Any("result error", string(result.Error)))
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
 					// all units for the transaction should be consumed and a fee should be charged.
@@ -424,17 +433,23 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv, err := ts.NewView(
-		keys, map[string][]byte{
+
+	scope, err := state.NewTieredScope(
+		keys,
+		map[string][]byte{
 			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 			feeKeyStr:       parentFeeManager.Bytes(),
 		},
+		parentView,
 		height,
+		c.config.Epsilon,
 	)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to create view", err)
+		return nil, nil, nil, fmt.Errorf("%w: unable to create scope", err)
 	}
+
+	tsv := ts.NewView(scope)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}

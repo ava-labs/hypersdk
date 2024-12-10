@@ -215,18 +215,18 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv, err := ts.NewView(
+	// We pass in a default scope here since metadata values do not have suffixes
+	scope := state.NewDefaultScope(
 		keys,
-		map[string][]byte{
-			heightKeyStr:    parentHeightRaw,
-			timestampKeyStr: parentTimestampRaw,
-			feeKeyStr:       parentFeeManager.Bytes(),
-		},
-		b.Height(),
+		tstate.ImmutableScopeStorage(
+			map[string][]byte{
+				heightKeyStr:    parentHeightRaw,
+				timestampKeyStr: parentTimestampRaw,
+				feeKeyStr:       parentFeeManager.Bytes(),
+			},
+		),
 	)
-	if err != nil {
-		return nil, nil, err
-	}
+	tsv := ts.NewView(scope)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
 	}
@@ -372,10 +372,17 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv, err := ts.NewView(stateKeys, storage, b.Height())
+			scope, err := state.NewTieredScope(
+				stateKeys,
+				storage,
+				im,
+				b.Height(),
+				p.config.Epsilon,
+			)
 			if err != nil {
 				return err
 			}
+			tsv := ts.NewView(scope)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t, true); err != nil {
