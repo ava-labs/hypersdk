@@ -116,8 +116,8 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		r   = p.ruleFactory.GetRules(b.Tmstmp)
-		log = p.log
+		r          = p.ruleFactory.GetRules(b.Tmstmp)
+		log        = p.log
 		parentView = parentBlock.View
 	)
 
@@ -374,8 +374,6 @@ func (p *Processor) executeTxs(
 	if err := e.Wait(); err != nil {
 		return nil, nil, err
 	}
-
-	p.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil

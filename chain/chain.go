@@ -21,7 +21,6 @@ type ValidityWindow = *validitywindow.TimeValidityWindow[*Transaction]
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
-	accepter    *Accepter
 	preExecutor *PreExecutor
 	blockParser *BlockParser
 }
@@ -68,11 +67,6 @@ func NewChain(
 			metrics,
 			config,
 		),
-		accepter: NewAccepter(
-			tracer,
-			validityWindow,
-			metrics,
-		),
 		preExecutor: NewPreExecutor(
 			ruleFactory,
 			validityWindow,
@@ -100,10 +94,6 @@ func (c *Chain) AsyncVerify(
 	b *ExecutionBlock,
 ) error {
 	return c.processor.AsyncVerify(ctx, b)
-}
-
-func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
-	return c.accepter.AcceptBlock(ctx, blk)
 }
 
 func (c *Chain) PreExecute(

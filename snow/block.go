@@ -93,20 +93,20 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		b.vm.metrics.blockVerify.Observe(float64(time.Since(start)))
 	}()
 
-	stateReady := b.vm.Options.StateSyncClient.StateReady()
+	ready := b.vm.Options.Ready.Ready()
 	ctx, span := b.vm.tracer.Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
 			attribute.Int("size", len(b.Input.Bytes())),
 			attribute.Int64("height", int64(b.Input.Height())),
-			attribute.Bool("stateReady", stateReady),
+			attribute.Bool("ready", ready),
 			attribute.Bool("built", b.verified),
 		),
 	)
 	defer span.End()
 
 	switch {
-	case !stateReady:
+	case !ready:
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
 		// verify any block.
 		b.vm.log.Info(
@@ -147,12 +147,12 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	if b.verified {
 		b.vm.log.Debug("verified block",
 			zap.Stringer("blk", b.Output),
-			zap.Bool("stateReady", stateReady),
+			zap.Bool("ready", ready),
 		)
 	} else {
 		b.vm.log.Debug("skipped block verification",
 			zap.Stringer("blk", b.Input),
-			zap.Bool("stateReady", stateReady),
+			zap.Bool("ready", ready),
 		)
 	}
 	return nil
@@ -208,7 +208,8 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 				zap.Stringer("id", b.Input.ID()),
 				zap.Stringer("root", b.Input.GetStateRoot()),
 			)
-			return nil // the sync is still ongoing
+			// the sync is still ongoing, skip verification, and notify dynamic state sync subs
+			return event.NotifyAll(ctx, b.Input, b.vm.Options.AcceptedDynamicStateSyncSubs...)
 		}
 
 		// This code handles the case where this block was not
@@ -238,19 +239,12 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.verifiedL.Unlock()
 
 	// Mark block as accepted and update last accepted in storage
-	return b.MarkAccepted(ctx)
+	return event.NotifyAll[A](ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
 }
 
 // implements "statesync.StateSummaryBlock"
-func (b *StatefulBlock[I, O, A]) MarkAccepted(ctx context.Context) error {
-	// Accept block and free unnecessary memory
-	b.accepted = true
-
-	// [Accepted] will persist the block to disk and set in-memory variables
-	// needed to ensure we don't resync all blocks when state sync finishes.
-	//
-	// Note: We will not call [b.vm.Verified] before accepting during state sync
-	return event.NotifyAll[A](ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
+func (b *StatefulBlock[I, O, A]) AcceptSyncTarget(ctx context.Context) error {
+	return event.NotifyAll[I](ctx, b.Input, b.vm.Options.AcceptedDynamicStateSyncSubs...)
 }
 
 // implements "statesync.StateSummaryBlock"

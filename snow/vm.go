@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/statesync"
+	"go.uber.org/zap"
 )
 
 var (
@@ -54,7 +55,6 @@ type Chain[I Block, O Block, A Block] interface {
 		block I,
 	) (O, error)
 	AcceptBlock(ctx context.Context, verifiedBlock O) (A, error)
-	AcceptDynamicStateSyncBlock(ctx context.Context, block I) error
 	GetBlock(ctx context.Context, blkID ids.ID) ([]byte, error)
 	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
 }
@@ -102,9 +102,15 @@ type Options[I Block, O Block, A Block] struct {
 	StateSyncServer *statesync.Server[*StatefulBlock[I, O, A]]
 	Closers         []func() error
 
-	VerifiedSubs []event.Subscription[O]
-	RejectedSubs []event.Subscription[O]
-	AcceptedSubs []event.Subscription[A]
+	Ready GroupReady
+
+	OnBootstrapStarted       []func(context.Context) error
+	OnNormalOperationStarted []func(context.Context) error
+
+	VerifiedSubs                 []event.Subscription[O]
+	RejectedSubs                 []event.Subscription[O]
+	AcceptedSubs                 []event.Subscription[A]
+	AcceptedDynamicStateSyncSubs []event.Subscription[I]
 }
 
 type Option[I Block, O Block, A Block] func(*Options[I, O, A])
@@ -119,6 +125,10 @@ func (o *Options[I, O, A]) WithRejectedSub(sub ...event.Subscription[O]) {
 
 func (o *Options[I, O, A]) WithVerifiedSub(sub ...event.Subscription[O]) {
 	o.VerifiedSubs = append(o.VerifiedSubs, sub...)
+}
+
+func (o *Options[I, O, A]) WithAcceptedDynamicStateSyncSub(sub ...event.Subscription[I]) {
+	o.AcceptedDynamicStateSyncSubs = append(o.AcceptedDynamicStateSyncSubs, sub...)
 }
 
 func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
@@ -238,9 +248,32 @@ func (v *VM[I, O, A]) Initialize(
 	return nil
 }
 
-// TODO
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
-	return nil
+	switch state {
+	case snow.StateSyncing:
+		v.log.Info("Starting state sync")
+		return nil
+	case snow.Bootstrapping:
+		v.log.Info("Starting bootstrapping")
+
+		for _, startBootstrappingF := range v.Options.OnBootstrapStarted {
+			if err := startBootstrappingF(ctx); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	case snow.NormalOp:
+		v.log.Info("Starting normal operation", zap.Bool("stateSyncStarted", v.Options.StateSyncClient.Started()))
+		for _, startNormalOpF := range v.Options.OnNormalOperationStarted {
+			if err := startNormalOpF(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return snow.ErrUnknownState
+	}
 }
 
 func WithHealthChecker[I Block, O Block, A Block](healthChecker health.Checker) Option[I, O, A] {

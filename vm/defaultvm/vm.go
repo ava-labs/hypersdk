@@ -34,7 +34,6 @@ func NewDefaultOptions() []vm.Option {
 
 // New returns a VM with DefaultOptions pre-supplied
 func New(
-	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
@@ -46,7 +45,6 @@ func New(
 ) (*vm.VM, error) {
 	options = append(options, NewDefaultOptions()...)
 	return vm.New(
-		v,
 		genesisFactory,
 		balanceHandler,
 		metadataManager,
@@ -70,8 +68,7 @@ func NewSnowVM(
 	options ...vm.Option,
 ) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], error) {
 	options = append(options, NewDefaultOptions()...)
-	concreteVM, err := New(
-		v,
+	hyperVM, err := New(
 		genesisFactory,
 		balanceHandler,
 		metadataManager,
@@ -85,5 +82,5 @@ func NewSnowVM(
 		return nil, err
 	}
 
-	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](concreteVM), nil
+	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](hyperVM), nil
 }

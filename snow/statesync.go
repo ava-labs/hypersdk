@@ -72,6 +72,8 @@ func (o *Options[I, O, A]) WithStateSyncer(
 		stateSyncConfig.Parallelism,
 	)
 	o.StateSyncClient = client
+	o.OnNormalOperationStarted = append(o.OnNormalOperationStarted, client.StartBootstrapping)
+	o.Ready = append(o.Ready, o.StateSyncClient) // Require state sync client is ready before 
 	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
 }
 

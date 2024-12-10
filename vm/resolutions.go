@@ -103,10 +103,6 @@ func (vm *VM) LastAcceptedBlockResult(ctx context.Context) *chain.ExecutedBlock 
 	}
 }
 
-func (vm *VM) IsBootstrapped() bool {
-	return vm.bootstrapped.Get()
-}
-
 func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
@@ -148,10 +144,6 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 		return 0, err
 	}
 	return blk.Hght, nil
-}
-
-func (vm *VM) StopChan() chan struct{} {
-	return vm.stop
 }
 
 // Used for integration and load testing

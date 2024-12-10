@@ -198,7 +198,7 @@ func (s *Client[T]) Accept(
 	// Update the last accepted to the state target block,
 	// since we don't want bootstrapping to fetch all the blocks
 	// from genesis to the sync target.
-	if err := s.target.MarkAccepted(context.Background()); err != nil {
+	if err := s.target.AcceptSyncTarget(context.Background()); err != nil {
 		return block.StateSyncSkipped, err
 	}
 
@@ -240,7 +240,7 @@ func (s *Client[T]) finishSync() error {
 		//
 		// NOTE: There may be a number of verified but unaccepted blocks above this
 		// block.
-		if err := s.target.MarkAccepted(context.Background()); err != nil {
+		if err := s.target.AcceptSyncTarget(context.Background()); err != nil {
 			return err
 		}
 	}
@@ -249,6 +249,40 @@ func (s *Client[T]) finishSync() error {
 
 func (s *Client[T]) Started() bool {
 	return s.startedSync
+}
+
+var ErrStateSyncing = errors.New("state syncing")
+
+func (s *Client[T]) StartBootstrapping(ctx context.Context) error {
+	// Ensure state sync client marks itself as done if it was never started
+	syncStarted := s.Started()
+	if syncStarted {
+		return nil
+	}
+
+	// We must check if we finished syncing before starting bootstrapping.
+	// This should only ever occur if we began a state sync, restarted, and
+	// were unable to find any acceptable summaries.
+	syncing, err := s.GetDiskIsSyncing()
+	if err != nil {
+		s.log.Error("could not determine if syncing", zap.Error(err))
+		return err
+	}
+	if syncing {
+		s.log.Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
+		// This is a fatal error that will require retrying sync or deleting the
+		// node database.
+		return ErrStateSyncing
+	}
+
+	// If we weren't previously syncing, we force state syncer completion so
+	// that the node will mark itself as ready.
+	s.ForceDone()
+
+	// TODO: add a config to FATAL here if could not state sync (likely won't be
+	// able to recover in networks where no one has the full state, bypass
+	// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
+	return nil
 }
 
 // ForceDone is used by the [VM] to skip the sync process or to close the
@@ -280,7 +314,7 @@ func (s *Client[T]) Shutdown() error {
 // Error returns a non-nil error if one occurred during the sync.
 func (s *Client[T]) Error() error { return s.stateSyncErr }
 
-func (s *Client[T]) StateReady() bool {
+func (s *Client[T]) Ready() bool {
 	select {
 	case <-s.done:
 		return true
