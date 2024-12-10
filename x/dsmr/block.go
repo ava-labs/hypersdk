@@ -17,7 +17,6 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
-// Tx implements emap.Item
 type Tx interface {
 	GetID() ids.ID
 	GetExpiry() int64
@@ -51,14 +50,6 @@ func (c *Chunk[T]) init() error {
 	c.id = utils.ToID(c.bytes)
 
 	return nil
-}
-
-func (c Chunk[T]) GetID() ids.ID {
-	return c.id
-}
-
-func (c Chunk[T]) GetExpiry() int64 {
-	return c.Expiry
 }
 
 func signChunk[T Tx](
