@@ -356,11 +356,23 @@ func (p *Processor) executeTxs(
 			return nil, nil, fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 		}
 
+		// Here, we assert that only keys with ReadFromStorage permissions
+		// attached are fetched
+		keys := make([]string, len(stateKeys))
+		for k, p := range stateKeys {
+			if p.Has(state.ReadFromStorage) {
+				keys = append(keys, k)
+			}
+		}
+
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
+		if err := f.Fetch(ctx, txID, keys); err != nil {
 			return nil, nil, err
 		}
+
+		// TODO: the executor also using state keys make things interesting...
+		// need to look into this at a later time
 		e.Run(stateKeys, func() error {
 			// Wait for stateKeys to be read from disk
 			storage, err := f.Get(txID)
