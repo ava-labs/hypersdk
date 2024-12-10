@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
@@ -59,7 +58,6 @@ func init() {
 func New(options ...vm.Option) (*vm.VM, error) {
 	options = append(options, With()) // Add MorpheusVM API
 	return defaultvm.New(
-		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),

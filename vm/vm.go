@@ -212,7 +212,6 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	snowOptions.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {

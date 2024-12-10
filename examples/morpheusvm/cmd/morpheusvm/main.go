@@ -13,10 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/cmd/morpheusvm/version"
 	mvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/snow"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 var rootCmd = &cobra.Command{
@@ -54,5 +54,5 @@ func runFunc(*cobra.Command, []string) error {
 		return err
 	}
 
-	return rpcchainvm.Serve(context.TODO(), snow.NewVM[*vm.StatefulBlock](v))
+	return rpcchainvm.Serve(context.TODO(), snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](v))
 }
