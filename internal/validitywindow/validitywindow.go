@@ -18,7 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-var ErrDuplicateContainer = errors.New("duplicate container")
+var (
+	ErrDuplicateContainer            = errors.New("duplicate container")
+	ErrExecutionBlockRetrievalFailed = errors.New("unable to retrieve block")
+)
 
 type TimeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
@@ -59,8 +62,14 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return nil
 	}
 	parent, hasBlock, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
-	if err != nil || !hasBlock {
+	if err != nil {
 		return err
+	}
+	if !hasBlock {
+		// if we can't get the block, we won't be able to determine if any of the transaction are duplicate.
+		// this is not an expected result, and is equivilient to the case where we cannot perform the validation
+		// due to disk issue.
+		return ErrExecutionBlockRetrievalFailed
 	}
 
 	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
