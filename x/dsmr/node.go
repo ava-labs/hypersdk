@@ -74,7 +74,7 @@ func New[T Tx](
 	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
-	chainIndex validitywindow.ChainIndex[*ChunkCertificate],
+	chainIndex validitywindow.ChainIndex[*emapChunkCertification],
 	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
@@ -122,7 +122,7 @@ type Node[T Tx] struct {
 	log                           logging.Logger
 	tracer                        trace.Tracer
 	validityWindowDuration        time.Duration
-	validityWindow                *validitywindow.TimeValidityWindow[*ChunkCertificate]
+	validityWindow                *validitywindow.TimeValidityWindow[*emapChunkCertification]
 }
 
 // BuildChunk builds transactions into a Chunk
@@ -239,7 +239,11 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 	chunkCerts := n.storage.GatherChunkCerts()
 	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
 
-	dup, err := n.validityWindow.IsRepeat(ctx, NewExecutionBlock(parent), chunkCerts, oldestAllowed)
+	emapChunkCert := make([]*emapChunkCertification, len(chunkCerts))
+	for i := range emapChunkCert {
+		emapChunkCert[i] = &emapChunkCertification{*chunkCerts[i]}
+	}
+	dup, err := n.validityWindow.IsRepeat(ctx, NewExecutionBlock(parent), emapChunkCert, oldestAllowed)
 	if err != nil {
 		return Block{}, err
 	}

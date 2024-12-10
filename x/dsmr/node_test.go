@@ -43,23 +43,23 @@ var (
 const testingDefaultValidityWindowDuration = time.Duration(5)
 
 type testingChainIndex struct {
-	blocks map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]
+	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertification]
 }
 
-func (t *testingChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*ChunkCertificate], bool, error) {
+func (t *testingChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertification], bool, error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, true, nil
 	}
 	return nil, false, nil
 }
 
-func (t *testingChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*ChunkCertificate]) {
+func (t *testingChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertification]) {
 	t.blocks[blkID] = blk
 }
 
 func newTestingChainIndexer() *testingChainIndex {
 	return &testingChainIndex{
-		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*ChunkCertificate]),
+		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertification]),
 	}
 }
 
