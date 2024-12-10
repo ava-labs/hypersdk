@@ -35,7 +35,7 @@ type VM interface {
 		ctx context.Context,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastAcceptedBlockResult() *chain.ExecutedBlock
+	LastAcceptedBlockResult(ctx context.Context) *chain.ExecutedBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,
