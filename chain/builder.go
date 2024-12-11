@@ -241,13 +241,20 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					restorableLock.Unlock()
 				}()
 
+				ks := make([]string, 0)
+				for k, p := range stateKeys {
+					if p.Has(state.ReadFromStorage) {
+						ks = append(ks, k)
+					}
+				}
+
 				// Fetch keys from cache
 				var (
-					storage  = make(map[string][]byte, len(stateKeys))
-					toLookup = make([]string, 0, len(stateKeys))
+					storage  = make(map[string][]byte, len(ks))
+					toLookup = make([]string, 0, len(ks))
 				)
 				cacheLock.RLock()
-				for k := range stateKeys {
+				for _, k := range ks {
 					if v, ok := cache[k]; ok {
 						if v.exists {
 							storage[k] = v.v
