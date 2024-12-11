@@ -32,34 +32,6 @@ var (
 	key3str = string(key3)
 )
 
-type TestDB struct {
-	storage map[string][]byte
-}
-
-func NewTestDB() *TestDB {
-	return &TestDB{
-		storage: make(map[string][]byte),
-	}
-}
-
-func (db *TestDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
-	val, ok := db.storage[string(key)]
-	if !ok {
-		return nil, database.ErrNotFound
-	}
-	return val, nil
-}
-
-func (db *TestDB) Insert(_ context.Context, key []byte, value []byte) error {
-	db.storage[string(key)] = value
-	return nil
-}
-
-func (db *TestDB) Remove(_ context.Context, key []byte) error {
-	delete(db.storage, string(key))
-	return nil
-}
-
 func TestScope(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()

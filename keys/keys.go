@@ -81,10 +81,12 @@ func DecodeChunks(key []byte) (uint16, bool) {
 	return binary.BigEndian.Uint16(key[len(key)-2:]), true
 }
 
+// EncodeSuffix should be used to append a uint64 suffix to a value
 func EncodeSuffix(key []byte, suffix uint64) []byte {
 	return binary.BigEndian.AppendUint64(key, suffix)
 }
 
+// DecodeSuffix should be used to extract a uint64 suffix from a value
 func DecodeSuffix(key []byte) (uint64, bool) {
 	if len(key) < consts.Uint64Len {
 		return 0, false

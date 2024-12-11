@@ -33,10 +33,8 @@ type Scope interface {
 
 // Meant to be used inside TStateView
 type TieredScope struct {
-	keys Keys
-	// TODO: we should rename this, as it also includes persistent values that
-	// were paid for with ReadFromStorage permissions
-	inMemoryState   map[string][]byte
+	keys            Keys
+	localState      map[string][]byte
 	persistentState Immutable
 	blockHeight     uint64
 	epsilon         uint64
@@ -61,7 +59,7 @@ func NewTieredScope(
 	}
 	return &TieredScope{
 		keys:            keys,
-		inMemoryState:   st,
+		localState:      st,
 		persistentState: im,
 		blockHeight:     blockHeight,
 		epsilon:         epsilon,
@@ -73,7 +71,7 @@ func NewTieredScope(
 // Otherwise, if old, return the value if it has the correct permissions and
 // error otherwise
 func (s *TieredScope) GetValue(ctx context.Context, key string) ([]byte, error) {
-	v, ok := s.inMemoryState[key]
+	v, ok := s.localState[key]
 	if ok {
 		// Value was previously found in in-memory state or was a paid persistent read
 		return v, nil
@@ -106,7 +104,7 @@ func (s *TieredScope) GetValue(ctx context.Context, key string) ([]byte, error) 
 	// We can also cache it in in-memory state
 	// NOTE: we need to remove the suffix
 	v = v[:len(v)-consts.Uint64Len]
-	s.inMemoryState[key] = v
+	s.localState[key] = v
 	return v, nil
 }
 
