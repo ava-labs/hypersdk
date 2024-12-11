@@ -117,7 +117,6 @@ func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I
 		return nil, err
 	}
 	sb := NewVerifiedBlock[I, O, A](v, inputBlock, outputBlock)
-	sb.Output = outputBlock
 	v.parsedBlocks.Put(sb.ID(), sb)
 
 	return sb, nil

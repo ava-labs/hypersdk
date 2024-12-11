@@ -261,7 +261,6 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 				return err
 			}
 		}
-
 		return nil
 	case snow.NormalOp:
 		v.log.Info("Starting normal operation", zap.Bool("stateSyncStarted", v.Options.StateSyncClient.Started()))

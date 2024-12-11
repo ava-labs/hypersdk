@@ -179,6 +179,7 @@ func (b *StatefulBlock[I, O, A]) innerVerify(ctx context.Context) error {
 		return err
 	}
 	b.Output = output
+	b.verified = true
 	return nil
 }
 
@@ -237,6 +238,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.verifiedL.Lock()
 	delete(b.vm.verifiedBlocks, b.Input.ID())
 	b.vm.verifiedL.Unlock()
+	b.vm.covariantVM.lastAcceptedBlock = b
 
 	// Mark block as accepted and update last accepted in storage
 	return event.NotifyAll[A](ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
@@ -275,7 +277,7 @@ func (b *StatefulBlock[I, O, A]) MarkUnprocessed() {
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.ID() }
+func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.Parent() }
 
 // implements "snowman.Block"
 func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.Height() }

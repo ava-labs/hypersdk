@@ -13,8 +13,10 @@ type Config map[string]json.RawMessage
 
 func NewConfig(b []byte) (Config, error) {
 	c := Config{}
-	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, err
+	if len(b) > 0 {
+		if err := json.Unmarshal(b, &c); err != nil {
+			return nil, err
+		}
 	}
 	return c, nil
 }
