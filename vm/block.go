@@ -423,3 +423,7 @@ func (b *StatefulBlock) GetVerifyContext(ctx context.Context, blockHeight uint64
 func (b *StatefulBlock) MarkUnprocessed() {
 	b.view = nil
 }
+
+func (b *StatefulBlock) GetExecutedBlock() *chain.ExecutedBlock {
+	return b.executedBlock
+}

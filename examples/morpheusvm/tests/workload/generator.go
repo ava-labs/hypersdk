@@ -81,6 +81,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	txRes, _, err := indexerCli.GetTx(ctx, txID)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
+	require.True(txRes.Success)
 	require.NotZero(txRes.Fee)
 	require.Len(txRes.Outputs, 1)
 	transferOutputBytes := []byte(txRes.Outputs[0])

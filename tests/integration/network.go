@@ -163,9 +163,19 @@ func (i *instance) confirmTx(ctx context.Context, txid ids.ID) error {
 		if !ok {
 			return ErrTxNotFound
 		}
-		for _, tx := range stflBlk.StatelessBlock.Txs {
+		// for _, tx := range stflBlk.StatelessBlock.Txs {
+		// 	if tx.GetID() == txid {
+		// 		// found.
+		// 		return nil
+		// 	}
+		// }
+		for i, tx := range stflBlk.Txs() {
 			if tx.GetID() == txid {
 				// found.
+				// We want to now check if it was successful
+				if !stflBlk.GetExecutedBlock().Results[i].Success {
+					return fmt.Errorf("tx %s accepted, but failed during execution", txid)
+				}
 				return nil
 			}
 		}
