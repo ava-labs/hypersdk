@@ -8,16 +8,11 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 type CovariantVM[I Block, O Block, A Block] struct {
 	*VM[I, O, A]
-}
-
-func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
-	return v.covariantVM.GetBlock(ctx, blkID)
 }
 
 func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
@@ -76,10 +71,6 @@ func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint
 	return v.GetBlock(ctx, blkID)
 }
 
-func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
-	return v.covariantVM.ParseBlock(ctx, bytes)
-}
-
 func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
@@ -100,10 +91,6 @@ func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*S
 	return blk, nil
 }
 
-func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	return v.covariantVM.BuildBlock(ctx)
-}
-
 func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
@@ -120,15 +107,6 @@ func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I
 	v.parsedBlocks.Put(sb.ID(), sb)
 
 	return sb, nil
-}
-
-func (v *VM[I, O, A]) SetPreference(ctx context.Context, blkID ids.ID) error {
-	v.preferredBlkID = blkID
-	return nil
-}
-
-func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
-	return v.lastAcceptedBlock.ID(), nil
 }
 
 func (v *CovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) *StatefulBlock[I, O, A] {

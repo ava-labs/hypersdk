@@ -10,11 +10,11 @@ import (
 )
 
 type ChainIndex[I Block, O Block, A Block] struct {
-	*CovariantVM[I, O, A]
+	covariantVM *CovariantVM[I, O, A]
 }
 
 func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
-	blk, err := c.CovariantVM.GetBlock(ctx, blkID)
+	blk, err := c.covariantVM.GetBlock(ctx, blkID)
 	if err != nil {
 		var emptyBlk I
 		return emptyBlk, err
@@ -23,7 +23,7 @@ func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, er
 }
 
 func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
-	blk, err := c.CovariantVM.GetBlock(ctx, c.preferredBlkID)
+	blk, err := c.covariantVM.GetBlock(ctx, c.covariantVM.preferredBlkID)
 	if err != nil {
 		var emptyBlk O
 		return emptyBlk, err
@@ -32,5 +32,5 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 }
 
 func (c *ChainIndex[I, O, A]) GetLastAccepted(ctx context.Context) A {
-	return c.CovariantVM.lastAcceptedBlock.Accepted
+	return c.covariantVM.lastAcceptedBlock.Accepted
 }

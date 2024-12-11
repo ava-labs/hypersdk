@@ -16,14 +16,13 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
-	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/statesync"
 	"go.uber.org/zap"
 )
 
@@ -91,46 +90,6 @@ type VM[I Block, O Block, A Block] struct {
 	shutdownChan chan struct{}
 }
 
-type Options[I Block, O Block, A Block] struct {
-	vm *VM[I, O, A]
-
-	Version         string
-	Handlers        map[string]http.Handler
-	HealthChecker   health.Checker
-	Network         *p2p.Network
-	StateSyncClient *statesync.Client[*StatefulBlock[I, O, A]]
-	StateSyncServer *statesync.Server[*StatefulBlock[I, O, A]]
-	Closers         []func() error
-
-	Ready GroupReady
-
-	OnBootstrapStarted       []func(context.Context) error
-	OnNormalOperationStarted []func(context.Context) error
-
-	VerifiedSubs                 []event.Subscription[O]
-	RejectedSubs                 []event.Subscription[O]
-	AcceptedSubs                 []event.Subscription[A]
-	AcceptedDynamicStateSyncSubs []event.Subscription[I]
-}
-
-type Option[I Block, O Block, A Block] func(*Options[I, O, A])
-
-func (o *Options[I, O, A]) WithAcceptedSub(sub ...event.Subscription[A]) {
-	o.AcceptedSubs = append(o.AcceptedSubs, sub...)
-}
-
-func (o *Options[I, O, A]) WithRejectedSub(sub ...event.Subscription[O]) {
-	o.RejectedSubs = append(o.RejectedSubs, sub...)
-}
-
-func (o *Options[I, O, A]) WithVerifiedSub(sub ...event.Subscription[O]) {
-	o.VerifiedSubs = append(o.VerifiedSubs, sub...)
-}
-
-func (o *Options[I, O, A]) WithAcceptedDynamicStateSyncSub(sub ...event.Subscription[I]) {
-	o.AcceptedDynamicStateSyncSubs = append(o.AcceptedDynamicStateSyncSubs, sub...)
-}
-
 func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
 		chain: chain,
@@ -139,6 +98,7 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
 				return nil, nil
 			}),
+			Ready: NewGroupReady(),
 		},
 	}
 }
@@ -235,7 +195,7 @@ func (v *VM[I, O, A]) Initialize(
 	}
 
 	inputBlock, outputBlock, acceptedBlock, err := v.chain.Initialize(ctx, chainInput, ChainIndex[I, O, A]{
-		CovariantVM: v.covariantVM,
+		covariantVM: v.covariantVM,
 	}, &v.Options)
 	if err != nil {
 		return err
@@ -246,6 +206,27 @@ func (v *VM[I, O, A]) Initialize(
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 
 	return nil
+}
+
+func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
+	return v.covariantVM.GetBlock(ctx, blkID)
+}
+
+func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
+	return v.covariantVM.ParseBlock(ctx, bytes)
+}
+
+func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	return v.covariantVM.BuildBlock(ctx)
+}
+
+func (v *VM[I, O, A]) SetPreference(ctx context.Context, blkID ids.ID) error {
+	v.preferredBlkID = blkID
+	return nil
+}
+
+func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
+	return v.lastAcceptedBlock.ID(), nil
 }
 
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
@@ -275,24 +256,8 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	}
 }
 
-func WithHealthChecker[I Block, O Block, A Block](healthChecker health.Checker) Option[I, O, A] {
-	return func(opts *Options[I, O, A]) {
-		opts.HealthChecker = healthChecker
-	}
-}
-
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
 	return v.Options.HealthChecker.HealthCheck(ctx)
-}
-
-func (o *Options[I, O, A]) WithHandler(name string, handler http.Handler) {
-	o.Handlers[name] = handler
-}
-
-func WithHandler[I Block, O Block, A Block](name string, handler http.Handler) Option[I, O, A] {
-	return func(opts *Options[I, O, A]) {
-		opts.Handlers[name] = handler
-	}
 }
 
 func (v *VM[I, O, A]) CreateHandlers(ctx context.Context) (map[string]http.Handler, error) {
@@ -312,12 +277,6 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	return v.chain.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
-func (o *Options[I, O, A]) WithCloser(closer func() error) Option[I, O, A] {
-	return func(opts *Options[I, O, A]) {
-		opts.Closers = append(opts.Closers, closer)
-	}
-}
-
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	close(v.shutdownChan)
 
@@ -326,12 +285,6 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 		errs[i] = closer()
 	}
 	return errors.Join(errs...)
-}
-
-func WithVersion[I Block, O Block, A Block](version string) Option[I, O, A] {
-	return func(opts *Options[I, O, A]) {
-		opts.Version = version
-	}
 }
 
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {

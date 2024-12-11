@@ -332,8 +332,8 @@ func (vm *VM) Initialize(
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
 	validityWindowReady := hsnow.NewChanReady()
-	snowOptions.Ready = append(snowOptions.Ready, validityWindowReady)
-	snowOptions.WithAcceptedDynamicStateSyncSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
+	snowOptions.WithReady(validityWindowReady)
+	snowOptions.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
 		NotifyF: func(ctx context.Context, b *chain.ExecutionBlock) error {
 			vm.metrics.txsAccepted.Add(float64(len(b.StatelessBlock.Txs)))
 			seenValidityWindow, err := vm.syncer.Accept(ctx, b)

@@ -15,14 +15,12 @@ import (
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
-func WithStateSyncableVM[I Block, O Block, A Block](
+func (o *Options[I, O, A]) WithStateSyncableVM(
 	client *statesync.Client[*StatefulBlock[I, O, A]],
 	server *statesync.Server[*StatefulBlock[I, O, A]],
-) Option[I, O, A] {
-	return func(opts *Options[I, O, A]) {
-		opts.StateSyncClient = client
-		opts.StateSyncServer = server
-	}
+) {
+	o.StateSyncClient = client
+	o.StateSyncServer = server
 }
 
 type StateSyncConfig struct {
@@ -73,7 +71,7 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	)
 	o.StateSyncClient = client
 	o.OnNormalOperationStarted = append(o.OnNormalOperationStarted, client.StartBootstrapping)
-	o.Ready = append(o.Ready, o.StateSyncClient) // Require state sync client is ready before 
+	o.WithReady(o.StateSyncClient)
 	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
 }
 

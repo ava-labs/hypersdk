@@ -687,8 +687,10 @@ func FuzzSnowVM(f *testing.F) {
 		ce := NewTestConsensusEngineWithRandData(t, getRandData, &TestBlock{})
 
 		for i := byte(0); i < numSteps; i++ {
+			// Leave to fuzzer to determine "interesting" steps
+			// Note: leave to fuzzer to determine "default" case is a no-op
 			var s step
-			fz.Fill(&s) // Leave to fuzzer to determine what an interesting step is (default switch case is a no-op)
+			fz.Fill(&s)
 			ce.Step(ctx, s)
 		}
 	})

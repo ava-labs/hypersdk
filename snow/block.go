@@ -107,8 +107,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 
 	switch {
 	case !ready:
-		// If the state of the accepted tip has not been fully fetched, it is not safe to
-		// verify any block.
+		// If the VM is not ready (dynamic state sync), skip verifying the block.
 		b.vm.log.Info(
 			"skipping verification, state not ready",
 			zap.Uint64("height", b.Input.Height()),
@@ -126,6 +125,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	default:
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
 		// recursively verify ancestry.
+		// XXX: handle recursive verification
 		if err := b.innerVerify(ctx); err != nil {
 			b.vm.log.Warn("verification failed",
 				zap.Uint64("height", b.Input.Height()),
@@ -210,7 +210,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 				zap.Stringer("root", b.Input.GetStateRoot()),
 			)
 			// the sync is still ongoing, skip verification, and notify dynamic state sync subs
-			return event.NotifyAll(ctx, b.Input, b.vm.Options.AcceptedDynamicStateSyncSubs...)
+			return event.NotifyAll(ctx, b.Input, b.vm.Options.PreReadyAcceptedSubs...)
 		}
 
 		// This code handles the case where this block was not
@@ -246,7 +246,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 // implements "statesync.StateSummaryBlock"
 func (b *StatefulBlock[I, O, A]) AcceptSyncTarget(ctx context.Context) error {
-	return event.NotifyAll[I](ctx, b.Input, b.vm.Options.AcceptedDynamicStateSyncSubs...)
+	return event.NotifyAll[I](ctx, b.Input, b.vm.Options.PreReadyAcceptedSubs...)
 }
 
 // implements "statesync.StateSummaryBlock"
