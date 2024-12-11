@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
+	"github.com/thepudds/fzgen/fuzzer"
 	"golang.org/x/exp/slices"
 )
 
@@ -188,8 +189,6 @@ type TestConsensusEngine struct {
 }
 
 func NewTestConsensusEngine(t *testing.T, initLastAcceptedBlock *TestBlock) *TestConsensusEngine {
-	r := require.New(t)
-	ctx := context.Background()
 	rand := rand.New(rand.NewSource(0))
 	getRandData := func() []byte {
 		data := make([]byte, 32)
@@ -199,6 +198,12 @@ func NewTestConsensusEngine(t *testing.T, initLastAcceptedBlock *TestBlock) *Tes
 		}
 		return data
 	}
+	return NewTestConsensusEngineWithRandData(t, getRandData, initLastAcceptedBlock)
+}
+
+func NewTestConsensusEngineWithRandData(t *testing.T, getRandData func() []byte, initLastAcceptedBlock *TestBlock) *TestConsensusEngine {
+	r := require.New(t)
+	ctx := context.Background()
 	chain := NewTestChain(t, getRandData, initLastAcceptedBlock)
 	vm := NewVM(chain)
 	toEngine := make(chan common.Message, 1)
@@ -459,6 +464,50 @@ func (ce *TestConsensusEngine) GetLastAcceptedBlock(ctx context.Context) {
 
 // TODO: get accepted historical block
 
+type step int
+
+const (
+	buildBlock step = iota
+	acceptPreferredChain
+	parseInvalidBlockBytes
+	parseFutureBlock
+	parseAndVerifyNewRandomBlock
+	parseVerifiedBlock
+	parseAndVerifyInvalidBlock
+	swapRandomPreference
+	acceptNonPreferredBlock
+	getVerifiedBlock
+	getLastAcceptedBlock
+)
+
+func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
+	switch s {
+	case buildBlock:
+		ce.BuildBlock(ctx)
+	case acceptPreferredChain:
+		ce.AcceptPreferredChain(ctx)
+	case parseInvalidBlockBytes:
+		ce.ParseInvalidBlockBytes(ctx)
+	case parseFutureBlock:
+		ce.ParseFutureBlock(ctx)
+	case parseAndVerifyNewRandomBlock:
+		ce.ParseAndVerifyNewRandomBlock(ctx)
+	case parseVerifiedBlock:
+		ce.ParseVerifiedBlk(ctx)
+	case parseAndVerifyInvalidBlock:
+		ce.ParseAndVerifyInvalidBlock(ctx)
+	case swapRandomPreference:
+		ce.SwapRandomPreference(ctx)
+	case acceptNonPreferredBlock:
+		ce.AcceptNonPreferredBlock(ctx)
+	case getVerifiedBlock:
+		ce.GetVerifiedBlock(ctx)
+	case getLastAcceptedBlock:
+		ce.GetLastAcceptedBlock(ctx)
+	default:
+	}
+}
+
 func (ce *TestConsensusEngine) selectRandomVerifiedBlock(ctx context.Context) (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
 	for _, blk := range ce.verified {
 		return blk, true
@@ -621,16 +670,36 @@ func TestConflictingChains(t *testing.T) {
 	ce.r.Len(ce.verified, 0)
 }
 
+func FuzzSnowVM(f *testing.F) {
+	for i := byte(0); i < 100; i++ {
+		f.Add(i, []byte{i})
+	}
+	f.Fuzz(func(t *testing.T, numSteps byte, data []byte) {
+		fz := fuzzer.NewFuzzer(data)
+
+		ctx := context.Background()
+		getRandData := func() []byte {
+			data := make([]byte, 32)
+			fz.Fill(&data)
+			return data
+		}
+
+		ce := NewTestConsensusEngineWithRandData(t, getRandData, &TestBlock{})
+
+		for i := byte(0); i < numSteps; i++ {
+			var s step
+			fz.Fill(&s) // Leave to fuzzer to determine what an interesting step is (default switch case is a no-op)
+			ce.Step(ctx, s)
+		}
+	})
+}
+
 func TestDynamicStateSyncTransition_NoPendingBlocks(t *testing.T) {
 	t.Skip()
 }
 
 func TestDynamicStateSyncTransition_PendingTree(t *testing.T) {
 	t.Skip()
-}
-
-func FuzzSnowVM(f *testing.F) {
-	f.Skip()
 }
 
 func FuzzSnowVMDynamicStateSync(f *testing.F) {
