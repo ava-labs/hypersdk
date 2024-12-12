@@ -201,11 +201,16 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv := ts.NewView(
+		state.NewDefaultScope(
+			keys,
+			map[string][]byte{
+				heightKeyStr:    parentHeightRaw,
+				timestampKeyStr: parentTimestampRaw,
+				feeKeyStr:       parentFeeManager.Bytes(),
+			},
+		),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
 	}
@@ -355,7 +360,12 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(
+				state.NewDefaultScope(
+					stateKeys,
+					storage,
+				),
+			)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {

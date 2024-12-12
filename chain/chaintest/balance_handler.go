@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec/codectest"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -74,8 +75,10 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			state.NewDefaultScope(
+				bh.SponsorStateKeys(addrOne),
+				ms.Storage,
+			),
 		)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
@@ -94,8 +97,10 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			state.NewDefaultScope(
+				bh.SponsorStateKeys(addrOne),
+				ms.Storage,
+			),
 		)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
@@ -114,8 +119,10 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			state.NewDefaultScope(
+				bh.SponsorStateKeys(addrOne),
+				ms.Storage,
+			),
 		)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
@@ -134,8 +141,10 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 
 		ts := tstate.New(1)
 		tsv := ts.NewView(
-			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			state.NewDefaultScope(
+				bh.SponsorStateKeys(addrOne),
+				ms.Storage,
+			),
 		)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))
