@@ -4,55 +4,37 @@
 package snow
 
 import (
-	"encoding/json"
-
-	"github.com/ava-labs/hypersdk/internal/trace"
+	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/hypersdk/context"
 )
 
-type Config map[string]json.RawMessage
-
-func NewConfig(b []byte) (Config, error) {
-	c := Config{}
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, &c); err != nil {
-			return nil, err
-		}
-	}
-	return c, nil
-}
-
-func (c Config) Get(key string) ([]byte, bool) {
-	if val, ok := c[key]; ok {
-		return val, true
-	}
-	return nil, false
-}
-
-func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
-	val, ok := c[key]
-	if !ok {
-		return defaultConfig, nil
-	}
-
-	var emptyConfig T
-	if err := json.Unmarshal(val, &defaultConfig); err != nil {
-		return emptyConfig, err
-	}
-	return defaultConfig, nil
-}
+const (
+	VMConfigKey           = "vm"
+	TracerConfigKey       = "tracer"
+	ContinuousProfilerKey = "continuousProfiler"
+)
 
 type VMConfig struct {
-	TraceConfig trace.Config `json:"traceConfig"`
-
-	// Cache sizes
 	ParsedBlockCacheSize     int `json:"parsedBlockCacheSize"`
 	AcceptedBlockWindowCache int `json:"acceptedBlockWindowCache"`
 }
 
 func NewDefaultVMConfig() VMConfig {
 	return VMConfig{
-		TraceConfig:              trace.Config{Enabled: false},
 		ParsedBlockCacheSize:     128,
 		AcceptedBlockWindowCache: 128,
 	}
+}
+
+func GetVMConfig(ctx *context.Context) (VMConfig, error) {
+	return context.GetConfigFromContext[VMConfig](ctx, VMConfigKey, NewDefaultVMConfig())
+}
+
+func GetTraceConfig(ctx *context.Context) (trace.Config, error) {
+	return context.GetConfigFromContext[trace.Config](ctx, TracerConfigKey, trace.Config{Enabled: false})
+}
+
+func GetProfilerConfig(ctx *context.Context) (profiler.Config, error) {
+	return context.GetConfigFromContext[profiler.Config](ctx, ContinuousProfilerKey, profiler.Config{Enabled: false})
 }

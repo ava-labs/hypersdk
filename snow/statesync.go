@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -35,6 +36,10 @@ func NewDefaultStateSyncConfig() StateSyncConfig {
 	}
 }
 
+func GetStateSyncConfig(ctx *hcontext.Context) (StateSyncConfig, error) {
+	return hcontext.GetConfigFromContext(ctx, "statesync", NewDefaultStateSyncConfig())
+}
+
 func (o *Options[I, O, A]) WithStateSyncer(
 	db database.Database,
 	stateDB merkledb.MerkleDB,
@@ -52,7 +57,7 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	if err := o.vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
 		return err
 	}
-	stateSyncConfig, err := GetConfig(o.vm.config, "statesync", NewDefaultStateSyncConfig())
+	stateSyncConfig, err := GetStateSyncConfig(o.vm.hctx)
 	if err != nil {
 		return err
 	}
@@ -72,6 +77,14 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	o.StateSyncClient = client
 	o.OnNormalOperationStarted = append(o.OnNormalOperationStarted, client.StartBootstrapping)
 	o.WithReady(o.StateSyncClient)
+	// Note: this is not perfect because we may need to get a notification of a block between finishing state sync
+	// and when the engine/VM has received the notification and switched over.
+	// o.WithPreReadyAcceptedSub(event.SubscriptionFunc[I]{
+	// 	NotifyF: func(ctx context.Context, block I) error {
+	// 		_, err := client.UpdateSyncTarget(block)
+	// 		return err
+	// 	},
+	// })
 	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
 }
 

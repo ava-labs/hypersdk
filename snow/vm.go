@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"go.uber.org/zap"
 )
@@ -36,7 +37,7 @@ type ChainInput struct {
 	GenesisBytes, UpgradeBytes, ConfigBytes []byte
 	ToEngine                                chan<- common.Message
 	Shutdown                                <-chan struct{}
-	Tracer                                  trace.Tracer
+	Context                                 *hcontext.Context
 }
 
 type Chain[I Block, O Block, A Block] interface {
@@ -65,8 +66,8 @@ type VM[I Block, O Block, A Block] struct {
 
 	snowCtx *snow.Context
 
-	config   Config
 	vmConfig VMConfig
+	hctx     *hcontext.Context
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]
 
@@ -116,40 +117,37 @@ func (v *VM[I, O, A]) Initialize(
 ) error {
 	v.covariantVM = &CovariantVM[I, O, A]{v}
 	v.shutdownChan = make(chan struct{})
-	config, err := NewConfig(configBytes)
+
+	hctx, err := hcontext.New(
+		chainCtx.Log,
+		chainCtx.Metrics,
+		configBytes,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
+		return fmt.Errorf("failed to create hypersdk context: %w", err)
 	}
-	v.config = config
-	v.vmConfig, err = GetConfig[VMConfig](config, "vm", NewDefaultVMConfig())
+	v.hctx = hctx
+	v.tracer = hctx.Tracer()
+	ctx, span := v.tracer.Start(ctx, "VM.Initialize")
+	defer span.End()
+
+	v.vmConfig, err = GetVMConfig(v.hctx)
 	if err != nil {
 		return fmt.Errorf("failed to parse vm config: %w", err)
 	}
-	defaultRegistry, metrics, err := newMetrics()
+
+	defaultRegistry, err := v.hctx.MakeRegistry("hypersdk")
 	if err != nil {
 		return err
 	}
-	if err := chainCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
+	metrics, err := newMetrics(defaultRegistry)
+	if err != nil {
 		return err
 	}
 	v.metrics = metrics
 	v.log = chainCtx.Log
 
-	// Setup tracer
-	traceConfig, err := GetConfig[trace.Config](v.config, "tracer", trace.Config{Enabled: false})
-	if err != nil {
-		return err
-	}
-	v.tracer, err = trace.New(traceConfig)
-	if err != nil {
-		return err
-	}
-	ctx, span := v.tracer.Start(ctx, "VM.Initialize")
-	defer span.End()
-
-	continuousProfilerConfig, err := GetConfig[profiler.Config](v.config, "continuousProfiler", profiler.Config{
-		Enabled: false,
-	})
+	continuousProfilerConfig, err := GetProfilerConfig(v.hctx)
 	if err != nil {
 		return fmt.Errorf("failed to parse continuous profiler config: %w", err)
 	}
@@ -191,12 +189,15 @@ func (v *VM[I, O, A]) Initialize(
 		ConfigBytes:  configBytes,
 		ToEngine:     toEngine,
 		Shutdown:     v.shutdownChan,
-		Tracer:       v.tracer,
+		Context:      v.hctx,
 	}
 
-	inputBlock, outputBlock, acceptedBlock, err := v.chain.Initialize(ctx, chainInput, ChainIndex[I, O, A]{
-		covariantVM: v.covariantVM,
-	}, &v.Options)
+	inputBlock, outputBlock, acceptedBlock, err := v.chain.Initialize(
+		ctx,
+		chainInput,
+		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
+		&v.Options,
+	)
 	if err != nil {
 		return err
 	}
@@ -210,6 +211,19 @@ func (v *VM[I, O, A]) Initialize(
 
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
 	return v.covariantVM.GetBlock(ctx, blkID)
+}
+
+func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
+	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
+	defer span.End()
+
+	if blkHeight == v.lastAcceptedBlock.Height() {
+		return v.lastAcceptedBlock.ID(), nil
+	}
+	if blkID, ok := v.acceptedBlocksByHeight.Get(blkHeight); ok {
+		return blkID, nil
+	}
+	return v.chain.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
@@ -262,19 +276,6 @@ func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
 
 func (v *VM[I, O, A]) CreateHandlers(ctx context.Context) (map[string]http.Handler, error) {
 	return v.Options.Handlers, nil
-}
-
-func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
-	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
-	defer span.End()
-
-	if blkHeight == v.lastAcceptedBlock.Height() {
-		return v.lastAcceptedBlock.ID(), nil
-	}
-	if blkID, ok := v.acceptedBlocksByHeight.Get(blkHeight); ok {
-		return blkID, nil
-	}
-	return v.chain.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
 func (v *VM[I, O, A]) Shutdown(context.Context) error {

@@ -16,16 +16,14 @@ type Metrics struct {
 	blockProcess metric.Averager
 }
 
-func newMetrics() (*prometheus.Registry, *Metrics, error) {
-	r := prometheus.NewRegistry()
-
+func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 	blockBuild, err := metric.NewAverager(
 		"chain_block_build",
 		"time spent building blocks",
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	blockParse, err := metric.NewAverager(
 		"chain_block_parse",
@@ -33,7 +31,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	blockVerify, err := metric.NewAverager(
 		"chain_block_verify",
@@ -41,7 +39,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	blockAccept, err := metric.NewAverager(
 		"chain_block_accept",
@@ -49,7 +47,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	blockProcess, err := metric.NewAverager(
 		"chain_block_process",
@@ -57,7 +55,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	m := &Metrics{
@@ -68,5 +66,5 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockProcess: blockProcess,
 	}
 
-	return r, m, nil
+	return m, nil
 }

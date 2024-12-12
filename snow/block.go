@@ -6,6 +6,7 @@ package snow
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -123,15 +124,33 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			zap.Stringer("blkID", b.Input.ID()),
 		)
 	default:
-		// Parent block may not be processed when we verify this block, so [innerVerify] may
-		// recursively verify ancestry.
-		// XXX: handle recursive verification
-		if err := b.innerVerify(ctx); err != nil {
-			b.vm.log.Warn("verification failed",
-				zap.Uint64("height", b.Input.Height()),
-				zap.Stringer("blkID", b.Input.ID()),
-				zap.Error(err),
-			)
+		parent, err := b.vm.GetBlock(ctx, b.Parent())
+		if err != nil {
+			return err
+		}
+		// If the parent has not been verified and we're no longer in dynamic state sync,
+		// attempt to verify from the last accepted block through to the parent.
+		// Any error along this chain will invalidate the entire chain.
+		if !parent.verified {
+			blksToProcess, err := b.getAncestorsToLastAccepted(ctx)
+			if err != nil {
+				return err
+			}
+			parent := b.vm.lastAcceptedBlock
+			for _, ancestor := range blksToProcess {
+				if err := ancestor.verify(ctx, parent.Output); err != nil {
+					return err
+				}
+				parent = ancestor
+			}
+		}
+
+		// Verify the block against the parent
+		if err := b.verify(ctx, parent.Output); err != nil {
+			return err
+		}
+
+		if err := event.NotifyAll[O](ctx, b.Output, b.vm.Options.VerifiedSubs...); err != nil {
 			return err
 		}
 	}
@@ -139,10 +158,6 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	b.vm.verifiedL.Lock()
 	b.vm.verifiedBlocks[b.Input.ID()] = b
 	b.vm.verifiedL.Unlock()
-
-	if err := event.NotifyAll[O](ctx, b.Output, b.vm.Options.VerifiedSubs...); err != nil {
-		return err
-	}
 
 	if b.verified {
 		b.vm.log.Debug("verified block",
@@ -158,29 +173,42 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	return nil
 }
 
-// innerVerify executes the block
-//
-// Invariants:
-// Accepted / Rejected blocks should never have Verify called on them.
-// Blocks that were verified (and returned nil) with Verify will not have verify called again.
-//
-// When this may be called:
-//  1. Verify
-//  2. If the parent view is missing when verifying (dynamic state sync)
-//  3. If the view of a block we are accepting is missing (finishing dynamic
-//     state sync)
-func (b *StatefulBlock[I, O, A]) innerVerify(ctx context.Context) error {
-	parentBlk, err := b.vm.GetBlock(ctx, b.Parent())
-	if err != nil {
-		return fmt.Errorf("failed to fetch parent block: %w", err)
-	}
-	output, err := b.vm.chain.Execute(ctx, parentBlk.Output, b.Input)
+// verify the block against the provided parent output and set the
+// required Output/verified fields.
+func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) error {
+	output, err := b.vm.chain.Execute(ctx, parentOutput, b.Input)
 	if err != nil {
 		return err
 	}
 	b.Output = output
 	b.verified = true
 	return nil
+}
+
+// accept the block and set the required Accepted/accepted fields.
+// Assumes verify has already been called.
+func (b *StatefulBlock[I, O, A]) accept(ctx context.Context) error {
+	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, b.Output)
+	if err != nil {
+		return err
+	}
+	b.Accepted = acceptedBlk
+	b.accepted = true
+	return nil
+}
+
+// markAccepted marks the block and updates the required VM state.
+func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
+	b.vm.verifiedL.Lock()
+	delete(b.vm.verifiedBlocks, b.Input.ID())
+	b.vm.verifiedL.Unlock()
+	b.vm.covariantVM.lastAcceptedBlock = b
+
+	if b.accepted {
+		return event.NotifyAll(ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
+	} else {
+		return event.NotifyAll(ctx, b.Input, b.vm.Options.PreReadyAcceptedSubs...)
+	}
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -193,55 +221,35 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Accept")
 	defer span.End()
 
-	// Consider verifying the a block if it is not processed and we are no longer
-	// syncing.
-	if !b.verified {
-		// The state of this block was not calculated during the call to
-		// [StatefulBlock.Verify]. This is because the VM was state syncing
-		// and did not have the state necessary to verify the block.
-		// TODO: Move dynamic state sync block wrapper into state sync package.
-		updated, err := b.vm.Options.StateSyncClient.UpdateSyncTarget(b)
-		if err != nil {
+	// If I've already been verified, accept myself.
+	if b.verified {
+		if err := b.accept(ctx); err != nil {
 			return err
 		}
-		if updated {
-			b.vm.log.Info("updated state sync target",
-				zap.Stringer("id", b.Input.ID()),
-				zap.Stringer("root", b.Input.GetStateRoot()),
-			)
-			// the sync is still ongoing, skip verification, and notify dynamic state sync subs
-			return event.NotifyAll(ctx, b.Input, b.vm.Options.PreReadyAcceptedSubs...)
-		}
-
-		// This code handles the case where this block was not
-		// verified during state sync (stopped syncing with a
-		// processing block).
-		//
-		// If state sync completes before accept is called
-		// then we need to process it here.
-		b.vm.log.Info("verifying unprocessed block in accept",
-			zap.Stringer("id", b.Input.ID()),
-			zap.Stringer("root", b.Input.GetStateRoot()),
-		)
-		if err := b.innerVerify(ctx); err != nil {
-			return fmt.Errorf("%w: unable to verify block", err)
-		}
+		return b.markAccepted(ctx)
 	}
 
-	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, b.Output)
+	// If I'm not ready yet, mark myself as accepted, and return early.
+	isReady := b.vm.Options.Ready.Ready()
+	if !isReady {
+		return b.markAccepted(ctx)
+	}
+
+	// If I haven't verified myself, then I need to verify myself before before
+	// accepting myself.
+	// My parent must either be directly verified or have been fully populated
+	// by state sync completing.
+	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
+		return fmt.Errorf("failed to fetch parent while accepting %s: %w", b, err)
+	}
+	if err := b.verify(ctx, parent.Output); err != nil {
 		return err
 	}
-	b.Accepted = acceptedBlk
-	b.accepted = true
-
-	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.ID())
-	b.vm.verifiedL.Unlock()
-	b.vm.covariantVM.lastAcceptedBlock = b
-
-	// Mark block as accepted and update last accepted in storage
-	return event.NotifyAll[A](ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
+	if err := b.accept(ctx); err != nil {
+		return err
+	}
+	return b.markAccepted(ctx)
 }
 
 // implements "statesync.StateSummaryBlock"
@@ -261,7 +269,10 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	delete(b.vm.verifiedBlocks, b.Input.ID())
 	b.vm.verifiedL.Unlock()
 
-	return event.NotifyAll[O](ctx, b.Output, b.vm.Options.RejectedSubs...)
+	if b.verified {
+		return event.NotifyAll[O](ctx, b.Output, b.vm.Options.RejectedSubs...)
+	}
+	return nil
 }
 
 // Testing
@@ -274,6 +285,14 @@ func (b *StatefulBlock[I, O, A]) MarkUnprocessed() {
 	b.verified = false
 	b.Accepted = emptyAccepted
 	b.accepted = false
+}
+
+// Testing
+func (b *StatefulBlock[I, O, A]) markProcessed(output O, accepted A) {
+	b.Output = output
+	b.verified = true
+	b.Accepted = accepted
+	b.accepted = true
 }
 
 // implements "snowman.Block"
@@ -293,3 +312,25 @@ func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
 
 // implements "fmt.Stringer"
 func (b *StatefulBlock[I, O, A]) String() string { return b.Input.String() }
+
+// getAncestorsToLastAccepted returns the range of blocks (lastAccepted, b)
+func (b *StatefulBlock[I, O, A]) getAncestorsToLastAccepted(ctx context.Context) ([]*StatefulBlock[I, O, A], error) {
+	blksToProcess := make([]*StatefulBlock[I, O, A], 0)
+	nextBlock := b
+	for {
+		parent, err := b.vm.GetBlock(ctx, nextBlock.Parent())
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch parent block while verifying ancestors: %w", err)
+		}
+		if parent.ID() == b.vm.lastAcceptedBlock.ID() {
+			break
+		}
+		if parent.Height() <= b.vm.lastAcceptedBlock.Height() {
+			return nil, fmt.Errorf("hit unexpected block while verifying ancestors: %d <= %d for block %s", parent.Height(), b.vm.lastAcceptedBlock.Height(), b)
+		}
+		blksToProcess = append(blksToProcess, parent)
+		nextBlock = parent
+	}
+	slices.Reverse(blksToProcess)
+	return blksToProcess, nil
+}

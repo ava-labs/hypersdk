@@ -208,7 +208,7 @@ func (vm *VM) Initialize(
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
-	vm.tracer = chainInput.Tracer
+	vm.tracer = chainInput.Context.Tracer()
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
