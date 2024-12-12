@@ -5,11 +5,19 @@ package state
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
-var _ Scope = (*DefaultScope)(nil)
+var (
+	_ Scope = (*DefaultScope)(nil)
+	_ Scope = (*SimulatedScope)(nil)
+)
+
+var ErrValueTooShortToBeSuffixed = errors.New("value is too short to be suffixed")
 
 type Scope interface {
 	Has(key []byte, perm Permissions) bool
@@ -27,6 +35,24 @@ func NewDefaultScope(keys Keys, storage map[string][]byte) *DefaultScope {
 		keys:    keys,
 		storage: storage,
 	}
+}
+
+// Invariant: storage is a set of KV-pairs where the values are suffixed with
+// the block height at which they were last touched
+func NewUnsuffixedDefaultScope(keys Keys, storage map[string][]byte) (*DefaultScope, error) {
+	st := make(map[string][]byte, len(storage))
+
+	for k, v := range storage {
+		if len(v) < consts.Uint64Len {
+			return nil, ErrValueTooShortToBeSuffixed
+		}
+		st[k] = v[:len(v)-consts.Uint64Len]
+	}
+
+	return &DefaultScope{
+		keys:    keys,
+		storage: st,
+	}, nil
 }
 
 func (d *DefaultScope) GetValue(_ context.Context, key []byte) ([]byte, error) {

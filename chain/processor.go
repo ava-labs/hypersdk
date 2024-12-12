@@ -192,6 +192,26 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
+	// Before continuing, we append the executing block's suffix to all existing
+	// touched values
+	changedKeys := ts.ChangedKeys()
+	tsv := ts.NewView(
+		state.NewSimulatedScope(
+			state.Keys{},
+			parentView,
+		),
+	)
+
+	for k := range changedKeys {
+		if changedKeys[k].HasValue() {
+			if err := tsv.Insert(ctx, []byte(k), binary.BigEndian.AppendUint64(changedKeys[k].Value(), b.Height())); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	tsv.Commit()
+
 	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
@@ -201,7 +221,7 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(
+	tsv = ts.NewView(
 		state.NewDefaultScope(
 			keys,
 			map[string][]byte{
@@ -360,15 +380,14 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(
-				state.NewDefaultScope(
-					stateKeys,
-					storage,
-				),
-			)
+			scope, err := state.NewUnsuffixedDefaultScope(stateKeys, storage)
+			if err != nil {
+				return err
+			}
+			tsv := ts.NewView(scope)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t, true); err != nil {
 				return err
 			}
 

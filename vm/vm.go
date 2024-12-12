@@ -30,6 +30,7 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -681,7 +682,30 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
 	}
 	// Atomic read to ensure consistency
-	return vm.stateDB.GetValues(ctx, keys)
+	values, errs := vm.stateDB.GetValues(ctx, keys)
+
+	returnValues := make([][]byte, 0, len(values))
+	returnErrors := make([]error, 0, len(values))
+
+	// TODO: could we make this cleaner?
+	// Assuming that len(values) == len(errs)
+	for i, v := range values {
+		if errs[i] != nil {
+			returnErrors = append(returnErrors, errs[i])
+			returnValues = append(returnValues, nil)
+			continue
+		}
+		// Time to unsuffix
+		if len(v) < consts.Uint64Len {
+			returnErrors = append(returnErrors, fmt.Errorf("value too short to have a suffix"))
+			returnValues = append(returnValues, nil)
+			continue
+		}
+		returnValues = append(returnValues, v[:len(v)-consts.Uint64Len])
+		returnErrors = append(returnErrors, nil)
+	}
+
+	return returnValues, returnErrors
 }
 
 func (vm *VM) SetState(ctx context.Context, state snow.State) error {

@@ -60,6 +60,13 @@ func (ts *TState) OpIndex() int {
 	return ts.ops
 }
 
+func (ts *TState) ChangedKeys() map[string]maybe.Maybe[[]byte] {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	return ts.changedKeys
+}
+
 // ExportMerkleDBView creates a slice of [database.BatchOp] of all
 // changes in [TState] that can be used to commit to [merkledb].
 func (ts *TState) ExportMerkleDBView(
