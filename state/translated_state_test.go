@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package state
 
 import (
@@ -6,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/state/dbtest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/state/dbtest"
 )
 
 func TestTranslatedImmutableState(t *testing.T) {

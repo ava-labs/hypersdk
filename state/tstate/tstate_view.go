@@ -51,10 +51,7 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// stores a map of managed keys and its permissions in the TState struct
-	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
-	// key, see issue below)
-	// https://github.com/ava-labs/hypersdk/issues/709
+	// TODO: add documentation here
 	scope state.Scope
 
 	// Store which keys are modified and how large their values were.
@@ -177,14 +174,23 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, error) 
 		}
 		return v.Value(), nil
 	}
-	// TODO: figure out if this violates any tiered storage invariants
+
+	// We're calling scope here, so we need to ensure we have the correct
+	// permissions
+	// Otherwise, getValue() could allow for permission piggybacking
+	val, err := ts.scope.GetValue(ctx, key)
+	if err != nil && err != database.ErrNotFound {
+		// Either we are permission piggybacking or something went wrong
+		return nil, err
+	}
+
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		if exists {
 			return v, nil
 		}
 		return v, database.ErrNotFound
 	}
-	return ts.scope.GetValue(ctx, key)
+	return val, err
 }
 
 // isUnchanged determines if a [key] is unchanged from the parent view (or

@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/dbtest"
 )
 
 var (
@@ -942,3 +943,126 @@ func TestInsertAllocate(t *testing.T) {
 		})
 	}
 }
+
+func TestGetValueTieredScope(t *testing.T) {
+	ctx := context.TODO()
+	ts := New(0)
+	tests := []struct {
+		name string
+
+		sk          state.Keys
+		ims         map[string][]byte
+		db          state.Immutable
+		blockHeight uint64
+		epsilon     uint64
+
+		key   []byte
+		value []byte
+		err   error
+	}{
+		{
+			name: "state key does not exist",
+			key:  testKey,
+			err:  ErrInvalidKeyOrPermission,
+		},
+		{
+			name:  "value exists in local memory",
+			sk:    state.Keys{string(testKey): state.ReadFromMemory},
+			ims:   map[string][]byte{string(testKey): binary.BigEndian.AppendUint64(testVal, 0)},
+			key:   testKey,
+			value: testVal,
+		},
+		{
+			name: "value exists in persistent storage, but ReadFromMemory only",
+			sk:   state.Keys{string(testKey): state.ReadFromMemory},
+			db: func() state.Immutable {
+				r := require.New(t)
+				db := dbtest.NewTestDB()
+				r.NoError(db.Insert(ctx, testKey, binary.BigEndian.AppendUint64(testVal, 1)))
+				return db
+			}(),
+			blockHeight: 3,
+			epsilon:     1,
+			key:         testKey,
+			err:         state.ErrOptimisticReadFailed,
+		},
+		{
+			name: "value exists in persistent storage and ReadFromStorage",
+			sk:   state.Keys{string(testKey): state.ReadFromMemory},
+			db: func() state.Immutable {
+				r := require.New(t)
+				db := dbtest.NewTestDB()
+				r.NoError(db.Insert(ctx, testKey, binary.BigEndian.AppendUint64(testVal, 1)))
+				return db
+			}(),
+			blockHeight: 2,
+			epsilon:     1,
+			key:         testKey,
+			value:       testVal,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			scope, err := state.NewTieredScope(
+				tt.sk,
+				tt.ims,
+				tt.db,
+				tt.blockHeight,
+				tt.epsilon,
+			)
+			r.NoError(err)
+
+			tsv := ts.NewView(scope)
+			val, err := tsv.GetValue(ctx, tt.key)
+			r.ErrorIs(err, tt.err)
+			r.Equal(tt.value, val)
+		})
+	}
+}
+
+// This is where we would want to test the tiered storage invariants
+// Rule: each transaction commits at most once
+// NOTE TO SELF: THESE TEST CASES ARE IMPORTANT AS THEY MAKE US THINK ABOUT THE
+// INVARIANTS OF TIERED STORAGE
+func TestInsertTieredScope(t *testing.T) {
+	// Flow would probably be something like:
+	// - Allocate a new value
+	// - Commit back to TS
+	// - Create new view
+	// - Enforce invariants using scope and new view
+	r := require.New(t)
+	ctx := context.TODO()
+
+	ts := New(0)
+	db := dbtest.NewTestDB()
+	scope, err := state.NewTieredScope(
+		state.Keys{string(testKey): state.Allocate | state.Write},
+		nil,
+		db,
+		0,
+		0,
+	)
+	r.NoError(err)
+
+	tsv := ts.NewView(scope)
+	r.NoError(tsv.Insert(ctx, testKey, testVal))
+	tsv.Commit()
+
+	scope, err = state.NewTieredScope(
+		state.Keys{string(testKey): state.ReadFromMemory},
+		nil,
+		db,
+		0,
+		0,
+	)
+	r.NoError(err)
+
+	tsv = ts.NewView(scope)
+	_, err = tsv.GetValue(ctx, testKey)
+	r.ErrorIs(err, state.ErrOptimisticReadFailed)
+}
+
+func TestRemoveTieredScope(t *testing.T) {}

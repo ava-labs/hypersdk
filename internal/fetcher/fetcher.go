@@ -134,7 +134,7 @@ func (f *Fetcher) handleErr(err error) {
 	})
 }
 
-// Fetch enqueues a set of [stateKeys] to be fetched from disk. Duplicate keys
+// Fetch enqueues a set of [keys] to be fetched from disk. Duplicate keys
 // are only fetched once and fetch priority is done in the order [Fetch] is called.
 //
 // Fetch can be called concurrently.
