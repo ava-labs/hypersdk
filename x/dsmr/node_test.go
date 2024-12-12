@@ -1157,19 +1157,12 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			chunks:        []int{3},
 			timestamp:     4,
 			verifyWantErr: validitywindow.ErrDuplicateContainer,
-		},
-		{
-			name:                       "three blocks non consecutive duplicate chunks outside validity window",
-			parentBlocks:               [][]int{{1}, {2}},
-			chunks:                     []int{1},
-			timestamp:                  4,
-			verifyWantErr:              nil,
-			validalidityWindowDuration: 1,
+			buildWantErr:  ErrNoAvailableChunkCerts,
 		},
 		{
 			name:          "monotonic timestamping",
 			parentBlocks:  [][]int{},
-			chunks:        []int{2},
+			chunks:        []int{1},
 			timestamp:     0,
 			verifyWantErr: ErrInvalidBlockHeight,
 			buildWantErr:  ErrTimestampNotMonotonicallyIncreasing,
@@ -1181,6 +1174,15 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			timestamp:     6,
 			verifyWantErr: ErrEmptyBlock,
 			buildWantErr:  ErrNoAvailableChunkCerts,
+		},
+		{
+			name:                       "three blocks non consecutive duplicate chunks outside validity window",
+			parentBlocks:               [][]int{{4}, {5}},
+			chunks:                     []int{4},
+			timestamp:                  4,
+			verifyWantErr:              validitywindow.ErrDuplicateContainer, // this isn't ideal, since it would disqualify a duplicate chunk even when it's outside the validity window. However, it default to the correct direction.
+			buildWantErr:               ErrNoAvailableChunkCerts,
+			validalidityWindowDuration: 1,
 		},
 	}
 	for _, testCase := range tests {
@@ -1197,25 +1199,6 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			node = nodes[0]
 			node.validityWindowDuration = validationWindow
 
-			var chunks []Chunk[tx]
-			var chunkCerts []*ChunkCertificate
-			for expiry := int64(0); expiry < 5; expiry++ {
-				chunk, cert, err := node.BuildChunk(
-					context.Background(),
-					[]tx{
-						{
-							ID:     ids.GenerateTestID(),
-							Expiry: expiry,
-						},
-					},
-					expiry,
-					codec.Address{},
-				)
-				r.NoError(err)
-				chunks = append(chunks, chunk)
-				chunkCerts = append(chunkCerts, &cert)
-			}
-
 			// initialize node history.
 			parentBlk := node.LastAccepted
 			for _, chunkList := range testCase.parentBlocks {
@@ -1225,8 +1208,21 @@ func TestNode_Verify_Chunks(t *testing.T) {
 					Timestamp: int64(int(node.LastAccepted.Timestamp) + 1),
 					blkID:     ids.GenerateTestID(),
 				}
-				for _, chunkIndex := range chunkList {
-					blk.ChunkCerts = append(blk.ChunkCerts, chunkCerts[chunkIndex])
+
+				for _, chunkExpiry := range chunkList {
+					_, chunkCert, err := node.BuildChunk(
+						context.Background(),
+						[]tx{
+							{
+								ID:     ids.Empty,
+								Expiry: int64(chunkExpiry),
+							},
+						},
+						int64(chunkExpiry),
+						codec.Address{},
+					)
+					r.NoError(err)
+					blk.ChunkCerts = append(blk.ChunkCerts, &chunkCert)
 				}
 
 				r.NoError(node.Verify(context.Background(), parentBlk, blk))
@@ -1235,12 +1231,6 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				indexer.set(blk.GetID(), NewExecutionBlock(blk))
 				parentBlk = blk
 			}
-			// feed the chunks into the storage and build a block.
-			for _, chunkIdx := range testCase.chunks {
-				r.NoError(node.storage.AddLocalChunkWithCert(chunks[chunkIdx], chunkCerts[chunkIdx]))
-			}
-			_, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
-			r.ErrorIs(err, testCase.buildWantErr)
 
 			// create the block so that we can test it against the execute directly.
 			newBlk := Block{
@@ -1249,9 +1239,25 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				Timestamp: testCase.timestamp,
 				blkID:     ids.GenerateTestID(),
 			}
-			for _, chunkIndex := range testCase.chunks {
-				newBlk.ChunkCerts = append(newBlk.ChunkCerts, chunkCerts[chunkIndex])
+
+			for _, chunkExpiry := range testCase.chunks {
+				_, chunkCert, err := node.BuildChunk(
+					context.Background(),
+					[]tx{
+						{
+							ID:     ids.Empty, // ids.GenerateTestID(),
+							Expiry: int64(chunkExpiry),
+						},
+					},
+					int64(chunkExpiry),
+					codec.Address{},
+				)
+				r.NoError(err)
+				newBlk.ChunkCerts = append(newBlk.ChunkCerts, &chunkCert)
 			}
+			_, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			r.ErrorIs(err, testCase.buildWantErr)
+
 			r.ErrorIs(node.Verify(context.Background(), parentBlk, newBlk), testCase.verifyWantErr)
 		})
 	}
