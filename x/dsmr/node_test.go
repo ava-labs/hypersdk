@@ -31,34 +31,36 @@ import (
 	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
-const networkID = uint32(123)
+const (
+	networkID                            = uint32(123)
+	testingDefaultValidityWindowDuration = time.Duration(5)
+)
 
 var (
-	_ Tx           = (*tx)(nil)
-	_ Verifier[tx] = (*failVerifier)(nil)
+	_ Tx                                               = (*tx)(nil)
+	_ Verifier[tx]                                     = (*failVerifier)(nil)
+	_ validitywindow.ChainIndex[*emapChunkCertificate] = (*testValidityWindowChainIndex)(nil)
 
 	chainID = ids.Empty
 )
 
-const testingDefaultValidityWindowDuration = time.Duration(5)
-
-type testingChainIndex struct {
+type testValidityWindowChainIndex struct {
 	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]
 }
 
-func (t *testingChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], bool, error) {
+func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], bool, error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, true, nil
 	}
 	return nil, false, nil
 }
 
-func (t *testingChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
+func (t *testValidityWindowChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
 	t.blocks[blkID] = blk
 }
 
-func newTestingChainIndexer() *testingChainIndex {
-	return &testingChainIndex{
+func newTestValidityWindowChainIndex() *testValidityWindowChainIndex {
+	return &testValidityWindowChainIndex{
 		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]),
 	}
 }
@@ -608,7 +610,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				newTestingChainIndexer(),
+				newTestValidityWindowChainIndex(),
 				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
@@ -1192,10 +1194,8 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				validationWindow = testingDefaultValidityWindowDuration
 			}
 
-			var nodes []*Node[tx]
 			var node *Node[tx]
-			var indexer *testingChainIndex
-			nodes, indexer = newNodes(t, 1)
+			nodes, indexer := newNodes(t, 1)
 			node = nodes[0]
 			node.validityWindowDuration = validationWindow
 
@@ -1548,7 +1548,7 @@ func newTestNode(t *testing.T) *Node[tx] {
 	return nodes[0]
 }
 
-func newNodes(t *testing.T, n int) ([]*Node[tx], *testingChainIndex) {
+func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1586,7 +1586,7 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testingChainIndex) {
 		})
 	}
 
-	indexer := newTestingChainIndexer()
+	indexer := newTestValidityWindowChainIndex()
 
 	result := make([]*Node[tx], 0, n)
 	for i, n := range nodes {
