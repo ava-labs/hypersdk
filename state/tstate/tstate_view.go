@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 )
 
 const defaultOps = 4
@@ -41,14 +42,14 @@ type TStateView struct {
 	ops []*op
 
 	// TODO: add documentation for this field
-	scope state.Scope
+	scope scope.Scope
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Scope) *TStateView {
+func (ts *TState) NewView(scope scope.Scope) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], scope.Len()),

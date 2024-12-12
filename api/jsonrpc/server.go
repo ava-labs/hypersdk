@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -223,7 +224,7 @@ func (j *JSONRPCServer) ExecuteActions(
 		}
 
 		tsv := ts.NewView(
-			state.NewDefaultScope(
+			scope.NewDefaultScope(
 				stateKeysWithPermissions,
 				storage,
 			),
@@ -298,7 +299,7 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 
 	ts := tstate.New(0)
-	scope := state.NewSimulatedScope(
+	scope := scope.NewSimulatedScope(
 		state.Keys{},
 		currentState,
 	)

@@ -57,6 +57,11 @@ var (
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
+	// Refunds
+	ErrRefundDimensions      = errors.New("failed to get refund dimensions")
+	ErrFailedToComputeRefund = errors.New("failed to compute refund")
+	ErrRefundFailed          = errors.New("failed to refund")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

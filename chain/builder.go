@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -290,7 +291,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				scope, err := state.NewUnsuffixedDefaultScope(stateKeys, storage)
+				scope, err := scope.NewTieredScope(stateKeys, storage, c.config.Epsilon, height)
 				if err != nil {
 					c.log.Warn("unable to create scope", zap.Error(err))
 					return err
@@ -308,6 +309,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					ctx,
 					feeManager,
 					c.balanceHandler,
+					scope,
 					r,
 					tsv,
 					nextTime,
@@ -406,7 +408,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	// touched values
 	changedKeys := ts.ChangedKeys()
 	tsv := ts.NewView(
-		state.NewSimulatedScope(
+		scope.NewSimulatedScope(
 			state.Keys{},
 			parentView,
 		),
@@ -435,7 +437,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
 	tsv = ts.NewView(
-		state.NewDefaultScope(
+		scope.NewDefaultScope(
 			keys,
 			map[string][]byte{
 				heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),

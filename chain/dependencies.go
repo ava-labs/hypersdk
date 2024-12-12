@@ -65,6 +65,9 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
+	GetStorageKeyReadRefundUnits() uint64
+	GetStorageValueReadRefundUnits() uint64 // per chunk
+
 	FetchCustom(string) (any, bool)
 }
 

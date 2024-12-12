@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -196,7 +197,7 @@ func (p *Processor) Execute(
 	// touched values
 	changedKeys := ts.ChangedKeys()
 	tsv := ts.NewView(
-		state.NewSimulatedScope(
+		scope.NewSimulatedScope(
 			state.Keys{},
 			parentView,
 		),
@@ -222,7 +223,7 @@ func (p *Processor) Execute(
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
 	tsv = ts.NewView(
-		state.NewDefaultScope(
+		scope.NewDefaultScope(
 			keys,
 			map[string][]byte{
 				heightKeyStr:    parentHeightRaw,
@@ -380,7 +381,7 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			scope, err := state.NewUnsuffixedDefaultScope(stateKeys, storage)
+			scope, err := scope.NewTieredScope(stateKeys, storage, p.config.Epsilon, b.Height())
 			if err != nil {
 				return err
 			}
@@ -391,7 +392,7 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, scope, r, tsv, t)
 			if err != nil {
 				return err
 			}

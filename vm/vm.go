@@ -697,7 +697,7 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 		}
 		// Time to unsuffix
 		if len(v) < consts.Uint64Len {
-			returnErrors = append(returnErrors, fmt.Errorf("value too short to have a suffix"))
+			returnErrors = append(returnErrors, ErrValueTooShortForPrefix)
 			returnValues = append(returnValues, nil)
 			continue
 		}
