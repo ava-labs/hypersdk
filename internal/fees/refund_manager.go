@@ -8,10 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/math"
 )
 
-var (
-	_ RefundManager = (*HotKeysRefundManager)(nil)
-	_ RefundManager = (*NoOpRefundManager)(nil)
-)
+var _ RefundManager = (*HotKeysRefundManager)(nil)
 
 type RefundRules interface {
 	GetStorageKeyReadRefundUnits() uint64
@@ -42,10 +39,4 @@ func (m *HotKeysRefundManager) Compute(r RefundRules) (fees.Dimensions, error) {
 	}
 
 	return fees.Dimensions{0, 0, readRefunds, 0, 0}, nil
-}
-
-type NoOpRefundManager struct{}
-
-func (*NoOpRefundManager) Compute(_ RefundRules) (fees.Dimensions, error) {
-	return fees.Dimensions{}, nil
 }

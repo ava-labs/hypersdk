@@ -6,7 +6,6 @@ package state
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
 
@@ -17,8 +16,6 @@ var (
 	_ Immutable = (*TranslatedImmutable)(nil)
 	_ Mutable   = (*TranslatedMutable)(nil)
 )
-
-var ErrTooShortForSuffix = errors.New("value is too short to contain a suffix")
 
 type TranslatedImmutable struct {
 	im Immutable
@@ -70,7 +67,7 @@ func innerGetValue(v []byte, err error) ([]byte, error) {
 		return nil, err
 	}
 	if len(v) < consts.Uint64Len {
-		return nil, ErrTooShortForSuffix
+		return nil, ErrValueTooShortForSuffix
 	}
 	return v[:len(v)-consts.Uint64Len], nil
 }
