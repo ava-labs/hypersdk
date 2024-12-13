@@ -498,6 +498,13 @@ func (ce *TestConsensusEngine) GetLastAcceptedBlock(ctx context.Context) {
 	ce.require.Equal(blk, ce.lastAccepted)
 }
 
+func (c *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) {
+	blk.Input.outputPopulated = true
+	blk.Input.acceptedPopulated = true
+	blk.setAccepted(blk.Input, blk.Input)
+	c.require.NoError(c.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
+}
+
 type step int
 
 const (
@@ -515,7 +522,7 @@ const (
 	getAcceptedBlock
 )
 
-func (ce *TestConsensusEngine) StepNormalConsensus(ctx context.Context, s step) {
+func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
 	switch s {
 	case buildBlock:
 		ce.BuildBlock(ctx)
@@ -708,36 +715,6 @@ func TestConflictingChains(t *testing.T) {
 	ce.require.Len(ce.verified, 0)
 }
 
-func FuzzSnowVM(f *testing.F) {
-	for i := byte(0); i < 100; i++ {
-		f.Add(i, []byte{i})
-	}
-	// Cap the number of steps to take by using byte as the type
-	f.Fuzz(func(t *testing.T, numSteps byte, data []byte) {
-		fz := fuzzer.NewFuzzer(data)
-
-		randSource := int64(0)
-		fz.Fill(&randSource)
-		rand := rand.New(rand.NewSource(randSource))
-
-		ctx := context.Background()
-		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})
-
-		for i := byte(0); i < numSteps; i++ {
-			var s step
-			fz.Fill(&s)
-			ce.StepNormalConsensus(ctx, s)
-		}
-	})
-}
-
-func (c *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) {
-	blk.Input.outputPopulated = true
-	blk.Input.acceptedPopulated = true
-	blk.setAccepted(blk.Input, blk.Input)
-	c.require.NoError(c.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
-}
-
 func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 	ctx := context.Background()
 
@@ -918,4 +895,27 @@ func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
 	updatedAcceptedTip, ok := ce.AcceptPreferredChain(ctx)
 	ce.require.True(ok)
 	ce.require.Equal(updatedAcceptedTip.ID(), blk2.ID())
+}
+
+func FuzzSnowVM(f *testing.F) {
+	for i := byte(0); i < 100; i++ {
+		f.Add(i, []byte{i})
+	}
+	// Cap the number of steps to take by using byte as the type
+	f.Fuzz(func(t *testing.T, numSteps byte, data []byte) {
+		fz := fuzzer.NewFuzzer(data)
+
+		randSource := int64(0)
+		fz.Fill(&randSource)
+		rand := rand.New(rand.NewSource(randSource))
+
+		ctx := context.Background()
+		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})
+
+		for i := byte(0); i < numSteps; i++ {
+			var s step
+			fz.Fill(&s)
+			ce.Step(ctx, s)
+		}
+	})
 }
