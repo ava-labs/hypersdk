@@ -10,9 +10,7 @@ import (
 )
 
 func TestLargestSet(t *testing.T) {
-	r := require.New(t)
-
-	testCases := []struct {
+	tests := []struct {
 		name            string
 		dim             []Dimensions
 		limit           Dimensions
@@ -86,8 +84,9 @@ func TestLargestSet(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
+			r := require.New(t)
 			indices, acc := LargestSet(testCase.dim, testCase.limit)
 			r.Equal(testCase.expectedIndices, indices)
 			r.Equal(testCase.expectedDim, acc)
@@ -109,6 +108,6 @@ func BenchmarkLargestSet(b *testing.B) {
 		limit := Dimensions{50000, 50000, 50000, 50000, 50000}
 
 		indices, _ := LargestSet(dimensions, limit)
-		r.NotEqual(len(indices), 0)
+		r.NotEmpty(indices)
 	}
 }
