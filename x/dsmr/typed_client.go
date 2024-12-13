@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,9 +21,9 @@ import (
 )
 
 var (
-	_ Marshaler[*dsmr.GetChunkRequest, Chunk[Tx], []byte]                                = (*getChunkMarshaler[Tx])(nil)
-	_ Marshaler[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte] = (*getChunkSignatureMarshaler)(nil)
-	_ Marshaler[[]byte, []byte, *dsmr.ChunkCertificateGossip]                            = (*chunkCertificateGossipMarshaler)(nil)
+	_ Marshaler[*dsmr.GetChunkRequest, Chunk[Tx], []byte]              = (*getChunkMarshaler[Tx])(nil)
+	_ Marshaler[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte] = (*getChunkSignatureMarshaler)(nil)
+	_ Marshaler[[]byte, []byte, *dsmr.ChunkCertificateGossip]          = (*chunkCertificateGossipMarshaler)(nil)
 )
 
 type Marshaler[T any, U any, V any] interface {
@@ -110,29 +109,17 @@ type getChunkSignatureMarshaler struct {
 	chainID   ids.ID
 }
 
-func (g getChunkSignatureMarshaler) MarshalRequest(request *dsmr.GetChunkSignatureRequest) ([]byte, error) {
-	msg, err := warp.NewUnsignedMessage(g.networkID, g.chainID, request.Chunk)
-	if err != nil {
-		return nil, err
-	}
-
-	acp118Request := sdk.SignatureRequest{
-		Message:       msg.Bytes(),
-		Justification: nil,
-	}
-
-	return proto.Marshal(&acp118Request)
+func (getChunkSignatureMarshaler) MarshalRequest(request *sdk.SignatureRequest) ([]byte, error) {
+	return proto.Marshal(request)
 }
 
-func (getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*dsmr.GetChunkSignatureResponse, error) {
-	acp118Response := sdk.SignatureResponse{}
-	if err := proto.Unmarshal(bytes, &acp118Response); err != nil {
+func (getChunkSignatureMarshaler) UnmarshalResponse(bytes []byte) (*sdk.SignatureResponse, error) {
+	acp118Response := &sdk.SignatureResponse{}
+	if err := proto.Unmarshal(bytes, acp118Response); err != nil {
 		return nil, err
 	}
 
-	return &dsmr.GetChunkSignatureResponse{
-		Signature: acp118Response.Signature,
-	}, nil
+	return acp118Response, nil
 }
 
 func (getChunkSignatureMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
@@ -173,8 +160,8 @@ func NewGetChunkClient[T Tx](client *p2p.Client) *TypedClient[*dsmr.GetChunkRequ
 	}
 }
 
-func NewGetChunkSignatureClient(networkID uint32, chainID ids.ID, client *p2p.Client) *TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte] {
-	return &TypedClient[*dsmr.GetChunkSignatureRequest, *dsmr.GetChunkSignatureResponse, []byte]{
+func NewGetChunkSignatureClient(networkID uint32, chainID ids.ID, client *p2p.Client) *TypedClient[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte] {
+	return &TypedClient[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte]{
 		client: client,
 		marshaler: getChunkSignatureMarshaler{
 			networkID: networkID,
