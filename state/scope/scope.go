@@ -5,7 +5,6 @@ package scope
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
 
@@ -16,8 +15,6 @@ var (
 	_ Scope = (*DefaultScope)(nil)
 	_ Scope = (*SimulatedScope)(nil)
 )
-
-var ErrValueTooShortToBeSuffixed = errors.New("value is too short to be suffixed")
 
 type Scope interface {
 	Has(key []byte, perm state.Permissions) bool
@@ -30,10 +27,7 @@ type DefaultScope struct {
 	storage map[string][]byte
 }
 
-func NewDefaultScope(
-	keys state.Keys,
-	storage map[string][]byte,
-) *DefaultScope {
+func NewDefaultScope(keys state.Keys, storage map[string][]byte) *DefaultScope {
 	return &DefaultScope{
 		keys:    keys,
 		storage: storage,
