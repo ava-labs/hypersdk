@@ -28,13 +28,13 @@ func NewDefaultVMConfig() VMConfig {
 }
 
 func GetVMConfig(ctx *context.Context) (VMConfig, error) {
-	return context.GetConfigFromContext[VMConfig](ctx, VMConfigKey, NewDefaultVMConfig())
+	return context.GetConfigFromContext(ctx, VMConfigKey, NewDefaultVMConfig())
 }
 
 func GetTraceConfig(ctx *context.Context) (trace.Config, error) {
-	return context.GetConfigFromContext[trace.Config](ctx, TracerConfigKey, trace.Config{Enabled: false})
+	return context.GetConfigFromContext(ctx, TracerConfigKey, trace.Config{Enabled: false})
 }
 
 func GetProfilerConfig(ctx *context.Context) (profiler.Config, error) {
-	return context.GetConfigFromContext[profiler.Config](ctx, ContinuousProfilerKey, profiler.Config{Enabled: false})
+	return context.GetConfigFromContext(ctx, ContinuousProfilerKey, profiler.Config{Enabled: false})
 }

@@ -30,13 +30,19 @@ type Block interface {
 }
 
 // StatefulBlock implements snowman.Block and abstracts away the caching
-// and block pinning required by the AvalancheGo Consensus engine. This
-// converts from the AvalancheGo VM block.ChainVM and snowman.Block interfaces
-// to implementing a stateless block interface and each state transition with
-// all of the inputs that the chain could depend on.
-// 1. Verify a block against a verified parent
-// 2. Accept a verified block
-// 3. Reject a verified block
+// and block pinning required by the AvalancheGo Consensus engine.
+// This converts the VM DevX from implementing the consensus engine specific invariants
+// to implementing an input/output/accepted block type and handling the state transitions
+// between these generic types.
+// In conjunction with the AvalancheGo Consensus engine, this code guarantees that
+// 1. Verify is always called against a verified parent
+// 2. Accept is always called against a verified block
+// 3. Reject is always called against a verified block
+//
+// StatefulBlock additionally handles DynamicStateSync where blocks are vaccuously
+// verified/accepted to update a moving state sync target.
+// When FinishStateSync is called, the snow package guarantees the same invariants
+// as applied during normal consensus.
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I
 	Output   O
@@ -45,6 +51,29 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	accepted bool
 
 	vm *CovariantVM[I, O, A]
+}
+
+func NewInputBlock[I Block, O Block, A Block](
+	vm *CovariantVM[I, O, A],
+	input I,
+) *StatefulBlock[I, O, A] {
+	return &StatefulBlock[I, O, A]{
+		Input: input,
+		vm:    vm,
+	}
+}
+
+func NewVerifiedBlock[I Block, O Block, A Block](
+	vm *CovariantVM[I, O, A],
+	input I,
+	output O,
+) *StatefulBlock[I, O, A] {
+	return &StatefulBlock[I, O, A]{
+		Input:    input,
+		Output:   output,
+		verified: true,
+		vm:       vm,
+	}
 }
 
 func NewAcceptedBlock[I Block, O Block, A Block](
@@ -63,34 +92,35 @@ func NewAcceptedBlock[I Block, O Block, A Block](
 	}
 }
 
-func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
-	input I,
-	output O,
-) *StatefulBlock[I, O, A] {
-	return &StatefulBlock[I, O, A]{
-		Input:    input,
-		Output:   output,
-		verified: true,
-		vm:       vm,
-	}
-}
-
-func NewInputBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
-	input I,
-) *StatefulBlock[I, O, A] {
-	return &StatefulBlock[I, O, A]{
-		Input: input,
-		vm:    vm,
-	}
-}
-
 func (b *StatefulBlock[I, O, A]) setAccepted(output O, accepted A) {
 	b.Output = output
 	b.verified = true
 	b.Accepted = accepted
 	b.accepted = true
+}
+
+// verify the block against the provided parent output and set the
+// required Output/verified fields.
+func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) error {
+	output, err := b.vm.chain.Execute(ctx, parentOutput, b.Input)
+	if err != nil {
+		return err
+	}
+	b.Output = output
+	b.verified = true
+	return nil
+}
+
+// accept the block and set the required Accepted/accepted fields.
+// Assumes verify has already been called.
+func (b *StatefulBlock[I, O, A]) accept(ctx context.Context) error {
+	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, b.Output)
+	if err != nil {
+		return err
+	}
+	b.Accepted = acceptedBlk
+	b.accepted = true
+	return nil
 }
 
 // implements "snowman.Block"
@@ -130,12 +160,16 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			zap.Stringer("blkID", b.Input.ID()),
 		)
 	default:
+		// Fetch my parent to verify against
 		parent, err := b.vm.GetBlock(ctx, b.Parent())
 		if err != nil {
 			return err
 		}
-		// If the parent has not been verified and we're no longer in dynamic state sync,
-		// attempt to verify from the last accepted block through to this block.
+
+		// If my parent has not been verified and we're no longer in dynamic state sync,
+		// we must be transitioning to normal consensus.
+		// Attempt to verify from the last accepted block through to this block to
+		// compute my parent's Output state.
 		if !parent.verified {
 			blksToProcess, err := b.vm.getExclusiveBlockRange(ctx, b.vm.lastAcceptedBlock, b)
 			if err != nil {
@@ -178,36 +212,15 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	return nil
 }
 
-// verify the block against the provided parent output and set the
-// required Output/verified fields.
-func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) error {
-	output, err := b.vm.chain.Execute(ctx, parentOutput, b.Input)
-	if err != nil {
-		return err
-	}
-	b.Output = output
-	b.verified = true
-	return nil
-}
-
-// accept the block and set the required Accepted/accepted fields.
-// Assumes verify has already been called.
-func (b *StatefulBlock[I, O, A]) accept(ctx context.Context) error {
-	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, b.Output)
-	if err != nil {
-		return err
-	}
-	b.Accepted = acceptedBlk
-	b.accepted = true
-	return nil
-}
-
 // markAccepted marks the block and updates the required VM state.
 func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
 	b.vm.verifiedL.Lock()
 	delete(b.vm.verifiedBlocks, b.Input.ID())
 	b.vm.verifiedL.Unlock()
 	b.vm.covariantVM.lastAcceptedBlock = b
+
+	b.vm.acceptedBlocksByHeight.Put(b.Height(), b.ID())
+	b.vm.acceptedBlocksByID.Put(b.ID(), b)
 
 	// If I was not actually marked accepted, notify pre ready subs
 	if !b.accepted {

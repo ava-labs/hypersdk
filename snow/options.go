@@ -67,6 +67,9 @@ func (o *Options[I, O, A]) WithVersion(version string) {
 	o.Version = version
 }
 
+// StartStateSync notifies the VM to enter DynamicStateSync mode.
+// The caller is responsible to eventually call FinishStateSync with a fully populated
+// last accepted state.
 func (o *Options[I, O, A]) StartStateSync(ctx context.Context) error {
 	return o.vm.StartStateSync(ctx)
 }

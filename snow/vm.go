@@ -93,16 +93,19 @@ type VM[I Block, O Block, A Block] struct {
 }
 
 func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
-	return &VM[I, O, A]{
+	v := &VM[I, O, A]{
 		chain: chain,
 		Options: Options[I, O, A]{
 			Version: "v0.0.1",
 			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
 				return nil, nil
 			}),
-			Ready: lifecycle.NewAtomicBoolReady(true),
+			Ready:    lifecycle.NewAtomicBoolReady(true),
+			Handlers: make(map[string]http.Handler),
 		},
 	}
+	v.Options.vm = v
+	return v
 }
 
 func (v *VM[I, O, A]) Initialize(
