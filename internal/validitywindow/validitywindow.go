@@ -18,10 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-var (
-	ErrDuplicateContainer            = errors.New("duplicate container")
-	ErrExecutionBlockRetrievalFailed = errors.New("unable to retrieve block")
-)
+var ErrDuplicateContainer = errors.New("duplicate container")
 
 type TimeValidityWindow[Container emap.Item] struct {
 	log    logging.Logger
@@ -49,7 +46,7 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 
 	evicted := v.seen.SetMin(blk.Timestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	v.seen.Add(blk.Txs())
+	v.seen.Add(blk.Containers())
 	v.lastAcceptedBlockHeight = blk.Height()
 }
 
@@ -61,18 +58,12 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	if blk.Height() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, hasBlock, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
 	if err != nil {
 		return err
 	}
-	if !hasBlock {
-		// if we can't get the block, we won't be able to determine if any of the transaction are duplicate.
-		// this is not an expected result, and is equivilient to the case where we cannot perform the validation
-		// due to disk issue.
-		return ErrExecutionBlockRetrievalFailed
-	}
 
-	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
+	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Containers(), true)
 	if err != nil {
 		return err
 	}
@@ -81,8 +72,8 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	}
 	// make sure we have no repeats within the block itself.
 	// set.Set
-	blkTxsIDs := set.NewSet[ids.ID](len(blk.Txs()))
-	for _, tx := range blk.Txs() {
+	blkTxsIDs := set.NewSet[ids.ID](len(blk.Containers()))
+	for _, tx := range blk.Containers() {
 		id := tx.GetID()
 		if blkTxsIDs.Contains(id) {
 			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
@@ -117,7 +108,6 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	defer v.lock.Unlock()
 
 	var err error
-	var hasBlock bool
 	for {
 		if ancestorBlk.Timestamp() < oldestAllowed {
 			return marker, nil
@@ -139,8 +129,8 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, hasBlock, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
-		if err != nil || !hasBlock {
+		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		if err != nil {
 			return marker, err
 		}
 	}

@@ -127,7 +127,7 @@ func (e ExecutionBlock) Parent() ids.ID {
 	return e.innerBlock.ParentID
 }
 
-func (e ExecutionBlock) Txs() []*emapChunkCertificate {
+func (e ExecutionBlock) Containers() []*emapChunkCertificate {
 	emapChunkCert := make([]*emapChunkCertificate, len(e.innerBlock.ChunkCerts))
 	for i := range emapChunkCert {
 		emapChunkCert[i] = &emapChunkCertificate{*e.innerBlock.ChunkCerts[i]}

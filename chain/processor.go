@@ -69,7 +69,7 @@ func (b *ExecutionBlock) Timestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *ExecutionBlock) Txs() []*Transaction {
+func (b *ExecutionBlock) Containers() []*Transaction {
 	return b.StatelessBlock.Txs
 }
 

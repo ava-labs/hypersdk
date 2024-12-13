@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -48,11 +49,11 @@ type testValidityWindowChainIndex struct {
 	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]
 }
 
-func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], bool, error) {
+func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], error) {
 	if blk, ok := t.blocks[blkID]; ok {
-		return blk, true, nil
+		return blk, nil
 	}
-	return nil, false, nil
+	return nil, database.ErrNotFound
 }
 
 func (t *testValidityWindowChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
@@ -225,7 +226,7 @@ func TestIndexerMissingBlock(t *testing.T) {
 	blkNext, err := node.BuildBlock(context.Background(), node.LastAccepted, 4)
 	r.NoError(err)
 
-	r.ErrorIs(node.Verify(context.Background(), node.LastAccepted, blkNext), validitywindow.ErrExecutionBlockRetrievalFailed)
+	r.ErrorIs(node.Verify(context.Background(), node.LastAccepted, blkNext), database.ErrNotFound)
 }
 
 // Tests that pending chunks are not available over p2p

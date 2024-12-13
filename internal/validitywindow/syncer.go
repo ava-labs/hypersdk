@@ -39,11 +39,10 @@ func (s *Syncer[Container]) start(ctx context.Context, lastAcceptedBlock Executi
 		seenValidityWindow = false
 		validityWindow     = s.getValidityWindow(lastAcceptedBlock.Timestamp())
 		err                error
-		ok                 bool
 	)
 	for {
-		parent, ok, err = s.chainIndex.GetExecutionBlock(ctx, parent.Parent())
-		if err != nil || !ok {
+		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.Parent())
+		if err != nil {
 			break // If we can't fetch far enough back or we've gone past genesis, execute what we can
 		}
 		parents = append(parents, parent)

@@ -92,15 +92,15 @@ func (vm *VM) LastAcceptedStatefulBlock() *StatefulBlock {
 	return vm.lastAccepted
 }
 
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], bool, error) {
+func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
 	blk, err := vm.GetStatefulBlock(ctx, blkID)
 	if err != nil {
-		return nil, true, err
+		return nil, err
 	}
-	return blk.ExecutionBlock, true, nil
+	return blk.ExecutionBlock, nil
 }
 
 func (vm *VM) LastAcceptedBlockResult() *chain.ExecutedBlock {
