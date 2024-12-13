@@ -62,6 +62,10 @@ var (
 	ErrFailedToComputeRefund = errors.New("failed to compute refund")
 	ErrRefundFailed          = errors.New("failed to refund")
 
+	// Suffixes
+	ErrValueTooShortForSuffix = errors.New("value too short for suffix")
+	ErrFailedToParseMaxChunks = errors.New("failed to parse max chunks")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

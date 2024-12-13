@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -313,7 +312,7 @@ func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
-	scope scope.Scope,
+	rm internalfees.RefundManager,
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
@@ -366,7 +365,7 @@ func (t *Transaction) Execute(
 	}
 
 	// We refund here
-	refund, err := scope.Refund(r)
+	refund, err := rm.Compute(r)
 	if err != nil {
 		return nil, ErrRefundDimensions
 	}

@@ -378,21 +378,24 @@ func (p *Processor) executeTxs(
 			}
 
 			// Execute transaction
-			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			scope, err := scope.NewTieredScope(stateKeys, storage, p.config.Epsilon, b.Height())
+			untranslatedStorage, hotKeys, err := extractSuffixes(storage, b.Hght, p.config.Epsilon)
 			if err != nil {
 				return err
 			}
-			tsv := ts.NewView(scope)
+			tsv := ts.NewView(
+				scope.NewDefaultScope(stateKeys, untranslatedStorage),
+			)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, scope, r, tsv, t)
+			refundManager := fees.NewHotKeysRefundManager(hotKeys)
+
+			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, refundManager, r, tsv, t)
 			if err != nil {
 				return err
 			}

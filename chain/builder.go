@@ -291,12 +291,12 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				scope, err := scope.NewTieredScope(stateKeys, storage, c.config.Epsilon, height)
+				unsuffixedStorage, hotkeys, err := extractSuffixes(storage, height, c.config.Epsilon)
 				if err != nil {
-					c.log.Warn("unable to create scope", zap.Error(err))
+					c.log.Warn("failed to extract suffixes", zap.Error(err))
 					return err
 				}
-				tsv := ts.NewView(scope)
+				tsv := ts.NewView(scope.NewDefaultScope(stateKeys, unsuffixedStorage))
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -305,11 +305,12 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}
 					return nil
 				}
+				refundManager := fees.NewHotKeysRefundManager(hotkeys)
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
 					c.balanceHandler,
-					scope,
+					refundManager,
 					r,
 					tsv,
 					nextTime,
