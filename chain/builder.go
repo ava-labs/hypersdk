@@ -297,7 +297,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					return err
 				}
 				tsv := ts.NewView(scope)
-				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime, true); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(c.log, err) {

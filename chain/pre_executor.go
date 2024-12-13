@@ -87,7 +87,8 @@ func (p *PreExecutor) PreExecute(
 	// Note, [PreExecute] ensures that the pending transaction does not have
 	// an expiry time further ahead than [ValidityWindow]. This ensures anything
 	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, view, now, false); err != nil {
+	translatedView := state.NewTranslatedImmutable(view)
+	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, translatedView, now); err != nil {
 		return err
 	}
 	return nil

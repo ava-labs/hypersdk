@@ -388,7 +388,7 @@ func (p *Processor) executeTxs(
 			tsv := ts.NewView(scope)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t, true); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 

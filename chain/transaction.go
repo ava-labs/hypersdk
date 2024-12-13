@@ -270,7 +270,6 @@ func (t *Transaction) PreExecute(
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
-	isTState bool,
 ) error {
 	if err := t.Base.Execute(r, timestamp); err != nil {
 		return err
@@ -303,14 +302,7 @@ func (t *Transaction) PreExecute(
 		return err
 	}
 
-	var st state.Immutable
-	if isTState {
-		st = im
-	} else {
-		st = state.NewTranslatedImmutable(im)
-	}
-
-	return bh.CanDeduct(ctx, t.Auth.Sponsor(), st, fee)
+	return bh.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
