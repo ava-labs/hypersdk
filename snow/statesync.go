@@ -5,6 +5,7 @@ package snow
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -76,7 +77,6 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	)
 	o.StateSyncClient = client
 	o.OnNormalOperationStarted = append(o.OnNormalOperationStarted, client.StartBootstrapping)
-	o.WithReady(o.StateSyncClient)
 	// Note: this is not perfect because we may need to get a notification of a block between finishing state sync
 	// and when the engine/VM has received the notification and switched over.
 	// o.WithPreReadyAcceptedSub(event.SubscriptionFunc[I]{
@@ -86,6 +86,49 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	// 	},
 	// })
 	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
+}
+
+// FinishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
+// This function must grab the lock because it's called from a thread the VM controls instead of the consensus
+// engine.
+func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
+	v.snowCtx.Lock.Lock()
+	defer v.snowCtx.Lock.Unlock()
+
+	// Caller must guarantee that the VM has been marked as ready before calling FinishStateSync
+	// TODO: switch from Ready to using FinishStateSync to mark the VM as ready.
+	if !v.Options.Ready.Ready() {
+		return fmt.Errorf("can't finish state sync on block %s because the VM is not ready", input)
+	}
+
+	// If the block is already the last accepted block, update the fields and return
+	if input.ID() == v.lastAcceptedBlock.ID() {
+		v.lastAcceptedBlock.setAccepted(output, accepted)
+		return nil
+	}
+
+	// Dynamic state sync notifies completion async, so we may have verified/accepted new blocks in
+	// the interim (before successfully grabbing the lock).
+	// Create the block and reprocess all blocks in the range (blk, lastAcceptedBlock]
+	blk := NewAcceptedBlock(v.covariantVM, input, output, accepted)
+	reprocessBlks, err := v.covariantVM.getExclusiveBlockRange(ctx, blk, v.lastAcceptedBlock)
+	if err != nil {
+		return fmt.Errorf("failed to get block range while completing state sync: %w", err)
+	}
+	// Guarantee that parent is fully populated, so we can correctly verify/accept each
+	// block up to and including the last accepted block.
+	reprocessBlks = append(reprocessBlks, v.lastAcceptedBlock)
+	parent := blk
+	for _, reprocessBlk := range reprocessBlks {
+		if err := reprocessBlk.verify(ctx, parent.Output); err != nil {
+			return fmt.Errorf("failed to finish state sync while verifying block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
+		}
+		if err := reprocessBlk.accept(ctx); err != nil {
+			return fmt.Errorf("failed to finish state sync while accepting block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
+		}
+	}
+
+	return nil
 }
 
 func (v *VM[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {

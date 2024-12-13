@@ -6,7 +6,6 @@ package snow
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -87,6 +86,13 @@ func NewInputBlock[I Block, O Block, A Block](
 	}
 }
 
+func (b *StatefulBlock[I, O, A]) setAccepted(output O, accepted A) {
+	b.Output = output
+	b.verified = true
+	b.Accepted = accepted
+	b.accepted = true
+}
+
 // implements "snowman.Block"
 func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	start := time.Now()
@@ -129,10 +135,9 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			return err
 		}
 		// If the parent has not been verified and we're no longer in dynamic state sync,
-		// attempt to verify from the last accepted block through to the parent.
-		// Any error along this chain will invalidate the entire chain.
+		// attempt to verify from the last accepted block through to this block.
 		if !parent.verified {
-			blksToProcess, err := b.getAncestorsToLastAccepted(ctx)
+			blksToProcess, err := b.vm.getExclusiveBlockRange(ctx, b.vm.lastAcceptedBlock, b)
 			if err != nil {
 				return err
 			}
@@ -204,11 +209,12 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
 	b.vm.verifiedL.Unlock()
 	b.vm.covariantVM.lastAcceptedBlock = b
 
-	if b.accepted {
-		return event.NotifyAll(ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
-	} else {
+	// If I was not actually marked accepted, notify pre ready subs
+	if !b.accepted {
 		return event.NotifyAll(ctx, b.Input, b.vm.Options.PreReadyAcceptedSubs...)
 	}
+
+	return event.NotifyAll(ctx, b.Accepted, b.vm.Options.AcceptedSubs...)
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -237,8 +243,12 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	// If I haven't verified myself, then I need to verify myself before before
 	// accepting myself.
-	// My parent must either be directly verified or have been fully populated
-	// by state sync completing.
+	// if I am ready and haven't been verified, then I need to verify myself.
+	// Note: I don't need to verify/accept my parent because my parent was already
+	// marked as accepted and I'm ready. This means the last accepted block must
+	// be fully populated.
+	// XXX: to make this true FinishStateSync must also be responsible for setting ready = true
+	// while holding the lock. Otherwise this is a race condition.
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
 		return fmt.Errorf("failed to fetch parent while accepting %s: %w", b, err)
@@ -269,10 +279,12 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	delete(b.vm.verifiedBlocks, b.Input.ID())
 	b.vm.verifiedL.Unlock()
 
-	if b.verified {
-		return event.NotifyAll[O](ctx, b.Output, b.vm.Options.RejectedSubs...)
+	// Skip notifying rejected subs if we were still in dynamic state sync
+	if !b.verified {
+		return nil
 	}
-	return nil
+
+	return event.NotifyAll[O](ctx, b.Output, b.vm.Options.RejectedSubs...)
 }
 
 // Testing
@@ -285,14 +297,6 @@ func (b *StatefulBlock[I, O, A]) MarkUnprocessed() {
 	b.verified = false
 	b.Accepted = emptyAccepted
 	b.accepted = false
-}
-
-// Testing
-func (b *StatefulBlock[I, O, A]) markProcessed(output O, accepted A) {
-	b.Output = output
-	b.verified = true
-	b.Accepted = accepted
-	b.accepted = true
 }
 
 // implements "snowman.Block"
@@ -312,25 +316,3 @@ func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
 
 // implements "fmt.Stringer"
 func (b *StatefulBlock[I, O, A]) String() string { return b.Input.String() }
-
-// getAncestorsToLastAccepted returns the range of blocks (lastAccepted, b)
-func (b *StatefulBlock[I, O, A]) getAncestorsToLastAccepted(ctx context.Context) ([]*StatefulBlock[I, O, A], error) {
-	blksToProcess := make([]*StatefulBlock[I, O, A], 0)
-	nextBlock := b
-	for {
-		parent, err := b.vm.GetBlock(ctx, nextBlock.Parent())
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch parent block while verifying ancestors: %w", err)
-		}
-		if parent.ID() == b.vm.lastAcceptedBlock.ID() {
-			break
-		}
-		if parent.Height() <= b.vm.lastAcceptedBlock.Height() {
-			return nil, fmt.Errorf("hit unexpected block while verifying ancestors: %d <= %d for block %s", parent.Height(), b.vm.lastAcceptedBlock.Height(), b)
-		}
-		blksToProcess = append(blksToProcess, parent)
-		nextBlock = parent
-	}
-	slices.Reverse(blksToProcess)
-	return blksToProcess, nil
-}

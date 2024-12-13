@@ -6,8 +6,10 @@ package snow
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -107,6 +109,38 @@ func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I
 	v.parsedBlocks.Put(sb.ID(), sb)
 
 	return sb, nil
+}
+
+// getExclusiveBlockRange returns the exclusive range of blocks (startBlock, endBlock)
+func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
+	if startBlock.ID() == endBlock.ID() {
+		return nil, nil
+	}
+
+	diff, err := math.Sub(endBlock.Height(), startBlock.Height())
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate height difference for exclusive block range: %w", err)
+	}
+	if diff == 0 {
+		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
+	}
+	blkRange := make([]*StatefulBlock[I, O, A], diff)
+	blk := endBlock
+	for {
+		blk, err = v.GetBlock(ctx, blk.Parent())
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch parent of %s while fetching exclusive block range (%s, %s): %w", blk, startBlock, endBlock, err)
+		}
+		if blk.ID() == startBlock.ID() {
+			break
+		}
+		if blk.Height() <= startBlock.Height() {
+			return nil, fmt.Errorf("invalid block range (%s, %s) terminated at %s", startBlock, endBlock, blk)
+		}
+		blkRange = append(blkRange, blk)
+	}
+	slices.Reverse(blkRange)
+	return blkRange, nil
 }
 
 func (v *CovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) *StatefulBlock[I, O, A] {

@@ -733,6 +733,12 @@ func FuzzSnowVM(f *testing.F) {
 	})
 }
 
+func (c *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) {
+	blk.Input.outputPopulated = true
+	blk.Input.acceptedPopulated = true
+	c.require.NoError(c.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
+}
+
 func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 	ctx := context.Background()
 
@@ -757,11 +763,7 @@ func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 
 	// Mark the VM ready and fully populate the last accepted block.
 	testReady.MarkReady()
-	// State syncer must guarantee that the last accepted block is
-	// populated correctly.
-	acceptedTip.Input.outputPopulated = true
-	acceptedTip.Input.acceptedPopulated = true
-	acceptedTip.markProcessed(acceptedTip.Input, acceptedTip.Input)
+	ce.FinishStateSync(ctx, acceptedTip)
 
 	ce.ParseAndVerifyInvalidBlock(ctx)
 
@@ -790,6 +792,7 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
 	ce.require.Equal(uint64(1), blk1.Height())
 
 	testReady.MarkReady()
+	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
 	ce.require.True(ok)
@@ -799,7 +802,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
 func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 	ctx := context.Background()
 
-	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	testReady := NewChanReady()
 	ce.vm.Options.WithReady(testReady)
@@ -815,6 +817,7 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 	ce.require.Equal(uint64(2), blk2.Height())
 
 	testReady.MarkReady()
+	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
 	ce.require.True(ok)
@@ -824,7 +827,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 	ctx := context.Background()
 
-	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	testReady := NewChanReady()
 	ce.vm.Options.WithReady(testReady)
@@ -836,6 +838,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 	ce.require.Equal(uint64(1), blk1.Height())
 
 	testReady.MarkReady()
+	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	blk2 := ce.ParseAndVerifyNewBlock(ctx, blk1)
 	ce.SetPreference(ctx, blk2.ID())
@@ -848,7 +851,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 	ctx := context.Background()
 
-	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	testReady := NewChanReady()
 	ce.vm.Options.WithReady(testReady)
@@ -860,6 +862,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 	ce.require.Equal(uint64(1), blk1.Height())
 
 	testReady.MarkReady()
+	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	blk2 := ce.ParseAndVerifyNewBlock(ctx, blk1)
 	ce.SetPreference(ctx, blk2.ID())
@@ -875,7 +878,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t *testing.T) {
 	ctx := context.Background()
 
-	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	testReady := NewChanReady()
 	ce.vm.Options.WithReady(testReady)
@@ -890,10 +892,52 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t 
 	ce.verifyValidBlock(ctx, parsedBlk)
 
 	testReady.MarkReady()
+	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	invalidatedChildTestBlock := NewTestBlockFromParent(invalidTestBlock, []byte{})
 	invalidatedChildBlock, err := ce.vm.covariantVM.ParseBlock(ctx, invalidatedChildTestBlock.Bytes())
 	ce.require.NoError(err)
 
 	ce.require.ErrorIs(invalidatedChildBlock.Verify(ctx), executedInvalidBlockErr)
+}
+
+func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
+	ctx := context.Background()
+
+	// Create consensus engine in dynamic state sync mode.
+	ce := NewTestConsensusEngine(t, &TestBlock{})
+	testReady := NewChanReady()
+	ce.vm.Options.WithReady(testReady)
+
+	notReadyLastAccepted := ce.lastAccepted
+
+	// Parse and verify a new block, which should be a pass through.
+	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
+	ce.SetPreference(ctx, blk1.ID())
+	ce.require.Equal(uint64(1), blk1.Height())
+
+	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
+	ce.require.True(ok)
+	ce.require.Equal(acceptedTip.ID(), blk1.ID())
+
+	// Tip should not be verified/accepted, since it was handled prior
+	// to the VM being marked ready.
+	ce.require.False(acceptedTip.verified)
+	ce.require.False(acceptedTip.accepted)
+
+	// Mark the VM ready and set the last accepted block to an ancestor
+	// of the current last accepted block
+	testReady.MarkReady()
+	ce.FinishStateSync(ctx, notReadyLastAccepted)
+
+	ce.ParseAndVerifyInvalidBlock(ctx)
+
+	blk2 := ce.ParseAndVerifyNewRandomBlock(ctx)
+	ce.require.Equal(uint64(2), blk2.Height())
+	ce.SetPreference(ctx, blk2.ID())
+
+	ce.ParseAndVerifyInvalidBlock(ctx)
+	updatedAcceptedTip, ok := ce.AcceptPreferredChain(ctx)
+	ce.require.True(ok)
+	ce.require.Equal(updatedAcceptedTip.ID(), blk2.ID())
 }

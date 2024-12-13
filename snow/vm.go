@@ -115,6 +115,7 @@ func (v *VM[I, O, A]) Initialize(
 	fxs []*common.Fx,
 	appSender common.AppSender,
 ) error {
+	v.snowCtx = chainCtx
 	v.covariantVM = &CovariantVM[I, O, A]{v}
 	v.shutdownChan = make(chan struct{})
 
@@ -201,12 +202,16 @@ func (v *VM[I, O, A]) Initialize(
 	if err != nil {
 		return err
 	}
+	v.setLastAccepted(inputBlock, outputBlock, acceptedBlock)
+
+	return nil
+}
+
+func (v *VM[I, O, A]) setLastAccepted(inputBlock I, outputBlock O, acceptedBlock A) {
 	v.lastAcceptedBlock = NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock)
 	v.preferredBlkID = v.lastAcceptedBlock.ID()
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
-
-	return nil
 }
 
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
