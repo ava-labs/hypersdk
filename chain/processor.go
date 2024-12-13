@@ -380,7 +380,7 @@ func (p *Processor) executeTxs(
 			// Execute transaction
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			untranslatedStorage, hotKeys, err := extractSuffixes(storage, b.Hght, p.config.Epsilon)
+			untranslatedStorage, hotKeys, err := state.ExtractSuffixes(storage, b.Hght, p.config.Epsilon)
 			if err != nil {
 				return err
 			}

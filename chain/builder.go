@@ -291,7 +291,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				unsuffixedStorage, hotkeys, err := extractSuffixes(storage, height, c.config.Epsilon)
+				unsuffixedStorage, hotkeys, err := state.ExtractSuffixes(storage, height, c.config.Epsilon)
 				if err != nil {
 					c.log.Warn("failed to extract suffixes", zap.Error(err))
 					return err
