@@ -417,8 +417,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	for k := range changedKeys {
 		if changedKeys[k].HasValue() {
 			if err := tsv.Insert(ctx, []byte(k), binary.BigEndian.AppendUint64(changedKeys[k].Value(), height)); err != nil {
-				// TODO: improve error message
-				return nil, nil, nil, fmt.Errorf("%w: unable to append suffix", err)
+				return nil, nil, nil, fmt.Errorf("%w: unable to append value suffix", err)
 			}
 		}
 	}

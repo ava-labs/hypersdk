@@ -684,28 +684,7 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 	// Atomic read to ensure consistency
 	values, errs := vm.stateDB.GetValues(ctx, keys)
 
-	returnValues := make([][]byte, 0, len(values))
-	returnErrors := make([]error, 0, len(values))
-
-	// TODO: could we make this cleaner?
-	// Assuming that len(values) == len(errs)
-	for i, v := range values {
-		if errs[i] != nil {
-			returnErrors = append(returnErrors, errs[i])
-			returnValues = append(returnValues, nil)
-			continue
-		}
-		// Time to unsuffix
-		if len(v) < consts.Uint64Len {
-			returnErrors = append(returnErrors, ErrValueTooShortForPrefix)
-			returnValues = append(returnValues, nil)
-			continue
-		}
-		returnValues = append(returnValues, v[:len(v)-consts.Uint64Len])
-		returnErrors = append(returnErrors, nil)
-	}
-
-	return returnValues, returnErrors
+	return vm.removeSuffixes(values, errs)
 }
 
 func (vm *VM) SetState(ctx context.Context, state snow.State) error {
@@ -1231,6 +1210,30 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	vm.snowCtx.Log.Info("finished restoring accepted queue")
 
 	return nil
+}
+
+func (*VM) removeSuffixes(values [][]byte, errors []error) ([][]byte, []error) {
+	returnValues := make([][]byte, 0, len(values))
+	returnErrors := make([]error, 0, len(values))
+
+	// Invariant: len(values) == len(errors)
+	for i, v := range values {
+		if errors[i] != nil {
+			returnErrors = append(returnErrors, errors[i])
+			returnValues = append(returnValues, nil)
+			continue
+		}
+		// Time to unsuffix
+		if len(v) < consts.Uint64Len {
+			returnErrors = append(returnErrors, ErrValueTooShortForPrefix)
+			returnValues = append(returnValues, nil)
+			continue
+		}
+		returnValues = append(returnValues, v[:len(v)-consts.Uint64Len])
+		returnErrors = append(returnErrors, nil)
+	}
+
+	return returnValues, returnErrors
 }
 
 // Fatal logs the provided message and then panics to force an exit.

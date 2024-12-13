@@ -307,8 +307,6 @@ func (j *JSONRPCServer) SimulateActions(
 
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
-		// This code block shouldn't use tstateview but rather, the simulated
-		// scope itself
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), tsv, currentTime, args.Actor, ids.Empty)
 
 		var actionResult SimulateActionResult
