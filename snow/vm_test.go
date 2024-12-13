@@ -138,8 +138,8 @@ func (t *TestChain) Initialize(
 	chainInput ChainInput,
 	chainIndex ChainIndex[*TestBlock, *TestBlock, *TestBlock],
 	options *Options[*TestBlock, *TestBlock, *TestBlock],
-) (*TestBlock, *TestBlock, *TestBlock, error) {
-	return t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock, nil
+) (*TestBlock, *TestBlock, *TestBlock, bool, error) {
+	return t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
 }
 
 func (t *TestChain) BuildBlock(ctx context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
@@ -558,7 +558,7 @@ func (ce *TestConsensusEngine) selectRandomVerifiedBlock(ctx context.Context) (*
 func TestBuildAndAcceptBlock(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk1, ok := ce.BuildBlock(ctx)
 	ce.require.True(ok)
@@ -575,7 +575,7 @@ func TestBuildAndAcceptBlock(t *testing.T) {
 func TestBuildAndAcceptChain(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk1, ok := ce.BuildBlock(ctx)
 	ce.require.True(ok)
@@ -594,7 +594,7 @@ func TestBuildAndAcceptChain(t *testing.T) {
 func TestParseAndAcceptBlock(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
 	ce.require.Equal(uint64(1), blk1.Height())
@@ -614,7 +614,7 @@ func TestParseAndAcceptBlock(t *testing.T) {
 func TestParseAndAcceptChain(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk0 := ce.lastAccepted
 	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
@@ -644,7 +644,7 @@ func TestParseAndAcceptChain(t *testing.T) {
 func TestBuild_ParseAndGet_Accept(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk1, ok := ce.BuildBlock(ctx)
 	ce.require.True(ok)
@@ -667,7 +667,7 @@ func TestBuild_ParseAndGet_Accept(t *testing.T) {
 func TestBuild_ParseAndExtendPreferredChain_Accept(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 	blk1, ok := ce.BuildBlock(ctx)
 	ce.require.True(ok)
@@ -686,7 +686,7 @@ func TestBuild_ParseAndExtendPreferredChain_Accept(t *testing.T) {
 func TestConflictingChains(t *testing.T) {
 	ctx := context.Background()
 
-	ce := NewTestConsensusEngine(t, &TestBlock{})
+	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 	genesis := ce.lastAccepted
 
 	builtBlk1, ok := ce.BuildBlock(ctx)
@@ -744,8 +744,6 @@ func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 
 	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	// Parse and verify a new block, which should be a pass through.
 	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
@@ -762,7 +760,6 @@ func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 	ce.require.False(acceptedTip.accepted)
 
 	// Mark the VM ready and fully populate the last accepted block.
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, acceptedTip)
 
 	ce.ParseAndVerifyInvalidBlock(ctx)
@@ -782,8 +779,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
 
 	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	parent := ce.lastAccepted
 	// Parse and verify a new block, which should be a pass through.
@@ -791,7 +786,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
 	ce.SetPreference(ctx, blk1.ID())
 	ce.require.Equal(uint64(1), blk1.Height())
 
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
@@ -803,8 +797,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	parent := ce.lastAccepted
 	// Parse and verify a new block, which should be a pass through.
@@ -816,7 +808,6 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 	ce.SetPreference(ctx, blk2.ID())
 	ce.require.Equal(uint64(2), blk2.Height())
 
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
@@ -828,8 +819,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	parent := ce.lastAccepted
 	// Parse and verify a new block, which should be a pass through.
@@ -837,7 +826,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 	ce.SetPreference(ctx, blk1.ID())
 	ce.require.Equal(uint64(1), blk1.Height())
 
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	blk2 := ce.ParseAndVerifyNewBlock(ctx, blk1)
@@ -852,8 +840,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	parent := ce.lastAccepted
 	// Parse and verify a new block, which should be a pass through.
@@ -861,7 +847,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 	ce.SetPreference(ctx, blk1.ID())
 	ce.require.Equal(uint64(1), blk1.Height())
 
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	blk2 := ce.ParseAndVerifyNewBlock(ctx, blk1)
@@ -879,8 +864,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t 
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	parent := ce.lastAccepted
 	// Parse and verify an invalid block
@@ -891,7 +874,6 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t 
 	ce.require.NoError(err)
 	ce.verifyValidBlock(ctx, parsedBlk)
 
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	invalidatedChildTestBlock := NewTestBlockFromParent(invalidTestBlock, []byte{})
@@ -906,8 +888,6 @@ func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
 
 	// Create consensus engine in dynamic state sync mode.
 	ce := NewTestConsensusEngine(t, &TestBlock{})
-	testReady := NewChanReady()
-	ce.vm.Options.WithReady(testReady)
 
 	notReadyLastAccepted := ce.lastAccepted
 
@@ -927,7 +907,6 @@ func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
 
 	// Mark the VM ready and set the last accepted block to an ancestor
 	// of the current last accepted block
-	testReady.MarkReady()
 	ce.FinishStateSync(ctx, notReadyLastAccepted)
 
 	ce.ParseAndVerifyInvalidBlock(ctx)

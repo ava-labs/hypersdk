@@ -96,9 +96,8 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	defer v.snowCtx.Lock.Unlock()
 
 	// Caller must guarantee that the VM has been marked as ready before calling FinishStateSync
-	// TODO: switch from Ready to using FinishStateSync to mark the VM as ready.
 	if !v.Options.Ready.Ready() {
-		return fmt.Errorf("can't finish state sync on block %s because the VM is not ready", input)
+		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
 	// If the block is already the last accepted block, update the fields and return
@@ -127,6 +126,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 			return fmt.Errorf("failed to finish state sync while accepting block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
 		}
 	}
+	v.Options.Ready.MarkReady()
 
 	return nil
 }

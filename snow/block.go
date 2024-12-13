@@ -247,8 +247,6 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	// Note: I don't need to verify/accept my parent because my parent was already
 	// marked as accepted and I'm ready. This means the last accepted block must
 	// be fully populated.
-	// XXX: to make this true FinishStateSync must also be responsible for setting ready = true
-	// while holding the lock. Otherwise this is a race condition.
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
 		return fmt.Errorf("failed to fetch parent while accepting %s: %w", b, err)

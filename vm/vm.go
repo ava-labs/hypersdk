@@ -35,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
+	"github.com/ava-labs/hypersdk/lifecycle"
 	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
@@ -141,7 +142,7 @@ func (vm *VM) Initialize(
 	chainInput hsnow.ChainInput,
 	chainIndex hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 	snowOptions *hsnow.Options[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
-) (*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock, error) {
+) (*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock, bool, error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
@@ -154,10 +155,10 @@ func (vm *VM) Initialize(
 	// TODO: cleanup metrics registration
 	defaultRegistry, metrics, err := newMetrics()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	if err := vm.snowCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
@@ -166,12 +167,12 @@ func (vm *VM) Initialize(
 
 	blockDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to register blockdb metrics: %w", err)
+		return nil, nil, nil, false, fmt.Errorf("failed to register blockdb metrics: %w", err)
 	}
 	pebbleConfig := pebble.NewDefaultConfig()
 	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	snowOptions.WithCloser(func() error {
 		if err := vm.vmDB.Close(); err != nil {
@@ -182,11 +183,11 @@ func (vm *VM) Initialize(
 
 	rawStateDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+		return nil, nil, nil, false, fmt.Errorf("failed to register rawstatedb metrics: %w", err)
 	}
 	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	snowOptions.WithCloser(func() error {
 		if err := vm.rawStateDB.Close(); err != nil {
@@ -198,12 +199,12 @@ func (vm *VM) Initialize(
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	vm.GenesisBytes = genesisBytes
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 
 	if len(configBytes) > 0 {
 		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
+			return nil, nil, nil, false, fmt.Errorf("failed to unmarshal config: %w", err)
 		}
 	}
 	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
@@ -253,7 +254,7 @@ func (vm *VM) Initialize(
 		Tracer:                      vm.tracer,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	snowOptions.WithCloser(func() error {
 		if err := vm.stateDB.Close(); err != nil {
@@ -262,7 +263,7 @@ func (vm *VM) Initialize(
 		return nil
 	})
 	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 
 	// Setup worker cluster for verifying signatures
@@ -277,11 +278,11 @@ func (vm *VM) Initialize(
 
 	acceptorSize := vm.config.AcceptorSize
 	if acceptorSize > MaxAcceptorSize {
-		return nil, nil, nil, fmt.Errorf("AcceptorSize (%d) must be <= MaxAcceptorSize (%d)", acceptorSize, MaxAcceptorSize)
+		return nil, nil, nil, false, fmt.Errorf("AcceptorSize (%d) must be <= MaxAcceptorSize (%d)", acceptorSize, MaxAcceptorSize)
 	}
 	acceptedBlockWindow := vm.config.AcceptedBlockWindow
 	if acceptedBlockWindow < MinAcceptedBlockWindow {
-		return nil, nil, nil, fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
+		return nil, nil, nil, false, fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
 	}
 
 	// Set defaults
@@ -290,13 +291,13 @@ func (vm *VM) Initialize(
 		config := vm.config.ServiceConfig[Option.Namespace]
 		opt, err := Option.optionFunc(vm, config)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, false, err
 		}
 		opt.apply(options)
 	}
 	err = vm.applyOptions(options)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to apply options : %w", err)
+		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
@@ -309,7 +310,7 @@ func (vm *VM) Initialize(
 	})
 	registerer := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
@@ -326,13 +327,13 @@ func (vm *VM) Initialize(
 		vm.config.ChainConfig,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
-	validityWindowReady := hsnow.NewChanReady()
-	snowOptions.WithReady(validityWindowReady)
+	validityWindowReady := lifecycle.NewChanReady()
+	// TODO: combine time validity window and state syncer to call FinishStateSync correclty
 	snowOptions.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
 		NotifyF: func(ctx context.Context, b *chain.ExecutionBlock) error {
 			vm.metrics.txsAccepted.Add(float64(len(b.StatelessBlock.Txs)))
@@ -355,11 +356,11 @@ func (vm *VM) Initialize(
 	})
 
 	if err := vm.initChainStore(ctx); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	lastAccepted, err := vm.initLastAccepted(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 
 	// Initialize the syncer with the last accepted block
@@ -367,11 +368,11 @@ func (vm *VM) Initialize(
 
 	syncerDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register(syncerDB, syncerDBRegistry); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to register syncerdb metrics: %w", err)
+		return nil, nil, nil, false, fmt.Errorf("failed to register syncerdb metrics: %w", err)
 	}
 	syncerDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, syncerDB, syncerDBRegistry)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	snowOptions.WithCloser(func() error {
 		if err := syncerDB.Close(); err != nil {
@@ -386,7 +387,7 @@ func (vm *VM) Initialize(
 		changeProofHandlerID,
 		vm.genesis.GetStateBranchFactor(),
 	); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 
 	if err := vm.network.AddHandler(
@@ -397,7 +398,7 @@ func (vm *VM) Initialize(
 			vm.gossiper,
 		),
 	); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 
 	// Startup block builder and gossiper
@@ -407,12 +408,13 @@ func (vm *VM) Initialize(
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to initialize api: %w", err)
+			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
 		}
 		snowOptions.WithHandler(api.Path, api.Handler)
 	}
 
-	return lastAccepted.ExecutionBlock, lastAccepted, lastAccepted, nil
+	// TODO: handle the case we are mid state sync correctly
+	return lastAccepted.ExecutionBlock, lastAccepted, lastAccepted, false, nil
 }
 
 func (vm *VM) initChainStore(ctx context.Context) error {

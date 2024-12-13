@@ -5,12 +5,12 @@ package snow
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/hypersdk/event"
+	"github.com/ava-labs/hypersdk/lifecycle"
 	"github.com/ava-labs/hypersdk/statesync"
 )
 
@@ -25,8 +25,7 @@ type Options[I Block, O Block, A Block] struct {
 	StateSyncServer *statesync.Server[*StatefulBlock[I, O, A]]
 	Closers         []func() error
 
-	Ready *GroupReady
-
+	Ready                    *lifecycle.AtomicBoolReady
 	OnBootstrapStarted       []func(context.Context) error
 	OnNormalOperationStarted []func(context.Context) error
 
@@ -68,10 +67,6 @@ func (o *Options[I, O, A]) WithVersion(version string) {
 	o.Version = version
 }
 
-func (o *Options[I, O, A]) WithReady(r ...Ready) error {
-	added := o.Ready.Add(r...)
-	if !added {
-		return errors.New("could not add ready")
-	}
-	return nil
+func (o *Options[I, O, A]) FinishDynamicStateSync(ctx context.Context, input I, output O, accepted A) error {
+	return o.vm.FinishStateSync(ctx, input, output, accepted)
 }

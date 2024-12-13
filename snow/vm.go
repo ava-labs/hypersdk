@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/internal/cache"
+	"github.com/ava-labs/hypersdk/lifecycle"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +47,7 @@ type Chain[I Block, O Block, A Block] interface {
 		chainInput ChainInput,
 		chainIndex ChainIndex[I, O, A],
 		options *Options[I, O, A],
-	) (I, O, A, error)
+	) (I, O, A, bool, error)
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
 	Execute(
@@ -99,7 +100,7 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
 				return nil, nil
 			}),
-			Ready: NewGroupReady(),
+			Ready: lifecycle.NewAtomicBoolReady(true),
 		},
 	}
 }
@@ -193,7 +194,7 @@ func (v *VM[I, O, A]) Initialize(
 		Context:      v.hctx,
 	}
 
-	inputBlock, outputBlock, acceptedBlock, err := v.chain.Initialize(
+	inputBlock, outputBlock, acceptedBlock, mustDynamicStateSync, err := v.chain.Initialize(
 		ctx,
 		chainInput,
 		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
@@ -202,13 +203,19 @@ func (v *VM[I, O, A]) Initialize(
 	if err != nil {
 		return err
 	}
-	v.setLastAccepted(inputBlock, outputBlock, acceptedBlock)
-
+	var lastAcceptedBlock *StatefulBlock[I, O, A]
+	if !mustDynamicStateSync {
+		lastAcceptedBlock = NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock)
+		v.Options.Ready.MarkNotReady()
+	} else {
+		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
+	}
+	v.setLastAccepted(lastAcceptedBlock)
 	return nil
 }
 
-func (v *VM[I, O, A]) setLastAccepted(inputBlock I, outputBlock O, acceptedBlock A) {
-	v.lastAcceptedBlock = NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock)
+func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
+	v.lastAcceptedBlock = lastAcceptedBlock
 	v.preferredBlkID = v.lastAcceptedBlock.ID()
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)

@@ -1,10 +1,11 @@
 // Copyright (C) 2024, Ava Labs, Inv. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package snow
+package lifecycle
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type Ready interface {
@@ -73,4 +74,26 @@ func (g *GroupReady) Ready() bool {
 	}
 	g.ready = true
 	return true
+}
+
+type AtomicBoolReady struct {
+	b atomic.Bool
+}
+
+func NewAtomicBoolReady(initialState bool) *AtomicBoolReady {
+	a := &AtomicBoolReady{}
+	a.b.Store(initialState)
+	return a
+}
+
+func (a *AtomicBoolReady) Ready() bool {
+	return a.b.Load()
+}
+
+func (a *AtomicBoolReady) MarkReady() {
+	a.b.Store(true)
+}
+
+func (a *AtomicBoolReady) MarkNotReady() {
+	a.b.Store(false)
 }
