@@ -49,21 +49,15 @@ func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockProcess, err := metric.NewAverager(
-		"chain_block_process",
-		"time spent processing blocks",
-		r,
-	)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &Metrics{
-		blockBuild:   blockBuild,
-		blockParse:   blockParse,
-		blockVerify:  blockVerify,
-		blockAccept:  blockAccept,
-		blockProcess: blockProcess,
+		blockBuild:  blockBuild,
+		blockParse:  blockParse,
+		blockVerify: blockVerify,
+		blockAccept: blockAccept,
 	}
 
 	return m, nil
