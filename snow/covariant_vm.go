@@ -124,7 +124,7 @@ func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, start
 	if diff == 0 {
 		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
 	}
-	blkRange := make([]*StatefulBlock[I, O, A], diff)
+	blkRange := make([]*StatefulBlock[I, O, A], 0, diff)
 	blk := endBlock
 	for {
 		blk, err = v.GetBlock(ctx, blk.Parent())

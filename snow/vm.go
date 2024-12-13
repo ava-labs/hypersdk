@@ -194,7 +194,7 @@ func (v *VM[I, O, A]) Initialize(
 		Context:      v.hctx,
 	}
 
-	inputBlock, outputBlock, acceptedBlock, mustDynamicStateSync, err := v.chain.Initialize(
+	inputBlock, outputBlock, acceptedBlock, ready, err := v.chain.Initialize(
 		ctx,
 		chainInput,
 		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
@@ -204,11 +204,11 @@ func (v *VM[I, O, A]) Initialize(
 		return err
 	}
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
-	if !mustDynamicStateSync {
+	if ready {
 		lastAcceptedBlock = NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock)
-		v.Options.Ready.MarkNotReady()
 	} else {
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
+		v.Options.Ready.MarkNotReady()
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	return nil

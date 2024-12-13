@@ -122,8 +122,6 @@ type TestChain struct {
 }
 
 func NewTestChain(require *require.Assertions, getRandData func() []byte, initLastAcceptedBlock *TestBlock) *TestChain {
-	initLastAcceptedBlock.outputPopulated = true
-	initLastAcceptedBlock.acceptedPopulated = true
 	return &TestChain{
 		require:                require,
 		getRandData:            getRandData,
@@ -439,7 +437,7 @@ func (ce *TestConsensusEngine) SwapRandomPreference(ctx context.Context) (old *S
 	new = selectedBlk
 	changed = ce.preferred.ID() != selectedBlk.ID()
 	ce.preferred = selectedBlk
-	ce.vm.SetPreference(ctx, selectedBlk.ID())
+	ce.require.NoError(ce.vm.SetPreference(ctx, selectedBlk.ID()))
 	return old, new, changed
 }
 
@@ -455,7 +453,7 @@ func (ce *TestConsensusEngine) SetPreference(ctx context.Context, blkID ids.ID) 
 	new = selectedBlk
 	changed = ce.preferred.ID() != selectedBlk.ID()
 	ce.preferred = selectedBlk
-	ce.vm.SetPreference(ctx, selectedBlk.ID())
+	ce.require.NoError(ce.vm.SetPreference(ctx, selectedBlk.ID()))
 	return old, new, changed
 }
 
@@ -723,7 +721,7 @@ func FuzzSnowVM(f *testing.F) {
 		rand := rand.New(rand.NewSource(randSource))
 
 		ctx := context.Background()
-		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{})
+		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
 		for i := byte(0); i < numSteps; i++ {
 			var s step
@@ -736,6 +734,7 @@ func FuzzSnowVM(f *testing.F) {
 func (c *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) {
 	blk.Input.outputPopulated = true
 	blk.Input.acceptedPopulated = true
+	blk.setAccepted(blk.Input, blk.Input)
 	c.require.NoError(c.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
 }
 

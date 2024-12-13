@@ -88,6 +88,13 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
 }
 
+// StartStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
+// in DynamicStateSync mode until FinishStateSync is called.
+func (v *VM[I, O, A]) StartStateSync(ctx context.Context) error {
+	v.Options.Ready.MarkNotReady()
+	return nil
+}
+
 // FinishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
 // This function must grab the lock because it's called from a thread the VM controls instead of the consensus
 // engine.
@@ -95,14 +102,15 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	v.snowCtx.Lock.Lock()
 	defer v.snowCtx.Lock.Unlock()
 
-	// Caller must guarantee that the VM has been marked as ready before calling FinishStateSync
-	if !v.Options.Ready.Ready() {
+	// Cannot call FinishStateSync if already marked as ready and in normal operation
+	if v.Options.Ready.Ready() {
 		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
 	// If the block is already the last accepted block, update the fields and return
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
+		v.Options.Ready.MarkReady()
 		return nil
 	}
 
@@ -126,8 +134,8 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 			return fmt.Errorf("failed to finish state sync while accepting block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
 		}
 	}
-	v.Options.Ready.MarkReady()
 
+	v.Options.Ready.MarkReady()
 	return nil
 }
 

@@ -67,6 +67,12 @@ func (o *Options[I, O, A]) WithVersion(version string) {
 	o.Version = version
 }
 
-func (o *Options[I, O, A]) FinishDynamicStateSync(ctx context.Context, input I, output O, accepted A) error {
+func (o *Options[I, O, A]) StartStateSync(ctx context.Context) error {
+	return o.vm.StartStateSync(ctx)
+}
+
+// FinishStateSync completes dynamic state sync mode and sets the last accepted block to
+// the given input/ouput/accepted value.
+func (o *Options[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
 	return o.vm.FinishStateSync(ctx, input, output, accepted)
 }
