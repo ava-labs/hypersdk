@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -21,7 +20,6 @@ type Tx interface {
 	GetID() ids.ID
 	GetExpiry() int64
 	GetSponsor() codec.Address
-	GetFees() fees.Dimensions
 }
 
 type UnsignedChunk[T Tx] struct {
