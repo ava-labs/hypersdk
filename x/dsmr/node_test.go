@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 
 	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
@@ -38,8 +37,6 @@ var (
 
 	chainID = ids.Empty
 )
-
-var defaultTestingFeeChunkLimit = fees.Dimensions{100, 100, 100, 100, 100}
 
 // Test that chunks can be built through Node.NewChunk
 func TestNode_BuildChunk(t *testing.T) {
@@ -217,8 +214,10 @@ func TestNode_GetChunk_PendingChunk(t *testing.T) {
 func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	r := require.New(t)
 
+	node := newTestNode(t)
 	client := NewGetChunkClient[tx](p2ptest.NewClient(
 		t,
+		context.Background(),
 		ids.EmptyNodeID,
 		p2p.NoOpHandler{},
 		node.ID,
@@ -1244,10 +1243,9 @@ func Test_Verify_BadBlock(t *testing.T) {
 }
 
 type tx struct {
-	ID      ids.ID          `serialize:"true"`
-	Expiry  int64           `serialize:"true"`
-	Sponsor codec.Address   `serialize:"true"`
-	Fees    fees.Dimensions `serialize:"true"`
+	ID      ids.ID        `serialize:"true"`
+	Expiry  int64         `serialize:"true"`
+	Sponsor codec.Address `serialize:"true"`
 }
 
 func (t tx) GetID() ids.ID {
@@ -1260,10 +1258,6 @@ func (t tx) GetExpiry() int64 {
 
 func (t tx) GetSponsor() codec.Address {
 	return t.Sponsor
-}
-
-func (t tx) GetFees() fees.Dimensions {
-	return t.Fees
 }
 
 type failVerifier struct{}

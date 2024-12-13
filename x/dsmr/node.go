@@ -112,8 +112,6 @@ type Node[T Tx] struct {
 }
 
 // BuildChunk builds transactions into a Chunk
-// The outputed chunk might contain only a subset of the give transactions
-// in order to align with the block limits requirements.
 // TODO handle frozen sponsor + validator assignments
 func (n *Node[T]) BuildChunk(
 	ctx context.Context,
@@ -125,14 +123,12 @@ func (n *Node[T]) BuildChunk(
 		return Chunk[T]{}, ChunkCertificate{}, ErrEmptyChunk
 	}
 
-	chunkTxs := n.selectTxsForChunk(txs)
-
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.ID,
 			Beneficiary: beneficiary,
 			Expiry:      expiry,
-			Txs:         chunkTxs,
+			Txs:         txs,
 		},
 		n.networkID,
 		n.chainID,
