@@ -46,7 +46,7 @@ type Chain[I Block, O Block, A Block] interface {
 		ctx context.Context,
 		chainInput ChainInput,
 		chainIndex ChainIndex[I, O, A],
-		options *Options[I, O, A],
+		app *Application[I, O, A],
 	) (BlockChainIndex[I], O, A, bool, error)
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
@@ -62,7 +62,7 @@ type VM[I Block, O Block, A Block] struct {
 	chain       Chain[I, O, A]
 	chainIndex  BlockChainIndex[I]
 	covariantVM *CovariantVM[I, O, A]
-	Options     Options[I, O, A]
+	app         Application[I, O, A]
 
 	snowCtx *snow.Context
 
@@ -94,7 +94,7 @@ type VM[I Block, O Block, A Block] struct {
 func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 	v := &VM[I, O, A]{
 		chain: chain,
-		Options: Options[I, O, A]{
+		app: Application[I, O, A]{
 			Version: "v0.0.1",
 			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
 				return nil, nil
@@ -103,7 +103,7 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 			Handlers: make(map[string]http.Handler),
 		},
 	}
-	v.Options.vm = v
+	v.app.vm = v
 	return v
 }
 
@@ -161,14 +161,14 @@ func (v *VM[I, O, A]) Initialize(
 			continuousProfilerConfig.Freq,
 			continuousProfilerConfig.MaxNumFiles,
 		)
-		v.Options.WithCloser(func() error {
+		v.app.WithCloser(func() error {
 			continuousProfiler.Shutdown()
 			return nil
 		})
 		go continuousProfiler.Dispatch() //nolint:errcheck
 	}
 
-	v.Options.Network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
+	v.app.Network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
 	if err != nil {
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
@@ -200,7 +200,7 @@ func (v *VM[I, O, A]) Initialize(
 		ctx,
 		chainInput,
 		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
-		&v.Options,
+		&v.app,
 	)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func (v *VM[I, O, A]) Initialize(
 		}
 	} else {
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
-		v.Options.Ready.MarkNotReady()
+		v.app.Ready.MarkNotReady()
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	return nil
@@ -301,15 +301,15 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	case snow.Bootstrapping:
 		v.log.Info("Starting bootstrapping")
 
-		for _, startBootstrappingF := range v.Options.OnBootstrapStarted {
+		for _, startBootstrappingF := range v.app.OnBootstrapStarted {
 			if err := startBootstrappingF(ctx); err != nil {
 				return err
 			}
 		}
 		return nil
 	case snow.NormalOp:
-		v.log.Info("Starting normal operation", zap.Bool("stateSyncStarted", v.Options.StateSyncClient.Started()))
-		for _, startNormalOpF := range v.Options.OnNormalOperationStarted {
+		v.log.Info("Starting normal operation", zap.Bool("stateSyncStarted", v.app.StateSyncClient.Started()))
+		for _, startNormalOpF := range v.app.OnNormalOperationStarted {
 			if err := startNormalOpF(ctx); err != nil {
 				return err
 			}
@@ -321,23 +321,23 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	return v.Options.HealthChecker.HealthCheck(ctx)
+	return v.app.HealthChecker.HealthCheck(ctx)
 }
 
 func (v *VM[I, O, A]) CreateHandlers(ctx context.Context) (map[string]http.Handler, error) {
-	return v.Options.Handlers, nil
+	return v.app.Handlers, nil
 }
 
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	close(v.shutdownChan)
 
-	errs := make([]error, len(v.Options.Closers))
-	for i, closer := range v.Options.Closers {
+	errs := make([]error, len(v.app.Closers))
+	for i, closer := range v.app.Closers {
 		errs[i] = closer()
 	}
 	return errors.Join(errs...)
 }
 
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {
-	return v.Options.Version, nil
+	return v.app.Version, nil
 }

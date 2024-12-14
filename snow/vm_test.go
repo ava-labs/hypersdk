@@ -138,8 +138,8 @@ func NewTestChain(t *testing.T, require *require.Assertions, getRandData func() 
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	chainIndex ChainIndex[*TestBlock, *TestBlock, *TestBlock],
-	options *Options[*TestBlock, *TestBlock, *TestBlock],
+	_ ChainIndex[*TestBlock, *TestBlock, *TestBlock],
+	_ *Application[*TestBlock, *TestBlock, *TestBlock],
 ) (BlockChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
 	chainStore, err := chainstore.New(chainInput.Context, t, memdb.New())
 	if err != nil {

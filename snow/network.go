@@ -13,25 +13,25 @@ import (
 )
 
 func (v *VM[I, O, A]) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, deadline time.Time, request []byte) error {
-	return v.Options.Network.AppRequest(ctx, nodeID, requestID, deadline, request)
+	return v.app.Network.AppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
 func (v *VM[I, O, A]) AppResponse(ctx context.Context, nodeID ids.NodeID, requestID uint32, response []byte) error {
-	return v.Options.Network.AppResponse(ctx, nodeID, requestID, response)
+	return v.app.Network.AppResponse(ctx, nodeID, requestID, response)
 }
 
 func (v *VM[I, O, A]) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, appErr *common.AppError) error {
-	return v.Options.Network.AppRequestFailed(ctx, nodeID, requestID, appErr)
+	return v.app.Network.AppRequestFailed(ctx, nodeID, requestID, appErr)
 }
 
 func (v *VM[I, O, A]) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	return v.Options.Network.AppGossip(ctx, nodeID, msg)
+	return v.app.Network.AppGossip(ctx, nodeID, msg)
 }
 
 func (v *VM[I, O, A]) Connected(ctx context.Context, nodeID ids.NodeID, nodeVersion *version.Application) error {
-	return v.Options.Network.Connected(ctx, nodeID, nodeVersion)
+	return v.app.Network.Connected(ctx, nodeID, nodeVersion)
 }
 
 func (v *VM[I, O, A]) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
-	return v.Options.Network.Disconnected(ctx, nodeID)
+	return v.app.Network.Disconnected(ctx, nodeID)
 }

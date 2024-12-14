@@ -59,7 +59,7 @@ const (
 
 type VM struct {
 	snowInput   hsnow.ChainInput
-	snowOptions *hsnow.Options[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 
 	proposerMonitor *validators.ProposerMonitor
 
@@ -141,7 +141,7 @@ func (vm *VM) Initialize(
 	ctx context.Context,
 	chainInput hsnow.ChainInput,
 	chainIndex hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
-	snowOptions *hsnow.Options[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
+	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 ) (hsnow.BlockChainIndex[*chain.ExecutionBlock], *chain.OutputBlock, *chain.OutputBlock, bool, error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
@@ -163,7 +163,7 @@ func (vm *VM) Initialize(
 	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 
-	vm.network = snowOptions.Network
+	vm.network = snowApp.Network
 
 	blockDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
@@ -174,7 +174,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	snowOptions.WithCloser(func() error {
+	snowApp.WithCloser(func() error {
 		if err := vm.vmDB.Close(); err != nil {
 			return fmt.Errorf("failed to close vm db: %w", err)
 		}
@@ -189,7 +189,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	snowOptions.WithCloser(func() error {
+	snowApp.WithCloser(func() error {
 		if err := vm.rawStateDB.Close(); err != nil {
 			return fmt.Errorf("failed to close raw state db: %w", err)
 		}
@@ -214,7 +214,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
-	snowOptions.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	snowApp.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
 			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
@@ -224,13 +224,13 @@ func (vm *VM) Initialize(
 			return nil
 		},
 	})
-	snowOptions.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	snowApp.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
-	snowOptions.WithRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	snowApp.WithRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			vm.mempool.Add(ctx, b.StatelessBlock.Txs)
 			return nil
@@ -256,7 +256,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	snowOptions.WithCloser(func() error {
+	snowApp.WithCloser(func() error {
 		if err := vm.stateDB.Close(); err != nil {
 			return fmt.Errorf("failed to close state db: %w", err)
 		}
@@ -271,7 +271,7 @@ func (vm *VM) Initialize(
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-	snowOptions.WithCloser(func() error {
+	snowApp.WithCloser(func() error {
 		vm.authVerifiers.Stop()
 		return nil
 	})
@@ -301,7 +301,7 @@ func (vm *VM) Initialize(
 	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
-	snowOptions.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	snowApp.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			vm.chainTimeValidityWindow.Accept(b)
 			return nil
@@ -334,7 +334,7 @@ func (vm *VM) Initialize(
 	})
 	validityWindowReady := lifecycle.NewChanReady()
 	// TODO: combine time validity window and state syncer to call FinishStateSync correclty
-	snowOptions.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
+	snowApp.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
 		NotifyF: func(ctx context.Context, b *chain.ExecutionBlock) error {
 			vm.metrics.txsAccepted.Add(float64(len(b.StatelessBlock.Txs)))
 			seenValidityWindow, err := vm.syncer.Accept(ctx, b)
@@ -348,7 +348,7 @@ func (vm *VM) Initialize(
 			return nil
 		},
 	})
-	snowOptions.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	snowApp.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			vm.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
 			return nil
@@ -374,13 +374,13 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	snowOptions.WithCloser(func() error {
+	snowApp.WithCloser(func() error {
 		if err := syncerDB.Close(); err != nil {
 			return fmt.Errorf("failed to close syncer db: %w", err)
 		}
 		return nil
 	})
-	if err := snowOptions.WithStateSyncer(
+	if err := snowApp.WithStateSyncer(
 		syncerDB,
 		vm.stateDB,
 		rangeProofHandlerID,
@@ -393,7 +393,7 @@ func (vm *VM) Initialize(
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
 		gossiper.NewTxGossipHandler(
-			vm.snowOptions.Ready,
+			vm.snowApp.Ready,
 			vm.snowCtx.Log,
 			vm.gossiper,
 		),
@@ -410,7 +410,7 @@ func (vm *VM) Initialize(
 		if err != nil {
 			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
 		}
-		snowOptions.WithHandler(api.Path, api.Handler)
+		snowApp.WithHandler(api.Path, api.Handler)
 	}
 
 	// TODO: return false if we are mid state sync
@@ -427,7 +427,7 @@ func (vm *VM) initChainStore(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain store database: %w", err)
 	}
-	vm.snowOptions.WithCloser(chainStoreDB.Close)
+	vm.snowApp.WithCloser(chainStoreDB.Close)
 	vm.chainStore, err = chainstore.New[*chain.ExecutionBlock](vm.snowInput.Context, vm.chain, chainStoreDB)
 	return nil
 }
@@ -531,7 +531,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		}
 		blockSubs[i] = sub
 	}
-	vm.snowOptions.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	vm.snowApp.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			executedBlock := &chain.ExecutedBlock{
 				Block:            b.StatelessBlock,
@@ -563,7 +563,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 		})
 	}
-	vm.snowOptions.WithCloser(func() error {
+	vm.snowApp.WithCloser(func() error {
 		vm.builder.Done()
 		return nil
 	})
@@ -612,14 +612,14 @@ func (vm *VM) applyOptions(o *Options) error {
 			return err
 		}
 		vm.gossiper = txGossiper
-		vm.snowOptions.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+		vm.snowApp.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 			NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
 				txGossiper.BlockVerified(b.Timestamp())
 				return nil
 			},
 		})
 	}
-	vm.snowOptions.WithCloser(func() error {
+	vm.snowApp.WithCloser(func() error {
 		vm.gossiper.Done()
 		return nil
 	})

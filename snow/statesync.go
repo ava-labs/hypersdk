@@ -17,12 +17,12 @@ import (
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
-func (o *Options[I, O, A]) WithStateSyncableVM(
+func (a *Application[I, O, A]) WithStateSyncableVM(
 	client *statesync.Client[*StatefulBlock[I, O, A]],
 	server *statesync.Server[*StatefulBlock[I, O, A]],
 ) {
-	o.StateSyncClient = client
-	o.StateSyncServer = server
+	a.StateSyncClient = client
+	a.StateSyncServer = server
 }
 
 type StateSyncConfig struct {
@@ -41,7 +41,7 @@ func GetStateSyncConfig(ctx *hcontext.Context) (StateSyncConfig, error) {
 	return hcontext.GetConfigFromContext(ctx, "statesync", NewDefaultStateSyncConfig())
 }
 
-func (o *Options[I, O, A]) WithStateSyncer(
+func (a *Application[I, O, A]) WithStateSyncer(
 	db database.Database,
 	stateDB merkledb.MerkleDB,
 	rangeProofHandlerID uint64,
@@ -49,49 +49,49 @@ func (o *Options[I, O, A]) WithStateSyncer(
 	branchFactor merkledb.BranchFactor,
 ) error {
 	server := statesync.NewServer[*StatefulBlock[I, O, A]](
-		o.vm.log,
-		o.vm.covariantVM,
+		a.vm.log,
+		a.vm.covariantVM,
 	)
-	o.StateSyncServer = server
+	a.StateSyncServer = server
 
 	syncerRegistry := prometheus.NewRegistry()
-	if err := o.vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
+	if err := a.vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
 		return err
 	}
-	stateSyncConfig, err := GetStateSyncConfig(o.vm.hctx)
+	stateSyncConfig, err := GetStateSyncConfig(a.vm.hctx)
 	if err != nil {
 		return err
 	}
 	client := statesync.NewClient[*StatefulBlock[I, O, A]](
-		o.vm.covariantVM,
-		o.vm.snowCtx.Log,
+		a.vm.covariantVM,
+		a.vm.snowCtx.Log,
 		syncerRegistry,
 		db,
 		stateDB,
-		o.Network,
+		a.Network,
 		rangeProofHandlerID,
 		changeProofHandlerID,
 		branchFactor,
 		stateSyncConfig.MinBlocks,
 		stateSyncConfig.Parallelism,
 	)
-	o.StateSyncClient = client
-	o.OnNormalOperationStarted = append(o.OnNormalOperationStarted, client.StartBootstrapping)
+	a.StateSyncClient = client
+	a.OnNormalOperationStarted = append(a.OnNormalOperationStarted, client.StartBootstrapping)
 	// Note: this is not perfect because we may need to get a notification of a block between finishing state sync
 	// and when the engine/VM has received the notification and switched over.
-	// o.WithPreReadyAcceptedSub(event.SubscriptionFunc[I]{
+	// a.WithPreReadyAcceptedSub(event.SubscriptionFunc[I]{
 	// 	NotifyF: func(ctx context.Context, block I) error {
 	// 		_, err := client.UpdateSyncTarget(block)
 	// 		return err
 	// 	},
 	// })
-	return statesync.RegisterHandlers(o.vm.log, o.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
+	return statesync.RegisterHandlers(a.vm.log, a.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
 }
 
 // StartStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
 // in DynamicStateSync mode until FinishStateSync is called.
 func (v *VM[I, O, A]) StartStateSync(ctx context.Context) error {
-	v.Options.Ready.MarkNotReady()
+	v.app.Ready.MarkNotReady()
 	return nil
 }
 
@@ -103,14 +103,14 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	defer v.snowCtx.Lock.Unlock()
 
 	// Cannot call FinishStateSync if already marked as ready and in normal operation
-	if v.Options.Ready.Ready() {
+	if v.app.Ready.Ready() {
 		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
 	// If the block is already the last accepted block, update the fields and return
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
-		v.Options.Ready.MarkReady()
+		v.app.Ready.MarkReady()
 		return nil
 	}
 
@@ -135,26 +135,26 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		}
 	}
 
-	v.Options.Ready.MarkReady()
+	v.app.Ready.MarkReady()
 	return nil
 }
 
 func (v *VM[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return v.Options.StateSyncClient.StateSyncEnabled(ctx)
+	return v.app.StateSyncClient.StateSyncEnabled(ctx)
 }
 
 func (v *VM[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.Options.StateSyncClient.GetOngoingSyncStateSummary(ctx)
+	return v.app.StateSyncClient.GetOngoingSyncStateSummary(ctx)
 }
 
 func (v *VM[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.Options.StateSyncServer.GetLastStateSummary(ctx)
+	return v.app.StateSyncServer.GetLastStateSummary(ctx)
 }
 
 func (v *VM[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
-	return v.Options.StateSyncClient.ParseStateSummary(ctx, summaryBytes)
+	return v.app.StateSyncClient.ParseStateSummary(ctx, summaryBytes)
 }
 
 func (v *VM[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
-	return v.Options.StateSyncServer.GetStateSummary(ctx, summaryHeight)
+	return v.app.StateSyncServer.GetStateSummary(ctx, summaryHeight)
 }
