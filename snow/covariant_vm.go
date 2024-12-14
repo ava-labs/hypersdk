@@ -41,11 +41,11 @@ func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*Sta
 	// The consensus engine guarantees that:
 	// 1. Verify is only called on a block whose parent is lastAcceptedBlock or in verifiedBlocks
 	// 2. Accept is only called on a block whose parent is lastAcceptedBlock
-	blk, err := v.chain.GetBlock(ctx, blkID)
+	blk, err := v.chainIndex.GetBlock(ctx, blkID)
 	if err != nil {
 		return nil, err
 	}
-	return v.ParseBlock(ctx, blk)
+	return NewInputBlock(v, blk), nil
 }
 
 func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
@@ -59,7 +59,7 @@ func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint
 	if fetchedBlkID, ok := v.acceptedBlocksByHeight.Get(height); ok {
 		blkID = fetchedBlkID
 	} else {
-		fetchedBlkID, err := v.chain.GetBlockIDAtHeight(ctx, height)
+		fetchedBlkID, err := v.chainIndex.GetBlockIDAtHeight(ctx, height)
 		if err != nil {
 			return nil, err
 		}

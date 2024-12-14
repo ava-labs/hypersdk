@@ -9,6 +9,15 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+type BlockChainIndex[T Block] interface {
+	Accept(ctx context.Context, blk T) error
+	GetLastAcceptedHeight(ctx context.Context) (uint64, error)
+	GetBlock(ctx context.Context, blkID ids.ID) (T, error)
+	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
+	GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint64, error)
+	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
+}
+
 type ChainIndex[I Block, O Block, A Block] struct {
 	covariantVM *CovariantVM[I, O, A]
 }

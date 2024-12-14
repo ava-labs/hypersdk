@@ -47,7 +47,7 @@ type Chain[I Block, O Block, A Block] interface {
 		chainInput ChainInput,
 		chainIndex ChainIndex[I, O, A],
 		options *Options[I, O, A],
-	) (I, O, A, bool, error)
+	) (BlockChainIndex[I], O, A, bool, error)
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
 	Execute(
@@ -56,12 +56,11 @@ type Chain[I Block, O Block, A Block] interface {
 		block I,
 	) (O, error)
 	AcceptBlock(ctx context.Context, verifiedBlock O) (A, error)
-	GetBlock(ctx context.Context, blkID ids.ID) ([]byte, error)
-	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
 }
 
 type VM[I Block, O Block, A Block] struct {
 	chain       Chain[I, O, A]
+	chainIndex  BlockChainIndex[I]
 	covariantVM *CovariantVM[I, O, A]
 	Options     Options[I, O, A]
 
@@ -197,7 +196,7 @@ func (v *VM[I, O, A]) Initialize(
 		Context:      v.hctx,
 	}
 
-	inputBlock, outputBlock, acceptedBlock, ready, err := v.chain.Initialize(
+	blockChainIndex, outputBlock, acceptedBlock, stateReady, err := v.chain.Initialize(
 		ctx,
 		chainInput,
 		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
@@ -206,15 +205,51 @@ func (v *VM[I, O, A]) Initialize(
 	if err != nil {
 		return err
 	}
+	v.chainIndex = blockChainIndex
+	lastAcceptedHeight, err := v.chainIndex.GetLastAcceptedHeight(ctx)
+	if err != nil {
+		return err
+	}
+	inputBlock, err := v.chainIndex.GetBlockByHeight(ctx, lastAcceptedHeight)
+	if err != nil {
+		return err
+	}
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
-	if ready {
-		lastAcceptedBlock = NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock)
+	if stateReady {
+		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
+		if err != nil {
+			return err
+		}
 	} else {
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
 		v.Options.Ready.MarkNotReady()
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	return nil
+}
+
+func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
+	if inputBlock.Height() < outputBlock.Height() || outputBlock.Height() < acceptedBlock.Height() {
+		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
+	}
+
+	// Re-process from the last output block, to the last accepted input block
+	for inputBlock.Height() > outputBlock.Height() {
+		reprocessBlk, err := v.chainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
+		if err != nil {
+			return nil, err
+		}
+		outputBlock, err = v.chain.Execute(ctx, outputBlock, reprocessBlk)
+		if err != nil {
+			return nil, err
+		}
+		acceptedBlock, err = v.chain.AcceptBlock(ctx, outputBlock)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock), nil
 }
 
 func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
@@ -238,7 +273,7 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	if blkID, ok := v.acceptedBlocksByHeight.Get(blkHeight); ok {
 		return blkID, nil
 	}
-	return v.chain.GetBlockIDAtHeight(ctx, blkHeight)
+	return v.chainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {

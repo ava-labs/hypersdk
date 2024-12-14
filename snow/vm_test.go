@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
@@ -20,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chainstore"
 	"github.com/stretchr/testify/require"
 	"github.com/thepudds/fzgen/fuzzer"
 	"golang.org/x/exp/slices"
@@ -113,6 +115,7 @@ type AcceptedBlock struct {
 }
 
 type TestChain struct {
+	t                     *testing.T
 	require               *require.Assertions
 	initLastAcceptedBlock *TestBlock
 	getRandData           func() []byte
@@ -121,8 +124,9 @@ type TestChain struct {
 	acceptedBlocksByHeight map[uint64]*TestBlock
 }
 
-func NewTestChain(require *require.Assertions, getRandData func() []byte, initLastAcceptedBlock *TestBlock) *TestChain {
+func NewTestChain(t *testing.T, require *require.Assertions, getRandData func() []byte, initLastAcceptedBlock *TestBlock) *TestChain {
 	return &TestChain{
+		t:                      t,
 		require:                require,
 		getRandData:            getRandData,
 		initLastAcceptedBlock:  initLastAcceptedBlock,
@@ -136,8 +140,15 @@ func (t *TestChain) Initialize(
 	chainInput ChainInput,
 	chainIndex ChainIndex[*TestBlock, *TestBlock, *TestBlock],
 	options *Options[*TestBlock, *TestBlock, *TestBlock],
-) (*TestBlock, *TestBlock, *TestBlock, bool, error) {
-	return t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
+) (BlockChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
+	chainStore, err := chainstore.New(chainInput.Context, t, memdb.New())
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	if err := chainStore.Accept(ctx, t.initLastAcceptedBlock); err != nil {
+		return nil, nil, nil, false, err
+	}
+	return chainStore, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
 }
 
 func (t *TestChain) BuildBlock(ctx context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
@@ -179,12 +190,12 @@ func (t *TestChain) AcceptBlock(ctx context.Context, verifiedBlock *TestBlock) (
 	return verifiedBlock, nil
 }
 
-func (t *TestChain) GetBlock(ctx context.Context, blkID ids.ID) ([]byte, error) {
+func (t *TestChain) GetBlock(ctx context.Context, blkID ids.ID) (*TestBlock, error) {
 	blk, ok := t.acceptedBlocks[blkID]
 	if !ok {
 		return nil, fmt.Errorf("block not found")
 	}
-	return blk.Bytes(), nil
+	return blk, nil
 }
 
 func (t *TestChain) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
@@ -222,7 +233,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 		r.NoError(err)
 		return data
 	}
-	chain := NewTestChain(r, getRandData, initLastAcceptedBlock)
+	chain := NewTestChain(t, r, getRandData, initLastAcceptedBlock)
 	vm := NewVM(chain)
 	toEngine := make(chan common.Message, 1)
 	ce := &TestConsensusEngine{

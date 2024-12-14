@@ -4,6 +4,7 @@
 package chainstore
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -15,26 +16,27 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/prometheus/client_golang/prometheus"
+	hcontext "github.com/ava-labs/hypersdk/context"
 	"go.uber.org/zap"
 )
 
+const namespace = "chainstore"
+
 const (
 	blockPrefix         byte = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
-	resultPrefix        byte = 0x1
-	blockIDHeightPrefix byte = 0x2 // ID -> Height
-	blockHeightIDPrefix byte = 0x3 // Height -> ID (don't always need full block from disk)
-	lastAcceptedByte    byte = 0x4 // lastAcceptedByte -> lastAcceptedHeight
+	blockIDHeightPrefix byte = 0x1 // ID -> Height
+	blockHeightIDPrefix byte = 0x2 // Height -> ID (don't always need full block from disk)
+	lastAcceptedByte    byte = 0x3 // lastAcceptedByte -> lastAcceptedHeight
 )
 
 type Config struct {
-	AcceptedBlockWindow      uint64 `json:"acceptedBlockWindow"`
+	AcceptedBlockWindow             uint64 `json:"acceptedBlockWindow"`
 	BlockCompactionAverageFrequency int    `json:"blockCompactionFrequency"`
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		AcceptedBlockWindow:      50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
+		AcceptedBlockWindow:             50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
 		BlockCompactionAverageFrequency: 32,     // 64 MB of deletion if 2 MB blocks
 	}
 }
@@ -44,27 +46,52 @@ func NewDefaultConfig() Config {
 // blockID -> blockHeight
 // blockHeight -> blockID
 // TODO: add metrics / span tracing
-type ChainStore struct {
+type ChainStore[T Block] struct {
 	config  Config
+	metrics *metrics
 	log     logging.Logger
 	db      database.Database
-	metrics *metrics
+	parser  Parser[T]
 }
 
-func New(config Config, log logging.Logger, registry prometheus.Registerer, db database.Database) (*ChainStore, error) {
+type Block interface {
+	ID() ids.ID
+	Height() uint64
+	Bytes() []byte
+}
+
+type Parser[T Block] interface {
+	ParseBlock(context.Context, []byte) (T, error)
+}
+
+func New[T Block](
+	hctx *hcontext.Context,
+	parser Parser[T],
+	db database.Database,
+) (*ChainStore[T], error) {
+	registry, err := hctx.MakeRegistry(namespace)
+	if err != nil {
+		return nil, err
+	}
 	metrics, err := newMetrics(registry)
 	if err != nil {
 		return nil, err
 	}
-	return &ChainStore{
+	config, err := hcontext.GetConfigFromContext(hctx, namespace, NewDefaultConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChainStore[T]{
 		config:  config,
-		log:     log,
-		db:      db,
 		metrics: metrics,
+		log:     hctx.Log(),
+		db:      db,
+		parser:  parser,
 	}, nil
 }
 
-func (c *ChainStore) GetLastAcceptedHeight() (uint64, error) {
+func (c *ChainStore[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error) {
 	lastAcceptedHeightBytes, err := c.db.Get([]byte{lastAcceptedByte})
 	if err != nil {
 		return 0, err
@@ -72,17 +99,20 @@ func (c *ChainStore) GetLastAcceptedHeight() (uint64, error) {
 	return database.ParseUInt64(lastAcceptedHeightBytes)
 }
 
-func (c *ChainStore) UpdateLastAccepted(blkID ids.ID, height uint64, blockBytes []byte, resultBytes []byte) error {
+func (c *ChainStore[T]) Accept(_ context.Context, blk T) error {
 	batch := c.db.NewBatch()
 
-	// TODO: add expiry
+	var (
+		blkID    = blk.ID()
+		height   = blk.Height()
+		blkBytes = blk.Bytes()
+	)
 	heightBytes := binary.BigEndian.AppendUint64(nil, height)
 	err := errors.Join(
 		batch.Put([]byte{lastAcceptedByte}, heightBytes),
 		batch.Put(PrefixBlockIDHeightKey(blkID), heightBytes),
-		batch.Put(PrefixBlockHeightIDKey(height), blkID[:]),
-		batch.Put(PrefixBlockKey(height), blockBytes),
-		batch.Put(PrefixResultKey(height), resultBytes),
+		batch.Put(PrefixBlockHeightIDKey(blk.Height()), blkID[:]),
+		batch.Put(PrefixBlockKey(height), blkBytes),
 	)
 	if err != nil {
 		return err
@@ -120,15 +150,16 @@ func (c *ChainStore) UpdateLastAccepted(blkID ids.ID, height uint64, blockBytes 
 	return batch.Write()
 }
 
-func (c *ChainStore) GetBlock(blkID ids.ID) ([]byte, error) {
-	height, err := c.GetBlockIDHeight(blkID)
+func (c *ChainStore[T]) GetBlock(ctx context.Context, blkID ids.ID) (T, error) {
+	var emptyT T
+	height, err := c.GetBlockIDHeight(ctx, blkID)
 	if err != nil {
-		return nil, err
+		return emptyT, err
 	}
-	return c.GetBlockByHeight(height)
+	return c.GetBlockByHeight(ctx, height)
 }
 
-func (c *ChainStore) GetBlockIDAtHeight(blkHeight uint64) (ids.ID, error) {
+func (c *ChainStore[T]) GetBlockIDAtHeight(_ context.Context, blkHeight uint64) (ids.ID, error) {
 	blkIDBytes, err := c.db.Get(PrefixBlockHeightIDKey(blkHeight))
 	if err != nil {
 		return ids.Empty, err
@@ -136,7 +167,7 @@ func (c *ChainStore) GetBlockIDAtHeight(blkHeight uint64) (ids.ID, error) {
 	return ids.ID(blkIDBytes), nil
 }
 
-func (c *ChainStore) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
+func (c *ChainStore[T]) GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint64, error) {
 	blkHeightBytes, err := c.db.Get(PrefixBlockIDHeightKey(blkID))
 	if err != nil {
 		return 0, err
@@ -144,24 +175,18 @@ func (c *ChainStore) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 	return database.ParseUInt64(blkHeightBytes)
 }
 
-func (c *ChainStore) GetBlockByHeight(blkHeight uint64) ([]byte, error) {
-	return c.db.Get(PrefixBlockKey(blkHeight))
-}
-
-func (c *ChainStore) GetResultByHeight(blkHeight uint64) ([]byte, error) {
-	return c.db.Get(PrefixResultKey(blkHeight))
+func (c *ChainStore[T]) GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error) {
+	var emptyT T
+	blkBytes, err := c.db.Get(PrefixBlockKey(blkHeight))
+	if err != nil {
+		return emptyT, err
+	}
+	return c.parser.ParseBlock(ctx, blkBytes)
 }
 
 func PrefixBlockKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = blockPrefix
-	binary.BigEndian.PutUint64(k[1:], height)
-	return k
-}
-
-func PrefixResultKey(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = resultPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
 }

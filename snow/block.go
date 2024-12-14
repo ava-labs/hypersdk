@@ -214,6 +214,10 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 
 // markAccepted marks the block and updates the required VM state.
 func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
+	if err := b.vm.chainIndex.Accept(ctx, b.Input); err != nil {
+		return err
+	}
+
 	b.vm.verifiedL.Lock()
 	delete(b.vm.verifiedBlocks, b.Input.ID())
 	b.vm.verifiedL.Unlock()
@@ -242,10 +246,10 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	// If I've already been verified, accept myself.
 	if b.verified {
-		if err := b.accept(ctx); err != nil {
+		if err := b.markAccepted(ctx); err != nil {
 			return err
 		}
-		return b.markAccepted(ctx)
+		return b.accept(ctx)
 	}
 
 	// If I'm not ready yet, mark myself as accepted, and return early.
@@ -267,10 +271,10 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	if err := b.verify(ctx, parent.Output); err != nil {
 		return err
 	}
-	if err := b.accept(ctx); err != nil {
+	if err := b.markAccepted(ctx); err != nil {
 		return err
 	}
-	return b.markAccepted(ctx)
+	return b.accept(ctx)
 }
 
 // implements "statesync.StateSummaryBlock"

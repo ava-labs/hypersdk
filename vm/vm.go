@@ -76,7 +76,7 @@ type VM struct {
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
 
 	chainIndex hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
-	chainStore *chainstore.ChainStore
+	chainStore *chainstore.ChainStore[*chain.ExecutionBlock]
 
 	builder  builder.Builder
 	gossiper gossiper.Gossiper
@@ -142,7 +142,7 @@ func (vm *VM) Initialize(
 	chainInput hsnow.ChainInput,
 	chainIndex hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 	snowOptions *hsnow.Options[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
-) (*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock, bool, error) {
+) (hsnow.BlockChainIndex[*chain.ExecutionBlock], *chain.OutputBlock, *chain.OutputBlock, bool, error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
@@ -413,8 +413,8 @@ func (vm *VM) Initialize(
 		snowOptions.WithHandler(api.Path, api.Handler)
 	}
 
-	// TODO: handle the case we are mid state sync correctly
-	return lastAccepted.ExecutionBlock, lastAccepted, lastAccepted, false, nil
+	// TODO: return false if we are mid state sync
+	return vm.chainStore, lastAccepted, lastAccepted, true, nil
 }
 
 func (vm *VM) initChainStore(ctx context.Context) error {
@@ -428,12 +428,12 @@ func (vm *VM) initChainStore(ctx context.Context) error {
 		return fmt.Errorf("failed to create chain store database: %w", err)
 	}
 	vm.snowOptions.WithCloser(chainStoreDB.Close)
-	vm.chainStore, err = chainstore.New(chainstore.Config{}, vm.snowCtx.Log, blockDBRegistry, chainStoreDB)
+	vm.chainStore, err = chainstore.New[*chain.ExecutionBlock](vm.snowInput.Context, vm.chain, chainStoreDB)
 	return nil
 }
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight()
+	_, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
 	}
@@ -441,24 +441,8 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 		return vm.initGenesisAsLastAccepted(ctx)
 	}
 
-	blkBytes, err := vm.chainStore.GetBlockByHeight(lastAcceptedHeight)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch block at last accepted height: %w", err)
-	}
-
-	blk, err := vm.chain.ParseBlock(ctx, blkBytes)
-	if err != nil {
-		return nil, err
-	}
-	resultBytes, err := vm.chainStore.GetResultByHeight(lastAcceptedHeight)
-	if err != nil {
-		return nil, err
-	}
-	blkResult, err := chain.UnmarshalExecutionResults(resultBytes)
-	if err != nil {
-		return nil, err
-	}
-
+	// If the chain store is initialized, return the output block that matches with the latest
+	// state.
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
 	if err != nil {
 		return nil, err
@@ -467,51 +451,16 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case stateHeight == lastAcceptedHeight:
-	case stateHeight < lastAcceptedHeight:
-		blkBytes, err := vm.chainStore.GetBlockByHeight(stateHeight)
-		if err != nil {
-			return nil, err
-		}
-		parentBlk, err := vm.chain.ParseBlock(ctx, blkBytes)
-		if err != nil {
-			return nil, err
-		}
-		parentOutputBlock := &chain.OutputBlock{
-			ExecutionBlock: parentBlk,
-			View:           MerkleDBWithNoopCommit{vm.stateDB},
-		}
-
-		for height := stateHeight + 1; height <= lastAcceptedHeight; height++ {
-			blkBytes, err := vm.chainStore.GetBlockByHeight(height)
-			if err != nil {
-				return nil, err
-			}
-			blk, err := vm.chain.ParseBlock(ctx, blkBytes)
-			if err != nil {
-				return nil, err
-			}
-			executedBlock, err := vm.chain.Execute(ctx, parentOutputBlock, blk)
-			if err != nil {
-				return nil, err
-			}
-			parentOutputBlock = executedBlock
-		}
-
-		return parentOutputBlock, nil
-	default:
-		// Blocks are written via Pebble with the Sync option (writes through with fsync) and we write blocks
-		// before committing state.
-		// This should guarantee we never reach this point unless there is a bug or machine crash.
-		// TODO: log error and fall back to state sync rather than handling this as a fatal error
-		return nil, fmt.Errorf("last accepted state height %d is greater than chain height %d", stateHeight, lastAcceptedHeight)
+	blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight)
+	if err != nil {
+		return nil, err
 	}
-
 	return &chain.OutputBlock{
-		ExecutionBlock:   blk,
-		View:             MerkleDBWithNoopCommit{vm.stateDB},
-		ExecutionResults: *blkResult,
+		ExecutionBlock: blk,
+		View:           MerkleDBWithNoopCommit{vm.stateDB},
+		// XXX: we don't guarantee the last accepted block ExecutionResults to be populated
+		// on startup.
+		ExecutionResults: chain.ExecutionResults{},
 	}, nil
 }
 
@@ -562,14 +511,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	if _, err := vm.stateDB.GetMerkleRoot(ctx); err != nil {
 		return nil, fmt.Errorf("failed to get genesis root: %w", err)
 	}
-
-	genesisExecutionResults := &chain.ExecutionResults{}
-	genesisResultBytes, err := genesisExecutionResults.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal genesis execution results: %w", err)
-	}
-
-	if err := vm.chainStore.UpdateLastAccepted(genesisExecutionBlk.ID(), 0, genesisExecutionBlk.Bytes(), genesisResultBytes); err != nil {
+	if err := vm.chainStore.Accept(ctx, genesisExecutionBlk); err != nil {
 		return nil, fmt.Errorf("failed to write genesis block: %w", err)
 	}
 
@@ -579,12 +521,6 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 		ExecutionResults: chain.ExecutionResults{},
 	}, nil
 }
-
-type MerkleDBWithNoopCommit struct {
-	merkledb.MerkleDB
-}
-
-func (m MerkleDBWithNoopCommit) CommitToDB(context.Context) error { return nil }
 
 func (vm *VM) applyOptions(o *Options) error {
 	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(o.blockSubscriptionFactories))
@@ -712,22 +648,18 @@ func (vm *VM) Execute(ctx context.Context, parent *chain.OutputBlock, block *cha
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, block *chain.OutputBlock) (*chain.OutputBlock, error) {
-	resultBytes, err := block.ExecutionResults.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
-	}
-	if err := vm.chainStore.UpdateLastAccepted(block.ID(), block.Height(), block.Bytes(), resultBytes); err != nil {
-		return nil, err
+	if err := block.View.CommitToDB(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit state for block %s: %w", block, err)
 	}
 	return block, nil
 }
 
-func (vm *VM) GetBlock(ctx context.Context, blkID ids.ID) ([]byte, error) {
-	return vm.chainStore.GetBlock(blkID)
+func (vm *VM) GetBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+	return vm.chainStore.GetBlock(ctx, blkID)
 }
 
 func (vm *VM) GetBlockIDAtHeight(ctx context.Context, height uint64) (ids.ID, error) {
-	return vm.chainStore.GetBlockIDAtHeight(height)
+	return vm.chainStore.GetBlockIDAtHeight(ctx, height)
 }
 
 func (vm *VM) Submit(
