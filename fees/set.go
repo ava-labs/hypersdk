@@ -12,7 +12,30 @@ import (
 // largests set of dimensions that would fit within the provided limit. The return
 // slice is the list of indices relative to the provided [dimensions] slice.
 // note that the solution of the largest set is not
-// deterministic.
+// deterministic ( by the nature of the problem, there could be multiple "correct"
+// and different results )
+//
+// The algorithm used here is the following:
+//  1. Scaling: Each dimension is scaled relative to its respective limit
+//     to ensure fair comparison. This step normalizes the dimensions,
+//     preventing larger dimensions from dominating the selection process.
+//  2. Vector Sizing: Each dimension is treated as a vector, and its
+//     magnitude is calculated. This metric is used to assess the
+//     relative significance of each dimension.
+//  3. Greedy Selection: Dimensions are iteratively selected based on
+//     their scaled magnitudes, adding them to the subset until the size
+//     limit is reached. The greedy approach prioritizes the most significant
+//     dimensions, maximizing the overall subset size.
+//
+// Implementation notes:
+// * Precision: To mitigate potential precision issues arising from
+// small-scale dimensions, the function employs a scaling factor to
+// amplify values before normalization. This ensures accurate calculations
+// even when dealing with very small numbers.
+// * Efficiency: The squared magnitude calculation is used as a proxy
+// for Euclidean distance, optimizing performance without sacrificing
+// accuracy for relative comparisons. This optimization avoids the
+// computationally expensive square root operation.
 func LargestSet(dimensions []Dimensions, limit Dimensions) ([]uint64, Dimensions) {
 	outIndices := make([]uint64, len(dimensions))
 	weights := make([]*big.Int, len(dimensions))
