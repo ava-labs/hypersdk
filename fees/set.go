@@ -9,7 +9,7 @@ import (
 )
 
 // LargestSet takes a slice of dimensions and a dimensions limit, and find the
-// largests set of dimensions that would fit within the provided limit. The return
+// largest set of dimensions that would fit within the provided limit. The return
 // slice is the list of indices relative to the provided [dimensions] slice.
 // note that the solution of the largest set is not
 // deterministic ( by the nature of the problem, there could be multiple "correct"
