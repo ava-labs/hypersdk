@@ -56,16 +56,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 	wg.Add(numTxs)
 
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, (i + 1))
+		keys := make([]string, (i + 1))
 		for k := 0; k < i+1; k++ {
-			// Generate different read keys
-			stateKeys.Add(ids.GenerateTestID().String(), state.Read)
+			keys = append(keys, ids.GenerateTestID().String())
 		}
 		txID := ids.GenerateTestID()
-		keys := make([]string, 0, len(stateKeys))
-		for k := range stateKeys {
-			keys = append(keys, k)
-		}
 		// Since these are all different keys, we will
 		// fetch each key from disk
 		require.NoError(f.Fetch(ctx, txID, keys))
@@ -102,16 +97,11 @@ func TestFetchSameKeys(t *testing.T) {
 	wg.Add(numTxs)
 
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, (i + 1))
+		keys := make([]string, (i + 1))
 		for k := 0; k < i+1; k++ {
-			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			keys = append(keys, keyBase+strconv.Itoa(k))
 		}
 		txID := ids.GenerateTestID()
-		keys := make([]string, 0, len(stateKeys))
-		for k := range stateKeys {
-			keys = append(keys, k)
-		}
 		// We are fetching the same keys, so we should
 		// be getting subsequent requests from cache
 		require.NoError(f.Fetch(ctx, txID, keys))
@@ -144,16 +134,11 @@ func TestFetchSameKeysSlow(t *testing.T) {
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, (i + 1))
+		keys := make([]string, (i + 1))
 		for k := 0; k < i+1; k++ {
-			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			keys = append(keys, keyBase+strconv.Itoa(k))
 		}
 		txID := ids.GenerateTestID()
-		keys := make([]string, 0, len(stateKeys))
-		for k := range stateKeys {
-			keys = append(keys, k)
-		}
 
 		// Empty chan to mimic timing out
 		delay := make(chan struct{})
@@ -195,16 +180,11 @@ func TestFetcherStop(t *testing.T) {
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, (i + 1))
+		keys := make([]string, (i + 1))
 		for k := 0; k < i+1; k++ {
-			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
+			keys = append(keys, keyBase+strconv.Itoa(k))
 		}
 		txID := ids.GenerateTestID()
-		keys := make([]string, 0, len(stateKeys))
-		for k := range stateKeys {
-			keys = append(keys, k)
-		}
 		err := f.Fetch(ctx, txID, keys)
 		if err != nil {
 			// Some [Fetch] may return an error.
