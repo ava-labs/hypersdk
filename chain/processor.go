@@ -321,10 +321,6 @@ func (p *Processor) executeTxs(
 			e.Stop()
 			return nil, nil, err
 		}
-		keys := make([]string, 0, len(stateKeys))
-		for k := range stateKeys {
-			keys = append(keys, k)
-		}
 
 		// Ensure we don't consume too many units
 		units, err := tx.Units(p.balanceHandler, r)
@@ -341,7 +337,7 @@ func (p *Processor) executeTxs(
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, keys); err != nil {
+		if err := f.Fetch(ctx, txID, stateKeys.Strip()); err != nil {
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() error {
