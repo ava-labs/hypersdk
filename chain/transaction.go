@@ -365,16 +365,24 @@ func (t *Transaction) Execute(
 	}
 
 	// We refund here
-	refund, err := rm.Compute(r)
+	refundDims, err := rm.Compute(r)
 	if err != nil {
 		return nil, ErrRefundDimensions
 	}
-	refundFee, err := feeManager.Fee(refund)
+	refundFee, err := feeManager.Fee(refundDims)
 	if err != nil {
 		return nil, ErrFailedToComputeRefund
 	}
 	if err := bh.AddBalance(ctx, t.Auth.Sponsor(), ts, refundFee); err != nil {
 		return nil, ErrRefundFailed
+	}
+
+	// Compute fee post-refund
+	adjustedFeeOp := math.NewUint64Operator(fee)
+	adjustedFeeOp.Sub(refundFee)
+	adjustedFee, err := adjustedFeeOp.Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate adjusted fee: %w", err)
 	}
 
 	return &Result{
@@ -384,7 +392,7 @@ func (t *Transaction) Execute(
 		Outputs: actionOutputs,
 
 		Units: units,
-		Fee:   fee,
+		Fee:   adjustedFee,
 	}, nil
 }
 
