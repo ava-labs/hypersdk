@@ -40,7 +40,8 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// TODO: add documentation for this field
+	// scope contains the key-value pairs this view has access to along with its
+	// state keys.
 	scope state.Scope
 
 	// Store which keys are modified and how large their values were.
