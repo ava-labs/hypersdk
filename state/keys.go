@@ -61,6 +61,15 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 	return chunks, true
 }
 
+// Strips returns the database keys of k
+func (k Keys) Strip() []string {
+	ks := make([]string, len(k))
+	for key := range k {
+		ks = append(ks, key)
+	}
+	return ks
+}
+
 type keysJSON map[string]Permissions
 
 // MarshalJSON marshals Keys as readable JSON.
