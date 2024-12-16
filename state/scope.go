@@ -9,7 +9,10 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 )
 
-var _ Scope = (*DefaultScope)(nil)
+var (
+	_ Scope = (*DefaultScope)(nil)
+	_ Scope = (*SimulatedScope)(nil)
+)
 
 type Scope interface {
 	Has(key []byte, perm Permissions) bool
@@ -44,7 +47,6 @@ func (d *DefaultScope) Len() int {
 	return len(d.keys)
 }
 
-// TODO: is this even scope?
 type SimulatedScope struct {
 	keys Keys
 	im   Immutable
