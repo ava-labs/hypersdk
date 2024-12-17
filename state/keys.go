@@ -61,7 +61,7 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 	return chunks, true
 }
 
-// WithoutPermissions returns the database keys of k
+// WithoutPermissions returns the keys of k as a slice with permissions removed
 func (k Keys) WithoutPermissions() []string {
 	ks := make([]string, len(k))
 	for key := range k {
