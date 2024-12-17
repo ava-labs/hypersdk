@@ -4,27 +4,52 @@
 package fees
 
 import (
-	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	externalfees "github.com/ava-labs/hypersdk/fees"
+	externalFees "github.com/ava-labs/hypersdk/fees"
 )
 
-func TestUnitsConsumedFuzz(t *testing.T) {
-	r := require.New(t)
-	rand := rand.New(rand.NewSource(0)) //nolint:gosec
+func TestUnitsConsumed(t *testing.T) {
+	t.Run("empty manager consumes", func(t *testing.T) {
+		r := require.New(t)
 
-	for fuzzIteration := 0; fuzzIteration < 1000; fuzzIteration++ {
-		m := NewManager([]byte{})
-		dims := externalfees.Dimensions{}
+		manager := NewManager([]byte{})
+		units := externalFees.Dimensions{1, 2, 3, 4, 5}
 
-		for i := range dims {
-			dims[i] = rand.Uint64()
-			m.SetLastConsumed(externalfees.Dimension(i), dims[i])
-		}
+		ok, _ := manager.Consume(units, units)
+		r.True(ok)
+		r.Equal(units, manager.UnitsConsumed())
+	})
 
-		r.Equal(dims, m.UnitsConsumed())
-	}
+	t.Run("nonempty manager consumes", func(t *testing.T) {
+		r := require.New(t)
+
+		manager := NewManager([]byte{})
+		initialUnits := externalFees.Dimensions{1, 2, 3, 4, 5}
+		finalUnits := externalFees.Dimensions{2, 4, 6, 8, 10}
+
+		ok, _ := manager.Consume(initialUnits, initialUnits)
+		r.True(ok)
+
+		ok, _ = manager.Consume(initialUnits, finalUnits)
+		r.True(ok)
+
+		r.Equal(finalUnits, manager.UnitsConsumed())
+	})
+
+	t.Run("consume fails if consumed > available", func(t *testing.T) {
+		r := require.New(t)
+
+		manager := NewManager([]byte{})
+		initialUnits := externalFees.Dimensions{1, 2, 3, 4, 5}
+
+		ok, _ := manager.Consume(initialUnits, initialUnits)
+		r.True(ok)
+
+		ok, dim := manager.Consume(initialUnits, initialUnits)
+		r.False(ok)
+		r.Equal(externalFees.Dimension(0), dim)
+	})
 }
