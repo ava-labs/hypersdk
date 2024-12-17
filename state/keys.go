@@ -61,7 +61,7 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 	return chunks, true
 }
 
-// Strips returns the database keys of k
+// Strip returns the database keys of k
 func (k Keys) Strip() []string {
 	ks := make([]string, len(k))
 	for key := range k {
