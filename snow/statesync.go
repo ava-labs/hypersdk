@@ -130,9 +130,10 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		if err := reprocessBlk.verify(ctx, parent.Output); err != nil {
 			return fmt.Errorf("failed to finish state sync while verifying block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
 		}
-		if err := reprocessBlk.accept(ctx); err != nil {
+		if err := reprocessBlk.accept(ctx, parent.Accepted); err != nil {
 			return fmt.Errorf("failed to finish state sync while accepting block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
 		}
+		parent = reprocessBlk
 	}
 
 	v.app.Ready.MarkReady()

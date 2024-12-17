@@ -113,8 +113,8 @@ func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) err
 
 // accept the block and set the required Accepted/accepted fields.
 // Assumes verify has already been called.
-func (b *StatefulBlock[I, O, A]) accept(ctx context.Context) error {
-	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, b.Output)
+func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) error {
+	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, parentAccepted, b.Output)
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 
 // markAccepted marks the block and updates the required VM state.
 func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
-	if err := b.vm.chainIndex.Accept(ctx, b.Input); err != nil {
+	if err := b.vm.chainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err
 	}
 
@@ -246,10 +246,14 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	// If I've already been verified, accept myself.
 	if b.verified {
+		parent, err := b.vm.GetBlock(ctx, b.Parent())
+		if err != nil {
+			return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
+		}
 		if err := b.markAccepted(ctx); err != nil {
 			return err
 		}
-		return b.accept(ctx)
+		return b.accept(ctx, parent.Accepted)
 	}
 
 	// If I'm not ready yet, mark myself as accepted, and return early.
@@ -266,7 +270,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	// be fully populated.
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
-		return fmt.Errorf("failed to fetch parent while accepting %s: %w", b, err)
+		return fmt.Errorf("failed to fetch parent while accepting previously unverified block %s: %w", b, err)
 	}
 	if err := b.verify(ctx, parent.Output); err != nil {
 		return err
@@ -274,7 +278,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	if err := b.markAccepted(ctx); err != nil {
 		return err
 	}
-	return b.accept(ctx)
+	return b.accept(ctx, parent.Accepted)
 }
 
 // implements "statesync.StateSummaryBlock"

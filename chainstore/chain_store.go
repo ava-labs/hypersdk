@@ -99,7 +99,7 @@ func (c *ChainStore[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error)
 	return database.ParseUInt64(lastAcceptedHeightBytes)
 }
 
-func (c *ChainStore[T]) Accept(_ context.Context, blk T) error {
+func (c *ChainStore[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 	batch := c.db.NewBatch()
 
 	var (

@@ -4,7 +4,7 @@
 package vm
 
 import (
-	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"errors"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -32,11 +32,11 @@ func init() {
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 	AuthProvider = auth.NewAuthProvider()
 
-	errs := &wrappers.Errs{}
+	if err := auth.WithDefaultPrivateKeyFactories(AuthProvider); err != nil {
+		panic(err)
+	}
 
-	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
-
-	errs.Add(
+	if err := errors.Join(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		ActionParser.Register(&actions.Transfer{}, nil),
@@ -47,10 +47,8 @@ func init() {
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
 		OutputParser.Register(&actions.TransferResult{}, nil),
-	)
-
-	if errs.Errored() {
-		panic(errs.Err)
+	); err != nil {
+		panic(err)
 	}
 }
 

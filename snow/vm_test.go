@@ -124,7 +124,12 @@ type TestChain struct {
 	acceptedBlocksByHeight map[uint64]*TestBlock
 }
 
-func NewTestChain(t *testing.T, require *require.Assertions, getRandData func() []byte, initLastAcceptedBlock *TestBlock) *TestChain {
+func NewTestChain(
+	t *testing.T,
+	require *require.Assertions,
+	getRandData func() []byte,
+	initLastAcceptedBlock *TestBlock,
+) *TestChain {
 	return &TestChain{
 		t:                      t,
 		require:                require,
@@ -138,17 +143,20 @@ func NewTestChain(t *testing.T, require *require.Assertions, getRandData func() 
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	_ ChainIndex[*TestBlock, *TestBlock, *TestBlock],
+	makeChainIndexF MakeChainIndexFunc[*TestBlock, *TestBlock, *TestBlock],
 	_ *Application[*TestBlock, *TestBlock, *TestBlock],
-) (BlockChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
+) (BlockChainIndex[*TestBlock], error) {
 	chainStore, err := chainstore.New(chainInput.Context, t, memdb.New())
 	if err != nil {
-		return nil, nil, nil, false, err
+		return nil, err
 	}
-	if err := chainStore.Accept(ctx, t.initLastAcceptedBlock); err != nil {
-		return nil, nil, nil, false, err
+	if err := chainStore.UpdateLastAccepted(ctx, t.initLastAcceptedBlock); err != nil {
+		return nil, err
 	}
-	return chainStore, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
+	if _, err := makeChainIndexF(ctx, chainStore, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated); err != nil {
+		return nil, err
+	}
+	return chainStore, nil
 }
 
 func (t *TestChain) BuildBlock(ctx context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
@@ -176,8 +184,10 @@ func (t *TestChain) Execute(ctx context.Context, parent *TestBlock, block *TestB
 	return block, nil
 }
 
-func (t *TestChain) AcceptBlock(ctx context.Context, verifiedBlock *TestBlock) (*TestBlock, error) {
+func (t *TestChain) AcceptBlock(ctx context.Context, acceptedParent *TestBlock, verifiedBlock *TestBlock) (*TestBlock, error) {
 	// This block must be executed before calling accept
+	t.require.True(acceptedParent.outputPopulated)
+	t.require.True(acceptedParent.acceptedPopulated)
 	t.require.True(verifiedBlock.outputPopulated)
 
 	t.acceptedBlocks[verifiedBlock.ID()] = verifiedBlock
@@ -245,7 +255,9 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 		verified: make(map[ids.ID]*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]),
 		children: make(map[ids.ID]set.Set[ids.ID]),
 	}
-	r.NoError(vm.Initialize(ctx, snowtest.Context(t, ids.GenerateTestID()), nil, nil, nil, nil, toEngine, nil, &enginetest.Sender{T: t}))
+	snowCtx := snowtest.Context(t, ids.GenerateTestID())
+	snowCtx.ChainDataDir = t.TempDir()
+	r.NoError(vm.Initialize(ctx, snowCtx, nil, nil, nil, nil, toEngine, nil, &enginetest.Sender{T: t}))
 	ce.lastAccepted = vm.covariantVM.LastAcceptedBlock(ctx)
 	ce.preferred = ce.lastAccepted
 	return ce

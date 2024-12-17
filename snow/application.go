@@ -26,6 +26,7 @@ type Application[I Block, O Block, A Block] struct {
 	Closers         []func() error
 
 	Ready                    *lifecycle.AtomicBoolReady
+	OnStateSyncStarted       []func(context.Context) error
 	OnBootstrapStarted       []func(context.Context) error
 	OnNormalOperationStarted []func(context.Context) error
 
@@ -65,6 +66,14 @@ func (a *Application[I, O, A]) WithCloser(closer func() error) {
 
 func (a *Application[I, O, A]) WithVersion(version string) {
 	a.Version = version
+}
+
+func (a *Application[I, O, A]) WithStateSyncStarted(onStateSyncStarted ...func(context.Context) error) {
+	a.OnStateSyncStarted = append(a.OnStateSyncStarted, onStateSyncStarted...)
+}
+
+func (a *Application[I, O, A]) WithNormalOpStarted(onNormalOpStartedF ...func(context.Context) error) {
+	a.OnNormalOperationStarted = append(a.OnNormalOperationStarted, onNormalOpStartedF...)
 }
 
 // StartStateSync notifies the VM to enter DynamicStateSync mode.

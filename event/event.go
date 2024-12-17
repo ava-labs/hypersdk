@@ -63,3 +63,29 @@ func NotifyAll[T any](ctx context.Context, e T, subs ...Subscription[T]) error {
 	}
 	return errors.Join(errs...)
 }
+
+func Aggregate[T any](subs ...Subscription[T]) Subscription[T] {
+	return SubscriptionFunc[T]{
+		NotifyF: func(ctx context.Context, t T) error {
+			return NotifyAll(ctx, t, subs...)
+		},
+		Closer: func() error {
+			var errs []error
+			for _, sub := range subs {
+				if err := sub.Close(); err != nil {
+					errs = append(errs, err)
+				}
+			}
+			return errors.Join(errs...)
+		},
+	}
+}
+
+func Map[I any, O any](f func(I) O, sub Subscription[O]) Subscription[I] {
+	return SubscriptionFunc[I]{
+		NotifyF: func(ctx context.Context, t I) error {
+			return sub.Notify(ctx, f(t))
+		},
+		Closer: sub.Close,
+	}
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	hcontext "github.com/ava-labs/hypersdk/context"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/lifecycle"
 	"go.uber.org/zap"
@@ -41,13 +42,21 @@ type ChainInput struct {
 	Context                                 *hcontext.Context
 }
 
+type MakeChainIndexFunc[I Block, O Block, A Block] func(
+	ctx context.Context,
+	chainIndex BlockChainIndex[I],
+	outputBlock O,
+	acceptedBlock A,
+	stateReady bool,
+) (*ChainIndex[I, O, A], error)
+
 type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		chainIndex ChainIndex[I, O, A],
+		makeChainIndex MakeChainIndexFunc[I, O, A],
 		app *Application[I, O, A],
-	) (BlockChainIndex[I], O, A, bool, error)
+	) (BlockChainIndex[I], error)
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
 	Execute(
@@ -55,7 +64,7 @@ type Chain[I Block, O Block, A Block] interface {
 		parent O,
 		block I,
 	) (O, error)
-	AcceptBlock(ctx context.Context, verifiedBlock O) (A, error)
+	AcceptBlock(ctx context.Context, acceptedParent A, outputBlock O) (A, error)
 }
 
 type VM[I Block, O Block, A Block] struct {
@@ -99,8 +108,9 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
 				return nil, nil
 			}),
-			Ready:    lifecycle.NewAtomicBoolReady(true),
-			Handlers: make(map[string]http.Handler),
+			Ready:        lifecycle.NewAtomicBoolReady(true),
+			Handlers:     make(map[string]http.Handler),
+			AcceptedSubs: make([]event.Subscription[A], 0),
 		},
 	}
 	v.app.vm = v
@@ -140,7 +150,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to parse vm config: %w", err)
 	}
 
-	defaultRegistry, err := v.hctx.MakeRegistry("hypersdk")
+	defaultRegistry, err := v.hctx.MakeRegistry("snow")
 	if err != nil {
 		return err
 	}
@@ -196,60 +206,17 @@ func (v *VM[I, O, A]) Initialize(
 		Context:      v.hctx,
 	}
 
-	blockChainIndex, outputBlock, acceptedBlock, stateReady, err := v.chain.Initialize(
+	blockChainIndex, err := v.chain.Initialize(
 		ctx,
 		chainInput,
-		ChainIndex[I, O, A]{covariantVM: v.covariantVM},
+		v.MakeChainIndex,
 		&v.app,
 	)
 	if err != nil {
 		return err
 	}
 	v.chainIndex = blockChainIndex
-	lastAcceptedHeight, err := v.chainIndex.GetLastAcceptedHeight(ctx)
-	if err != nil {
-		return err
-	}
-	inputBlock, err := v.chainIndex.GetBlockByHeight(ctx, lastAcceptedHeight)
-	if err != nil {
-		return err
-	}
-	var lastAcceptedBlock *StatefulBlock[I, O, A]
-	if stateReady {
-		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
-		if err != nil {
-			return err
-		}
-	} else {
-		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
-		v.app.Ready.MarkNotReady()
-	}
-	v.setLastAccepted(lastAcceptedBlock)
 	return nil
-}
-
-func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
-	if inputBlock.Height() < outputBlock.Height() || outputBlock.Height() < acceptedBlock.Height() {
-		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
-	}
-
-	// Re-process from the last output block, to the last accepted input block
-	for inputBlock.Height() > outputBlock.Height() {
-		reprocessBlk, err := v.chainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
-		if err != nil {
-			return nil, err
-		}
-		outputBlock, err = v.chain.Execute(ctx, outputBlock, reprocessBlk)
-		if err != nil {
-			return nil, err
-		}
-		acceptedBlock, err = v.chain.AcceptBlock(ctx, outputBlock)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock), nil
 }
 
 func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
@@ -297,6 +264,12 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		v.log.Info("Starting state sync")
+
+		for _, startStateSyncF := range v.app.OnStateSyncStarted {
+			if err := startStateSyncF(ctx); err != nil {
+				return err
+			}
+		}
 		return nil
 	case snow.Bootstrapping:
 		v.log.Info("Starting bootstrapping")
