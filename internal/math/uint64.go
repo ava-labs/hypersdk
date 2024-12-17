@@ -29,6 +29,19 @@ func (o *Uint64Operator) Add(n uint64) {
 	o.v = nv
 }
 
+func (o *Uint64Operator) Sub(n uint64) {
+	if o.err != nil {
+		return
+	}
+
+	nv, err := math.Sub(o.v, n)
+	if err != nil {
+		o.err = err
+		return
+	}
+	o.v = nv
+}
+
 func (o *Uint64Operator) Mul(n uint64) {
 	if o.err != nil {
 		return

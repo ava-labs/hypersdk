@@ -121,11 +121,15 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
 	ts := tstate.New(0)
-	state, err := vm.State()
+	st, err := vm.State()
 	if err != nil {
 		return nil, err
 	}
-	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
+	view, err := ts.ExportMerkleDBView(ctx, vm.tracer, st)
+	if err != nil {
+		return nil, err
+	}
+	return state.NewTranslatedImmutable(view), nil
 }
 
 func (vm *VM) Mempool() chain.Mempool {

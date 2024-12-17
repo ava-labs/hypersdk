@@ -60,12 +60,13 @@ func (g *DefaultGenesis) InitializeState(ctx context.Context, tracer trace.Trace
 		supply uint64
 		err    error
 	)
+	translatedState := state.NewTranslatedMutable(mu, 0)
 	for _, alloc := range g.CustomAllocation {
 		supply, err = safemath.Add(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
-		if err := balanceHandler.AddBalance(ctx, alloc.Address, mu, alloc.Balance); err != nil {
+		if err := balanceHandler.AddBalance(ctx, alloc.Address, translatedState, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

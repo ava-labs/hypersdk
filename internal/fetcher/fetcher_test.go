@@ -62,9 +62,13 @@ func TestFetchDifferentKeys(t *testing.T) {
 			stateKeys.Add(ids.GenerateTestID().String(), state.Read)
 		}
 		txID := ids.GenerateTestID()
+		keys := make([]string, 0, len(stateKeys))
+		for k := range stateKeys {
+			keys = append(keys, k)
+		}
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		require.NoError(f.Fetch(ctx, txID, keys))
 		go func() {
 			defer wg.Done()
 			// Get keys from cache
@@ -104,9 +108,13 @@ func TestFetchSameKeys(t *testing.T) {
 			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
+		keys := make([]string, 0, len(stateKeys))
+		for k := range stateKeys {
+			keys = append(keys, k)
+		}
 		// We are fetching the same keys, so we should
 		// be getting subsequent requests from cache
-		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		require.NoError(f.Fetch(ctx, txID, keys))
 		go func() {
 			defer wg.Done()
 			storage, err := f.Get(txID)
@@ -142,12 +150,16 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
+		keys := make([]string, 0, len(stateKeys))
+		for k := range stateKeys {
+			keys = append(keys, k)
+		}
 
 		// Empty chan to mimic timing out
 		delay := make(chan struct{})
 
 		// Fetch the key
-		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		require.NoError(f.Fetch(ctx, txID, keys))
 		go func() {
 			defer wg.Done()
 			// Get the keys from cache
@@ -189,7 +201,11 @@ func TestFetcherStop(t *testing.T) {
 			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		err := f.Fetch(ctx, txID, stateKeys)
+		keys := make([]string, 0, len(stateKeys))
+		for k := range stateKeys {
+			keys = append(keys, k)
+		}
+		err := f.Fetch(ctx, txID, keys)
 		if err != nil {
 			// Some [Fetch] may return an error.
 			// This happens after we called [Stop]

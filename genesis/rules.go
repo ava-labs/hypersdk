@@ -45,6 +45,9 @@ type Rules struct {
 	StorageKeyWriteUnits      uint64   `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64   `json:"storageValueWriteUnits"` // per chunk
 	SponsorStateKeysMaxChunks []uint16 `json:"sponsorStateKeysMaxChunks"`
+
+	StorageKeyReadRefundUnits   uint64 `json:"storageKeyReadRefundUnits"`
+	StorageValueReadRefundUnits uint64 `json:"storageValueReadRefundUnits"`
 }
 
 func NewDefaultRules() *Rules {
@@ -76,7 +79,10 @@ func NewDefaultRules() *Rules {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
-		SponsorStateKeysMaxChunks: []uint16{1},
+
+		StorageKeyReadRefundUnits:   1,
+		StorageValueReadRefundUnits: 1,
+		SponsorStateKeysMaxChunks:   []uint16{1},
 	}
 }
 
@@ -134,6 +140,14 @@ func (r *Rules) GetStorageKeyWriteUnits() uint64 {
 
 func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.StorageValueWriteUnits
+}
+
+func (r *Rules) GetStorageKeyReadRefundUnits() uint64 {
+	return r.StorageKeyReadRefundUnits
+}
+
+func (r *Rules) GetStorageValueReadRefundUnits() uint64 {
+	return r.StorageValueReadRefundUnits
 }
 
 func (r *Rules) GetMinUnitPrice() fees.Dimensions {

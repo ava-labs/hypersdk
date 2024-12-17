@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -192,6 +193,26 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
+	// Before continuing, we append the executing block's suffix to all existing
+	// touched values
+	changedKeys := ts.ChangedKeys()
+	tsv := ts.NewView(
+		scope.NewSimulatedScope(
+			state.Keys{},
+			parentView,
+		),
+	)
+
+	for k := range changedKeys {
+		if changedKeys[k].HasValue() {
+			if err := tsv.Insert(ctx, []byte(k), binary.BigEndian.AppendUint64(changedKeys[k].Value(), b.Height())); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	tsv.Commit()
+
 	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
@@ -201,11 +222,16 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv = ts.NewView(
+		scope.NewDefaultScope(
+			keys,
+			map[string][]byte{
+				heightKeyStr:    parentHeightRaw,
+				timestampKeyStr: parentTimestampRaw,
+				feeKeyStr:       parentFeeManager.Bytes(),
+			},
+		),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
 	}
@@ -321,6 +347,10 @@ func (p *Processor) executeTxs(
 			e.Stop()
 			return nil, nil, err
 		}
+		keys := make([]string, 0, len(stateKeys))
+		for k := range stateKeys {
+			keys = append(keys, k)
+		}
 
 		// Ensure we don't consume too many units
 		units, err := tx.Units(p.balanceHandler, r)
@@ -337,7 +367,7 @@ func (p *Processor) executeTxs(
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
+		if err := f.Fetch(ctx, txID, keys); err != nil {
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() error {
@@ -348,17 +378,24 @@ func (p *Processor) executeTxs(
 			}
 
 			// Execute transaction
-			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			untranslatedStorage, hotKeys, err := state.ExtractSuffixes(storage, b.Hght, p.config.Epsilon)
+			if err != nil {
+				return err
+			}
+			tsv := ts.NewView(
+				scope.NewDefaultScope(stateKeys, untranslatedStorage),
+			)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
+			refundManager := fees.NewHotKeysRefundManager(hotKeys)
+
+			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, refundManager, r, tsv, t)
 			if err != nil {
 				return err
 			}

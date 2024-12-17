@@ -300,6 +300,7 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
+
 	return bh.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
@@ -311,6 +312,7 @@ func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
+	rm internalfees.RefundManager,
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
@@ -361,6 +363,28 @@ func (t *Transaction) Execute(
 
 		actionOutputs = append(actionOutputs, encodedOutput)
 	}
+
+	// We refund here
+	refundDims, err := rm.Compute(r)
+	if err != nil {
+		return nil, ErrRefundDimensions
+	}
+	refundFee, err := feeManager.Fee(refundDims)
+	if err != nil {
+		return nil, ErrFailedToComputeRefund
+	}
+	if err := bh.AddBalance(ctx, t.Auth.Sponsor(), ts, refundFee); err != nil {
+		return nil, ErrRefundFailed
+	}
+
+	// Compute fee post-refund
+	adjustedFeeOp := math.NewUint64Operator(fee)
+	adjustedFeeOp.Sub(refundFee)
+	adjustedFee, err := adjustedFeeOp.Value()
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate adjusted fee: %w", err)
+	}
+
 	return &Result{
 		Success: true,
 		Error:   []byte{},
@@ -368,7 +392,7 @@ func (t *Transaction) Execute(
 		Outputs: actionOutputs,
 
 		Units: units,
-		Fee:   fee,
+		Fee:   adjustedFee,
 	}, nil
 }
 

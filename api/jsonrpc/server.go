@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -222,7 +223,12 @@ func (j *JSONRPCServer) ExecuteActions(
 			storage[string(storageKeysToRead[i])] = value
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage)
+		tsv := ts.NewView(
+			scope.NewDefaultScope(
+				stateKeysWithPermissions,
+				storage,
+			),
+		)
 
 		output, err := action.Execute(
 			ctx,
@@ -292,10 +298,16 @@ func (j *JSONRPCServer) SimulateActions(
 		return err
 	}
 
+	ts := tstate.New(0)
+	scope := scope.NewSimulatedScope(
+		state.Keys{},
+		currentState,
+	)
+	tsv := ts.NewView(scope)
+
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
-		recorder := tstate.NewRecorder(currentState)
-		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), tsv, currentTime, args.Actor, ids.Empty)
 
 		var actionResult SimulateActionResult
 		if actionOutput == nil {
@@ -309,9 +321,9 @@ func (j *JSONRPCServer) SimulateActions(
 		if err != nil {
 			return err
 		}
-		actionResult.StateKeys = recorder.GetStateKeys()
+		actionResult.StateKeys = scope.StateKeys()
 		reply.ActionResults = append(reply.ActionResults, actionResult)
-		currentState = recorder
+		scope.Flush()
 	}
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -290,7 +291,12 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
+				unsuffixedStorage, hotkeys, err := state.ExtractSuffixes(storage, height, c.config.Epsilon)
+				if err != nil {
+					c.log.Warn("failed to extract suffixes", zap.Error(err))
+					return err
+				}
+				tsv := ts.NewView(scope.NewDefaultScope(stateKeys, unsuffixedStorage))
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -299,10 +305,12 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}
 					return nil
 				}
+				refundManager := fees.NewHotKeysRefundManager(hotkeys)
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
 					c.balanceHandler,
+					refundManager,
 					r,
 					tsv,
 					nextTime,
@@ -397,6 +405,26 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
+	// Before continuing, we append the executing block's suffix to all existing
+	// touched values
+	changedKeys := ts.ChangedKeys()
+	tsv := ts.NewView(
+		scope.NewSimulatedScope(
+			state.Keys{},
+			parentView,
+		),
+	)
+
+	for k := range changedKeys {
+		if changedKeys[k].HasValue() {
+			if err := tsv.Insert(ctx, []byte(k), binary.BigEndian.AppendUint64(changedKeys[k].Value(), height)); err != nil {
+				return nil, nil, nil, fmt.Errorf("%w: unable to append value suffix", err)
+			}
+		}
+	}
+
+	tsv.Commit()
+
 	// Update chain metadata
 	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	heightKeyStr := string(heightKey)
@@ -408,11 +436,16 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
-		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv = ts.NewView(
+		scope.NewDefaultScope(
+			keys,
+			map[string][]byte{
+				heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+				timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+				feeKeyStr:       parentFeeManager.Bytes(),
+			},
+		),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}

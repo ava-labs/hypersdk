@@ -17,7 +17,7 @@ type BalanceHandler struct{}
 
 func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
-		string(BalanceKey(addr)): state.Read | state.Write,
+		string(BalanceKey(addr)): state.All,
 	}
 }
 
