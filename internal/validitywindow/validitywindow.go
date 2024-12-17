@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -45,7 +46,7 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 
 	evicted := v.seen.SetMin(blk.Timestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	v.seen.Add(blk.Txs())
+	v.seen.Add(blk.Containers())
 	v.lastAcceptedBlockHeight = blk.Height()
 }
 
@@ -62,12 +63,22 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return err
 	}
 
-	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
+	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Containers(), true)
 	if err != nil {
 		return err
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+	}
+	// make sure we have no repeats within the block itself.
+	// set.Set
+	blkTxsIDs := set.NewSet[ids.ID](len(blk.Containers()))
+	for _, tx := range blk.Containers() {
+		id := tx.GetID()
+		if blkTxsIDs.Contains(id) {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkTxsIDs.Add(id)
 	}
 	return nil
 }
@@ -110,7 +121,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(tx.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil
