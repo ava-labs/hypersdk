@@ -102,6 +102,7 @@ type VM struct {
 	handlers              map[string]http.Handler
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
+	transactionExecutor   chain.TransactionExecutor
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
@@ -154,6 +155,7 @@ func New(
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
+	transactionExecutor chain.TransactionExecutor,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
@@ -172,6 +174,7 @@ func New(
 		v:                     v,
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
+		transactionExecutor:   transactionExecutor,
 		config:                NewConfig(),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
@@ -368,6 +371,7 @@ func (vm *VM) Initialize(
 		vm.ruleFactory,
 		vm.MetadataManager(),
 		vm.BalanceHandler(),
+		vm.TransactionExecutor(),
 		vm.AuthVerifiers(),
 		vm,
 		vm.chainTimeValidityWindow,

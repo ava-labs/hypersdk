@@ -13,10 +13,11 @@ import (
 )
 
 type PreExecutor struct {
-	ruleFactory     RuleFactory
-	validityWindow  ValidityWindow
-	metadataManager MetadataManager
-	balanceHandler  BalanceHandler
+	ruleFactory         RuleFactory
+	validityWindow      ValidityWindow
+	metadataManager     MetadataManager
+	balanceHandler      BalanceHandler
+	transactionExecutor TransactionExecutor
 }
 
 func NewPreExecutor(
@@ -24,12 +25,14 @@ func NewPreExecutor(
 	validityWindow ValidityWindow,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
+	transactionExecutor TransactionExecutor,
 ) *PreExecutor {
 	return &PreExecutor{
-		ruleFactory:     ruleFactory,
-		validityWindow:  validityWindow,
-		metadataManager: metadataManager,
-		balanceHandler:  balanceHandler,
+		ruleFactory:         ruleFactory,
+		validityWindow:      validityWindow,
+		metadataManager:     metadataManager,
+		balanceHandler:      balanceHandler,
+		transactionExecutor: transactionExecutor,
 	}
 }
 
@@ -87,7 +90,7 @@ func (p *PreExecutor) PreExecute(
 	// Note, [PreExecute] ensures that the pending transaction does not have
 	// an expiry time further ahead than [ValidityWindow]. This ensures anything
 	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, view, now); err != nil {
+	if err := p.transactionExecutor.PreExecute(ctx, tx, nextFeeManager, p.balanceHandler, r, view, now); err != nil {
 		return err
 	}
 	return nil

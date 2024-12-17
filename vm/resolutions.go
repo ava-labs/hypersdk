@@ -394,3 +394,7 @@ func (vm *VM) GetDataDir() string {
 func (vm *VM) GetGenesisBytes() []byte {
 	return vm.GenesisBytes
 }
+
+func (vm *VM) TransactionExecutor() chain.TransactionExecutor {
+	return vm.transactionExecutor
+}

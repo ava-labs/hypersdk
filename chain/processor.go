@@ -81,6 +81,7 @@ type Processor struct {
 	authVM                  AuthVM
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
+	transactionExecutor     TransactionExecutor
 	validityWindow          ValidityWindow
 	metrics                 *chainMetrics
 	config                  Config
@@ -94,6 +95,7 @@ func NewProcessor(
 	authVM AuthVM,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
+	transactionExecutor TransactionExecutor,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
@@ -106,6 +108,7 @@ func NewProcessor(
 		authVM:                  authVM,
 		metadataManager:         metadataManager,
 		balanceHandler:          balanceHandler,
+		transactionExecutor:     transactionExecutor,
 		validityWindow:          validityWindow,
 		metrics:                 metrics,
 		config:                  config,
@@ -354,11 +357,11 @@ func (p *Processor) executeTxs(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
+			if err := p.transactionExecutor.PreExecute(ctx, tx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
+			result, err := p.transactionExecutor.Execute(ctx, tx, feeManager, p.balanceHandler, r, tsv, t)
 			if err != nil {
 				return err
 			}

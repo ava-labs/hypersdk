@@ -61,15 +61,16 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 type Builder struct {
-	tracer          trace.Tracer
-	ruleFactory     RuleFactory
-	log             logging.Logger
-	metadataManager MetadataManager
-	balanceHandler  BalanceHandler
-	mempool         Mempool
-	validityWindow  ValidityWindow
-	metrics         *chainMetrics
-	config          Config
+	tracer              trace.Tracer
+	ruleFactory         RuleFactory
+	log                 logging.Logger
+	metadataManager     MetadataManager
+	balanceHandler      BalanceHandler
+	transactionExecutor TransactionExecutor
+	mempool             Mempool
+	validityWindow      ValidityWindow
+	metrics             *chainMetrics
+	config              Config
 }
 
 func NewBuilder(
@@ -78,21 +79,23 @@ func NewBuilder(
 	log logging.Logger,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
+	transactionExecutor TransactionExecutor,
 	mempool Mempool,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
 ) *Builder {
 	return &Builder{
-		tracer:          tracer,
-		ruleFactory:     ruleFactory,
-		log:             log,
-		metadataManager: metadataManager,
-		balanceHandler:  balanceHandler,
-		mempool:         mempool,
-		validityWindow:  validityWindow,
-		metrics:         metrics,
-		config:          config,
+		tracer:              tracer,
+		ruleFactory:         ruleFactory,
+		log:                 log,
+		metadataManager:     metadataManager,
+		balanceHandler:      balanceHandler,
+		transactionExecutor: transactionExecutor,
+		mempool:             mempool,
+		validityWindow:      validityWindow,
+		metrics:             metrics,
+		config:              config,
 	}
 }
 
@@ -291,7 +294,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
+				if err := c.transactionExecutor.PreExecute(ctx, tx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(c.log, err) {
@@ -299,8 +302,9 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}
 					return nil
 				}
-				result, err := tx.Execute(
+				result, err := c.transactionExecutor.Execute(
 					ctx,
+					tx,
 					feeManager,
 					c.balanceHandler,
 					r,

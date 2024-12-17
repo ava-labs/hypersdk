@@ -49,6 +49,7 @@ func New(
 		genesisFactory,
 		balanceHandler,
 		metadataManager,
+		chain.DefaultTransactionExecutor{},
 		actionCodec,
 		authCodec,
 		outputCodec,
