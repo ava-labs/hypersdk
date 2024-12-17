@@ -32,7 +32,7 @@ var ed25519HexKeys = []string{
 	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 }
 
-func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *genesis.DefaultGenesis {
+func newGenesis(authFactories []chain.AuthFactory, testsLocalAllocations []*genesis.CustomAllocation, minBlockGap time.Duration) *genesis.DefaultGenesis {
 	// allocate the initial balance to the addresses
 	customAllocs := make([]*genesis.CustomAllocation, 0, len(authFactories))
 	for _, authFactory := range authFactories {
@@ -41,6 +41,7 @@ func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *g
 			Balance: InitialBalance,
 		})
 	}
+	customAllocs = append(customAllocs, testsLocalAllocations...)
 
 	genesis := genesis.NewDefaultGenesis(customAllocs)
 
@@ -70,9 +71,9 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 	return authFactories
 }
 
-func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
+func NewTestNetworkConfig(minBlockGap time.Duration, customAllocs []*genesis.CustomAllocation) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	genesis := newGenesis(keys, minBlockGap)
+	genesis := newGenesis(keys, customAllocs, minBlockGap)
 	genesisBytes, err := json.Marshal(genesis)
 	if err != nil {
 		return workload.DefaultTestNetworkConfiguration{}, err

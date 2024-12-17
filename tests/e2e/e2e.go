@@ -248,7 +248,7 @@ var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 		for _, test := range testRegistry.List() {
 			ginkgo.It(test.Name, func() {
 				testNetwork := NewNetwork(tc)
-				test.Fnc(ginkgo.GinkgoT(), testNetwork)
+				test.Fnc(ginkgo.GinkgoT(), testNetwork, test.AuthFactories)
 			})
 		}
 	}
