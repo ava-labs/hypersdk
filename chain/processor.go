@@ -337,7 +337,7 @@ func (p *Processor) executeTxs(
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, stateKeys.Strip()); err != nil {
+		if err := f.Fetch(ctx, txID, stateKeys.WithoutPermissions()); err != nil {
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() error {
