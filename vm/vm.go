@@ -53,6 +53,12 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
+var mempoolFactory mempool.AbstractMempoolFactory[*chain.Transaction] = mempool.NewGeneralMempool[*chain.Transaction]
+
+func WithPriorityMempool(factory mempool.AbstractMempoolFactory[*chain.Transaction]) {
+	mempoolFactory = factory
+}
+
 const (
 	blockDB   = "blockdb"
 	stateDB   = "statedb"
@@ -109,7 +115,7 @@ type VM struct {
 	network               *p2p.Network
 
 	tracer  avatrace.Tracer
-	mempool *mempool.Mempool[*chain.Transaction]
+	mempool mempool.AbstractMempool[*chain.Transaction]
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock]
@@ -259,7 +265,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	// Set defaults
-	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.mempool = mempoolFactory(vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
 		NotifyF: func(ctx context.Context, b *StatefulBlock) error {
 			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
