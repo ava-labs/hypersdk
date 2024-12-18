@@ -17,6 +17,8 @@ type Bonder[T dsmr.Tx] interface {
 	// If this returns true, Unbond is guaranteed to be called.
 	Bond(tx T) bool
 	// Unbond is called when a tx from an account either expires or is accepted.
+	// If Unbond is called, Bond is guaranteed to have been called previously on
+	// tx.
 	Unbond(tx T)
 }
 
