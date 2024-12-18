@@ -25,6 +25,9 @@ func (em *executorMetrics) RecordExecutable() {
 }
 
 type Metrics struct {
+	txsVerified prometheus.Counter
+	txsAccepted prometheus.Counter
+
 	txsSubmitted             prometheus.Counter // includes gossip
 	stateChanges             prometheus.Counter
 	stateOperations          prometheus.Counter
@@ -99,6 +102,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
+		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "txs_verified",
+			Help:      "number of txs verified",
+		}),
+		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "txs_accepted",
+			Help:      "number of txs accepted",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -205,6 +218,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 
 	errs := wrappers.Errs{}
 	errs.Add(
+		r.Register(m.txsVerified),
+		r.Register(m.txsAccepted),
 		r.Register(m.txsSubmitted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
