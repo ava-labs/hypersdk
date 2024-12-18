@@ -226,6 +226,10 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
 	b.vm.acceptedBlocksByHeight.Put(b.Height(), b.ID())
 	b.vm.acceptedBlocksByID.Put(b.ID(), b)
 
+	return nil
+}
+
+func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	// If I was not actually marked accepted, notify pre ready subs
 	if !b.accepted {
 		return event.NotifyAll(ctx, b.Input, b.vm.app.PreReadyAcceptedSubs...)
@@ -253,13 +257,19 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 		if err := b.markAccepted(ctx); err != nil {
 			return err
 		}
-		return b.accept(ctx, parent.Accepted)
+		if err := b.accept(ctx, parent.Accepted); err != nil {
+			return err
+		}
+		return b.notifyAccepted(ctx)
 	}
 
 	// If I'm not ready yet, mark myself as accepted, and return early.
 	isReady := b.vm.app.Ready.Ready()
 	if !isReady {
-		return b.markAccepted(ctx)
+		if err := b.markAccepted(ctx); err != nil {
+			return err
+		}
+		return b.notifyAccepted(ctx)
 	}
 
 	// If I haven't verified myself, then I need to verify myself before before
@@ -278,7 +288,10 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	if err := b.markAccepted(ctx); err != nil {
 		return err
 	}
-	return b.accept(ctx, parent.Accepted)
+	if err := b.accept(ctx, parent.Accepted); err != nil {
+		return err
+	}
+	return b.notifyAccepted(ctx)
 }
 
 // implements "statesync.StateSummaryBlock"
