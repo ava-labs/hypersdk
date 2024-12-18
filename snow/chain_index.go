@@ -26,12 +26,12 @@ func (v *VM[I, O, A]) MakeChainIndex(
 	acceptedBlock A,
 	stateReady bool,
 ) (*ChainIndex[I, O, A], error) {
-	v.chainIndex = chainIndex
-	lastAcceptedHeight, err := v.chainIndex.GetLastAcceptedHeight(ctx)
+	v.inputChainIndex = chainIndex
+	lastAcceptedHeight, err := v.inputChainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil {
 		return nil, err
 	}
-	inputBlock, err := v.chainIndex.GetBlockByHeight(ctx, lastAcceptedHeight)
+	inputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, lastAcceptedHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -47,10 +47,15 @@ func (v *VM[I, O, A]) MakeChainIndex(
 		v.app.Ready.MarkNotReady()
 	}
 	v.setLastAccepted(lastAcceptedBlock)
-
-	return &ChainIndex[I, O, A]{
+	v.chainIndex = &ChainIndex[I, O, A]{
 		covariantVM: v.covariantVM,
-	}, nil
+	}
+
+	return v.chainIndex, nil
+}
+
+func (v *VM[I, O, A]) GetChainIndex() *ChainIndex[I, O, A] {
+	return v.chainIndex
 }
 
 func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
@@ -60,7 +65,7 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 
 	// Re-process from the last output block, to the last accepted input block
 	for inputBlock.Height() > outputBlock.Height() {
-		reprocessInputBlock, err := v.chainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
+		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
 		if err != nil {
 			return nil, err
 		}

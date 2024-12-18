@@ -69,6 +69,9 @@ func (p *PrefixBalanceHandler) Deduct(
 ) error {
 	balanceKey := p.BalanceKey(addr)
 	balanceBytes, err := mu.GetValue(ctx, balanceKey)
+	if err == database.ErrNotFound {
+		return fmt.Errorf("%w: %d < %d", ErrInsufficientBalance, 0, amount)
+	}
 	if err != nil {
 		return err
 	}
@@ -94,13 +97,17 @@ func (p *PrefixBalanceHandler) AddBalance(
 ) error {
 	balanceKey := p.BalanceKey(addr)
 	balanceBytes, err := mu.GetValue(ctx, balanceKey)
-	if err != nil {
+	if err != nil && err != database.ErrNotFound {
 		return err
 	}
-	balance, err := database.ParseUInt64(balanceBytes)
-	if err != nil {
-		return err
+	balance := uint64(0)
+	if err == nil {
+		balance, err = database.ParseUInt64(balanceBytes)
+		if err != nil {
+			return err
+		}
 	}
+
 	newBalance, err := math.Add(balance, amount)
 	if err != nil {
 		return err

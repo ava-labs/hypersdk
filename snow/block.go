@@ -214,7 +214,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 
 // markAccepted marks the block and updates the required VM state.
 func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
-	if err := b.vm.chainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
+	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err
 	}
 

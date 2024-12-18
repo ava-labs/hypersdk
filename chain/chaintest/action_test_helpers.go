@@ -5,6 +5,7 @@ package chaintest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -22,14 +23,16 @@ var (
 	_ state.Mutable = (*InMemoryStore)(nil)
 )
 
+var TestActionExecuteErr = errors.New("test action execute error")
+
 type TestAction struct {
-	NumComputeUnits    uint64      `serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys state.Keys  `serialize:"true" json:"specifiedStateKeys"`
-	ReadKeys           [][]byte    `serialize:"true" json:"reads"`
-	WriteKeys          [][]byte    `serialize:"true" json:"writeKeys"`
-	WriteValues        [][]byte    `serialize:"true" json:"writeValues"`
-	Result             codec.Typed `serialize:"true" json:"result"`
-	ExecuteErr         []byte      `serialize:"true" json:"executeErr"`
+	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
+	SpecifiedStateKeys state.Keys `serialize:"true" json:"specifiedStateKeys"`
+	ReadKeys           [][]byte   `serialize:"true" json:"reads"`
+	WriteKeys          [][]byte   `serialize:"true" json:"writeKeys"`
+	WriteValues        [][]byte   `serialize:"true" json:"writeValues"`
+	ExecuteErr         bool       `serialize:"true" json:"executeErr"`
+	Nonce              uint64     `serialize:"true" json:"nonce"`
 }
 
 func (t *TestAction) GetTypeID() uint8 {
@@ -45,8 +48,8 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 }
 
 func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
-	if len(t.ExecuteErr) != 0 {
-		return nil, fmt.Errorf("execute error: %s", string(t.ExecuteErr))
+	if t.ExecuteErr {
+		return nil, TestActionExecuteErr
 	}
 	for _, key := range t.ReadKeys {
 		if _, err := state.GetValue(ctx, key); err != nil {
@@ -61,19 +64,17 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 			return nil, err
 		}
 	}
-	return t.Result, nil
+	return &TestOutput{}, nil
 }
 
 func (t *TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
 	return -1, -1
 }
 
-type TestOutput struct {
-	TypeID uint8
-}
+type TestOutput struct{}
 
 func (t *TestOutput) GetTypeID() uint8 {
-	return t.TypeID
+	return 0
 }
 
 // InMemoryStore is an in-memory implementation of `state.Mutable`

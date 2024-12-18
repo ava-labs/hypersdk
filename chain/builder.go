@@ -107,7 +107,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 	r := c.ruleFactory.GetRules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
-		return nil, nil, ErrTimestampTooEarly
+		return nil, nil, fmt.Errorf("%w: proposed build block time (%d) < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, nextTime, parent.Tmstmp, r.GetMinBlockGap())
 	}
 	var (
 		parentID          = parent.ID()

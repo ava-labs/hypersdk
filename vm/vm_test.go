@@ -7,30 +7,57 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	avasnow "github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/vm/defaultvm"
 	"github.com/stretchr/testify/require"
 )
+
+var _ workload.TestNetwork = (*TestNetwork)(nil)
+
+type VM struct {
+	nodeID    ids.NodeID
+	appSender *enginetest.Sender
+
+	SnowVM *snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	VM     *vm.VM
+
+	toEngine chan common.Message
+	server   *httptest.Server
+}
 
 func NewTestVM(
 	ctx context.Context,
 	t *testing.T,
 	chainID ids.ID,
-) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], *vm.VM) {
+	allocations []*genesis.CustomAllocation,
+) *VM {
 	r := require.New(t)
 	var (
 		actionParser = codec.NewTypeParser[chain.Action]()
@@ -42,6 +69,8 @@ func NewTestVM(
 		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		outputParser.Register(&chaintest.TestOutput{}, nil),
 	))
+	options := defaultvm.NewDefaultOptions()
+	options = append(options, vm.WithManual())
 	vm, err := vm.New(
 		genesis.DefaultGenesisFactory{},
 		balance.NewPrefixBalanceHandler([]byte{0}),
@@ -50,53 +79,499 @@ func NewTestVM(
 		authParser,
 		outputParser,
 		auth.Engines(),
+		options...,
 	)
 	r.NoError(err)
 	r.NotNil(vm)
 	snowVM := snow.NewVM(vm)
 
 	toEngine := make(chan common.Message, 1)
+	testRules := genesis.NewDefaultRules()
+	testRules.MinBlockGap = 0
+	testRules.MinEmptyBlockGap = 0
 	genesis := genesis.DefaultGenesis{
 		StateBranchFactor: merkledb.BranchFactor16,
-		CustomAllocation:  []*genesis.CustomAllocation{},
-		Rules:             genesis.NewDefaultRules(),
+		CustomAllocation:  allocations,
+		Rules:             testRules,
 	}
 	genesisBytes, err := json.Marshal(genesis)
 	r.NoError(err)
-	snowCtx := snowtest.Context(t, ids.GenerateTestID())
+	snowCtx := snowtest.Context(t, chainID)
 	snowCtx.ChainDataDir = t.TempDir()
-	r.NoError(snowVM.Initialize(ctx, snowCtx, nil, genesisBytes, nil, nil, toEngine, nil, &enginetest.Sender{T: t}))
-	return snowVM, vm
+	appSender := &enginetest.Sender{T: t}
+	r.NoError(snowVM.Initialize(ctx, snowCtx, nil, genesisBytes, nil, nil, toEngine, nil, appSender))
+
+	router := http.NewServeMux()
+	handlers, err := snowVM.CreateHandlers(ctx)
+	r.NoError(err)
+	for endpoint, handler := range handlers {
+		router.Handle(endpoint, handler)
+	}
+	server := httptest.NewServer(router)
+	return &VM{
+		nodeID:    snowCtx.NodeID,
+		appSender: appSender,
+		SnowVM:    snowVM,
+		VM:        vm,
+		toEngine:  toEngine,
+		server:    server,
+	}
 }
 
-func TestSimpleVM(t *testing.T) {
+type TestNetwork struct {
+	chainID    ids.ID
+	require    *require.Assertions
+	VMs        []*VM
+	nodeIDToVM map[ids.NodeID]*VM
+
+	authFactory   chain.AuthFactory
+	uris          []string
+	configuration workload.TestNetworkConfiguration
+}
+
+func NewTestNetwork(
+	ctx context.Context,
+	t *testing.T,
+	chainID ids.ID,
+) *TestNetwork {
 	r := require.New(t)
-	ctx := context.Background()
-	chainID := ids.GenerateTestID()
-	snowVM1, vm1 := NewTestVM(ctx, t, chainID)
-	snowVM2, vm2 := NewTestVM(ctx, t, chainID)
-
-	// Create and submit tx, build block
-	// Create a block
-	block1, err := snowVM1.BuildBlock(ctx)
+	privKey, err := ed25519.GeneratePrivateKey()
 	r.NoError(err)
-	r.NoError(block1.Verify(ctx))
-	r.NoError(block1.Accept(ctx))
-
-	block2, err := snowVM2.ParseBlock(ctx, block1.Bytes())
-	r.NoError(err)
-	r.NoError(block2.Verify(ctx))
-	r.NoError(block2.Accept(ctx))
-
-	_ = vm1
-	_ = vm2
+	authFactory := auth.NewED25519Factory(privKey)
+	funds := uint64(1_000_000_000)
+	vms := make([]*VM, 2)
+	allocations := []*genesis.CustomAllocation{
+		{
+			Address: authFactory.Address(),
+			Balance: funds,
+		},
+	}
+	nodeIDToVM := make(map[ids.NodeID]*VM)
+	uris := make([]string, len(vms))
+	for i := range vms {
+		vm := NewTestVM(ctx, t, chainID, allocations)
+		vms[i] = vm
+		uris[i] = vm.server.URL
+		nodeIDToVM[vm.nodeID] = vm
+	}
+	configuration := workload.NewDefaultTestNetworkConfiguration(
+		vms[0].VM.GenesisBytes,
+		"hypervmtests",
+		vms[0].VM,
+		[]chain.AuthFactory{authFactory},
+	)
+	testNetwork := &TestNetwork{
+		chainID:       chainID,
+		require:       r,
+		VMs:           vms,
+		authFactory:   authFactory,
+		uris:          uris,
+		configuration: configuration,
+		nodeIDToVM:    nodeIDToVM,
+	}
+	testNetwork.initAppNetwork()
+	return testNetwork
 }
 
-// build/parse correct sequence of blocks
-// invalid block due due to auth
-// invalid block due to action
-// invalid due to time validity window (accepted window)
-// invalid due to time validity window (processing ancestry)
+func (n *TestNetwork) initAppNetwork() {
+	for _, vm := range n.VMs {
+		myNodeID := vm.nodeID
+		vm.appSender.SendAppRequestF = func(ctx context.Context, nodeIDs set.Set[ids.NodeID], u uint32, b []byte) error {
+			for nodeID := range nodeIDs {
+				if nodeID == myNodeID {
+					go func() {
+						err := vm.SnowVM.AppRequest(ctx, nodeID, u, time.Now().Add(time.Second), b)
+						n.require.NoError(err)
+					}()
+				} else {
+					err := n.nodeIDToVM[nodeID].SnowVM.AppRequest(ctx, nodeID, u, time.Now().Add(time.Second), b)
+					n.require.NoError(err)
+				}
+			}
+			return nil
+		}
+		vm.appSender.SendAppResponseF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32, response []byte) error {
+			if nodeID == myNodeID {
+				go func() {
+					err := vm.SnowVM.AppResponse(ctx, nodeID, requestID, response)
+					n.require.NoError(err)
+				}()
+				return nil
+			}
+
+			return n.nodeIDToVM[nodeID].SnowVM.AppResponse(ctx, nodeID, requestID, response)
+		}
+		vm.appSender.SendAppErrorF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32, code int32, message string) error {
+			if nodeID == myNodeID {
+				go func() {
+					err := vm.SnowVM.AppRequestFailed(ctx, nodeID, requestID, &common.AppError{
+						Code:    code,
+						Message: message,
+					})
+					n.require.NoError(err)
+				}()
+				return nil
+			}
+			return n.nodeIDToVM[nodeID].SnowVM.AppRequestFailed(ctx, nodeID, requestID, &common.AppError{
+				Code:    code,
+				Message: message,
+			})
+		}
+		vm.appSender.SendAppGossipF = func(ctx context.Context, sendConfig common.SendConfig, b []byte) error {
+			nodeIDs := sendConfig.NodeIDs
+			nodeIDs.Remove(myNodeID)
+			// Select numSend nodes excluding myNodeID and gossip to them
+			numSend := sendConfig.Validators + sendConfig.NonValidators + sendConfig.Peers
+			nodes := set.NewSet[ids.NodeID](numSend)
+			for nodeID := range n.nodeIDToVM {
+				if nodeID == myNodeID {
+					continue
+				}
+				nodes.Add(nodeID)
+				if nodes.Len() >= numSend {
+					break
+				}
+			}
+
+			// Send to specified nodes
+			for nodeID := range nodeIDs {
+				err := n.nodeIDToVM[nodeID].SnowVM.AppGossip(ctx, nodeID, b)
+				n.require.NoError(err)
+			}
+			return nil
+		}
+	}
+}
+
+func (n *TestNetwork) SetState(ctx context.Context, state avasnow.State) {
+	for _, vm := range n.VMs {
+		n.require.NoError(vm.SnowVM.SetState(ctx, state))
+	}
+}
+
+// ConfirmInvalidTx confirms that attempting to issue the transaction to the mempool results in the target error
+func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, tx *chain.Transaction, targetErr error) {
+	err := n.VMs[0].VM.SubmitTx(ctx, tx)
+	n.require.ErrorIs(err, targetErr)
+
+	// TODO: manually construct a block and confirm that attempting to execute the block against tip results in the same
+	// target error.
+	// This requires a refactor of block building to easily construct a block while skipping over tx validity checks.
+}
+
+func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context, txs []*chain.Transaction) ([]snowman.Block, error) {
+	// Submit tx to first node
+	err := errors.Join(n.VMs[0].VM.Submit(ctx, txs)...)
+	n.require.NoError(err)
+
+	n.require.NoError(n.VMs[0].VM.Builder().Force(ctx))
+	select {
+	case <-n.VMs[0].toEngine:
+	case <-time.After(time.Second):
+		n.require.Fail("timeout waiting for PendingTxs message")
+	}
+
+	blk, err := n.VMs[0].SnowVM.BuildBlock(ctx)
+	n.require.NoError(err)
+
+	n.require.NoError(blk.Verify(ctx))
+	n.require.NoError(n.VMs[0].SnowVM.SetPreference(ctx, blk.ID()))
+
+	parsedBlk, err := n.VMs[1].SnowVM.ParseBlock(ctx, blk.Bytes())
+	n.require.NoError(err)
+	n.require.Equal(blk.ID(), parsedBlk.ID())
+
+	n.require.NoError(parsedBlk.Verify(ctx))
+	n.require.NoError(n.VMs[1].SnowVM.SetPreference(ctx, blk.ID()))
+
+	outputBlk, err := n.VMs[0].SnowVM.GetChainIndex().GetPreferredBlock(ctx)
+	n.require.NoError(err)
+	blockTxs := outputBlk.ExecutionBlock.Txs
+
+	txsSet := set.NewSet[ids.ID](len(txs))
+	for _, tx := range blockTxs() {
+		txsSet.Add(tx.GetID())
+	}
+	for i, tx := range txs {
+		n.require.True(txsSet.Contains(tx.GetID()), "missing tx %s at index %d", tx, i)
+	}
+
+	return []snowman.Block{blk, parsedBlk}, nil
+}
+
+func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
+	blks, err := n.BuildBlockAndUpdateHead(ctx, txs)
+	n.require.NoError(err)
+
+	for i, blk := range blks {
+		n.require.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+	}
+	return nil
+}
+
+func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, authFactory chain.AuthFactory) (*chain.Transaction, error) {
+	cli := jsonrpc.NewJSONRPCClient(n.VMs[0].server.URL)
+	_, tx, _, err := cli.GenerateTransaction(ctx, n.VMs[0].VM, actions, authFactory)
+	return tx, err
+}
+
+func (n *TestNetwork) URIs() []string {
+	return n.uris
+}
+
+func (n *TestNetwork) Configuration() workload.TestNetworkConfiguration {
+	return n.configuration
+}
+
+func TestEmptyBlock(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{}))
+}
+
+func TestValidBlocks(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+
+	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
+
+	tx, err = network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+		Nonce:           1,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
+}
+
+func TestSubmitTx(t *testing.T) {
+	tests := []struct {
+		name      string
+		makeTx    func(r *require.Assertions, network *TestNetwork) *chain.Transaction
+		targetErr error
+	}{
+		{
+			name: "valid tx",
+			makeTx: func(r *require.Assertions, network *TestNetwork) *chain.Transaction {
+				unsignedTx := chain.NewTxData(
+					&chain.Base{
+						ChainID:   network.chainID,
+						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
+						MaxFee:    1_000,
+					},
+					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+				)
+				tx, err := unsignedTx.Sign(network.authFactory)
+				r.NoError(err)
+				return tx
+			},
+			targetErr: nil,
+		},
+		{
+			name: chain.ErrMisalignedTime.Error(),
+			makeTx: func(r *require.Assertions, network *TestNetwork) *chain.Transaction {
+				unsignedTx := chain.NewTxData(
+					&chain.Base{
+						ChainID:   network.chainID,
+						Timestamp: 1,
+						MaxFee:    1_000,
+					},
+					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+				)
+				tx, err := unsignedTx.Sign(network.authFactory)
+				r.NoError(err)
+				return tx
+			},
+			targetErr: chain.ErrMisalignedTime,
+		},
+		{
+			name: chain.ErrTimestampTooLate.Error(),
+			makeTx: func(r *require.Assertions, network *TestNetwork) *chain.Transaction {
+				unsignedTx := chain.NewTxData(
+					&chain.Base{
+						ChainID:   network.chainID,
+						Timestamp: int64(time.Millisecond),
+						MaxFee:    1_000,
+					},
+					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+				)
+				tx, err := unsignedTx.Sign(network.authFactory)
+				r.NoError(err)
+				return tx
+			},
+			targetErr: chain.ErrTimestampTooLate,
+		},
+		{
+			name: chain.ErrTimestampTooEarly.Error(),
+			makeTx: func(r *require.Assertions, network *TestNetwork) *chain.Transaction {
+				unsignedTx := chain.NewTxData(
+					&chain.Base{
+						ChainID:   network.chainID,
+						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), time.Hour.Milliseconds()),
+						MaxFee:    1_000,
+					},
+					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+				)
+				tx, err := unsignedTx.Sign(network.authFactory)
+				r.NoError(err)
+				return tx
+			},
+			targetErr: chain.ErrTimestampTooEarly,
+		},
+		{
+			name: "invalid auth",
+			makeTx: func(r *require.Assertions, network *TestNetwork) *chain.Transaction {
+				unsignedTx := chain.NewTxData(
+					&chain.Base{
+						ChainID:   network.chainID,
+						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
+						MaxFee:    1_000,
+					},
+					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+				)
+				invalidAuth, err := network.authFactory.Sign([]byte{0})
+				r.NoError(err)
+				tx, err := chain.NewTransaction(unsignedTx.Base, unsignedTx.Actions, invalidAuth)
+				r.NoError(err)
+				return tx
+			},
+			targetErr: crypto.ErrInvalidSignature,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			r := require.New(t)
+			chainID := ids.GenerateTestID()
+			network := NewTestNetwork(ctx, t, chainID)
+
+			invalidTx := test.makeTx(r, network)
+			network.ConfirmInvalidTx(ctx, invalidTx, test.targetErr)
+		})
+	}
+}
+
+func TestValidityWindowDuplicateAcceptedBlock(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+
+	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx0}))
+
+	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
+
+	// Build another block, so that the duplicate is in an accepted ancestor
+	// instead of the direct parent (last accepted block)
+	tx1, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+		Nonce:           1,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx1}))
+
+	// The duplicate transaction should still fail
+	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
+}
+
+func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+
+	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+	tx1, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+		Nonce:           1,
+	}}, network.authFactory)
+	r.NoError(err)
+
+	vmBlk1s, err := network.BuildBlockAndUpdateHead(ctx, []*chain.Transaction{tx0})
+	r.NoError(err)
+
+	// Issuing the same tx should fail
+	// Note: this test must be modified if we change the semantics of re-issuing a block
+	// currently in a processing block to return a nil error
+	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
+
+	vmBlk2s, err := network.BuildBlockAndUpdateHead(ctx, []*chain.Transaction{tx1})
+	r.NoError(err)
+
+	// Issuing the same tx (still in a processing ancestor) should fail
+	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
+
+	for i, blk := range vmBlk1s {
+		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+	}
+	for i, blk := range vmBlk2s {
+		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+	}
+}
+
+func TestIssueDuplicateInMempool(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+
+	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+
+	vm0 := network.VMs[0].VM
+	r.NoError(vm0.SubmitTx(ctx, tx0))
+
+	// This behavior is not required. We could just as easily return a nil error to report
+	// to the user that the tx is in the mempool because it was already issued.
+	r.ErrorIs(vm0.SubmitTx(ctx, tx0), vm.ErrNotAdded)
+}
+
+func TestForceGossip(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID)
+	network.SetState(ctx, avasnow.NormalOp)
+
+	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+
+	vm0 := network.VMs[0].VM
+	r.NoError(vm0.SubmitTx(ctx, tx0))
+	r.NoError(vm0.Gossiper().Force(ctx))
+
+	vm1 := network.VMs[1].VM
+	mempool := vm1.Mempool().(*mempool.Mempool[*chain.Transaction])
+	r.Equal(1, mempool.Len(ctx))
+	r.True(mempool.Has(ctx, tx0.GetID()))
+}
+
+// APIs
+// - external subscriber
+// - accepted
+// - chain index
+// - websocket
+// - staterpc (before / after tx execution)
+
 // state sync
-// submit tx and check gossip is handled correctly
-// implement WorkloadNetwork

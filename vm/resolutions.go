@@ -167,6 +167,11 @@ func (vm *VM) MetadataManager() chain.MetadataManager {
 	return vm.metadataManager
 }
 
+func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
+	errs := vm.Submit(ctx, []*chain.Transaction{tx})
+	return errs[0]
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }

@@ -68,10 +68,11 @@ type Chain[I Block, O Block, A Block] interface {
 }
 
 type VM[I Block, O Block, A Block] struct {
-	chain       Chain[I, O, A]
-	chainIndex  BlockChainIndex[I]
-	covariantVM *CovariantVM[I, O, A]
-	app         Application[I, O, A]
+	chain           Chain[I, O, A]
+	inputChainIndex BlockChainIndex[I]
+	chainIndex      *ChainIndex[I, O, A]
+	covariantVM     *CovariantVM[I, O, A]
+	app             Application[I, O, A]
 
 	snowCtx *snow.Context
 
@@ -215,7 +216,7 @@ func (v *VM[I, O, A]) Initialize(
 	if err != nil {
 		return err
 	}
-	v.chainIndex = blockChainIndex
+	v.inputChainIndex = blockChainIndex
 	return nil
 }
 
@@ -240,7 +241,7 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	if blkID, ok := v.acceptedBlocksByHeight.Get(blkHeight); ok {
 		return blkID, nil
 	}
-	return v.chainIndex.GetBlockIDAtHeight(ctx, blkHeight)
+	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {

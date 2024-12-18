@@ -17,6 +17,10 @@ type CovariantVM[I Block, O Block, A Block] struct {
 	*VM[I, O, A]
 }
 
+func (v *VM[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
+	return v.covariantVM
+}
+
 func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
@@ -41,7 +45,7 @@ func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*Sta
 	// The consensus engine guarantees that:
 	// 1. Verify is only called on a block whose parent is lastAcceptedBlock or in verifiedBlocks
 	// 2. Accept is only called on a block whose parent is lastAcceptedBlock
-	blk, err := v.chainIndex.GetBlock(ctx, blkID)
+	blk, err := v.inputChainIndex.GetBlock(ctx, blkID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +63,7 @@ func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint
 	if fetchedBlkID, ok := v.acceptedBlocksByHeight.Get(height); ok {
 		blkID = fetchedBlkID
 	} else {
-		fetchedBlkID, err := v.chainIndex.GetBlockIDAtHeight(ctx, height)
+		fetchedBlkID, err := v.inputChainIndex.GetBlockIDAtHeight(ctx, height)
 		if err != nil {
 			return nil, err
 		}

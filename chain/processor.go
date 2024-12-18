@@ -141,7 +141,7 @@ func (p *Processor) Execute(
 		return nil, err
 	}
 	if b.Hght != parentHeight+1 {
-		return nil, ErrInvalidBlockHeight
+		return nil, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, b.Hght, parentHeight)
 	}
 
 	// Fetch parent timestamp and confirm block timestamp is valid
@@ -158,11 +158,11 @@ func (p *Processor) Execute(
 		return nil, err
 	}
 	parentTimestamp := int64(parentTimestampUint64)
-	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return nil, ErrTimestampTooEarly
+	if minBlockGap := r.GetMinBlockGap(); b.Tmstmp < parentTimestamp+minBlockGap {
+		return nil, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, b.Tmstmp, parentTimestamp, minBlockGap)
 	}
 	if len(b.StatelessBlock.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return nil, ErrTimestampTooEarly
+		return nil, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, b.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
 	}
 
 	if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
