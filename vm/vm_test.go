@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	avasnow "github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
@@ -23,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm/grpcutils"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	stateapi "github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
@@ -33,8 +35,10 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/keys"
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 	"github.com/ava-labs/hypersdk/snow"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -676,9 +680,46 @@ func TestExternalSubscriber(t *testing.T) {
 	r.Equal(network.VMs[0].SnowVM.GetCovariantVM().LastAcceptedBlock(ctx).ID(), acceptedBlkID)
 }
 
+func TestDirectStateAPI(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+
+	client := stateapi.NewJSONRPCStateClient(network.VMs[0].server.URL)
+
+	key := keys.EncodeChunks([]byte{1, 2, 3}, 1)
+	value := []byte{4, 5, 6}
+	vals, errs, err := client.ReadState(ctx, [][]byte{key})
+	r.NoError(err)
+	r.Len(vals, 1)
+	r.Len(errs, 1)
+	r.Nil(vals[0])
+	// Cannot use ErrorIs because the error is returned over the API
+	r.ErrorContains(errs[0], database.ErrNotFound.Error())
+
+	keys := [][]byte{key}
+	values := [][]byte{value}
+	stateKeys := state.Keys{string(key): state.All}
+	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits:    1,
+		SpecifiedStateKeys: stateKeys,
+		WriteKeys:          keys,
+		WriteValues:        values,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
+
+	vals, errs, err = client.ReadState(ctx, [][]byte{key})
+	r.NoError(err)
+	r.Len(vals, 1)
+	r.Len(errs, 1)
+	r.NoError(errs[0])
+	r.Equal(value, vals[0])
+}
+
 // APIs
 // - chain index
 // - websocket
-// - staterpc (before / after tx execution)
 
 // state sync

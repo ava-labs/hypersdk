@@ -53,8 +53,11 @@ func (s *JSONRPCStateServer) ReadState(req *http.Request, args *ReadStateRequest
 
 	var errs []error
 	res.Values, errs = s.stateReader.ReadState(ctx, args.Keys)
-	for _, err := range errs {
-		res.Errors = append(res.Errors, err.Error())
+	res.Errors = make([]string, len(errs))
+	for i, err := range errs {
+		if err != nil {
+			res.Errors[i] = err.Error()
+		}
 	}
 	return nil
 }
