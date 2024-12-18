@@ -292,43 +292,72 @@ func TestUnbondOnAccept(t *testing.T) {
 
 // Tests that txs are un-bonded after expiry
 func TestUnbondOnExpiry(t *testing.T) {
-	r := require.New(t)
-
-	b := testBonder{
-		limit: map[codec.Address]int{
-			codec.EmptyAddress: 1,
-		},
-	}
-
-	expiry := time.Now()
-	txs := []dsmrtest.Tx{
+	tests := []struct {
+		name      string
+		expiry    int64
+		blkTime   int64
+		wantLimit int
+	}{
 		{
-			ID:      ids.GenerateTestID(),
-			Expiry:  expiry.Unix(),
-			Sponsor: codec.EmptyAddress,
+			name:      "expiry before block time",
+			wantLimit: 1,
+			expiry:    100,
+			blkTime:   101,
+		},
+		{
+			name:      "expiry at block time",
+			wantLimit: 0,
+			expiry:    100,
+			blkTime:   100,
+		},
+		{
+			name:      "expiry after block time",
+			wantLimit: 0,
+			expiry:    101,
+			blkTime:   100,
 		},
 	}
 
-	n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
-	// Bond the tx
-	r.NoError(n.BuildChunk(
-		context.Background(),
-		txs,
-		0,
-		codec.EmptyAddress,
-	))
-	r.Equal(0, b.limit[codec.EmptyAddress])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
 
-	// Accepting a block past the tx expiry should un-bond the tx
-	_, err := n.Accept(context.Background(), dsmr.Block{
-		BlockHeader: dsmr.BlockHeader{
-			ParentID:  ids.ID{},
-			Height:    0,
-			Timestamp: expiry.Add(time.Second).Unix(),
-		},
-	})
-	r.NoError(err)
-	r.Equal(1, b.limit[codec.EmptyAddress])
+			b := testBonder{
+				limit: map[codec.Address]int{
+					codec.EmptyAddress: 1,
+				},
+			}
+
+			txs := []dsmrtest.Tx{
+				{
+					ID:      ids.GenerateTestID(),
+					Expiry:  tt.expiry,
+					Sponsor: codec.EmptyAddress,
+				},
+			}
+
+			n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
+			// Bond the tx
+			r.NoError(n.BuildChunk(
+				context.Background(),
+				txs,
+				0,
+				codec.EmptyAddress,
+			))
+			r.Equal(0, b.limit[codec.EmptyAddress])
+
+			// Accepting a block past the tx expiry should un-bond the tx
+			_, err := n.Accept(context.Background(), dsmr.Block{
+				BlockHeader: dsmr.BlockHeader{
+					ParentID:  ids.ID{},
+					Height:    0,
+					Timestamp: tt.blkTime,
+				},
+			})
+			r.NoError(err)
+			r.Equal(tt.wantLimit, b.limit[codec.EmptyAddress])
+		})
+	}
 }
 
 type testDSMR struct {

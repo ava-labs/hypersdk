@@ -70,7 +70,6 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 
 	// Un-bond any txs that expired at this block
 	for txID, tx := range n.pending {
-		// TODO test
 		if block.Timestamp <= tx.GetExpiry() {
 			continue
 		}
