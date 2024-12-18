@@ -102,13 +102,16 @@ type VM struct {
 	handlers              map[string]http.Handler
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
-	transactionExecutor   chain.TransactionExecutor
-	hooks                 chain.Hooks
-	actionCodec           *codec.TypeParser[chain.Action]
-	authCodec             *codec.TypeParser[chain.Auth]
-	outputCodec           *codec.TypeParser[codec.Typed]
-	authEngine            map[uint8]AuthEngine
-	network               *p2p.Network
+
+	transactionExecutor chain.TransactionExecutor
+	genesisStateFactory func(state.Mutable) state.Mutable
+	hooks               chain.Hooks
+
+	actionCodec *codec.TypeParser[chain.Action]
+	authCodec   *codec.TypeParser[chain.Auth]
+	outputCodec *codec.TypeParser[codec.Typed]
+	authEngine  map[uint8]AuthEngine
+	network     *p2p.Network
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -158,6 +161,7 @@ func New(
 	metadataManager chain.MetadataManager,
 	transactionExecutor chain.TransactionExecutor,
 	hooks chain.Hooks,
+	genesisStateFactory func(state.Mutable) state.Mutable,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
@@ -177,6 +181,7 @@ func New(
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		transactionExecutor:   transactionExecutor,
+		genesisStateFactory:   genesisStateFactory,
 		hooks:                 hooks,
 		config:                NewConfig(),
 		actionCodec:           actionCodec,
@@ -432,7 +437,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.balanceHandler); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, vm.genesisStateFactory(sps), vm.balanceHandler); err != nil {
 			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}

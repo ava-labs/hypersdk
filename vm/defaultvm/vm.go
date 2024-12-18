@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
 	staterpc "github.com/ava-labs/hypersdk/api/state"
@@ -51,6 +52,9 @@ func New(
 		metadataManager,
 		chain.DefaultTransactionExecutor{},
 		chain.DefaultHooks{},
+		func(mu state.Mutable) state.Mutable {
+			return mu
+		},
 		actionCodec,
 		authCodec,
 		outputCodec,
