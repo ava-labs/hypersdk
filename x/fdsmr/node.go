@@ -5,11 +5,8 @@ package fdsmr
 
 import (
 	"context"
-	"sync"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/dsmr"
@@ -26,17 +23,17 @@ type Bonder[T dsmr.Tx] interface {
 // New returns a fortified instance of DSMR
 func New[T dsmr.Interface[U], U dsmr.Tx](d T, b Bonder[U]) *Node[T, U] {
 	return &Node[T, U]{
-		DSMR: d,
-		bonder: bonder[U]{
-			Bonder:  b,
-			pending: set.Set[ids.ID]{},
-		},
+		DSMR:    d,
+		bonder:  b,
+		pending: make(map[ids.ID]U),
 	}
 }
 
 type Node[T dsmr.Interface[U], U dsmr.Tx] struct {
 	DSMR   T
-	bonder bonder[U]
+	bonder Bonder[U]
+
+	pending map[ids.ID]U
 }
 
 func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, beneficiary codec.Address) error {
@@ -50,6 +47,7 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, bene
 			continue
 		}
 
+		n.pending[tx.GetID()] = tx
 		bonded = append(bonded, tx)
 	}
 
@@ -70,52 +68,27 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 		return dsmr.ExecutedBlock[U]{}, err
 	}
 
+	// Un-bond any txs that expired at this block
+	for txID, tx := range n.pending {
+		// TODO test
+		if block.Timestamp <= tx.GetExpiry() {
+			continue
+		}
+
+		delete(n.pending, txID)
+		n.bonder.Unbond(tx)
+	}
+
+	// Un-bond any txs that were accepted in this block
 	for _, chunk := range executedBlock.Chunks {
 		for _, tx := range chunk.Txs {
+			if _, ok := n.pending[tx.GetID()]; !ok {
+				continue
+			}
+
 			n.bonder.Unbond(tx)
 		}
 	}
 
 	return executedBlock, nil
-}
-
-type bonder[T dsmr.Tx] struct {
-	Bonder[T]
-
-	lock    sync.Mutex
-	pending set.Set[ids.ID]
-}
-
-// Bond calls the provided bonder and guarantees that Unbond will be called
-// after the expiry timestamp if it is not accepted.
-func (b *bonder[T]) Bond(tx T) bool {
-	if !b.Bonder.Bond(tx) {
-		return false
-	}
-
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	b.pending.Add(tx.GetID())
-
-	duration := time.Until(time.Unix(tx.GetExpiry(), 0))
-	go func() {
-		<-time.After(duration)
-		b.Unbond(tx)
-	}()
-
-	return true
-}
-
-// Unbond unbonds a tx
-func (b *bonder[T]) Unbond(tx T) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	if !b.pending.Contains(tx.GetID()) {
-		// this tx was either not assigned to us or was already un-bonded
-		return
-	}
-
-	b.Bonder.Unbond(tx)
 }

@@ -58,8 +58,8 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name: "single account - bonded",
 			bonder: testBonder{
-				pending: map[codec.Address]chan struct{}{
-					codec.EmptyAddress: make(chan struct{}, 1),
+				limit: map[codec.Address]int{
+					codec.EmptyAddress: 1,
 				},
 			},
 			txs: []dsmrtest.Tx{
@@ -80,8 +80,8 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name: "single account - some txs bonded",
 			bonder: testBonder{
-				pending: map[codec.Address]chan struct{}{
-					codec.EmptyAddress: make(chan struct{}, 1),
+				limit: map[codec.Address]int{
+					codec.EmptyAddress: 1,
 				},
 			},
 			txs: []dsmrtest.Tx{
@@ -107,7 +107,7 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name: "multiple accounts - all txs fail bond",
 			bonder: testBonder{
-				pending: map[codec.Address]chan struct{}{},
+				limit: map[codec.Address]int{},
 			},
 			txs: []dsmrtest.Tx{
 				{
@@ -126,9 +126,9 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name: "multiple accounts - all txs bonded",
 			bonder: testBonder{
-				pending: map[codec.Address]chan struct{}{
-					{1}: make(chan struct{}, 1),
-					{2}: make(chan struct{}, 1),
+				limit: map[codec.Address]int{
+					{1}: 1,
+					{2}: 1,
 				},
 			},
 			txs: []dsmrtest.Tx{
@@ -159,9 +159,9 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name: "multiple accounts - some txs bonded",
 			bonder: testBonder{
-				pending: map[codec.Address]chan struct{}{
-					{1}: make(chan struct{}, 2),
-					{2}: make(chan struct{}, 1),
+				limit: map[codec.Address]int{
+					{1}: 2,
+					{2}: 1,
 				},
 			},
 			txs: []dsmrtest.Tx{
@@ -240,8 +240,8 @@ func TestUnbondOnAccept(t *testing.T) {
 	r := require.New(t)
 
 	b := testBonder{
-		pending: map[codec.Address]chan struct{}{
-			codec.EmptyAddress: make(chan struct{}, 1),
+		limit: map[codec.Address]int{
+			codec.EmptyAddress: 1,
 		},
 	}
 	expiry := time.Now().Add(time.Hour).Unix()
@@ -283,11 +283,11 @@ func TestUnbondOnAccept(t *testing.T) {
 		expiry,
 		codec.EmptyAddress,
 	))
-	r.Len(b.pending[codec.EmptyAddress], 1)
+	r.Equal(0, b.limit[codec.EmptyAddress])
 
 	_, err := n.Accept(context.Background(), dsmr.Block{})
 	r.NoError(err)
-	r.Empty(b.pending[codec.EmptyAddress])
+	r.Equal(1, b.limit[codec.EmptyAddress])
 }
 
 // Tests that txs are un-bonded after expiry
@@ -295,29 +295,40 @@ func TestUnbondOnExpiry(t *testing.T) {
 	r := require.New(t)
 
 	b := testBonder{
-		pending: map[codec.Address]chan struct{}{
-			codec.EmptyAddress: make(chan struct{}, 1),
+		limit: map[codec.Address]int{
+			codec.EmptyAddress: 1,
 		},
 	}
 
-	expiry := time.Now().Add(time.Second).Unix()
+	expiry := time.Now()
 	txs := []dsmrtest.Tx{
 		{
 			ID:      ids.GenerateTestID(),
-			Expiry:  expiry,
+			Expiry:  expiry.Unix(),
 			Sponsor: codec.EmptyAddress,
 		},
 	}
 
 	n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
+	// Bond the tx
 	r.NoError(n.BuildChunk(
 		context.Background(),
 		txs,
-		expiry,
+		0,
 		codec.EmptyAddress,
 	))
-	// block until the tx is un-bonded
-	<-b.pending[codec.EmptyAddress]
+	r.Equal(0, b.limit[codec.EmptyAddress])
+
+	// Accepting a block past the tx expiry should un-bond the tx
+	_, err := n.Accept(context.Background(), dsmr.Block{
+		BlockHeader: dsmr.BlockHeader{
+			ParentID:  ids.ID{},
+			Height:    0,
+			Timestamp: expiry.Add(time.Second).Unix(),
+		},
+	})
+	r.NoError(err)
+	r.Equal(1, b.limit[codec.EmptyAddress])
 }
 
 type testDSMR struct {
@@ -351,30 +362,29 @@ func (testDSMR) Verify(context.Context, dsmr.Block, dsmr.Block) error {
 
 func (t testDSMR) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {
 	if t.AcceptF == nil {
-		return dsmr.ExecutedBlock[dsmrtest.Tx]{}, nil
+		return dsmr.ExecutedBlock[dsmrtest.Tx]{
+			BlockHeader: block.BlockHeader,
+			ID:          ids.ID{},
+			Chunks:      nil,
+		}, nil
 	}
 
 	return t.AcceptF(ctx, block)
 }
 
 type testBonder struct {
-	pending map[codec.Address]chan struct{}
+	limit map[codec.Address]int
 }
 
 func (b testBonder) Bond(tx dsmrtest.Tx) bool {
-	pending, ok := b.pending[tx.GetSponsor()]
-	if !ok {
+	if b.limit[tx.GetSponsor()] == 0 {
 		return false
 	}
 
-	if len(pending) == cap(pending) {
-		return false
-	}
-
-	pending <- struct{}{}
+	b.limit[tx.GetSponsor()]--
 	return true
 }
 
 func (b testBonder) Unbond(tx dsmrtest.Tx) {
-	<-b.pending[tx.GetSponsor()]
+	b.limit[tx.GetSponsor()]++
 }
