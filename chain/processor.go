@@ -198,7 +198,7 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
-	if err := p.hooks.After(ts); err != nil {
+	if err := p.hooks.AfterBlock(ts); err != nil {
 		return nil, nil, err
 	}
 
@@ -350,30 +350,26 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			st, err := p.hooks.Before(storage, b.Hght)
+			result, err := p.transactionExecutor.Run(
+				ctx,
+				tx,
+				stateKeys,
+				storage,
+				feeManager,
+				p.balanceHandler,
+				r,
+				ts,
+				t,
+			)
 			if err != nil {
 				return err
 			}
 
-			// Execute transaction
-			//
-			// It is critical we explicitly set the scope before each transaction is
-			// processed
-			tsv := ts.NewView(stateKeys, st)
-
-			// Ensure we have enough funds to pay fees
-			if err := p.transactionExecutor.PreExecute(ctx, tx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
+			if err := p.hooks.AfterTX(tx, result, feeManager); err != nil {
 				return err
 			}
 
-			result, err := p.transactionExecutor.Execute(ctx, tx, feeManager, p.balanceHandler, r, tsv, t)
-			if err != nil {
-				return err
-			}
 			results[i] = result
-
-			// Commit results to parent [TState]
-			tsv.Commit()
 			return nil
 		})
 	}

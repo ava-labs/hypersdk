@@ -19,6 +19,10 @@ import (
 	staterpc "github.com/ava-labs/hypersdk/api/state"
 )
 
+func DefaultGenesisStateFactory(mu state.Mutable) state.Mutable {
+	return mu
+}
+
 // DefaultOptions provides the default set of options to include
 // when constructing a new VM including the indexer, websocket,
 // JSONRPC, and external subscriber options.
@@ -50,11 +54,9 @@ func New(
 		genesisFactory,
 		balanceHandler,
 		metadataManager,
-		chain.DefaultTransactionExecutor{},
-		chain.DefaultHooks{},
-		func(mu state.Mutable) state.Mutable {
-			return mu
-		},
+		DefaultTransactionExecutor{},
+		DefaultHooks{},
+		DefaultGenesisStateFactory,
 		actionCodec,
 		authCodec,
 		outputCodec,

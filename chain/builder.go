@@ -295,31 +295,29 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}()
 				}
 
-				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
-				if err := c.transactionExecutor.PreExecute(ctx, tx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
-					// We don't need to rollback [tsv] here because it will never
-					// be committed.
-					if HandlePreExecute(c.log, err) {
-						restore = true
-					}
-					return nil
-				}
-				result, err := c.transactionExecutor.Execute(
+				result, err := c.transactionExecutor.Run(
 					ctx,
 					tx,
+					stateKeys,
+					storage,
 					feeManager,
 					c.balanceHandler,
 					r,
-					tsv,
+					ts,
 					nextTime,
 				)
 				if err != nil {
-					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
-					// all units for the transaction should be consumed and a fee should be charged.
-					c.log.Warn("unexpected post-execution error", zap.Error(err))
 					restore = true
-					return err
+					// We don't need to rollback [tsv] here because it will never
+					// be committed.
+					if HandlePreExecute(c.log, err) {
+						return nil
+					} else {
+						// Returning an error here should be avoided at all costs (can be a DoS). Rather,
+						// all units for the transaction should be consumed and a fee should be charged.
+						c.log.Warn("unexpected post-execution error", zap.Error(err))
+						return err
+					}
 				}
 
 				blockLock.Lock()
@@ -349,7 +347,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Update block with new transaction
-				tsv.Commit()
+				// tsv.Commit()
 				blockTransactions = append(blockTransactions, tx)
 				results = append(results, result)
 				return nil
@@ -404,7 +402,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
-	if err := c.hooks.After(ts); err != nil {
+	if err := c.hooks.AfterBlock(ts); err != nil {
 		return nil, nil, nil, err
 	}
 

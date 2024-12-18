@@ -11,6 +11,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type Parser interface {
@@ -203,4 +206,49 @@ type AuthFactory interface {
 	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
+}
+
+type Hooks interface {
+	// AfterBlock should be used to apply any changes to state before committing
+	// to the parent view
+	AfterBlock(ts *tstate.TState) error
+
+	// AfterTX should be used only by processor
+	AfterTX(
+		tx *Transaction,
+		result *Result,
+		feeManager *internalfees.Manager,
+	) error
+}
+
+type TransactionExecutor interface {
+	PreExecute(
+		ctx context.Context,
+		tx *Transaction,
+		feeManager *internalfees.Manager,
+		bh BalanceHandler,
+		r Rules,
+		im state.Immutable,
+		timestamp int64,
+	) error
+
+	ConsumeUnits(
+		tx *Transaction,
+		feeManager *internalfees.Manager,
+		bh BalanceHandler,
+		r Rules,
+	) error
+
+	// Run is responsible for pre-executing and executing a transaction.
+	Run(
+		ctx context.Context,
+		tx *Transaction,
+		stateKeys state.Keys,
+		storage map[string][]byte,
+		feeManager *internalfees.Manager,
+		bh BalanceHandler,
+		r Rules,
+		ts *tstate.TState,
+		timestamp int64,
+	) (*Result, error)
 }

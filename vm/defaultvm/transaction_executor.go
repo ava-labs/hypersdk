@@ -1,12 +1,13 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package chain
+package defaultvm
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -14,49 +15,44 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-var _ TransactionExecutor = (*DefaultTransactionExecutor)(nil)
-
-type TransactionExecutor interface {
-	PreExecute(
-		ctx context.Context,
-		tx *Transaction,
-		feeManager *internalfees.Manager,
-		bh BalanceHandler,
-		r Rules,
-		im state.Immutable,
-		timestamp int64,
-	) error
-
-	// Execute after knowing a transaction can pay a fee. Attempt
-	// to charge the fee in as many cases as possible.
-	//
-	// Invariant: [PreExecute] is called just before [Execute]
-	Execute(
-		ctx context.Context,
-		tx *Transaction,
-		feeManager *internalfees.Manager,
-		bh BalanceHandler,
-		r Rules,
-		ts *tstate.TStateView,
-		timestamp int64,
-	) (*Result, error)
-
-	ConsumeUnits(
-		tx *Transaction,
-		feeManager *internalfees.Manager,
-		bh BalanceHandler,
-		r Rules,
-	) error
-}
+var _ chain.TransactionExecutor = (*DefaultTransactionExecutor)(nil)
 
 type DefaultTransactionExecutor struct{}
 
-func (d DefaultTransactionExecutor) PreExecute(
+func (d DefaultTransactionExecutor) Run(
 	ctx context.Context,
-	tx *Transaction,
+	tx *chain.Transaction,
+	stateKeys state.Keys,
+	storage map[string][]byte,
 	feeManager *internalfees.Manager,
-	bh BalanceHandler,
-	r Rules,
+	bh chain.BalanceHandler,
+	r chain.Rules,
+	ts *tstate.TState,
+	timestamp int64,
+) (*chain.Result, error) {
+	tsv := ts.NewView(stateKeys, storage)
+
+	if err := d.PreExecute(ctx, tx, feeManager, bh, r, tsv, timestamp); err != nil {
+		return nil, err
+	}
+
+	result, err := d.Execute(ctx, tx, feeManager, bh, r, tsv, timestamp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit results to parent [TState]
+	tsv.Commit()
+
+	return result, nil
+}
+
+func (DefaultTransactionExecutor) PreExecute(
+	ctx context.Context,
+	tx *chain.Transaction,
+	feeManager *internalfees.Manager,
+	bh chain.BalanceHandler,
+	r chain.Rules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
@@ -64,23 +60,23 @@ func (d DefaultTransactionExecutor) PreExecute(
 		return err
 	}
 	if len(tx.Actions) > int(r.GetMaxActionsPerTx()) {
-		return ErrTooManyActions
+		return chain.ErrTooManyActions
 	}
 	for i, action := range tx.Actions {
 		start, end := action.ValidRange(r)
 		if start >= 0 && timestamp < start {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+			return fmt.Errorf("%w: action type %d at index %d", chain.ErrActionNotActivated, action.GetTypeID(), i)
 		}
 		if end >= 0 && timestamp > end {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+			return fmt.Errorf("%w: action type %d at index %d", chain.ErrActionNotActivated, action.GetTypeID(), i)
 		}
 	}
 	start, end := tx.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrAuthNotActivated
+		return chain.ErrAuthNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrAuthNotActivated
+		return chain.ErrAuthNotActivated
 	}
 	units, err := tx.Units(bh, r)
 	if err != nil {
@@ -93,15 +89,19 @@ func (d DefaultTransactionExecutor) PreExecute(
 	return bh.CanDeduct(ctx, tx.Auth.Sponsor(), im, fee)
 }
 
-func (d DefaultTransactionExecutor) Execute(
+// Execute after knowing a transaction can pay a fee. Attempt
+// to charge the fee in as many cases as possible.
+//
+// Invariant: [PreExecute] is called just before [Execute]
+func (DefaultTransactionExecutor) Execute(
 	ctx context.Context,
-	tx *Transaction,
+	tx *chain.Transaction,
 	feeManager *internalfees.Manager,
-	bh BalanceHandler,
-	r Rules,
+	bh chain.BalanceHandler,
+	r chain.Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
-) (*Result, error) {
+) (*chain.Result, error) {
 	// Always charge fee first
 	units, err := tx.Units(bh, r)
 	if err != nil {
@@ -128,10 +128,16 @@ func (d DefaultTransactionExecutor) Execute(
 		actionOutputs = [][]byte{}
 	)
 	for i, action := range tx.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, tx.Auth.Actor(), CreateActionID(tx.GetID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, r, ts, timestamp, tx.Auth.Actor(), chain.CreateActionID(tx.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
+			return &chain.Result{
+				Success: false,
+				Error:   utils.ErrBytes(err),
+				Outputs: actionOutputs,
+				Units:   units,
+				Fee:     fee,
+			}, nil
 		}
 
 		var encodedOutput []byte
@@ -140,7 +146,7 @@ func (d DefaultTransactionExecutor) Execute(
 			// unmarshal)
 			encodedOutput = []byte{}
 		} else {
-			encodedOutput, err = MarshalTyped(actionOutput)
+			encodedOutput, err = chain.MarshalTyped(actionOutput)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
 			}
@@ -148,7 +154,8 @@ func (d DefaultTransactionExecutor) Execute(
 
 		actionOutputs = append(actionOutputs, encodedOutput)
 	}
-	return &Result{
+
+	return &chain.Result{
 		Success: true,
 		Error:   []byte{},
 
@@ -159,11 +166,11 @@ func (d DefaultTransactionExecutor) Execute(
 	}, nil
 }
 
-func (d DefaultTransactionExecutor) ConsumeUnits(
-	tx *Transaction,
+func (DefaultTransactionExecutor) ConsumeUnits(
+	tx *chain.Transaction,
 	feeManager *internalfees.Manager,
-	bh BalanceHandler,
-	r Rules,
+	bh chain.BalanceHandler,
+	r chain.Rules,
 ) error {
 	// Ensure we don't consume too many units
 	units, err := tx.Units(bh, r)
@@ -171,7 +178,7 @@ func (d DefaultTransactionExecutor) ConsumeUnits(
 		return err
 	}
 	if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
-		return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
+		return fmt.Errorf("%w: %d too large", chain.ErrInvalidUnitsConsumed, d)
 	}
 
 	return nil
