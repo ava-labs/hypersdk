@@ -68,7 +68,7 @@ func (f *Manager) LastConsumed(d fees.Dimension) uint64 {
 }
 
 func (f *Manager) lastConsumed(d fees.Dimension) uint64 {
-	start := consts.IntLen + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
+	start := consts.Int64Len + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
@@ -153,6 +153,20 @@ func (f *Manager) Consume(d fees.Dimensions, l fees.Dimensions) (bool, fees.Dime
 		f.setLastConsumed(i, consumed)
 	}
 	return true, 0
+}
+
+func (f *Manager) Refund(d fees.Dimensions) bool {
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
+		consumed, err := math.Sub(f.lastConsumed(i), d[i])
+		if err != nil {
+			return false
+		}
+		f.setLastConsumed(i, consumed)
+	}
+	return true
 }
 
 func (f *Manager) Bytes() []byte {
