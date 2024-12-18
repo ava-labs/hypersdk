@@ -24,6 +24,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/scope"
 	"github.com/ava-labs/hypersdk/state/tstate"
+
+	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
 type ExecutionBlock struct {
@@ -359,11 +361,16 @@ func (p *Processor) executeTxs(
 			e.Stop()
 			return nil, nil, err
 		}
+
+		p.log.Debug("pessimistic units", zap.Any("units", units))
+
 		if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
 			f.Stop()
 			e.Stop()
 			return nil, nil, fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 		}
+
+		p.log.Debug("feeManager state", zap.Any("units consumed", feeManager.UnitsConsumed()))
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
@@ -399,6 +406,17 @@ func (p *Processor) executeTxs(
 			if err != nil {
 				return err
 			}
+			p.log.Debug("result units", zap.Any("result units", result.Units))
+
+			diffDims, err := externalfees.Sub(units, result.Units)
+			if err != nil {
+				return fmt.Errorf("failed to compute diff dimensions: %w", err)
+			}
+
+			if !feeManager.Refund(diffDims) {
+				return fmt.Errorf("failed to refund units")
+			}
+
 			results[i] = result
 
 			// Commit results to parent [TState]

@@ -385,13 +385,19 @@ func (t *Transaction) Execute(
 		return nil, fmt.Errorf("failed to calculate adjusted fee: %w", err)
 	}
 
+	// Compute units post-refund
+	adjustedUnits, err := fees.Sub(units, refundDims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate adjusted units: %w", err)
+	}
+
 	return &Result{
 		Success: true,
 		Error:   []byte{},
 
 		Outputs: actionOutputs,
 
-		Units: units,
+		Units: adjustedUnits,
 		Fee:   adjustedFee,
 	}, nil
 }

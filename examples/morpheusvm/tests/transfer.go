@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/tests/registry"
 
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
@@ -75,6 +76,7 @@ var _ = registry.Register(TestsRegistry, "Read From Memory Refund", func(t ginkg
 	require.True(success)
 	require.NoError(err)
 	coldFee := resp.Fee
+	coldUnits := resp.Units
 
 	// If TX successful, state is now warmed up
 	// Now we can test the refund
@@ -97,4 +99,5 @@ var _ = registry.Register(TestsRegistry, "Read From Memory Refund", func(t ginkg
 	require.True(success)
 
 	require.Less(resp.Fee, coldFee)
+	require.Less(resp.Units[fees.StorageRead], coldUnits[fees.StorageRead])
 })
