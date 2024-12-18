@@ -100,7 +100,7 @@ func (e *Executor) runTask(t *task) {
 		}
 		t.reading = nil
 
-		// Nodify blocked tasks that they can execute
+		// Notify blocked tasks that they can execute
 		t.l.Lock()
 		for _, bt := range t.blocked {
 			// If we are the last dependency, mark the task as executable.
