@@ -21,6 +21,8 @@ func (DefaultHooks) AfterBlock(_ *tstate.TState) error {
 func (DefaultHooks) AfterTX(
 	_ *chain.Transaction,
 	_ *chain.Result,
+	_ chain.BalanceHandler,
+	_ chain.Rules,
 	_ *internalfees.Manager,
 ) error {
 	return nil

@@ -217,6 +217,8 @@ type Hooks interface {
 	AfterTX(
 		tx *Transaction,
 		result *Result,
+		bh BalanceHandler,
+		r Rules,
 		feeManager *internalfees.Manager,
 	) error
 }

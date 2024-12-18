@@ -365,7 +365,7 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			if err := p.hooks.AfterTX(tx, result, feeManager); err != nil {
+			if err := p.hooks.AfterTX(tx, result, p.balanceHandler, r, feeManager); err != nil {
 				return err
 			}
 
