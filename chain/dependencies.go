@@ -211,7 +211,7 @@ type AuthFactory interface {
 type Hooks interface {
 	// AfterBlock should be used to apply any changes to state before committing
 	// to the parent view
-	AfterBlock(ts *tstate.TState) error
+	AfterBlock(ts *tstate.TState, blockHeight uint64) error
 
 	// AfterTX should be used only by processor
 	AfterTX(
@@ -252,5 +252,6 @@ type TransactionExecutor interface {
 		r Rules,
 		ts *tstate.TState,
 		timestamp int64,
+		blockHeight uint64,
 	) (*Result, error)
 }

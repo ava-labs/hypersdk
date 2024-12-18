@@ -14,7 +14,7 @@ var _ chain.Hooks = (*DefaultHooks)(nil)
 
 type DefaultHooks struct{}
 
-func (DefaultHooks) AfterBlock(_ *tstate.TState) error {
+func (DefaultHooks) AfterBlock(_ *tstate.TState, _ uint64) error {
 	return nil
 }
 

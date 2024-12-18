@@ -29,6 +29,7 @@ func (d DefaultTransactionExecutor) Run(
 	r chain.Rules,
 	ts *tstate.TState,
 	timestamp int64,
+	blockHeight uint64,
 ) (*chain.Result, error) {
 	tsv := ts.NewView(stateKeys, storage)
 

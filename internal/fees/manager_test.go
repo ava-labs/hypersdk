@@ -1,10 +1,14 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package fees
 
 import (
 	"testing"
 
-	externalfees "github.com/ava-labs/hypersdk/fees"
 	"github.com/stretchr/testify/require"
+
+	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
 func TestManager(t *testing.T) {

@@ -198,7 +198,7 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
-	if err := p.hooks.AfterBlock(ts); err != nil {
+	if err := p.hooks.AfterBlock(ts, b.Height()); err != nil {
 		return nil, nil, err
 	}
 
@@ -360,6 +360,7 @@ func (p *Processor) executeTxs(
 				r,
 				ts,
 				t,
+				b.Height(),
 			)
 			if err != nil {
 				return err
