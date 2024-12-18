@@ -290,7 +290,8 @@ func TestUnbondOnAccept(t *testing.T) {
 	r.Equal(1, b.limit[codec.EmptyAddress])
 }
 
-// Tests that txs are un-bonded after expiry
+// Tests that txs are un-bonded if the expiry time is before the accepted block
+// timestamp
 func TestUnbondOnExpiry(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -337,7 +338,6 @@ func TestUnbondOnExpiry(t *testing.T) {
 			}
 
 			n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
-			// Bond the tx
 			r.NoError(n.BuildChunk(
 				context.Background(),
 				txs,
@@ -346,7 +346,6 @@ func TestUnbondOnExpiry(t *testing.T) {
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
-			// Accepting a block past the tx expiry should un-bond the tx
 			_, err := n.Accept(context.Background(), dsmr.Block{
 				BlockHeader: dsmr.BlockHeader{
 					ParentID:  ids.ID{},
