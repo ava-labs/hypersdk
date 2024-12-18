@@ -12,6 +12,11 @@ import (
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
+type Interface[T dsmr.Tx] interface {
+	BuildChunk(ctx context.Context, txs []T, expiry int64, beneficiary codec.Address) error
+	Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[T], error)
+}
+
 type Bonder[T dsmr.Tx] interface {
 	// Bond returns if a transaction can be built into a chunk by this node.
 	// If this returns true, Unbond is guaranteed to be called.
@@ -23,15 +28,15 @@ type Bonder[T dsmr.Tx] interface {
 }
 
 // New returns a fortified instance of DSMR
-func New[T dsmr.Interface[U], U dsmr.Tx](d T, b Bonder[U]) *Node[T, U] {
+func New[T Interface[U], U dsmr.Tx](inner T, bonder Bonder[U]) *Node[T, U] {
 	return &Node[T, U]{
-		DSMR:    d,
-		bonder:  b,
+		DSMR:    inner,
+		bonder:  bonder,
 		pending: make(map[ids.ID]U),
 	}
 }
 
-type Node[T dsmr.Interface[U], U dsmr.Tx] struct {
+type Node[T Interface[U], U dsmr.Tx] struct {
 	DSMR   T
 	bonder Bonder[U]
 
@@ -54,14 +59,6 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, bene
 	}
 
 	return n.DSMR.BuildChunk(ctx, bonded, expiry, beneficiary)
-}
-
-func (n *Node[T, U]) BuildBlock(parent dsmr.Block, timestamp int64) (dsmr.Block, error) {
-	return n.DSMR.BuildBlock(parent, timestamp)
-}
-
-func (n *Node[T, U]) Verify(ctx context.Context, parent dsmr.Block, block dsmr.Block) error {
-	return n.DSMR.Verify(ctx, parent, block)
 }
 
 func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[U], error) {

@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	_ dsmr.Interface[dsmrtest.Tx] = (*testDSMR)(nil)
-	_ Bonder[dsmrtest.Tx]         = (*testBonder)(nil)
+	_ Interface[dsmrtest.Tx] = (*testDSMR)(nil)
+	_ Bonder[dsmrtest.Tx]    = (*testBonder)(nil)
 )
 
 // Tests that txs that cannot be bonded are filtered out from calls to the
@@ -378,14 +378,6 @@ func (t testDSMR) BuildChunk(ctx context.Context, txs []dsmrtest.Tx, expiry int6
 	}
 
 	return t.BuildChunkF(ctx, txs, expiry, beneficiary)
-}
-
-func (testDSMR) BuildBlock(dsmr.Block, int64) (dsmr.Block, error) {
-	panic("implement me")
-}
-
-func (testDSMR) Verify(context.Context, dsmr.Block, dsmr.Block) error {
-	panic("implement me")
 }
 
 func (t testDSMR) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {

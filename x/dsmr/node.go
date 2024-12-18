@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
@@ -33,7 +32,6 @@ const (
 
 var (
 	_ snowValidators.State = (*pChain)(nil)
-	_ Interface[Tx]        = (*Node[Tx])(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
@@ -46,13 +44,6 @@ var (
 	ErrInvalidSignatureType                = errors.New("invalid signature type")
 	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
-
-type Interface[T Tx] interface {
-	BuildChunk(ctx context.Context, txs []T, expiry int64, beneficiary codec.Address) error
-	BuildBlock(parent Block, timestamp int64) (Block, error)
-	Verify(ctx context.Context, parent Block, block Block) error
-	Accept(ctx context.Context, block Block) (ExecutedBlock[T], error)
-}
 
 type Validator struct {
 	NodeID    ids.NodeID
