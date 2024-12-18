@@ -50,6 +50,7 @@ func New(
 		balanceHandler,
 		metadataManager,
 		chain.DefaultTransactionExecutor{},
+		chain.DefaultHooks{},
 		actionCodec,
 		authCodec,
 		outputCodec,

@@ -14,6 +14,8 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
+var _ TransactionExecutor = (*DefaultTransactionExecutor)(nil)
+
 type TransactionExecutor interface {
 	PreExecute(
 		ctx context.Context,
@@ -38,6 +40,13 @@ type TransactionExecutor interface {
 		ts *tstate.TStateView,
 		timestamp int64,
 	) (*Result, error)
+
+	ConsumeUnits(
+		tx *Transaction,
+		feeManager *internalfees.Manager,
+		bh BalanceHandler,
+		r Rules,
+	) error
 }
 
 type DefaultTransactionExecutor struct{}
@@ -148,4 +157,22 @@ func (d DefaultTransactionExecutor) Execute(
 		Units: units,
 		Fee:   fee,
 	}, nil
+}
+
+func (d DefaultTransactionExecutor) ConsumeUnits(
+	tx *Transaction,
+	feeManager *internalfees.Manager,
+	bh BalanceHandler,
+	r Rules,
+) error {
+	// Ensure we don't consume too many units
+	units, err := tx.Units(bh, r)
+	if err != nil {
+		return err
+	}
+	if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
+		return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
+	}
+
+	return nil
 }

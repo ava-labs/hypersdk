@@ -398,3 +398,7 @@ func (vm *VM) GetGenesisBytes() []byte {
 func (vm *VM) TransactionExecutor() chain.TransactionExecutor {
 	return vm.transactionExecutor
 }
+
+func (vm *VM) Hooks() chain.Hooks {
+	return vm.hooks
+}

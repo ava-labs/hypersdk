@@ -67,6 +67,7 @@ type Builder struct {
 	metadataManager     MetadataManager
 	balanceHandler      BalanceHandler
 	transactionExecutor TransactionExecutor
+	hooks               Hooks
 	mempool             Mempool
 	validityWindow      ValidityWindow
 	metrics             *chainMetrics
@@ -80,6 +81,7 @@ func NewBuilder(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	transactionExecutor TransactionExecutor,
+	hooks Hooks,
 	mempool Mempool,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
@@ -92,6 +94,7 @@ func NewBuilder(
 		metadataManager:     metadataManager,
 		balanceHandler:      balanceHandler,
 		transactionExecutor: transactionExecutor,
+		hooks:               hooks,
 		mempool:             mempool,
 		validityWindow:      validityWindow,
 		metrics:             metrics,
@@ -399,6 +402,10 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 			return nil, nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
 		c.metrics.emptyBlockBuilt.Inc()
+	}
+
+	if err := c.hooks.After(ts); err != nil {
+		return nil, nil, nil, err
 	}
 
 	// Update chain metadata

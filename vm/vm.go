@@ -103,6 +103,7 @@ type VM struct {
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	transactionExecutor   chain.TransactionExecutor
+	hooks                 chain.Hooks
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
@@ -156,6 +157,7 @@ func New(
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
 	transactionExecutor chain.TransactionExecutor,
+	hooks chain.Hooks,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
@@ -175,6 +177,7 @@ func New(
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		transactionExecutor:   transactionExecutor,
+		hooks:                 hooks,
 		config:                NewConfig(),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
@@ -372,6 +375,7 @@ func (vm *VM) Initialize(
 		vm.MetadataManager(),
 		vm.BalanceHandler(),
 		vm.TransactionExecutor(),
+		vm.Hooks(),
 		vm.AuthVerifiers(),
 		vm,
 		vm.chainTimeValidityWindow,

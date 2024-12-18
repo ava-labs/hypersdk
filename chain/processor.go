@@ -82,6 +82,7 @@ type Processor struct {
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
 	transactionExecutor     TransactionExecutor
+	hooks                   Hooks
 	validityWindow          ValidityWindow
 	metrics                 *chainMetrics
 	config                  Config
@@ -96,6 +97,7 @@ func NewProcessor(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	transactionExecutor TransactionExecutor,
+	hooks Hooks,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
@@ -109,6 +111,7 @@ func NewProcessor(
 		metadataManager:         metadataManager,
 		balanceHandler:          balanceHandler,
 		transactionExecutor:     transactionExecutor,
+		hooks:                   hooks,
 		validityWindow:          validityWindow,
 		metrics:                 metrics,
 		config:                  config,
@@ -192,6 +195,10 @@ func (p *Processor) Execute(
 	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
+		return nil, nil, err
+	}
+
+	if err := p.hooks.After(ts); err != nil {
 		return nil, nil, err
 	}
 
@@ -325,17 +332,10 @@ func (p *Processor) executeTxs(
 			return nil, nil, err
 		}
 
-		// Ensure we don't consume too many units
-		units, err := tx.Units(p.balanceHandler, r)
-		if err != nil {
+		if err := p.transactionExecutor.ConsumeUnits(tx, feeManager, p.balanceHandler, r); err != nil {
 			f.Stop()
 			e.Stop()
 			return nil, nil, err
-		}
-		if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
-			f.Stop()
-			e.Stop()
-			return nil, nil, fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 		}
 
 		// Prefetch state keys from disk
@@ -350,11 +350,16 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
+			st, err := p.hooks.Before(storage, b.Hght)
+			if err != nil {
+				return err
+			}
+
 			// Execute transaction
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(stateKeys, st)
 
 			// Ensure we have enough funds to pay fees
 			if err := p.transactionExecutor.PreExecute(ctx, tx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
