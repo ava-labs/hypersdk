@@ -109,6 +109,7 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 // ExecutionBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
 type ExecutionBlock struct {
 	innerBlock Block
+	certSet    set.Set[ids.ID]
 }
 
 func (e ExecutionBlock) Timestamp() int64 {
@@ -120,7 +121,7 @@ func (e ExecutionBlock) Height() uint64 {
 }
 
 func (e ExecutionBlock) Contains(id ids.ID) bool {
-	return e.innerBlock.certSet.Contains(id)
+	return e.certSet.Contains(id)
 }
 
 func (e ExecutionBlock) Parent() ids.ID {
@@ -136,8 +137,13 @@ func (e ExecutionBlock) Containers() []*emapChunkCertificate {
 }
 
 func NewExecutionBlock(innerBlock Block) ExecutionBlock {
+	certSet := set.Set[ids.ID]{}
+	for _, c := range innerBlock.ChunkCerts {
+		certSet.Add(c.ChunkID)
+	}
 	return ExecutionBlock{
 		innerBlock: innerBlock,
+		certSet:    certSet,
 	}
 }
 
@@ -150,26 +156,17 @@ type Block struct {
 
 	blkID    ids.ID
 	blkBytes []byte
-	certSet  set.Set[ids.ID]
 }
 
 func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*ChunkCertificate) Block {
-	blk := Block{
+	return Block{
 		ParentID:   parentID,
 		Height:     height,
 		Timestamp:  timestamp,
 		ChunkCerts: chunkCerts,
 	}
-	blk.init()
-	return blk
 }
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
-}
-
-func (b Block) init() {
-	for _, c := range b.ChunkCerts {
-		b.certSet.Add(c.ChunkID)
-	}
 }

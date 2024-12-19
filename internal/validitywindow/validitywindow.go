@@ -72,13 +72,13 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	}
 	// make sure we have no repeats within the block itself.
 	// set.Set
-	blkTxsIDs := set.NewSet[ids.ID](len(blk.Containers()))
-	for _, tx := range blk.Containers() {
-		id := tx.GetID()
-		if blkTxsIDs.Contains(id) {
+	blkContainerIDs := set.NewSet[ids.ID](len(blk.Containers()))
+	for _, container := range blk.Containers() {
+		id := container.GetID()
+		if blkContainerIDs.Contains(id) {
 			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
 		}
-		blkTxsIDs.Add(id)
+		blkContainerIDs.Add(id)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	ctx context.Context,
 	ancestorBlk ExecutionBlock[Container],
 	oldestAllowed int64,
-	txs []Container,
+	containers []Container,
 	stop bool,
 ) (set.Bits, error) {
 	marker := set.NewBits()
@@ -114,14 +114,14 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 		}
 
 		if ancestorBlk.Height() <= v.lastAcceptedBlockHeight || ancestorBlk.Height() == 0 {
-			return v.seen.Contains(txs, marker, stop), nil
+			return v.seen.Contains(containers, marker, stop), nil
 		}
 
-		for i, tx := range txs {
+		for i, container := range containers {
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.Contains(tx.GetID()) {
+			if ancestorBlk.Contains(container.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil

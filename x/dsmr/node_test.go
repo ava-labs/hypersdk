@@ -1120,8 +1120,6 @@ func TestDuplicateChunksElimination(t *testing.T) {
 }
 
 func TestNode_Verify_Chunks(t *testing.T) {
-	r := require.New(t)
-
 	tests := []struct {
 		name                       string
 		parentBlocks               [][]int // for each parent, a list of the chunks included.
@@ -1190,6 +1188,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
+			r := require.New(t)
 			validationWindow := testCase.validalidityWindowDuration
 			if validationWindow == 0 {
 				validationWindow = testingDefaultValidityWindowDuration
@@ -1215,7 +1214,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 						context.Background(),
 						[]tx{
 							{
-								ID:     ids.Empty,
+								ID:     ids.Empty.Prefix(uint64(chunkExpiry)),
 								Expiry: int64(chunkExpiry),
 							},
 						},
@@ -1233,7 +1232,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				parentBlk = blk
 			}
 
-			// create the block so that we can test it against the execute directly.
+			// create the block so that we can test it against Execute directly.
 			newBlk := Block{
 				ParentID:  parentBlk.GetID(),
 				Height:    uint64(testCase.timestamp),
@@ -1246,7 +1245,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 					context.Background(),
 					[]tx{
 						{
-							ID:     ids.Empty, // ids.GenerateTestID(),
+							ID:     ids.Empty.Prefix(uint64(chunkExpiry)),
 							Expiry: int64(chunkExpiry),
 						},
 					},
@@ -1256,8 +1255,13 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				r.NoError(err)
 				newBlk.ChunkCerts = append(newBlk.ChunkCerts, &chunkCert)
 			}
-			_, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			builtBlk, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
 			r.ErrorIs(err, testCase.buildWantErr)
+			if err == nil {
+				r.Equal(newBlk.ParentID, builtBlk.ParentID)
+				r.Equal(newBlk.Height, builtBlk.Height)
+				r.Equal(newBlk.Timestamp, builtBlk.Timestamp)
+			}
 
 			r.ErrorIs(node.Verify(context.Background(), parentBlk, newBlk), testCase.verifyWantErr)
 		})
@@ -1669,19 +1673,19 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 		codec.Address{},
 	)
 	require.NoError(t, err)
-	indexer.set(node.LastAccepted.GetID(), ExecutionBlock{node.LastAccepted})
+	indexer.set(node.LastAccepted.GetID(), ExecutionBlock{innerBlock: node.LastAccepted})
 
 	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
 	require.NoError(t, node.Accept(context.Background(), blk))
-	indexer.set(blk.GetID(), ExecutionBlock{blk})
+	indexer.set(blk.GetID(), ExecutionBlock{innerBlock: blk})
 
 	for _, n := range result[1:] {
 		require.NoError(t, n.Verify(context.Background(), n.LastAccepted, blk))
 		require.NoError(t, n.Accept(context.Background(), blk))
-		indexer.set(blk.GetID(), ExecutionBlock{blk})
+		indexer.set(blk.GetID(), ExecutionBlock{innerBlock: blk})
 	}
 
 	return result, indexer
