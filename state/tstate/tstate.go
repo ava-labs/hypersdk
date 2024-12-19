@@ -52,6 +52,13 @@ func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
 }
 
+func (ts *TState) ChangedKeys() map[string]maybe.Maybe[[]byte] {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	return ts.changedKeys
+}
+
 // OpIndex returns the number of operations done on ts.
 func (ts *TState) OpIndex() int {
 	ts.l.RLock()
