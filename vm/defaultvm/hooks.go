@@ -4,6 +4,8 @@
 package defaultvm
 
 import (
+	"context"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
@@ -14,7 +16,7 @@ var _ chain.Hooks = (*DefaultHooks)(nil)
 
 type DefaultHooks struct{}
 
-func (DefaultHooks) AfterBlock(_ *tstate.TState, _ uint64) error {
+func (DefaultHooks) AfterBlock(_ context.Context, _ *tstate.TState, _ uint64) error {
 	return nil
 }
 

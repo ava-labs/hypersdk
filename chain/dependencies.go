@@ -214,6 +214,7 @@ type Hooks interface {
 	AfterBlock(ctx context.Context, ts *tstate.TState, blockHeight uint64) error
 
 	// AfterTX should be used only by processor
+	// For example, AfterTX can be used to modify the units consumed by the fee manager
 	AfterTX(
 		tx *Transaction,
 		result *Result,
@@ -223,7 +224,9 @@ type Hooks interface {
 	) error
 }
 
+// TransactionExecutor is injected into the processor, builder, and VM
 type TransactionExecutor interface {
+	// PreExecute is called by the VM whenever a transaction is submitted.
 	PreExecute(
 		ctx context.Context,
 		tx *Transaction,
@@ -234,6 +237,7 @@ type TransactionExecutor interface {
 		timestamp int64,
 	) error
 
+	// ConsumeUnits is called by the processor
 	ConsumeUnits(
 		tx *Transaction,
 		feeManager *internalfees.Manager,
@@ -242,6 +246,7 @@ type TransactionExecutor interface {
 	) error
 
 	// Run is responsible for pre-executing and executing a transaction.
+	// Run is called by both the processor and the builder
 	Run(
 		ctx context.Context,
 		tx *Transaction,
