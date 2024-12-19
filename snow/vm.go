@@ -217,6 +217,9 @@ func (v *VM[I, O, A]) Initialize(
 		return err
 	}
 	v.inputChainIndex = blockChainIndex
+	if err := v.lastAcceptedBlock.notifyAccepted(ctx); err != nil {
+		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
+	}
 	return nil
 }
 

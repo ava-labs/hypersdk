@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	avasnow "github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
@@ -23,12 +22,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm/grpcutils"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	stateapi "github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/event"
@@ -271,11 +273,13 @@ func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, tx *chain.Transactio
 	// This requires a refactor of block building to easily construct a block while skipping over tx validity checks.
 }
 
-func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context, txs []*chain.Transaction) ([]snowman.Block, error) {
+func (n *TestNetwork) SubmitTxs(ctx context.Context, txs []*chain.Transaction) {
 	// Submit tx to first node
 	err := errors.Join(n.VMs[0].VM.Submit(ctx, txs)...)
 	n.require.NoError(err)
+}
 
+func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
 	n.require.NoError(n.VMs[0].VM.Builder().Force(ctx))
 	select {
 	case <-n.VMs[0].toEngine:
@@ -283,16 +287,16 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context, txs []*chain.
 		n.require.Fail("timeout waiting for PendingTxs message")
 	}
 
-	blk, err := n.VMs[0].SnowVM.BuildBlock(ctx)
+	blk, err := n.VMs[0].SnowVM.GetCovariantVM().BuildBlock(ctx)
 	n.require.NoError(err)
 
 	n.require.NoError(blk.Verify(ctx))
 	n.require.NoError(n.VMs[0].SnowVM.SetPreference(ctx, blk.ID()))
 
-	blks := make([]snowman.Block, len(n.VMs))
+	blks := make([]*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], len(n.VMs))
 	blks[0] = blk
 	for i, otherVM := range n.VMs[1:] {
-		parsedBlk, err := otherVM.SnowVM.ParseBlock(ctx, blk.Bytes())
+		parsedBlk, err := otherVM.SnowVM.GetCovariantVM().ParseBlock(ctx, blk.Bytes())
 		n.require.NoError(err)
 		n.require.Equal(blk.ID(), parsedBlk.ID())
 
@@ -301,24 +305,23 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context, txs []*chain.
 		blks[i+1] = parsedBlk
 	}
 
-	outputBlk, err := n.VMs[0].SnowVM.GetChainIndex().GetPreferredBlock(ctx)
-	n.require.NoError(err)
-	blockTxs := outputBlk.ExecutionBlock.Txs
+	return blks
+}
 
-	txsSet := set.NewSet[ids.ID](len(txs))
-	for _, tx := range blockTxs() {
-		txsSet.Add(tx.GetID())
+func (n *TestNetwork) ConfirmTxsInBlock(ctx context.Context, blk *chain.ExecutionBlock, txs []*chain.Transaction) {
+	for _, tx := range txs {
+		n.require.True(blk.ContainsTx(tx.GetID()))
 	}
-	for i, tx := range txs {
-		n.require.True(txsSet.Contains(tx.GetID()), "missing tx %s at index %d", tx, i)
-	}
-
-	return blks, nil
 }
 
 func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
-	blks, err := n.BuildBlockAndUpdateHead(ctx, txs)
-	n.require.NoError(err)
+	n.SubmitTxs(ctx, txs)
+	blks := n.BuildBlockAndUpdateHead(ctx)
+
+	outputBlock := blks[0].Output
+	n.require.NotNil(outputBlock)
+
+	n.ConfirmTxsInBlock(ctx, outputBlock.ExecutionBlock, txs)
 
 	for i, blk := range blks {
 		n.require.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
@@ -521,16 +524,20 @@ func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
 	}}, network.authFactory)
 	r.NoError(err)
 
-	vmBlk1s, err := network.BuildBlockAndUpdateHead(ctx, []*chain.Transaction{tx0})
-	r.NoError(err)
+	txs0 := []*chain.Transaction{tx0}
+	network.SubmitTxs(ctx, txs0)
+	vmBlk1s := network.BuildBlockAndUpdateHead(ctx)
+	network.ConfirmTxsInBlock(ctx, vmBlk1s[0].Output.ExecutionBlock, txs0)
 
 	// Issuing the same tx should fail
 	// Note: this test must be modified if we change the semantics of re-issuing a block
 	// currently in a processing block to return a nil error
 	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
 
-	vmBlk2s, err := network.BuildBlockAndUpdateHead(ctx, []*chain.Transaction{tx1})
-	r.NoError(err)
+	txs1 := []*chain.Transaction{tx1}
+	network.SubmitTxs(ctx, txs1)
+	vmBlk2s := network.BuildBlockAndUpdateHead(ctx)
+	network.ConfirmTxsInBlock(ctx, vmBlk2s[0].Output.ExecutionBlock, txs0)
 
 	// Issuing the same tx (still in a processing ancestor) should fail
 	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
@@ -718,8 +725,77 @@ func TestDirectStateAPI(t *testing.T) {
 	r.Equal(value, vals[0])
 }
 
-// APIs
-// - chain index
-// - websocket
+func TestIndexerAPI(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID, 2, nil)
 
+	client := indexer.NewClient(network.VMs[0].server.URL)
+	parser := network.VMs[0].VM
+	genesisBlock, err := client.GetLatestBlock(ctx, parser)
+	r.NoError(err)
+	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(lastAccepted.ID(), genesisBlock.Block.ID())
+	r.Equal(uint64(0), genesisBlock.Block.Height())
+
+	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
+
+	blk1, err := client.GetLatestBlock(ctx, parser)
+	r.NoError(err)
+	lastAccepted = network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(lastAccepted.ID(), blk1.Block.ID())
+	r.Equal(uint64(1), blk1.Block.Height())
+
+	txRes, success, err := client.GetTx(ctx, tx.GetID())
+	r.NoError(err)
+	r.True(success)
+	r.True(txRes.Success)
+}
+
+func TestWebsocketAPI(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID, 1, nil)
+
+	client, err := ws.NewWebSocketClient(network.VMs[0].server.URL, time.Second, 10, consts.NetworkSizeLimit)
+	r.NoError(err)
+
+	r.NoError(client.RegisterBlocks())
+
+	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+		NumComputeUnits: 1,
+	}}, network.authFactory)
+	r.NoError(err)
+	r.NoError(client.RegisterTx(tx))
+
+	// Removing this sleep causes the test to fail because RegisterTx is somehow async...
+	time.Sleep(time.Second)
+	blks := network.BuildBlockAndUpdateHead(ctx)
+	for i, blk := range blks {
+		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+	}
+
+	wsBlk, wsResults, wsUnitPrices, err := client.ListenBlock(ctx, network.VMs[0].VM)
+	r.NoError(err)
+
+	txID, txErr, res, unpackErr := client.ListenTx(ctx)
+	r.NoError(unpackErr)
+	r.NoError(txErr)
+	r.Equal(tx.GetID(), txID)
+	r.True(res.Success)
+
+	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(lastAccepted.ID(), wsBlk.ID())
+	r.Equal(lastAccepted.ExecutionResults.Results, wsResults)
+	r.Equal(lastAccepted.ExecutionResults.UnitPrices, wsUnitPrices)
+}
+
+// APIs
 // state sync
+// add back async acceptor and send notification of genesis on startup
