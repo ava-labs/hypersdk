@@ -403,7 +403,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
-	if err := c.hooks.AfterBlock(ts, height); err != nil {
+	if err := c.hooks.AfterBlock(ctx, ts, height); err != nil {
 		return nil, nil, nil, err
 	}
 

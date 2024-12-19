@@ -211,7 +211,7 @@ type AuthFactory interface {
 type Hooks interface {
 	// AfterBlock should be used to apply any changes to state before committing
 	// to the parent view
-	AfterBlock(ts *tstate.TState, blockHeight uint64) error
+	AfterBlock(ctx context.Context, ts *tstate.TState, blockHeight uint64) error
 
 	// AfterTX should be used only by processor
 	AfterTX(

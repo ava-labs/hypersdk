@@ -198,7 +198,7 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
-	if err := p.hooks.AfterBlock(ts, b.Height()); err != nil {
+	if err := p.hooks.AfterBlock(ctx, ts, b.Height()); err != nil {
 		return nil, nil, err
 	}
 
