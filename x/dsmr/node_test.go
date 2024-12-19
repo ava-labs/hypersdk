@@ -481,7 +481,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		},
 		{
 			name:     "valid chunk",
-			verifier: NoVerifier[tx]{},
+			verifier: ChunkVerifier[tx]{},
 		},
 	}
 
@@ -1294,7 +1294,7 @@ func newNodes(t *testing.T, n int) []*Node[tx] {
 			storage: chunkStorage,
 		}
 		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[tx]{
-			verifier: NoVerifier[tx]{},
+			verifier: ChunkVerifier[tx]{},
 			storage:  chunkStorage,
 		}, signer)
 		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[tx]{

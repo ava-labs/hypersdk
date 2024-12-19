@@ -32,11 +32,21 @@ type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
 }
 
-var _ Verifier[Tx] = (*NoVerifier[Tx])(nil)
+var (
+	_ Verifier[Tx] = (*NoVerifier[Tx])(nil)
+	_ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
+)
 
 type NoVerifier[T Tx] struct{}
 
-func (NoVerifier[T]) Verify(Chunk[T]) error {
+func (NoVerifier[T]) Verify(chunk Chunk[T]) error {
+	return nil
+}
+
+type ChunkVerifier[T Tx] struct{}
+
+func (ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
+	// chunk.Signature
 	return nil
 }
 
