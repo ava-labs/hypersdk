@@ -396,15 +396,16 @@ type testBonder struct {
 	limit map[codec.Address]int
 }
 
-func (b testBonder) Bond(tx dsmrtest.Tx) bool {
+func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
 	if b.limit[tx.GetSponsor()] == 0 {
-		return false
+		return false, nil
 	}
 
 	b.limit[tx.GetSponsor()]--
-	return true
+	return true, nil
 }
 
-func (b testBonder) Unbond(tx dsmrtest.Tx) {
+func (b testBonder) Unbond(tx dsmrtest.Tx) error {
 	b.limit[tx.GetSponsor()]++
+	return nil
 }

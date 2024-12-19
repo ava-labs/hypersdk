@@ -20,11 +20,11 @@ type Interface[T dsmr.Tx] interface {
 type Bonder[T dsmr.Tx] interface {
 	// Bond returns if a transaction can be built into a chunk by this node.
 	// If this returns true, Unbond is guaranteed to be called.
-	Bond(tx T) bool
+	Bond(tx T) (bool, error)
 	// Unbond is called when a tx from an account either expires or is accepted.
 	// If Unbond is called, Bond is guaranteed to have been called previously on
 	// tx.
-	Unbond(tx T)
+	Unbond(tx T) error
 }
 
 // New returns a fortified instance of DSMR
@@ -50,7 +50,11 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, bene
 
 	bonded := make([]U, 0, len(txs))
 	for _, tx := range txs {
-		if !n.bonder.Bond(tx) {
+		ok, err := n.bonder.Bond(tx)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			continue
 		}
 
@@ -73,8 +77,10 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 			continue
 		}
 
+		if err := n.bonder.Unbond(tx); err != nil {
+			return dsmr.ExecutedBlock[U]{}, nil
+		}
 		delete(n.pending, txID)
-		n.bonder.Unbond(tx)
 	}
 
 	// Un-bond any txs that were accepted in this block
@@ -84,7 +90,9 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 				continue
 			}
 
-			n.bonder.Unbond(tx)
+			if err := n.bonder.Unbond(tx); err != nil {
+				return dsmr.ExecutedBlock[U]{}, err
+			}
 		}
 	}
 
