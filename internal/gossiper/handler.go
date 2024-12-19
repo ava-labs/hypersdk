@@ -15,7 +15,7 @@ import (
 var _ p2p.Handler = (*TxGossipHandler)(nil)
 
 type Ready interface {
-	IsReady() bool
+	Ready() bool
 }
 
 type TxGossipHandler struct {
@@ -38,7 +38,7 @@ func NewTxGossipHandler(
 }
 
 func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) {
-	if !t.ready.IsReady() {
+	if !t.ready.Ready() {
 		t.log.Debug("ignoring app gossip failed because vm is not ready")
 		return
 	}

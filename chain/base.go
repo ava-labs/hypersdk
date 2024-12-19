@@ -35,9 +35,9 @@ func (b *Base) Execute(r Rules, timestamp int64) error {
 		// TODO: make this modulus configurable
 		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, b.Timestamp)
 	case b.Timestamp < timestamp: // tx: 100 block: 110
-		return ErrTimestampTooLate
+		return fmt.Errorf("%w: tx timestamp (%d) < block timestamp (%d)", ErrTimestampTooLate, b.Timestamp, timestamp)
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
-		return ErrTimestampTooEarly
+		return fmt.Errorf("%w: tx timestamp (%d) > block timestamp (%d) + validity window (%d)", ErrTimestampTooEarly, b.Timestamp, timestamp, r.GetValidityWindow())
 	case b.ChainID != r.GetChainID():
 		return ErrInvalidChainID
 	default:
