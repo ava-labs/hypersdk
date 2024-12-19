@@ -763,7 +763,11 @@ func TestWebsocketAPI(t *testing.T) {
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 1, nil)
 
+	// wsTimeout := time.Second
 	client, err := ws.NewWebSocketClient(network.VMs[0].server.URL, time.Second, 10, consts.NetworkSizeLimit)
+	defer func() {
+		r.NoError(client.Close())
+	}()
 	r.NoError(err)
 
 	r.NoError(client.RegisterBlocks())
@@ -774,7 +778,11 @@ func TestWebsocketAPI(t *testing.T) {
 	r.NoError(err)
 	r.NoError(client.RegisterTx(tx))
 
-	// Removing this sleep causes the test to fail because RegisterTx is somehow async...
+	// XXX: re-write or remove ws server. RegisterTx is async, so we SHOULD
+	// need to run a goroutine in this test to either confirm the block or
+	// confirm receipt of the tx/block on the ws client. However, implementing it
+	// this way does not cause the test to pass, whereas adding this sleep does.
+	// Including the integration test until we remove or re-write the ws client/server.
 	time.Sleep(time.Second)
 	blks := network.BuildBlockAndUpdateHead(ctx)
 	for i, blk := range blks {
