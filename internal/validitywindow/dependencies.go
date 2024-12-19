@@ -15,8 +15,8 @@ type ExecutionBlock[Container emap.Item] interface {
 	Parent() ids.ID
 	Timestamp() int64
 	Height() uint64
-	Txs() []Container
-	ContainsTx(ids.ID) bool
+	Containers() []Container
+	Contains(ids.ID) bool
 }
 
 type ChainIndex[Container emap.Item] interface {

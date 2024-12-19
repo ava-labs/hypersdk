@@ -6,6 +6,7 @@ package dsmr
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -105,6 +106,47 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
+// ExecutionBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
+type ExecutionBlock struct {
+	innerBlock Block
+	certSet    set.Set[ids.ID]
+}
+
+func (e ExecutionBlock) Timestamp() int64 {
+	return e.innerBlock.Timestamp
+}
+
+func (e ExecutionBlock) Height() uint64 {
+	return e.innerBlock.Height
+}
+
+func (e ExecutionBlock) Contains(id ids.ID) bool {
+	return e.certSet.Contains(id)
+}
+
+func (e ExecutionBlock) Parent() ids.ID {
+	return e.innerBlock.ParentID
+}
+
+func (e ExecutionBlock) Containers() []*emapChunkCertificate {
+	emapChunkCert := make([]*emapChunkCertificate, len(e.innerBlock.ChunkCerts))
+	for i := range emapChunkCert {
+		emapChunkCert[i] = &emapChunkCertificate{*e.innerBlock.ChunkCerts[i]}
+	}
+	return emapChunkCert
+}
+
+func NewExecutionBlock(innerBlock Block) ExecutionBlock {
+	certSet := set.Set[ids.ID]{}
+	for _, c := range innerBlock.ChunkCerts {
+		certSet.Add(c.ChunkID)
+	}
+	return ExecutionBlock{
+		innerBlock: innerBlock,
+		certSet:    certSet,
+	}
+}
+
 type Block struct {
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
@@ -114,6 +156,15 @@ type Block struct {
 
 	blkID    ids.ID
 	blkBytes []byte
+}
+
+func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*ChunkCertificate) Block {
+	return Block{
+		ParentID:   parentID,
+		Height:     height,
+		Timestamp:  timestamp,
+		ChunkCerts: chunkCerts,
+	}
 }
 
 func (b Block) GetID() ids.ID {

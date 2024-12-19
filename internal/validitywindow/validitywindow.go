@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -45,7 +46,7 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 
 	evicted := v.seen.SetMin(blk.Timestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	v.seen.Add(blk.Txs())
+	v.seen.Add(blk.Containers())
 	v.lastAcceptedBlockHeight = blk.Height()
 }
 
@@ -62,12 +63,22 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return err
 	}
 
-	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
+	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Containers(), true)
 	if err != nil {
 		return err
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+	}
+	// make sure we have no repeats within the block itself.
+	// set.Set
+	blkContainerIDs := set.NewSet[ids.ID](len(blk.Containers()))
+	for _, container := range blk.Containers() {
+		id := container.GetID()
+		if blkContainerIDs.Contains(id) {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkContainerIDs.Add(id)
 	}
 	return nil
 }
@@ -85,7 +96,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	ctx context.Context,
 	ancestorBlk ExecutionBlock[Container],
 	oldestAllowed int64,
-	txs []Container,
+	containers []Container,
 	stop bool,
 ) (set.Bits, error) {
 	marker := set.NewBits()
@@ -103,14 +114,14 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 		}
 
 		if ancestorBlk.Height() <= v.lastAcceptedBlockHeight || ancestorBlk.Height() == 0 {
-			return v.seen.Contains(txs, marker, stop), nil
+			return v.seen.Contains(containers, marker, stop), nil
 		}
 
-		for i, tx := range txs {
+		for i, container := range containers {
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(container.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil
