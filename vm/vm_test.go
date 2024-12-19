@@ -803,7 +803,3 @@ func TestWebsocketAPI(t *testing.T) {
 	r.Equal(lastAccepted.ExecutionResults.Results, wsResults)
 	r.Equal(lastAccepted.ExecutionResults.UnitPrices, wsUnitPrices)
 }
-
-// APIs
-// state sync
-// add back async acceptor and send notification of genesis on startup
