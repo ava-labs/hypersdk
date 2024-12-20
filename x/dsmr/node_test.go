@@ -1071,7 +1071,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	}
 	r.NoError(node.Accept(context.Background(), blk))
 
-	chunk, chunkCert, err := node.BuildChunk(
+	_, chunkCert, err := node.BuildChunk(
 		context.Background(),
 		[]tx{
 			{
@@ -1095,12 +1095,11 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	}
 	r.NoError(node.Accept(context.Background(), blk))
 
-	r.NoError(node.storage.AddLocalChunkWithCert(chunk, &chunkCert))
 	_, err = node.BuildBlock(context.Background(), blk, 3)
 	r.ErrorIs(err, ErrNoAvailableChunkCerts)
 
 	// make sure that it's not the case with any other chunk.
-	anotherChunk, anotherChunkCert, err := node.BuildChunk(
+	_, _, err = node.BuildChunk(
 		context.Background(),
 		[]tx{
 			{
@@ -1114,7 +1113,6 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node.Accept(context.Background(), blk))
 
-	r.NoError(node.storage.AddLocalChunkWithCert(anotherChunk, &anotherChunkCert))
 	_, err = node.BuildBlock(context.Background(), blk, 3)
 	r.NoError(err)
 }
