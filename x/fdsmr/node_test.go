@@ -26,13 +26,35 @@ var (
 // underlying DSMR implementation
 func TestNode_BuildChunk(t *testing.T) {
 	now := time.Now()
+	errFoo := errors.New("foobar")
 
 	tests := []struct {
 		name    string
 		bonder  testBonder
+		dsmrErr error
 		txs     []dsmrtest.Tx
 		wantTxs []dsmrtest.Tx
+		wantErr error
 	}{
+		{
+			name: "bond errors",
+			bonder: testBonder{
+				bondErr: errFoo,
+			},
+			txs: []dsmrtest.Tx{
+				{
+					ID:      ids.Empty,
+					Expiry:  now.Add(time.Hour).Unix(),
+					Sponsor: codec.EmptyAddress,
+				},
+			},
+			wantErr: errFoo,
+		},
+		{
+			name:    "dsmr errors",
+			dsmrErr: errFoo,
+			wantErr: errFoo,
+		},
 		{
 			name:   "nil txs",
 			bonder: testBonder{},
@@ -212,7 +234,6 @@ func TestNode_BuildChunk(t *testing.T) {
 
 			wantExpiry := int64(123)
 			wantBeneficiary := codec.Address{1, 2, 3}
-			wantErr := errors.New("foobar")
 			n := New[testDSMR, dsmrtest.Tx](
 				testDSMR{
 					BuildChunkF: func(_ context.Context, gotTxs []dsmrtest.Tx, gotExpiry int64, gotBeneficiary codec.Address) error {
@@ -220,7 +241,7 @@ func TestNode_BuildChunk(t *testing.T) {
 						r.Equal(wantExpiry, gotExpiry)
 						r.Equal(wantBeneficiary, gotBeneficiary)
 
-						return wantErr
+						return tt.dsmrErr
 					},
 				},
 				tt.bonder,
@@ -230,64 +251,87 @@ func TestNode_BuildChunk(t *testing.T) {
 				tt.txs,
 				wantExpiry,
 				wantBeneficiary,
-			), wantErr)
+			), tt.wantErr)
 		})
 	}
 }
 
 // Tests that txs are un-bonded when they are accepted
 func TestUnbondOnAccept(t *testing.T) {
-	r := require.New(t)
-
-	b := testBonder{
-		limit: map[codec.Address]int{
-			codec.EmptyAddress: 1,
-		},
-	}
-	expiry := time.Now().Add(time.Hour).Unix()
-	txs := []dsmrtest.Tx{
+	tests := []struct {
+		name    string
+		wantErr error
+	}{
 		{
-			ID:      ids.GenerateTestID(),
-			Expiry:  expiry,
-			Sponsor: codec.EmptyAddress,
+			name: "unbond succeeds",
+		},
+		{
+			name:    "unbond succeeds",
+			wantErr: errors.New("foobar"),
 		},
 	}
 
-	n := New[testDSMR, dsmrtest.Tx](
-		testDSMR{
-			AcceptF: func(_ context.Context, _ dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {
-				return dsmr.ExecutedBlock[dsmrtest.Tx]{
-					BlockHeader: dsmr.BlockHeader{},
-					ID:          ids.ID{},
-					Chunks: []dsmr.Chunk[dsmrtest.Tx]{
-						{
-							UnsignedChunk: dsmr.UnsignedChunk[dsmrtest.Tx]{
-								Producer:    ids.NodeID{},
-								Beneficiary: codec.Address{},
-								Expiry:      0,
-								Txs:         txs,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			b := testBonder{
+				unbondErr: tt.wantErr,
+				limit: map[codec.Address]int{
+					codec.EmptyAddress: 1,
+				},
+			}
+			expiry := time.Now().Add(time.Hour).Unix()
+			txs := []dsmrtest.Tx{
+				{
+					ID:      ids.GenerateTestID(),
+					Expiry:  expiry,
+					Sponsor: codec.EmptyAddress,
+				},
+			}
+
+			n := New[testDSMR, dsmrtest.Tx](
+				testDSMR{
+					AcceptF: func(_ context.Context, _ dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {
+						return dsmr.ExecutedBlock[dsmrtest.Tx]{
+							BlockHeader: dsmr.BlockHeader{},
+							ID:          ids.ID{},
+							Chunks: []dsmr.Chunk[dsmrtest.Tx]{
+								{
+									UnsignedChunk: dsmr.UnsignedChunk[dsmrtest.Tx]{
+										Producer:    ids.NodeID{},
+										Beneficiary: codec.Address{},
+										Expiry:      0,
+										Txs:         txs,
+									},
+									Signer:    [48]byte{},
+									Signature: [96]byte{},
+								},
 							},
-							Signer:    [48]byte{},
-							Signature: [96]byte{},
-						},
+						}, nil
 					},
-				}, nil
-			},
-		},
-		b,
-	)
+				},
+				b,
+			)
 
-	r.NoError(n.BuildChunk(
-		context.Background(),
-		txs,
-		expiry,
-		codec.EmptyAddress,
-	))
-	r.Equal(0, b.limit[codec.EmptyAddress])
+			r.NoError(n.BuildChunk(
+				context.Background(),
+				txs,
+				expiry,
+				codec.EmptyAddress,
+			))
+			r.Equal(0, b.limit[codec.EmptyAddress])
 
-	_, err := n.Accept(context.Background(), dsmr.Block{})
-	r.NoError(err)
-	r.Equal(1, b.limit[codec.EmptyAddress])
+			_, err := n.Accept(context.Background(), dsmr.Block{})
+			r.ErrorIs(err, tt.wantErr)
+
+			wantLimit := 1
+			if tt.wantErr != nil {
+				wantLimit = 0
+			}
+			r.Equal(wantLimit, b.limit[codec.EmptyAddress])
+		})
+	}
 }
 
 // Tests that txs are un-bonded if the expiry time is before the accepted block
@@ -393,10 +437,16 @@ func (t testDSMR) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBl
 }
 
 type testBonder struct {
-	limit map[codec.Address]int
+	bondErr   error
+	unbondErr error
+	limit     map[codec.Address]int
 }
 
 func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
+	if b.bondErr != nil {
+		return false, b.bondErr
+	}
+
 	if b.limit[tx.GetSponsor()] == 0 {
 		return false, nil
 	}
@@ -406,6 +456,10 @@ func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
 }
 
 func (b testBonder) Unbond(tx dsmrtest.Tx) error {
+	if b.unbondErr != nil {
+		return b.unbondErr
+	}
+
 	b.limit[tx.GetSponsor()]++
 	return nil
 }

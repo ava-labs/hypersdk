@@ -78,7 +78,7 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 		}
 
 		if err := n.bonder.Unbond(tx); err != nil {
-			return dsmr.ExecutedBlock[U]{}, nil
+			return dsmr.ExecutedBlock[U]{}, err
 		}
 		delete(n.pending, txID)
 	}
