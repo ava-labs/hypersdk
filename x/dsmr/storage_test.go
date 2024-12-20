@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/pebble"
+	"github.com/ava-labs/hypersdk/x/dsmr/dsmrtest"
 )
 
 var errInvalidTestItem = errors.New("invalid test item")
@@ -36,21 +37,21 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*ChunkStorage[tx],
-	[]Chunk[tx],
-	[]Chunk[tx],
-	func() *ChunkStorage[tx],
+	*ChunkStorage[dsmrtest.Tx],
+	[]Chunk[dsmrtest.Tx],
+	[]Chunk[dsmrtest.Tx],
+	func() *ChunkStorage[dsmrtest.Tx],
 ) {
 	require := require.New(t)
 
-	validChunks := make([]Chunk[tx], 0, numValidChunks)
+	validChunks := make([]Chunk[dsmrtest.Tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
 		chunk, err := newChunk(
-			UnsignedChunk[tx]{
+			UnsignedChunk[dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
 				Expiry:      time.Now().Unix(),
-				Txs:         []tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
 			[96]byte{},
@@ -59,14 +60,14 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 		validChunks = append(validChunks, chunk)
 	}
 
-	invalidChunks := make([]Chunk[tx], 0, numInvalidChunks)
+	invalidChunks := make([]Chunk[dsmrtest.Tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
 		chunk, err := newChunk(
-			UnsignedChunk[tx]{
+			UnsignedChunk[dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
 				Expiry:      time.Now().Unix(),
-				Txs:         []tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
 			[96]byte{},
@@ -84,19 +85,19 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 		validChunkIDs = append(validChunkIDs, chunk.id)
 	}
 
-	testVerifier := testVerifier[tx]{correctIDs: set.Of(validChunkIDs...)}
-	storage, err := NewChunkStorage[tx](
+	testVerifier := testVerifier[dsmrtest.Tx]{correctIDs: set.Of(validChunkIDs...)}
+	storage, err := NewChunkStorage[dsmrtest.Tx](
 		testVerifier,
 		db,
 	)
 	require.NoError(err)
 
-	restart := func() *ChunkStorage[tx] {
+	restart := func() *ChunkStorage[dsmrtest.Tx] {
 		require.NoError(db.Close())
 		db, err = pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 		require.NoError(err)
 
-		storage, err := NewChunkStorage[tx](
+		storage, err := NewChunkStorage[dsmrtest.Tx](
 			testVerifier,
 			db,
 		)
@@ -317,9 +318,9 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].id,
 	}))
 
-	confirmChunkStorage := func(storage *ChunkStorage[tx]) {
+	confirmChunkStorage := func(storage *ChunkStorage[dsmrtest.Tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
-		for i, expectedChunk := range []Chunk[tx]{
+		for i, expectedChunk := range []Chunk[dsmrtest.Tx]{
 			validChunks[0],
 			validChunks[1],
 			validChunks[4],
@@ -331,7 +332,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		}
 
 		// Confirm the expired chunks are garbage collected
-		for _, expectedChunk := range []Chunk[tx]{
+		for _, expectedChunk := range []Chunk[dsmrtest.Tx]{
 			validChunks[2],
 			validChunks[3],
 		} {

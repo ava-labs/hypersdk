@@ -105,11 +105,14 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
-type Block struct {
+type BlockHeader struct {
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
+}
 
+type Block struct {
+	BlockHeader
 	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
 	blkID    ids.ID
@@ -118,4 +121,11 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+// ExecutedBlock contains block data with any referenced chunks reconstructed
+type ExecutedBlock[T Tx] struct {
+	BlockHeader
+	ID     ids.ID
+	Chunks []Chunk[T] `serialize:"true"`
 }
