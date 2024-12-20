@@ -92,7 +92,7 @@ func (p *ContractStateManager) SetAccountContract(ctx context.Context, account c
 	return p.db.Insert(ctx, accountDataKey(account[:], contractKeyBytes), contractID)
 }
 
-// setContract stores [contract] at [contractID]
+// SetContractBytes stores [contract] at [contractID]
 func (p *ContractStateManager) SetContractBytes(
 	ctx context.Context,
 	contractID ContractID,
