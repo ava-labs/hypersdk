@@ -6,6 +6,7 @@ package dsmr
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -103,6 +104,47 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	}
 
 	return c, c.init()
+}
+
+// validityWindowBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
+type validityWindowBlock struct {
+	Block
+	certs set.Set[ids.ID]
+}
+
+func (e validityWindowBlock) Timestamp() int64 {
+	return e.Block.Timestamp
+}
+
+func (e validityWindowBlock) Height() uint64 {
+	return e.Block.Height
+}
+
+func (e validityWindowBlock) Contains(id ids.ID) bool {
+	return e.certs.Contains(id)
+}
+
+func (e validityWindowBlock) Parent() ids.ID {
+	return e.Block.ParentID
+}
+
+func (e validityWindowBlock) Containers() []*emapChunkCertificate {
+	chunkCerts := make([]*emapChunkCertificate, len(e.Block.ChunkCerts))
+	for i := range chunkCerts {
+		chunkCerts[i] = &emapChunkCertificate{*e.Block.ChunkCerts[i]}
+	}
+	return chunkCerts
+}
+
+func NewValidityWindowBlock(innerBlock Block) validityWindowBlock {
+	certSet := set.Set[ids.ID]{}
+	for _, c := range innerBlock.ChunkCerts {
+		certSet.Add(c.ChunkID)
+	}
+	return validityWindowBlock{
+		Block: innerBlock,
+		certs: certSet,
+	}
 }
 
 type Block struct {
