@@ -132,7 +132,7 @@ func TestNode_BuildChunk(t *testing.T) {
 func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
 	node := nodes[0]
 
 	chunk, _, err := node.BuildChunk(
@@ -747,7 +747,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1157,9 +1157,8 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				validationWindow = testingDefaultValidityWindowDuration
 			}
 
-			nodes, indexers := newNodes(t, 1)
+			nodes, indexers := newNodes(t, 1, validationWindow)
 			node, indexer := nodes[0], indexers[0]
-			node.validityWindowDuration = validationWindow
 
 			// initialize node history.
 			for _, chunkList := range testCase.parentBlocks {
@@ -1225,7 +1224,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1502,11 +1501,11 @@ type testNode struct {
 }
 
 func newTestNode(t *testing.T) *Node[tx] {
-	nodes, _ := newNodes(t, 1)
+	nodes, _ := newNodes(t, 1, testingDefaultValidityWindowDuration)
 	return nodes[0]
 }
 
-func newNodes(t *testing.T, n int) ([]*Node[tx], []*testValidityWindowChainIndex) {
+func newNodes(t *testing.T, n int, validityWindowDuration time.Duration) ([]*Node[tx], []*testValidityWindowChainIndex) {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1605,7 +1604,7 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], []*testValidityWindowChainIndex
 			1,
 			1,
 			indexers[i],
-			testingDefaultValidityWindowDuration,
+			validityWindowDuration,
 		)
 		require.NoError(t, err)
 
