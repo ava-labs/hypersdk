@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	_ Interface[dsmrtest.Tx] = (*testDSMR)(nil)
-	_ Bonder[dsmrtest.Tx]    = (*testBonder)(nil)
+	_ DSMR[dsmrtest.Tx]   = (*testDSMR)(nil)
+	_ Bonder[dsmrtest.Tx] = (*testBonder)(nil)
 )
 
 // Tests that txs that cannot be bonded are filtered out from calls to the

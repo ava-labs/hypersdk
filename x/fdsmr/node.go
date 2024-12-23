@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
-type Interface[T dsmr.Tx] interface {
+type DSMR[T dsmr.Tx] interface {
 	BuildChunk(ctx context.Context, txs []T, expiry int64, beneficiary codec.Address) error
 	Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[T], error)
 }
@@ -28,7 +28,7 @@ type Bonder[T dsmr.Tx] interface {
 }
 
 // New returns a fortified instance of DSMR
-func New[T Interface[U], U dsmr.Tx](inner T, bonder Bonder[U]) *Node[T, U] {
+func New[T DSMR[U], U dsmr.Tx](inner T, bonder Bonder[U]) *Node[T, U] {
 	return &Node[T, U]{
 		DSMR:    inner,
 		bonder:  bonder,
@@ -36,7 +36,7 @@ func New[T Interface[U], U dsmr.Tx](inner T, bonder Bonder[U]) *Node[T, U] {
 	}
 }
 
-type Node[T Interface[U], U dsmr.Tx] struct {
+type Node[T DSMR[U], U dsmr.Tx] struct {
 	DSMR   T
 	bonder Bonder[U]
 
