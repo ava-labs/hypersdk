@@ -53,11 +53,13 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name:    "dsmr errors",
 			dsmrErr: errFoo,
+			wantTxs: []dsmrtest.Tx{},
 			wantErr: errFoo,
 		},
 		{
-			name:   "nil txs",
-			bonder: testBonder{},
+			name:    "nil txs",
+			bonder:  testBonder{},
+			wantTxs: []dsmrtest.Tx{},
 		},
 		{
 			name:    "empty txs",

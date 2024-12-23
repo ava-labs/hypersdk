@@ -44,10 +44,6 @@ type Node[T Interface[U], U dsmr.Tx] struct {
 }
 
 func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, beneficiary codec.Address) error {
-	if len(txs) == 0 {
-		return n.DSMR.BuildChunk(ctx, txs, expiry, beneficiary)
-	}
-
 	bonded := make([]U, 0, len(txs))
 	for _, tx := range txs {
 		ok, err := n.bonder.Bond(tx)
