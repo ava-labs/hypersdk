@@ -1094,7 +1094,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 	}{
 		{
 			name:          "three blocks, unique chunks",
-			parentBlocks:  [][]int{{1}, {2}},
+			parentBlocks:  [][]int{{2}, {3}},
 			chunks:        []int{4},
 			timestamp:     4,
 			verifyWantErr: nil,
@@ -1117,7 +1117,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 		},
 		{
 			name:          "three blocks non consecutive duplicate chunks",
-			parentBlocks:  [][]int{{3}, {2}},
+			parentBlocks:  [][]int{{3}, {5}},
 			chunks:        []int{3},
 			timestamp:     4,
 			verifyWantErr: validitywindow.ErrDuplicateContainer,
@@ -1133,7 +1133,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 		},
 		{
 			name:          "empty block",
-			parentBlocks:  [][]int{{1}, {2}, {3}, {4}},
+			parentBlocks:  [][]int{{2}, {3}, {4}, {5}},
 			chunks:        []int{},
 			timestamp:     6,
 			verifyWantErr: ErrEmptyBlock,
@@ -1162,17 +1162,9 @@ func TestNode_Verify_Chunks(t *testing.T) {
 			node.validityWindowDuration = validationWindow
 
 			// initialize node history.
-			parentBlk := node.LastAccepted
 			for _, chunkList := range testCase.parentBlocks {
-				blk := Block{
-					ParentID:  parentBlk.GetID(),
-					Height:    uint64(int(node.LastAccepted.Height) + 1),
-					Timestamp: int64(int(node.LastAccepted.Timestamp) + 1),
-					blkID:     ids.GenerateTestID(),
-				}
-
 				for _, chunkExpiry := range chunkList {
-					_, chunkCert, err := node.BuildChunk(
+					_, _, err := node.BuildChunk(
 						context.Background(),
 						[]tx{
 							{
@@ -1184,19 +1176,18 @@ func TestNode_Verify_Chunks(t *testing.T) {
 						codec.Address{},
 					)
 					r.NoError(err)
-					blk.ChunkCerts = append(blk.ChunkCerts, &chunkCert)
 				}
-
-				r.NoError(node.Verify(context.Background(), parentBlk, blk))
+				blk, err := node.BuildBlock(context.Background(), node.LastAccepted, int64(int(node.LastAccepted.Timestamp)+1))
+				r.NoError(err, "unable to build block for height %d", node.LastAccepted.Height+1)
+				r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 
 				r.NoError(node.Accept(context.Background(), blk))
 				indexer.set(blk.GetID(), NewValidityWindowBlock(blk))
-				parentBlk = blk
 			}
 
 			// create the block so that we can test it against Execute directly.
 			newBlk := Block{
-				ParentID:  parentBlk.GetID(),
+				ParentID:  node.LastAccepted.GetID(),
 				Height:    uint64(testCase.timestamp),
 				Timestamp: testCase.timestamp,
 				blkID:     ids.GenerateTestID(),
@@ -1217,7 +1208,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				r.NoError(err)
 				newBlk.ChunkCerts = append(newBlk.ChunkCerts, &chunkCert)
 			}
-			builtBlk, err := node.BuildBlock(context.Background(), parentBlk, testCase.timestamp)
+			builtBlk, err := node.BuildBlock(context.Background(), node.LastAccepted, testCase.timestamp)
 			r.ErrorIs(err, testCase.buildWantErr)
 			if err == nil {
 				r.Equal(newBlk.ParentID, builtBlk.ParentID)
@@ -1225,7 +1216,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				r.Equal(newBlk.Timestamp, builtBlk.Timestamp)
 			}
 
-			r.ErrorIs(node.Verify(context.Background(), parentBlk, newBlk), testCase.verifyWantErr)
+			r.ErrorIs(node.Verify(context.Background(), node.LastAccepted, newBlk), testCase.verifyWantErr)
 		})
 	}
 }
