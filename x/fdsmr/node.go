@@ -66,15 +66,9 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 		return dsmr.ExecutedBlock[U]{}, err
 	}
 
-	for {
-		tx, ok := n.pending.PeekMin()
-		if !ok || block.Timestamp <= tx.GetExpiry() {
-			break
-		}
-
-		n.pending.PopMin()
-
-		// Un-bond any txs that expired at this block
+	// Un-bond any txs that expired at this block
+	expired := n.pending.SetMin(block.Timestamp)
+	for _, tx := range expired {
 		if err := n.bonder.Unbond(tx); err != nil {
 			return dsmr.ExecutedBlock[U]{}, err
 		}
@@ -92,8 +86,6 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 			}
 		}
 	}
-
-	n.pending.SetMin(block.Timestamp)
 
 	return executedBlock, nil
 }
