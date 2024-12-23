@@ -34,7 +34,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
-	"github.com/ava-labs/hypersdk/lifecycle"
 	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
@@ -174,22 +173,6 @@ func (vm *VM) Initialize(
 
 	vm.network = snowApp.Network
 
-	pebbleConfig := pebble.NewDefaultConfig()
-	rawStateDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
-		return nil, fmt.Errorf("failed to register rawstatedb metrics: %w", err)
-	}
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
-	if err != nil {
-		return nil, err
-	}
-	snowApp.WithCloser(func() error {
-		if err := vm.rawStateDB.Close(); err != nil {
-			return fmt.Errorf("failed to close raw state db: %w", err)
-		}
-		return nil
-	})
-
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	vm.GenesisBytes = genesisBytes
 	if err != nil {
@@ -232,6 +215,15 @@ func (vm *VM) Initialize(
 	})
 
 	// Instantiate DBs
+	pebbleConfig := pebble.NewDefaultConfig()
+	rawStateDBRegistry := prometheus.NewRegistry()
+	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
+		return nil, fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+	}
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
+	if err != nil {
+		return nil, err
+	}
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
@@ -253,6 +245,9 @@ func (vm *VM) Initialize(
 	snowApp.WithCloser(func() error {
 		if err := vm.stateDB.Close(); err != nil {
 			return fmt.Errorf("failed to close state db: %w", err)
+		}
+		if err := vm.rawStateDB.Close(); err != nil {
+			return fmt.Errorf("failed to close raw state db: %w", err)
 		}
 		return nil
 	})
@@ -323,55 +318,12 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, err
 	}
-	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
-		return vm.ruleFactory.GetRules(time).GetValidityWindow()
-	})
-	validityWindowReady := lifecycle.NewChanReady()
-	// TODO: combine time validity window and state syncer to call FinishStateSync correclty
-	snowApp.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
-		NotifyF: func(ctx context.Context, b *chain.ExecutionBlock) error {
-			vm.metrics.txsAccepted.Add(float64(len(b.StatelessBlock.Txs)))
-			seenValidityWindow, err := vm.syncer.Accept(ctx, b)
-			if err != nil {
-				return fmt.Errorf("syncer failed to accept block: %w", err)
-			}
-			if seenValidityWindow {
-				validityWindowReady.MarkReady()
-			}
-
-			return nil
-		},
-	})
 	snowApp.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			vm.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
 			return nil
 		},
 	})
-
-	syncerDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register(syncerDB, syncerDBRegistry); err != nil {
-		return nil, fmt.Errorf("failed to register syncerdb metrics: %w", err)
-	}
-	syncerDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, syncerDB, syncerDBRegistry)
-	if err != nil {
-		return nil, err
-	}
-	snowApp.WithCloser(func() error {
-		if err := syncerDB.Close(); err != nil {
-			return fmt.Errorf("failed to close syncer db: %w", err)
-		}
-		return nil
-	})
-	if err := snowApp.WithStateSyncer(
-		syncerDB,
-		vm.stateDB,
-		rangeProofHandlerID,
-		changeProofHandlerID,
-		vm.genesis.GetStateBranchFactor(),
-	); err != nil {
-		return nil, err
-	}
 
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
@@ -393,11 +345,16 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, err
 	}
+	// Switch away from true
 	chainIndex, err := makeChainIndex(ctx, vm.chainStore, lastAccepted, lastAccepted, true)
 	if err != nil {
 		return nil, err
 	}
 	vm.chainIndex = chainIndex
+
+	if err := vm.initStateSync(ctx); err != nil {
+		return nil, err
+	}
 
 	// Initialize the syncer with the last accepted block
 	snowApp.WithStateSyncStarted(func(ctx context.Context) error {
@@ -453,6 +410,10 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 
 	// If the chain store is initialized, return the output block that matches with the latest
 	// state.
+	return vm.extractLatestOutputBlock(ctx)
+}
+
+func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
 	if err != nil {
 		return nil, err
@@ -461,6 +422,8 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 	if err != nil {
 		return nil, err
 	}
+	// We should always have the block at the height matching the state height
+	// because we always keep the chain store tip >= state tip.
 	blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight)
 	if err != nil {
 		return nil, err

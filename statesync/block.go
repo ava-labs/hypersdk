@@ -19,15 +19,14 @@ type StateSummaryBlock interface {
 	Height() uint64
 	Bytes() []byte
 	GetStateRoot() ids.ID
-	AcceptSyncTarget(context.Context) error
 }
 
 type SyncableBlock[T StateSummaryBlock] struct {
 	container T
-	accepter  Accepter[T] // accepter is nil if the SyncableBlock is constructed by the server
+	accepter  *Client[T]
 }
 
-func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *SyncableBlock[T] {
+func NewSyncableBlock[T StateSummaryBlock](container T, accepter *Client[T]) *SyncableBlock[T] {
 	return &SyncableBlock[T]{
 		container: container,
 		accepter:  accepter,
@@ -48,10 +47,6 @@ func (sb *SyncableBlock[T]) Bytes() []byte {
 
 func (sb *SyncableBlock[T]) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.accepter.Accept(ctx, sb.container)
-}
-
-func (sb *SyncableBlock[T]) AcceptSyncTarget(ctx context.Context) error {
-	return sb.container.AcceptSyncTarget(ctx)
 }
 
 func (sb *SyncableBlock[T]) String() string {

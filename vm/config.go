@@ -24,9 +24,6 @@ type Config struct {
 	StateIntermediateWriteBatchSize  int                        `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
 	ValueNodeCacheSize               int                        `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
 	AcceptorSize                     int                        `json:"acceptorSize"`                     // how far back we can fall in processing accepted blocks
-	StateSyncParallelism             int                        `json:"stateSyncParallelism"`
-	StateSyncMinBlocks               uint64                     `json:"stateSyncMinBlocks"`
-	StateSyncServerDelay             time.Duration              `json:"stateSyncServerDelay"`
 	ParsedBlockCacheSize             int                        `json:"parsedBlockCacheSize"`
 	AcceptedBlockWindow              int                        `json:"acceptedBlockWindow"`
 	AcceptedBlockWindowCache         int                        `json:"acceptedBlockWindowCache"`
@@ -50,9 +47,6 @@ func NewConfig() Config {
 		StateIntermediateWriteBatchSize:  4 * units.MiB,
 		ValueNodeCacheSize:               2 * units.GiB,
 		AcceptorSize:                     64,
-		StateSyncParallelism:             4,
-		StateSyncMinBlocks:               768, // set to max int for archive nodes to ensure no skips
-		StateSyncServerDelay:             0,   // used for testing
 		ParsedBlockCacheSize:             128,
 		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
 		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks

@@ -26,7 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/lifecycle"
-	"go.uber.org/zap"
 )
 
 var (
@@ -285,7 +284,7 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 		}
 		return nil
 	case snow.NormalOp:
-		v.log.Info("Starting normal operation", zap.Bool("stateSyncStarted", v.app.StateSyncClient.Started()))
+		v.log.Info("Starting normal operation")
 		for _, startNormalOpF := range v.app.OnNormalOperationStarted {
 			if err := startNormalOpF(ctx); err != nil {
 				return err

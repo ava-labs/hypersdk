@@ -9,9 +9,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/lifecycle"
-	"github.com/ava-labs/hypersdk/statesync"
 )
 
 type Application[I Block, O Block, A Block] struct {
@@ -21,8 +21,7 @@ type Application[I Block, O Block, A Block] struct {
 	Handlers        map[string]http.Handler
 	HealthChecker   health.Checker
 	Network         *p2p.Network
-	StateSyncClient *statesync.Client[*StatefulBlock[I, O, A]]
-	StateSyncServer *statesync.Server[*StatefulBlock[I, O, A]]
+	StateSyncableVM block.StateSyncableVM
 	Closers         []func() error
 
 	Ready                    *lifecycle.AtomicBoolReady
@@ -34,6 +33,10 @@ type Application[I Block, O Block, A Block] struct {
 	RejectedSubs         []event.Subscription[O]
 	AcceptedSubs         []event.Subscription[A]
 	PreReadyAcceptedSubs []event.Subscription[I]
+}
+
+func (a *Application[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
+	return a.vm.covariantVM
 }
 
 func (a *Application[I, O, A]) WithAcceptedSub(sub ...event.Subscription[A]) {

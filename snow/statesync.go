@@ -7,85 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-	hcontext "github.com/ava-labs/hypersdk/context"
-	"github.com/ava-labs/hypersdk/statesync"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
-func (a *Application[I, O, A]) WithStateSyncableVM(
-	client *statesync.Client[*StatefulBlock[I, O, A]],
-	server *statesync.Server[*StatefulBlock[I, O, A]],
-) {
-	a.StateSyncClient = client
-	a.StateSyncServer = server
-}
-
-type StateSyncConfig struct {
-	MinBlocks   uint64 `json:"minBlocks"`
-	Parallelism int    `json:"parallelism"`
-}
-
-func NewDefaultStateSyncConfig() StateSyncConfig {
-	return StateSyncConfig{
-		MinBlocks:   768,
-		Parallelism: 4,
-	}
-}
-
-func GetStateSyncConfig(ctx *hcontext.Context) (StateSyncConfig, error) {
-	return hcontext.GetConfigFromContext(ctx, "statesync", NewDefaultStateSyncConfig())
-}
-
-func (a *Application[I, O, A]) WithStateSyncer(
-	db database.Database,
-	stateDB merkledb.MerkleDB,
-	rangeProofHandlerID uint64,
-	changeProofHandlerID uint64,
-	branchFactor merkledb.BranchFactor,
-) error {
-	server := statesync.NewServer[*StatefulBlock[I, O, A]](
-		a.vm.log,
-		a.vm.covariantVM,
-	)
-	a.StateSyncServer = server
-
-	syncerRegistry := prometheus.NewRegistry()
-	if err := a.vm.snowCtx.Metrics.Register("syncer", syncerRegistry); err != nil {
-		return err
-	}
-	stateSyncConfig, err := GetStateSyncConfig(a.vm.hctx)
-	if err != nil {
-		return err
-	}
-	client := statesync.NewClient[*StatefulBlock[I, O, A]](
-		a.vm.covariantVM,
-		a.vm.snowCtx.Log,
-		syncerRegistry,
-		db,
-		stateDB,
-		a.Network,
-		rangeProofHandlerID,
-		changeProofHandlerID,
-		branchFactor,
-		stateSyncConfig.MinBlocks,
-		stateSyncConfig.Parallelism,
-	)
-	a.StateSyncClient = client
-	a.OnNormalOperationStarted = append(a.OnNormalOperationStarted, client.StartBootstrapping)
-	// Note: this is not perfect because we may need to get a notification of a block between finishing state sync
-	// and when the engine/VM has received the notification and switched over.
-	// a.WithPreReadyAcceptedSub(event.SubscriptionFunc[I]{
-	// 	NotifyF: func(ctx context.Context, block I) error {
-	// 		_, err := client.UpdateSyncTarget(block)
-	// 		return err
-	// 	},
-	// })
-	return statesync.RegisterHandlers(a.vm.log, a.Network, rangeProofHandlerID, changeProofHandlerID, stateDB)
+func (a *Application[I, O, A]) WithStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
+	a.StateSyncableVM = stateSyncableVM
 }
 
 // StartStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
@@ -141,21 +69,21 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 }
 
 func (v *VM[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return v.app.StateSyncClient.StateSyncEnabled(ctx)
+	return v.app.StateSyncableVM.StateSyncEnabled(ctx)
 }
 
 func (v *VM[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncClient.GetOngoingSyncStateSummary(ctx)
+	return v.app.StateSyncableVM.GetOngoingSyncStateSummary(ctx)
 }
 
 func (v *VM[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncServer.GetLastStateSummary(ctx)
+	return v.app.StateSyncableVM.GetLastStateSummary(ctx)
 }
 
 func (v *VM[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
-	return v.app.StateSyncClient.ParseStateSummary(ctx, summaryBytes)
+	return v.app.StateSyncableVM.ParseStateSummary(ctx, summaryBytes)
 }
 
 func (v *VM[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
-	return v.app.StateSyncServer.GetStateSummary(ctx, summaryHeight)
+	return v.app.StateSyncableVM.GetStateSummary(ctx, summaryHeight)
 }

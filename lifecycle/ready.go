@@ -32,6 +32,15 @@ func (c *ChanReady) Ready() bool {
 	}
 }
 
+func (c *ChanReady) AwaitReady(done <-chan struct{}) bool {
+	select {
+	case <-c.ready:
+		return true
+	case <-done:
+		return false
+	}
+}
+
 func (c *ChanReady) MarkReady() {
 	c.readyOnce.Do(func() { close(c.ready) })
 }
