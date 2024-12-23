@@ -1060,7 +1060,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
 
-	_, err = node.BuildBlock(context.Background(), blk, 3)
+	_, err = node.BuildBlock(context.Background(), node.LastAccepted, 3)
 	r.ErrorIs(err, ErrNoAvailableChunkCerts)
 
 	// make sure that it's not the case with any other chunk.
@@ -1078,7 +1078,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node.Accept(context.Background(), blk))
 
-	_, err = node.BuildBlock(context.Background(), blk, 3)
+	_, err = node.BuildBlock(context.Background(), node.LastAccepted, 3)
 	r.NoError(err)
 }
 
@@ -1157,9 +1157,8 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				validationWindow = testingDefaultValidityWindowDuration
 			}
 
-			var node *Node[tx]
-			nodes, indexer := newNodes(t, 1)
-			node = nodes[0]
+			nodes, indexers := newNodes(t, 1)
+			node, indexer := nodes[0], indexers[0]
 			node.validityWindowDuration = validationWindow
 
 			// initialize node history.
@@ -1516,7 +1515,7 @@ func newTestNode(t *testing.T) *Node[tx] {
 	return nodes[0]
 }
 
-func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) {
+func newNodes(t *testing.T, n int) ([]*Node[tx], []*testValidityWindowChainIndex) {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1554,10 +1553,11 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 		})
 	}
 
-	indexer := newTestValidityWindowChainIndex()
+	indexers := []*testValidityWindowChainIndex{}
 
 	result := make([]*Node[tx], 0, n)
 	for i, n := range nodes {
+		indexers = append(indexers, newTestValidityWindowChainIndex())
 		getChunkPeers := make(map[ids.NodeID]p2p.Handler)
 		chunkSignaturePeers := make(map[ids.NodeID]p2p.Handler)
 		chunkCertGossipPeers := make(map[ids.NodeID]p2p.Handler)
@@ -1613,7 +1613,7 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 			},
 			1,
 			1,
-			indexer,
+			indexers[i],
 			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
@@ -1636,22 +1636,25 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 		codec.Address{},
 	)
 	require.NoError(t, err)
-	indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
+	for _, indexer := range indexers {
+		indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
+	}
 
 	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
 	require.NoError(t, node.Accept(context.Background(), blk))
-	indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
 
 	for _, n := range result[1:] {
 		require.NoError(t, n.Verify(context.Background(), n.LastAccepted, blk))
 		require.NoError(t, n.Accept(context.Background(), blk))
-		indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
 	}
 
-	return result, indexer
+	for _, indexer := range indexers {
+		indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
+	}
+	return result, indexers
 }
 
 type testValidityWindowChainIndex struct {

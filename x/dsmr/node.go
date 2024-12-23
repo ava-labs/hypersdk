@@ -38,7 +38,6 @@ var (
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
-	ErrAllChunkCertsDuplicate              = errors.New("all chunk certs are duplicated")
 	ErrTimestampNotMonotonicallyIncreasing = errors.New("block timestamp must be greater than parent timestamp")
 	ErrEmptyBlock                          = errors.New("block must reference chunks")
 	ErrInvalidBlockParent                  = errors.New("invalid referenced block parent")
@@ -238,12 +237,11 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 
 	chunkCerts := n.storage.GatherChunkCerts()
 	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
-
-	emapChunkCert := make([]*emapChunkCertificate, len(chunkCerts))
-	for i := range emapChunkCert {
-		emapChunkCert[i] = &emapChunkCertificate{*chunkCerts[i]}
+	chunkCert := make([]*emapChunkCertificate, len(chunkCerts))
+	for i := range chunkCert {
+		chunkCert[i] = &emapChunkCertificate{*chunkCerts[i]}
 	}
-	dup, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), emapChunkCert, oldestAllowed)
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), chunkCert, oldestAllowed)
 	if err != nil {
 		return Block{}, err
 	}
@@ -251,7 +249,7 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 	availableChunkCerts := make([]*ChunkCertificate, 0)
 	for i, chunkCert := range chunkCerts {
 		// avoid building blocks with duplicate or expired chunk certs
-		if chunkCert.Expiry < timestamp || dup.Contains(i) {
+		if chunkCert.Expiry < timestamp || duplicates.Contains(i) {
 			continue
 		}
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
@@ -260,12 +258,12 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		return Block{}, ErrNoAvailableChunkCerts
 	}
 
-	blk := NewBlock(
-		parent.GetID(),
-		parent.Height+1,
-		timestamp,
-		availableChunkCerts,
-	)
+	blk := Block{
+		ParentID:   parent.GetID(),
+		Height:     parent.Height + 1,
+		Timestamp:  timestamp,
+		ChunkCerts: availableChunkCerts,
+	}
 
 	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
 	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
@@ -309,7 +307,7 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
 
 	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block), oldestAllowed); err != nil {
-		return err
+		return fmt.Errorf("%w: block %s oldestAllowed - %d", err, block.GetID(), oldestAllowed)
 	}
 
 	for _, chunkCert := range block.ChunkCerts {

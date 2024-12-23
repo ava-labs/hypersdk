@@ -158,15 +158,6 @@ type Block struct {
 	blkBytes []byte
 }
 
-func NewBlock(parentID ids.ID, height uint64, timestamp int64, chunkCerts []*ChunkCertificate) Block {
-	return Block{
-		ParentID:   parentID,
-		Height:     height,
-		Timestamp:  timestamp,
-		ChunkCerts: chunkCerts,
-	}
-}
-
 func (b Block) GetID() ids.ID {
 	return b.blkID
 }
