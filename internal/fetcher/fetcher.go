@@ -38,7 +38,7 @@ type Fetcher struct {
 type tx struct {
 	blockers int
 	waiter   chan struct{}
-	keys     state.Keys
+	keys     []string
 }
 
 type task struct {
@@ -140,18 +140,18 @@ func (f *Fetcher) handleErr(err error) {
 // Fetch can be called concurrently.
 //
 // Invariant: Don't call [Fetch] afer calling [Stop] or [Wait]
-func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) error {
+func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, keys []string) error {
 	f.l.Lock()
 	if f.err != nil {
 		f.l.Unlock()
 		return f.err
 	}
 	var (
-		tx       = &tx{keys: stateKeys}
-		tasks    = make([]*task, 0, len(stateKeys))
+		tx       = &tx{keys: keys}
+		tasks    = make([]*task, 0, len(keys))
 		blockers = 0
 	)
-	for k := range stateKeys {
+	for _, k := range keys {
 		d, ok := f.keys[k]
 		if !ok {
 			f.keys[k] = &key{blocked: []ids.ID{txID}}
@@ -216,10 +216,10 @@ func (f *Fetcher) Get(txID ids.ID) (map[string][]byte, error) {
 	f.l.RLock()
 	defer f.l.RUnlock()
 	var (
-		stateKeys = tx.keys
-		storage   = make(map[string][]byte, len(stateKeys))
+		keys    = tx.keys
+		storage = make(map[string][]byte, len(keys))
 	)
-	for k := range stateKeys {
+	for _, k := range keys {
 		if v := f.keys[k].cache; v != nil {
 			if v.exists {
 				storage[k] = v.v
