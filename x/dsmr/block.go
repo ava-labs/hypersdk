@@ -106,29 +106,29 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
-// ExecutionBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
-type ExecutionBlock struct {
+// validityWindowBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
+type validityWindowBlock struct {
 	innerBlock Block
 	certSet    set.Set[ids.ID]
 }
 
-func (e ExecutionBlock) Timestamp() int64 {
+func (e validityWindowBlock) Timestamp() int64 {
 	return e.innerBlock.Timestamp
 }
 
-func (e ExecutionBlock) Height() uint64 {
+func (e validityWindowBlock) Height() uint64 {
 	return e.innerBlock.Height
 }
 
-func (e ExecutionBlock) Contains(id ids.ID) bool {
+func (e validityWindowBlock) Contains(id ids.ID) bool {
 	return e.certSet.Contains(id)
 }
 
-func (e ExecutionBlock) Parent() ids.ID {
+func (e validityWindowBlock) Parent() ids.ID {
 	return e.innerBlock.ParentID
 }
 
-func (e ExecutionBlock) Containers() []*emapChunkCertificate {
+func (e validityWindowBlock) Containers() []*emapChunkCertificate {
 	emapChunkCert := make([]*emapChunkCertificate, len(e.innerBlock.ChunkCerts))
 	for i := range emapChunkCert {
 		emapChunkCert[i] = &emapChunkCertificate{*e.innerBlock.ChunkCerts[i]}
@@ -136,12 +136,12 @@ func (e ExecutionBlock) Containers() []*emapChunkCertificate {
 	return emapChunkCert
 }
 
-func NewExecutionBlock(innerBlock Block) ExecutionBlock {
+func NewValidityWindowBlock(innerBlock Block) validityWindowBlock {
 	certSet := set.Set[ids.ID]{}
 	for _, c := range innerBlock.ChunkCerts {
 		certSet.Add(c.ChunkID)
 	}
-	return ExecutionBlock{
+	return validityWindowBlock{
 		innerBlock: innerBlock,
 		certSet:    certSet,
 	}

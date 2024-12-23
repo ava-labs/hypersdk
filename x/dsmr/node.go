@@ -243,7 +243,7 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 	for i := range emapChunkCert {
 		emapChunkCert[i] = &emapChunkCertificate{*chunkCerts[i]}
 	}
-	dup, err := n.validityWindow.IsRepeat(ctx, NewExecutionBlock(parent), emapChunkCert, oldestAllowed)
+	dup, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), emapChunkCert, oldestAllowed)
 	if err != nil {
 		return Block{}, err
 	}
@@ -308,7 +308,7 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	// Find repeats
 	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
 
-	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewExecutionBlock(block), oldestAllowed); err != nil {
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block), oldestAllowed); err != nil {
 		return err
 	}
 
@@ -372,7 +372,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) error {
 		}
 	}
 	// update the validity window with the accepted block.
-	n.validityWindow.Accept(NewExecutionBlock(block))
+	n.validityWindow.Accept(NewValidityWindowBlock(block))
 
 	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
 		return fmt.Errorf("failed to prune chunks: %w", err)

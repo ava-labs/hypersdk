@@ -1226,7 +1226,7 @@ func TestNode_Verify_Chunks(t *testing.T) {
 				r.NoError(node.Verify(context.Background(), parentBlk, blk))
 
 				r.NoError(node.Accept(context.Background(), blk))
-				indexer.set(blk.GetID(), NewExecutionBlock(blk))
+				indexer.set(blk.GetID(), NewValidityWindowBlock(blk))
 				parentBlk = blk
 			}
 
@@ -1671,19 +1671,19 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 		codec.Address{},
 	)
 	require.NoError(t, err)
-	indexer.set(node.LastAccepted.GetID(), ExecutionBlock{innerBlock: node.LastAccepted})
+	indexer.set(node.LastAccepted.GetID(), validityWindowBlock{innerBlock: node.LastAccepted})
 
 	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
 	require.NoError(t, node.Accept(context.Background(), blk))
-	indexer.set(blk.GetID(), ExecutionBlock{innerBlock: blk})
+	indexer.set(blk.GetID(), validityWindowBlock{innerBlock: blk})
 
 	for _, n := range result[1:] {
 		require.NoError(t, n.Verify(context.Background(), n.LastAccepted, blk))
 		require.NoError(t, n.Accept(context.Background(), blk))
-		indexer.set(blk.GetID(), ExecutionBlock{innerBlock: blk})
+		indexer.set(blk.GetID(), validityWindowBlock{innerBlock: blk})
 	}
 
 	return result, indexer
