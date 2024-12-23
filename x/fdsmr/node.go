@@ -40,6 +40,7 @@ type Node[T DSMR[U], U dsmr.Tx] struct {
 	DSMR   T
 	bonder Bonder[U]
 
+	//TODO use a min-heap
 	pending map[ids.ID]U
 }
 
