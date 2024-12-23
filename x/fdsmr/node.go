@@ -6,9 +6,8 @@ package fdsmr
 import (
 	"context"
 
-	"github.com/ava-labs/hypersdk/internal/eheap"
-
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/internal/eheap"
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
