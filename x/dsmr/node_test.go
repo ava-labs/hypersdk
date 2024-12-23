@@ -45,27 +45,6 @@ var (
 	chainID = ids.Empty
 )
 
-type testValidityWindowChainIndex struct {
-	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]
-}
-
-func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], error) {
-	if blk, ok := t.blocks[blkID]; ok {
-		return blk, nil
-	}
-	return nil, database.ErrNotFound
-}
-
-func (t *testValidityWindowChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
-	t.blocks[blkID] = blk
-}
-
-func newTestValidityWindowChainIndex() *testValidityWindowChainIndex {
-	return &testValidityWindowChainIndex{
-		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]),
-	}
-}
-
 // Test that chunks can be built through Node.NewChunk
 func TestNode_BuildChunk(t *testing.T) {
 	tests := []struct {
@@ -1063,15 +1042,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 
 	node := newTestNode(t)
 
-	blk := Block{
-		ParentID:  ids.GenerateTestID(),
-		Height:    1,
-		Timestamp: 1,
-		blkID:     ids.GenerateTestID(),
-	}
-	r.NoError(node.Accept(context.Background(), blk))
-
-	_, chunkCert, err := node.BuildChunk(
+	_, _, err := node.BuildChunk(
 		context.Background(),
 		[]tx{
 			{
@@ -1084,15 +1055,9 @@ func TestDuplicateChunksElimination(t *testing.T) {
 	)
 	r.NoError(err)
 
-	blk = Block{
-		ParentID:  ids.GenerateTestID(),
-		Height:    2,
-		Timestamp: 2,
-		blkID:     ids.GenerateTestID(),
-		ChunkCerts: []*ChunkCertificate{
-			&chunkCert,
-		},
-	}
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, 2)
+	r.NoError(err)
+	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	r.NoError(node.Accept(context.Background(), blk))
 
 	_, err = node.BuildBlock(context.Background(), blk, 3)
@@ -1671,20 +1636,41 @@ func newNodes(t *testing.T, n int) ([]*Node[tx], *testValidityWindowChainIndex) 
 		codec.Address{},
 	)
 	require.NoError(t, err)
-	indexer.set(node.LastAccepted.GetID(), validityWindowBlock{innerBlock: node.LastAccepted})
+	indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
 
 	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
 	require.NoError(t, node.Accept(context.Background(), blk))
-	indexer.set(blk.GetID(), validityWindowBlock{innerBlock: blk})
+	indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
 
 	for _, n := range result[1:] {
 		require.NoError(t, n.Verify(context.Background(), n.LastAccepted, blk))
 		require.NoError(t, n.Accept(context.Background(), blk))
-		indexer.set(blk.GetID(), validityWindowBlock{innerBlock: blk})
+		indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
 	}
 
 	return result, indexer
+}
+
+type testValidityWindowChainIndex struct {
+	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]
+}
+
+func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], error) {
+	if blk, ok := t.blocks[blkID]; ok {
+		return blk, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (t *testValidityWindowChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
+	t.blocks[blkID] = blk
+}
+
+func newTestValidityWindowChainIndex() *testValidityWindowChainIndex {
+	return &testValidityWindowChainIndex{
+		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]),
+	}
 }
