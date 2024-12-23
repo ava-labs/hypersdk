@@ -6,7 +6,7 @@ package fdsmr
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/internal/eheap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/dsmr"
@@ -32,7 +32,7 @@ func New[T DSMR[U], U dsmr.Tx](inner T, bonder Bonder[U]) *Node[T, U] {
 	return &Node[T, U]{
 		DSMR:    inner,
 		bonder:  bonder,
-		pending: make(map[ids.ID]U),
+		pending: eheap.New[U](0),
 	}
 }
 
@@ -41,7 +41,7 @@ type Node[T DSMR[U], U dsmr.Tx] struct {
 	bonder Bonder[U]
 
 	//TODO use a min-heap
-	pending map[ids.ID]U
+	pending *eheap.ExpiryHeap[U]
 }
 
 func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, beneficiary codec.Address) error {
@@ -55,7 +55,7 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, bene
 			continue
 		}
 
-		n.pending[tx.GetID()] = tx
+		n.pending.Add(tx)
 		bonded = append(bonded, tx)
 	}
 
@@ -68,22 +68,24 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 		return dsmr.ExecutedBlock[U]{}, err
 	}
 
-	// Un-bond any txs that expired at this block
-	for txID, tx := range n.pending {
-		if block.Timestamp <= tx.GetExpiry() {
-			continue
+	for {
+		tx, ok := n.pending.PeekMin()
+		if !ok || block.Timestamp <= tx.GetExpiry() {
+			break
 		}
 
+		n.pending.PopMin()
+
+		// Un-bond any txs that expired at this block
 		if err := n.bonder.Unbond(tx); err != nil {
 			return dsmr.ExecutedBlock[U]{}, err
 		}
-		delete(n.pending, txID)
 	}
 
 	// Un-bond any txs that were accepted in this block
 	for _, chunk := range executedBlock.Chunks {
 		for _, tx := range chunk.Txs {
-			if _, ok := n.pending[tx.GetID()]; !ok {
+			if !n.pending.Has(tx.GetID()) {
 				continue
 			}
 
@@ -92,6 +94,8 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 			}
 		}
 	}
+
+	n.pending.SetMin(block.Timestamp)
 
 	return executedBlock, nil
 }
