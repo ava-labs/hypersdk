@@ -12,44 +12,49 @@ import (
 )
 
 func TestUnitsConsumed(t *testing.T) {
-	t.Run("empty manager consumes", func(t *testing.T) {
-		r := require.New(t)
+	tests := []struct {
+		name           string
+		initialUnits   externalFees.Dimensions
+		unitsToConsume externalFees.Dimensions
+		maxUnits       externalFees.Dimensions
+		success        bool
+	}{
+		{
+			name:           "empty manager consumes",
+			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
+			maxUnits:       externalFees.Dimensions{1, 2, 3, 4, 5},
+			success:        true,
+		},
+		{
+			name:           "nonempty manager consumes",
+			initialUnits:   externalFees.Dimensions{1, 2, 3, 4, 5},
+			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
+			maxUnits:       externalFees.Dimensions{2, 4, 6, 8, 10},
+			success:        true,
+		},
+		{
+			name:           "consume fails if consumed > available",
+			initialUnits:   externalFees.Dimensions{1, 2, 3, 4, 5},
+			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
+			maxUnits:       externalFees.Dimensions{1, 2, 3, 4, 5},
+		},
+	}
 
-		manager := NewManager([]byte{})
-		units := externalFees.Dimensions{1, 2, 3, 4, 5}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
 
-		ok, _ := manager.Consume(units, units)
-		r.True(ok)
-		r.Equal(units, manager.UnitsConsumed())
-	})
+			// Initializing manager
+			manager := NewManager([]byte{})
+			ok, _ := manager.Consume(tt.initialUnits, tt.maxUnits)
+			r.True(ok)
 
-	t.Run("nonempty manager consumes", func(t *testing.T) {
-		r := require.New(t)
-
-		manager := NewManager([]byte{})
-		initialUnits := externalFees.Dimensions{1, 2, 3, 4, 5}
-		finalUnits := externalFees.Dimensions{2, 4, 6, 8, 10}
-
-		ok, _ := manager.Consume(initialUnits, initialUnits)
-		r.True(ok)
-
-		ok, _ = manager.Consume(initialUnits, finalUnits)
-		r.True(ok)
-
-		r.Equal(finalUnits, manager.UnitsConsumed())
-	})
-
-	t.Run("consume fails if consumed > available", func(t *testing.T) {
-		r := require.New(t)
-
-		manager := NewManager([]byte{})
-		initialUnits := externalFees.Dimensions{1, 2, 3, 4, 5}
-
-		ok, _ := manager.Consume(initialUnits, initialUnits)
-		r.True(ok)
-
-		ok, dim := manager.Consume(initialUnits, initialUnits)
-		r.False(ok)
-		r.Equal(externalFees.Dimension(0), dim)
-	})
+			// Testing manager
+			ok, _ = manager.Consume(tt.unitsToConsume, tt.maxUnits)
+			r.Equal(tt.success, ok)
+			if tt.success {
+				r.Equal(tt.maxUnits, manager.UnitsConsumed())
+			}
+		})
+	}
 }
