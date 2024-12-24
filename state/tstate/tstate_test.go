@@ -10,12 +10,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -540,7 +540,7 @@ func TestCreateView(t *testing.T) {
 
 	ctx := context.TODO()
 	ts := New(10)
-	tracer, err := trace.New(&trace.Config{Enabled: false})
+	tracer, err := trace.New(trace.Config{Enabled: false})
 	require.NoError(err)
 	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
 		BranchFactor:                merkledb.BranchFactor16,
