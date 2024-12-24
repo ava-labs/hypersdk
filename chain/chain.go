@@ -8,7 +8,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
@@ -22,7 +21,6 @@ type ValidityWindow = *validitywindow.TimeValidityWindow[*Transaction]
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
-	accepter    *Accepter
 	preExecutor *PreExecutor
 	blockParser *BlockParser
 }
@@ -69,11 +67,6 @@ func NewChain(
 			metrics,
 			config,
 		),
-		accepter: NewAccepter(
-			tracer,
-			validityWindow,
-			metrics,
-		),
 		preExecutor: NewPreExecutor(
 			ruleFactory,
 			validityWindow,
@@ -84,16 +77,16 @@ func NewChain(
 	}, nil
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
-	return c.builder.BuildBlock(ctx, parentView, parent)
+func (c *Chain) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+	return c.builder.BuildBlock(ctx, parentOutputBlock)
 }
 
 func (c *Chain) Execute(
 	ctx context.Context,
-	parentView state.View,
+	parentBlock *OutputBlock,
 	b *ExecutionBlock,
-) (*ExecutedBlock, merkledb.View, error) {
-	return c.processor.Execute(ctx, parentView, b)
+) (*OutputBlock, error) {
+	return c.processor.Execute(ctx, parentBlock, b)
 }
 
 func (c *Chain) AsyncVerify(
@@ -101,10 +94,6 @@ func (c *Chain) AsyncVerify(
 	b *ExecutionBlock,
 ) error {
 	return c.processor.AsyncVerify(ctx, b)
-}
-
-func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
-	return c.accepter.AcceptBlock(ctx, blk)
 }
 
 func (c *Chain) PreExecute(

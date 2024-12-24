@@ -116,8 +116,8 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := j.vm.LastAcceptedBlockResult()
+func (j *JSONRPCServer) LastAccepted(req *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+	blk := j.vm.LastAcceptedBlockResult(req.Context())
 	reply.Height = blk.Block.Hght
 	reply.BlockID = blk.Block.ID()
 	reply.Timestamp = blk.Block.Tmstmp

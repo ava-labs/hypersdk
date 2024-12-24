@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/vm"
 
 	staterpc "github.com/ava-labs/hypersdk/api/state"
@@ -33,7 +34,6 @@ func NewDefaultOptions() []vm.Option {
 
 // New returns a VM with DefaultOptions pre-supplied
 func New(
-	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
@@ -45,7 +45,6 @@ func New(
 ) (*vm.VM, error) {
 	options = append(options, NewDefaultOptions()...)
 	return vm.New(
-		v,
 		genesisFactory,
 		balanceHandler,
 		metadataManager,
@@ -55,4 +54,33 @@ func New(
 		authEngine,
 		options...,
 	)
+}
+
+func NewSnowVM(
+	v *version.Semantic,
+	genesisFactory genesis.GenesisAndRuleFactory,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
+	outputCodec *codec.TypeParser[codec.Typed],
+	authEngine map[uint8]vm.AuthEngine,
+	options ...vm.Option,
+) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], error) {
+	options = append(options, NewDefaultOptions()...)
+	hyperVM, err := New(
+		genesisFactory,
+		balanceHandler,
+		metadataManager,
+		actionCodec,
+		authCodec,
+		outputCodec,
+		authEngine,
+		options...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](hyperVM), nil
 }
