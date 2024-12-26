@@ -764,7 +764,7 @@ So far, we’ve implemented the following:
 - Storage
 
 We can now finish this MorpheusVM tutorial by implementing the vm interface.
-In `tutorial/`, create a subdirectory called `vm`. In that folder, let's create the file `vm.go`. Here, we first define the “registry” of MorpheusVM:
+In `tutorial/`, create a subdirectory called `vm`. In that folder, let's create the file `vm.go`. Here, we first define the "registry" of MorpheusVM:
 
 ```golang
 package vm
@@ -813,7 +813,7 @@ func init() {
 
 ```
 
-By “registry”, we mean the `ActionParser` and `AuthParser` which tell our VM
+By "registry", we mean the `ActionParser` and `AuthParser` which tell our VM
 which actions and cryptographic functions that it’ll support.
 
 Finally, we create a `New()` function that allows for the VM we’ve worked on to
