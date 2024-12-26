@@ -277,6 +277,19 @@ func (n *TestNetwork) AddVM(ctx context.Context, configBytes []byte) *VM {
 	return vm
 }
 
+func (n *TestNetwork) SetState(ctx context.Context, state avasnow.State) {
+	for _, vm := range n.VMs {
+		n.require.NoError(vm.SnowVM.SetState(ctx, state))
+	}
+}
+
+func (n *TestNetwork) Shutdown(ctx context.Context) {
+	for _, vm := range n.VMs {
+		vm.server.Close()
+		n.require.NoError(vm.SnowVM.Shutdown(ctx))
+	}
+}
+
 // initVMNetwork updates the AppSender of the provided VM to invoke the AppHandler interface
 // of each VM in the test network.
 func (n *TestNetwork) initVMNetwork(ctx context.Context, vm *VM) {
@@ -519,6 +532,8 @@ func TestEmptyBlock(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{}))
 }
@@ -528,6 +543,8 @@ func TestValidBlocks(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -644,6 +661,8 @@ func TestSubmitTx(t *testing.T) {
 			r := require.New(t)
 			chainID := ids.GenerateTestID()
 			network := NewTestNetwork(ctx, t, chainID, 2, nil)
+			network.SetState(ctx, avasnow.NormalOp)
+			defer network.Shutdown(ctx)
 
 			invalidTx := test.makeTx(r, network)
 			network.ConfirmInvalidTx(ctx, invalidTx, test.targetErr)
@@ -656,6 +675,8 @@ func TestValidityWindowDuplicateAcceptedBlock(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -684,6 +705,8 @@ func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -726,6 +749,8 @@ func TestIssueDuplicateInMempool(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -745,9 +770,8 @@ func TestForceGossip(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
-	for _, vm := range network.VMs {
-		vm.SnowVM.SetState(ctx, avasnow.NormalOp)
-	}
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -769,6 +793,8 @@ func TestAccepted(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	client := jsonrpc.NewJSONRPCClient(network.VMs[0].server.URL)
 	blockID, blockHeight, timestamp, err := client.Accepted(ctx)
@@ -844,6 +870,8 @@ func TestExternalSubscriber(t *testing.T) {
 	r.NoError(err)
 
 	network := NewTestNetwork(ctx, t, chainID, 1, configBytes)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	// Confirm and throw away last accepted block on startup
 	genesisBlkID := <-externalSubscriberAcceptedBlocksCh
@@ -865,6 +893,8 @@ func TestDirectStateAPI(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	client := stateapi.NewJSONRPCStateClient(network.VMs[0].server.URL)
 
@@ -903,6 +933,8 @@ func TestIndexerAPI(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 2, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	client := indexer.NewClient(network.VMs[0].server.URL)
 	parser := network.VMs[0].VM
@@ -941,6 +973,8 @@ func TestWebsocketAPI(t *testing.T) {
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 1, nil)
+	network.SetState(ctx, avasnow.NormalOp)
+	defer network.Shutdown(ctx)
 
 	client, err := ws.NewWebSocketClient(network.VMs[0].server.URL, time.Second, 10, consts.NetworkSizeLimit)
 	defer func() {
@@ -1110,9 +1144,13 @@ func TestStateSync(t *testing.T) {
 		}
 	}()
 
-	err = <-vm.VM.SyncClient.Done()
-	close(stopCh)
-	r.NoError(err)
+	select {
+	case err = <-vm.VM.SyncClient.Done():
+		close(stopCh)
+		r.NoError(err)
+	case <-time.After(10 * time.Second):
+		r.FailNow("timed out waiting for state sync to finish")
+	}
 
 	network.ConfirmBlocks(ctx, 1, func(i int) []*chain.Transaction {
 		nonce++

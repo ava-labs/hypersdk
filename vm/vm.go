@@ -162,12 +162,9 @@ func (vm *VM) Initialize(
 	vm.snowCtx = snowCtx
 	vm.snowInput = chainInput
 	vm.snowApp = snowApp
-	// TODO: cleanup metrics registration
-	defaultRegistry, metrics, err := newMetrics()
+	vmRegistry, err := chainInput.Context.MakeRegistry("hypervm")
+	metrics, err := newMetrics(vmRegistry)
 	if err != nil {
-		return nil, err
-	}
-	if err := vm.snowCtx.Metrics.Register("hypervm", defaultRegistry); err != nil {
 		return nil, err
 	}
 	vm.metrics = metrics
