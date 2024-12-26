@@ -87,6 +87,15 @@ type ChainIndex[I Block, O Block, A Block] struct {
 	covariantVM *CovariantVM[I, O, A]
 }
 
+func (c *ChainIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+	blk, err := c.covariantVM.GetBlockByHeight(ctx, height)
+	if err != nil {
+		var emptyBlk I
+		return emptyBlk, err
+	}
+	return blk.Input, nil
+}
+
 func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := c.covariantVM.GetBlock(ctx, blkID)
 	if err != nil {
@@ -108,3 +117,4 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 func (c *ChainIndex[I, O, A]) GetLastAccepted(ctx context.Context) A {
 	return c.covariantVM.lastAcceptedBlock.Accepted
 }
+

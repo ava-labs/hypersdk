@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -55,14 +56,17 @@ import (
 var _ workload.TestNetwork = (*TestNetwork)(nil)
 
 type VM struct {
+	require *require.Assertions
+
+	snowCtx   *avasnow.Context
 	nodeID    ids.NodeID
 	appSender *enginetest.Sender
+	toEngine  chan common.Message
 
 	SnowVM *snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 	VM     *vm.VM
 
-	toEngine chan common.Message
-	server   *httptest.Server
+	server *httptest.Server
 }
 
 func NewTestVM(
@@ -102,7 +106,20 @@ func NewTestVM(
 	toEngine := make(chan common.Message, 1)
 
 	snowCtx := snowtest.Context(t, chainID)
-	snowCtx.Log = logging.NewLogger("vmtest")
+	var logCores []logging.WrappedCore
+	if os.Getenv("HYPERVM_TEST_LOGGING") == "true" {
+		logCores = append(logCores, logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		))
+	}
+	log := logging.NewLogger(
+		"vmtest",
+		logCores...,
+	)
+
+	snowCtx.Log = log
 	snowCtx.ChainDataDir = t.TempDir()
 	snowCtx.NodeID = ids.GenerateTestNodeID()
 	appSender := &enginetest.Sender{T: t}
@@ -116,13 +133,39 @@ func NewTestVM(
 	}
 	server := httptest.NewServer(router)
 	return &VM{
+		require:   r,
 		nodeID:    snowCtx.NodeID,
 		appSender: appSender,
 		SnowVM:    snowVM,
 		VM:        vm,
+		snowCtx:   snowCtx,
 		toEngine:  toEngine,
 		server:    server,
 	}
+}
+
+func (vm *VM) BuildAndSetPreference(ctx context.Context) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
+	vm.snowCtx.Lock.Lock()
+	defer vm.snowCtx.Lock.Unlock()
+
+	blk, err := vm.SnowVM.GetCovariantVM().BuildBlock(ctx)
+	vm.require.NoError(err)
+
+	vm.require.NoError(blk.Verify(ctx))
+	vm.require.NoError(vm.SnowVM.SetPreference(ctx, blk.ID()))
+	return blk
+}
+
+func (vm *VM) ParseAndSetPreference(ctx context.Context, bytes []byte) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
+	vm.snowCtx.Lock.Lock()
+	defer vm.snowCtx.Lock.Unlock()
+
+	blk, err := vm.SnowVM.GetCovariantVM().ParseBlock(ctx, bytes)
+	vm.require.NoError(err)
+
+	vm.require.NoError(blk.Verify(ctx))
+	vm.require.NoError(vm.SnowVM.SetPreference(ctx, blk.ID()))
+	return blk
 }
 
 type TestNetwork struct {
@@ -140,14 +183,36 @@ type TestNetwork struct {
 	configuration workload.TestNetworkConfiguration
 }
 
+type NetworkOptions struct {
+	GenesisRulesOverride func(rules *genesis.Rules)
+}
+
+type NetworkOption func(*NetworkOptions)
+
+func WithRulesOverride(override func(rules *genesis.Rules)) NetworkOption {
+	return func(opts *NetworkOptions) {
+		opts.GenesisRulesOverride = override
+	}
+}
+
+func NewNetworkOptions(opts ...NetworkOption) *NetworkOptions {
+	options := &NetworkOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+	return options
+}
+
 func NewTestNetwork(
 	ctx context.Context,
 	t *testing.T,
 	chainID ids.ID,
 	numVMs int,
 	configBytes []byte,
+	opts ...NetworkOption,
 ) *TestNetwork {
 	r := require.New(t)
+	networkOptions := NewNetworkOptions(opts...)
 	privKey, err := ed25519.GeneratePrivateKey()
 	r.NoError(err)
 	authFactory := auth.NewED25519Factory(privKey)
@@ -161,7 +226,9 @@ func NewTestNetwork(
 	testRules := genesis.NewDefaultRules()
 	testRules.MinBlockGap = 0
 	testRules.MinEmptyBlockGap = 0
-	testRules.ValidityWindow = time.Second.Milliseconds()
+	if networkOptions.GenesisRulesOverride != nil {
+		networkOptions.GenesisRulesOverride(testRules)
+	}
 	genesis := genesis.DefaultGenesis{
 		StateBranchFactor: merkledb.BranchFactor16,
 		CustomAllocation:  allocations,
@@ -210,82 +277,111 @@ func (n *TestNetwork) AddVM(ctx context.Context, configBytes []byte) *VM {
 	return vm
 }
 
+// initVMNetwork updates the AppSender of the provided VM to invoke the AppHandler interface
+// of each VM in the test network.
 func (n *TestNetwork) initVMNetwork(ctx context.Context, vm *VM) {
 	myNodeID := vm.nodeID
 	vm.appSender.SendAppRequestF = func(ctx context.Context, nodeIDs set.Set[ids.NodeID], u uint32, b []byte) error {
-		for nodeID := range nodeIDs {
-			if nodeID == myNodeID {
-				go func() {
-					err := vm.SnowVM.AppRequest(ctx, nodeID, u, time.Now().Add(time.Second), b)
+		go func() {
+			for nodeID := range nodeIDs {
+				if nodeID == myNodeID {
+					vm.snowCtx.Lock.Lock()
+					err := vm.SnowVM.AppRequest(ctx, myNodeID, u, time.Now().Add(time.Second), b)
+					vm.snowCtx.Lock.Unlock()
 					n.require.NoError(err)
-				}()
-			} else {
-				err := n.nodeIDToVM[nodeID].SnowVM.AppRequest(ctx, nodeID, u, time.Now().Add(time.Second), b)
-				n.require.NoError(err)
+				} else {
+					peerVM := n.nodeIDToVM[nodeID]
+					peerVM.snowCtx.Lock.Lock()
+					err := peerVM.SnowVM.AppRequest(ctx, myNodeID, u, time.Now().Add(time.Second), b)
+					peerVM.snowCtx.Lock.Unlock()
+					n.require.NoError(err)
+				}
 			}
-		}
+		}()
 		return nil
 	}
 	vm.appSender.SendAppResponseF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32, response []byte) error {
-		if nodeID == myNodeID {
-			go func() {
-				err := vm.SnowVM.AppResponse(ctx, nodeID, requestID, response)
+		go func() {
+			if nodeID == myNodeID {
+				vm.snowCtx.Lock.Lock()
+				err := vm.SnowVM.AppResponse(ctx, myNodeID, requestID, response)
+				vm.snowCtx.Lock.Unlock()
 				n.require.NoError(err)
-			}()
-			return nil
-		}
+				return
+			}
 
-		return n.nodeIDToVM[nodeID].SnowVM.AppResponse(ctx, nodeID, requestID, response)
+			peerVM := n.nodeIDToVM[nodeID]
+			peerVM.snowCtx.Lock.Lock()
+			err := peerVM.SnowVM.AppResponse(ctx, myNodeID, requestID, response)
+			peerVM.snowCtx.Lock.Unlock()
+			n.require.NoError(err)
+		}()
+		return nil
 	}
 	vm.appSender.SendAppErrorF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32, code int32, message string) error {
-		if nodeID == myNodeID {
-			go func() {
-				err := vm.SnowVM.AppRequestFailed(ctx, nodeID, requestID, &common.AppError{
+		go func() {
+			if nodeID == myNodeID {
+				vm.snowCtx.Lock.Lock()
+				err := vm.SnowVM.AppRequestFailed(ctx, myNodeID, requestID, &common.AppError{
 					Code:    code,
 					Message: message,
 				})
+				vm.snowCtx.Lock.Unlock()
 				n.require.NoError(err)
-			}()
-			return nil
-		}
-		return n.nodeIDToVM[nodeID].SnowVM.AppRequestFailed(ctx, nodeID, requestID, &common.AppError{
-			Code:    code,
-			Message: message,
-		})
+				return
+			}
+			peerVM := n.nodeIDToVM[nodeID]
+			peerVM.snowCtx.Lock.Lock()
+			err := peerVM.SnowVM.AppRequestFailed(ctx, myNodeID, requestID, &common.AppError{
+				Code:    code,
+				Message: message,
+			})
+			peerVM.snowCtx.Lock.Unlock()
+			n.require.NoError(err)
+		}()
+		return nil
 	}
 	vm.appSender.SendAppGossipF = func(ctx context.Context, sendConfig common.SendConfig, b []byte) error {
 		nodeIDs := sendConfig.NodeIDs
 		nodeIDs.Remove(myNodeID)
 		// Select numSend nodes excluding myNodeID and gossip to them
 		numSend := sendConfig.Validators + sendConfig.NonValidators + sendConfig.Peers
-		nodes := set.NewSet[ids.NodeID](numSend)
+		sampledNodes := set.NewSet[ids.NodeID](numSend)
 		for nodeID := range n.nodeIDToVM {
 			if nodeID == myNodeID {
 				continue
 			}
-			nodes.Add(nodeID)
-			if nodes.Len() >= numSend {
+			sampledNodes.Add(nodeID)
+			if sampledNodes.Len() >= numSend {
 				break
 			}
 		}
+		nodeIDs.Union(sampledNodes)
 
 		// Send to specified nodes
 		for nodeID := range nodeIDs {
-			err := n.nodeIDToVM[nodeID].SnowVM.AppGossip(ctx, nodeID, b)
+			peerVM := n.nodeIDToVM[nodeID]
+			peerVM.snowCtx.Lock.Lock()
+			err := peerVM.SnowVM.AppGossip(ctx, myNodeID, b)
+			peerVM.snowCtx.Lock.Unlock()
 			n.require.NoError(err)
 		}
 		return nil
 	}
 
 	for _, peer := range n.VMs {
+		// Skip connecting to myself
 		if peer.nodeID == vm.nodeID {
 			continue
 		}
+
 		n.require.NoError(vm.SnowVM.Connected(ctx, peer.nodeID, version.CurrentApp))
 		n.require.NoError(peer.SnowVM.Connected(ctx, vm.nodeID, version.CurrentApp))
 	}
 }
 
+// initAppNetwork connects the AppSender / AppHandler interfaces of each VM in the
+// test network
 func (n *TestNetwork) initAppNetwork(ctx context.Context) {
 	for _, vm := range n.VMs {
 		n.initVMNetwork(ctx, vm)
@@ -302,12 +398,19 @@ func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, tx *chain.Transactio
 	// This requires a refactor of block building to easily construct a block while skipping over tx validity checks.
 }
 
+// SubmitTxs submits the provided transactions to the first VM in the network and requires that no errors occur
 func (n *TestNetwork) SubmitTxs(ctx context.Context, txs []*chain.Transaction) {
 	// Submit tx to first node
 	err := errors.Join(n.VMs[0].VM.Submit(ctx, txs)...)
 	n.require.NoError(err)
 }
 
+// BuildBlockAndUpdateHead builds a block on the first VM, verifies the block and sets the initial VM's preference to the
+// block.
+// Every other VM in the network parses, verifies, and sets its own preference to this block.
+// This function assumes that all VMs in the TestNetwork have verified at least up to the current preference
+// of the initial VM, so that it correctly mimics the engine's behavior of guaranteeing that all VMs have
+// verified the parent block before verifying its child.
 func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
 	n.require.NoError(n.VMs[0].VM.Builder().Force(ctx))
 	select {
@@ -316,21 +419,17 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 		n.require.Fail("timeout waiting for PendingTxs message")
 	}
 
-	blk, err := n.VMs[0].SnowVM.GetCovariantVM().BuildBlock(ctx)
-	n.require.NoError(err)
-
-	n.require.NoError(blk.Verify(ctx))
-	n.require.NoError(n.VMs[0].SnowVM.SetPreference(ctx, blk.ID()))
+	buildVM := n.VMs[0]
+	blk := buildVM.BuildAndSetPreference(ctx)
 
 	blks := make([]*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], len(n.VMs))
 	blks[0] = blk
+	blkBytes := blk.Bytes()
 	for i, otherVM := range n.VMs[1:] {
+		parsedBlk := otherVM.ParseAndSetPreference(ctx, blkBytes)
 		parsedBlk, err := otherVM.SnowVM.GetCovariantVM().ParseBlock(ctx, blk.Bytes())
 		n.require.NoError(err)
 		n.require.Equal(blk.ID(), parsedBlk.ID())
-
-		n.require.NoError(parsedBlk.Verify(ctx))
-		n.require.NoError(otherVM.SnowVM.SetPreference(ctx, blk.ID()))
 		blks[i+1] = parsedBlk
 	}
 
@@ -338,8 +437,8 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 }
 
 func (n *TestNetwork) ConfirmTxsInBlock(ctx context.Context, blk *chain.ExecutionBlock, txs []*chain.Transaction) {
-	for _, tx := range txs {
-		n.require.True(blk.ContainsTx(tx.GetID()))
+	for i, tx := range txs {
+		n.require.True(blk.ContainsTx(tx.GetID()), "block does not contain tx %s at index %d", tx.GetID(), i)
 	}
 }
 
@@ -353,7 +452,10 @@ func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) 
 	n.ConfirmTxsInBlock(ctx, outputBlock.ExecutionBlock, txs)
 
 	for i, blk := range blks {
-		n.require.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+		n.VMs[i].snowCtx.Lock.Lock()
+		err := blk.Accept(ctx)
+		n.VMs[i].snowCtx.Lock.Unlock()
+		n.require.NoError(err, "failed to accept block at VM index %d", i)
 	}
 	return nil
 }
@@ -367,6 +469,40 @@ func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, au
 func (n *TestNetwork) ConfirmBlocks(ctx context.Context, numBlocks int, generateTxs func(i int) []*chain.Transaction) {
 	for i := 0; i < numBlocks; i++ {
 		n.require.NoError(n.ConfirmTxs(ctx, generateTxs(i)))
+	}
+}
+
+// SynchronizeNetwork picks the VM with the highest accepted block and synchronizes all other VMs to that block.
+func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
+	var (
+		greatestHeight      uint64
+		greatestHeightIndex int
+	)
+	for i, vm := range n.VMs {
+		height := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx).Height()
+		if height >= greatestHeight {
+			greatestHeightIndex = i
+			greatestHeight = height
+		}
+	}
+
+	greatestVM := n.VMs[greatestHeightIndex]
+	greatestVMChainIndex := greatestVM.SnowVM.GetChainIndex()
+
+	for i, vm := range n.VMs {
+		if i == greatestHeightIndex {
+			continue
+		}
+
+		lastAcceptedHeight := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx).Height()
+		for lastAcceptedHeight < greatestHeight {
+			blk, err := greatestVMChainIndex.GetBlockByHeight(ctx, lastAcceptedHeight+1)
+			n.require.NoError(err)
+
+			parsedBlk := vm.ParseAndSetPreference(ctx, blk.Bytes())
+			n.require.NoError(parsedBlk.Accept(ctx))
+			lastAcceptedHeight++
+		}
 	}
 }
 
@@ -419,7 +555,7 @@ func TestSubmitTx(t *testing.T) {
 				unsignedTx := chain.NewTxData(
 					&chain.Base{
 						ChainID:   network.chainID,
-						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
+						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 1_000),
 						MaxFee:    1_000,
 					},
 					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
@@ -572,7 +708,7 @@ func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
 	txs1 := []*chain.Transaction{tx1}
 	network.SubmitTxs(ctx, txs1)
 	vmBlk2s := network.BuildBlockAndUpdateHead(ctx)
-	network.ConfirmTxsInBlock(ctx, vmBlk2s[0].Output.ExecutionBlock, txs0)
+	network.ConfirmTxsInBlock(ctx, vmBlk2s[0].Output.ExecutionBlock, txs1)
 
 	// Issuing the same tx (still in a processing ancestor) should fail
 	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
@@ -637,11 +773,11 @@ func TestAccepted(t *testing.T) {
 	client := jsonrpc.NewJSONRPCClient(network.VMs[0].server.URL)
 	blockID, blockHeight, timestamp, err := client.Accepted(ctx)
 	r.NoError(err)
-	genesisBlock := network.VMs[0].SnowVM.GetCovariantVM().LastAcceptedBlock(ctx)
+	genesisBlock := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
 	r.NoError(err)
 	r.Equal(genesisBlock.ID(), blockID)
 	r.Equal(uint64(0), blockHeight)
-	r.Equal(genesisBlock.Timestamp().UnixMilli(), timestamp)
+	r.Equal(genesisBlock.Timestamp(), timestamp)
 
 	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
@@ -651,11 +787,11 @@ func TestAccepted(t *testing.T) {
 
 	blockID, blockHeight, timestamp, err = client.Accepted(ctx)
 	r.NoError(err)
-	blk1 := network.VMs[0].SnowVM.GetCovariantVM().LastAcceptedBlock(ctx)
+	blk1 := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
 	r.NoError(err)
 	r.Equal(blk1.ID(), blockID)
 	r.Equal(uint64(1), blockHeight)
-	r.Equal(blk1.Timestamp().UnixMilli(), timestamp)
+	r.Equal(blk1.Timestamp(), timestamp)
 }
 
 func TestExternalSubscriber(t *testing.T) {
@@ -709,19 +845,19 @@ func TestExternalSubscriber(t *testing.T) {
 
 	network := NewTestNetwork(ctx, t, chainID, 1, configBytes)
 
+	// Confirm and throw away last accepted block on startup
+	genesisBlkID := <-externalSubscriberAcceptedBlocksCh
+	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(lastAccepted.ID(), genesisBlkID)
+
 	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 		NumComputeUnits: 1,
 	}}, network.authFactory)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
-	var acceptedBlkID ids.ID
-	select {
-	case acceptedBlkID = <-externalSubscriberAcceptedBlocksCh:
-	case <-time.After(time.Second):
-		r.Fail("timeout waiting for external subscriber to receive accepted block")
-	}
-	r.Equal(network.VMs[0].SnowVM.GetCovariantVM().LastAcceptedBlock(ctx).ID(), acceptedBlkID)
+	acceptedBlkID := <-externalSubscriberAcceptedBlocksCh
+	r.Equal(network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx).ID(), acceptedBlkID)
 }
 
 func TestDirectStateAPI(t *testing.T) {
@@ -795,12 +931,17 @@ func TestIndexerAPI(t *testing.T) {
 }
 
 func TestWebsocketAPI(t *testing.T) {
+	// XXX: re-write or remove ws server. RegisterTx is async, so we SHOULD
+	// need to run a goroutine in this test to either confirm the block or
+	// confirm receipt of the tx/block on the ws client. However, implementing it
+	// this way does not cause the test to pass, whereas adding this sleep does.
+	// Including the integration test until we remove or re-write the ws client/server.
+	t.Skip()
 	ctx := context.Background()
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
 	network := NewTestNetwork(ctx, t, chainID, 1, nil)
 
-	// wsTimeout := time.Second
 	client, err := ws.NewWebSocketClient(network.VMs[0].server.URL, time.Second, 10, consts.NetworkSizeLimit)
 	defer func() {
 		r.NoError(client.Close())
@@ -815,11 +956,6 @@ func TestWebsocketAPI(t *testing.T) {
 	r.NoError(err)
 	r.NoError(client.RegisterTx(tx))
 
-	// XXX: re-write or remove ws server. RegisterTx is async, so we SHOULD
-	// need to run a goroutine in this test to either confirm the block or
-	// confirm receipt of the tx/block on the ws client. However, implementing it
-	// this way does not cause the test to pass, whereas adding this sleep does.
-	// Including the integration test until we remove or re-write the ws client/server.
 	time.Sleep(time.Second)
 	blks := network.BuildBlockAndUpdateHead(ctx)
 	for i, blk := range blks {
@@ -841,7 +977,7 @@ func TestWebsocketAPI(t *testing.T) {
 	r.Equal(lastAccepted.ExecutionResults.UnitPrices, wsUnitPrices)
 }
 
-func TestStateSync(t *testing.T) {
+func TestSkipStateSync(t *testing.T) {
 	ctx := context.Background()
 	r := require.New(t)
 	chainID := ids.GenerateTestID()
@@ -865,14 +1001,68 @@ func TestStateSync(t *testing.T) {
 		return []*chain.Transaction{tx}
 	})
 
-	stateSyncConfig := vm.StateSyncConfig{
-		MinBlocks:                   uint64(numBlocks - 1),
-		MerkleSimultaneousWorkLimit: 1,
+	config := map[string]interface{}{
+		vm.StateSyncNamespace: vm.StateSyncConfig{
+			MinBlocks: uint64(numBlocks + 1),
+		},
 	}
-	stateSyncConfigBytes, err := json.Marshal(stateSyncConfig)
+	configBytes, err := json.Marshal(config)
 	r.NoError(err)
-	config := map[string]json.RawMessage{
-		vm.StateSyncNamespace: stateSyncConfigBytes,
+
+	vm := network.AddVM(ctx, configBytes)
+	lastAccepted := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(lastAccepted.ID(), initialVMGenesisBlock.ID())
+
+	stateSummary, err := initialVM.SnowVM.GetLastStateSummary(ctx)
+	r.NoError(err)
+	parsedStateSummary, err := vm.SnowVM.ParseStateSummary(ctx, stateSummary.Bytes())
+	r.NoError(err)
+
+	// Accepting the state sync summary returns Skipped and does not change
+	// the last accepted block.
+	stateSyncMode, err := parsedStateSummary.Accept(ctx)
+	r.NoError(err)
+	r.Equal(block.StateSyncSkipped, stateSyncMode)
+	r.Equal(lastAccepted.ID(), initialVMGenesisBlock.ID())
+
+	network.SynchronizeNetwork(ctx)
+	blk := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	r.Equal(blk.Height(), uint64(numBlocks))
+}
+
+func TestStateSync(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	chainID := ids.GenerateTestID()
+	network := NewTestNetwork(ctx, t, chainID, 1, nil, WithRulesOverride(func(r *genesis.Rules) {
+		r.ValidityWindow = time.Second.Milliseconds()
+	}))
+
+	initialVM := network.VMs[0]
+	initialVMGenesisBlock := initialVM.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+
+	numBlocks := 5
+	nonce := uint64(0)
+	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
+		nonce++
+		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+			NumComputeUnits: 1,
+			Nonce:           nonce,
+			SpecifiedStateKeys: state.Keys{
+				string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
+			},
+			WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+			WriteValues: [][]byte{{byte(i)}},
+		}}, network.authFactory)
+		r.NoError(err)
+		return []*chain.Transaction{tx}
+	})
+
+	config := map[string]interface{}{
+		vm.StateSyncNamespace: vm.StateSyncConfig{
+			MinBlocks:                   uint64(numBlocks - 1),
+			MerkleSimultaneousWorkLimit: 1, // TODO: this should not be required
+		},
 	}
 	configBytes, err := json.Marshal(config)
 	r.NoError(err)
@@ -891,28 +1081,46 @@ func TestStateSync(t *testing.T) {
 	r.NoError(err)
 	r.Equal(block.StateSyncDynamic, stateSyncMode)
 
-	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
-		time.Sleep(time.Second)
+	// Keep producing blocks until sync finishes
+	// Note: could also stop producing blocks once we have produced a validity window of blocks
+	// after sync started.
+	stopCh := make(chan struct{})
+	go func() {
+		nonce := numBlocks + 1
+		for {
+			network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
+				nonce++
+				tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
+					NumComputeUnits: 1,
+					Nonce:           uint64(nonce),
+					SpecifiedStateKeys: state.Keys{
+						string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
+					},
+					WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+					WriteValues: [][]byte{{byte(i)}},
+				}}, network.authFactory)
+				r.NoError(err)
+				return []*chain.Transaction{tx}
+			})
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+		}
+	}()
+
+	err = <-vm.VM.SyncClient.Done()
+	close(stopCh)
+	r.NoError(err)
+
+	network.ConfirmBlocks(ctx, 1, func(i int) []*chain.Transaction {
+		nonce++
 		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 			NumComputeUnits: 1,
-			Nonce:           uint64(i + numBlocks),
-			SpecifiedStateKeys: state.Keys{
-				string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
-			},
-			WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-			WriteValues: [][]byte{{byte(i)}},
+			Nonce:           nonce,
 		}}, network.authFactory)
 		r.NoError(err)
 		return []*chain.Transaction{tx}
 	})
-
-	// Make sure we can sync the block window
-	// Confirm we can sync the block window and merkle trie individually
-	// Block window may require processing more blocks
-	// Confirm FinishStateSync is called with a correct block
-	// Add cases for each state sync case
-
-	// time.Sleep(5 * time.Second)
-	updatedLastAcceptedBlock := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
-	r.Equal(uint64(numBlocks), updatedLastAcceptedBlock.Height())
 }

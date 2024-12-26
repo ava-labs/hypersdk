@@ -295,11 +295,6 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 }
 
 // implements "statesync.StateSummaryBlock"
-func (b *StatefulBlock[I, O, A]) AcceptSyncTarget(ctx context.Context) error {
-	return event.NotifyAll[I](ctx, b.Input, b.vm.app.PreReadyAcceptedSubs...)
-}
-
-// implements "statesync.StateSummaryBlock"
 func (b *StatefulBlock[I, O, A]) GetStateRoot() ids.ID { return b.Input.GetStateRoot() }
 
 // implements "snowman.Block.choices.Decidable"

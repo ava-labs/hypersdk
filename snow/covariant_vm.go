@@ -150,3 +150,47 @@ func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, start
 func (v *CovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) *StatefulBlock[I, O, A] {
 	return v.lastAcceptedBlock
 }
+
+type InputCovariantVM[I Block, O Block, A Block] struct {
+	*CovariantVM[I, O, A]
+}
+
+func (v *InputCovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
+	blk, err := v.covariantVM.GetBlock(ctx, blkID)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
+}
+
+func (v *InputCovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+	blk, err := v.covariantVM.GetBlockByHeight(ctx, height)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
+}
+
+func (v *InputCovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
+	blk, err := v.covariantVM.ParseBlock(ctx, bytes)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
+}
+
+func (v *InputCovariantVM[I, O, A]) BuildBlock(ctx context.Context) (I, error) {
+	blk, err := v.covariantVM.BuildBlock(ctx)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
+}
+
+func (v *InputCovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) I {
+	return v.covariantVM.LastAcceptedBlock(ctx).Input
+}

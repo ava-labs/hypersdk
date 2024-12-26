@@ -18,7 +18,10 @@ func (a *Application[I, O, A]) WithStateSyncableVM(stateSyncableVM block.StateSy
 
 // StartStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
 // in DynamicStateSync mode until FinishStateSync is called.
-func (v *VM[I, O, A]) StartStateSync(ctx context.Context) error {
+func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
+	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
+		return err
+	}
 	v.app.Ready.MarkNotReady()
 	return nil
 }

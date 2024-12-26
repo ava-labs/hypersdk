@@ -6,6 +6,7 @@ package statesync
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -33,10 +34,12 @@ type Client[T StateSummaryBlock] struct {
 	chain         ChainClient[T]
 	db            database.Database
 	syncers       []Syncer[T]
-	onStart       func(context.Context) error
+	onStart       func(context.Context, T) error
 	onFinish      func(context.Context) error
 	minBlocks     uint64
 	mustStateSync bool
+
+	done chan error
 }
 
 func NewAggregateClient[T StateSummaryBlock](
@@ -44,7 +47,7 @@ func NewAggregateClient[T StateSummaryBlock](
 	chain ChainClient[T],
 	db database.Database,
 	syncers []Syncer[T],
-	onStart func(context.Context) error,
+	onStart func(context.Context, T) error,
 	onFinish func(context.Context) error,
 	minBlocks uint64,
 ) (*Client[T], error) {
@@ -56,6 +59,7 @@ func NewAggregateClient[T StateSummaryBlock](
 		minBlocks: minBlocks,
 		onStart:   onStart,
 		onFinish:  onFinish,
+		done:      make(chan error, 1),
 	}
 	var err error
 	c.mustStateSync, err = c.GetDiskIsSyncing()
@@ -96,53 +100,83 @@ func (c *Client[T]) Accept(
 	return block.StateSyncDynamic, c.startDynamicStateSync(ctx, target)
 }
 
+func (c *Client[T]) finish(ctx context.Context, err error) {
+	if err != nil {
+		c.log.Error("state sync failed", zap.Error(err))
+		c.done <- err
+		close(c.done)
+		return
+	}
+
+	c.log.Info("state sync completed")
+	if c.onFinish != nil {
+		if err := c.onFinish(ctx); err != nil {
+			c.log.Error("state sync finish failed", zap.Error(err))
+			c.done <- err
+			close(c.done)
+			return
+		}
+	}
+
+	if err := c.PutDiskIsSyncing(false); err != nil {
+		c.log.Error("failed to mark state sync as complete", zap.Error(err))
+		c.done <- err
+		close(c.done)
+		return
+	}
+	c.log.Info("state sync finished and marked itself complete")
+	c.done <- nil
+	close(c.done)
+}
+
+func (c *Client[T]) Done() <-chan error {
+	return c.done
+}
+
 func (c *Client[T]) startDynamicStateSync(ctx context.Context, target T) error {
+	if err := c.PutDiskIsSyncing(true); err != nil {
+		return err
+	}
+
+	c.log.Info("Starting state sync", zap.Stringer("target", target))
 	if c.onStart != nil {
-		if err := c.onStart(ctx); err != nil {
+		if err := c.onStart(ctx, target); err != nil {
+			c.finish(ctx, err)
 			return err
 		}
 	}
+	c.log.Info("Starting state syncer(s)", zap.Int("numSyncers", len(c.syncers)))
 	for _, syncer := range c.syncers {
 		if err := syncer.Start(ctx, target); err != nil {
+			c.finish(ctx, err)
 			return err
 		}
 	}
 
-	c.log.Info("Starting state syncer(s)", zap.Int("numSyncers", len(c.syncers)))
+	c.log.Info("Kicking off state sync awaiter(s)", zap.Int("numSyncers", len(c.syncers)))
 	awaitCtx := context.WithoutCancel(ctx)
 	eg, egCtx := errgroup.WithContext(awaitCtx)
 	for _, syncer := range c.syncers {
 		eg.Go(func() error {
-			return syncer.Wait(egCtx)
+			if err := syncer.Wait(egCtx); err != nil {
+				return fmt.Errorf("state syncer %T failed: %w", syncer, err)
+			}
+			return nil
 		})
 	}
 	go func() {
-		c.log.Info("Waiting for state syncers to complete")
+		c.log.Info("Waiting for state syncer(s) to complete", zap.Int("numSyncers", len(c.syncers)))
 		err := eg.Wait()
-		if err != nil {
-			c.log.Error("state sync failed", zap.Error(err))
-			panic(err)
-		}
-
-		c.log.Info("state sync completed")
-		if c.onFinish != nil {
-			if err := c.onFinish(ctx); err != nil {
-				c.log.Error("state sync finish failed", zap.Error(err))
-				return
-			}
-		}
-
-		if err := c.PutDiskIsSyncing(false); err != nil {
-			c.log.Error("failed to mark state sync as complete", zap.Error(err))
-			return
-		}
-		c.log.Info("state sync finished and marked itself complete")
+		c.log.Info("State syncer(s) completed", zap.Error(err))
+		c.finish(context.WithoutCancel(ctx), err)
+		c.log.Info("State sync completed")
 	}()
 
 	return nil
 }
 
 func (c *Client[T]) UpdateSyncTarget(ctx context.Context, target T) error {
+	c.log.Info("Updating state sync target", zap.Stringer("target", target))
 	for _, syncer := range c.syncers {
 		if err := syncer.UpdateSyncTarget(ctx, target); err != nil {
 			return err

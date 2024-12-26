@@ -39,6 +39,10 @@ func (a *Application[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
 	return a.vm.covariantVM
 }
 
+func (a *Application[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
+	return &InputCovariantVM[I, O, A]{a.vm.covariantVM}
+}
+
 func (a *Application[I, O, A]) WithAcceptedSub(sub ...event.Subscription[A]) {
 	a.AcceptedSubs = append(a.AcceptedSubs, sub...)
 }
@@ -82,8 +86,8 @@ func (a *Application[I, O, A]) WithNormalOpStarted(onNormalOpStartedF ...func(co
 // StartStateSync notifies the VM to enter DynamicStateSync mode.
 // The caller is responsible to eventually call FinishStateSync with a fully populated
 // last accepted state.
-func (a *Application[I, O, A]) StartStateSync(ctx context.Context) error {
-	return a.vm.StartStateSync(ctx)
+func (a *Application[I, O, A]) StartStateSync(ctx context.Context, block I) error {
+	return a.vm.StartStateSync(ctx, block)
 }
 
 // FinishStateSync completes dynamic state sync mode and sets the last accepted block to

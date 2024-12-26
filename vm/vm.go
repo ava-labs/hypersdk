@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 
 	avatrace "github.com/ava-labs/avalanchego/trace"
@@ -82,6 +83,7 @@ type VM struct {
 	chain                   *chain.Chain
 	chainTimeValidityWindow chain.ValidityWindow
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
+	SyncClient              *statesync.Client[*chain.ExecutionBlock]
 
 	chainIndex *hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 	chainStore *chainstore.ChainStore[*chain.ExecutionBlock]
@@ -356,13 +358,6 @@ func (vm *VM) Initialize(
 		return nil, err
 	}
 
-	// Initialize the syncer with the last accepted block
-	snowApp.WithStateSyncStarted(func(ctx context.Context) error {
-		lastAccepted := vm.chainIndex.GetLastAccepted(ctx)
-		_, err := vm.syncer.Accept(ctx, lastAccepted.ExecutionBlock)
-		return err
-	})
-
 	snowApp.WithNormalOpStarted(func(ctx context.Context) error {
 		go vm.builder.Run()
 		go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
@@ -416,17 +411,17 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get state height: %w", err)
 	}
 	stateHeight, err := database.ParseUInt64(heightBytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse state height: %w", err)
 	}
 	// We should always have the block at the height matching the state height
 	// because we always keep the chain store tip >= state tip.
 	blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get block corresponding to latest state height %d: %w", stateHeight, err)
 	}
 	return &chain.OutputBlock{
 		ExecutionBlock: blk,

@@ -9,9 +9,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hcontext "github.com/ava-labs/hypersdk/context"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
-	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 )
@@ -34,8 +34,8 @@ func NewDefaultStateSyncConfig() StateSyncConfig {
 	}
 }
 
-func (v validityWindowAdapter) Accept(ctx context.Context, blk *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]) (bool, error) {
-	return v.Syncer.Accept(ctx, blk.Input)
+func (v validityWindowAdapter) Accept(ctx context.Context, blk *chain.ExecutionBlock) (bool, error) {
+	return v.Syncer.Accept(ctx, blk)
 }
 
 func (vm *VM) initStateSync(ctx context.Context) error {
@@ -60,9 +60,9 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
-	// blockWindowSyncer := statesync.NewBlockWindowSyncer[*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]](validityWindowAdapter{vm.syncer})
+	blockWindowSyncer := statesync.NewBlockWindowSyncer[*chain.ExecutionBlock](validityWindowAdapter{vm.syncer})
 
-	merkleSyncer, err := statesync.NewMerkleSyncer[*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]](
+	merkleSyncer, err := statesync.NewMerkleSyncer[*chain.ExecutionBlock](
 		vm.snowCtx.Log,
 		vm.stateDB,
 		vm.network,
@@ -71,6 +71,19 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		vm.genesis.GetStateBranchFactor(),
 		stateSyncConfig.MerkleSimultaneousWorkLimit,
 		stateSyncRegistry,
+	)
+	if err != nil {
+		return err
+	}
+	// If we accept an initial target of height N and terminate at the same height,
+	// then due to deferred root verification, we will actually have the state for block N-1 and
+	// not have the block at height N-1. Therefore, we require an offset of 1 to guarantee we have
+	// the block of the merkle trie root we are syncing to.
+	// XXX: this could be easily solved if the block window syncer fetched the greater of 1 block
+	// prior to the initial target or a validity window of blocks from the final target.
+	offsetMerkleSyncer, err := statesync.NewMerkleOffsetAdapter[*chain.ExecutionBlock](
+		1,
+		merkleSyncer,
 	)
 	if err != nil {
 		return err
@@ -88,14 +101,14 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		return nil
 	})
 
-	covariantVM := vm.snowApp.GetCovariantVM()
-	client, err := statesync.NewAggregateClient[*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]](
+	inputCovariantVM := vm.snowApp.GetInputCovariantVM()
+	client, err := statesync.NewAggregateClient[*chain.ExecutionBlock](
 		vm.snowCtx.Log,
-		covariantVM,
+		inputCovariantVM,
 		syncerDB,
-		[]statesync.Syncer[*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]]{
-			// blockWindowSyncer,
-			merkleSyncer,
+		[]statesync.Syncer[*chain.ExecutionBlock]{
+			blockWindowSyncer,
+			offsetMerkleSyncer,
 		},
 		vm.snowApp.StartStateSync,
 		func(ctx context.Context) error {
@@ -103,14 +116,23 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to extract latest output block while finishing state sync: %w", err)
 			}
-			return vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock, outputBlock)
+			if err := vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock, outputBlock); err != nil {
+				return err
+			}
+			return nil
 		},
 		stateSyncConfig.MinBlocks,
 	)
 	if err != nil {
 		return err
 	}
-	server := statesync.NewServer[*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]](vm.snowCtx.Log, covariantVM)
+	vm.snowApp.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
+		NotifyF: func(_ context.Context, b *chain.ExecutionBlock) error {
+			return client.UpdateSyncTarget(ctx, b)
+		},
+	})
+	vm.SyncClient = client
+	server := statesync.NewServer[*chain.ExecutionBlock](vm.snowCtx.Log, inputCovariantVM)
 	stateSyncableVM := statesync.NewStateSyncableVM(client, server)
 	vm.snowApp.WithStateSyncableVM(stateSyncableVM)
 	return nil
