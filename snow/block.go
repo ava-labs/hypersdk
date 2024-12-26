@@ -294,9 +294,6 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	return b.notifyAccepted(ctx)
 }
 
-// implements "statesync.StateSummaryBlock"
-func (b *StatefulBlock[I, O, A]) GetStateRoot() ids.ID { return b.Input.GetStateRoot() }
-
 // implements "snowman.Block.choices.Decidable"
 func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")
@@ -314,18 +311,6 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	return event.NotifyAll[O](ctx, b.Output, b.vm.app.RejectedSubs...)
 }
 
-// Testing
-func (b *StatefulBlock[I, O, A]) MarkUnprocessed() {
-	var (
-		emptyOutput   O
-		emptyAccepted A
-	)
-	b.Output = emptyOutput
-	b.verified = false
-	b.Accepted = emptyAccepted
-	b.accepted = false
-}
-
 // implements "snowman.Block"
 func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.Parent() }
 
@@ -340,6 +325,3 @@ func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.Bytes() }
 
 // implements "snowman.Block"
 func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
-
-// implements "fmt.Stringer"
-func (b *StatefulBlock[I, O, A]) String() string { return b.Input.String() }

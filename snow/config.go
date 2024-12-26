@@ -4,7 +4,6 @@
 package snow
 
 import (
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/context"
 )
@@ -29,10 +28,6 @@ func NewDefaultVMConfig() VMConfig {
 
 func GetVMConfig(ctx *context.Context) (VMConfig, error) {
 	return context.GetConfigFromContext(ctx, VMConfigKey, NewDefaultVMConfig())
-}
-
-func GetTraceConfig(ctx *context.Context) (trace.Config, error) {
-	return context.GetConfigFromContext(ctx, TracerConfigKey, trace.Config{Enabled: false})
 }
 
 func GetProfilerConfig(ctx *context.Context) (profiler.Config, error) {

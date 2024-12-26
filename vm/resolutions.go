@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
@@ -20,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
-	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
@@ -31,8 +29,7 @@ import (
 )
 
 var (
-	_ gossiper.ValidatorSet = (*VM)(nil)
-	// _ snow.ConcreteVM[*chain.ExecutionBlock, *chain.ExecutedBlock, *chain.ExecutedBlock] = (*VM)(nil)
+	_ gossiper.ValidatorSet                         = (*VM)(nil)
 	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
 )
 
@@ -172,30 +169,6 @@ func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
 	return errs[0]
 }
 
-func (vm *VM) RecordStateChanges(c int) {
-	vm.metrics.stateChanges.Add(float64(c))
-}
-
-func (vm *VM) RecordStateOperations(c int) {
-	vm.metrics.stateOperations.Add(float64(c))
-}
-
-func (vm *VM) GetVerifyAuth() bool {
-	return vm.config.VerifyAuth
-}
-
-func (vm *VM) RecordBuildCapped() {
-	vm.metrics.buildCapped.Inc()
-}
-
-func (vm *VM) GetTargetGossipDuration() time.Duration {
-	return vm.config.TargetGossipDuration
-}
-
-func (vm *VM) RecordEmptyBlockBuilt() {
-	vm.metrics.emptyBlockBuilt.Inc()
-}
-
 func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
 	bv, ok := vm.authEngine[authTypeID]
 	if !ok {
@@ -212,32 +185,12 @@ func (vm *VM) cacheAuth(auth chain.Auth) {
 	bv.Cache(auth)
 }
 
-func (vm *VM) RecordBlockVerify(t time.Duration) {
-	vm.metrics.blockVerify.Observe(float64(t))
-}
-
-func (vm *VM) RecordBlockAccept(t time.Duration) {
-	vm.metrics.blockAccept.Observe(float64(t))
-}
-
-func (vm *VM) RecordClearedMempool() {
-	vm.metrics.clearedMempool.Inc()
-}
-
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
 	return internalfees.NewManager(v).UnitPrices(), nil
-}
-
-func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
-	return vm.metrics.executorBuildRecorder
-}
-
-func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
-	return vm.metrics.executorVerifyRecorder
 }
 
 func (vm *VM) GetDataDir() string {
