@@ -29,7 +29,7 @@ To confirm, you can run:
 go version
 ```
 
-And you should see the ouptut (slightly different depending on your machine):
+And you should see the output (slightly different depending on your machine):
 
 ```
 go version go1.22.8 darwin/arm64
@@ -230,7 +230,7 @@ handles those other prefixes.
 
 What prefix do we use though? Since we're using a default layout, we can use
 `metadata.DefaultMinimumPrefix` (i.e. the lowest prefix available to us). By
-using this prefix (or anything greater than it), we avoid any state colisions
+using this prefix (or anything greater than it), we avoid any state collisions
 with the HyperSDK. Using any prefix less than `metadata.DefaultMinimumPrefix`
 may result in a state collision that could break your VM!
 

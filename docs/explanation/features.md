@@ -384,7 +384,7 @@ developer may wish to manage state objects (for the Path-Based Merkelized Radix
 Tree) on-disk but use S3 to store blocks and PostgreSQL to store transaction metadata.
 
 ## Continuous Block Production
-`hypervms` produce blocks continuously (even if empty). `hypervms` produce produce empty blocks
+`hypervms` produce blocks continuously (even if empty). `hypervms` produce empty blocks
 only after `MinEmptyBlockGap` has passed. This improves the "worst case" AWM verification cost (AWM verification
 requires creating a reverse diff to the last referenced P-Chain block), prevents a fallback to leaderless
 block production (which can lead to more rejected blocks), and avoids a prolonged post-bootstrap

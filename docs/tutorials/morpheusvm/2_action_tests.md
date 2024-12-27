@@ -35,7 +35,7 @@ Going over the fields of `ActionTest`:
 - `State`: the underlying storage at the time of execution
 - `Timestamp`: the time of execution
 - `Actor`: the account executing the action
-- `ActionID`: a unique identifier associated with the action (similiar to TX ID)
+- `ActionID`: a unique identifier associated with the action (similar to TX ID)
 - `ExpectedOutputs`: the output that executing `Action` should produce
 - `ExpectedErr`: the error that executing `Action` should produce
 - `Assertion`: a lambda function that the user can pass in to mainly check for
