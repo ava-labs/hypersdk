@@ -48,9 +48,6 @@ const (
 	syncerDB  = "syncerdb"
 	vmDataDir = "vm"
 
-	MaxAcceptorSize        = 256
-	MinAcceptedBlockWindow = 1024
-
 	changeProofHandlerID = 0x0
 	rangeProofHandlerID  = 0x1
 	txGossipHandlerID    = 0x2
@@ -263,15 +260,6 @@ func (vm *VM) Initialize(
 		vm.authVerifiers.Stop()
 		return nil
 	})
-
-	acceptorSize := vm.config.AcceptorSize
-	if acceptorSize > MaxAcceptorSize {
-		return nil, fmt.Errorf("AcceptorSize (%d) must be <= MaxAcceptorSize (%d)", acceptorSize, MaxAcceptorSize)
-	}
-	acceptedBlockWindow := vm.config.AcceptedBlockWindow
-	if acceptedBlockWindow < MinAcceptedBlockWindow {
-		return nil, fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
-	}
 
 	// Set defaults
 	options := &Options{}
@@ -633,7 +621,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx, vm.config.VerifyAuth); err != nil {
+		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
 			errs = append(errs, err)
 			continue
 		}

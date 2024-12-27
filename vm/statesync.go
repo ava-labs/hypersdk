@@ -30,7 +30,7 @@ type StateSyncConfig struct {
 func NewDefaultStateSyncConfig() StateSyncConfig {
 	return StateSyncConfig{
 		MerkleSimultaneousWorkLimit: 4,
-		MinBlocks:                   768,
+		MinBlocks:                   512,
 	}
 }
 

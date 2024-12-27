@@ -101,9 +101,8 @@ func (c *Chain) PreExecute(
 	parentBlk *ExecutionBlock,
 	view state.View,
 	tx *Transaction,
-	verifyAuth bool,
 ) error {
-	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx, verifyAuth)
+	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx)
 }
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {

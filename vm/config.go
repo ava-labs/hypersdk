@@ -14,22 +14,15 @@ import (
 
 type Config struct {
 	MempoolSize                      int                        `json:"mempoolSize"`
-	AuthVerificationCores            int                        `json:"authVerificationCores"`
-	VerifyAuth                       bool                       `json:"verifyAuth"`
-	RootGenerationCores              int                        `json:"rootGenerationCores"`
 	MempoolSponsorSize               int                        `json:"mempoolSponsorSize"`
+	AuthVerificationCores            int                        `json:"authVerificationCores"`
+	RootGenerationCores              int                        `json:"rootGenerationCores"`
 	StateHistoryLength               int                        `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
 	IntermediateNodeCacheSize        int                        `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
 	StateIntermediateWriteBufferSize int                        `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
 	StateIntermediateWriteBatchSize  int                        `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
 	ValueNodeCacheSize               int                        `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
-	AcceptorSize                     int                        `json:"acceptorSize"`                     // how far back we can fall in processing accepted blocks
-	ParsedBlockCacheSize             int                        `json:"parsedBlockCacheSize"`
-	AcceptedBlockWindow              int                        `json:"acceptedBlockWindow"`
-	AcceptedBlockWindowCache         int                        `json:"acceptedBlockWindowCache"`
-	ProcessingBuildSkip              int                        `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
-	BlockCompactionFrequency         int                        `json:"blockCompactionFrequency"`
 	ChainConfig                      chain.Config               `json:"executionConfig"`
 	ServiceConfig                    map[string]json.RawMessage `json:"services"` // Config of service namespace -> raw service config
 }
@@ -37,22 +30,15 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		MempoolSize:                      2_048,
-		AuthVerificationCores:            1,
-		VerifyAuth:                       true,
-		RootGenerationCores:              1,
+		AuthVerificationCores:            2,
+		RootGenerationCores:              2,
 		MempoolSponsorSize:               32,
 		StateHistoryLength:               256,
 		IntermediateNodeCacheSize:        4 * units.GiB,
 		StateIntermediateWriteBufferSize: 32 * units.MiB,
 		StateIntermediateWriteBatchSize:  4 * units.MiB,
 		ValueNodeCacheSize:               2 * units.GiB,
-		AcceptorSize:                     64,
-		ParsedBlockCacheSize:             128,
-		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
-		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks
-		ProcessingBuildSkip:              16,
 		TargetGossipDuration:             20 * time.Millisecond,
-		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks
 		ChainConfig:                      chain.NewDefaultConfig(),
 	}
 }
