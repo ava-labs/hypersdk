@@ -36,7 +36,6 @@ var (
 var (
 	errParseInvalidBlock   = errors.New("parsed invalid block")
 	errExecuteInvalidBlock = errors.New("executed invalid block")
-	errBlockNotFound       = errors.New("block not found")
 )
 
 const blockStringerF = "(ParentID = %s, Timestamp = %d, Height = %d, RandomData = %x, Invalid = %t)"
