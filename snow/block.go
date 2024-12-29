@@ -325,3 +325,6 @@ func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.Bytes() }
 
 // implements "snowman.Block"
 func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
+
+// implements "fmt.Stringer"
+func (b *StatefulBlock[I, O, A]) String() string { return b.Input.String() }
