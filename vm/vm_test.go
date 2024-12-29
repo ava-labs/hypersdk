@@ -92,6 +92,7 @@ func NewTestVM(
 	options := defaultvm.NewDefaultOptions()
 	options = append(options, vm.WithManual())
 	vm, err := vm.New(
+		version.Semantic1_0_0,
 		genesis.DefaultGenesisFactory{},
 		balance.NewPrefixBalanceHandler([]byte{0}),
 		metadata.NewDefaultManager(),
