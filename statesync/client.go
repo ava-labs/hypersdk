@@ -69,9 +69,9 @@ func NewAggregateClient[T StateSummaryBlock](
 	return c, nil
 }
 
-func (c *Client[T]) StateSyncEnabled(context.Context) (bool, error) { return true, nil }
+func (*Client[T]) StateSyncEnabled(context.Context) (bool, error) { return true, nil }
 
-func (c *Client[T]) GetOngoingSyncStateSummary(context.Context) (block.StateSummary, error) {
+func (*Client[T]) GetOngoingSyncStateSummary(context.Context) (block.StateSummary, error) {
 	return nil, database.ErrNotFound
 }
 

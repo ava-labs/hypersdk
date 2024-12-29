@@ -8,16 +8,17 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"time"
-
 	"math/rand"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/consts"
-	hcontext "github.com/ava-labs/hypersdk/context"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/consts"
+
+	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
 const namespace = "chainstore"
@@ -42,9 +43,9 @@ func NewDefaultConfig() Config {
 }
 
 // ChainStore provides a persistent store that maps:
-// blockHeight -> blockBytes
-// blockID -> blockHeight
-// blockHeight -> blockID
+// height -> bytes
+// height -> ID
+// ID -> height
 // TODO: add metrics / span tracing
 type ChainStore[T Block] struct {
 	config  Config
@@ -136,7 +137,7 @@ func (c *ChainStore[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 		expired = true
 		c.metrics.deletedBlocks.Inc()
 	}
-	if expired && rand.Intn(c.config.BlockCompactionAverageFrequency) == 0 {
+	if expired && rand.Intn(c.config.BlockCompactionAverageFrequency) == 0 { //nolint:G404
 		go func() {
 			start := time.Now()
 			if err := c.db.Compact([]byte{blockPrefix}, PrefixBlockKey(expiryHeight)); err != nil {

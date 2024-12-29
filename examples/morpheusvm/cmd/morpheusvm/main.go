@@ -15,8 +15,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/cmd/morpheusvm/version"
-	mvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/snow"
+
+	mvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 )
 
 var rootCmd = &cobra.Command{

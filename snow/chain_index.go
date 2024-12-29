@@ -114,7 +114,6 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 	return blk.Output, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetLastAccepted(ctx context.Context) A {
+func (c *ChainIndex[I, O, A]) GetLastAccepted(context.Context) A {
 	return c.covariantVM.lastAcceptedBlock.Accepted
 }
-

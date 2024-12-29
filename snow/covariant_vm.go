@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -81,6 +83,11 @@ func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*S
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
+	start := time.Now()
+	defer func() {
+		v.metrics.blockParse.Observe(float64(time.Since(start)))
+	}()
+
 	blkID := utils.ToID(bytes)
 	if existingBlk, err := v.GetBlock(ctx, blkID); err == nil {
 		return existingBlk, nil
@@ -100,6 +107,11 @@ func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*S
 func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		v.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
 
 	preferredBlk, err := v.GetBlock(ctx, v.preferredBlkID)
 	if err != nil {

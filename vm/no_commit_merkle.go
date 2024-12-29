@@ -16,4 +16,4 @@ type MerkleDBWithNoopCommit struct {
 	merkledb.MerkleDB
 }
 
-func (m MerkleDBWithNoopCommit) CommitToDB(context.Context) error { return nil }
+func (MerkleDBWithNoopCommit) CommitToDB(context.Context) error { return nil }

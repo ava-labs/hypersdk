@@ -36,4 +36,3 @@ func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
 	}
 	return defaultConfig, nil
 }
-

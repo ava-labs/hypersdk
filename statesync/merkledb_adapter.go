@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	stdlibsync "sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -16,9 +15,9 @@ import (
 	"github.com/ava-labs/avalanchego/x/sync"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-)
 
-const namespace = "merklesyncer"
+	stdlibsync "sync"
+)
 
 var _ Syncer[MerkleSyncerBlock] = (*MerkleSyncer[MerkleSyncerBlock])(nil)
 
@@ -114,11 +113,16 @@ func NewMerkleOffsetAdapter[T MerkleSyncerBlock](
 }
 
 func (m *MerkleOffsetAdapter[T]) Start(ctx context.Context, target T) error {
-	return nil
+	return m.UpdateSyncTarget(ctx, target)
 }
 
 func (m *MerkleOffsetAdapter[T]) Wait(ctx context.Context) error {
-	return <-m.errCh
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("failed to await merkle offset syncer: %w", ctx.Err())
+	case err := <-m.errCh:
+		return err
+	}
 }
 
 func (m *MerkleOffsetAdapter[T]) Close() error {
@@ -126,8 +130,7 @@ func (m *MerkleOffsetAdapter[T]) Close() error {
 	if m.merkleSyncer == nil {
 		return nil
 	}
-	m.merkleSyncer.Close()
-	return nil
+	return m.merkleSyncer.Close()
 }
 
 func (m *MerkleOffsetAdapter[T]) delayedStart(ctx context.Context, target T) error {

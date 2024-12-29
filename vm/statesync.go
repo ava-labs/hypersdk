@@ -8,12 +8,13 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
-	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
+
+	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
 const StateSyncNamespace = "statesync"

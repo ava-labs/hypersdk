@@ -272,7 +272,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 		return b.notifyAccepted(ctx)
 	}
 
-	// If I haven't verified myself, then I need to verify myself before before
+	// If I haven't verified myself, then I need to verify myself before
 	// accepting myself.
 	// if I am ready and haven't been verified, then I need to verify myself.
 	// Note: I don't need to verify/accept my parent because my parent was already

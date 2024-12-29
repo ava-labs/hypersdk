@@ -27,19 +27,19 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
-	hsnow "github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 
 	avatrace "github.com/ava-labs/avalanchego/trace"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
+	hsnow "github.com/ava-labs/hypersdk/snow"
 )
 
 const (
@@ -160,6 +160,9 @@ func (vm *VM) Initialize(
 	vm.snowInput = chainInput
 	vm.snowApp = snowApp
 	vmRegistry, err := chainInput.Context.MakeRegistry("hypervm")
+	if err != nil {
+		return nil, err
+	}
 	metrics, err := newMetrics(vmRegistry)
 	if err != nil {
 		return nil, err
@@ -278,10 +281,9 @@ func (vm *VM) Initialize(
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
 	snowApp.WithAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+		NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
 			vm.chainTimeValidityWindow.Accept(b)
 			return nil
-
 		},
 	})
 	registerer := prometheus.NewRegistry()
@@ -306,7 +308,7 @@ func (vm *VM) Initialize(
 		return nil, err
 	}
 	snowApp.WithVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+		NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
 			vm.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
 			return nil
 		},
@@ -325,7 +327,7 @@ func (vm *VM) Initialize(
 
 	// Initialize the chain index before starting the syncer/builder/gossiper
 	// which will each read from the chain index
-	if err := vm.initChainStore(ctx); err != nil {
+	if err := vm.initChainStore(); err != nil {
 		return nil, err
 	}
 	lastAccepted, err := vm.initLastAccepted(ctx)
@@ -343,7 +345,7 @@ func (vm *VM) Initialize(
 		return nil, err
 	}
 
-	snowApp.WithNormalOpStarted(func(ctx context.Context) error {
+	snowApp.WithNormalOpStarted(func(_ context.Context) error {
 		go vm.builder.Run()
 		go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
 		return nil
@@ -361,7 +363,7 @@ func (vm *VM) Initialize(
 	return vm.chainStore, nil
 }
 
-func (vm *VM) initChainStore(ctx context.Context) error {
+func (vm *VM) initChainStore() error {
 	blockDBRegistry := prometheus.NewRegistry()
 	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
 		return fmt.Errorf("failed to register blockdb metrics: %w", err)
@@ -588,7 +590,7 @@ func (vm *VM) Execute(ctx context.Context, parent *chain.OutputBlock, block *cha
 	return vm.chain.Execute(ctx, parent, block)
 }
 
-func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
+func (*VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
 	if err := block.View.CommitToDB(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit state for block %s: %w", block, err)
 	}

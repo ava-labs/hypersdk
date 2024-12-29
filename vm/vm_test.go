@@ -15,7 +15,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	avasnow "github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -25,9 +24,10 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm/grpcutils"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	stateapi "github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -41,7 +41,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/keys"
-	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
@@ -50,7 +49,10 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/vm/defaultvm"
-	"github.com/stretchr/testify/require"
+
+	avasnow "github.com/ava-labs/avalanchego/snow"
+	stateapi "github.com/ava-labs/hypersdk/api/state"
+	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 
 var _ workload.TestNetwork = (*TestNetwork)(nil)
@@ -440,8 +442,6 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 	blkBytes := blk.Bytes()
 	for i, otherVM := range n.VMs[1:] {
 		parsedBlk := otherVM.ParseAndSetPreference(ctx, blkBytes)
-		parsedBlk, err := otherVM.SnowVM.GetCovariantVM().ParseBlock(ctx, blk.Bytes())
-		n.require.NoError(err)
 		n.require.Equal(blk.ID(), parsedBlk.ID())
 		blks[i+1] = parsedBlk
 	}

@@ -177,14 +177,6 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) cacheAuth(auth chain.Auth) {
-	bv, ok := vm.authEngine[auth.GetTypeID()]
-	if !ok {
-		return
-	}
-	bv.Cache(auth)
-}
-
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {

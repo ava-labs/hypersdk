@@ -9,11 +9,10 @@ import (
 )
 
 type Metrics struct {
-	blockBuild   metric.Averager
-	blockParse   metric.Averager
-	blockVerify  metric.Averager
-	blockAccept  metric.Averager
-	blockProcess metric.Averager
+	blockBuild  metric.Averager
+	blockParse  metric.Averager
+	blockVerify metric.Averager
+	blockAccept metric.Averager
 }
 
 func newMetrics(r *prometheus.Registry) (*Metrics, error) {

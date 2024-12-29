@@ -23,7 +23,7 @@ var (
 	_ state.Mutable = (*InMemoryStore)(nil)
 )
 
-var TestActionExecuteErr = errors.New("test action execute error")
+var errTestActionExecute = errors.New("test action execute error")
 
 type TestAction struct {
 	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
@@ -35,7 +35,7 @@ type TestAction struct {
 	Nonce              uint64     `serialize:"true" json:"nonce"`
 }
 
-func (t *TestAction) GetTypeID() uint8 {
+func (*TestAction) GetTypeID() uint8 {
 	return 0
 }
 
@@ -49,7 +49,7 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 
 func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	if t.ExecuteErr {
-		return nil, TestActionExecuteErr
+		return nil, errTestActionExecute
 	}
 	for _, key := range t.ReadKeys {
 		if _, err := state.GetValue(ctx, key); err != nil {

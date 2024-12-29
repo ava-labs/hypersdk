@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/lifecycle"
 )
@@ -91,7 +92,7 @@ func (a *Application[I, O, A]) StartStateSync(ctx context.Context, block I) erro
 }
 
 // FinishStateSync completes dynamic state sync mode and sets the last accepted block to
-// the given input/ouput/accepted value.
+// the given input/output/accepted value.
 func (a *Application[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
 	return a.vm.FinishStateSync(ctx, input, output, accepted)
 }

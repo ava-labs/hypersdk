@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/api/health"
-	avacache "github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -22,10 +21,13 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
-	hcontext "github.com/ava-labs/hypersdk/context"
+
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/lifecycle"
+
+	avacache "github.com/ava-labs/avalanchego/cache"
+	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
 var (
@@ -105,7 +107,7 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 		chain: chain,
 		app: Application[I, O, A]{
 			Version: "v0.0.1",
-			HealthChecker: health.CheckerFunc(func(ctx context.Context) (interface{}, error) {
+			HealthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
 				return nil, nil
 			}),
 			Ready:        lifecycle.NewAtomicBoolReady(true),
@@ -120,12 +122,12 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 func (v *VM[I, O, A]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
-	db database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
 	toEngine chan<- common.Message,
-	fxs []*common.Fx,
+	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
 	v.snowCtx = chainCtx
@@ -254,7 +256,7 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return v.covariantVM.BuildBlock(ctx)
 }
 
-func (v *VM[I, O, A]) SetPreference(ctx context.Context, blkID ids.ID) error {
+func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	v.preferredBlkID = blkID
 	return nil
 }
@@ -300,7 +302,7 @@ func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
 	return v.app.HealthChecker.HealthCheck(ctx)
 }
 
-func (v *VM[I, O, A]) CreateHandlers(ctx context.Context) (map[string]http.Handler, error) {
+func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return v.app.Handlers, nil
 }
 

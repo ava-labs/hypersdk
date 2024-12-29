@@ -47,7 +47,7 @@ func (b *BlockWindowSyncer[T]) Wait(ctx context.Context) error {
 	}
 }
 
-func (b *BlockWindowSyncer[T]) Close() error {
+func (*BlockWindowSyncer[T]) Close() error {
 	return nil
 }
 

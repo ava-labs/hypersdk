@@ -5,6 +5,7 @@ package snow
 
 import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
+
 	"github.com/ava-labs/hypersdk/context"
 )
 
