@@ -44,8 +44,8 @@ func NewDefaultConfig() Config {
 
 // ChainStore provides a persistent store that maps:
 // height -> bytes
-// height -> ID
 // ID -> height
+// height -> ID
 // TODO: add metrics / span tracing
 type ChainStore[T Block] struct {
 	config  Config
@@ -137,7 +137,7 @@ func (c *ChainStore[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 		expired = true
 		c.metrics.deletedBlocks.Inc()
 	}
-	//nolint:G404
+	//nolint:gosec
 	if expired && rand.Intn(c.config.BlockCompactionAverageFrequency) == 0 {
 		go func() {
 			start := time.Now()

@@ -914,8 +914,7 @@ func FuzzSnowVM(f *testing.F) {
 
 		randSource := int64(0)
 		fz.Fill(&randSource)
-		//nolint:G404
-		rand := rand.New(rand.NewSource(randSource))
+		rand := rand.New(rand.NewSource(randSource)) //nolint:gosec
 
 		ctx := context.Background()
 		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})
