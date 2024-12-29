@@ -220,7 +220,7 @@ type TestConsensusEngine struct {
 }
 
 func NewTestConsensusEngine(t *testing.T, initLastAcceptedBlock *TestBlock) *TestConsensusEngine {
-	rand := rand.New(rand.NewSource(0)) //nolint:G404
+	rand := rand.New(rand.NewSource(0)) //nolint:gosec
 	return NewTestConsensusEngineWithRand(t, rand, initLastAcceptedBlock)
 }
 
