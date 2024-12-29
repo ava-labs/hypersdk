@@ -1120,7 +1120,9 @@ func TestStateSync(t *testing.T) {
 	// Note: could also stop producing blocks once we have produced a validity window of blocks
 	// after sync started.
 	stopCh := make(chan struct{})
+	stoppedCh := make(chan struct{})
 	go func() {
+		defer close(stoppedCh)
 		nonce := numBlocks + 1
 		for {
 			network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
@@ -1152,6 +1154,7 @@ func TestStateSync(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		r.FailNow("timed out waiting for state sync to finish")
 	}
+	<-stoppedCh
 
 	network.ConfirmBlocks(ctx, 1, func(int) []*chain.Transaction {
 		nonce++
