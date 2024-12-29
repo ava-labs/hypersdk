@@ -43,9 +43,9 @@ func NewDefaultConfig() Config {
 }
 
 // ChainStore provides a persistent store that maps:
+// height -> ID
 // height -> bytes
 // ID -> height
-// height -> ID
 // TODO: add metrics / span tracing
 type ChainStore[T Block] struct {
 	config  Config
