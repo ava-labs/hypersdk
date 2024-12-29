@@ -351,8 +351,8 @@ func (vm *VM) Initialize(
 	}
 
 	snowApp.WithNormalOpStarted(func(_ context.Context) error {
-		go vm.builder.Run()
-		go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
+		vm.builder.Start()
+		vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
 		return nil
 	})
 
