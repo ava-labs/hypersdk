@@ -182,7 +182,7 @@ func (g *Target[T]) Force(ctx context.Context) error {
 
 			txs = append(txs, next)
 			size += txSize
-			return true, false, nil
+			return true, true, nil
 		},
 	)
 	if mempoolErr != nil {
