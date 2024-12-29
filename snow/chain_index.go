@@ -44,7 +44,7 @@ func (v *VM[I, O, A]) MakeChainIndex(
 		}
 	} else {
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
-		v.app.Ready.MarkNotReady()
+		v.MarkReady(false)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	v.chainIndex = &ChainIndex[I, O, A]{

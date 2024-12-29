@@ -24,7 +24,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
-	"github.com/ava-labs/hypersdk/lifecycle"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	hcontext "github.com/ava-labs/hypersdk/context"
@@ -96,6 +95,9 @@ type VM[I Block, O Block, A Block] struct {
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
 
+	readyL sync.RWMutex
+	ready  bool
+
 	metrics *Metrics
 	log     logging.Logger
 	tracer  trace.Tracer
@@ -111,7 +113,6 @@ func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
 			HealthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
 				return nil, nil
 			}),
-			Ready:        lifecycle.NewAtomicBoolReady(true),
 			Handlers:     make(map[string]http.Handler),
 			AcceptedSubs: make([]event.Subscription[A], 0),
 		},
@@ -319,4 +320,17 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {
 	return v.app.Version, nil
+}
+
+func (v *VM[I, O, A]) Ready() bool {
+	v.readyL.RLock()
+	defer v.readyL.RUnlock()
+
+	return v.ready
+}
+
+func (v *VM[I, O, A]) MarkReady(ready bool) {
+	v.readyL.Lock()
+	defer v.readyL.Unlock()
+	v.ready = ready
 }

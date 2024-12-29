@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/lifecycle"
 )
 
 type Application[I Block, O Block, A Block] struct {
@@ -25,7 +24,6 @@ type Application[I Block, O Block, A Block] struct {
 	StateSyncableVM block.StateSyncableVM
 	Closers         []func() error
 
-	Ready                    *lifecycle.AtomicBoolReady
 	OnStateSyncStarted       []func(context.Context) error
 	OnBootstrapStarted       []func(context.Context) error
 	OnNormalOperationStarted []func(context.Context) error

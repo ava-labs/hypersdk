@@ -22,7 +22,9 @@ func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
 	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
 		return err
 	}
-	v.app.Ready.MarkNotReady()
+	v.readyL.Lock()
+	v.ready = false
+	v.readyL.Unlock()
 	return nil
 }
 
@@ -34,14 +36,14 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	defer v.snowCtx.Lock.Unlock()
 
 	// Cannot call FinishStateSync if already marked as ready and in normal operation
-	if v.app.Ready.Ready() {
+	if v.Ready() {
 		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
 	// If the block is already the last accepted block, update the fields and return
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
-		v.app.Ready.MarkReady()
+		v.MarkReady(true)
 		return nil
 	}
 
@@ -67,7 +69,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		parent = reprocessBlk
 	}
 
-	v.app.Ready.MarkReady()
+	v.MarkReady(true)
 	return nil
 }
 

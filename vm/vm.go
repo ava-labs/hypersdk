@@ -319,17 +319,6 @@ func (vm *VM) Initialize(
 		},
 	})
 
-	if err := vm.network.AddHandler(
-		txGossipHandlerID,
-		gossiper.NewTxGossipHandler(
-			vm.snowApp.Ready,
-			vm.snowCtx.Log,
-			vm.gossiper,
-		),
-	); err != nil {
-		return nil, err
-	}
-
 	// Initialize the chain index before starting the syncer/builder/gossiper
 	// which will each read from the chain index
 	if err := vm.initChainStore(); err != nil {
@@ -353,6 +342,17 @@ func (vm *VM) Initialize(
 	snowApp.WithNormalOpStarted(func(_ context.Context) error {
 		vm.builder.Start()
 		vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
+
+		if err := vm.network.AddHandler(
+			txGossipHandlerID,
+			gossiper.NewTxGossipHandler(
+				vm.snowCtx.Log,
+				vm.gossiper,
+			),
+		); err != nil {
+			return fmt.Errorf("failed to add tx gossip handler: %w", err)
+		}
+
 		return nil
 	})
 
