@@ -56,13 +56,13 @@ type TestBlock struct {
 	acceptedPopulated bool
 }
 
-func NewTestBlockFromParent(parent *TestBlock, randomData []byte) *TestBlock {
+func NewTestBlockFromParent(parent *TestBlock) *TestBlock {
 	return &TestBlock{
 		PrntID:     parent.ID(),
 		Tmstmp:     parent.Timestamp() + 1,
 		Hght:       parent.Height() + 1,
 		Root:       parent.GetStateRoot(),
-		RandomData: randomData,
+		RandomData: utils.RandomBytes(32),
 	}
 }
 
@@ -110,7 +110,6 @@ type TestChain struct {
 	t                     *testing.T
 	require               *require.Assertions
 	initLastAcceptedBlock *TestBlock
-	getRandData           func() []byte
 
 	acceptedBlocks         map[ids.ID]*TestBlock
 	acceptedBlocksByHeight map[uint64]*TestBlock
@@ -119,13 +118,11 @@ type TestChain struct {
 func NewTestChain(
 	t *testing.T,
 	require *require.Assertions,
-	getRandData func() []byte,
 	initLastAcceptedBlock *TestBlock,
 ) *TestChain {
 	return &TestChain{
 		t:                      t,
 		require:                require,
-		getRandData:            getRandData,
 		initLastAcceptedBlock:  initLastAcceptedBlock,
 		acceptedBlocks:         make(map[ids.ID]*TestBlock),
 		acceptedBlocksByHeight: make(map[uint64]*TestBlock),
@@ -151,9 +148,9 @@ func (t *TestChain) Initialize(
 	return chainStore, nil
 }
 
-func (t *TestChain) BuildBlock(ctx context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
+func (t *TestChain) BuildBlock(_ context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
 	t.require.True(parent.outputPopulated)
-	builtBlock := NewTestBlockFromParent(parent, t.getRandData())
+	builtBlock := NewTestBlockFromParent(parent)
 	builtBlock.outputPopulated = true
 	return builtBlock, builtBlock, nil
 }
@@ -223,19 +220,14 @@ type TestConsensusEngine struct {
 }
 
 func NewTestConsensusEngine(t *testing.T, initLastAcceptedBlock *TestBlock) *TestConsensusEngine {
-	return NewTestConsensusEngineWithRand(t, rand.New(rand.NewSource(0)), initLastAcceptedBlock)
+	rand := rand.New(rand.NewSource(0)) //nolint:G404
+	return NewTestConsensusEngineWithRand(t, rand, initLastAcceptedBlock)
 }
 
 func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAcceptedBlock *TestBlock) *TestConsensusEngine {
 	r := require.New(t)
 	ctx := context.Background()
-	getRandData := func() []byte {
-		data := make([]byte, 32)
-		_, err := rand.Read(data)
-		r.NoError(err)
-		return data
-	}
-	chain := NewTestChain(t, r, getRandData, initLastAcceptedBlock)
+	chain := NewTestChain(t, r, initLastAcceptedBlock)
 	vm := NewVM(chain)
 	toEngine := make(chan common.Message, 1)
 	ce := &TestConsensusEngine{
@@ -397,7 +389,7 @@ func (ce *TestConsensusEngine) ParseFutureBlock(ctx context.Context) {
 }
 
 func (ce *TestConsensusEngine) ParseAndVerifyNewBlock(ctx context.Context, parent *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) *StatefulBlock[*TestBlock, *TestBlock, *TestBlock] {
-	newBlk := NewTestBlockFromParent(parent.Input, ce.chain.getRandData())
+	newBlk := NewTestBlockFromParent(parent.Input)
 	parsedBlk, err := ce.vm.covariantVM.ParseBlock(ctx, newBlk.Bytes())
 	ce.require.NoError(err)
 	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
@@ -433,7 +425,7 @@ func (ce *TestConsensusEngine) ParseAndVerifyInvalidBlock(ctx context.Context) {
 		blk = ce.lastAccepted
 	}
 
-	newBlk := NewTestBlockFromParent(blk.Input, ce.chain.getRandData())
+	newBlk := NewTestBlockFromParent(blk.Input)
 	newBlk.Invalid = true
 	parsedBlk, err := ce.vm.ParseBlock(ctx, newBlk.Bytes())
 	ce.require.NoError(err)
@@ -619,10 +611,10 @@ func TestParseAndAcceptBlock(t *testing.T) {
 	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
 	ce.require.Equal(uint64(1), blk1.Height())
 
-	old, new, changed := ce.SetPreference(ctx, blk1.ID())
+	oldPref, newPref, changed := ce.SetPreference(ctx, blk1.ID())
 	ce.require.True(changed)
-	ce.require.Equal(ce.lastAccepted, old)
-	ce.require.Equal(blk1, new)
+	ce.require.Equal(ce.lastAccepted, oldPref)
+	ce.require.Equal(blk1, newPref)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
 	ce.require.True(ok)
@@ -640,19 +632,19 @@ func TestParseAndAcceptChain(t *testing.T) {
 	blk1 := ce.ParseAndVerifyNewRandomBlock(ctx)
 	ce.require.Equal(uint64(1), blk1.Height())
 
-	old, new, changed := ce.SetPreference(ctx, blk1.ID())
+	oldPref, newPref, changed := ce.SetPreference(ctx, blk1.ID())
 	ce.require.True(changed)
-	ce.require.Equal(blk0, old)
-	ce.require.Equal(blk1, new)
+	ce.require.Equal(blk0, oldPref)
+	ce.require.Equal(blk1, newPref)
 	ce.require.Equal(uint64(1), ce.preferred.Height())
 
 	blk2 := ce.ParseAndVerifyNewRandomBlock(ctx)
 	ce.require.Equal(uint64(2), blk2.Height())
 
-	old, new, changed = ce.SetPreference(ctx, blk2.ID())
+	oldPref, newPref, changed = ce.SetPreference(ctx, blk2.ID())
 	ce.require.True(changed)
-	ce.require.Equal(blk1, old)
-	ce.require.Equal(blk2, new)
+	ce.require.Equal(blk1, oldPref)
+	ce.require.Equal(blk2, newPref)
 
 	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
 	ce.require.True(ok)
@@ -858,7 +850,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t 
 
 	parent := ce.lastAccepted
 	// Parse and verify an invalid block
-	invalidTestBlock := NewTestBlockFromParent(parent.Input, ce.chain.getRandData())
+	invalidTestBlock := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock.Invalid = true
 
 	parsedBlk, err := ce.vm.covariantVM.ParseBlock(ctx, invalidTestBlock.Bytes())
@@ -867,7 +859,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t 
 
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
-	invalidatedChildTestBlock := NewTestBlockFromParent(invalidTestBlock, []byte{})
+	invalidatedChildTestBlock := NewTestBlockFromParent(invalidTestBlock)
 	invalidatedChildBlock, err := ce.vm.covariantVM.ParseBlock(ctx, invalidatedChildTestBlock.Bytes())
 	ce.require.NoError(err)
 
@@ -922,7 +914,8 @@ func FuzzSnowVM(f *testing.F) {
 
 		randSource := int64(0)
 		fz.Fill(&randSource)
-		rand := rand.New(rand.NewSource(randSource)) //nolint:G404
+		//nolint:G404
+		rand := rand.New(rand.NewSource(randSource))
 
 		ctx := context.Background()
 		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})

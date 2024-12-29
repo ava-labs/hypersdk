@@ -449,7 +449,7 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 	return blks
 }
 
-func (n *TestNetwork) ConfirmTxsInBlock(ctx context.Context, blk *chain.ExecutionBlock, txs []*chain.Transaction) {
+func (n *TestNetwork) ConfirmTxsInBlock(_ context.Context, blk *chain.ExecutionBlock, txs []*chain.Transaction) {
 	for i, tx := range txs {
 		n.require.True(blk.ContainsTx(tx.GetID()), "block does not contain tx %s at index %d", tx.GetID(), i)
 	}
@@ -1152,7 +1152,7 @@ func TestStateSync(t *testing.T) {
 		r.FailNow("timed out waiting for state sync to finish")
 	}
 
-	network.ConfirmBlocks(ctx, 1, func(i int) []*chain.Transaction {
+	network.ConfirmBlocks(ctx, 1, func(int) []*chain.Transaction {
 		nonce++
 		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
 			NumComputeUnits: 1,

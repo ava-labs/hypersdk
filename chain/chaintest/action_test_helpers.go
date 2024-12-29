@@ -67,13 +67,13 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 	return &TestOutput{}, nil
 }
 
-func (t *TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
+func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
 	return -1, -1
 }
 
 type TestOutput struct{}
 
-func (t *TestOutput) GetTypeID() uint8 {
+func (*TestOutput) GetTypeID() uint8 {
 	return 0
 }
 

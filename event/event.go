@@ -26,16 +26,10 @@ type Subscription[T any] interface {
 	Close() error
 }
 
-type SubscriptionFuncFactory[T any] struct {
-	NotifyF func(ctx context.Context, t T) error
-	Closer  func() error
-}
+type SubscriptionFuncFactory[T any] SubscriptionFunc[T]
 
 func (s SubscriptionFuncFactory[T]) New() (Subscription[T], error) {
-	return SubscriptionFunc[T]{
-		NotifyF: s.NotifyF,
-		Closer:  s.Closer,
-	}, nil
+	return SubscriptionFunc[T](s), nil
 }
 
 type SubscriptionFunc[T any] struct {

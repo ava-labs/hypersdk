@@ -137,7 +137,8 @@ func (c *ChainStore[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 		expired = true
 		c.metrics.deletedBlocks.Inc()
 	}
-	if expired && rand.Intn(c.config.BlockCompactionAverageFrequency) == 0 { //nolint:G404
+	//nolint:G404
+	if expired && rand.Intn(c.config.BlockCompactionAverageFrequency) == 0 {
 		go func() {
 			start := time.Now()
 			if err := c.db.Compact([]byte{blockPrefix}, PrefixBlockKey(expiryHeight)); err != nil {

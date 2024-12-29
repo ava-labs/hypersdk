@@ -159,7 +159,7 @@ func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, start
 	return blkRange, nil
 }
 
-func (v *CovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) *StatefulBlock[I, O, A] {
+func (v *CovariantVM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
 	return v.lastAcceptedBlock
 }
 

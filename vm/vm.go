@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -64,6 +65,7 @@ var (
 )
 
 type VM struct {
+	version   *version.Semantic
 	snowInput hsnow.ChainInput
 	snowApp   *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 
@@ -112,6 +114,7 @@ type VM struct {
 }
 
 func New(
+	version *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
@@ -130,6 +133,7 @@ func New(
 	}
 
 	return &VM{
+		version:               version,
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		config:                NewConfig(),
@@ -149,6 +153,7 @@ func (vm *VM) Initialize(
 	makeChainIndex hsnow.MakeChainIndexFunc[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 ) (hsnow.BlockChainIndex[*chain.ExecutionBlock], error) {
+	snowApp.WithVersion(vm.version.String())
 	var (
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
