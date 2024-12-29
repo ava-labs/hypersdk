@@ -77,8 +77,9 @@ type VM[I Block, O Block, A Block] struct {
 
 	snowCtx *snow.Context
 
-	vmConfig VMConfig
 	hctx     *hcontext.Context
+	vmConfig VMConfig
+
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]
 

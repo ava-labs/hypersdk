@@ -17,7 +17,7 @@ type Metrics struct {
 
 func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 	blockBuild, err := metric.NewAverager(
-		"chain_block_build",
+		"snow_block_build",
 		"time spent building blocks",
 		r,
 	)
@@ -25,7 +25,7 @@ func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 		return nil, err
 	}
 	blockParse, err := metric.NewAverager(
-		"chain_block_parse",
+		"snow_block_parse",
 		"time spent parsing blocks",
 		r,
 	)
@@ -33,7 +33,7 @@ func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 		return nil, err
 	}
 	blockVerify, err := metric.NewAverager(
-		"chain_block_verify",
+		"snow_block_verify",
 		"time spent verifying blocks",
 		r,
 	)
@@ -41,7 +41,7 @@ func newMetrics(r *prometheus.Registry) (*Metrics, error) {
 		return nil, err
 	}
 	blockAccept, err := metric.NewAverager(
-		"chain_block_accept",
+		"snow_block_accept",
 		"time spent accepting blocks",
 		r,
 	)

@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+// CovariantVM is implemented as a convenience type because Go does not
+// support covariant types.
 type CovariantVM[I Block, O Block, A Block] struct {
 	*VM[I, O, A]
 }

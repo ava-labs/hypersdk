@@ -39,13 +39,14 @@ var (
 	errBlockNotFound       = errors.New("block not found")
 )
 
-const blockStringerF = "(ParentID = %s, Timestamp = %d, StateRoot = %d, Height = %d, RandomData = %x, Invalid = %t)"
+const blockStringerF = "(ParentID = %s, Timestamp = %d, Height = %d, RandomData = %x, Invalid = %t)"
 
 type TestBlock struct {
-	PrntID     ids.ID `json:"parentID"`
-	Tmstmp     int64  `json:"timestamp"`
-	Root       ids.ID `json:"stateRoot"`
-	Hght       uint64 `json:"height"`
+	PrntID ids.ID `json:"parentID"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
+	// RandomData is used to uniquify blocks given there's no state or application data
+	// included in the tests otherwise.
 	RandomData []byte `json:"randomData"`
 
 	// Invalid marks a block that should return an error during execution.
@@ -61,7 +62,6 @@ func NewTestBlockFromParent(parent *TestBlock) *TestBlock {
 		PrntID:     parent.ID(),
 		Tmstmp:     parent.Timestamp() + 1,
 		Hght:       parent.Height() + 1,
-		Root:       parent.GetStateRoot(),
 		RandomData: utils.RandomBytes(32),
 	}
 }
@@ -86,16 +86,12 @@ func (t *TestBlock) Bytes() []byte {
 	return b
 }
 
-func (t *TestBlock) GetStateRoot() ids.ID {
-	return t.Root
-}
-
 func (t *TestBlock) Height() uint64 {
 	return t.Hght
 }
 
 func (t *TestBlock) String() string {
-	return fmt.Sprintf(blockStringerF, t.PrntID, t.Tmstmp, t.Root, t.Hght, t.RandomData, t.Invalid)
+	return fmt.Sprintf(blockStringerF, t.PrntID, t.Tmstmp, t.Hght, t.RandomData, t.Invalid)
 }
 
 func NewTestBlockFromBytes(b []byte) (*TestBlock, error) {
@@ -110,9 +106,6 @@ type TestChain struct {
 	t                     *testing.T
 	require               *require.Assertions
 	initLastAcceptedBlock *TestBlock
-
-	acceptedBlocks         map[ids.ID]*TestBlock
-	acceptedBlocksByHeight map[uint64]*TestBlock
 }
 
 func NewTestChain(
@@ -121,11 +114,9 @@ func NewTestChain(
 	initLastAcceptedBlock *TestBlock,
 ) *TestChain {
 	return &TestChain{
-		t:                      t,
-		require:                require,
-		initLastAcceptedBlock:  initLastAcceptedBlock,
-		acceptedBlocks:         make(map[ids.ID]*TestBlock),
-		acceptedBlocksByHeight: make(map[uint64]*TestBlock),
+		t:                     t,
+		require:               require,
+		initLastAcceptedBlock: initLastAcceptedBlock,
 	}
 }
 
@@ -179,30 +170,11 @@ func (t *TestChain) AcceptBlock(_ context.Context, acceptedParent *TestBlock, ve
 	t.require.True(acceptedParent.acceptedPopulated)
 	t.require.True(verifiedBlock.outputPopulated)
 
-	t.acceptedBlocks[verifiedBlock.ID()] = verifiedBlock
-	t.acceptedBlocksByHeight[verifiedBlock.Height()] = verifiedBlock
-
 	// The block should only be accepted once
 	t.require.False(verifiedBlock.acceptedPopulated)
 	verifiedBlock.acceptedPopulated = true
 
 	return verifiedBlock, nil
-}
-
-func (t *TestChain) GetBlock(_ context.Context, blkID ids.ID) (*TestBlock, error) {
-	blk, ok := t.acceptedBlocks[blkID]
-	if !ok {
-		return nil, errBlockNotFound
-	}
-	return blk, nil
-}
-
-func (t *TestChain) GetBlockIDAtHeight(_ context.Context, blkHeight uint64) (ids.ID, error) {
-	blk, ok := t.acceptedBlocksByHeight[blkHeight]
-	if !ok {
-		return ids.ID{}, errBlockNotFound
-	}
-	return blk.ID(), nil
 }
 
 type TestConsensusEngine struct {
@@ -281,6 +253,13 @@ func (ce *TestConsensusEngine) verifyValidBlock(ctx context.Context, blk *Statef
 		ce.children[blk.Parent()] = children
 	}
 	children.Add(blk.ID())
+}
+
+func (ce *TestConsensusEngine) selectRandomVerifiedBlock() (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
+	for _, blk := range ce.verified {
+		return blk, true
+	}
+	return nil, false
 }
 
 // getLastAcceptedToBlk returns the chain of blocks in the range (lastAcceptedBlk, blk]
@@ -517,6 +496,7 @@ type step int
 const (
 	buildBlock step = iota
 	acceptPreferredChain
+	getAcceptedBlock
 	parseInvalidBlockBytes
 	parseFutureBlock
 	parseAndVerifyNewRandomBlock
@@ -526,7 +506,6 @@ const (
 	acceptNonPreferredBlock
 	getVerifiedBlock
 	getLastAcceptedBlock
-	getAcceptedBlock
 )
 
 func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
@@ -535,6 +514,8 @@ func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
 		ce.BuildBlock(ctx)
 	case acceptPreferredChain:
 		ce.AcceptPreferredChain(ctx)
+	case getAcceptedBlock:
+		ce.GetAcceptedBlock(ctx)
 	case parseInvalidBlockBytes:
 		ce.ParseInvalidBlockBytes(ctx)
 	case parseFutureBlock:
@@ -553,18 +534,9 @@ func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
 		ce.GetVerifiedBlock(ctx)
 	case getLastAcceptedBlock:
 		ce.GetLastAcceptedBlock(ctx)
-	case getAcceptedBlock:
-		ce.GetAcceptedBlock(ctx)
 	default:
 		// No such step, leave to fuzzer to realize this.
 	}
-}
-
-func (ce *TestConsensusEngine) selectRandomVerifiedBlock() (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
-	for _, blk := range ce.verified {
-		return blk, true
-	}
-	return nil, false
 }
 
 func TestBuildAndAcceptBlock(t *testing.T) {
@@ -653,7 +625,7 @@ func TestParseAndAcceptChain(t *testing.T) {
 	ce.require.Empty(ce.verified)
 }
 
-func TestBuild_ParseAndGet_Accept(t *testing.T) {
+func TestBuild_Parse_Get_Accept(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
@@ -757,7 +729,7 @@ func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 	ce.require.Equal(updatedAcceptedTip.ID(), blk2.ID())
 }
 
-func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
+func TestDynamicStateSyncTransition_PendingTree_AcceptSingleBlock(t *testing.T) {
 	ctx := context.Background()
 
 	// Create consensus engine in dynamic state sync mode.
@@ -776,7 +748,7 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptSingleBlock(t *testing.T) {
 	ce.require.Equal(acceptedTip.ID(), blk1.ID())
 }
 
-func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
+func TestDynamicStateSyncTransition_PendingTree_AcceptChain(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
@@ -798,7 +770,7 @@ func TestDynamicStateSyncTransition_PendingTreeAcceptChain(t *testing.T) {
 	ce.require.Equal(acceptedTip.ID(), blk2.ID())
 }
 
-func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
+func TestDynamicStateSyncTransition_PendingTree_VerifySingleBlock(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
@@ -819,7 +791,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifySingleBlock(t *testing.T) {
 	ce.require.Equal(acceptedTip.ID(), blk2.ID())
 }
 
-func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
+func TestDynamicStateSyncTransition_PendingTree_VerifyChain(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})
@@ -843,7 +815,7 @@ func TestDynamicStateSyncTransition_PendingTreeVerifyChain(t *testing.T) {
 	ce.require.Equal(acceptedTip.ID(), blk3.ID())
 }
 
-func TestDynamicStateSyncTransition_PendingTreeVerifyBlockWithInvalidAncestor(t *testing.T) {
+func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t *testing.T) {
 	ctx := context.Background()
 
 	ce := NewTestConsensusEngine(t, &TestBlock{})

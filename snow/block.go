@@ -25,7 +25,6 @@ type Block interface {
 	Parent() ids.ID
 	Timestamp() int64
 	Bytes() []byte
-	GetStateRoot() ids.ID
 	Height() uint64
 }
 
@@ -33,7 +32,7 @@ type Block interface {
 // and block pinning required by the AvalancheGo Consensus engine.
 // This converts the VM DevX from implementing the consensus engine specific invariants
 // to implementing an input/output/accepted block type and handling the state transitions
-// between these generic types.
+// between these types.
 // In conjunction with the AvalancheGo Consensus engine, this code guarantees that
 // 1. Verify is always called against a verified parent
 // 2. Accept is always called against a verified block
