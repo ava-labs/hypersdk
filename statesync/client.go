@@ -129,6 +129,10 @@ func (c *Client[T]) finish(ctx context.Context, err error) {
 	close(c.done)
 }
 
+func (c *Client[T]) MustStateSync() bool {
+	return c.mustStateSync
+}
+
 func (c *Client[T]) Done() <-chan error {
 	return c.done
 }

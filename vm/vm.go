@@ -313,21 +313,9 @@ func (vm *VM) Initialize(
 		},
 	})
 
-	// Initialize the chain index before starting the syncer/builder/gossiper
-	// which will each read from the chain index
 	if err := vm.initChainStore(); err != nil {
 		return nil, err
 	}
-	lastAccepted, err := vm.initLastAccepted(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// Switch away from true
-	chainIndex, err := makeChainIndex(ctx, vm.chainStore, lastAccepted, lastAccepted, true)
-	if err != nil {
-		return nil, err
-	}
-	vm.chainIndex = chainIndex
 
 	if err := vm.initStateSync(ctx); err != nil {
 		return nil, err
@@ -358,7 +346,24 @@ func (vm *VM) Initialize(
 		snowApp.WithHandler(api.Path, api.Handler)
 	}
 
-	// TODO: return false if we are mid state sync
+	// XXX: the VM requires access to the chainIndex returned by makeChainIndex. Passing a function that must be called this
+	// way is a bit awkward, but there's a bit of a chicken or egg problem to initialize it because it requires
+	// the last accepted block, ChainIndex, and flag indicating if the state is ready.
+	// One alternative is to separate Initialize into two functions where the extra function sets the chainIndex, but that's
+	// also rather awkward.
+	stateReady := !vm.SyncClient.MustStateSync()
+	var lastAccepted *chain.OutputBlock
+	if stateReady {
+		lastAccepted, err = vm.initLastAccepted(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	chainIndex, err := makeChainIndex(ctx, vm.chainStore, lastAccepted, lastAccepted, stateReady)
+	if err != nil {
+		return nil, err
+	}
+	vm.chainIndex = chainIndex
 	return vm.chainStore, nil
 }
 
