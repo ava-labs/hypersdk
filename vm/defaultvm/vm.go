@@ -66,7 +66,7 @@ func NewSnowVM(
 	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
-) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], error) {
+) (*snow.VM[*chain.ExecutionBlock, *chain.OutputBlock], error) {
 	options = append(options, NewDefaultOptions()...)
 	hyperVM, err := New(
 		genesisFactory,
@@ -82,5 +82,5 @@ func NewSnowVM(
 		return nil, err
 	}
 
-	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock](v.String(), hyperVM), nil
+	return snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock](v.String(), hyperVM), nil
 }

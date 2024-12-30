@@ -14,8 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
-type Application[I Block, O Block, A Block] struct {
-	vm *VM[I, O, A]
+type Application[I Block, O Block] struct {
+	vm *VM[I, O]
 
 	Version         string
 	Handlers        map[string]http.Handler
@@ -30,66 +30,66 @@ type Application[I Block, O Block, A Block] struct {
 
 	VerifiedSubs         []event.Subscription[O]
 	RejectedSubs         []event.Subscription[O]
-	AcceptedSubs         []event.Subscription[A]
+	AcceptedSubs         []event.Subscription[O]
 	PreReadyAcceptedSubs []event.Subscription[I]
 }
 
 // GetCovariantVM returns the VM implementation returning the wrapper around the generic types
-func (a *Application[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
+func (a *Application[I, O]) GetCovariantVM() *CovariantVM[I, O] {
 	return a.vm.covariantVM
 }
 
 // GetInputCovariantVM returns the VM implementation that returns the wrapper around the generic
 // types (instead of the snowman.Block type)
-func (a *Application[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
-	return &InputCovariantVM[I, O, A]{a.vm.covariantVM}
+func (a *Application[I, O]) GetInputCovariantVM() *InputCovariantVM[I, O] {
+	return &InputCovariantVM[I, O]{a.vm.covariantVM}
 }
 
-func (a *Application[I, O, A]) WithAcceptedSub(sub ...event.Subscription[A]) {
+func (a *Application[I, O]) WithAcceptedSub(sub ...event.Subscription[O]) {
 	a.AcceptedSubs = append(a.AcceptedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) WithRejectedSub(sub ...event.Subscription[O]) {
+func (a *Application[I, O]) WithRejectedSub(sub ...event.Subscription[O]) {
 	a.RejectedSubs = append(a.RejectedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) WithVerifiedSub(sub ...event.Subscription[O]) {
+func (a *Application[I, O]) WithVerifiedSub(sub ...event.Subscription[O]) {
 	a.VerifiedSubs = append(a.VerifiedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) WithPreReadyAcceptedSub(sub ...event.Subscription[I]) {
+func (a *Application[I, O]) WithPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	a.PreReadyAcceptedSubs = append(a.PreReadyAcceptedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) WithHandler(name string, handler http.Handler) {
+func (a *Application[I, O]) WithHandler(name string, handler http.Handler) {
 	a.Handlers[name] = handler
 }
 
-func (a *Application[I, O, A]) WithHealthChecker(healthChecker health.Checker) {
+func (a *Application[I, O]) WithHealthChecker(healthChecker health.Checker) {
 	a.HealthChecker = healthChecker
 }
 
-func (a *Application[I, O, A]) WithCloser(closer func() error) {
+func (a *Application[I, O]) WithCloser(closer func() error) {
 	a.Closers = append(a.Closers, closer)
 }
 
-func (a *Application[I, O, A]) WithStateSyncStarted(onStateSyncStarted ...func(context.Context) error) {
+func (a *Application[I, O]) WithStateSyncStarted(onStateSyncStarted ...func(context.Context) error) {
 	a.OnStateSyncStarted = append(a.OnStateSyncStarted, onStateSyncStarted...)
 }
 
-func (a *Application[I, O, A]) WithNormalOpStarted(onNormalOpStartedF ...func(context.Context) error) {
+func (a *Application[I, O]) WithNormalOpStarted(onNormalOpStartedF ...func(context.Context) error) {
 	a.OnNormalOperationStarted = append(a.OnNormalOperationStarted, onNormalOpStartedF...)
 }
 
 // StartStateSync notifies the VM to enter DynamicStateSync mode.
 // The caller is responsible to eventually call FinishStateSync with a fully populated
 // last accepted state.
-func (a *Application[I, O, A]) StartStateSync(ctx context.Context, block I) error {
+func (a *Application[I, O]) StartStateSync(ctx context.Context, block I) error {
 	return a.vm.StartStateSync(ctx, block)
 }
 
 // FinishStateSync completes dynamic state sync mode and sets the last accepted block to
 // the given input/output/accepted value.
-func (a *Application[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
-	return a.vm.FinishStateSync(ctx, input, output, accepted)
+func (a *Application[I, O]) FinishStateSync(ctx context.Context, input I, output O) error {
+	return a.vm.FinishStateSync(ctx, input, output)
 }

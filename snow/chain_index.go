@@ -25,13 +25,12 @@ type BlockChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *VM[I, O, A]) MakeChainIndex(
+func (v *VM[I, O]) MakeChainIndex(
 	ctx context.Context,
 	chainIndex BlockChainIndex[I],
 	outputBlock O,
-	acceptedBlock A,
 	stateReady bool,
-) (*ChainIndex[I, O, A], error) {
+) (*ChainIndex[I, O], error) {
 	v.inputChainIndex = chainIndex
 	lastAcceptedHeight, err := v.inputChainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil {
@@ -42,10 +41,10 @@ func (v *VM[I, O, A]) MakeChainIndex(
 		return nil, err
 	}
 
-	var lastAcceptedBlock *StatefulBlock[I, O, A]
+	var lastAcceptedBlock *StatefulBlock[I, O]
 	if stateReady {
 		v.MarkReady(true)
-		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
+		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -54,20 +53,20 @@ func (v *VM[I, O, A]) MakeChainIndex(
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
-	v.chainIndex = &ChainIndex[I, O, A]{
+	v.chainIndex = &ChainIndex[I, O]{
 		covariantVM: v.covariantVM,
 	}
 
 	return v.chainIndex, nil
 }
 
-func (v *VM[I, O, A]) GetChainIndex() *ChainIndex[I, O, A] {
+func (v *VM[I, O]) GetChainIndex() *ChainIndex[I, O] {
 	return v.chainIndex
 }
 
-func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
-	if inputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
-		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
+func (v *VM[I, O]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O) (*StatefulBlock[I, O], error) {
+	if inputBlock.Height() < outputBlock.Height() {
+		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s)", inputBlock, outputBlock)
 	}
 
 	// Re-process from the last output block, to the last accepted input block
@@ -77,24 +76,24 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 			return nil, err
 		}
 
-		outputBlock, err = v.chain.Execute(ctx, outputBlock, reprocessInputBlock)
+		parentBlock := outputBlock
+		outputBlock, err = v.chain.Execute(ctx, parentBlock, reprocessInputBlock)
 		if err != nil {
 			return nil, err
 		}
-		acceptedBlock, err = v.chain.AcceptBlock(ctx, acceptedBlock, outputBlock)
-		if err != nil {
+		if err = v.chain.AcceptBlock(ctx, parentBlock, outputBlock); err != nil {
 			return nil, err
 		}
 	}
 
-	return NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock), nil
+	return NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock), nil
 }
 
-type ChainIndex[I Block, O Block, A Block] struct {
-	covariantVM *CovariantVM[I, O, A]
+type ChainIndex[I Block, O Block] struct {
+	covariantVM *CovariantVM[I, O]
 }
 
-func (c *ChainIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+func (c *ChainIndex[I, O]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := c.covariantVM.GetBlockByHeight(ctx, height)
 	if err != nil {
 		var emptyBlk I
@@ -103,7 +102,7 @@ func (c *ChainIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint6
 	return blk.Input, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
+func (c *ChainIndex[I, O]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := c.covariantVM.GetBlock(ctx, blkID)
 	if err != nil {
 		var emptyBlk I
@@ -112,7 +111,7 @@ func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, er
 	return blk.Input, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
+func (c *ChainIndex[I, O]) GetPreferredBlock(ctx context.Context) (O, error) {
 	blk, err := c.covariantVM.GetBlock(ctx, c.covariantVM.preferredBlkID)
 	if err != nil {
 		var emptyBlk O
@@ -121,6 +120,6 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 	return blk.Output, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetLastAccepted(context.Context) A {
-	return c.covariantVM.lastAcceptedBlock.Accepted
+func (c *ChainIndex[I, O]) GetLastAccepted(context.Context) O {
+	return c.covariantVM.lastAcceptedBlock.Output
 }

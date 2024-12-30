@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
-var _ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+var _ snowman.Block = (*StatefulBlock[Block, Block])(nil)
 
 type Block interface {
 	fmt.Stringer
@@ -42,32 +42,31 @@ type Block interface {
 // verified/accepted to update a moving state sync target.
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
-type StatefulBlock[I Block, O Block, A Block] struct {
+type StatefulBlock[I Block, O Block] struct {
 	Input    I
 	Output   O
 	verified bool
-	Accepted A
 	accepted bool
 
-	vm *CovariantVM[I, O, A]
+	vm *CovariantVM[I, O]
 }
 
-func NewInputBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+func NewInputBlock[I Block, O Block](
+	vm *CovariantVM[I, O],
 	input I,
-) *StatefulBlock[I, O, A] {
-	return &StatefulBlock[I, O, A]{
+) *StatefulBlock[I, O] {
+	return &StatefulBlock[I, O]{
 		Input: input,
 		vm:    vm,
 	}
 }
 
-func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+func NewVerifiedBlock[I Block, O Block](
+	vm *CovariantVM[I, O],
 	input I,
 	output O,
-) *StatefulBlock[I, O, A] {
-	return &StatefulBlock[I, O, A]{
+) *StatefulBlock[I, O] {
+	return &StatefulBlock[I, O]{
 		Input:    input,
 		Output:   output,
 		verified: true,
@@ -75,32 +74,29 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 	}
 }
 
-func NewAcceptedBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+func NewAcceptedBlock[I Block, O Block](
+	vm *CovariantVM[I, O],
 	input I,
 	output O,
-	accepted A,
-) *StatefulBlock[I, O, A] {
-	return &StatefulBlock[I, O, A]{
+) *StatefulBlock[I, O] {
+	return &StatefulBlock[I, O]{
 		Input:    input,
 		Output:   output,
 		verified: true,
-		Accepted: accepted,
 		accepted: true,
 		vm:       vm,
 	}
 }
 
-func (b *StatefulBlock[I, O, A]) setAccepted(output O, accepted A) {
+func (b *StatefulBlock[I, O]) setAccepted(output O) {
 	b.Output = output
 	b.verified = true
-	b.Accepted = accepted
 	b.accepted = true
 }
 
 // verify the block against the provided parent output and set the
 // required Output/verified fields.
-func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) error {
+func (b *StatefulBlock[I, O]) verify(ctx context.Context, parentOutput O) error {
 	output, err := b.vm.chain.Execute(ctx, parentOutput, b.Input)
 	if err != nil {
 		return err
@@ -112,18 +108,16 @@ func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) err
 
 // accept the block and set the required Accepted/accepted fields.
 // Assumes verify has already been called.
-func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) error {
-	acceptedBlk, err := b.vm.chain.AcceptBlock(ctx, parentAccepted, b.Output)
-	if err != nil {
+func (b *StatefulBlock[I, O]) accept(ctx context.Context, parentAccepted O) error {
+	if err := b.vm.chain.AcceptBlock(ctx, parentAccepted, b.Output); err != nil {
 		return err
 	}
-	b.Accepted = acceptedBlk
 	b.accepted = true
 	return nil
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
+func (b *StatefulBlock[I, O]) Verify(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.metrics.blockVerify.Observe(float64(time.Since(start)))
@@ -212,7 +206,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 }
 
 // markAccepted marks the block and updates the required VM state.
-func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
+func (b *StatefulBlock[I, O]) markAccepted(ctx context.Context) error {
 	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err
 	}
@@ -228,17 +222,17 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
 	return nil
 }
 
-func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
+func (b *StatefulBlock[I, O]) notifyAccepted(ctx context.Context) error {
 	// If I was not actually marked accepted, notify pre ready subs
 	if !b.accepted {
 		return event.NotifyAll(ctx, b.Input, b.vm.app.PreReadyAcceptedSubs...)
 	}
 
-	return event.NotifyAll(ctx, b.Accepted, b.vm.app.AcceptedSubs...)
+	return event.NotifyAll(ctx, b.Output, b.vm.app.AcceptedSubs...)
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
+func (b *StatefulBlock[I, O]) Accept(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.metrics.blockAccept.Observe(float64(time.Since(start)))
@@ -256,7 +250,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 		if err := b.markAccepted(ctx); err != nil {
 			return err
 		}
-		if err := b.accept(ctx, parent.Accepted); err != nil {
+		if err := b.accept(ctx, parent.Output); err != nil {
 			return err
 		}
 		return b.notifyAccepted(ctx)
@@ -287,14 +281,14 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	if err := b.markAccepted(ctx); err != nil {
 		return err
 	}
-	if err := b.accept(ctx, parent.Accepted); err != nil {
+	if err := b.accept(ctx, parent.Output); err != nil {
 		return err
 	}
 	return b.notifyAccepted(ctx)
 }
 
 // implements "snowman.Block.choices.Decidable"
-func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
+func (b *StatefulBlock[I, O]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")
 	defer span.End()
 
@@ -311,19 +305,19 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.Parent() }
+func (b *StatefulBlock[I, O]) Parent() ids.ID { return b.Input.Parent() }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.Height() }
+func (b *StatefulBlock[I, O]) Height() uint64 { return b.Input.Height() }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.Timestamp()) }
+func (b *StatefulBlock[I, O]) Timestamp() time.Time { return time.UnixMilli(b.Input.Timestamp()) }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.Bytes() }
+func (b *StatefulBlock[I, O]) Bytes() []byte { return b.Input.Bytes() }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
+func (b *StatefulBlock[I, O]) ID() ids.ID { return b.Input.ID() }
 
 // implements "fmt.Stringer"
-func (b *StatefulBlock[I, O, A]) String() string { return b.Input.String() }
+func (b *StatefulBlock[I, O]) String() string { return b.Input.String() }

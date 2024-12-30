@@ -62,13 +62,13 @@ var (
 	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
 	_ hsnow.Block = (*chain.OutputBlock)(nil)
 
-	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] = (*VM)(nil)
-	_ hsnow.BlockChainIndex[*chain.ExecutionBlock]                               = (*chainstore.ChainStore[*chain.ExecutionBlock])(nil)
+	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock] = (*VM)(nil)
+	_ hsnow.BlockChainIndex[*chain.ExecutionBlock]           = (*chainstore.ChainStore[*chain.ExecutionBlock])(nil)
 )
 
 type VM struct {
 	snowInput hsnow.ChainInput
-	snowApp   *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	snowApp   *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock]
 
 	proposerMonitor *validators.ProposerMonitor
 
@@ -85,7 +85,7 @@ type VM struct {
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
 	SyncClient              *statesync.Client[*chain.ExecutionBlock]
 
-	chainIndex *hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	chainIndex *hsnow.ChainIndex[*chain.ExecutionBlock, *chain.OutputBlock]
 	chainStore *chainstore.ChainStore[*chain.ExecutionBlock]
 
 	builder  builder.Builder
@@ -149,8 +149,8 @@ func New(
 func (vm *VM) Initialize(
 	ctx context.Context,
 	chainInput hsnow.ChainInput,
-	makeChainIndex hsnow.MakeChainIndexFunc[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
-	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
+	makeChainIndex hsnow.MakeChainIndexFunc[*chain.ExecutionBlock, *chain.OutputBlock],
+	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock],
 ) (hsnow.BlockChainIndex[*chain.ExecutionBlock], error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
@@ -323,7 +323,7 @@ func (vm *VM) Initialize(
 		return nil, err
 	}
 	// Switch away from true
-	chainIndex, err := makeChainIndex(ctx, vm.chainStore, lastAccepted, lastAccepted, true)
+	chainIndex, err := makeChainIndex(ctx, vm.chainStore, lastAccepted, true)
 	if err != nil {
 		return nil, err
 	}
@@ -588,11 +588,11 @@ func (vm *VM) Execute(ctx context.Context, parent *chain.OutputBlock, block *cha
 	return vm.chain.Execute(ctx, parent, block)
 }
 
-func (*VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
+func (*VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) error {
 	if err := block.View.CommitToDB(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit state for block %s: %w", block, err)
+		return fmt.Errorf("failed to commit state for block %s: %w", block, err)
 	}
-	return block, nil
+	return nil
 }
 
 func (vm *VM) Submit(

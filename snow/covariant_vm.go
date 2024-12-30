@@ -17,15 +17,15 @@ import (
 
 // CovariantVM is implemented as a convenience type because Go does not
 // support covariant types.
-type CovariantVM[I Block, O Block, A Block] struct {
-	*VM[I, O, A]
+type CovariantVM[I Block, O Block] struct {
+	*VM[I, O]
 }
 
-func (v *VM[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
+func (v *VM[I, O]) GetCovariantVM() *CovariantVM[I, O] {
 	return v.covariantVM
 }
 
-func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
+func (v *CovariantVM[I, O]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
 
@@ -56,7 +56,7 @@ func (v *CovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*Sta
 	return NewInputBlock(v, blk), nil
 }
 
-func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
+func (v *CovariantVM[I, O]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockByHeight")
 	defer span.End()
 
@@ -81,7 +81,7 @@ func (v *CovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint
 	return v.GetBlock(ctx, blkID)
 }
 
-func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
+func (v *CovariantVM[I, O]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -101,12 +101,12 @@ func (v *CovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*S
 	if err != nil {
 		return nil, err
 	}
-	blk := NewInputBlock[I, O, A](v, inputBlk)
+	blk := NewInputBlock[I, O](v, inputBlk)
 	v.parsedBlocks.Put(blkID, blk)
 	return blk, nil
 }
 
-func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
+func (v *CovariantVM[I, O]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
@@ -123,14 +123,14 @@ func (v *CovariantVM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I
 	if err != nil {
 		return nil, err
 	}
-	sb := NewVerifiedBlock[I, O, A](v, inputBlock, outputBlock)
+	sb := NewVerifiedBlock[I, O](v, inputBlock, outputBlock)
 	v.parsedBlocks.Put(sb.ID(), sb)
 
 	return sb, nil
 }
 
 // getExclusiveBlockRange returns the exclusive range of blocks (startBlock, endBlock)
-func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
+func (v *CovariantVM[I, O]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O], endBlock *StatefulBlock[I, O]) ([]*StatefulBlock[I, O], error) {
 	if startBlock.ID() == endBlock.ID() {
 		return nil, nil
 	}
@@ -142,7 +142,7 @@ func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, start
 	if diff == 0 {
 		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
 	}
-	blkRange := make([]*StatefulBlock[I, O, A], 0, diff)
+	blkRange := make([]*StatefulBlock[I, O], 0, diff)
 	blk := endBlock
 	for {
 		blk, err = v.GetBlock(ctx, blk.Parent())
@@ -161,15 +161,15 @@ func (v *CovariantVM[I, O, A]) getExclusiveBlockRange(ctx context.Context, start
 	return blkRange, nil
 }
 
-func (v *CovariantVM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
+func (v *CovariantVM[I, O]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O] {
 	return v.lastAcceptedBlock
 }
 
-type InputCovariantVM[I Block, O Block, A Block] struct {
-	*CovariantVM[I, O, A]
+type InputCovariantVM[I Block, O Block] struct {
+	*CovariantVM[I, O]
 }
 
-func (v *InputCovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
+func (v *InputCovariantVM[I, O]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := v.covariantVM.GetBlock(ctx, blkID)
 	if err != nil {
 		var emptyI I
@@ -178,7 +178,7 @@ func (v *InputCovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) 
 	return blk.Input, nil
 }
 
-func (v *InputCovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+func (v *InputCovariantVM[I, O]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := v.covariantVM.GetBlockByHeight(ctx, height)
 	if err != nil {
 		var emptyI I
@@ -187,7 +187,7 @@ func (v *InputCovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height
 	return blk.Input, nil
 }
 
-func (v *InputCovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
+func (v *InputCovariantVM[I, O]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
 	blk, err := v.covariantVM.ParseBlock(ctx, bytes)
 	if err != nil {
 		var emptyI I
@@ -196,7 +196,7 @@ func (v *InputCovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte
 	return blk.Input, nil
 }
 
-func (v *InputCovariantVM[I, O, A]) BuildBlock(ctx context.Context) (I, error) {
+func (v *InputCovariantVM[I, O]) BuildBlock(ctx context.Context) (I, error) {
 	blk, err := v.covariantVM.BuildBlock(ctx)
 	if err != nil {
 		var emptyI I
@@ -205,6 +205,6 @@ func (v *InputCovariantVM[I, O, A]) BuildBlock(ctx context.Context) (I, error) {
 	return blk.Input, nil
 }
 
-func (v *InputCovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) I {
+func (v *InputCovariantVM[I, O]) LastAcceptedBlock(ctx context.Context) I {
 	return v.covariantVM.LastAcceptedBlock(ctx).Input
 }
