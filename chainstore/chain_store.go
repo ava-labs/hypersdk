@@ -21,8 +21,6 @@ import (
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
-const namespace = "chainstore"
-
 const (
 	blockPrefix         byte = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
 	blockIDHeightPrefix byte = 0x1 // ID -> Height
@@ -62,6 +60,7 @@ type Parser[T Block] interface {
 
 func New[T Block](
 	hctx *hcontext.Context,
+	namespace string,
 	parser Parser[T],
 	db database.Database,
 ) (*ChainStore[T], error) {

@@ -40,7 +40,7 @@ type Block interface {
 //
 // StatefulBlock additionally handles DynamicStateSync where blocks are vaccuously
 // verified/accepted to update a moving state sync target.
-// When FinishStateSync is called, the snow package guarantees the same invariants
+// After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I

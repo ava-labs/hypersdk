@@ -38,7 +38,10 @@ var (
 	errExecuteInvalidBlock = errors.New("executed invalid block")
 )
 
-const blockStringerF = "(ParentID = %s, Timestamp = %d, Height = %d, RandomData = %x, Invalid = %t)"
+const (
+	testVersion    = "v0.0.1"
+	blockStringerF = "(BlockID = %s, ParentID = %s, Timestamp = %d, Height = %d, RandomData = %x, Invalid = %t)"
+)
 
 type TestBlock struct {
 	PrntID ids.ID `json:"parentID"`
@@ -90,7 +93,7 @@ func (t *TestBlock) Height() uint64 {
 }
 
 func (t *TestBlock) String() string {
-	return fmt.Sprintf(blockStringerF, t.PrntID, t.Tmstmp, t.Hght, t.RandomData, t.Invalid)
+	return fmt.Sprintf(blockStringerF, t.ID(), t.PrntID, t.Tmstmp, t.Hght, t.RandomData, t.Invalid)
 }
 
 func NewTestBlockFromBytes(b []byte) (*TestBlock, error) {
@@ -125,7 +128,7 @@ func (t *TestChain) Initialize(
 	makeChainIndexF MakeChainIndexFunc[*TestBlock, *TestBlock, *TestBlock],
 	_ *Application[*TestBlock, *TestBlock, *TestBlock],
 ) (BlockChainIndex[*TestBlock], error) {
-	chainStore, err := chainstore.New(chainInput.Context, t, memdb.New())
+	chainStore, err := chainstore.New(chainInput.Context, "chainstore", t, memdb.New())
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +202,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 	r := require.New(t)
 	ctx := context.Background()
 	chain := NewTestChain(t, r, initLastAcceptedBlock)
-	vm := NewVM(chain)
+	vm := NewVM(testVersion, chain)
 	toEngine := make(chan common.Message, 1)
 	ce := &TestConsensusEngine{
 		t:        t,
