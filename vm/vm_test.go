@@ -65,7 +65,7 @@ type VM struct {
 	appSender *enginetest.Sender
 	toEngine  chan common.Message
 
-	SnowVM *snow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	SnowVM *snow.VM[*chain.ExecutionBlock, *chain.OutputBlock]
 	VM     *vm.VM
 
 	server *httptest.Server
@@ -146,7 +146,7 @@ func NewTestVM(
 	}
 }
 
-func (vm *VM) BuildAndSetPreference(ctx context.Context) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
+func (vm *VM) BuildAndSetPreference(ctx context.Context) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock] {
 	vm.snowCtx.Lock.Lock()
 	defer vm.snowCtx.Lock.Unlock()
 
@@ -158,7 +158,7 @@ func (vm *VM) BuildAndSetPreference(ctx context.Context) *snow.StatefulBlock[*ch
 	return blk
 }
 
-func (vm *VM) ParseAndSetPreference(ctx context.Context, bytes []byte) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
+func (vm *VM) ParseAndSetPreference(ctx context.Context, bytes []byte) *snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock] {
 	vm.snowCtx.Lock.Lock()
 	defer vm.snowCtx.Lock.Unlock()
 
@@ -426,7 +426,7 @@ func (n *TestNetwork) SubmitTxs(ctx context.Context, txs []*chain.Transaction) {
 // This function assumes that all VMs in the TestNetwork have verified at least up to the current preference
 // of the initial VM, so that it correctly mimics the engine's behavior of guaranteeing that all VMs have
 // verified the parent block before verifying its child.
-func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
+func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock] {
 	n.require.NoError(n.VMs[0].VM.Builder().Force(ctx))
 	select {
 	case <-n.VMs[0].toEngine:
@@ -437,7 +437,7 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 	buildVM := n.VMs[0]
 	blk := buildVM.BuildAndSetPreference(ctx)
 
-	blks := make([]*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock], len(n.VMs))
+	blks := make([]*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock], len(n.VMs))
 	blks[0] = blk
 	blkBytes := blk.Bytes()
 	for i, otherVM := range n.VMs[1:] {

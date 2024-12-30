@@ -117,7 +117,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to extract latest output block while finishing state sync: %w", err)
 			}
-			if err := vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock, outputBlock); err != nil {
+			if err := vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock); err != nil {
 				return err
 			}
 			return nil

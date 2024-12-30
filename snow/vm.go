@@ -30,8 +30,8 @@ import (
 )
 
 var (
-	_ block.ChainVM         = (*VM[Block, Block, Block])(nil)
-	_ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
+	_ block.ChainVM         = (*VM[Block, Block])(nil)
+	_ block.StateSyncableVM = (*VM[Block, Block])(nil)
 )
 
 type ChainInput struct {
@@ -42,20 +42,19 @@ type ChainInput struct {
 	Context                                 *hcontext.Context
 }
 
-type MakeChainIndexFunc[I Block, O Block, A Block] func(
+type MakeChainIndexFunc[I Block, O Block] func(
 	ctx context.Context,
 	chainIndex BlockChainIndex[I],
 	outputBlock O,
-	acceptedBlock A,
 	stateReady bool,
-) (*ChainIndex[I, O, A], error)
+) (*ChainIndex[I, O], error)
 
-type Chain[I Block, O Block, A Block] interface {
+type Chain[I Block, O Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		makeChainIndex MakeChainIndexFunc[I, O, A],
-		app *Application[I, O, A],
+		makeChainIndex MakeChainIndexFunc[I, O],
+		app *Application[I, O],
 	) (BlockChainIndex[I], error)
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
@@ -64,15 +63,15 @@ type Chain[I Block, O Block, A Block] interface {
 		parent O,
 		block I,
 	) (O, error)
-	AcceptBlock(ctx context.Context, acceptedParent A, outputBlock O) (A, error)
+	AcceptBlock(ctx context.Context, acceptedParent O, outputBlock O) error
 }
 
-type VM[I Block, O Block, A Block] struct {
-	chain           Chain[I, O, A]
+type VM[I Block, O Block] struct {
+	chain           Chain[I, O]
 	inputChainIndex BlockChainIndex[I]
-	chainIndex      *ChainIndex[I, O, A]
-	covariantVM     *CovariantVM[I, O, A]
-	app             Application[I, O, A]
+	chainIndex      *ChainIndex[I, O]
+	covariantVM     *CovariantVM[I, O]
+	app             Application[I, O]
 
 	snowCtx *snow.Context
 
@@ -80,19 +79,19 @@ type VM[I Block, O Block, A Block] struct {
 	vmConfig VMConfig
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]
+	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O]]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*StatefulBlock[I, O, A]
+	verifiedBlocks map[ids.ID]*StatefulBlock[I, O]
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
-	lastAcceptedBlock *StatefulBlock[I, O, A]
+	lastAcceptedBlock *StatefulBlock[I, O]
 	preferredBlkID    ids.ID
 
 	readyL sync.RWMutex
@@ -105,23 +104,23 @@ type VM[I Block, O Block, A Block] struct {
 	shutdownChan chan struct{}
 }
 
-func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
-	v := &VM[I, O, A]{
+func NewVM[I Block, O Block](version string, chain Chain[I, O]) *VM[I, O] {
+	v := &VM[I, O]{
 		chain: chain,
-		app: Application[I, O, A]{
+		app: Application[I, O]{
 			Version: version,
 			HealthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
 				return nil, nil
 			}),
 			Handlers:     make(map[string]http.Handler),
-			AcceptedSubs: make([]event.Subscription[A], 0),
+			AcceptedSubs: make([]event.Subscription[O], 0),
 		},
 	}
 	v.app.vm = v
 	return v
 }
 
-func (v *VM[I, O, A]) Initialize(
+func (v *VM[I, O]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
 	_ database.Database,
@@ -133,7 +132,7 @@ func (v *VM[I, O, A]) Initialize(
 	appSender common.AppSender,
 ) error {
 	v.snowCtx = chainCtx
-	v.covariantVM = &CovariantVM[I, O, A]{v}
+	v.covariantVM = &CovariantVM[I, O]{v}
 	v.shutdownChan = make(chan struct{})
 
 	hctx, err := hcontext.New(
@@ -187,7 +186,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
 
-	acceptedBlocksByIDCache, err := cache.NewFIFO[ids.ID, *StatefulBlock[I, O, A]](v.vmConfig.AcceptedBlockWindowCache)
+	acceptedBlocksByIDCache, err := cache.NewFIFO[ids.ID, *StatefulBlock[I, O]](v.vmConfig.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
@@ -197,8 +196,8 @@ func (v *VM[I, O, A]) Initialize(
 		return err
 	}
 	v.acceptedBlocksByHeight = acceptedBlocksByHeightCache
-	v.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]{Size: v.vmConfig.ParsedBlockCacheSize}
-	v.verifiedBlocks = make(map[ids.ID]*StatefulBlock[I, O, A])
+	v.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock[I, O]]{Size: v.vmConfig.ParsedBlockCacheSize}
+	v.verifiedBlocks = make(map[ids.ID]*StatefulBlock[I, O])
 
 	chainInput := ChainInput{
 		SnowCtx:      chainCtx,
@@ -226,18 +225,18 @@ func (v *VM[I, O, A]) Initialize(
 	return nil
 }
 
-func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
+func (v *VM[I, O]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O]) {
 	v.lastAcceptedBlock = lastAcceptedBlock
 	v.preferredBlkID = v.lastAcceptedBlock.ID()
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
 
-func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
+func (v *VM[I, O]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
 	return v.covariantVM.GetBlock(ctx, blkID)
 }
 
-func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
+func (v *VM[I, O]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
 	defer span.End()
 
@@ -250,24 +249,24 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
-func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
+func (v *VM[I, O]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
 	return v.covariantVM.ParseBlock(ctx, bytes)
 }
 
-func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
+func (v *VM[I, O]) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return v.covariantVM.BuildBlock(ctx)
 }
 
-func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
+func (v *VM[I, O]) SetPreference(_ context.Context, blkID ids.ID) error {
 	v.preferredBlkID = blkID
 	return nil
 }
 
-func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
+func (v *VM[I, O]) LastAccepted(context.Context) (ids.ID, error) {
 	return v.lastAcceptedBlock.ID(), nil
 }
 
-func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
+func (v *VM[I, O]) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		v.log.Info("Starting state sync")
@@ -300,15 +299,15 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	}
 }
 
-func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
+func (v *VM[I, O]) HealthCheck(ctx context.Context) (interface{}, error) {
 	return v.app.HealthChecker.HealthCheck(ctx)
 }
 
-func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
+func (v *VM[I, O]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return v.app.Handlers, nil
 }
 
-func (v *VM[I, O, A]) Shutdown(context.Context) error {
+func (v *VM[I, O]) Shutdown(context.Context) error {
 	close(v.shutdownChan)
 
 	errs := make([]error, len(v.app.Closers))
@@ -318,18 +317,18 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (v *VM[I, O, A]) Version(context.Context) (string, error) {
+func (v *VM[I, O]) Version(context.Context) (string, error) {
 	return v.app.Version, nil
 }
 
-func (v *VM[I, O, A]) Ready() bool {
+func (v *VM[I, O]) Ready() bool {
 	v.readyL.RLock()
 	defer v.readyL.RUnlock()
 
 	return v.ready
 }
 
-func (v *VM[I, O, A]) MarkReady(ready bool) {
+func (v *VM[I, O]) MarkReady(ready bool) {
 	v.readyL.Lock()
 	defer v.readyL.Unlock()
 
