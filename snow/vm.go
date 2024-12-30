@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/database"
@@ -21,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
@@ -175,7 +177,7 @@ func (v *VM[I, O, A]) Initialize(
 			continuousProfilerConfig.Freq,
 			continuousProfilerConfig.MaxNumFiles,
 		)
-		v.app.WithCloser(func() error {
+		v.app.WithCloser("continuous profiler", func() error {
 			continuousProfiler.Shutdown()
 			return nil
 		})
@@ -309,11 +311,15 @@ func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler
 }
 
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
+	v.log.Info("Shutting down VM")
 	close(v.shutdownChan)
 
 	errs := make([]error, len(v.app.Closers))
 	for i, closer := range v.app.Closers {
-		errs[i] = closer()
+		v.log.Info("Shutting down", zap.String("name", closer.name))
+		start := time.Now()
+		errs[i] = closer.close()
+		v.log.Info("Shutdown", zap.String("name", closer.name), zap.Duration("duration", time.Since(start)))
 	}
 	return errors.Join(errs...)
 }

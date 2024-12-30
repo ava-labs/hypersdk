@@ -95,7 +95,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm.snowApp.WithCloser(func() error {
+	vm.snowApp.WithCloser("syncer", func() error {
 		if err := syncerDB.Close(); err != nil {
 			return fmt.Errorf("failed to close syncer db: %w", err)
 		}

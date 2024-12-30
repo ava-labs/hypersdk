@@ -22,7 +22,7 @@ type Application[I Block, O Block, A Block] struct {
 	HealthChecker   health.Checker
 	Network         *p2p.Network
 	StateSyncableVM block.StateSyncableVM
-	Closers         []func() error
+	Closers         []namedCloser
 
 	OnStateSyncStarted       []func(context.Context) error
 	OnBootstrapStarted       []func(context.Context) error
@@ -32,6 +32,11 @@ type Application[I Block, O Block, A Block] struct {
 	RejectedSubs         []event.Subscription[O]
 	AcceptedSubs         []event.Subscription[A]
 	PreReadyAcceptedSubs []event.Subscription[I]
+}
+
+type namedCloser struct {
+	name  string
+	close func() error
 }
 
 // GetCovariantVM returns the VM implementation returning the wrapper around the generic types
@@ -69,8 +74,8 @@ func (a *Application[I, O, A]) WithHealthChecker(healthChecker health.Checker) {
 	a.HealthChecker = healthChecker
 }
 
-func (a *Application[I, O, A]) WithCloser(closer func() error) {
-	a.Closers = append(a.Closers, closer)
+func (a *Application[I, O, A]) WithCloser(name string, closer func() error) {
+	a.Closers = append(a.Closers, namedCloser{name, closer})
 }
 
 func (a *Application[I, O, A]) WithStateSyncStarted(onStateSyncStarted ...func(context.Context) error) {

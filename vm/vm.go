@@ -243,7 +243,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, err
 	}
-	snowApp.WithCloser(func() error {
+	snowApp.WithCloser("statedb", func() error {
 		if err := vm.stateDB.Close(); err != nil {
 			return fmt.Errorf("failed to close state db: %w", err)
 		}
@@ -258,7 +258,7 @@ func (vm *VM) Initialize(
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-	snowApp.WithCloser(func() error {
+	snowApp.WithCloser("auth verifiers", func() error {
 		vm.authVerifiers.Stop()
 		return nil
 	})
@@ -323,7 +323,16 @@ func (vm *VM) Initialize(
 
 	snowApp.WithNormalOpStarted(func(_ context.Context) error {
 		vm.builder.Start()
+		vm.snowApp.WithCloser("builder", func() error {
+			vm.builder.Done()
+			return nil
+		})
+
 		vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
+		vm.snowApp.WithCloser("gossiper", func() error {
+			vm.gossiper.Done()
+			return nil
+		})
 
 		if err := vm.network.AddHandler(
 			txGossipHandlerID,
@@ -377,7 +386,7 @@ func (vm *VM) initChainStore() error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain store database: %w", err)
 	}
-	vm.snowApp.WithCloser(chainStoreDB.Close)
+	vm.snowApp.WithCloser("chainstore", chainStoreDB.Close)
 	vm.chainStore, err = chainstore.New[*chain.ExecutionBlock](vm.snowInput.Context, chainStoreNamespace, vm.chain, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain store: %w", err)
@@ -510,10 +519,6 @@ func (vm *VM) applyOptions(o *Options) error {
 			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 		})
 	}
-	vm.snowApp.WithCloser(func() error {
-		vm.builder.Done()
-		return nil
-	})
 
 	gossipRegistry, err := vm.snowInput.Context.MakeRegistry(gossiperNamespace)
 	if err != nil {
@@ -565,10 +570,6 @@ func (vm *VM) applyOptions(o *Options) error {
 			},
 		})
 	}
-	vm.snowApp.WithCloser(func() error {
-		vm.gossiper.Done()
-		return nil
-	})
 	return nil
 }
 
