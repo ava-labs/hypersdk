@@ -1037,8 +1037,8 @@ func TestSkipStateSync(t *testing.T) {
 	})
 
 	config := map[string]interface{}{
-		vm.StateSyncNamespace: vm.StateSyncConfig{
-			MinBlocks: uint64(numBlocks + 1),
+		vm.StateSyncNamespace: map[string]interface{}{
+			"minBlocks": uint64(numBlocks - 1),
 		},
 	}
 	configBytes, err := json.Marshal(config)
@@ -1094,9 +1094,8 @@ func TestStateSync(t *testing.T) {
 	})
 
 	config := map[string]interface{}{
-		vm.StateSyncNamespace: vm.StateSyncConfig{
-			MinBlocks:                   uint64(numBlocks - 1),
-			MerkleSimultaneousWorkLimit: 1, // TODO: this should not be required
+		vm.StateSyncNamespace: map[string]interface{}{
+			"minBlocks": uint64(numBlocks - 1),
 		},
 	}
 	configBytes, err := json.Marshal(config)

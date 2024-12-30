@@ -38,13 +38,14 @@ func (v *VM[I, O, A]) MakeChainIndex(
 
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
+		v.MarkReady(true)
 		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
 		v.MarkReady(false)
+		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	v.chainIndex = &ChainIndex[I, O, A]{
