@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -92,25 +91,19 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	return blk, nil
 }
 
-func (vm *VM) LastAcceptedBlockResult(ctx context.Context) *chain.ExecutedBlock {
+func (vm *VM) LastAcceptedBlock(ctx context.Context) *chain.StatelessBlock {
 	outputBlk := vm.chainIndex.GetLastAccepted(ctx)
-	return &chain.ExecutedBlock{
-		Block:            outputBlk.ExecutionBlock.StatelessBlock,
-		ExecutionResults: outputBlk.ExecutionResults,
-	}
+	return outputBlk.StatelessBlock
 }
 
-func (vm *VM) State() (merkledb.MerkleDB, error) {
-	return vm.stateDB, nil
+func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+	acceptedBlock := vm.chainIndex.GetLastAccepted(ctx)
+	return acceptedBlock.View.GetValues(ctx, keys)
 }
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
-	ts := tstate.New(0)
-	state, err := vm.State()
-	if err != nil {
-		return nil, err
-	}
-	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
+	acceptedBlock := vm.chainIndex.GetLastAccepted(ctx)
+	return acceptedBlock.View.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
 }
 
 func (vm *VM) Mempool() chain.Mempool {

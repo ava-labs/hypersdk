@@ -9,6 +9,7 @@ import (
 )
 
 type Metrics struct {
+	txsAccepted  prometheus.Counter
 	txsVerified  prometheus.Counter
 	txsSubmitted prometheus.Counter // includes gossip
 	mempoolSize  prometheus.Gauge
@@ -16,6 +17,11 @@ type Metrics struct {
 
 func newMetrics(r prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{
+		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "txs_accepted",
+			Help:      "number of txs accepted",
+		}),
 		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_verified",

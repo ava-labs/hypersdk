@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/pebble"
@@ -76,20 +77,6 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// If we accept an initial target of height N and terminate at the same height,
-	// then due to deferred root verification, we will actually have the state for block N-1 and
-	// not have the block at height N-1. Therefore, we require an offset of 1 to guarantee we have
-	// the block of the merkle trie root we are syncing to.
-	// XXX: this could be easily solved if the block window syncer fetched the greater of 1 block
-	// prior to the initial target or a validity window of blocks from the final target.
-	offsetMerkleSyncer, err := statesync.NewMerkleOffsetAdapter[*chain.ExecutionBlock](
-		1,
-		merkleSyncer,
-	)
-	if err != nil {
-		return err
-	}
-
 	pebbleConfig := pebble.NewDefaultConfig()
 	syncerDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, syncerDB, stateSyncRegistry)
 	if err != nil {
@@ -109,17 +96,31 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		syncerDB,
 		[]statesync.Syncer[*chain.ExecutionBlock]{
 			blockWindowSyncer,
-			offsetMerkleSyncer,
+			merkleSyncer,
 		},
 		vm.snowApp.StartStateSync,
 		func(ctx context.Context) error {
-			outputBlock, err := vm.extractLatestOutputBlock(ctx)
+			stateHeight, err := vm.extractStateHeight(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to extract latest output block while finishing state sync: %w", err)
+				return fmt.Errorf("failed to extract state height after state sync: %w", err)
+			}
+			block, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight+1)
+			if err != nil {
+				return fmt.Errorf("failed to get block by height %d after state sync: %w", stateHeight, err)
+			}
+			// Executing the last block ensures that the last block after state sync was actually executed, such that
+			// ExecutionResults will be populated correctly.
+			outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, block)
+			if err != nil {
+				return fmt.Errorf("failed to execute final block %s after state sync: %w", block, err)
+			}
+			if _, err := vm.AcceptBlock(ctx, nil, outputBlock); err != nil {
+				return fmt.Errorf("failed to commit final block %s after state sync: %w", block, err)
 			}
 			if err := vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock, outputBlock); err != nil {
 				return err
 			}
+			vm.snowInput.ToEngine <- common.StateSyncDone
 			return nil
 		},
 		stateSyncConfig.MinBlocks,

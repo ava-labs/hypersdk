@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.22.8
 
 require (
-	github.com/ava-labs/avalanchego v1.11.13-0.20241127075308-7752928cccc0
+	github.com/ava-labs/avalanchego v1.11.13-0.20241230212828-6dea1b366756
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1

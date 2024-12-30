@@ -247,6 +247,8 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Accept")
 	defer span.End()
 
+	b.vm.log.Trace("Accepting block", zap.Stringer("block", b))
+
 	// If I've already been verified, accept myself.
 	if b.verified {
 		parent, err := b.vm.GetBlock(ctx, b.Parent())

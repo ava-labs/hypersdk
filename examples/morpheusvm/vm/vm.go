@@ -6,8 +6,6 @@ package vm
 import (
 	"errors"
 
-	"github.com/ava-labs/avalanchego/version"
-
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -58,7 +56,6 @@ func init() {
 func New(options ...vm.Option) (*vm.VM, error) {
 	options = append(options, With()) // Add MorpheusVM API
 	return defaultvm.New(
-		&version.Semantic{Major: 0, Minor: 0, Patch: 1},
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),
