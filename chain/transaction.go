@@ -179,7 +179,6 @@ func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error
 	tx.id = utils.ToID(p.Bytes())
 	return &tx, nil
 }
-
 func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() int { return t.size }
@@ -370,6 +369,11 @@ func (t *Transaction) Execute(
 		Units: units,
 		Fee:   fee,
 	}, nil
+}
+
+// GetSponsor returns the address that pays fees for t
+func (t *Transaction) GetSponsor() codec.Address {
+	return t.Sponsor()
 }
 
 // Sponsor is the [codec.Address] that pays fees for this transaction.

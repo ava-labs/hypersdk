@@ -45,7 +45,7 @@ var (
 )
 
 type GetChunkHandler[T Tx] struct {
-	storage *ChunkStorage[T]
+	Storage *ChunkStorage[T]
 }
 
 func (*GetChunkHandler[_]) AppGossip(context.Context, ids.NodeID, []byte) {}
@@ -70,7 +70,7 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 	}
 
 	// TODO check chunk status?
-	chunkBytes, available, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	chunkBytes, available, err := g.Storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil && errors.Is(err, database.ErrNotFound) {
 		return nil, ErrChunkNotAvailable
 	}
@@ -155,7 +155,7 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 }
 
 type ChunkCertificateGossipHandler[T Tx] struct {
-	storage *ChunkStorage[T]
+	Storage *ChunkStorage[T]
 }
 
 // TODO error handling + logs
@@ -171,7 +171,7 @@ func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	if err := c.storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
+	if err := c.Storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
 		return
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -24,6 +25,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/x/dsmr"
+	"github.com/ava-labs/hypersdk/x/fdsmr"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -61,7 +64,10 @@ const (
 	MaxAcceptorSize        = 256
 	MinAcceptedBlockWindow = 1024
 
-	txGossipHandlerID = 0x2
+	getChunkHandlerID               = 0x0
+	getChunkSignatureHandlerID      = 0x1
+	chunkCertificateGossipHandlerID = 0x2
+	txGossipHandlerID               = 0x3
 )
 
 type VM struct {
@@ -107,6 +113,7 @@ type VM struct {
 	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
 	network               *p2p.Network
+	dsmr                  fdsmr.DSMR[*chain.Transaction]
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -236,6 +243,68 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
+
+	// TODO clean up init
+	chunkDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, "chunkdb", prometheus.NewRegistry())
+	if err != nil {
+		return fmt.Errorf("failed to initialize chunk db: %w", err)
+	}
+
+	chunkStorage, err := dsmr.NewChunkStorage[*chain.Transaction](
+		dsmr.NoVerifier[*chain.Transaction]{},
+		chunkDB,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize chunk storage: %w", err)
+	}
+
+	getChunkHandler := &dsmr.GetChunkHandler[*chain.Transaction]{
+		Storage: chunkStorage,
+	}
+	if err := vm.network.AddHandler(getChunkHandlerID, getChunkHandler); err != nil {
+		return fmt.Errorf("failed to add get chunk handler")
+	}
+
+	getChunkSignatureHandler := acp118.NewHandler[*chain.Transaction](
+		nil,
+		vm.snowCtx.WarpSigner,
+	)
+	if err := vm.network.AddHandler(getChunkSignatureHandlerID, getChunkSignatureHandler); err != nil {
+		return fmt.Errorf("failed to add get chunk signature handler")
+	}
+
+	chunkCertificateGossipHandler := &dsmr.ChunkCertificateGossipHandler[*chain.Transaction]{
+		Storage: chunkStorage,
+	}
+
+	getChunkClient := vm.network.NewClient(getChunkHandlerID)
+	getChunkSignatureClient := vm.network.NewClient(getChunkSignatureHandlerID)
+	chunkCertificateGossipClient := vm.network.NewClient(chunkCertificateGossipHandlerID)
+
+	dsmrNode, err := dsmr.New[*chain.Transaction](
+		vm.snowCtx.Log,
+		vm.snowCtx.NodeID,
+		vm.snowCtx.NetworkID,
+		vm.snowCtx.ChainID,
+		vm.snowCtx.PublicKey,
+		vm.snowCtx.WarpSigner,
+		chunkStorage,
+		getChunkHandler,
+		getChunkSignatureHandler,
+		chunkCertificateGossipHandler,
+		getChunkClient,
+		getChunkSignatureClient,
+		chunkCertificateGossipClient,
+		nil,
+		vm.lastAccepted,
+		2,
+		3,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize dsmr: %w", err)
+	}
+
+	vm.dsmr = fdsmr.New[*dsmr.Node[*chain.Transaction], *chain.Transaction](dsmrNode, nil)
 
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	vm.GenesisBytes = genesisBytes
