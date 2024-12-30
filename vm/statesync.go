@@ -44,7 +44,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	stateSyncRegistry, err := vm.snowInput.Context.MakeRegistry("statesync")
+	stateSyncRegistry, err := vm.snowInput.Context.MakeRegistry(StateSyncNamespace)
 	if err != nil {
 		return err
 	}

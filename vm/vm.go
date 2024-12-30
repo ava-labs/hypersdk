@@ -15,9 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api"
@@ -44,10 +42,14 @@ import (
 )
 
 const (
-	blockDB   = "blockdb"
-	stateDB   = "statedb"
-	syncerDB  = "syncerdb"
-	vmDataDir = "vm"
+	blockDB             = "blockdb"
+	stateDB             = "statedb"
+	syncerDB            = "syncerdb"
+	vmDataDir           = "vm"
+	hyperNamespace      = "hypervm"
+	chainNamespace      = "chain"
+	chainStoreNamespace = "chainstore"
+	gossiperNamespace   = "gossiper"
 
 	changeProofHandlerID = 0x0
 	rangeProofHandlerID  = 0x1
@@ -65,7 +67,6 @@ var (
 )
 
 type VM struct {
-	version   *version.Semantic
 	snowInput hsnow.ChainInput
 	snowApp   *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 
@@ -114,7 +115,6 @@ type VM struct {
 }
 
 func New(
-	version *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
@@ -133,7 +133,6 @@ func New(
 	}
 
 	return &VM{
-		version:               version,
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		config:                NewConfig(),
@@ -153,7 +152,6 @@ func (vm *VM) Initialize(
 	makeChainIndex hsnow.MakeChainIndexFunc[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 ) (hsnow.BlockChainIndex[*chain.ExecutionBlock], error) {
-	snowApp.WithVersion(vm.version.String())
 	var (
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
@@ -164,7 +162,7 @@ func (vm *VM) Initialize(
 	vm.snowCtx = snowCtx
 	vm.snowInput = chainInput
 	vm.snowApp = snowApp
-	vmRegistry, err := chainInput.Context.MakeRegistry("hypervm")
+	vmRegistry, err := chainInput.Context.MakeRegistry(hyperNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -220,15 +218,14 @@ func (vm *VM) Initialize(
 
 	// Instantiate DBs
 	pebbleConfig := pebble.NewDefaultConfig()
-	rawStateDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
-		return nil, fmt.Errorf("failed to register rawstatedb metrics: %w", err)
+	stateDBRegistry, err := vm.snowInput.Context.MakeRegistry(stateDB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register statedb metrics: %w", err)
 	}
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, stateDBRegistry)
 	if err != nil {
 		return nil, err
 	}
-	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
@@ -239,7 +236,7 @@ func (vm *VM) Initialize(
 		IntermediateNodeCacheSize:   uint(vm.config.IntermediateNodeCacheSize),
 		IntermediateWriteBufferSize: uint(vm.config.StateIntermediateWriteBufferSize),
 		IntermediateWriteBatchSize:  uint(vm.config.StateIntermediateWriteBatchSize),
-		Reg:                         merkleRegistry,
+		Reg:                         stateDBRegistry,
 		TraceLevel:                  merkledb.InfoTrace,
 		Tracer:                      vm.tracer,
 	})
@@ -255,9 +252,6 @@ func (vm *VM) Initialize(
 		}
 		return nil
 	})
-	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
-		return nil, err
-	}
 
 	// Setup worker cluster for verifying signatures
 	//
@@ -291,13 +285,13 @@ func (vm *VM) Initialize(
 			return nil
 		},
 	})
-	registerer := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
-		return nil, err
+	chainRegistry, err := vm.snowInput.Context.MakeRegistry(chainNamespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
 	}
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
-		registerer,
+		chainRegistry,
 		vm,
 		vm.Mempool(),
 		vm.Logger(),
@@ -369,9 +363,9 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) initChainStore() error {
-	blockDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
-		return fmt.Errorf("failed to register blockdb metrics: %w", err)
+	blockDBRegistry, err := vm.snowInput.Context.MakeRegistry(blockDB)
+	if err != nil {
+		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
 	}
 	pebbleConfig := pebble.NewDefaultConfig()
 	chainStoreDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
@@ -379,7 +373,7 @@ func (vm *VM) initChainStore() error {
 		return fmt.Errorf("failed to create chain store database: %w", err)
 	}
 	vm.snowApp.WithCloser(chainStoreDB.Close)
-	vm.chainStore, err = chainstore.New[*chain.ExecutionBlock](vm.snowInput.Context, vm.chain, chainStoreDB)
+	vm.chainStore, err = chainstore.New[*chain.ExecutionBlock](vm.snowInput.Context, chainStoreNamespace, vm.chain, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain store: %w", err)
 	}
@@ -516,10 +510,9 @@ func (vm *VM) applyOptions(o *Options) error {
 		return nil
 	})
 
-	gossipRegistry := prometheus.NewRegistry()
-	err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry)
+	gossipRegistry, err := vm.snowInput.Context.MakeRegistry(gossiperNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to register gossiper metrics: %w", err)
+		return fmt.Errorf("failed to register %s metrics: %w", gossiperNamespace, err)
 	}
 	if o.gossiper {
 		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](

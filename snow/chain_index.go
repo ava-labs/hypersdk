@@ -10,6 +10,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+// BlockChainIndex defines the generic on-disk index for the Input block type required
+// by the VM.
+// BlockChainIndex must serve the last accepted block, it is up to the implementation
+// how large of a window of accepted blocks to maintain in its index.
+// The VM provides a caching layer on top of BlockChainIndex, so the implementation
+// does not need to provide its own caching layer.
 type BlockChainIndex[T Block] interface {
 	UpdateLastAccepted(ctx context.Context, blk T) error
 	GetLastAcceptedHeight(ctx context.Context) (uint64, error)

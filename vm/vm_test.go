@@ -92,7 +92,6 @@ func NewTestVM(
 	options := defaultvm.NewDefaultOptions()
 	options = append(options, vm.WithManual())
 	vm, err := vm.New(
-		version.Semantic1_0_0,
 		genesis.DefaultGenesisFactory{},
 		balance.NewPrefixBalanceHandler([]byte{0}),
 		metadata.NewDefaultManager(),
@@ -104,7 +103,7 @@ func NewTestVM(
 	)
 	r.NoError(err)
 	r.NotNil(vm)
-	snowVM := snow.NewVM(vm)
+	snowVM := snow.NewVM("v0.0.1", vm)
 
 	toEngine := make(chan common.Message, 1)
 
@@ -1038,7 +1037,7 @@ func TestSkipStateSync(t *testing.T) {
 
 	config := map[string]interface{}{
 		vm.StateSyncNamespace: map[string]interface{}{
-			"minBlocks": uint64(numBlocks - 1),
+			"minBlocks": uint64(numBlocks + 1),
 		},
 	}
 	configBytes, err := json.Marshal(config)

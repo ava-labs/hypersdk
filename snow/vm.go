@@ -105,11 +105,11 @@ type VM[I Block, O Block, A Block] struct {
 	shutdownChan chan struct{}
 }
 
-func NewVM[I Block, O Block, A Block](chain Chain[I, O, A]) *VM[I, O, A] {
+func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	v := &VM[I, O, A]{
 		chain: chain,
 		app: Application[I, O, A]{
-			Version: "v0.0.1",
+			Version: version,
 			HealthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
 				return nil, nil
 			}),
@@ -332,5 +332,6 @@ func (v *VM[I, O, A]) Ready() bool {
 func (v *VM[I, O, A]) MarkReady(ready bool) {
 	v.readyL.Lock()
 	defer v.readyL.Unlock()
+
 	v.ready = ready
 }

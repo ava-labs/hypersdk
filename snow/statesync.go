@@ -22,9 +22,7 @@ func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
 	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
 		return err
 	}
-	v.readyL.Lock()
-	v.ready = false
-	v.readyL.Unlock()
+	v.MarkReady(false)
 	return nil
 }
 

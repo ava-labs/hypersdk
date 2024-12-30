@@ -34,10 +34,13 @@ type Application[I Block, O Block, A Block] struct {
 	PreReadyAcceptedSubs []event.Subscription[I]
 }
 
+// GetCovariantVM returns the VM implementation returning the wrapper around the generic types
 func (a *Application[I, O, A]) GetCovariantVM() *CovariantVM[I, O, A] {
 	return a.vm.covariantVM
 }
 
+// GetInputCovariantVM returns the VM implementation that returns the wrapper around the generic
+// types (instead of the snowman.Block type)
 func (a *Application[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
 	return &InputCovariantVM[I, O, A]{a.vm.covariantVM}
 }
@@ -68,10 +71,6 @@ func (a *Application[I, O, A]) WithHealthChecker(healthChecker health.Checker) {
 
 func (a *Application[I, O, A]) WithCloser(closer func() error) {
 	a.Closers = append(a.Closers, closer)
-}
-
-func (a *Application[I, O, A]) WithVersion(version string) {
-	a.Version = version
 }
 
 func (a *Application[I, O, A]) WithStateSyncStarted(onStateSyncStarted ...func(context.Context) error) {
