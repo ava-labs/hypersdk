@@ -1,6 +1,8 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 package dsmr
 
 import (
@@ -8,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -18,6 +21,11 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 
 	acodec "github.com/ava-labs/avalanchego/codec"
+)
+
+var (
+	_ canoto.Message                     = (*ChunkReference)(nil)
+	_ canoto.FieldMaker[*ChunkReference] = (*ChunkReference)(nil)
 )
 
 const (
@@ -41,9 +49,11 @@ func init() {
 }
 
 type ChunkReference struct {
-	ChunkID  ids.ID     `serialize:"true"`
-	Producer ids.NodeID `serialize:"true"`
-	Expiry   int64      `serialize:"true"`
+	ChunkID  ids.ID     `serialize:"true" canoto:"fixed bytes,1"`
+	Producer ids.NodeID `serialize:"true" canoto:"fixed bytes,2"`
+	Expiry   int64      `serialize:"true" canoto:"int,3"`
+
+	canotoData canotoData_ChunkReference
 }
 
 type ChunkCertificate struct {
