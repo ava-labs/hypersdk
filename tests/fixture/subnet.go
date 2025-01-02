@@ -15,6 +15,11 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
 			{
 				VMID:    vmID,
 				Genesis: genesisBytes,
+				Config: `{
+					"statesync": {
+						"minBlocks": 64
+					}
+				}`,
 			},
 		},
 		Config: tmpnet.FlagsMap{

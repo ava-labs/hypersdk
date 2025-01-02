@@ -17,6 +17,8 @@ import (
 
 var isSyncing = []byte("is_syncing")
 
+var errStateSyncIncomplete = errors.New("state syncing")
+
 type ChainClient[T StateSummaryBlock] interface {
 	LastAcceptedBlock(ctx context.Context) T
 	ParseBlock(ctx context.Context, bytes []byte) (T, error)
@@ -39,7 +41,10 @@ type Client[T StateSummaryBlock] struct {
 	minBlocks     uint64
 	mustStateSync bool
 
-	done chan error
+	skipped bool
+	started bool
+	done    chan struct{}
+	err     error
 }
 
 func NewAggregateClient[T StateSummaryBlock](
@@ -59,7 +64,7 @@ func NewAggregateClient[T StateSummaryBlock](
 		minBlocks: minBlocks,
 		onStart:   onStart,
 		onFinish:  onFinish,
-		done:      make(chan error, 1),
+		done:      make(chan struct{}),
 	}
 	var err error
 	c.mustStateSync, err = c.GetDiskIsSyncing()
@@ -93,6 +98,8 @@ func (c *Client[T]) Accept(
 	lastAcceptedBlk := c.chain.LastAcceptedBlock(ctx)
 	if !c.mustStateSync && lastAcceptedBlk.Height()+c.minBlocks > target.Height() {
 		c.log.Info("Skipping state sync", zap.Stringer("lastAccepted", lastAcceptedBlk), zap.Stringer("target", target))
+		c.skipped = true
+		close(c.done)
 		return block.StateSyncSkipped, nil
 	}
 
@@ -101,10 +108,13 @@ func (c *Client[T]) Accept(
 }
 
 func (c *Client[T]) finish(ctx context.Context, err error) {
+	defer func() {
+		c.err = err
+		close(c.done)
+	}()
+
 	if err != nil {
 		c.log.Error("state sync failed", zap.Error(err))
-		c.done <- err
-		close(c.done)
 		return
 	}
 
@@ -112,35 +122,37 @@ func (c *Client[T]) finish(ctx context.Context, err error) {
 	if c.onFinish != nil {
 		if err := c.onFinish(ctx); err != nil {
 			c.log.Error("state sync finish failed", zap.Error(err))
-			c.done <- err
-			close(c.done)
 			return
 		}
 	}
 
 	if err := c.PutDiskIsSyncing(false); err != nil {
 		c.log.Error("failed to mark state sync as complete", zap.Error(err))
-		c.done <- err
-		close(c.done)
 		return
 	}
 	c.log.Info("state sync finished and marked itself complete")
-	c.done <- nil
-	close(c.done)
 }
 
 func (c *Client[T]) MustStateSync() bool {
 	return c.mustStateSync
 }
 
-func (c *Client[T]) Done() <-chan error {
-	return c.done
+func (c *Client[T]) Started() bool { return c.started }
+
+func (c *Client[T]) Wait(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("state sync timed out: %w", ctx.Err())
+	case <-c.done:
+		return c.err
+	}
 }
 
 func (c *Client[T]) startDynamicStateSync(ctx context.Context, target T) error {
 	if err := c.PutDiskIsSyncing(true); err != nil {
 		return err
 	}
+	c.started = true
 
 	c.log.Info("Starting state sync", zap.Stringer("target", target))
 	if c.onStart != nil {
@@ -150,16 +162,16 @@ func (c *Client[T]) startDynamicStateSync(ctx context.Context, target T) error {
 		}
 	}
 	c.log.Info("Starting state syncer(s)", zap.Int("numSyncers", len(c.syncers)))
+	detachedCtx := context.WithoutCancel(ctx)
 	for _, syncer := range c.syncers {
-		if err := syncer.Start(ctx, target); err != nil {
+		if err := syncer.Start(detachedCtx, target); err != nil {
 			c.finish(ctx, err)
 			return err
 		}
 	}
 
 	c.log.Info("Kicking off state sync awaiter(s)", zap.Int("numSyncers", len(c.syncers)))
-	awaitCtx := context.WithoutCancel(ctx)
-	eg, egCtx := errgroup.WithContext(awaitCtx)
+	eg, egCtx := errgroup.WithContext(detachedCtx)
 	for _, syncer := range c.syncers {
 		eg.Go(func() error {
 			if err := syncer.Wait(egCtx); err != nil {
@@ -171,8 +183,13 @@ func (c *Client[T]) startDynamicStateSync(ctx context.Context, target T) error {
 	go func() {
 		c.log.Info("Waiting for state syncer(s) to complete", zap.Int("numSyncers", len(c.syncers)))
 		err := eg.Wait()
-		c.log.Info("State syncer(s) completed", zap.Error(err))
-		c.finish(context.WithoutCancel(ctx), err)
+		if err != nil {
+			c.log.Fatal("State sync failed", zap.Error(err))
+			panic(fmt.Sprintf("state sync failed: %s", err)) // Fail loudly
+		} else {
+			c.log.Info("State syncer(s) completed", zap.Int("numSyncers", len(c.syncers)))
+		}
+		c.finish(detachedCtx, err)
 		c.log.Info("State sync completed")
 	}()
 
@@ -205,4 +222,15 @@ func (c *Client[T]) PutDiskIsSyncing(v bool) error {
 		return c.db.Put(isSyncing, []byte{0x1})
 	}
 	return c.db.Put(isSyncing, []byte{0x0})
+}
+
+func (c *Client[T]) HealthCheck(ctx context.Context) (interface{}, error) {
+	select {
+	case <-c.done:
+		c.log.Info("Invoking state sync health check", zap.Error(c.err))
+		return nil, c.err
+	default:
+		c.log.Info("Invoking state sync health check", zap.Error(errStateSyncIncomplete))
+		return nil, errStateSyncIncomplete
+	}
 }

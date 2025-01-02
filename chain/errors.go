@@ -54,7 +54,6 @@ var (
 	ErrTooManyActions       = errors.New("too many actions")
 
 	// Execution Correctness
-	ErrInvalidBalance  = errors.New("invalid balance")
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 

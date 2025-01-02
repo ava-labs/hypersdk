@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
@@ -83,10 +84,10 @@ func (c *Chain) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) 
 
 func (c *Chain) Execute(
 	ctx context.Context,
-	parentBlock *OutputBlock,
+	parentView merkledb.View,
 	b *ExecutionBlock,
 ) (*OutputBlock, error) {
-	return c.processor.Execute(ctx, parentBlock, b)
+	return c.processor.Execute(ctx, parentView, b)
 }
 
 func (c *Chain) AsyncVerify(

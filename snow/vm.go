@@ -70,6 +70,7 @@ type Chain[I Block, O Block, A Block] interface {
 }
 
 type VM[I Block, O Block, A Block] struct {
+	chainLock       sync.Mutex
 	chain           Chain[I, O, A]
 	inputChainIndex BlockChainIndex[I]
 	chainIndex      *ChainIndex[I, O, A]
@@ -94,6 +95,7 @@ type VM[I Block, O Block, A Block] struct {
 	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
+	metaLock          sync.Mutex
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
 
@@ -229,8 +231,10 @@ func (v *VM[I, O, A]) Initialize(
 }
 
 func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
+	v.metaLock.Lock()
+	defer v.metaLock.Unlock()
+
 	v.lastAcceptedBlock = lastAcceptedBlock
-	v.preferredBlkID = v.lastAcceptedBlock.ID()
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
@@ -261,6 +265,9 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
 }
 
 func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
+	v.metaLock.Lock()
+	defer v.metaLock.Unlock()
+
 	v.preferredBlkID = blkID
 	return nil
 }
@@ -316,10 +323,10 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 
 	errs := make([]error, len(v.app.Closers))
 	for i, closer := range v.app.Closers {
-		v.log.Info("Shutting down", zap.String("name", closer.name))
+		v.log.Info("Shutting down service", zap.String("service", closer.name))
 		start := time.Now()
 		errs[i] = closer.close()
-		v.log.Info("Shutdown", zap.String("name", closer.name), zap.Duration("duration", time.Since(start)))
+		v.log.Info("Finished shutting down service", zap.String("service", closer.name), zap.Duration("duration", time.Since(start)))
 	}
 	return errors.Join(errs...)
 }

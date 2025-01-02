@@ -44,8 +44,6 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 		return true
 	case errors.Is(err, ErrTimestampTooLate):
 		return false
-	case errors.Is(err, ErrInvalidBalance):
-		return false
 	case errors.Is(err, ErrAuthNotActivated):
 		return false
 	case errors.Is(err, ErrAuthFailed):

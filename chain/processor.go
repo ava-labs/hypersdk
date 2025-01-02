@@ -109,16 +109,15 @@ func NewProcessor(
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	parentBlock *OutputBlock,
+	parentView merkledb.View,
 	b *ExecutionBlock,
 ) (*OutputBlock, error) {
 	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
 
 	var (
-		r          = p.ruleFactory.GetRules(b.Tmstmp)
-		log        = p.log
-		parentView = parentBlock.View
+		r   = p.ruleFactory.GetRules(b.Tmstmp)
+		log = p.log
 	)
 
 	// Perform basic correctness checks before doing any expensive work

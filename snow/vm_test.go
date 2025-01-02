@@ -487,6 +487,9 @@ func (ce *TestConsensusEngine) GetLastAcceptedBlock(ctx context.Context) {
 }
 
 func (ce *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) {
+	ce.vm.snowCtx.Lock.Lock()
+	defer ce.vm.snowCtx.Lock.Unlock()
+
 	blk.Input.outputPopulated = true
 	blk.Input.acceptedPopulated = true
 	blk.setAccepted(blk.Input, blk.Input)

@@ -1059,6 +1059,8 @@ func TestSkipStateSync(t *testing.T) {
 	r.Equal(block.StateSyncSkipped, stateSyncMode)
 	r.Equal(lastAccepted.ID(), initialVMGenesisBlock.ID())
 
+	r.NoError(vm.SnowVM.SetState(ctx, avasnow.NormalOp))
+
 	network.SynchronizeNetwork(ctx)
 	blk := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
 	r.Equal(blk.Height(), uint64(numBlocks))
@@ -1145,13 +1147,11 @@ func TestStateSync(t *testing.T) {
 		}
 	}()
 
-	select {
-	case err = <-vm.VM.SyncClient.Done():
-		close(stopCh)
-		r.NoError(err)
-	case <-time.After(10 * time.Second):
-		r.FailNow("timed out waiting for state sync to finish")
-	}
+	awaitSyncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	err = vm.VM.SyncClient.Wait(awaitSyncCtx)
+	close(stopCh)
+	r.NoError(err)
 	<-stoppedCh
 
 	network.ConfirmBlocks(ctx, 1, func(int) []*chain.Transaction {

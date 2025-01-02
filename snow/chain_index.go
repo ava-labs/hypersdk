@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
 )
 
 // BlockChainIndex defines the generic on-disk index for the Input block type required
@@ -54,6 +55,7 @@ func (v *VM[I, O, A]) MakeChainIndex(
 		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
+	v.preferredBlkID = lastAcceptedBlock.ID()
 	v.chainIndex = &ChainIndex[I, O, A]{
 		covariantVM: v.covariantVM,
 	}
@@ -113,14 +115,38 @@ func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, er
 }
 
 func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
+	c.covariantVM.chainLock.Lock()
+	defer c.covariantVM.chainLock.Unlock()
+
+	var emptyOutputBlk O
 	blk, err := c.covariantVM.GetBlock(ctx, c.covariantVM.preferredBlkID)
 	if err != nil {
-		var emptyBlk O
-		return emptyBlk, err
+		return emptyOutputBlk, err
+	}
+
+	if !blk.verified {
+		// The block may not be populated if we are transitioning from dynamic state sync.
+		// This is jank as hell.
+		// To handle this, we re-process from the last verified ancestor to the preferred
+		// block.
+		// If the preferred block is invalid (which can happen if a malicious peer sends us
+		// an invalid block and we hit a poll that causes us to set it to our preference),
+		// then we will return an error.
+		c.covariantVM.log.Info("Reprocessing to preferred block",
+			zap.Stringer("lastAccepted", c.covariantVM.lastAcceptedBlock),
+			zap.Stringer("preferred", blk),
+		)
+		if err := blk.innerVerify(ctx); err != nil {
+			return emptyOutputBlk, fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
+		}
+		return blk.Output, nil
 	}
 	return blk.Output, nil
 }
 
 func (c *ChainIndex[I, O, A]) GetLastAccepted(context.Context) A {
+	c.covariantVM.metaLock.Lock()
+	defer c.covariantVM.metaLock.Unlock()
+
 	return c.covariantVM.lastAcceptedBlock.Accepted
 }
