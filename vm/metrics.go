@@ -40,6 +40,7 @@ func newMetrics(r prometheus.Registerer) (*Metrics, error) {
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
+		r.Register(m.txsAccepted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsSubmitted),
 		r.Register(m.mempoolSize),

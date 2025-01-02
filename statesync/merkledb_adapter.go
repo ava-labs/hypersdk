@@ -76,7 +76,9 @@ func (m *MerkleSyncer[T]) Start(ctx context.Context, target T) error {
 	return m.syncManager.Start(ctx)
 }
 
-func (m *MerkleSyncer[T]) Wait(ctx context.Context) error { return m.syncManager.Wait(ctx) }
+func (m *MerkleSyncer[T]) Wait(ctx context.Context) error {
+	return m.syncManager.Wait(ctx)
+}
 
 func (m *MerkleSyncer[T]) Close() error {
 	m.syncManager.Close()

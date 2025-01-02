@@ -52,10 +52,11 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: auth.ED25519Key,
 	}
 
-	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
-	generator := workload.NewTxGenerator(firstAuthFactory)
+	authFactories := testingNetworkConfig.AuthFactories()
+	spamKey := authFactories[0]
+	generator := workload.NewTxGenerator(authFactories[1])
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, firstAuthFactory)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {

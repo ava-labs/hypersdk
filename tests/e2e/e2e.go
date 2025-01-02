@@ -178,7 +178,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			require.NoError(err)
 		})
 		ginkgo.By("Accept a transaction after state sync", func() {
-			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
+			txWorkload.GenerateTxs(tc.ContextWithTimeout(20*time.Second), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("Pause the node", func() {
 			// TODO: remove the need to call SaveAPIPort from the test
@@ -187,7 +187,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
-			ok, err := c.Ping(tc.DefaultContext())
+			ok, err := c.Ping(tc.ContextWithTimeout(10 * time.Second))
 			require.Error(err) //nolint:forbidigo
 			require.False(ok)
 		})
@@ -209,7 +209,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Accept a transaction after resuming", func() {
-			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
+			txWorkload.GenerateTxs(tc.ContextWithTimeout(20*time.Second), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("State sync while broadcasting txs", func() {
 			stopChannel := make(chan struct{})

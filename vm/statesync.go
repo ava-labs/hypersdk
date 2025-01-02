@@ -24,6 +24,10 @@ type validityWindowAdapter struct {
 	*validitywindow.Syncer[*chain.Transaction]
 }
 
+func (v validityWindowAdapter) Accept(ctx context.Context, blk *chain.ExecutionBlock) (bool, error) {
+	return v.Syncer.Accept(ctx, blk)
+}
+
 type StateSyncConfig struct {
 	MerkleSimultaneousWorkLimit int    `json:"merkleSimultaneousWorkLimit"`
 	MinBlocks                   uint64 `json:"minBlocks"`
@@ -34,10 +38,6 @@ func NewDefaultStateSyncConfig() StateSyncConfig {
 		MerkleSimultaneousWorkLimit: 4,
 		MinBlocks:                   512,
 	}
-}
-
-func (v validityWindowAdapter) Accept(ctx context.Context, blk *chain.ExecutionBlock) (bool, error) {
-	return v.Syncer.Accept(ctx, blk)
 }
 
 func (vm *VM) initStateSync(ctx context.Context) error {
@@ -100,6 +100,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		},
 		vm.snowApp.StartStateSync,
 		func(ctx context.Context) error {
+			vm.snowCtx.Log.Info("Extracting final output block after completing state sync")
 			stateHeight, err := vm.extractStateHeight(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to extract state height after state sync: %w", err)
@@ -121,7 +122,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 				return err
 			}
 			vm.snowInput.ToEngine <- common.StateSyncDone
-			return nil
+			return vm.startNormalOp(ctx)
 		},
 		stateSyncConfig.MinBlocks,
 	)
@@ -137,5 +138,6 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	server := statesync.NewServer[*chain.ExecutionBlock](vm.snowCtx.Log, inputCovariantVM)
 	stateSyncableVM := statesync.NewStateSyncableVM(client, server)
 	vm.snowApp.WithStateSyncableVM(stateSyncableVM)
+	vm.snowApp.WithHealthChecker(vm.SyncClient)
 	return nil
 }

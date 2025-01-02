@@ -6,8 +6,10 @@ package snow
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"go.uber.org/zap"
 )
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
@@ -23,15 +25,15 @@ func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
 		return err
 	}
 	v.MarkReady(false)
+	v.setLastAccepted(NewInputBlock(v.covariantVM, block))
 	return nil
 }
 
 // FinishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
-// This function must grab the lock because it's called from a thread the VM controls instead of the consensus
-// engine.
+// Expects the caller to hold the snow ctx lock
 func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
-	v.snowCtx.Lock.Lock()
-	defer v.snowCtx.Lock.Unlock()
+	v.chainLock.Lock()
+	defer v.chainLock.Unlock()
 
 	// Cannot call FinishStateSync if already marked as ready and in normal operation
 	if v.Ready() {
@@ -41,6 +43,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	// If the block is already the last accepted block, update the fields and return
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
+		v.log.Info("Finishing state sync with original target", zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock))
 		v.MarkReady(true)
 		return nil
 	}
@@ -49,6 +52,10 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	// the interim (before successfully grabbing the lock).
 	// Create the block and reprocess all blocks in the range (blk, lastAcceptedBlock]
 	blk := NewAcceptedBlock(v.covariantVM, input, output, accepted)
+	v.log.Info("Finishing state sync with target behind last accepted tip",
+		zap.Stringer("target", blk),
+		zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock),
+	)
 	reprocessBlks, err := v.covariantVM.getExclusiveBlockRange(ctx, blk, v.lastAcceptedBlock)
 	if err != nil {
 		return fmt.Errorf("failed to get block range while completing state sync: %w", err)
@@ -57,6 +64,12 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	// block up to and including the last accepted block.
 	reprocessBlks = append(reprocessBlks, v.lastAcceptedBlock)
 	parent := blk
+	v.log.Info("Reprocessing blocks from target to last accepted tip",
+		zap.Stringer("target", blk),
+		zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock),
+		zap.Int("numBlocks", len(reprocessBlks)),
+	)
+	start := time.Now()
 	for _, reprocessBlk := range reprocessBlks {
 		if err := reprocessBlk.verify(ctx, parent.Output); err != nil {
 			return fmt.Errorf("failed to finish state sync while verifying block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
@@ -67,6 +80,8 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		parent = reprocessBlk
 	}
 
+	v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
+	v.setLastAccepted(v.lastAcceptedBlock)
 	v.MarkReady(true)
 	return nil
 }

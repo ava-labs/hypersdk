@@ -337,30 +337,10 @@ func (vm *VM) Initialize(
 	}
 
 	snowApp.WithNormalOpStarted(func(_ context.Context) error {
-		// check that state sync succeeded?
-		vm.builder.Start()
-		vm.snowApp.WithCloser("builder", func() error {
-			vm.builder.Done()
+		if vm.SyncClient.Started() {
 			return nil
-		})
-
-		vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
-		vm.snowApp.WithCloser("gossiper", func() error {
-			vm.gossiper.Done()
-			return nil
-		})
-
-		if err := vm.network.AddHandler(
-			txGossipHandlerID,
-			gossiper.NewTxGossipHandler(
-				vm.snowCtx.Log,
-				vm.gossiper,
-			),
-		); err != nil {
-			return fmt.Errorf("failed to add tx gossip handler: %w", err)
 		}
-
-		return nil
+		return vm.startNormalOp(ctx)
 	})
 
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
@@ -565,6 +545,33 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	}, nil
 }
 
+func (vm *VM) startNormalOp(ctx context.Context) error {
+	vm.builder.Start()
+	vm.snowApp.WithCloser("builder", func() error {
+		vm.builder.Done()
+		return nil
+	})
+
+	vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
+	vm.snowApp.WithCloser("gossiper", func() error {
+		vm.gossiper.Done()
+		return nil
+	})
+
+	if err := vm.network.AddHandler(
+		txGossipHandlerID,
+		gossiper.NewTxGossipHandler(
+			vm.snowCtx.Log,
+			vm.gossiper,
+		),
+	); err != nil {
+		return fmt.Errorf("failed to add tx gossip handler: %w", err)
+	}
+	vm.checkActivity(ctx)
+
+	return nil
+}
+
 func (vm *VM) applyOptions(o *Options) error {
 	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(o.blockSubscriptionFactories))
 	for i, factory := range o.blockSubscriptionFactories {
@@ -658,6 +665,8 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBl
 }
 
 func (vm *VM) BuildBlock(ctx context.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
+	defer vm.checkActivity(ctx)
+
 	return vm.chain.BuildBlock(ctx, parent)
 }
 
