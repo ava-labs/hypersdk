@@ -532,13 +532,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			packer := wrappers.Packer{MaxSize: MaxMessageSize}
-			r.NoError(codec.LinearCodec.MarshalInto(ChunkReference{
+			chunkReference := ChunkReference{
 				ChunkID:  ids.GenerateTestID(),
 				Producer: ids.GenerateTestNodeID(),
 				Expiry:   123,
-			}, &packer))
-			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+			}
+			chunkReferenceBytes := chunkReference.MarshalCanoto()
+			msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkReferenceBytes)
 			r.NoError(err)
 			done := make(chan struct{})
 			onResponse := func(_ context.Context, _ ids.NodeID, response *sdk.SignatureResponse, err error) {
@@ -640,13 +640,13 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		r.ErrorIs(err, ErrDuplicateChunk)
 	}
 
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	r.NoError(codec.LinearCodec.MarshalInto(ChunkReference{
+	chunkReference := ChunkReference{
 		ChunkID:  chunk.id,
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
-	}, &packer))
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	}
+	chunkReferenceBytes := chunkReference.MarshalCanoto()
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkReferenceBytes)
 	r.NoError(err)
 
 	client := NewGetChunkSignatureClient(
@@ -1199,7 +1199,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 								Producer: ids.GenerateTestNodeID(),
 								Expiry:   1,
 							},
-							Signature: &warp.BitSetSignature{
+							Signature: Signature{
 								Signers:   set.NewBits(1, 2, 3).Bytes(),
 								Signature: [96]byte{1, 2, 3},
 							},

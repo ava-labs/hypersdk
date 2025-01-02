@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -129,7 +128,6 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -167,7 +165,6 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -209,7 +206,6 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -242,7 +238,6 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -284,7 +279,6 @@ func TestRestartSavedChunks(t *testing.T) {
 				Producer: chunk.Producer,
 				Expiry:   chunk.Expiry,
 			},
-			Signature: &warp.BitSetSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}

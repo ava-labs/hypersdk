@@ -7,46 +7,27 @@ package dsmr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/StephenButtolph/canoto"
-	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-
-	"github.com/ava-labs/hypersdk/codec"
-
-	acodec "github.com/ava-labs/avalanchego/codec"
 )
 
 var (
-	_ canoto.Message                     = (*ChunkReference)(nil)
-	_ canoto.FieldMaker[*ChunkReference] = (*ChunkReference)(nil)
+	_ canoto.Message = (*ChunkReference)(nil)
+	_ canoto.Message = (*Signature)(nil)
+	_ canoto.Message = (*ChunkCertificate)(nil)
+
+	_ canoto.FieldMaker[*ChunkReference]   = (*ChunkReference)(nil)
+	_ canoto.FieldMaker[*Signature]        = (*Signature)(nil)
+	_ canoto.FieldMaker[*ChunkCertificate] = (*ChunkCertificate)(nil)
 )
 
-const (
-	CodecVersion = 0
-
-	MaxMessageSize = units.KiB
-)
-
-var Codec acodec.Manager
-
-func init() {
-	Codec = acodec.NewManager(MaxMessageSize)
-	lc := linearcodec.NewDefault()
-
-	err := errors.Join(
-		Codec.RegisterCodec(CodecVersion, lc),
-	)
-	if err != nil {
-		panic(err)
-	}
-}
+const MaxMessageSize = units.KiB
 
 type ChunkReference struct {
 	ChunkID  ids.ID     `serialize:"true" canoto:"fixed bytes,1"`
@@ -56,22 +37,25 @@ type ChunkReference struct {
 	canotoData canotoData_ChunkReference
 }
 
+type Signature struct {
+	// Signers is a big-endian byte slice encoding which validators signed this
+	// message.
+	Signers   []byte                 `serialize:"true" canoto:"bytes,1"`
+	Signature [bls.SignatureLen]byte `serialize:"true" canoto:"fixed bytes,2"`
+
+	canotoData canotoData_Signature
+}
+
 type ChunkCertificate struct {
-	ChunkReference `serialize:"true"`
-	Signature      *warp.BitSetSignature `serialize:"true"`
+	ChunkReference `serialize:"true" canoto:"value,1"`
+	Signature      Signature `serialize:"true" canoto:"value,2"`
+
+	canotoData canotoData_ChunkCertificate
 }
 
 func (c *ChunkCertificate) GetChunkID() ids.ID { return c.ChunkID }
 
 func (c *ChunkCertificate) GetSlot() int64 { return c.Expiry }
-
-func (c *ChunkCertificate) Bytes() []byte {
-	bytes, err := Codec.Marshal(CodecVersion, c)
-	if err != nil {
-		panic(err)
-	}
-	return bytes
-}
 
 func (c *ChunkCertificate) Verify(
 	ctx context.Context,
@@ -82,17 +66,17 @@ func (c *ChunkCertificate) Verify(
 	quorumNum uint64,
 	quorumDen uint64,
 ) error {
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(c.ChunkReference, &packer); err != nil {
-		return fmt.Errorf("failed to marshal chunk reference: %w", err)
-	}
-
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	chunkReferenceBytes := c.ChunkReference.MarshalCanoto()
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkReferenceBytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
 
-	if err := c.Signature.Verify(
+	signature := warp.BitSetSignature{
+		Signers:   c.Signature.Signers,
+		Signature: c.Signature.Signature,
+	}
+	if err := signature.Verify(
 		ctx,
 		msg,
 		networkID,

@@ -139,16 +139,13 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(ChunkReference{
+	chunkReference := ChunkReference{
 		ChunkID:  chunk.id,
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
-	}, &packer); err != nil {
-		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
-
-	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
+	chunkReferenceBytes := chunkReference.MarshalCanoto()
+	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, chunkReferenceBytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
@@ -199,10 +196,13 @@ func (n *Node[T]) BuildChunk(
 			Producer: chunk.Producer,
 			Expiry:   chunk.Expiry,
 		},
-		Signature: bitSetSignature,
+		Signature: Signature{
+			Signers:   bitSetSignature.Signers,
+			Signature: bitSetSignature.Signature,
+		},
 	}
 
-	packer = wrappers.Packer{MaxSize: MaxMessageSize}
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
 		return err
 	}

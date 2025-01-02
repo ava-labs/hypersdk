@@ -158,7 +158,10 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 
 	chunkCertInfo, ok := s.chunkMap[c.id]
 	if ok {
-		return chunkCertInfo.Cert.Signature, nil
+		return &warp.BitSetSignature{
+			Signers:   chunkCertInfo.Cert.Signature.Signers,
+			Signature: chunkCertInfo.Cert.Signature.Signature,
+		}, nil
 	}
 	if err := s.verifier.Verify(c); err != nil {
 		return nil, err
