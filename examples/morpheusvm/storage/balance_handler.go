@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -32,7 +33,12 @@ func (*BalanceHandler) CanDeduct(
 		return err
 	}
 	if bal < amount {
-		return ErrInvalidBalance
+		return fmt.Errorf("%w: cannot deduct (balance=%d, addr=%v, amount=%d)",
+			ErrInvalidBalance,
+			bal,
+			addr,
+			amount,
+		)
 	}
 	return nil
 }

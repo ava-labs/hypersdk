@@ -13,9 +13,6 @@ import (
 const namespace = "chain"
 
 type chainMetrics struct {
-	txsVerified prometheus.Counter
-	txsAccepted prometheus.Counter
-
 	rootCalculatedCount prometheus.Counter
 	rootCalculatedSum   prometheus.Gauge
 	waitRootCount       prometheus.Counter
@@ -129,16 +126,6 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
-		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "txs_verified",
-			Help:      "number of txs verified by chain",
-		}),
-		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "txs_accepted",
-			Help:      "number of txs accepted by chain",
-		}),
 	}
 
 	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
@@ -161,8 +148,6 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 		reg.Register(m.stateChanges),
 		reg.Register(m.stateOperations),
 		reg.Register(m.clearedMempool),
-		reg.Register(m.txsVerified),
-		reg.Register(m.txsAccepted),
 	)
 	return m, errs.Err
 }

@@ -38,7 +38,6 @@ func (p *PreExecutor) PreExecute(
 	parentBlk *ExecutionBlock,
 	view state.View,
 	tx *Transaction,
-	verifyAuth bool,
 ) error {
 	feeRaw, err := view.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
 	if err != nil {
@@ -72,10 +71,8 @@ func (p *PreExecutor) PreExecute(
 	}
 
 	// Verify auth if not already verified by caller
-	if verifyAuth {
-		if err := tx.VerifyAuth(ctx); err != nil {
-			return err
-		}
+	if err := tx.VerifyAuth(ctx); err != nil {
+		return err
 	}
 
 	// PreExecute does not make any changes to state

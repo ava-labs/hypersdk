@@ -54,7 +54,7 @@ func NewManual[T Tx](
 	}, nil
 }
 
-func (g *Manual[T]) Run(client *p2p.Client) {
+func (g *Manual[T]) Start(client *p2p.Client) {
 	g.client = client
 
 	// Only respond to explicitly triggered gossip
