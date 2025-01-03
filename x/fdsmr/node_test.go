@@ -17,11 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/x/dsmr/dsmrtest"
 )
 
-var (
-	_ DSMR[dsmrtest.Tx]   = (*testDSMR)(nil)
-	_ Bonder[dsmrtest.Tx] = (*testBonder)(nil)
-)
-
 // Tests that txs that cannot be bonded are filtered out from calls to the
 // underlying DSMR implementation
 func TestNode_BuildChunk(t *testing.T) {
@@ -32,8 +27,8 @@ func TestNode_BuildChunk(t *testing.T) {
 		name    string
 		bonder  testBonder
 		dsmrErr error
-		txs     []dsmrtest.Tx
-		wantTxs []dsmrtest.Tx
+		txs     []*dsmrtest.Tx
+		wantTxs []*dsmrtest.Tx
 		wantErr error
 	}{
 		{
@@ -41,7 +36,7 @@ func TestNode_BuildChunk(t *testing.T) {
 			bonder: testBonder{
 				bondErr: errFoo,
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.Empty,
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -53,31 +48,31 @@ func TestNode_BuildChunk(t *testing.T) {
 		{
 			name:    "dsmr errors",
 			dsmrErr: errFoo,
-			wantTxs: []dsmrtest.Tx{},
+			wantTxs: []*dsmrtest.Tx{},
 			wantErr: errFoo,
 		},
 		{
 			name:    "nil txs",
 			bonder:  testBonder{},
-			wantTxs: []dsmrtest.Tx{},
+			wantTxs: []*dsmrtest.Tx{},
 		},
 		{
 			name:    "empty txs",
 			bonder:  testBonder{},
-			txs:     []dsmrtest.Tx{},
-			wantTxs: []dsmrtest.Tx{},
+			txs:     []*dsmrtest.Tx{},
+			wantTxs: []*dsmrtest.Tx{},
 		},
 		{
 			name:   "single account - fails bond",
 			bonder: testBonder{},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.Empty,
 					Expiry:  now.Add(time.Hour).Unix(),
 					Sponsor: codec.EmptyAddress,
 				},
 			},
-			wantTxs: []dsmrtest.Tx{},
+			wantTxs: []*dsmrtest.Tx{},
 		},
 		{
 			name: "single account - bonded",
@@ -86,14 +81,14 @@ func TestNode_BuildChunk(t *testing.T) {
 					codec.EmptyAddress: 1,
 				},
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.Empty,
 					Expiry:  now.Add(time.Hour).Unix(),
 					Sponsor: codec.EmptyAddress,
 				},
 			},
-			wantTxs: []dsmrtest.Tx{
+			wantTxs: []*dsmrtest.Tx{
 				{
 					ID:      ids.Empty,
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -108,7 +103,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					codec.EmptyAddress: 1,
 				},
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -120,7 +115,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					Sponsor: codec.EmptyAddress,
 				},
 			},
-			wantTxs: []dsmrtest.Tx{
+			wantTxs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -133,7 +128,7 @@ func TestNode_BuildChunk(t *testing.T) {
 			bonder: testBonder{
 				limit: map[codec.Address]int{},
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -145,7 +140,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					Sponsor: codec.Address{2},
 				},
 			},
-			wantTxs: []dsmrtest.Tx{},
+			wantTxs: []*dsmrtest.Tx{},
 		},
 		{
 			name: "multiple accounts - all txs bonded",
@@ -155,7 +150,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					{2}: 1,
 				},
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -167,7 +162,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					Sponsor: codec.Address{2},
 				},
 			},
-			wantTxs: []dsmrtest.Tx{
+			wantTxs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -188,7 +183,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					{2}: 1,
 				},
 			},
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -210,7 +205,7 @@ func TestNode_BuildChunk(t *testing.T) {
 					Sponsor: codec.Address{2},
 				},
 			},
-			wantTxs: []dsmrtest.Tx{
+			wantTxs: []*dsmrtest.Tx{
 				{
 					ID:      ids.ID{0},
 					Expiry:  now.Add(time.Hour).Unix(),
@@ -236,9 +231,9 @@ func TestNode_BuildChunk(t *testing.T) {
 
 			wantExpiry := int64(123)
 			wantBeneficiary := codec.Address{1, 2, 3}
-			n := New[testDSMR, dsmrtest.Tx](
+			n := New[testDSMR, *dsmrtest.Tx](
 				testDSMR{
-					BuildChunkF: func(_ context.Context, gotTxs []dsmrtest.Tx, gotExpiry int64, gotBeneficiary codec.Address) error {
+					BuildChunkF: func(_ context.Context, gotTxs []*dsmrtest.Tx, gotExpiry int64, gotBeneficiary codec.Address) error {
 						r.Equal(tt.wantTxs, gotTxs)
 						r.Equal(wantExpiry, gotExpiry)
 						r.Equal(wantBeneficiary, gotBeneficiary)
@@ -284,7 +279,7 @@ func TestUnbondOnAccept(t *testing.T) {
 				},
 			}
 			expiry := time.Now().Add(time.Hour).Unix()
-			txs := []dsmrtest.Tx{
+			txs := []*dsmrtest.Tx{
 				{
 					ID:      ids.GenerateTestID(),
 					Expiry:  expiry,
@@ -292,15 +287,15 @@ func TestUnbondOnAccept(t *testing.T) {
 				},
 			}
 
-			n := New[testDSMR, dsmrtest.Tx](
+			n := New[testDSMR, *dsmrtest.Tx](
 				testDSMR{
-					AcceptF: func(_ context.Context, _ dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {
-						return dsmr.ExecutedBlock[dsmrtest.Tx]{
+					AcceptF: func(_ context.Context, _ dsmr.Block) (dsmr.ExecutedBlock[*dsmrtest.Tx], error) {
+						return dsmr.ExecutedBlock[*dsmrtest.Tx]{
 							BlockHeader: dsmr.BlockHeader{},
 							ID:          ids.ID{},
-							Chunks: []dsmr.Chunk[dsmrtest.Tx]{
+							Chunks: []dsmr.Chunk[*dsmrtest.Tx]{
 								{
-									UnsignedChunk: dsmr.UnsignedChunk[dsmrtest.Tx]{
+									UnsignedChunk: dsmr.UnsignedChunk[*dsmrtest.Tx]{
 										Producer:    ids.NodeID{},
 										Beneficiary: codec.Address{},
 										Expiry:      0,
@@ -375,7 +370,7 @@ func TestUnbondOnExpiry(t *testing.T) {
 				},
 			}
 
-			txs := []dsmrtest.Tx{
+			txs := []*dsmrtest.Tx{
 				{
 					ID:      ids.GenerateTestID(),
 					Expiry:  tt.expiry,
@@ -383,7 +378,7 @@ func TestUnbondOnExpiry(t *testing.T) {
 				},
 			}
 
-			n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
+			n := New[testDSMR, *dsmrtest.Tx](testDSMR{}, b)
 			r.NoError(n.BuildChunk(
 				context.Background(),
 				txs,
@@ -408,17 +403,17 @@ func TestUnbondOnExpiry(t *testing.T) {
 type testDSMR struct {
 	BuildChunkF func(
 		ctx context.Context,
-		txs []dsmrtest.Tx,
+		txs []*dsmrtest.Tx,
 		expiry int64,
 		beneficiary codec.Address,
 	) error
 	AcceptF func(
 		ctx context.Context,
 		block dsmr.Block,
-	) (dsmr.ExecutedBlock[dsmrtest.Tx], error)
+	) (dsmr.ExecutedBlock[*dsmrtest.Tx], error)
 }
 
-func (t testDSMR) BuildChunk(ctx context.Context, txs []dsmrtest.Tx, expiry int64, beneficiary codec.Address) error {
+func (t testDSMR) BuildChunk(ctx context.Context, txs []*dsmrtest.Tx, expiry int64, beneficiary codec.Address) error {
 	if t.BuildChunkF == nil {
 		return nil
 	}
@@ -426,9 +421,9 @@ func (t testDSMR) BuildChunk(ctx context.Context, txs []dsmrtest.Tx, expiry int6
 	return t.BuildChunkF(ctx, txs, expiry, beneficiary)
 }
 
-func (t testDSMR) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[dsmrtest.Tx], error) {
+func (t testDSMR) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[*dsmrtest.Tx], error) {
 	if t.AcceptF == nil {
-		return dsmr.ExecutedBlock[dsmrtest.Tx]{
+		return dsmr.ExecutedBlock[*dsmrtest.Tx]{
 			BlockHeader: block.BlockHeader,
 			ID:          ids.ID{},
 			Chunks:      nil,
@@ -444,7 +439,7 @@ type testBonder struct {
 	limit     map[codec.Address]int
 }
 
-func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
+func (b testBonder) Bond(tx *dsmrtest.Tx) (bool, error) {
 	if b.bondErr != nil {
 		return false, b.bondErr
 	}
@@ -457,7 +452,7 @@ func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
 	return true, nil
 }
 
-func (b testBonder) Unbond(tx dsmrtest.Tx) error {
+func (b testBonder) Unbond(tx *dsmrtest.Tx) error {
 	if b.unbondErr != nil {
 		return b.unbondErr
 	}

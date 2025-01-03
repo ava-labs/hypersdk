@@ -12,17 +12,17 @@ import (
 
 // Note: Assembler breaks assembling and executing a block into two steps
 // but these will be called one after the other.
-type Assembler[T Tx, State any, Block any, Result any] interface {
+type Assembler[T Tx[T], State any, Block any, Result any] interface {
 	AssembleBlock(ctx context.Context, parentState State, parentBlock Block, timestamp int64, blockHeight uint64, txs []T) (Block, Result, State, error)
 }
 
-type ChunkGatherer[T Tx] interface {
+type ChunkGatherer[T Tx[T]] interface {
 	// CollectChunks gathers the corresponding chunks and writes any chunks to
 	// storage that were not already persisted.
 	CollectChunks(chunkCerts []*ChunkCertificate) ([]*Chunk[T], error)
 }
 
-type BlockHandler[T Tx, State any, Block any, Result any] struct {
+type BlockHandler[T Tx[T], State any, Block any, Result any] struct {
 	lastAcceptedBlock  Block
 	lastAcceptedState  State
 	lastAcceptedResult Result
