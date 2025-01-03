@@ -9,22 +9,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-)
-
-var (
-	_ canoto.Message = (*ChunkReference)(nil)
-	_ canoto.Message = (*Signature)(nil)
-	_ canoto.Message = (*ChunkCertificate)(nil)
-
-	_ canoto.FieldMaker[*ChunkReference]   = (*ChunkReference)(nil)
-	_ canoto.FieldMaker[*Signature]        = (*Signature)(nil)
-	_ canoto.FieldMaker[*ChunkCertificate] = (*ChunkCertificate)(nil)
 )
 
 const MaxMessageSize = units.KiB
