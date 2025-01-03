@@ -16,12 +16,14 @@ func TestUnitsConsumed(t *testing.T) {
 		name           string
 		initialUnits   externalFees.Dimensions
 		unitsToConsume externalFees.Dimensions
+		expectedUnits  externalFees.Dimensions
 		maxUnits       externalFees.Dimensions
 		success        bool
 	}{
 		{
 			name:           "empty manager consumes",
 			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
+			expectedUnits:  externalFees.Dimensions{1, 2, 3, 4, 5},
 			maxUnits:       externalFees.Dimensions{1, 2, 3, 4, 5},
 			success:        true,
 		},
@@ -29,6 +31,7 @@ func TestUnitsConsumed(t *testing.T) {
 			name:           "nonempty manager consumes",
 			initialUnits:   externalFees.Dimensions{1, 2, 3, 4, 5},
 			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
+			expectedUnits:  externalFees.Dimensions{2, 4, 6, 8, 10},
 			maxUnits:       externalFees.Dimensions{2, 4, 6, 8, 10},
 			success:        true,
 		},
@@ -53,7 +56,7 @@ func TestUnitsConsumed(t *testing.T) {
 			ok, _ = manager.Consume(tt.unitsToConsume, tt.maxUnits)
 			r.Equal(tt.success, ok)
 			if tt.success {
-				r.Equal(tt.maxUnits, manager.UnitsConsumed())
+				r.Equal(tt.expectedUnits, manager.UnitsConsumed())
 			}
 		})
 	}
