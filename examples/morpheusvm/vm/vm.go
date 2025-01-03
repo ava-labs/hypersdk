@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/extension/tieredstorage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
@@ -57,7 +58,7 @@ func init() {
 
 // NewWithOptions returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With()) // Add MorpheusVM API
+	options = append(options, With(), tieredstorage.With()) // Add MorpheusVM API
 	return defaultvm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},

@@ -51,9 +51,13 @@ func (s *JSONRPCStateServer) ReadState(req *http.Request, args *ReadStateRequest
 	ctx, span := s.stateReader.Tracer().Start(req.Context(), "Server.ReadState")
 	defer span.End()
 
-	var errs []error
-	res.Values, errs = s.stateReader.ReadState(ctx, args.Keys)
-	for _, err := range errs {
+	im, err := s.stateReader.ReadState(ctx, args.Keys)
+	if err != nil {
+		return err
+	}
+	for _, k := range args.Keys {
+		v, err := im.GetValue(ctx, k)
+		res.Values = append(res.Values, v)
 		res.Errors = append(res.Errors, err.Error())
 	}
 	return nil

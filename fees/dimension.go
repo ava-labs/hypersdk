@@ -48,6 +48,18 @@ func Add(a, b Dimensions) (Dimensions, error) {
 	return d, nil
 }
 
+func Sub(a, b Dimensions) (Dimensions, error) {
+	d := Dimensions{}
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		v, err := math.Sub(a[i], b[i])
+		if err != nil {
+			return Dimensions{}, err
+		}
+		d[i] = v
+	}
+	return d, nil
+}
+
 func MulSum(a, b Dimensions) (uint64, error) {
 	val := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {

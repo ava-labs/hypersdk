@@ -80,3 +80,17 @@ func (ts *TState) ExportMerkleDBView(
 
 	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
 }
+
+func (ts *TState) ChangedKeys() map[string]maybe.Maybe[[]byte] {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	return ts.changedKeys
+}
+
+func (ts *TState) SetChangedKeys(mp map[string]maybe.Maybe[[]byte]) {
+	ts.l.Lock()
+	defer ts.l.Unlock()
+
+	ts.changedKeys = mp
+}

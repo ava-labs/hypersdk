@@ -11,6 +11,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type Parser interface {
@@ -204,3 +207,26 @@ type AuthFactory interface {
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
 }
+
+// Hooks can be used to change the fees and compute units of a
+// transaction
+// This is called after transaction execution, but before the end of block execution
+type Hooks interface {
+	// AfterTX is called post-transaction execution
+	AfterTX(
+		ctx context.Context,
+		tx *Transaction,
+		result *Result,
+		mu state.Mutable,
+		bh BalanceHandler,
+		fm *internalfees.Manager,
+		isBuilder bool,
+	) error
+}
+
+type TransactionManager interface {
+	shim.Execution
+	Hooks
+}
+
+type TransactionManagerFactory func() TransactionManager

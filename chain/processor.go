@@ -74,16 +74,17 @@ func (b *ExecutionBlock) Txs() []*Transaction {
 }
 
 type Processor struct {
-	tracer                  trace.Tracer
-	log                     logging.Logger
-	ruleFactory             RuleFactory
-	authVerificationWorkers workers.Workers
-	authVM                  AuthVM
-	metadataManager         MetadataManager
-	balanceHandler          BalanceHandler
-	validityWindow          ValidityWindow
-	metrics                 *chainMetrics
-	config                  Config
+	tracer                    trace.Tracer
+	log                       logging.Logger
+	ruleFactory               RuleFactory
+	authVerificationWorkers   workers.Workers
+	authVM                    AuthVM
+	metadataManager           MetadataManager
+	transactionManagerFactory TransactionManagerFactory
+	balanceHandler            BalanceHandler
+	validityWindow            ValidityWindow
+	metrics                   *chainMetrics
+	config                    Config
 }
 
 func NewProcessor(
@@ -93,22 +94,24 @@ func NewProcessor(
 	authVerificationWorkers workers.Workers,
 	authVM AuthVM,
 	metadataManager MetadataManager,
+	transactionManagerFactory TransactionManagerFactory,
 	balanceHandler BalanceHandler,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
 ) *Processor {
 	return &Processor{
-		tracer:                  tracer,
-		log:                     log,
-		ruleFactory:             ruleFactory,
-		authVerificationWorkers: authVerificationWorkers,
-		authVM:                  authVM,
-		metadataManager:         metadataManager,
-		balanceHandler:          balanceHandler,
-		validityWindow:          validityWindow,
-		metrics:                 metrics,
-		config:                  config,
+		tracer:                    tracer,
+		log:                       log,
+		ruleFactory:               ruleFactory,
+		authVerificationWorkers:   authVerificationWorkers,
+		authVM:                    authVM,
+		metadataManager:           metadataManager,
+		transactionManagerFactory: transactionManagerFactory,
+		balanceHandler:            balanceHandler,
+		validityWindow:            validityWindow,
+		metrics:                   metrics,
+		config:                    config,
 	}
 }
 
@@ -192,6 +195,11 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
+	tm := p.transactionManagerFactory()
+	if err := tm.RawState(ts, b.Height()); err != nil {
+		return nil, nil, err
+	}
+
 	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
@@ -201,11 +209,11 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
+	tsv := ts.NewView(keys, tstate.ImmutableScopeStorage(map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	}))
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
 	}
@@ -347,11 +355,17 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
+			tm := p.transactionManagerFactory()
+			state, err := tm.ExecutableState(tstate.ImmutableScopeStorage(storage), b.Height())
+			if err != nil {
+				return err
+			}
+
 			// Execute transaction
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(stateKeys, state)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
@@ -362,6 +376,11 @@ func (p *Processor) executeTxs(
 			if err != nil {
 				return err
 			}
+
+			if err := tm.AfterTX(ctx, tx, result, tsv, p.balanceHandler, feeManager, false); err != nil {
+				return err
+			}
+
 			results[i] = result
 
 			// Commit results to parent [TState]

@@ -209,20 +209,20 @@ func (j *JSONRPCServer) ExecuteActions(
 			storageKeysToRead = append(storageKeysToRead, []byte(key))
 		}
 
-		values, errs := j.vm.ReadState(ctx, storageKeysToRead)
-		for _, err := range errs {
+		im, err := j.vm.ReadState(ctx, storageKeysToRead)
+		if err != nil {
+			return fmt.Errorf("failed to read state: %w", err)
+		}
+
+		for _, k := range storageKeysToRead {
+			v, err := im.GetValue(ctx, k)
 			if err != nil && !errors.Is(err, database.ErrNotFound) {
 				return fmt.Errorf("failed to read state: %w", err)
 			}
-		}
-		for i, value := range values {
-			if value == nil {
-				continue
-			}
-			storage[string(storageKeysToRead[i])] = value
+			storage[string(k)] = v
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage)
+		tsv := ts.NewView(stateKeysWithPermissions, tstate.ImmutableScopeStorage(storage))
 
 		output, err := action.Execute(
 			ctx,

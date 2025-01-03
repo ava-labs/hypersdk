@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
+	"github.com/ava-labs/hypersdk/state/shim"
 )
 
 type Options struct {
@@ -17,6 +18,8 @@ type Options struct {
 	gossiper                   bool
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
 	vmAPIHandlerFactories      []api.HandlerFactory[api.VM]
+	executionShim              shim.Execution
+	chainOptions               []chain.Option
 }
 
 type optionFunc func(vm api.VM, configBytes []byte) (Opt, error)
@@ -65,6 +68,12 @@ func WithGossiper() Opt {
 	})
 }
 
+func WithExecutionShim(shim shim.Execution) Opt {
+	return newFuncOption(func(o *Options) {
+		o.executionShim = shim
+	})
+}
+
 func WithManual() Option {
 	return NewOption[struct{}](
 		"manual",
@@ -87,6 +96,12 @@ func WithBlockSubscriptions(subscriptions ...event.SubscriptionFactory[*chain.Ex
 func WithVMAPIs(apiHandlerFactories ...api.HandlerFactory[api.VM]) Opt {
 	return newFuncOption(func(o *Options) {
 		o.vmAPIHandlerFactories = append(o.vmAPIHandlerFactories, apiHandlerFactories...)
+	})
+}
+
+func WithChainOptions(chainOptions ...chain.Option) Opt {
+	return newFuncOption(func(o *Options) {
+		o.chainOptions = append(o.chainOptions, chainOptions...)
 	})
 }
 

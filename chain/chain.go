@@ -40,17 +40,23 @@ func NewChain(
 	authVM AuthVM,
 	validityWindow ValidityWindow,
 	config Config,
+	ops []Option,
 ) (*Chain, error) {
 	metrics, err := newMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}
+
+	options := &Options{}
+	applyOptions(options, ops)
+
 	return &Chain{
 		builder: NewBuilder(
 			tracer,
 			ruleFactory,
 			logger,
 			metadataManager,
+			options.TransactionManagerFactory,
 			balanceHandler,
 			mempool,
 			validityWindow,
@@ -64,6 +70,7 @@ func NewChain(
 			authVerifiers,
 			authVM,
 			metadataManager,
+			options.TransactionManagerFactory,
 			balanceHandler,
 			validityWindow,
 			metrics,
@@ -78,6 +85,7 @@ func NewChain(
 			ruleFactory,
 			validityWindow,
 			metadataManager,
+			options.TransactionManagerFactory,
 			balanceHandler,
 		),
 		blockParser: NewBlockParser(tracer, parser),
@@ -119,4 +127,13 @@ func (c *Chain) PreExecute(
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
 	return c.blockParser.ParseBlock(ctx, bytes)
+}
+
+func applyOptions(options *Options, ops []Option) {
+	for _, op := range ops {
+		op(options)
+	}
+	if options.TransactionManagerFactory == nil {
+		options.TransactionManagerFactory = NewDefaultTransactionManager
+	}
 }
