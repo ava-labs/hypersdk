@@ -17,13 +17,6 @@ func NewConfig(b []byte) (Config, error) {
 	return c, nil
 }
 
-func (c Config) Get(key string) ([]byte, bool) {
-	if val, ok := c[key]; ok {
-		return val, true
-	}
-	return nil, false
-}
-
 func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
 	val, ok := c[key]
 	if !ok {

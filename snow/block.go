@@ -49,11 +49,11 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	Accepted A
 	accepted bool
 
-	vm *CovariantVM[I, O, A]
+	vm *VM[I, O, A]
 }
 
 func NewInputBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 ) *StatefulBlock[I, O, A] {
 	return &StatefulBlock[I, O, A]{
@@ -63,7 +63,7 @@ func NewInputBlock[I Block, O Block, A Block](
 }
 
 func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 	output O,
 ) *StatefulBlock[I, O, A] {
@@ -76,7 +76,7 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 }
 
 func NewAcceptedBlock[I Block, O Block, A Block](
-	vm *CovariantVM[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 	output O,
 	accepted A,
@@ -101,7 +101,7 @@ func (b *StatefulBlock[I, O, A]) setAccepted(output O, accepted A) {
 // verify the block against the provided parent output and set the
 // required Output/verified fields.
 func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) error {
-	output, err := b.vm.chain.Execute(ctx, parentOutput, b.Input)
+	output, err := b.vm.chain.VerifyBlock(ctx, parentOutput, b.Input)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		b.vm.metrics.blockVerify.Observe(float64(time.Since(start)))
 	}()
 
-	ready := b.vm.Ready()
+	ready := b.vm.isReady()
 	ctx, span := b.vm.tracer.Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
@@ -287,7 +287,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	}
 
 	// If I'm not ready yet, mark myself as accepted, and return early.
-	isReady := b.vm.Ready()
+	isReady := b.vm.isReady()
 	if !isReady {
 		return b.markAccepted(ctx, nil)
 	}

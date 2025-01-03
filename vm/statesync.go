@@ -82,7 +82,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm.snowApp.WithCloser("syncer", func() error {
+	vm.snowApp.AddCloser("syncer", func() error {
 		if err := syncerDB.Close(); err != nil {
 			return fmt.Errorf("failed to close syncer db: %w", err)
 		}
@@ -129,7 +129,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm.snowApp.WithPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
+	vm.snowApp.AddPreReadyAcceptedSub(event.SubscriptionFunc[*chain.ExecutionBlock]{
 		NotifyF: func(_ context.Context, b *chain.ExecutionBlock) error {
 			return client.UpdateSyncTarget(ctx, b)
 		},
@@ -138,6 +138,6 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	server := statesync.NewServer[*chain.ExecutionBlock](vm.snowCtx.Log, inputCovariantVM)
 	stateSyncableVM := statesync.NewStateSyncableVM(client, server)
 	vm.snowApp.WithStateSyncableVM(stateSyncableVM)
-	vm.snowApp.WithHealthChecker(vm.SyncClient)
+	vm.snowApp.AddHealthCheck(vm.SyncClient)
 	return nil
 }

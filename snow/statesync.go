@@ -18,25 +18,25 @@ func (a *Application[I, O, A]) WithStateSyncableVM(stateSyncableVM block.StateSy
 	a.StateSyncableVM = stateSyncableVM
 }
 
-// StartStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
+// startStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
 // in DynamicStateSync mode until FinishStateSync is called.
-func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
+func (v *VM[I, O, A]) startStateSync(ctx context.Context, block I) error {
 	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
 		return err
 	}
-	v.MarkReady(false)
-	v.setLastAccepted(NewInputBlock(v.covariantVM, block))
+	v.markReady(false)
+	v.setLastAccepted(NewInputBlock(v, block))
 	return nil
 }
 
-// FinishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
+// finishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
 // Expects the caller to hold the snow ctx lock
-func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
+func (v *VM[I, O, A]) finishStateSync(ctx context.Context, input I, output O, accepted A) error {
 	v.chainLock.Lock()
 	defer v.chainLock.Unlock()
 
 	// Cannot call FinishStateSync if already marked as ready and in normal operation
-	if v.Ready() {
+	if v.isReady() {
 		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
@@ -44,19 +44,19 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
 		v.log.Info("Finishing state sync with original target", zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock))
-		v.MarkReady(true)
+		v.markReady(true)
 		return nil
 	}
 
 	// Dynamic state sync notifies completion async, so we may have verified/accepted new blocks in
 	// the interim (before successfully grabbing the lock).
 	// Create the block and reprocess all blocks in the range (blk, lastAcceptedBlock]
-	blk := NewAcceptedBlock(v.covariantVM, input, output, accepted)
+	blk := NewAcceptedBlock(v, input, output, accepted)
 	v.log.Info("Finishing state sync with target behind last accepted tip",
 		zap.Stringer("target", blk),
 		zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock),
 	)
-	reprocessBlks, err := v.covariantVM.getExclusiveBlockRange(ctx, blk, v.lastAcceptedBlock)
+	reprocessBlks, err := v.getExclusiveBlockRange(ctx, blk, v.lastAcceptedBlock)
 	if err != nil {
 		return fmt.Errorf("failed to get block range while completing state sync: %w", err)
 	}
@@ -82,7 +82,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 
 	v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
 	v.setLastAccepted(v.lastAcceptedBlock)
-	v.MarkReady(true)
+	v.markReady(true)
 	return nil
 }
 

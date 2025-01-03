@@ -11,13 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// BlockChainIndex defines the generic on-disk index for the Input block type required
+// ChainIndex defines the generic on-disk index for the Input block type required
 // by the VM.
-// BlockChainIndex must serve the last accepted block, it is up to the implementation
+// ChainIndex must serve the last accepted block, it is up to the implementation
 // how large of a window of accepted blocks to maintain in its index.
-// The VM provides a caching layer on top of BlockChainIndex, so the implementation
+// The VM provides a caching layer on top of ChainIndex, so the implementation
 // does not need to provide its own caching layer.
-type BlockChainIndex[T Block] interface {
+type ChainIndex[T Block] interface {
 	UpdateLastAccepted(ctx context.Context, blk T) error
 	GetLastAcceptedHeight(ctx context.Context) (uint64, error)
 	GetBlock(ctx context.Context, blkID ids.ID) (T, error)
@@ -26,45 +26,45 @@ type BlockChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *VM[I, O, A]) MakeChainIndex(
+func (v *VM[I, O, A]) makeChainIndex(
 	ctx context.Context,
-	chainIndex BlockChainIndex[I],
+	chainIndex ChainIndex[I],
 	outputBlock O,
 	acceptedBlock A,
 	stateReady bool,
-) (*ChainIndex[I, O, A], error) {
+) error {
 	v.inputChainIndex = chainIndex
 	lastAcceptedHeight, err := v.inputChainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	inputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, lastAcceptedHeight)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
-		v.MarkReady(true)
+		v.markReady(true)
 		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
-		v.MarkReady(false)
-		lastAcceptedBlock = NewInputBlock(v.covariantVM, inputBlock)
+		v.markReady(false)
+		lastAcceptedBlock = NewInputBlock(v, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
 	v.preferredBlkID = lastAcceptedBlock.ID()
-	v.chainIndex = &ChainIndex[I, O, A]{
-		covariantVM: v.covariantVM,
-	}
+	v.consensusIndex = &ConsensusIndex[I, O, A]{v}
 
-	return v.chainIndex, nil
+	return nil
 }
 
-func (v *VM[I, O, A]) GetChainIndex() *ChainIndex[I, O, A] {
-	return v.chainIndex
+// GetConsensusIndex returns the consensus index exposed to the application. The consensus index is created during chain initialization
+// and is exposed here for testing.
+func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
+	return v.consensusIndex
 }
 
 func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
@@ -79,7 +79,7 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 			return nil, err
 		}
 
-		outputBlock, err = v.chain.Execute(ctx, outputBlock, reprocessInputBlock)
+		outputBlock, err = v.chain.VerifyBlock(ctx, outputBlock, reprocessInputBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -89,15 +89,15 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 		}
 	}
 
-	return NewAcceptedBlock(v.covariantVM, inputBlock, outputBlock, acceptedBlock), nil
+	return NewAcceptedBlock(v, inputBlock, outputBlock, acceptedBlock), nil
 }
 
-type ChainIndex[I Block, O Block, A Block] struct {
-	covariantVM *CovariantVM[I, O, A]
+type ConsensusIndex[I Block, O Block, A Block] struct {
+	vm *VM[I, O, A]
 }
 
-func (c *ChainIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
-	blk, err := c.covariantVM.GetBlockByHeight(ctx, height)
+func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+	blk, err := c.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
 		var emptyBlk I
 		return emptyBlk, err
@@ -105,8 +105,8 @@ func (c *ChainIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint6
 	return blk.Input, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
-	blk, err := c.covariantVM.GetBlock(ctx, blkID)
+func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
+	blk, err := c.vm.GetBlock(ctx, blkID)
 	if err != nil {
 		var emptyBlk I
 		return emptyBlk, err
@@ -114,12 +114,12 @@ func (c *ChainIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, er
 	return blk.Input, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
-	c.covariantVM.chainLock.Lock()
-	defer c.covariantVM.chainLock.Unlock()
+func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
+	c.vm.chainLock.Lock()
+	defer c.vm.chainLock.Unlock()
 
 	var emptyOutputBlk O
-	blk, err := c.covariantVM.GetBlock(ctx, c.covariantVM.preferredBlkID)
+	blk, err := c.vm.GetBlock(ctx, c.vm.preferredBlkID)
 	if err != nil {
 		return emptyOutputBlk, err
 	}
@@ -132,8 +132,8 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 		// If the preferred block is invalid (which can happen if a malicious peer sends us
 		// an invalid block and we hit a poll that causes us to set it to our preference),
 		// then we will return an error.
-		c.covariantVM.log.Info("Reprocessing to preferred block",
-			zap.Stringer("lastAccepted", c.covariantVM.lastAcceptedBlock),
+		c.vm.log.Info("Reprocessing to preferred block",
+			zap.Stringer("lastAccepted", c.vm.lastAcceptedBlock),
 			zap.Stringer("preferred", blk),
 		)
 		if err := blk.innerVerify(ctx); err != nil {
@@ -144,9 +144,9 @@ func (c *ChainIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) 
 	return blk.Output, nil
 }
 
-func (c *ChainIndex[I, O, A]) GetLastAccepted(context.Context) A {
-	c.covariantVM.metaLock.Lock()
-	defer c.covariantVM.metaLock.Unlock()
+func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) A {
+	c.vm.metaLock.Lock()
+	defer c.vm.metaLock.Unlock()
 
-	return c.covariantVM.lastAcceptedBlock.Accepted
+	return c.vm.lastAcceptedBlock.Accepted
 }

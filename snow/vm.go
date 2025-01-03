@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -16,25 +17,23 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/cache"
+	"github.com/ava-labs/hypersdk/utils"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
-var (
-	_ block.ChainVM         = (*VM[Block, Block, Block])(nil)
-	_ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
-)
+var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
 type ChainInput struct {
 	SnowCtx                                 *snow.Context
@@ -46,22 +45,26 @@ type ChainInput struct {
 
 type MakeChainIndexFunc[I Block, O Block, A Block] func(
 	ctx context.Context,
-	chainIndex BlockChainIndex[I],
+	chainIndex ChainIndex[I],
 	outputBlock O,
 	acceptedBlock A,
 	stateReady bool,
-) (*ChainIndex[I, O, A], error)
+) (*ConsensusIndex[I, O, A], error)
 
 type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		makeChainIndex MakeChainIndexFunc[I, O, A],
 		app *Application[I, O, A],
-	) (BlockChainIndex[I], error)
+	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
+	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
+	// VM with:
+	// 1. A cached index of the chain
+	// 2. The ability to fetch the latest consensus state (preferred output block and last accepted block)
+	SetConsensusIndex(*ConsensusIndex[I, O, A])
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
-	Execute(
+	VerifyBlock(
 		ctx context.Context,
 		parent O,
 		block I,
@@ -72,9 +75,8 @@ type Chain[I Block, O Block, A Block] interface {
 type VM[I Block, O Block, A Block] struct {
 	chainLock       sync.Mutex
 	chain           Chain[I, O, A]
-	inputChainIndex BlockChainIndex[I]
-	chainIndex      *ChainIndex[I, O, A]
-	covariantVM     *CovariantVM[I, O, A]
+	inputChainIndex ChainIndex[I]
+	consensusIndex  *ConsensusIndex[I, O, A]
 	app             Application[I, O, A]
 
 	snowCtx *snow.Context
@@ -137,7 +139,6 @@ func (v *VM[I, O, A]) Initialize(
 	appSender common.AppSender,
 ) error {
 	v.snowCtx = chainCtx
-	v.covariantVM = &CovariantVM[I, O, A]{v}
 	v.shutdownChan = make(chan struct{})
 
 	hctx, err := hcontext.New(
@@ -179,7 +180,7 @@ func (v *VM[I, O, A]) Initialize(
 			continuousProfilerConfig.Freq,
 			continuousProfilerConfig.MaxNumFiles,
 		)
-		v.app.WithCloser("continuous profiler", func() error {
+		v.app.AddCloser("continuous profiler", func() error {
 			continuousProfiler.Shutdown()
 			return nil
 		})
@@ -214,16 +215,19 @@ func (v *VM[I, O, A]) Initialize(
 		Context:      v.hctx,
 	}
 
-	blockChainIndex, err := v.chain.Initialize(
+	inputChainIndex, lastOutput, lastAccepted, stateReady, err := v.chain.Initialize(
 		ctx,
 		chainInput,
-		v.MakeChainIndex,
 		&v.app,
 	)
 	if err != nil {
 		return err
 	}
-	v.inputChainIndex = blockChainIndex
+	v.inputChainIndex = inputChainIndex
+	if err := v.makeChainIndex(ctx, v.inputChainIndex, lastOutput, lastAccepted, stateReady); err != nil {
+		return err
+	}
+	v.chain.SetConsensusIndex(v.consensusIndex)
 	if err := v.lastAcceptedBlock.notifyAccepted(ctx); err != nil {
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
@@ -239,8 +243,144 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
 
-func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
-	return v.covariantVM.GetBlock(ctx, blkID)
+func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
+	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
+	defer span.End()
+
+	// Check verified map
+	v.verifiedL.RLock()
+	if blk, exists := v.verifiedBlocks[blkID]; exists {
+		v.verifiedL.RUnlock()
+		return blk, nil
+	}
+	v.verifiedL.RUnlock()
+
+	// Check if last accepted block or recently accepted
+	if v.lastAcceptedBlock.ID() == blkID {
+		return v.lastAcceptedBlock, nil
+	}
+	if blk, ok := v.acceptedBlocksByID.Get(blkID); ok {
+		return blk, nil
+	}
+	// Retrieve and parse from disk
+	// Note: this returns an accepted block with only the input block set.
+	// The consensus engine guarantees that:
+	// 1. Verify is only called on a block whose parent is lastAcceptedBlock or in verifiedBlocks
+	// 2. Accept is only called on a block whose parent is lastAcceptedBlock
+	blk, err := v.inputChainIndex.GetBlock(ctx, blkID)
+	if err != nil {
+		return nil, err
+	}
+	return NewInputBlock(v, blk), nil
+}
+
+func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
+	ctx, span := v.tracer.Start(ctx, "VM.GetBlockByHeight")
+	defer span.End()
+
+	if v.lastAcceptedBlock.Height() == height {
+		return v.lastAcceptedBlock, nil
+	}
+	var blkID ids.ID
+	if fetchedBlkID, ok := v.acceptedBlocksByHeight.Get(height); ok {
+		blkID = fetchedBlkID
+	} else {
+		fetchedBlkID, err := v.inputChainIndex.GetBlockIDAtHeight(ctx, height)
+		if err != nil {
+			return nil, err
+		}
+		blkID = fetchedBlkID
+	}
+
+	if blk, ok := v.acceptedBlocksByID.Get(blkID); ok {
+		return blk, nil
+	}
+
+	return v.GetBlock(ctx, blkID)
+}
+
+func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
+	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
+	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		v.metrics.blockParse.Observe(float64(time.Since(start)))
+	}()
+
+	blkID := utils.ToID(bytes)
+	if existingBlk, err := v.GetBlock(ctx, blkID); err == nil {
+		return existingBlk, nil
+	}
+	if blk, ok := v.parsedBlocks.Get(blkID); ok {
+		return blk, nil
+	}
+	inputBlk, err := v.chain.ParseBlock(ctx, bytes)
+	if err != nil {
+		return nil, err
+	}
+	blk := NewInputBlock[I, O, A](v, inputBlk)
+	v.parsedBlocks.Put(blkID, blk)
+	return blk, nil
+}
+
+func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
+	ctx, span := v.tracer.Start(ctx, "VM.BuildBlock")
+	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		v.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
+	preferredBlk, err := v.GetBlock(ctx, v.preferredBlkID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get preferred block: %w", err)
+	}
+	inputBlock, outputBlock, err := v.chain.BuildBlock(ctx, preferredBlk.Output)
+	if err != nil {
+		return nil, err
+	}
+	sb := NewVerifiedBlock[I, O, A](v, inputBlock, outputBlock)
+	v.parsedBlocks.Put(sb.ID(), sb)
+
+	return sb, nil
+}
+
+// getExclusiveBlockRange returns the exclusive range of blocks (startBlock, endBlock)
+func (v *VM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
+	if startBlock.ID() == endBlock.ID() {
+		return nil, nil
+	}
+
+	diff, err := math.Sub(endBlock.Height(), startBlock.Height())
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate height difference for exclusive block range: %w", err)
+	}
+	if diff == 0 {
+		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
+	}
+	blkRange := make([]*StatefulBlock[I, O, A], 0, diff)
+	blk := endBlock
+	for {
+		blk, err = v.GetBlock(ctx, blk.Parent())
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch parent of %s while fetching exclusive block range (%s, %s): %w", blk, startBlock, endBlock, err)
+		}
+		if blk.ID() == startBlock.ID() {
+			break
+		}
+		if blk.Height() <= startBlock.Height() {
+			return nil, fmt.Errorf("invalid block range (%s, %s) terminated at %s", startBlock, endBlock, blk)
+		}
+		blkRange = append(blkRange, blk)
+	}
+	slices.Reverse(blkRange)
+	return blkRange, nil
+}
+
+func (v *VM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
+	return v.lastAcceptedBlock
 }
 
 func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
@@ -254,14 +394,6 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 		return blkID, nil
 	}
 	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
-}
-
-func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
-	return v.covariantVM.ParseBlock(ctx, bytes)
-}
-
-func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	return v.covariantVM.BuildBlock(ctx)
 }
 
 func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
@@ -335,14 +467,14 @@ func (v *VM[I, O, A]) Version(context.Context) (string, error) {
 	return v.app.Version, nil
 }
 
-func (v *VM[I, O, A]) Ready() bool {
+func (v *VM[I, O, A]) isReady() bool {
 	v.readyL.RLock()
 	defer v.readyL.RUnlock()
 
 	return v.ready
 }
 
-func (v *VM[I, O, A]) MarkReady(ready bool) {
+func (v *VM[I, O, A]) markReady(ready bool) {
 	v.readyL.Lock()
 	defer v.readyL.Unlock()
 

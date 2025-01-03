@@ -84,7 +84,7 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
-	blk, err := vm.chainIndex.GetBlock(ctx, blkID)
+	blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,17 +92,17 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 }
 
 func (vm *VM) LastAcceptedBlock(ctx context.Context) *chain.StatelessBlock {
-	outputBlk := vm.chainIndex.GetLastAccepted(ctx)
+	outputBlk := vm.consensusIndex.GetLastAccepted(ctx)
 	return outputBlk.StatelessBlock
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	acceptedBlock := vm.chainIndex.GetLastAccepted(ctx)
+	acceptedBlock := vm.consensusIndex.GetLastAccepted(ctx)
 	return acceptedBlock.View.GetValues(ctx, keys)
 }
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
-	acceptedBlock := vm.chainIndex.GetLastAccepted(ctx)
+	acceptedBlock := vm.consensusIndex.GetLastAccepted(ctx)
 	return acceptedBlock.View.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
 }
 
@@ -129,7 +129,7 @@ func (vm *VM) NodeID() ids.NodeID {
 }
 
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
-	blk, err := vm.chainIndex.GetPreferredBlock(ctx)
+	blk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 	if err != nil {
 		return 0, err
 	}

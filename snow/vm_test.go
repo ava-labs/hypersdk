@@ -21,11 +21,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chainindex"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/thepudds/fzgen/fuzzer"
 	"golang.org/x/exp/slices"
-
-	"github.com/ava-labs/hypersdk/chainstore"
 )
 
 var (
@@ -34,8 +34,8 @@ var (
 )
 
 var (
-	errParseInvalidBlock   = errors.New("parsed invalid block")
-	errExecuteInvalidBlock = errors.New("executed invalid block")
+	errParseInvalidBlock  = errors.New("parsed invalid block")
+	errVerifyInvalidBlock = errors.New("verified invalid block")
 )
 
 const (
@@ -125,21 +125,19 @@ func NewTestChain(
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	makeChainIndexF MakeChainIndexFunc[*TestBlock, *TestBlock, *TestBlock],
 	_ *Application[*TestBlock, *TestBlock, *TestBlock],
-) (BlockChainIndex[*TestBlock], error) {
-	chainStore, err := chainstore.New(chainInput.Context, "chainstore", t, memdb.New())
+) (ChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
+	chainIndex, err := chainindex.New(chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, false, err
 	}
-	if err := chainStore.UpdateLastAccepted(ctx, t.initLastAcceptedBlock); err != nil {
-		return nil, err
+	if err := chainIndex.UpdateLastAccepted(ctx, t.initLastAcceptedBlock); err != nil {
+		return nil, nil, nil, false, err
 	}
-	if _, err := makeChainIndexF(ctx, chainStore, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated); err != nil {
-		return nil, err
-	}
-	return chainStore, nil
+	return chainIndex, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
 }
+
+func (t *TestChain) SetConsensusIndex(_ *ConsensusIndex[*TestBlock, *TestBlock, *TestBlock]) {}
 
 func (t *TestChain) BuildBlock(_ context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
 	t.require.True(parent.outputPopulated)
@@ -152,11 +150,11 @@ func (*TestChain) ParseBlock(_ context.Context, bytes []byte) (*TestBlock, error
 	return NewTestBlockFromBytes(bytes)
 }
 
-func (t *TestChain) Execute(_ context.Context, parent *TestBlock, block *TestBlock) (*TestBlock, error) {
+func (t *TestChain) VerifyBlock(_ context.Context, parent *TestBlock, block *TestBlock) (*TestBlock, error) {
 	// The parent must have been executed before we execute the block
 	t.require.True(parent.outputPopulated)
 	if block.Invalid {
-		return nil, fmt.Errorf("%w: %s", errExecuteInvalidBlock, block)
+		return nil, fmt.Errorf("%w: %s", errVerifyInvalidBlock, block)
 	}
 
 	// A block should only be executed once
@@ -216,7 +214,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 	snowCtx := snowtest.Context(t, ids.GenerateTestID())
 	snowCtx.ChainDataDir = t.TempDir()
 	r.NoError(vm.Initialize(ctx, snowCtx, nil, nil, nil, nil, toEngine, nil, &enginetest.Sender{T: t}))
-	ce.lastAccepted = vm.covariantVM.LastAcceptedBlock(ctx)
+	ce.lastAccepted = vm.LastAcceptedBlock(ctx)
 	ce.preferred = ce.lastAccepted
 	return ce
 }
@@ -225,7 +223,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 // and assumes the VM always builds a correct block.
 func (ce *TestConsensusEngine) BuildBlock(ctx context.Context) (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
 	preferredID := ce.preferred.ID()
-	blk, err := ce.vm.covariantVM.BuildBlock(ctx)
+	blk, err := ce.vm.BuildBlock(ctx)
 
 	ce.require.NoError(err)
 	ce.require.Equal(preferredID, blk.Parent())
@@ -371,7 +369,7 @@ func (ce *TestConsensusEngine) ParseFutureBlock(ctx context.Context) {
 
 func (ce *TestConsensusEngine) ParseAndVerifyNewBlock(ctx context.Context, parent *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) *StatefulBlock[*TestBlock, *TestBlock, *TestBlock] {
 	newBlk := NewTestBlockFromParent(parent.Input)
-	parsedBlk, err := ce.vm.covariantVM.ParseBlock(ctx, newBlk.Bytes())
+	parsedBlk, err := ce.vm.ParseBlock(ctx, newBlk.Bytes())
 	ce.require.NoError(err)
 	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
 	ce.verifyValidBlock(ctx, parsedBlk)
@@ -411,7 +409,7 @@ func (ce *TestConsensusEngine) ParseAndVerifyInvalidBlock(ctx context.Context) {
 	parsedBlk, err := ce.vm.ParseBlock(ctx, newBlk.Bytes())
 	ce.require.NoError(err)
 	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
-	ce.require.ErrorIs(parsedBlk.Verify(ctx), errExecuteInvalidBlock)
+	ce.require.ErrorIs(parsedBlk.Verify(ctx), errVerifyInvalidBlock)
 	_, ok = ce.verified[parsedBlk.ID()]
 	ce.require.False(ok)
 }
@@ -493,7 +491,7 @@ func (ce *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *Statefu
 	blk.Input.outputPopulated = true
 	blk.Input.acceptedPopulated = true
 	blk.setAccepted(blk.Input, blk.Input)
-	ce.require.NoError(ce.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
+	ce.require.NoError(ce.vm.finishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
 }
 
 type step int
@@ -830,17 +828,17 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	invalidTestBlock := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock.Invalid = true
 
-	parsedBlk, err := ce.vm.covariantVM.ParseBlock(ctx, invalidTestBlock.Bytes())
+	parsedBlk, err := ce.vm.ParseBlock(ctx, invalidTestBlock.Bytes())
 	ce.require.NoError(err)
 	ce.verifyValidBlock(ctx, parsedBlk)
 
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	invalidatedChildTestBlock := NewTestBlockFromParent(invalidTestBlock)
-	invalidatedChildBlock, err := ce.vm.covariantVM.ParseBlock(ctx, invalidatedChildTestBlock.Bytes())
+	invalidatedChildBlock, err := ce.vm.ParseBlock(ctx, invalidatedChildTestBlock.Bytes())
 	ce.require.NoError(err)
 
-	ce.require.ErrorIs(invalidatedChildBlock.Verify(ctx), errExecuteInvalidBlock)
+	ce.require.ErrorIs(invalidatedChildBlock.Verify(ctx), errVerifyInvalidBlock)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {

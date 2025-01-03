@@ -150,7 +150,7 @@ func (vm *VM) BuildAndSetPreference(ctx context.Context) *snow.StatefulBlock[*ch
 	vm.snowCtx.Lock.Lock()
 	defer vm.snowCtx.Lock.Unlock()
 
-	blk, err := vm.SnowVM.GetCovariantVM().BuildBlock(ctx)
+	blk, err := vm.SnowVM.BuildBlock(ctx)
 	vm.require.NoError(err)
 
 	vm.require.NoError(blk.Verify(ctx))
@@ -162,7 +162,7 @@ func (vm *VM) ParseAndSetPreference(ctx context.Context, bytes []byte) *snow.Sta
 	vm.snowCtx.Lock.Lock()
 	defer vm.snowCtx.Lock.Unlock()
 
-	blk, err := vm.SnowVM.GetCovariantVM().ParseBlock(ctx, bytes)
+	blk, err := vm.SnowVM.ParseBlock(ctx, bytes)
 	vm.require.NoError(err)
 
 	vm.require.NoError(blk.Verify(ctx))
@@ -492,7 +492,7 @@ func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
 		greatestHeightIndex int
 	)
 	for i, vm := range n.VMs {
-		height := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx).Height()
+		height := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx).Height()
 		if height >= greatestHeight {
 			greatestHeightIndex = i
 			greatestHeight = height
@@ -500,14 +500,14 @@ func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
 	}
 
 	greatestVM := n.VMs[greatestHeightIndex]
-	greatestVMChainIndex := greatestVM.SnowVM.GetChainIndex()
+	greatestVMChainIndex := greatestVM.SnowVM.GetConsensusIndex()
 
 	for i, vm := range n.VMs {
 		if i == greatestHeightIndex {
 			continue
 		}
 
-		lastAcceptedHeight := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx).Height()
+		lastAcceptedHeight := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx).Height()
 		for lastAcceptedHeight < greatestHeight {
 			blk, err := greatestVMChainIndex.GetBlockByHeight(ctx, lastAcceptedHeight+1)
 			n.require.NoError(err)
@@ -799,7 +799,7 @@ func TestAccepted(t *testing.T) {
 	client := jsonrpc.NewJSONRPCClient(network.VMs[0].server.URL)
 	blockID, blockHeight, timestamp, err := client.Accepted(ctx)
 	r.NoError(err)
-	genesisBlock := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	genesisBlock := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.NoError(err)
 	r.Equal(genesisBlock.ID(), blockID)
 	r.Equal(uint64(0), blockHeight)
@@ -813,7 +813,7 @@ func TestAccepted(t *testing.T) {
 
 	blockID, blockHeight, timestamp, err = client.Accepted(ctx)
 	r.NoError(err)
-	blk1 := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	blk1 := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.NoError(err)
 	r.Equal(blk1.ID(), blockID)
 	r.Equal(uint64(1), blockHeight)
@@ -875,7 +875,7 @@ func TestExternalSubscriber(t *testing.T) {
 
 	// Confirm and throw away last accepted block on startup
 	genesisBlkID := <-externalSubscriberAcceptedBlocksCh
-	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), genesisBlkID)
 
 	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
@@ -885,7 +885,7 @@ func TestExternalSubscriber(t *testing.T) {
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
 	acceptedBlkID := <-externalSubscriberAcceptedBlocksCh
-	r.Equal(network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx).ID(), acceptedBlkID)
+	r.Equal(network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx).ID(), acceptedBlkID)
 }
 
 func TestDirectStateAPI(t *testing.T) {
@@ -940,7 +940,7 @@ func TestIndexerAPI(t *testing.T) {
 	parser := network.VMs[0].VM
 	genesisBlock, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
-	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), genesisBlock.Block.ID())
 	r.Equal(uint64(0), genesisBlock.Block.Height())
 
@@ -952,7 +952,7 @@ func TestIndexerAPI(t *testing.T) {
 
 	blk1, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
-	lastAccepted = network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted = network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), blk1.Block.ID())
 	r.Equal(uint64(1), blk1.Block.Height())
 
@@ -1005,7 +1005,7 @@ func TestWebsocketAPI(t *testing.T) {
 	r.Equal(tx.GetID(), txID)
 	r.True(res.Success)
 
-	lastAccepted := network.VMs[0].SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), wsBlk.ID())
 	r.Equal(lastAccepted.ExecutionResults.Results, wsResults)
 	r.Equal(lastAccepted.ExecutionResults.UnitPrices, wsUnitPrices)
@@ -1018,7 +1018,7 @@ func TestSkipStateSync(t *testing.T) {
 	network := NewTestNetwork(ctx, t, chainID, 1, nil)
 
 	initialVM := network.VMs[0]
-	initialVMGenesisBlock := initialVM.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	initialVMGenesisBlock := initialVM.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 
 	numBlocks := 5
 	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
@@ -1044,7 +1044,7 @@ func TestSkipStateSync(t *testing.T) {
 	r.NoError(err)
 
 	vm := network.AddVM(ctx, configBytes)
-	lastAccepted := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), initialVMGenesisBlock.ID())
 
 	stateSummary, err := initialVM.SnowVM.GetLastStateSummary(ctx)
@@ -1062,7 +1062,7 @@ func TestSkipStateSync(t *testing.T) {
 	r.NoError(vm.SnowVM.SetState(ctx, avasnow.NormalOp))
 
 	network.SynchronizeNetwork(ctx)
-	blk := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	blk := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(blk.Height(), uint64(numBlocks))
 }
 
@@ -1075,7 +1075,7 @@ func TestStateSync(t *testing.T) {
 	}))
 
 	initialVM := network.VMs[0]
-	initialVMGenesisBlock := initialVM.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	initialVMGenesisBlock := initialVM.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 
 	numBlocks := 5
 	nonce := uint64(0)
@@ -1103,7 +1103,7 @@ func TestStateSync(t *testing.T) {
 	r.NoError(err)
 
 	vm := network.AddVM(ctx, configBytes)
-	lastAccepted := vm.SnowVM.GetChainIndex().GetLastAccepted(ctx)
+	lastAccepted := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.Equal(lastAccepted.ID(), initialVMGenesisBlock.ID())
 
 	stateSummary, err := initialVM.SnowVM.GetLastStateSummary(ctx)
