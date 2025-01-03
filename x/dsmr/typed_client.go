@@ -13,15 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
 var (
-	_ Marshaler[*dsmr.GetChunkRequest, Chunk[Tx], []byte]              = (*getChunkMarshaler[Tx])(nil)
 	_ Marshaler[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte] = (*getChunkSignatureMarshaler)(nil)
 	_ Marshaler[[]byte, []byte, *dsmr.ChunkCertificateGossip]          = (*chunkCertificateGossipMarshaler)(nil)
 )
@@ -126,7 +123,7 @@ func (getChunkSignatureMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-type getChunkMarshaler[T Tx] struct{}
+type getChunkMarshaler[T Tx[T]] struct{}
 
 func (getChunkMarshaler[_]) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error) {
 	return proto.Marshal(t)
@@ -137,23 +134,14 @@ func (getChunkMarshaler[T]) UnmarshalResponse(bytes []byte) (Chunk[T], error) {
 	if err := proto.Unmarshal(bytes, &response); err != nil {
 		return Chunk[T]{}, err
 	}
-
-	chunk := Chunk[T]{}
-	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: response.Chunk},
-		&chunk,
-	); err != nil {
-		return Chunk[T]{}, err
-	}
-
-	return chunk, chunk.init()
+	return ParseChunk[T](response.Chunk)
 }
 
 func (getChunkMarshaler[_]) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func NewGetChunkClient[T Tx](client *p2p.Client) *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte] {
+func NewGetChunkClient[T Tx[T]](client *p2p.Client) *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte] {
 	return &TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]{
 		client:    client,
 		marshaler: getChunkMarshaler[T]{},

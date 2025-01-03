@@ -16,11 +16,9 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -52,7 +50,7 @@ type Validator struct {
 	PublicKey *bls.PublicKey
 }
 
-func New[T Tx](
+func New[T Tx[T]](
 	log logging.Logger,
 	nodeID ids.NodeID,
 	networkID uint32,
@@ -91,7 +89,7 @@ func New[T Tx](
 	}, nil
 }
 
-type Node[T Tx] struct {
+type Node[T Tx[T]] struct {
 	ID                           ids.NodeID
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
@@ -201,15 +199,11 @@ func (n *Node[T]) BuildChunk(
 			Signature: bitSetSignature.Signature,
 		},
 	}
-
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
-		return err
-	}
-
 	if err := n.chunkCertificateGossipClient.AppGossip(
 		ctx,
-		&dsmr.ChunkCertificateGossip{ChunkCertificate: packer.Bytes},
+		&dsmr.ChunkCertificateGossip{
+			ChunkCertificate: chunkCert.MarshalCanoto(),
+		},
 	); err != nil {
 		return err
 	}
@@ -244,13 +238,7 @@ func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
 		},
 		ChunkCerts: availableChunkCerts,
 	}
-
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(blk, &packer); err != nil {
-		return Block{}, err
-	}
-
-	blk.blkBytes = packer.Bytes
+	blk.blkBytes = blk.MarshalCanoto()
 	blk.blkID = utils.ToID(blk.blkBytes)
 	return blk, nil
 }

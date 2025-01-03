@@ -1,69 +1,65 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto --concurrent=false $GOFILE
+
 package dsmr
 
 import (
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 const InitialChunkSize = 250 * 1024
 
-type Tx interface {
+type Tx[T any] interface {
+	canoto.FieldMaker[T]
+
 	GetID() ids.ID
 	GetExpiry() int64
 	GetSponsor() codec.Address
 }
 
-type UnsignedChunk[T Tx] struct {
-	Producer    ids.NodeID    `serialize:"true"`
-	Beneficiary codec.Address `serialize:"true"`
-	Expiry      int64         `serialize:"true"`
-	Txs         []T           `serialize:"true"`
+type UnsignedChunk[T Tx[T]] struct {
+	Producer    ids.NodeID    `canoto:"fixed bytes,1"`
+	Beneficiary codec.Address `canoto:"fixed bytes,2"`
+	Expiry      int64         `canoto:"int,3"`
+	Txs         []T           `canoto:"repeated field,4"`
+
+	canotoData canotoData_UnsignedChunk
 }
 
 // TODO emit configurable amount of chunks/sec
-type Chunk[T Tx] struct {
-	UnsignedChunk[T] `serialize:"true"`
-	Signer           [bls.PublicKeyLen]byte `serialize:"true"`
-	Signature        [bls.SignatureLen]byte `serialize:"true"`
+type Chunk[T Tx[T]] struct {
+	UnsignedChunk[T] `canoto:"value,1"`
+	Signer           [bls.PublicKeyLen]byte `canoto:"fixed bytes,2"`
+	Signature        [bls.SignatureLen]byte `canoto:"fixed bytes,3"`
+
+	canotoData canotoData_Chunk
 
 	bytes []byte
 	id    ids.ID
 }
 
-func (c *Chunk[T]) init() error {
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(c, &packer); err != nil {
-		return err
-	}
-
-	c.bytes = packer.Bytes
+func (c *Chunk[T]) init() {
+	c.bytes = c.MarshalCanoto()
 	c.id = utils.ToID(c.bytes)
-
-	return nil
 }
 
-func signChunk[T Tx](
+func signChunk[T Tx[T]](
 	chunk UnsignedChunk[T],
 	networkID uint32,
 	chainID ids.ID,
 	pk *bls.PublicKey,
 	signer warp.Signer,
 ) (Chunk[T], error) {
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(chunk, &packer); err != nil {
-		return Chunk[T]{}, err
-	}
-
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	chunkBytes := chunk.MarshalCanoto()
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, chunkBytes)
 	if err != nil {
 		return Chunk[T]{}, err
 	}
@@ -79,41 +75,46 @@ func signChunk[T Tx](
 	copy(pkBytes[:], bls.PublicKeyToCompressedBytes(pk))
 	copy(signature[:], signatureBytes)
 
-	return newChunk(chunk, pkBytes, signature)
+	return newChunk(chunk, pkBytes, signature), nil
 }
 
 // newChunk signs a chunk
-func newChunk[T Tx](
+func newChunk[T Tx[T]](
 	unsignedChunk UnsignedChunk[T],
 	signer [bls.PublicKeyLen]byte,
 	signature [bls.SignatureLen]byte,
-) (Chunk[T], error) {
+) Chunk[T] {
 	c := Chunk[T]{
 		UnsignedChunk: unsignedChunk,
 		Signer:        signer,
 		Signature:     signature,
 	}
-	return c, c.init()
+	c.init()
+	return c
 }
 
-func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
-	c := Chunk[T]{}
-	if err := codec.LinearCodec.UnmarshalFrom(&wrappers.Packer{Bytes: chunkBytes}, &c); err != nil {
+func ParseChunk[T Tx[T]](chunkBytes []byte) (Chunk[T], error) {
+	var c Chunk[T]
+	if err := c.UnmarshalCanoto(chunkBytes); err != nil {
 		return Chunk[T]{}, err
 	}
-
-	return c, c.init()
+	c.init()
+	return c, nil
 }
 
 type BlockHeader struct {
-	ParentID  ids.ID `serialize:"true"`
-	Height    uint64 `serialize:"true"`
-	Timestamp int64  `serialize:"true"`
+	ParentID  ids.ID `canoto:"fixed bytes,1"`
+	Height    uint64 `canoto:"int,2"`
+	Timestamp int64  `canoto:"int,3"`
+
+	canotoData canotoData_BlockHeader
 }
 
 type Block struct {
 	BlockHeader
-	ChunkCerts []*ChunkCertificate `serialize:"true"`
+	ChunkCerts []*ChunkCertificate `canoto:"repeated pointer,1"`
+
+	canotoData canotoData_Block
 
 	blkID    ids.ID
 	blkBytes []byte
@@ -124,8 +125,10 @@ func (b Block) GetID() ids.ID {
 }
 
 // ExecutedBlock contains block data with any referenced chunks reconstructed
-type ExecutedBlock[T Tx] struct {
+type ExecutedBlock[T Tx[T]] struct {
 	BlockHeader
 	ID     ids.ID
-	Chunks []Chunk[T] `serialize:"true"`
+	Chunks []Chunk[T] `canoto:"repeated value,1"`
+
+	canotoData canotoData_ExecutedBlock
 }

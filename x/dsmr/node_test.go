@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/stretchr/testify/require"
 
@@ -33,8 +32,8 @@ import (
 const networkID = uint32(123)
 
 var (
-	_ Tx                    = (*dsmrtest.Tx)(nil)
-	_ Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
+	_ Tx[*dsmrtest.Tx]       = (*dsmrtest.Tx)(nil)
+	_ Verifier[*dsmrtest.Tx] = (*failVerifier)(nil)
 
 	chainID = ids.Empty
 )
@@ -43,7 +42,7 @@ var (
 func TestNode_BuildChunk(t *testing.T) {
 	tests := []struct {
 		name        string
-		txs         []dsmrtest.Tx
+		txs         []*dsmrtest.Tx
 		expiry      int64
 		beneficiary codec.Address
 		wantErr     error
@@ -56,7 +55,7 @@ func TestNode_BuildChunk(t *testing.T) {
 		},
 		{
 			name: "chunk with 1 tx",
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:     ids.GenerateTestID(),
 					Expiry: 1,
@@ -67,7 +66,7 @@ func TestNode_BuildChunk(t *testing.T) {
 		},
 		{
 			name: "chunk with multiple txs",
-			txs: []dsmrtest.Tx{
+			txs: []*dsmrtest.Tx{
 				{
 					ID:     ids.GenerateTestID(),
 					Expiry: 1,
@@ -118,9 +117,8 @@ func TestNode_BuildChunk(t *testing.T) {
 			copy(wantPkBytes[:], bls.PublicKeyToCompressedBytes(node.PublicKey))
 			r.Equal(wantPkBytes, chunk.Signer)
 
-			packer := &wrappers.Packer{MaxSize: MaxMessageSize}
-			r.NoError(codec.LinearCodec.MarshalInto(chunk.UnsignedChunk, packer))
-			msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+			unsignedChunkBytes := chunk.UnsignedChunk.MarshalCanoto()
+			msg, err := warp.NewUnsignedMessage(networkID, chainID, unsignedChunkBytes)
 			r.NoError(err)
 			wantSignature, err := node.Signer.Sign(msg)
 			r.NoError(err)
@@ -138,7 +136,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 
 	r.NoError(node.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		[]*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
 		codec.Address{123},
 	))
@@ -151,7 +149,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r.Len(executedBlk.Chunks, 1)
 
 	chunk := executedBlk.Chunks[0]
-	client := NewGetChunkClient[dsmrtest.Tx](p2ptest.NewClient(
+	client := NewGetChunkClient[*dsmrtest.Tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		ids.EmptyNodeID,
@@ -161,7 +159,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[dsmrtest.Tx], err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[*dsmrtest.Tx], err error) {
 		defer close(done)
 		r.NoError(err)
 		r.Equal(chunk, response)
@@ -184,7 +182,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	r := require.New(t)
 
 	node := newTestNode(t)
-	client := NewGetChunkClient[dsmrtest.Tx](p2ptest.NewClient(
+	client := NewGetChunkClient[*dsmrtest.Tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		ids.EmptyNodeID,
@@ -194,7 +192,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, _ Chunk[dsmrtest.Tx], err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, _ Chunk[*dsmrtest.Tx], err error) {
 		defer close(done)
 
 		r.ErrorIs(err, ErrChunkNotAvailable)
@@ -215,7 +213,7 @@ func TestNode_GetChunk_UnknownChunk(t *testing.T) {
 // Tests that a Node serves chunks it accepts
 func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 	type availableChunk struct {
-		txs         []dsmrtest.Tx
+		txs         []*dsmrtest.Tx
 		expiry      int64
 		beneficiary codec.Address
 	}
@@ -228,7 +226,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			name: "1 chunk with 1 tx",
 			availableChunks: []availableChunk{
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 0,
@@ -243,7 +241,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			name: "1 chunk with 3 txs",
 			availableChunks: []availableChunk{
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 0,
@@ -266,7 +264,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			name: "3 chunks with 1 tx",
 			availableChunks: []availableChunk{
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 0,
@@ -276,7 +274,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 					beneficiary: codec.Address{0},
 				},
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 1,
@@ -286,7 +284,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 					beneficiary: codec.Address{1},
 				},
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 2,
@@ -301,7 +299,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			name: "3 chunks with 3 txs",
 			availableChunks: []availableChunk{
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 0,
@@ -318,7 +316,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 					expiry: 123,
 				},
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 3,
@@ -335,7 +333,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 					expiry: 123,
 				},
 				{
-					txs: []dsmrtest.Tx{
+					txs: []*dsmrtest.Tx{
 						{
 							ID:     ids.GenerateTestID(),
 							Expiry: 6,
@@ -378,7 +376,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			r.NoError(err)
 			r.Len(executedBlk.Chunks, len(tt.availableChunks))
 
-			client := NewGetChunkClient[dsmrtest.Tx](p2ptest.NewClient(
+			client := NewGetChunkClient[*dsmrtest.Tx](p2ptest.NewClient(
 				t,
 				context.Background(),
 				ids.EmptyNodeID,
@@ -397,7 +395,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 						ChunkId: chunk.id[:],
 						Expiry:  chunk.Expiry,
 					},
-					func(_ context.Context, _ ids.NodeID, response Chunk[dsmrtest.Tx], err error) {
+					func(_ context.Context, _ ids.NodeID, response Chunk[*dsmrtest.Tx], err error) {
 						defer close(done)
 
 						r.NoError(err)
@@ -411,9 +409,8 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 						copy(wantPkBytes[:], bls.PublicKeyToCompressedBytes(node.PublicKey))
 						r.Equal(wantPkBytes, chunk.Signer)
 
-						packer := &wrappers.Packer{MaxSize: MaxMessageSize}
-						r.NoError(codec.LinearCodec.MarshalInto(chunk.UnsignedChunk, packer))
-						msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+						unsignedChunkBytes := chunk.UnsignedChunk.MarshalCanoto()
+						msg, err := warp.NewUnsignedMessage(networkID, chainID, unsignedChunkBytes)
 						r.NoError(err)
 						wantSignature, err := node.Signer.Sign(msg)
 						r.NoError(err)
@@ -430,7 +427,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	tests := []struct {
 		name     string
-		verifier Verifier[dsmrtest.Tx]
+		verifier Verifier[*dsmrtest.Tx]
 		wantErr  error
 	}{
 		{
@@ -440,7 +437,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		},
 		{
 			name:     "valid chunk",
-			verifier: NoVerifier[dsmrtest.Tx]{},
+			verifier: NoVerifier[*dsmrtest.Tx]{},
 		},
 	}
 
@@ -462,10 +459,10 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 			}
 
-			chunkStorage, err := NewChunkStorage[dsmrtest.Tx](tt.verifier, memdb.New())
+			chunkStorage, err := NewChunkStorage[*dsmrtest.Tx](tt.verifier, memdb.New())
 			r.NoError(err)
 
-			node, err := New[dsmrtest.Tx](
+			node, err := New[*dsmrtest.Tx](
 				logging.NoLog{},
 				nodeID,
 				networkID,
@@ -475,7 +472,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				chunkStorage,
 				p2p.NoOpHandler{},
 				acp118.NewHandler(
-					ChunkSignatureRequestVerifier[dsmrtest.Tx]{
+					ChunkSignatureRequestVerifier[*dsmrtest.Tx]{
 						verifier: tt.verifier,
 						storage:  chunkStorage,
 					},
@@ -514,12 +511,12 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunk, err := newChunk[dsmrtest.Tx](
-				UnsignedChunk[dsmrtest.Tx]{
+			chunk := newChunk[*dsmrtest.Tx](
+				UnsignedChunk[*dsmrtest.Tx]{
 					Producer:    ids.GenerateTestNodeID(),
 					Beneficiary: codec.Address{123},
 					Expiry:      123,
-					Txs: []dsmrtest.Tx{
+					Txs: []*dsmrtest.Tx{
 						{
 							ID:      ids.GenerateTestID(),
 							Expiry:  456,
@@ -530,7 +527,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				[48]byte{},
 				[96]byte{},
 			)
-			r.NoError(err)
 
 			chunkReference := ChunkReference{
 				ChunkID:  ids.GenerateTestID(),
@@ -621,7 +617,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 	node := newTestNode(t)
 	r.NoError(node.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.Empty, Expiry: 123}},
+		[]*dsmrtest.Tx{{ID: ids.Empty, Expiry: 123}},
 		123,
 		codec.Address{123},
 	))
@@ -684,7 +680,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 	r.NoError(node1.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.Empty, Expiry: 123}},
+		[]*dsmrtest.Tx{{ID: ids.Empty, Expiry: 123}},
 		123,
 		codec.Address{123},
 	))
@@ -709,7 +705,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r.Len(executedBlk.Chunks, 1)
 	chunk := executedBlk.Chunks[0]
 
-	client := NewGetChunkClient[dsmrtest.Tx](p2ptest.NewClient(
+	client := NewGetChunkClient[*dsmrtest.Tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		ids.EmptyNodeID,
@@ -719,7 +715,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[dsmrtest.Tx], err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[*dsmrtest.Tx], err error) {
 		defer close(done)
 		r.NoError(err)
 		r.Equal(chunk, response)
@@ -739,7 +735,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 
 func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 	type chunk struct {
-		txs         []dsmrtest.Tx
+		txs         []*dsmrtest.Tx
 		expiry      int64
 		beneficiary codec.Address
 	}
@@ -777,7 +773,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1,
@@ -797,7 +793,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1,
@@ -806,7 +802,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 						expiry: parent.Timestamp + 1,
 					},
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 2,
@@ -815,7 +811,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 						expiry: parent.Timestamp + 2,
 					},
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 3,
@@ -835,7 +831,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1,
@@ -854,7 +850,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1_000,
@@ -863,7 +859,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 						expiry: parent.Timestamp + 1_000,
 					},
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 2_000,
@@ -872,7 +868,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 						expiry: parent.Timestamp + 2_000,
 					},
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 3_000,
@@ -891,7 +887,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1_000,
@@ -900,7 +896,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 						expiry: parent.Timestamp + 1_000,
 					},
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1,
@@ -971,7 +967,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 
 	r.NoError(node1.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
+		[]*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
 		123,
 		codec.Address{123},
 	))
@@ -986,7 +982,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r.Len(executedBlk.Chunks, 1)
 	chunk := executedBlk.Chunks[0]
 
-	client := NewGetChunkClient[dsmrtest.Tx](p2ptest.NewClient(
+	client := NewGetChunkClient[*dsmrtest.Tx](p2ptest.NewClient(
 		t,
 		context.Background(),
 		ids.EmptyNodeID,
@@ -996,7 +992,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 	))
 
 	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[dsmrtest.Tx], err error) {
+	onResponse := func(_ context.Context, _ ids.NodeID, response Chunk[*dsmrtest.Tx], err error) {
 		defer close(done)
 		r.NoError(err)
 		r.Equal(chunk, response)
@@ -1043,7 +1039,7 @@ func Test_Verify(t *testing.T) {
 	node := newTestNode(t)
 	r.NoError(node.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1}},
+		[]*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1}},
 		100,
 		codec.Address{123},
 	))
@@ -1217,7 +1213,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 			node := newTestNode(t)
 			r.NoError(node.BuildChunk(
 				context.Background(),
-				[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 2}},
+				[]*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 2}},
 				100,
 				codec.Address{123},
 			))
@@ -1237,23 +1233,23 @@ func Test_Verify_BadBlock(t *testing.T) {
 
 type failVerifier struct{}
 
-func (failVerifier) Verify(Chunk[dsmrtest.Tx]) error {
+func (failVerifier) Verify(Chunk[*dsmrtest.Tx]) error {
 	return errors.New("fail")
 }
 
 type testNode struct {
-	ChunkStorage                  *ChunkStorage[dsmrtest.Tx]
+	ChunkStorage                  *ChunkStorage[*dsmrtest.Tx]
 	GetChunkHandler               p2p.Handler
 	ChunkSignatureRequestHandler  p2p.Handler
 	ChunkCertificateGossipHandler p2p.Handler
 	Sk                            *bls.SecretKey
 }
 
-func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
+func newTestNode(t *testing.T) *Node[*dsmrtest.Tx] {
 	return newTestNodes(t, 1)[0]
 }
 
-func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
+func newTestNodes(t *testing.T, n int) []*Node[*dsmrtest.Tx] {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1262,17 +1258,17 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		pk := bls.PublicFromSecretKey(sk)
 		signer := warp.NewSigner(sk, networkID, chainID)
 
-		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](NoVerifier[dsmrtest.Tx]{}, memdb.New())
+		chunkStorage, err := NewChunkStorage[*dsmrtest.Tx](NoVerifier[*dsmrtest.Tx]{}, memdb.New())
 		require.NoError(t, err)
 
-		getChunkHandler := &GetChunkHandler[dsmrtest.Tx]{
+		getChunkHandler := &GetChunkHandler[*dsmrtest.Tx]{
 			storage: chunkStorage,
 		}
-		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[dsmrtest.Tx]{
-			verifier: NoVerifier[dsmrtest.Tx]{},
+		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[*dsmrtest.Tx]{
+			verifier: NoVerifier[*dsmrtest.Tx]{},
 			storage:  chunkStorage,
 		}, signer)
-		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[dsmrtest.Tx]{
+		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[*dsmrtest.Tx]{
 			storage: chunkStorage,
 		}
 
@@ -1291,7 +1287,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		})
 	}
 
-	result := make([]*Node[dsmrtest.Tx], 0, n)
+	result := make([]*Node[*dsmrtest.Tx], 0, n)
 	for i, n := range nodes {
 		getChunkPeers := make(map[ids.NodeID]p2p.Handler)
 		chunkSignaturePeers := make(map[ids.NodeID]p2p.Handler)
@@ -1306,7 +1302,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			chunkCertGossipPeers[validators[j].NodeID] = nodes[j].ChunkCertificateGossipHandler
 		}
 
-		node, err := New[dsmrtest.Tx](
+		node, err := New[*dsmrtest.Tx](
 			logging.NoLog{},
 			validators[i].NodeID,
 			networkID,
@@ -1352,7 +1348,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	node := result[0]
 	require.NoError(t, node.BuildChunk(
 		context.Background(),
-		[]dsmrtest.Tx{
+		[]*dsmrtest.Tx{
 			{
 				ID:      ids.ID{},
 				Expiry:  123,

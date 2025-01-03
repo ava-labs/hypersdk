@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+//go:generate go run github.com/StephenButtolph/canoto/canoto --concurrent=false $GOFILE
 
 package dsmr
 
@@ -30,9 +30,9 @@ var (
 const MaxMessageSize = units.KiB
 
 type ChunkReference struct {
-	ChunkID  ids.ID     `serialize:"true" canoto:"fixed bytes,1"`
-	Producer ids.NodeID `serialize:"true" canoto:"fixed bytes,2"`
-	Expiry   int64      `serialize:"true" canoto:"int,3"`
+	ChunkID  ids.ID     `canoto:"fixed bytes,1"`
+	Producer ids.NodeID `canoto:"fixed bytes,2"`
+	Expiry   int64      `canoto:"int,3"`
 
 	canotoData canotoData_ChunkReference
 }
@@ -40,15 +40,15 @@ type ChunkReference struct {
 type Signature struct {
 	// Signers is a big-endian byte slice encoding which validators signed this
 	// message.
-	Signers   []byte                 `serialize:"true" canoto:"bytes,1"`
-	Signature [bls.SignatureLen]byte `serialize:"true" canoto:"fixed bytes,2"`
+	Signers   []byte                 `canoto:"bytes,1"`
+	Signature [bls.SignatureLen]byte `canoto:"fixed bytes,2"`
 
 	canotoData canotoData_Signature
 }
 
 type ChunkCertificate struct {
-	ChunkReference `serialize:"true" canoto:"value,1"`
-	Signature      Signature `serialize:"true" canoto:"value,2"`
+	ChunkReference `canoto:"value,1"`
+	Signature      Signature `canoto:"value,2"`
 
 	canotoData canotoData_ChunkCertificate
 }

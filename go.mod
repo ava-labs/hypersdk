@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk
 go 1.22.9
 
 require (
-	github.com/StephenButtolph/canoto v0.8.1
+	github.com/StephenButtolph/canoto v0.9.0
 	github.com/ava-labs/avalanchego v1.11.13-0.20241127075308-7752928cccc0
 	github.com/bytecodealliance/wasmtime-go/v25 v25.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
