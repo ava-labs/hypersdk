@@ -32,11 +32,11 @@ type op struct {
 	pastWrites    *uint16
 }
 
-// immutableScopeStorage implements [state.Immutable], allowing the map to be used
+// ImmutableScopeStorage implements [state.Immutable], allowing the map to be used
 // as a read-only state source, and making it compatible with error-generating backing storage.
-type immutableScopeStorage map[string][]byte
+type ImmutableScopeStorage map[string][]byte
 
-func (i immutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+func (i ImmutableScopeStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	if v, has := i[string(key)]; has {
 		return v, nil
 	}
@@ -68,8 +68,8 @@ type TStateView struct {
 	simulationMode bool
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
-	return newView(ts, scope, immutableScopeStorage(storage), false)
+func (ts *TState) NewView(scope state.Keys, storage state.Immutable) *TStateView {
+	return newView(ts, scope, storage, false)
 }
 
 func (*TStateRecorder) newRecorderView(immutableState state.Immutable) *TStateView {

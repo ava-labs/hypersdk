@@ -43,7 +43,8 @@ func New(
 	authEngine map[uint8]vm.AuthEngine,
 	options ...vm.Option,
 ) (*vm.VM, error) {
-	options = append(options, NewDefaultOptions()...)
+	// User-supplied options take precedence over default options
+	options = append(NewDefaultOptions(), options...)
 	return vm.New(
 		v,
 		genesisFactory,

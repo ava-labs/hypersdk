@@ -75,7 +75,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			tstate.ImmutableScopeStorage(ms.Storage),
 		)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
@@ -95,7 +95,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			tstate.ImmutableScopeStorage(ms.Storage),
 		)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
@@ -115,7 +115,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			tstate.ImmutableScopeStorage(ms.Storage),
 		)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
@@ -135,7 +135,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ts := tstate.New(1)
 		tsv := ts.NewView(
 			bh.SponsorStateKeys(addrOne),
-			ms.Storage,
+			tstate.ImmutableScopeStorage(ms.Storage),
 		)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))

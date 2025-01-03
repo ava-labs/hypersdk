@@ -54,7 +54,7 @@ func createKeysValues(keys [][]byte) map[string][]byte {
 	return out
 }
 
-func (i immutableScopeStorage) duplicate() immutableScopeStorage {
+func (i ImmutableScopeStorage) duplicate() ImmutableScopeStorage {
 	other := make(map[string][]byte, len(i))
 	for k, v := range i {
 		other[k] = v
@@ -84,7 +84,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 	existingKeyValue := createKeysValues(existingKeys)
 
 	// create a long living recorder.
-	recorder := NewRecorder(immutableScopeStorage(existingKeyValue).duplicate())
+	recorder := NewRecorder(ImmutableScopeStorage(existingKeyValue).duplicate())
 
 	for opIdx := byte(0); opIdx < operationCount; opIdx++ {
 		opType := r.Intn(fuzzerOpCount)
@@ -95,7 +95,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3}))
+			require.NoError(New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3}))
 
 			existingKeyValue[string(key)] = []byte{1, 2, 3}
 		case fuzzerOpInsertNonExistingKey: // insert non existing key
@@ -107,7 +107,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3, 4}))
+			require.NoError(New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue).duplicate()).Insert(context.Background(), key, []byte{1, 2, 3, 4}))
 
 			// since we've modified the recorder state, we need to update our own.
 			existingKeys = append(existingKeys, key)
@@ -118,7 +118,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), existingKeys[keyIdx]))
+			require.NoError(New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), existingKeys[keyIdx]))
 
 			// since we've modified the recorder state, we need to update our own.
 			delete(existingKeyValue, string(existingKeys[keyIdx]))
@@ -129,7 +129,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			require.NoError(New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), nonExistingKeys[keyIdx]))
+			require.NoError(New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue).duplicate()).Remove(context.Background(), nonExistingKeys[keyIdx]))
 		case fuzzerOpGetExistingKey: // get value of existing key
 			keyIdx := r.Intn(len(existingKeys))
 			recorderValue, err := recorder.GetValue(context.Background(), existingKeys[keyIdx])
@@ -137,7 +137,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			stateValue, err := New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).GetValue(context.Background(), existingKeys[keyIdx])
+			stateValue, err := New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue)).GetValue(context.Background(), existingKeys[keyIdx])
 			require.NoError(err)
 
 			// both the recorder and the stateview should return the same value.
@@ -149,7 +149,7 @@ func RecorderPermissionValidatorFuzzer(t *testing.T, operationCount byte, source
 
 			// validate operation agaist TStateView
 			stateKeys := recorder.GetStateKeys()
-			_, err = New(0).NewView(stateKeys, immutableScopeStorage(existingKeyValue)).GetValue(context.Background(), nonExistingKeys[keyIdx])
+			_, err = New(0).NewView(stateKeys, ImmutableScopeStorage(existingKeyValue)).GetValue(context.Background(), nonExistingKeys[keyIdx])
 			require.ErrorIs(err, database.ErrNotFound)
 		}
 	}

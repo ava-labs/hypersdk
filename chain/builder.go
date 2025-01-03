@@ -61,15 +61,16 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 type Builder struct {
-	tracer          trace.Tracer
-	ruleFactory     RuleFactory
-	log             logging.Logger
-	metadataManager MetadataManager
-	balanceHandler  BalanceHandler
-	mempool         Mempool
-	validityWindow  ValidityWindow
-	metrics         *chainMetrics
-	config          Config
+	tracer                    trace.Tracer
+	ruleFactory               RuleFactory
+	log                       logging.Logger
+	metadataManager           MetadataManager
+	transactionManagerFactory TransactionManagerFactory
+	balanceHandler            BalanceHandler
+	mempool                   Mempool
+	validityWindow            ValidityWindow
+	metrics                   *chainMetrics
+	config                    Config
 }
 
 func NewBuilder(
@@ -77,6 +78,7 @@ func NewBuilder(
 	ruleFactory RuleFactory,
 	log logging.Logger,
 	metadataManager MetadataManager,
+	transactionManagerFactory TransactionManagerFactory,
 	balanceHandler BalanceHandler,
 	mempool Mempool,
 	validityWindow ValidityWindow,
@@ -84,15 +86,16 @@ func NewBuilder(
 	config Config,
 ) *Builder {
 	return &Builder{
-		tracer:          tracer,
-		ruleFactory:     ruleFactory,
-		log:             log,
-		metadataManager: metadataManager,
-		balanceHandler:  balanceHandler,
-		mempool:         mempool,
-		validityWindow:  validityWindow,
-		metrics:         metrics,
-		config:          config,
+		tracer:                    tracer,
+		ruleFactory:               ruleFactory,
+		log:                       log,
+		metadataManager:           metadataManager,
+		transactionManagerFactory: transactionManagerFactory,
+		balanceHandler:            balanceHandler,
+		mempool:                   mempool,
+		validityWindow:            validityWindow,
+		metrics:                   metrics,
+		config:                    config,
 	}
 }
 
@@ -289,8 +292,14 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}()
 				}
 
+				tm := c.transactionManagerFactory()
+				state, err := tm.ExecutableState(storage, height)
+				if err != nil {
+					return err
+				}
+
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
+				tsv := ts.NewView(stateKeys, state)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -317,6 +326,10 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 
 				blockLock.Lock()
 				defer blockLock.Unlock()
+
+				if err := tm.AfterTX(ctx, tx, result, tsv, c.balanceHandler, feeManager, true); err != nil {
+					return err
+				}
 
 				// Ensure block isn't too big
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
@@ -397,6 +410,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
+	tm := c.transactionManagerFactory()
+	if err := tm.RawState(ts, height); err != nil {
+		return nil, nil, nil, err
+	}
+
 	// Update chain metadata
 	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	heightKeyStr := string(heightKey)
@@ -408,11 +426,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
+	tsv := ts.NewView(keys, tstate.ImmutableScopeStorage(map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	}))
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}

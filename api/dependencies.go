@@ -41,7 +41,13 @@ type VM interface {
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GetVerifyAuth() bool
-	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
+	// Access to Raw State
+	ReadState(ctx context.Context, keys [][]byte) (state.Immutable, error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
 	BalanceHandler() chain.BalanceHandler
+}
+
+type Chain interface {
+	// Access to executable state
+	Get()
 }
