@@ -6,11 +6,12 @@ package snow
 import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/hypersdk/context"
 )
 
 const (
-	VMConfigKey           = "vm"
+	SnowVMConfigKey       = "snowvm"
 	TracerConfigKey       = "tracer"
 	ContinuousProfilerKey = "continuousProfiler"
 )
@@ -27,10 +28,14 @@ func NewDefaultVMConfig() VMConfig {
 	}
 }
 
-func GetVMConfig(ctx *context.Context) (VMConfig, error) {
-	return context.GetConfigFromContext(ctx, VMConfigKey, NewDefaultVMConfig())
+func GetVMConfig(config context.Config) (VMConfig, error) {
+	return context.GetConfig(config, SnowVMConfigKey, NewDefaultVMConfig())
 }
 
-func GetProfilerConfig(ctx *context.Context) (profiler.Config, error) {
-	return context.GetConfigFromContext(ctx, ContinuousProfilerKey, profiler.Config{Enabled: false})
+func GetProfilerConfig(config context.Config) (profiler.Config, error) {
+	return context.GetConfig(config, ContinuousProfilerKey, profiler.Config{Enabled: false})
+}
+
+func GetTracerConfig(config context.Config) (trace.Config, error) {
+	return context.GetConfig(config, TracerConfigKey, trace.Config{Enabled: false})
 }

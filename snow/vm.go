@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/health"
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -36,11 +37,12 @@ import (
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
 type ChainInput struct {
-	SnowCtx                                 *snow.Context
-	GenesisBytes, UpgradeBytes, ConfigBytes []byte
-	ToEngine                                chan<- common.Message
-	Shutdown                                <-chan struct{}
-	Context                                 *hcontext.Context
+	SnowCtx                    *snow.Context
+	GenesisBytes, UpgradeBytes []byte
+	ToEngine                   chan<- common.Message
+	Shutdown                   <-chan struct{}
+	Tracer                     trace.Tracer
+	Config                     hcontext.Config
 }
 
 type MakeChainIndexFunc[I Block, O Block, A Block] func(
@@ -79,9 +81,8 @@ type VM[I Block, O Block, A Block] struct {
 	consensusIndex  *ConsensusIndex[I, O, A]
 	app             Application[I, O, A]
 
-	snowCtx *snow.Context
-
-	hctx     *hcontext.Context
+	snowCtx  *snow.Context
+	hconfig  hcontext.Config
 	vmConfig VMConfig
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
@@ -141,25 +142,29 @@ func (v *VM[I, O, A]) Initialize(
 	v.snowCtx = chainCtx
 	v.shutdownChan = make(chan struct{})
 
-	hctx, err := hcontext.New(
-		chainCtx.Log,
-		chainCtx.Metrics,
-		configBytes,
-	)
+	hconfig, err := hcontext.NewConfig(configBytes)
 	if err != nil {
-		return fmt.Errorf("failed to create hypersdk context: %w", err)
+		return fmt.Errorf("failed to create hypersdk config: %w", err)
 	}
-	v.hctx = hctx
-	v.tracer = hctx.Tracer()
+	v.hconfig = hconfig
+	tracerConfig, err := GetTracerConfig(hconfig)
+	if err != nil {
+		return fmt.Errorf("failed to fetch tracer config: %w", err)
+	}
+	tracer, err := trace.New(tracerConfig)
+	if err != nil {
+		return err
+	}
+	v.tracer = tracer
 	ctx, span := v.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	v.vmConfig, err = GetVMConfig(v.hctx)
+	v.vmConfig, err = GetVMConfig(hconfig)
 	if err != nil {
 		return fmt.Errorf("failed to parse vm config: %w", err)
 	}
 
-	defaultRegistry, err := v.hctx.MakeRegistry("snow")
+	defaultRegistry, err := metrics.MakeAndRegister(v.snowCtx.Metrics, "snow")
 	if err != nil {
 		return err
 	}
@@ -170,7 +175,7 @@ func (v *VM[I, O, A]) Initialize(
 	v.metrics = metrics
 	v.log = chainCtx.Log
 
-	continuousProfilerConfig, err := GetProfilerConfig(v.hctx)
+	continuousProfilerConfig, err := GetProfilerConfig(hconfig)
 	if err != nil {
 		return fmt.Errorf("failed to parse continuous profiler config: %w", err)
 	}
@@ -209,10 +214,10 @@ func (v *VM[I, O, A]) Initialize(
 		SnowCtx:      chainCtx,
 		GenesisBytes: genesisBytes,
 		UpgradeBytes: upgradeBytes,
-		ConfigBytes:  configBytes,
 		ToEngine:     toEngine,
 		Shutdown:     v.shutdownChan,
-		Context:      v.hctx,
+		Tracer:       v.tracer,
+		Config:       v.hconfig,
 	}
 
 	inputChainIndex, lastOutput, lastAccepted, stateReady, err := v.chain.Initialize(

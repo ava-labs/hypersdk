@@ -10,6 +10,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chainindex"
+	hcontext "github.com/ava-labs/hypersdk/context"
+)
+
+const (
+	VMNamespaceKey = "vm"
 )
 
 type Config struct {
@@ -23,7 +29,6 @@ type Config struct {
 	StateIntermediateWriteBatchSize  int                        `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
 	ValueNodeCacheSize               int                        `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
 	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
-	ChainConfig                      chain.Config               `json:"executionConfig"`
 	ServiceConfig                    map[string]json.RawMessage `json:"services"` // Config of service namespace -> raw service config
 }
 
@@ -39,6 +44,17 @@ func NewConfig() Config {
 		StateIntermediateWriteBatchSize:  4 * units.MiB,
 		ValueNodeCacheSize:               2 * units.GiB,
 		TargetGossipDuration:             20 * time.Millisecond,
-		ChainConfig:                      chain.NewDefaultConfig(),
 	}
+}
+
+func GetVMConfig(config hcontext.Config) (Config, error) {
+	return hcontext.GetConfig(config, VMNamespaceKey, NewConfig())
+}
+
+func GetChainConfig(config hcontext.Config) (chain.Config, error) {
+	return hcontext.GetConfig(config, chainNamespace, chain.NewDefaultConfig())
+}
+
+func GetChainIndexConfig(config hcontext.Config) (chainindex.Config, error) {
+	return hcontext.GetConfig(config, chainIndexNamespace, chainindex.NewDefaultConfig())
 }

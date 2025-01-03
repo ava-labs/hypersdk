@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
@@ -40,12 +41,16 @@ func NewDefaultStateSyncConfig() StateSyncConfig {
 	}
 }
 
+func GetStateSyncConfig(config hcontext.Config) (StateSyncConfig, error) {
+	return hcontext.GetConfig(config, StateSyncNamespace, NewDefaultStateSyncConfig())
+}
+
 func (vm *VM) initStateSync(ctx context.Context) error {
-	stateSyncConfig, err := hcontext.GetConfigFromContext(vm.snowInput.Context, StateSyncNamespace, NewDefaultStateSyncConfig())
+	stateSyncConfig, err := GetStateSyncConfig(vm.snowInput.Config)
 	if err != nil {
 		return err
 	}
-	stateSyncRegistry, err := vm.snowInput.Context.MakeRegistry(StateSyncNamespace)
+	stateSyncRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, StateSyncNamespace)
 	if err != nil {
 		return err
 	}

@@ -6,11 +6,11 @@ package vm
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -141,7 +140,6 @@ func New(
 	return &VM{
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
-		config:                NewConfig(),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
@@ -161,21 +159,20 @@ func (vm *VM) Initialize(
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
 		upgradeBytes = chainInput.UpgradeBytes
-		configBytes  = chainInput.ConfigBytes // TODO: cut down as much as possible in favor of using hcontext
 	)
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
 	vm.snowInput = chainInput
 	vm.snowApp = snowApp
-	vmRegistry, err := chainInput.Context.MakeRegistry(hyperNamespace)
+
+	vmRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, hyperNamespace)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	metrics, err := newMetrics(vmRegistry)
+	vm.metrics, err = newMetrics(vmRegistry)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 
 	vm.network = snowApp.Network
@@ -186,14 +183,12 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-			return nil, nil, nil, false, fmt.Errorf("failed to unmarshal config: %w", err)
-		}
+	vm.config, err = GetVMConfig(chainInput.Config)
+	if err != nil {
+		return nil, nil, nil, false, err
 	}
-	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
-	vm.tracer = chainInput.Context.Tracer()
+	vm.tracer = chainInput.Tracer
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
@@ -223,7 +218,7 @@ func (vm *VM) Initialize(
 
 	// Instantiate DBs
 	pebbleConfig := pebble.NewDefaultConfig()
-	stateDBRegistry, err := vm.snowInput.Context.MakeRegistry(stateDB)
+	stateDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, stateDB)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to register statedb metrics: %w", err)
 	}
@@ -300,9 +295,13 @@ func (vm *VM) Initialize(
 			return nil
 		},
 	})
-	chainRegistry, err := vm.snowInput.Context.MakeRegistry(chainNamespace)
+	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
+	}
+	chainConfig, err := GetChainConfig(chainInput.Config)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to get chain config: %w", err)
 	}
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
@@ -316,7 +315,7 @@ func (vm *VM) Initialize(
 		vm.AuthVerifiers(),
 		vm,
 		vm.chainTimeValidityWindow,
-		vm.config.ChainConfig,
+		chainConfig,
 	)
 	if err != nil {
 		return nil, nil, nil, false, err
@@ -367,7 +366,7 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 }
 
 func (vm *VM) initChainStore() error {
-	blockDBRegistry, err := vm.snowInput.Context.MakeRegistry(blockDB)
+	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
 	}
@@ -377,7 +376,7 @@ func (vm *VM) initChainStore() error {
 		return fmt.Errorf("failed to create chain index database: %w", err)
 	}
 	vm.snowApp.AddCloser(chainIndexNamespace, chainStoreDB.Close)
-	config, err := hcontext.GetConfigFromContext(vm.snowInput.Context, chainIndexNamespace, chainindex.NewDefaultConfig())
+	config, err := GetChainIndexConfig(vm.snowInput.Config)
 	if err != nil {
 		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
@@ -600,7 +599,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		})
 	}
 
-	gossipRegistry, err := vm.snowInput.Context.MakeRegistry(gossiperNamespace)
+	gossipRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, gossiperNamespace)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", gossiperNamespace, err)
 	}
