@@ -5,6 +5,4 @@ package hypersdk
 
 // TODO: Once we update to go1.24, we should register canoto as a tool in the
 // go.mod file.
-import (
-	_ "github.com/StephenButtolph/canoto/generate"
-)
+import _ "github.com/StephenButtolph/canoto/generate"
