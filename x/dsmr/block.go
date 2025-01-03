@@ -15,8 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const InitialChunkSize = 250 * 1024
-
 type Tx[T any] interface {
 	canoto.FieldMaker[T]
 
