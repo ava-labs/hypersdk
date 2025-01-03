@@ -12,11 +12,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 )
-
-const MaxMessageSize = units.KiB
 
 type ChunkReference struct {
 	ChunkID  ids.ID     `canoto:"fixed bytes,1"`
