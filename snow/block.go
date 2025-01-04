@@ -233,6 +233,8 @@ func (b *StatefulBlock[I, O, A]) innerVerify(ctx context.Context) error {
 }
 
 // markAccepted marks the block and updates the required VM state.
+// iff parent is non-nil, it will request the chain to Accept the block.
+// The caller is responsible to provide the accepted parent if the VM is in a ready state.
 func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *StatefulBlock[I, O, A]) error {
 	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err

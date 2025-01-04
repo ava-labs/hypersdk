@@ -26,7 +26,7 @@ type ChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *VM[I, O, A]) makeChainIndex(
+func (v *VM[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
 	chainIndex ChainIndex[I],
 	outputBlock O,
@@ -92,6 +92,12 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 	return NewAcceptedBlock(v, inputBlock, outputBlock, acceptedBlock), nil
 }
 
+// ConsensusIndex provides a wrapper around the VM, which enables the chain developer to share the
+// caching layer provided by the VM and used in the consensus engine.
+// The ConsensusIndex additionally provides access to the accepted/preferred frontier by providing
+// accessors to the latest type of the frontier.
+// ie. last accepted block is guaranteed to have Accepted type available, whereas the preferred block
+// is only guaranteed to have the Output type available.
 type ConsensusIndex[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }

@@ -374,6 +374,8 @@ func (p *Processor) executeTxs(
 		return nil, nil, err
 	}
 
+	p.metrics.txsVerified.Add(float64(numTxs))
+
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
 }

@@ -45,15 +45,16 @@ type ChainInput struct {
 	Config                     hcontext.Config
 }
 
-type MakeChainIndexFunc[I Block, O Block, A Block] func(
-	ctx context.Context,
-	chainIndex ChainIndex[I],
-	outputBlock O,
-	acceptedBlock A,
-	stateReady bool,
-) (*ConsensusIndex[I, O, A], error)
-
+// Chain provides a reduced interface for chain / VM developers to implement.
+// The snow package implements the full AvalancheGo VM interface, so that the chain implementation
+// only needs to provide a way to initialize itself with all of the provided inputs, define concrete types
+// for each state that a block could be in from the perspective of the consensus engine, and state
+// transition functions between each of those types.
 type Chain[I Block, O Block, A Block] interface {
+	// Initialize initializes the chain, optionally configures the VM via app, and returns
+	// a persistent index of the chain's input block type, the last output and accetped block,
+	// and whether or not the VM is currently in a valid state. If stateReady is false, the VM
+	// must be mid-state sync, such that it does not have a valid last output or accepted block.
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
@@ -63,15 +64,23 @@ type Chain[I Block, O Block, A Block] interface {
 	// VM with:
 	// 1. A cached index of the chain
 	// 2. The ability to fetch the latest consensus state (preferred output block and last accepted block)
-	SetConsensusIndex(*ConsensusIndex[I, O, A])
+	SetConsensusIndex(consensusIndex *ConsensusIndex[I, O, A])
+	// BuildBlock returns a new input and output block built on top of the provided parent.
+	// The provided parent will be the current preference of the consensus engine.
 	BuildBlock(ctx context.Context, parent O) (I, O, error)
+	// ParseBlock parses the provided bytes into an input block.
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
+	// VerifyBlock verifies the provided block is valid given its already verified parent
+	// and returns the resulting output of executing the block.
 	VerifyBlock(
 		ctx context.Context,
 		parent O,
 		block I,
 	) (O, error)
-	AcceptBlock(ctx context.Context, acceptedParent A, outputBlock O) (A, error)
+	// AcceptBlock marks block as accepted and returns the resulting Accepted block type.
+	// AcceptBlock is guaranteed to be called after the input block has been persisted
+	// to disk.
+	AcceptBlock(ctx context.Context, acceptedParent A, block O) (A, error)
 }
 
 type VM[I Block, O Block, A Block] struct {
@@ -229,7 +238,7 @@ func (v *VM[I, O, A]) Initialize(
 		return err
 	}
 	v.inputChainIndex = inputChainIndex
-	if err := v.makeChainIndex(ctx, v.inputChainIndex, lastOutput, lastAccepted, stateReady); err != nil {
+	if err := v.makeConsensusIndex(ctx, v.inputChainIndex, lastOutput, lastAccepted, stateReady); err != nil {
 		return err
 	}
 	v.chain.SetConsensusIndex(v.consensusIndex)
@@ -362,6 +371,8 @@ func (v *VM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *St
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate height difference for exclusive block range: %w", err)
 	}
+	// If the difference is 0, then the block range is invalid because we already checked they are not
+	// the same block.
 	if diff == 0 {
 		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
 	}

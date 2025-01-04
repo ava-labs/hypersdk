@@ -24,6 +24,7 @@ type Chain struct {
 	processor   *Processor
 	preExecutor *PreExecutor
 	blockParser *BlockParser
+	accepter    *Accepter
 }
 
 func NewChain(
@@ -75,6 +76,7 @@ func NewChain(
 			balanceHandler,
 		),
 		blockParser: NewBlockParser(tracer, parser),
+		accepter:    NewAccepter(tracer, validityWindow, metrics),
 	}, nil
 }
 
@@ -108,4 +110,8 @@ func (c *Chain) PreExecute(
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
 	return c.blockParser.ParseBlock(ctx, bytes)
+}
+
+func (c *Chain) AcceptBlock(ctx context.Context, block *OutputBlock) error {
+	return c.accepter.AcceptBlock(ctx, block)
 }

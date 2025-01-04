@@ -34,8 +34,8 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		MempoolSize:                      2_048,
-		AuthVerificationCores:            2,
-		RootGenerationCores:              2,
+		AuthVerificationCores:            1,
+		RootGenerationCores:              1,
 		MempoolSponsorSize:               32,
 		StateHistoryLength:               256,
 		IntermediateNodeCacheSize:        4 * units.GiB,

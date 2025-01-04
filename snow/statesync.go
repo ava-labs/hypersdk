@@ -48,9 +48,10 @@ func (v *VM[I, O, A]) finishStateSync(ctx context.Context, input I, output O, ac
 		return nil
 	}
 
-	// Dynamic state sync notifies completion async, so we may have verified/accepted new blocks in
-	// the interim (before successfully grabbing the lock).
-	// Create the block and reprocess all blocks in the range (blk, lastAcceptedBlock]
+	// Dynamic state sync notifies completion async, so the engine may continue to process/accept new blocks
+	// before we grab chainLock.
+	// This means we must reprocess blocks from the target state sync finished on to the updated last
+	// accepted block.
 	blk := NewAcceptedBlock(v, input, output, accepted)
 	v.log.Info("Finishing state sync with target behind last accepted tip",
 		zap.Stringer("target", blk),
@@ -60,8 +61,7 @@ func (v *VM[I, O, A]) finishStateSync(ctx context.Context, input I, output O, ac
 	if err != nil {
 		return fmt.Errorf("failed to get block range while completing state sync: %w", err)
 	}
-	// Guarantee that parent is fully populated, so we can correctly verify/accept each
-	// block up to and including the last accepted block.
+	// include lastAcceptedBlock as the last block to re-process
 	reprocessBlks = append(reprocessBlks, v.lastAcceptedBlock)
 	parent := blk
 	v.log.Info("Reprocessing blocks from target to last accepted tip",

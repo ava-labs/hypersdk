@@ -13,6 +13,10 @@ import (
 const namespace = "chain"
 
 type chainMetrics struct {
+	txsBuilt    prometheus.Counter
+	txsVerified prometheus.Counter
+	txsAccepted prometheus.Counter
+
 	rootCalculatedCount prometheus.Counter
 	rootCalculatedSum   prometheus.Gauge
 	waitRootCount       prometheus.Counter
@@ -51,10 +55,20 @@ func (em *executorMetrics) RecordExecutable() {
 
 func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 	m := &chainMetrics{
-		rootCalculatedCount: prometheus.NewCounter(prometheus.CounterOpts{
+		txsBuilt: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
-			Name:      "root_calculated_count",
-			Help:      "Total # of observations of time spent calculating the state root in verify",
+			Name:      "txs_built",
+			Help:      "Total # of txs included within a locally built block",
+		}),
+		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "txs_verified",
+			Help:      "Total # of txs verified within block execution",
+		}),
+		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "txs_accepted",
+			Help:      "Total # of txs accepted within a block",
 		}),
 		rootCalculatedSum: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -133,6 +147,9 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 
 	errs := wrappers.Errs{}
 	errs.Add(
+		reg.Register(m.txsBuilt),
+		reg.Register(m.txsVerified),
+		reg.Register(m.txsAccepted),
 		reg.Register(m.rootCalculatedCount),
 		reg.Register(m.rootCalculatedSum),
 		reg.Register(m.waitRootCount),

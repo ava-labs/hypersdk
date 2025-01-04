@@ -288,12 +288,6 @@ func (vm *VM) Initialize(
 	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
-	snowApp.AddAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
-			vm.chainTimeValidityWindow.Accept(b)
-			return nil
-		},
-	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
@@ -319,12 +313,6 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
-			vm.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
-			return nil
-		},
-	})
 
 	if err := vm.initChainStore(); err != nil {
 		return nil, nil, nil, false, err
@@ -411,7 +399,7 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 	return vm.extractLatestOutputBlock(ctx)
 }
 
-func (vm *VM) extractStateHeight(ctx context.Context) (uint64, error) {
+func (vm *VM) extractStateHeight() (uint64, error) {
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get state height: %w", err)
@@ -424,7 +412,7 @@ func (vm *VM) extractStateHeight(ctx context.Context) (uint64, error) {
 }
 
 func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
-	stateHeight, err := vm.extractStateHeight(ctx)
+	stateHeight, err := vm.extractStateHeight()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
 	}
@@ -671,7 +659,6 @@ func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block 
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
-	vm.metrics.txsAccepted.Add(float64(len(block.StatelessBlock.Txs)))
 	resultBytes, err := block.ExecutionResults.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
@@ -680,8 +667,9 @@ func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chai
 	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
 		return nil, fmt.Errorf("failed to write execution results: %w", err)
 	}
-	if err := block.View.CommitToDB(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit state for block %s: %w", block, err)
+
+	if err := vm.chain.AcceptBlock(ctx, block); err != nil {
+		return nil, fmt.Errorf("failed to accept block %s: %w", block, err)
 	}
 	return block, nil
 }

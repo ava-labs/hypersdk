@@ -106,8 +106,8 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		},
 		vm.snowApp.StartStateSync,
 		func(ctx context.Context) error {
-			vm.snowCtx.Log.Info("Extracting final output block after completing state sync")
-			stateHeight, err := vm.extractStateHeight(ctx)
+			vm.snowCtx.Log.Info("State sync completed, extracting the final target state sync block")
+			stateHeight, err := vm.extractStateHeight()
 			if err != nil {
 				return fmt.Errorf("failed to extract state height after state sync: %w", err)
 			}
@@ -115,8 +115,8 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to get block by height %d after state sync: %w", stateHeight, err)
 			}
-			// Executing the last block ensures that the last block after state sync was actually executed, such that
-			// ExecutionResults will be populated correctly.
+			// Execute at least one block after state sync to ensure ExecutionResults is populated for the last
+			// accepted block.
 			outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, block)
 			if err != nil {
 				return fmt.Errorf("failed to execute final block %s after state sync: %w", block, err)

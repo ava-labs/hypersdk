@@ -16,6 +16,9 @@ var (
 	_ block.StateSyncableVM = (*SnowVM[Block, Block, Block])(nil)
 )
 
+// SnowVM wraps the VM and completes the implementation of block.ChainVM by providing
+// alternative block handler functions that provide the snowman.Block type to the
+// consensus engine.
 type SnowVM[I Block, O Block, A Block] struct {
 	*VM[I, O, A]
 }

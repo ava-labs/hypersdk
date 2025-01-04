@@ -30,7 +30,7 @@ func (t *testBlock) Bytes() []byte  { return binary.BigEndian.AppendUint64(nil, 
 
 type parser struct{}
 
-func (p *parser) ParseBlock(_ context.Context, b []byte) (*testBlock, error) {
+func (*parser) ParseBlock(_ context.Context, b []byte) (*testBlock, error) {
 	if len(b) != consts.Uint64Len {
 		return nil, fmt.Errorf("unexpected block length: %d", len(b))
 	}

@@ -138,7 +138,7 @@ func (t *TestChain) Initialize(
 	return chainIndex, t.initLastAcceptedBlock, t.initLastAcceptedBlock, t.initLastAcceptedBlock.acceptedPopulated, nil
 }
 
-func (t *TestChain) SetConsensusIndex(_ *ConsensusIndex[*TestBlock, *TestBlock, *TestBlock]) {}
+func (*TestChain) SetConsensusIndex(_ *ConsensusIndex[*TestBlock, *TestBlock, *TestBlock]) {}
 
 func (t *TestChain) BuildBlock(_ context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
 	t.require.True(parent.outputPopulated)

@@ -14,6 +14,10 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
+// Application exposes functionality to the inner chain implementation.
+// The AvalancheGo VM implementation combines multiple functionalities for use
+// by the consensus engine. Application decouples these functionalities for the chain
+// implementation to set components and subscribe to events individually.
 type Application[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 
