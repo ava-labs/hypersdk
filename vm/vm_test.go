@@ -34,6 +34,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/event"
@@ -855,18 +856,13 @@ func TestExternalSubscriber(t *testing.T) {
 		_ = listener.Close()
 	})
 
-	subscriberConfig := externalsubscriber.Config{
+	config := hcontext.NewEmptyConfig()
+	r.NoError(hcontext.SetConfig(config, externalsubscriber.Namespace, externalsubscriber.Config{
 		Enabled:       true,
 		ServerAddress: listener.Addr().String(),
-	}
-	subscriberConfigBytes, err := json.Marshal(subscriberConfig)
-	r.NoError(err)
-	vmConfig := vm.NewConfig()
-	namespacedConfig := map[string]json.RawMessage{
-		externalsubscriber.Namespace: subscriberConfigBytes,
-	}
-	vmConfig.ServiceConfig = namespacedConfig
-	configBytes, err := json.Marshal(vmConfig)
+	}))
+
+	configBytes, err := json.Marshal(config)
 	r.NoError(err)
 
 	network := NewTestNetwork(ctx, t, chainID, 1, configBytes)

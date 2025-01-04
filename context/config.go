@@ -7,6 +7,10 @@ import "encoding/json"
 
 type Config map[string]json.RawMessage
 
+func NewEmptyConfig() Config {
+	return make(Config)
+}
+
 func NewConfig(b []byte) (Config, error) {
 	c := Config{}
 	if len(b) > 0 {
@@ -15,6 +19,10 @@ func NewConfig(b []byte) (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+func (c Config) GetRawConfig(key string) json.RawMessage {
+	return c[key]
 }
 
 func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
@@ -28,4 +36,13 @@ func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
 		return emptyConfig, err
 	}
 	return defaultConfig, nil
+}
+
+func SetConfig[T any](c Config, key string, value T) error {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	c[key] = b
+	return nil
 }

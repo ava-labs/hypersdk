@@ -276,8 +276,7 @@ func (vm *VM) Initialize(
 	// Set defaults
 	options := &Options{}
 	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
+		opt, err := Option.optionFunc(vm, vm.snowInput.Config.GetRawConfig(Option.Namespace))
 		if err != nil {
 			return nil, nil, nil, false, err
 		}

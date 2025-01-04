@@ -4,7 +4,6 @@
 package vm
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -19,17 +18,16 @@ const (
 )
 
 type Config struct {
-	MempoolSize                      int                        `json:"mempoolSize"`
-	MempoolSponsorSize               int                        `json:"mempoolSponsorSize"`
-	AuthVerificationCores            int                        `json:"authVerificationCores"`
-	RootGenerationCores              int                        `json:"rootGenerationCores"`
-	StateHistoryLength               int                        `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
-	IntermediateNodeCacheSize        int                        `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
-	StateIntermediateWriteBufferSize int                        `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
-	StateIntermediateWriteBatchSize  int                        `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
-	ValueNodeCacheSize               int                        `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
-	TargetGossipDuration             time.Duration              `json:"targetGossipDuration"`
-	ServiceConfig                    map[string]json.RawMessage `json:"services"` // Config of service namespace -> raw service config
+	MempoolSize                      int           `json:"mempoolSize"`
+	MempoolSponsorSize               int           `json:"mempoolSponsorSize"`
+	AuthVerificationCores            int           `json:"authVerificationCores"`
+	RootGenerationCores              int           `json:"rootGenerationCores"`
+	StateHistoryLength               int           `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
+	IntermediateNodeCacheSize        int           `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
+	StateIntermediateWriteBufferSize int           `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
+	StateIntermediateWriteBatchSize  int           `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
+	ValueNodeCacheSize               int           `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
+	TargetGossipDuration             time.Duration `json:"targetGossipDuration"`
 }
 
 func NewConfig() Config {
