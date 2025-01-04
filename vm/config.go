@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
+
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 

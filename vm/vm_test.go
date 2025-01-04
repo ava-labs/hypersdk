@@ -34,7 +34,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	hcontext "github.com/ava-labs/hypersdk/context"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/event"
@@ -53,6 +52,7 @@ import (
 
 	avasnow "github.com/ava-labs/avalanchego/snow"
 	stateapi "github.com/ava-labs/hypersdk/api/state"
+	hcontext "github.com/ava-labs/hypersdk/context"
 	pb "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber"
 )
 

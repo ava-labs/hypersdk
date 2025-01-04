@@ -10,12 +10,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -540,8 +540,6 @@ func TestCreateView(t *testing.T) {
 
 	ctx := context.TODO()
 	ts := New(10)
-	tracer, err := trace.New(&trace.Config{Enabled: false})
-	require.NoError(err)
 	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
 		BranchFactor:                merkledb.BranchFactor16,
 		RootGenConcurrency:          1,
@@ -550,7 +548,7 @@ func TestCreateView(t *testing.T) {
 		IntermediateNodeCacheSize:   units.MiB,
 		IntermediateWriteBufferSize: units.KiB,
 		IntermediateWriteBatchSize:  units.KiB,
-		Tracer:                      tracer,
+		Tracer:                      trace.Noop,
 	})
 	require.NoError(err)
 	keys := [][]byte{key1, key2, key3}
@@ -586,7 +584,7 @@ func TestCreateView(t *testing.T) {
 	require.Equal(map[string]uint16{key1str: 1}, writes)
 
 	// Create merkle view
-	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
+	view, err := ts.ExportMerkleDBView(ctx, trace.Noop, db)
 	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
 
@@ -612,7 +610,7 @@ func TestCreateView(t *testing.T) {
 	tsv.Commit()
 
 	// Create merkle view
-	view, err = tsv.ts.ExportMerkleDBView(ctx, tracer, db)
+	view, err = tsv.ts.ExportMerkleDBView(ctx, trace.Noop, db)
 	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
 

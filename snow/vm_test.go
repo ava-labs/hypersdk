@@ -21,11 +21,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/thepudds/fzgen/fuzzer"
 	"golang.org/x/exp/slices"
+
+	"github.com/ava-labs/hypersdk/chainindex"
 )
 
 var (
