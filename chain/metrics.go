@@ -70,6 +70,11 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 			Name:      "txs_accepted",
 			Help:      "Total # of txs accepted within a block",
 		}),
+		rootCalculatedCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "root_calculated_count",
+			Help:      "Total # of observations of time spent calculating the state root in verify",
+		}),
 		rootCalculatedSum: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "root_calculated_sum",
