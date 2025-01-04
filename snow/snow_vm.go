@@ -23,6 +23,10 @@ type SnowVM[I Block, O Block, A Block] struct {
 	*VM[I, O, A]
 }
 
+func NewSnowVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *SnowVM[I, O, A] {
+	return &SnowVM[I, O, A]{NewVM(version, chain)}
+}
+
 func (v *SnowVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
 	return v.VM.GetBlock(ctx, blkID)
 }

@@ -466,6 +466,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		c.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
+	c.metrics.txsBuilt.Add(float64(len(blockTransactions)))
 	c.log.Info(
 		"built block",
 		zap.Uint64("hght", height),

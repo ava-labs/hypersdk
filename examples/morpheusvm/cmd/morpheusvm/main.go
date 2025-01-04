@@ -55,5 +55,5 @@ func runFunc(*cobra.Command, []string) error {
 		return err
 	}
 
-	return rpcchainvm.Serve(context.TODO(), snow.NewVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]("v0.0.1", v))
+	return rpcchainvm.Serve(context.TODO(), snow.NewSnowVM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]("v0.0.1", v))
 }
