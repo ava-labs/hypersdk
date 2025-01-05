@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package chainstore
+package chainindex
 
 import "github.com/prometheus/client_golang/prometheus"
 
@@ -12,7 +12,7 @@ type metrics struct {
 func newMetrics(registry prometheus.Registerer) (*metrics, error) {
 	m := &metrics{
 		deletedBlocks: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chainstore",
+			Namespace: "chainindex",
 			Name:      "deleted_blocks",
 			Help:      "Number of blocks deleted from the chain",
 		}),
