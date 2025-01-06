@@ -84,6 +84,7 @@ type Chain[I Block, O Block, A Block] interface {
 }
 
 type VM[I Block, O Block, A Block] struct {
+	// chainLock must be held to process a block with chain (Build/Verify/Accept).
 	chainLock       sync.Mutex
 	chain           Chain[I, O, A]
 	inputChainIndex ChainIndex[I]
@@ -339,6 +340,9 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBl
 }
 
 func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
+	v.chainLock.Lock()
+	defer v.chainLock.Unlock()
+
 	ctx, span := v.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
