@@ -463,14 +463,17 @@ func TestPreExecute(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			r.ErrorIs(tt.tx.PreExecute(
-				ctx,
-				fees.NewManager([]byte{}),
-				&mockBalanceHandler{},
-				genesis.NewDefaultRules(),
-				nil,
-				tt.timestamp,
-			), tt.err)
+			r.ErrorIs(
+				tt.tx.PreExecute(
+					ctx,
+					fees.NewManager([]byte{}),
+					&mockBalanceHandler{},
+					genesis.NewDefaultRules(),
+					nil,
+					tt.timestamp,
+				),
+				tt.err,
+			)
 		})
 	}
 }
