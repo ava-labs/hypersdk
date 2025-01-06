@@ -17,13 +17,19 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
-	_ chain.Action = (*mockTransferAction)(nil)
-	_ chain.Action = (*action2)(nil)
+	_ chain.Action         = (*mockTransferAction)(nil)
+	_ chain.Action         = (*action2)(nil)
+	_ chain.Action         = (*action3)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	_ chain.Auth           = (*mockAuth)(nil)
+	_ chain.Auth           = (*auth1)(nil)
 )
 
 type abstractMockAction struct{}
@@ -75,6 +81,82 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	var action action2
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 	return &action, err
+}
+
+type action3 struct {
+	abstractMockAction
+}
+
+func (*action3) ValidRange(_ chain.Rules) (int64, int64) {
+	return 3 * consts.MillisecondsPerSecond, 3 * consts.MillisecondsPerSecond
+}
+
+func (*action3) GetTypeID() uint8 {
+	return 3
+}
+
+type mockBalanceHandler struct{}
+
+func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
+	panic("unimplemented")
+}
+
+type mockAuth struct{}
+
+func (*mockAuth) Actor() codec.Address {
+	panic("unimplemented")
+}
+
+func (*mockAuth) ComputeUnits(_ chain.Rules) uint64 {
+	panic("unimplemented")
+}
+
+func (*mockAuth) GetTypeID() uint8 {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Marshal(_ *codec.Packer) {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Size() int {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Sponsor() codec.Address {
+	panic("unimplemented")
+}
+
+func (*mockAuth) ValidRange(_ chain.Rules) (int64, int64) {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Verify(_ context.Context, _ []byte) error {
+	panic("unimplemented")
+}
+
+type auth1 struct {
+	mockAuth
+}
+
+func (*auth1) ValidRange(_ chain.Rules) (int64, int64) {
+	return 1 * consts.MillisecondsPerSecond, 1 * consts.MillisecondsPerSecond
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -251,4 +333,144 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, factory)
 	require.NoError(err)
 	require.Equal(signedTx.Bytes(), rawSignedTxBytes)
+}
+
+func TestPreExecute(t *testing.T) {
+	tests := []struct {
+		name      string
+		tx        *chain.Transaction
+		timestamp int64
+		err       error
+	}{
+		{
+			name: "base transaction timestamp misaligned",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: consts.MillisecondsPerSecond + 1,
+					},
+				},
+			},
+			err: chain.ErrMisalignedTime,
+		},
+		{
+			name: "base transaction timestamp too late",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrTimestampTooLate,
+		},
+		{
+			name: "base transaction timestamp too early (62ms > (60 + 1)ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: 62 * consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: consts.MillisecondsPerSecond,
+			err:       chain.ErrTimestampTooEarly,
+		},
+		{
+			name: "base transaction invalid chain id",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						ChainID:   ids.ID{1},
+						Timestamp: consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: consts.MillisecondsPerSecond,
+			err:       chain.ErrInvalidChainID,
+		},
+		{
+			name: "transaction has too many actions (17 > 16)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: func() []chain.Action {
+						actions := make([]chain.Action, 17)
+						for i := 0; i < 17; i++ {
+							actions = append(actions, &mockTransferAction{})
+						}
+						return actions
+					}(),
+				},
+			},
+			err: chain.ErrTooManyActions,
+		},
+		{
+			name: "action timestamp too early (0ms < 3ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&action3{},
+					},
+				},
+			},
+			err: chain.ErrActionNotActivated,
+		},
+		{
+			name: "action timestamp too late (4ms > 3ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: 4 * consts.MillisecondsPerSecond,
+					},
+					Actions: []chain.Action{
+						&action3{},
+					},
+				},
+			},
+			timestamp: 4 * consts.MillisecondsPerSecond,
+			err:       chain.ErrActionNotActivated,
+		},
+		{
+			name: "auth timestamp too early",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &auth1{},
+			},
+			err: chain.ErrAuthNotActivated,
+		},
+		{
+			name: "auth timestamp too late",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: 2 * consts.MillisecondsPerSecond,
+					},
+				},
+				Auth: &auth1{},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrAuthNotActivated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+
+			r.ErrorIs(tt.tx.PreExecute(
+				ctx,
+				fees.NewManager([]byte{}),
+				&mockBalanceHandler{},
+				genesis.NewDefaultRules(),
+				nil,
+				tt.timestamp,
+			), tt.err)
+		})
+	}
 }
