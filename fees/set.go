@@ -71,14 +71,25 @@ func LargestSet(dimensions []Dimensions, limit Dimensions) ([]uint64, Dimensions
 	for i := 0; i < len(outIndices); i++ {
 		dim := dimensions[outIndices[i]]
 		if !accumulator.CanAdd(dim, limit) {
-			outIndices = append(outIndices[:i], outIndices[i+1:]...)
-			i--
+			// mark this index so we can remove it later on.
+			outIndices[i] = uint64(len(dimensions))
 			continue
 		}
-		accumulator, err = accumulator.AddDimentions(dim)
+		err = accumulator.AddDimensions(dim)
 		if err != nil {
 			return []uint64{}, Dimensions{}
 		}
 	}
+	// remove all unwanted indices from the array.
+	j := 0
+	for i := 0; i < len(outIndices)-j; i++ {
+		if outIndices[i] == uint64(len(dimensions)) {
+			j++
+			i--
+			continue
+		}
+		outIndices[i] = outIndices[i+j]
+	}
+	outIndices = outIndices[:len(outIndices)-j]
 	return outIndices, accumulator
 }
