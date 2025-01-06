@@ -3,13 +3,13 @@ Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 Ecosystem License
 Version: 1.1
 
-Subject to the terms herein, Ava Labs, Inc. (**“Ava Labs”**) hereby grants you
+Subject to the terms herein, Ava Labs, Inc. (**"Ava Labs"**) hereby grants you
 a limited, royalty-free, worldwide, non-sublicensable, non-transferable,
 non-exclusive license to use, copy, modify, create derivative works based on,
 and redistribute the Software, in source code, binary, or any other form,
 including any modifications or derivative works of the Software (collectively,
-**“Licensed Software”**), in each case subject to this Ecosystem License
-(**“License”**).
+**"Licensed Software"**), in each case subject to this Ecosystem License
+(**"License"**).
 
 This License applies to all copies, modifications, derivative works, and any
 other form or usage of the Licensed Software. You will include and display
@@ -19,10 +19,10 @@ regardless of form.
 You will use the Licensed Software solely (i) in connection with the Avalanche
 Public Blockchain platform, having a NetworkID of 1 (Mainnet) or 5 (Fuji), and
 associated blockchains, comprised exclusively of the Avalanche X-Chain,
-C-Chain, P-Chain and any subnets linked to the P-Chain (“Avalanche Authorized
-Platform”) or (ii) for non-production, testing or research purposes within the
+C-Chain, P-Chain and any subnets linked to the P-Chain ("Avalanche Authorized
+Platform") or (ii) for non-production, testing or research purposes within the
 Avalanche ecosystem, in each case, without any commercial application
-(“Non-Commercial Use”); provided that this License does not permit use of the
+("Non-Commercial Use"); provided that this License does not permit use of the
 Licensed Software in connection with (a) any forks of the Avalanche Authorized
 Platform or (b) in any manner not operationally connected to the Avalanche
 Authorized Platform other than, for the avoidance of doubt, the limited
@@ -47,16 +47,16 @@ Except as required or explicitly permitted by this License, you will not use
 any Ava Labs names, logos, or trademarks without Ava Labs’ prior written
 consent.
 
-You may use this License for software other than the “Licensed Software”
+You may use this License for software other than the "Licensed Software"
 specified above, as long as the only change to this License is the definition
-of the term “Licensed Software.”
+of the term "Licensed Software."
 
 The Licensed Software may reference third party components. You acknowledge
 and agree that these third party components may be governed by a separate
 license or terms and that you will comply with them.
 
 **TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSED SOFTWARE IS PROVIDED
-ON AN “AS IS” BASIS, AND AVA LABS EXPRESSLY DISCLAIMS AND EXCLUDES ALL
+ON AN "AS IS" BASIS, AND AVA LABS EXPRESSLY DISCLAIMS AND EXCLUDES ALL
 REPRESENTATIONS, WARRANTIES AND OTHER TERMS AND CONDITIONS, WHETHER EXPRESS OR
 IMPLIED, INCLUDING WITHOUT LIMITATION BY OPERATION OF LAW OR BY CUSTOM,
 STATUTE OR OTHERWISE, AND INCLUDING, BUT NOT LIMITED TO, ANY IMPLIED WARRANTY,
