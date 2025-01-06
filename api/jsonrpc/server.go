@@ -225,7 +225,7 @@ func (j *JSONRPCServer) ExecuteActions(
 		tsv := ts.NewView(
 			state.NewDefaultScope(stateKeysWithPermissions),
 			state.ImmutableStorage(storage),
-			0,
+			len(stateKeysWithPermissions),
 		)
 
 		output, err := action.Execute(

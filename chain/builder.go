@@ -293,7 +293,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				tsv := ts.NewView(
 					state.NewDefaultScope(stateKeys),
 					state.ImmutableStorage(storage),
-					0,
+					len(stateKeys),
 				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
@@ -419,7 +419,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 			feeKeyStr:       parentFeeManager.Bytes(),
 		}),
-		0,
+		len(keys),
 	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)

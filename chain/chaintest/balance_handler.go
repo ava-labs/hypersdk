@@ -74,10 +74,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
+		stateKeys := bh.SponsorStateKeys(addrOne)
 		tsv := ts.NewView(
-			state.NewDefaultScope(bh.SponsorStateKeys(addrOne)),
+			state.NewDefaultScope(stateKeys),
 			state.ImmutableStorage(ms.Storage),
-			0,
+			len(stateKeys),
 		)
 
 		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
@@ -95,10 +96,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
+		stateKeys := bh.SponsorStateKeys(addrOne)
 		tsv := ts.NewView(
-			state.NewDefaultScope(bh.SponsorStateKeys(addrOne)),
+			state.NewDefaultScope(stateKeys),
 			state.ImmutableStorage(ms.Storage),
-			0,
+			len(stateKeys),
 		)
 
 		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
@@ -116,10 +118,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
+		stateKeys := bh.SponsorStateKeys(addrOne)
 		tsv := ts.NewView(
-			state.NewDefaultScope(bh.SponsorStateKeys(addrOne)),
+			state.NewDefaultScope(stateKeys),
 			state.ImmutableStorage(ms.Storage),
-			0,
+			len(stateKeys),
 		)
 
 		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
@@ -137,10 +140,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
+		stateKeys := bh.SponsorStateKeys(addrOne)
 		tsv := ts.NewView(
-			state.NewDefaultScope(bh.SponsorStateKeys(addrOne)),
+			state.NewDefaultScope(stateKeys),
 			state.ImmutableStorage(ms.Storage),
-			0,
+			len(stateKeys),
 		)
 
 		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))

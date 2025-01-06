@@ -208,7 +208,7 @@ func (p *Processor) Execute(
 			timestampKeyStr: parentTimestampRaw,
 			feeKeyStr:       parentFeeManager.Bytes(),
 		}),
-		0,
+		len(keys),
 	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, nil, err
@@ -358,7 +358,7 @@ func (p *Processor) executeTxs(
 			tsv := ts.NewView(
 				state.NewDefaultScope(stateKeys),
 				state.ImmutableStorage(storage),
-				0,
+				len(stateKeys),
 			)
 
 			// Ensure we have enough funds to pay fees
