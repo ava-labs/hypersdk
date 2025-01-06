@@ -44,22 +44,25 @@ type TStateView struct {
 	// state keys.
 	scope state.Scope
 
+	storage state.Immutable
+
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Scope) *TStateView {
+func (ts *TState) NewView(scope state.Scope, storage state.Immutable, preallocateSize int) *TStateView {
 	return &TStateView{
 		ts:                 ts,
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], scope.Len()),
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], preallocateSize),
 
 		ops: make([]*op, 0, defaultOps),
 
-		scope: scope,
+		storage: storage,
+		scope:   scope,
 
-		allocates: make(map[string]uint16, scope.Len()),
-		writes:    make(map[string]uint16, scope.Len()),
+		allocates: make(map[string]uint16, preallocateSize),
+		writes:    make(map[string]uint16, preallocateSize),
 	}
 }
 
@@ -170,7 +173,7 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, error) 
 		}
 		return v, database.ErrNotFound
 	}
-	return ts.scope.GetValue(ctx, []byte(key))
+	return ts.storage.GetValue(ctx, []byte(key))
 }
 
 // isUnchanged determines if a [key] is unchanged from the parent view (or
@@ -180,7 +183,7 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval), nil
 	}
-	scopeVal, err := ts.scope.GetValue(ctx, []byte(key))
+	scopeVal, err := ts.storage.GetValue(ctx, []byte(key))
 	switch err {
 	case nil:
 		return nexists && bytes.Equal(scopeVal, nval), nil

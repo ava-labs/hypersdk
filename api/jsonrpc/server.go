@@ -223,10 +223,9 @@ func (j *JSONRPCServer) ExecuteActions(
 		}
 
 		tsv := ts.NewView(
-			state.NewDefaultScope(
-				stateKeysWithPermissions,
-				storage,
-			),
+			state.NewDefaultScope(stateKeysWithPermissions),
+			state.ImmutableStorage(storage),
+			0,
 		)
 
 		output, err := action.Execute(
@@ -298,11 +297,12 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 
 	ts := tstate.New(0)
-	scope := state.NewSimulatedScope(
-		state.Keys{},
+	scope := state.NewSimulatedScope(state.Keys{})
+	tsv := ts.NewView(
+		scope,
 		currentState,
+		0,
 	)
-	tsv := ts.NewView(scope)
 
 	currentTime := time.Now().UnixMilli()
 	for _, action := range actions {
