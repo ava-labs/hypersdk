@@ -8,38 +8,81 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	externalFees "github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 func TestUnitsConsumed(t *testing.T) {
 	tests := []struct {
 		name           string
-		initialUnits   externalFees.Dimensions
-		unitsToConsume externalFees.Dimensions
-		expectedUnits  externalFees.Dimensions
-		maxUnits       externalFees.Dimensions
+		initialUnits   fees.Dimensions
+		unitsToConsume fees.Dimensions
+		expectedUnits  fees.Dimensions
+		maxUnits       fees.Dimensions
 		success        bool
 	}{
 		{
-			name:           "empty manager consumes",
-			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
-			expectedUnits:  externalFees.Dimensions{1, 2, 3, 4, 5},
-			maxUnits:       externalFees.Dimensions{1, 2, 3, 4, 5},
+			name:           "empty manager consumes max",
+			unitsToConsume: fees.Dimensions{2, 2, 2, 2, 2},
+			expectedUnits:  fees.Dimensions{2, 2, 2, 2, 2},
+			maxUnits:       fees.Dimensions{2, 2, 2, 2, 2},
 			success:        true,
 		},
 		{
-			name:           "nonempty manager consumes",
-			initialUnits:   externalFees.Dimensions{1, 2, 3, 4, 5},
-			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
-			expectedUnits:  externalFees.Dimensions{2, 4, 6, 8, 10},
-			maxUnits:       externalFees.Dimensions{2, 4, 6, 8, 10},
+			name:           "empty manager consumes less than max",
+			unitsToConsume: fees.Dimensions{1, 1, 1, 1, 1},
+			expectedUnits:  fees.Dimensions{1, 1, 1, 1, 1},
+			maxUnits:       fees.Dimensions{2, 2, 2, 2, 2},
 			success:        true,
 		},
 		{
-			name:           "consume fails if consumed > available",
-			initialUnits:   externalFees.Dimensions{1, 2, 3, 4, 5},
-			unitsToConsume: externalFees.Dimensions{1, 2, 3, 4, 5},
-			maxUnits:       externalFees.Dimensions{1, 2, 3, 4, 5},
+			name:           "empty manager exceeds max of one dimension",
+			unitsToConsume: fees.Dimensions{1, 2, 1, 1, 1},
+			maxUnits:       fees.Dimensions{1, 1, 1, 1, 1},
+			success:        false,
+		},
+		{
+			name:           "empty manager exceeds max of all dimensions",
+			unitsToConsume: fees.Dimensions{3, 3, 3, 3, 3},
+			maxUnits:       fees.Dimensions{2, 2, 2, 2, 2},
+			success:        false,
+		},
+		{
+			name:           "non-empty manager consumes less than max",
+			initialUnits:   fees.Dimensions{1, 1, 1, 1, 1},
+			unitsToConsume: fees.Dimensions{1, 1, 1, 1, 1},
+			expectedUnits:  fees.Dimensions{2, 2, 2, 2, 2},
+			maxUnits:       fees.Dimensions{3, 3, 3, 3, 3},
+			success:        true,
+		},
+		{
+			name:           "non-empty manager consumes max of one dimension",
+			initialUnits:   fees.Dimensions{1, 1, 1, 1, 1},
+			unitsToConsume: fees.Dimensions{1, 2, 1, 1, 1},
+			expectedUnits:  fees.Dimensions{2, 3, 2, 2, 2},
+			maxUnits:       fees.Dimensions{3, 3, 3, 3, 3},
+			success:        true,
+		},
+		{
+			name:           "non-empty manager consumes max of all dimension",
+			initialUnits:   fees.Dimensions{1, 1, 1, 1, 1},
+			unitsToConsume: fees.Dimensions{2, 2, 2, 2, 2},
+			expectedUnits:  fees.Dimensions{3, 3, 3, 3, 3},
+			maxUnits:       fees.Dimensions{3, 3, 3, 3, 3},
+			success:        true,
+		},
+		{
+			name:           "non-empty manager exceeds max of one dimension",
+			initialUnits:   fees.Dimensions{1, 1, 1, 1, 1},
+			unitsToConsume: fees.Dimensions{1, 3, 1, 1, 1},
+			maxUnits:       fees.Dimensions{3, 3, 3, 3, 3},
+			success:        false,
+		},
+		{
+			name:           "non-empty manager exceeds max of all dimension",
+			initialUnits:   fees.Dimensions{1, 1, 1, 1, 1},
+			unitsToConsume: fees.Dimensions{3, 3, 3, 3, 3},
+			maxUnits:       fees.Dimensions{3, 3, 3, 3, 3},
+			success:        false,
 		},
 	}
 
