@@ -61,8 +61,8 @@ func (k Keys) ChunkSizes() ([]uint16, bool) {
 	return chunks, true
 }
 
-// Strips returns the database keys of k
-func (k Keys) Strip() []string {
+// WithoutPermissions returns the keys of k as a slice with permissions removed
+func (k Keys) WithoutPermissions() []string {
 	ks := make([]string, len(k))
 	for key := range k {
 		ks = append(ks, key)

@@ -1,6 +1,1 @@
 * @aaronbuchwald @joshua-kim
-.github/actions/install-rust @richardpringle
-.github/workflows/rust-docs.yml @richardpringle
-.github/workflows/contracts-ci.yml @richardpringle
-/x/contracts/ @richardpringle @samliok
-Cargo.toml @richardpringle @samliok
