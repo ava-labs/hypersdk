@@ -40,7 +40,7 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// Scope contains the state keys this view has acccess to.
+	// Scope contains the state keys this view has access to.
 	scope state.Scope
 
 	storage state.Immutable
