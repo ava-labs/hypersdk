@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -91,7 +92,7 @@ func (b *Bonder) Unbond(tx *Transaction) error {
 
 func (b *Bonder) getBalance(address []byte) (BondBalance, error) {
 	currentBytes, err := b.db.Get(address)
-	if err != nil {
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return BondBalance{}, fmt.Errorf("failed to get bond balance")
 	}
 
