@@ -8,8 +8,9 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 func TestSetMaxBalance(t *testing.T) {
