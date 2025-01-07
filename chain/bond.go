@@ -109,10 +109,15 @@ func (b *Bonder) getBalance(address []byte) (BondBalance, error) {
 		return BondBalance{}, fmt.Errorf("failed to get bond balance")
 	}
 
-	p := &wrappers.Packer{Bytes: currentBytes}
-	balance := BondBalance{}
+	if currentBytes == nil {
+		currentBytes = make([]byte, 128)
+	}
 
-	if err := codec.LinearCodec.UnmarshalFrom(p, &balance); err != nil {
+	balance := BondBalance{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		&wrappers.Packer{Bytes: currentBytes},
+		&balance,
+	); err != nil {
 		return BondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
 	}
 
@@ -120,7 +125,7 @@ func (b *Bonder) getBalance(address []byte) (BondBalance, error) {
 }
 
 func (b *Bonder) putBalance(address []byte, balance BondBalance) error {
-	p := &wrappers.Packer{}
+	p := &wrappers.Packer{Bytes: make([]byte, 128)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)
 
