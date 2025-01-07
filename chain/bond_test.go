@@ -15,9 +15,16 @@ import (
 func TestSetMaxBalance(t *testing.T) {
 	tests := []struct {
 		name       string
-		prev       uint32
 		maxBalance uint32
-	}{}
+	}{
+		{
+			name: "no balance",
+		},
+		{
+			name:       "has balance",
+			maxBalance: 123,
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -25,15 +32,9 @@ func TestSetMaxBalance(t *testing.T) {
 			b := NewBonder(memdb.New())
 
 			address := codec.Address{1, 2, 3}
-			prev, err := b.SetMaxBalance(address, 1)
-			r.NoError(err)
-			r.Zero(prev)
+			r.NoError(b.SetMaxBalance(address, tt.maxBalance))
 
-			prev, err = b.SetMaxBalance(address, 2)
-			r.NoError(err)
-			r.Equal(1, prev)
-
-			for i := 0; i < 2; i++ {
+			for i := 0; i < int(tt.maxBalance); i++ {
 				ok, err := b.Bond(&Transaction{
 					Auth: TestAuth{
 						SponsorF: address,
@@ -42,6 +43,14 @@ func TestSetMaxBalance(t *testing.T) {
 				r.NoError(err)
 				r.True(ok)
 			}
+
+			ok, err := b.Bond(&Transaction{
+				Auth: TestAuth{
+					SponsorF: address,
+				},
+			})
+			r.NoError(err)
+			r.False(ok)
 		})
 	}
 }
@@ -132,8 +141,7 @@ func TestBond(t *testing.T) {
 			b := NewBonder(memdb.New())
 
 			address := codec.Address{1, 2, 3}
-			_, err := b.SetMaxBalance(address, tt.max)
-			r.NoError(err)
+			r.NoError(b.SetMaxBalance(address, tt.max))
 
 			for _, wantOk := range tt.wantBond {
 				ok, err := b.Bond(&Transaction{

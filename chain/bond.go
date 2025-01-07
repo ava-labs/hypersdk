@@ -34,31 +34,19 @@ type Bonder struct {
 }
 
 // this needs to be thread-safe if it's called from the api
-func (b *Bonder) GetBalance(address codec.Address) (uint32, uint32, error) {
+func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) error {
 	addressBytes := address[:]
 	balance, err := b.getBalance(addressBytes)
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 
-	return balance.Pending, balance.Max, nil
-}
-
-// this needs to be thread-safe if it's called from the api
-func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) (uint32, error) {
-	addressBytes := address[:]
-	balance, err := b.getBalance(addressBytes)
-	if err != nil {
-		return 0, err
-	}
-
-	prev := balance.Max
 	balance.Max = maxBalance
 	if err := b.putBalance(addressBytes, balance); err != nil {
-		return 0, err
+		return err
 	}
 
-	return prev, nil
+	return nil
 }
 
 func (b *Bonder) Bond(tx *Transaction) (bool, error) {
