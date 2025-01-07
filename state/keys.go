@@ -83,17 +83,6 @@ func (k Keys) WithoutPermissions() []string {
 	return ks
 }
 
-type SimulatedKeys Keys
-
-func (d SimulatedKeys) Has(key []byte, perm Permissions) bool {
-	Keys(d).Add(string(key), perm)
-	return true
-}
-
-func (d SimulatedKeys) StateKeys() Keys {
-	return Keys(d)
-}
-
 type keysJSON map[string]Permissions
 
 // MarshalJSON marshals Keys as readable JSON.
@@ -130,6 +119,17 @@ func (k *Keys) UnmarshalJSON(b []byte) error {
 		(*k)[string(key)] = perm
 	}
 	return nil
+}
+
+type SimulatedKeys Keys
+
+func (d SimulatedKeys) Has(key []byte, perm Permissions) bool {
+	Keys(d).Add(string(key), perm)
+	return true
+}
+
+func (d SimulatedKeys) StateKeys() Keys {
+	return Keys(d)
 }
 
 func (p *Permissions) UnmarshalText(in []byte) error {
