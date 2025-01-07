@@ -28,7 +28,7 @@ var (
 	_ chain.Action         = (*action2)(nil)
 	_ chain.Action         = (*action3)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
-	_ chain.Auth           = (*mockAuth)(nil)
+	_ chain.Auth           = (*abstractMockAuth)(nil)
 	_ chain.Auth           = (*auth1)(nil)
 )
 
@@ -85,10 +85,12 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 
 type action3 struct {
 	abstractMockAction
+	start int64
+	end   int64
 }
 
-func (*action3) ValidRange(_ chain.Rules) (int64, int64) {
-	return 3 * consts.MillisecondsPerSecond, 3 * consts.MillisecondsPerSecond
+func (a *action3) ValidRange(_ chain.Rules) (int64, int64) {
+	return a.start, a.end
 }
 
 func (*action3) GetTypeID() uint8 {
@@ -117,46 +119,48 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 	panic("unimplemented")
 }
 
-type mockAuth struct{}
+type abstractMockAuth struct{}
 
-func (*mockAuth) Actor() codec.Address {
+func (*abstractMockAuth) Actor() codec.Address {
 	panic("unimplemented")
 }
 
-func (*mockAuth) ComputeUnits(_ chain.Rules) uint64 {
+func (*abstractMockAuth) ComputeUnits(_ chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*mockAuth) GetTypeID() uint8 {
+func (*abstractMockAuth) GetTypeID() uint8 {
 	panic("unimplemented")
 }
 
-func (*mockAuth) Marshal(_ *codec.Packer) {
+func (*abstractMockAuth) Marshal(_ *codec.Packer) {
 	panic("unimplemented")
 }
 
-func (*mockAuth) Size() int {
+func (*abstractMockAuth) Size() int {
 	panic("unimplemented")
 }
 
-func (*mockAuth) Sponsor() codec.Address {
+func (*abstractMockAuth) Sponsor() codec.Address {
 	panic("unimplemented")
 }
 
-func (*mockAuth) ValidRange(_ chain.Rules) (int64, int64) {
+func (*abstractMockAuth) ValidRange(_ chain.Rules) (int64, int64) {
 	panic("unimplemented")
 }
 
-func (*mockAuth) Verify(_ context.Context, _ []byte) error {
+func (*abstractMockAuth) Verify(_ context.Context, _ []byte) error {
 	panic("unimplemented")
 }
 
 type auth1 struct {
-	mockAuth
+	abstractMockAuth
+	start int64
+	end   int64
 }
 
-func (*auth1) ValidRange(_ chain.Rules) (int64, int64) {
-	return 1 * consts.MillisecondsPerSecond, 1 * consts.MillisecondsPerSecond
+func (a *auth1) ValidRange(_ chain.Rules) (int64, int64) {
+	return a.start, a.end
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -336,6 +340,11 @@ func TestSignRawActionBytesTx(t *testing.T) {
 }
 
 func TestPreExecute(t *testing.T) {
+	// Test values
+	testRules := genesis.NewDefaultRules()
+	maxNumOfActions := 16
+	differentChainID := ids.ID{1}
+
 	tests := []struct {
 		name      string
 		tx        *chain.Transaction
@@ -366,23 +375,22 @@ func TestPreExecute(t *testing.T) {
 			err:       chain.ErrTimestampTooLate,
 		},
 		{
-			name: "base transaction timestamp too early (62ms > (60 + 1)ms)",
+			name: "base transaction timestamp too early (61ms > 60ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{
-						Timestamp: 62 * consts.MillisecondsPerSecond,
+						Timestamp: testRules.GetValidityWindow() + consts.MillisecondsPerSecond,
 					},
 				},
 			},
-			timestamp: consts.MillisecondsPerSecond,
-			err:       chain.ErrTimestampTooEarly,
+			err: chain.ErrTimestampTooEarly,
 		},
 		{
 			name: "base transaction invalid chain id",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{
-						ChainID:   ids.ID{1},
+						ChainID:   differentChainID,
 						Timestamp: consts.MillisecondsPerSecond,
 					},
 				},
@@ -396,8 +404,8 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: func() []chain.Action {
-						actions := make([]chain.Action, 17)
-						for i := 0; i < 17; i++ {
+						actions := make([]chain.Action, maxNumOfActions+1)
+						for i := 0; i < maxNumOfActions+1; i++ {
 							actions = append(actions, &mockTransferAction{})
 						}
 						return actions
@@ -412,7 +420,9 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&action3{},
+						&action3{
+							start: 3 * consts.MillisecondsPerSecond,
+						},
 					},
 				},
 			},
@@ -426,7 +436,9 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 4 * consts.MillisecondsPerSecond,
 					},
 					Actions: []chain.Action{
-						&action3{},
+						&action3{
+							end: 3 * consts.MillisecondsPerSecond,
+						},
 					},
 				},
 			},
@@ -439,7 +451,9 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &auth1{},
+				Auth: &auth1{
+					start: 1 * consts.MillisecondsPerSecond,
+				},
 			},
 			err: chain.ErrAuthNotActivated,
 		},
@@ -451,7 +465,9 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 				},
-				Auth: &auth1{},
+				Auth: &auth1{
+					end: 1 * consts.MillisecondsPerSecond,
+				},
 			},
 			timestamp: 2 * consts.MillisecondsPerSecond,
 			err:       chain.ErrAuthNotActivated,
@@ -468,7 +484,7 @@ func TestPreExecute(t *testing.T) {
 					ctx,
 					fees.NewManager([]byte{}),
 					&mockBalanceHandler{},
-					genesis.NewDefaultRules(),
+					testRules,
 					nil,
 					tt.timestamp,
 				),
