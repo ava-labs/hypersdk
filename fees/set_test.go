@@ -4,6 +4,7 @@
 package fees
 
 import (
+	rand "math/rand/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -96,18 +97,28 @@ func TestLargestSet(t *testing.T) {
 
 func BenchmarkLargestSet(b *testing.B) {
 	r := require.New(b)
+	rnd := rand.NewChaCha8([32]byte{0})
 
+	// nDimCount number of dimensions ( i.e. transaction count )
+	const nDimCount int = 20000
+	// nDimLimit what is the limit for each of the dimensions
+	const nDimLimit uint64 = 50000
+	// nDimRange when generating the random dimensions, what range should each of the elements be.
+	// this need to be notably smaller than nDimLimit so that we can fit multiple transaction into
+	// a single set.
+	const nDimRange uint64 = 1000
 	for n := 0; n < b.N; n++ {
-		dimensions := make([]Dimensions, 20000)
-
+		dimensions := make([]Dimensions, nDimCount)
 		for i := range dimensions {
-			d := uint64(i)
-			dimensions[i] = Dimensions{d % 1000, (d + 200) % 1000, (d + 400) % 1000, (d + 600) % 1000, (d + 800) % 1000}
+			for j := 0; j < FeeDimensions; j++ {
+				dimensions[i][j] = rnd.Uint64() % nDimRange
+			}
 		}
 
-		limit := Dimensions{50000, 50000, 50000, 50000, 50000}
-
+		limit := Dimensions{nDimLimit, nDimLimit, nDimLimit, nDimLimit, nDimLimit}
+		b.StartTimer()
 		indices, _ := LargestSet(dimensions, limit)
+		b.StopTimer()
 		r.NotEmpty(indices)
 	}
 }
