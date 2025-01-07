@@ -68,7 +68,7 @@ func (f *Manager) LastConsumed(d fees.Dimension) uint64 {
 }
 
 func (f *Manager) lastConsumed(d fees.Dimension) uint64 {
-	start := consts.IntLen + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
+	start := consts.Int64Len + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
