@@ -202,7 +202,7 @@ func (p *Processor) Execute(
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
 	tsv := ts.NewView(
-		state.NewDefaultScope(keys),
+		keys,
 		state.ImmutableStorage(map[string][]byte{
 			heightKeyStr:    parentHeightRaw,
 			timestampKeyStr: parentTimestampRaw,
@@ -356,7 +356,7 @@ func (p *Processor) executeTxs(
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
 			tsv := ts.NewView(
-				state.NewDefaultScope(stateKeys),
+				stateKeys,
 				state.ImmutableStorage(storage),
 				len(stateKeys),
 			)

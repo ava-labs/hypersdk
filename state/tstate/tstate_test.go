@@ -39,7 +39,7 @@ func TestScope(t *testing.T) {
 
 	// No Scope
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{}),
+		state.Keys{},
 		state.ImmutableStorage(map[string][]byte{}),
 		0,
 	)
@@ -59,7 +59,7 @@ func TestGetValue(t *testing.T) {
 
 	// Set Scope
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{string(testKey): testVal}),
 		1,
 	)
@@ -75,7 +75,7 @@ func TestDeleteCommitGet(t *testing.T) {
 
 	// Delete value
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{string(testKey): testVal}),
 		1,
 	)
@@ -84,7 +84,7 @@ func TestDeleteCommitGet(t *testing.T) {
 
 	// Check deleted
 	tsv = ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{string(testKey): testVal}),
 		1,
 	)
@@ -100,7 +100,7 @@ func TestGetValueNoStorage(t *testing.T) {
 
 	// SetScope but dont add to storage
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{}),
 		1,
 	)
@@ -115,7 +115,7 @@ func TestInsertNew(t *testing.T) {
 
 	// SetScope
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.All}),
+		state.Keys{string(testKey): state.All},
 		state.ImmutableStorage(map[string][]byte{}),
 		1,
 	)
@@ -140,7 +140,7 @@ func TestInsertInvalid(t *testing.T) {
 	// SetScope
 	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(key): state.Read | state.Write}),
+		state.Keys{string(key): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{}),
 		1,
 	)
@@ -161,7 +161,7 @@ func TestInsertUpdate(t *testing.T) {
 
 	// SetScope and add
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{string(testKey): testVal}),
 		1,
 	)
@@ -181,7 +181,7 @@ func TestInsertUpdate(t *testing.T) {
 	// Check value after commit
 	tsv.Commit()
 	tsv = ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.Read | state.Write}),
+		state.Keys{string(testKey): state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{string(testKey): testVal}),
 		1,
 	)
@@ -197,7 +197,7 @@ func TestInsertRemoveInsert(t *testing.T) {
 
 	// SetScope and add
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{key2str: state.All}),
+		state.Keys{key2str: state.All},
 		state.ImmutableStorage(map[string][]byte{}),
 		1,
 	)
@@ -273,7 +273,7 @@ func TestModifyRemoveInsert(t *testing.T) {
 
 	// SetScope and add
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{key2str: state.All}),
+		state.Keys{key2str: state.All},
 		state.ImmutableStorage(map[string][]byte{key2str: testVal}),
 		1,
 	)
@@ -331,7 +331,7 @@ func TestModifyRevert(t *testing.T) {
 
 	// SetScope and add
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{key2str: state.Read | state.Write}),
+		state.Keys{key2str: state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{key2str: testVal}),
 		1,
 	)
@@ -375,7 +375,7 @@ func TestModifyModify(t *testing.T) {
 
 	// SetScope and add
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{key2str: state.Read | state.Write}),
+		state.Keys{key2str: state.Read | state.Write},
 		state.ImmutableStorage(map[string][]byte{key2str: testVal}),
 		1,
 	)
@@ -426,7 +426,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 
 	// Insert
 	tsv := ts.NewView(
-		state.NewDefaultScope(state.Keys{string(testKey): state.All}),
+		state.Keys{string(testKey): state.All},
 		state.ImmutableStorage(map[string][]byte{}),
 		1,
 	)
@@ -476,7 +476,7 @@ func TestRestoreInsert(t *testing.T) {
 
 	// Store keys
 	tsv := ts.NewView(
-		state.NewDefaultScope(keySet),
+		keySet,
 		state.ImmutableStorage(map[string][]byte{}),
 		len(keySet),
 	)
@@ -535,7 +535,7 @@ func TestRestoreDelete(t *testing.T) {
 	}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	tsv := ts.NewView(
-		state.NewDefaultScope(keySet),
+		keySet,
 		state.ImmutableStorage(map[string][]byte{
 			string(keys[0]): vals[0],
 			string(keys[1]): vals[1],
@@ -599,7 +599,7 @@ func TestCreateView(t *testing.T) {
 
 	// Add
 	tsv := ts.NewView(
-		state.NewDefaultScope(keySet),
+		keySet,
 		state.ImmutableStorage(map[string][]byte{}),
 		len(keySet),
 	)
@@ -620,7 +620,7 @@ func TestCreateView(t *testing.T) {
 
 	// Test warm modification
 	tsvM := ts.NewView(
-		state.NewDefaultScope(keySet),
+		keySet,
 		state.ImmutableStorage(map[string][]byte{}),
 		len(keySet),
 	)
@@ -643,7 +643,7 @@ func TestCreateView(t *testing.T) {
 	// Remove
 	ts = New(10)
 	tsv = ts.NewView(
-		state.NewDefaultScope(keySet),
+		keySet,
 		state.ImmutableStorage(map[string][]byte{
 			string(keys[0]): vals[0],
 			string(keys[1]): vals[1],
@@ -710,7 +710,7 @@ func TestGetValuePermissions(t *testing.T) {
 			ctx := context.TODO()
 			ts := New(10)
 			tsv := ts.NewView(
-				state.NewDefaultScope(state.Keys{tt.key: tt.permission}),
+				state.Keys{tt.key: tt.permission},
 				state.ImmutableStorage(map[string][]byte{tt.key: testVal}),
 				1,
 			)
@@ -759,7 +759,7 @@ func TestInsertPermissions(t *testing.T) {
 			ctx := context.TODO()
 			ts := New(10)
 			tsv := ts.NewView(
-				state.NewDefaultScope(state.Keys{tt.key: tt.permission}),
+				state.Keys{tt.key: tt.permission},
 				state.ImmutableStorage(map[string][]byte{tt.key: testVal}),
 				1,
 			)
@@ -808,7 +808,7 @@ func TestDeletePermissions(t *testing.T) {
 			ctx := context.TODO()
 			ts := New(10)
 			tsv := ts.NewView(
-				state.NewDefaultScope(state.Keys{tt.key: tt.permission}),
+				state.Keys{tt.key: tt.permission},
 				state.ImmutableStorage(map[string][]byte{tt.key: testVal}),
 				1,
 			)
@@ -869,7 +869,7 @@ func TestUpdatingKeyPermission(t *testing.T) {
 
 			keys := state.Keys{tt.key: tt.permission1}
 			tsv := ts.NewView(
-				state.NewDefaultScope(keys),
+				keys,
 				state.ImmutableStorage(map[string][]byte{tt.key: testVal}),
 				len(keys),
 			)
@@ -965,13 +965,13 @@ func TestInsertAllocate(t *testing.T) {
 			var tsv *TStateView
 			if tt.keyExists {
 				tsv = ts.NewView(
-					state.NewDefaultScope(keys),
+					keys,
 					state.ImmutableStorage(map[string][]byte{tt.key: testVal}),
 					1,
 				)
 			} else {
 				tsv = ts.NewView(
-					state.NewDefaultScope(keys),
+					keys,
 					state.ImmutableStorage(map[string][]byte{}),
 					0,
 				)

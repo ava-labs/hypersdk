@@ -291,7 +291,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 
 				// Execute block
 				tsv := ts.NewView(
-					state.NewDefaultScope(stateKeys),
+					stateKeys,
 					state.ImmutableStorage(storage),
 					len(stateKeys),
 				)
@@ -413,7 +413,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
 	tsv := ts.NewView(
-		state.NewDefaultScope(keys),
+		keys,
 		state.ImmutableStorage(map[string][]byte{
 			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),

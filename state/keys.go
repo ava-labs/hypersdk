@@ -16,6 +16,11 @@ import (
 
 var errInvalidHexadecimalString = errors.New("invalid hexadecimal string")
 
+var (
+	_ Scope = (*Keys)(nil)
+	_ Scope = (*SimulatedKeys)(nil)
+)
+
 const (
 	Read     Permissions = 1
 	Allocate             = 1<<1 | Read
@@ -24,6 +29,10 @@ const (
 	None Permissions = 0
 	All              = Read | Allocate | Write
 )
+
+type Scope interface {
+	Has(key []byte, perm Permissions) bool
+}
 
 // StateKey holds the name of the key and its permission (Read/Allocate/Write). By default,
 // initialization of Keys with duplicate key will not work. And to prevent duplicate
@@ -48,6 +57,10 @@ func (k Keys) Add(key string, permission Permissions) bool {
 	return true
 }
 
+func (k Keys) Has(key []byte, permission Permissions) bool {
+	return k[string(key)].Has(permission)
+}
+
 // Returns the chunk sizes of each key
 func (k Keys) ChunkSizes() ([]uint16, bool) {
 	chunks := make([]uint16, 0, len(k))
@@ -68,6 +81,17 @@ func (k Keys) WithoutPermissions() []string {
 		ks = append(ks, key)
 	}
 	return ks
+}
+
+type SimulatedKeys Keys
+
+func (d SimulatedKeys) Has(key []byte, perm Permissions) bool {
+	Keys(d).Add(string(key), perm)
+	return true
+}
+
+func (d SimulatedKeys) StateKeys() Keys {
+	return Keys(d)
 }
 
 type keysJSON map[string]Permissions
