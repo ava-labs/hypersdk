@@ -48,39 +48,81 @@ func TestSetMaxBalance(t *testing.T) {
 
 func TestBond(t *testing.T) {
 	tests := []struct {
-		name   string
-		wantOk []bool
-		max    uint32
+		name       string
+		wantBond   []bool
+		wantUnbond []error
+		max        uint32
 	}{
 		{
 			name: "bond with no balance",
-			wantOk: []bool{
+			wantBond: []bool{
 				false,
 			},
 		},
 		{
 			name: "bond less than balance",
-			wantOk: []bool{
+			wantBond: []bool{
 				true,
+			},
+			wantUnbond: []error{
+				nil,
 			},
 			max: 2,
 		},
 		{
 			name: "bond equal to balance",
-			wantOk: []bool{
+			wantBond: []bool{
 				true,
 				true,
+			},
+			wantUnbond: []error{
+				nil,
+				nil,
 			},
 			max: 2,
 		},
 		{
 			name: "bond more than balance",
-			wantOk: []bool{
+			wantBond: []bool{
 				true,
 				true,
 				false,
 			},
+			wantUnbond: []error{
+				nil,
+				nil,
+			},
 			max: 2,
+		},
+		{
+			name: "unexpected unbond - no bond called",
+			wantUnbond: []error{
+				ErrMissingBond,
+			},
+			max: 2,
+		},
+		{
+			name: "unexpected unbond - duplicate unbond called",
+			wantBond: []bool{
+				true,
+			},
+			wantUnbond: []error{
+				nil,
+				ErrMissingBond,
+			},
+			max: 2,
+		},
+		{
+			name: "unexpected unbond - unbond called after unsuccessful bond",
+			wantBond: []bool{
+				true,
+				false,
+			},
+			wantUnbond: []error{
+				nil,
+				ErrMissingBond,
+			},
+			max: 1,
 		},
 	}
 
@@ -93,14 +135,21 @@ func TestBond(t *testing.T) {
 			_, err := b.SetMaxBalance(address, tt.max)
 			r.NoError(err)
 
-			for i := 0; i < len(tt.wantOk); i++ {
+			for _, wantOk := range tt.wantBond {
 				ok, err := b.Bond(&Transaction{
 					Auth: TestAuth{
 						SponsorF: address,
 					},
 				})
 				r.NoError(err)
-				r.Equal(tt.wantOk, ok)
+				r.Equal(wantOk, ok)
+			}
+
+			for _, wantErr := range tt.wantUnbond {
+				r.ErrorIs(
+					b.Unbond(&Transaction{Auth: TestAuth{SponsorF: address}}),
+					wantErr,
+				)
 			}
 		})
 	}
