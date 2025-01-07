@@ -58,7 +58,7 @@ func (b *Bonder) Bond(tx *Transaction) (bool, error) {
 		return false, err
 	}
 
-	if balance.Pending == balance.Max {
+	if balance.Pending >= balance.Max {
 		return false, nil
 	}
 

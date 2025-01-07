@@ -163,6 +163,49 @@ func TestBond(t *testing.T) {
 	}
 }
 
+func TestSetMaxBalanceDuringBond(t *testing.T) {
+	r := require.New(t)
+	b := NewBonder(memdb.New())
+
+	address := codec.Address{1, 2, 3}
+	r.NoError(b.SetMaxBalance(address, 3))
+
+	tx1 := &Transaction{
+		Auth: TestAuth{
+			SponsorF: address,
+		},
+	}
+
+	tx2 := &Transaction{
+		Auth: TestAuth{
+			SponsorF: address,
+		},
+	}
+
+	tx3 := &Transaction{
+		Auth: TestAuth{
+			SponsorF: address,
+		},
+	}
+
+	ok, err := b.Bond(tx1)
+	r.NoError(err)
+	r.True(ok)
+
+	ok, err = b.Bond(tx2)
+	r.NoError(err)
+	r.True(ok)
+
+	r.NoError(b.SetMaxBalance(address, 0))
+
+	ok, err = b.Bond(tx3)
+	r.NoError(err)
+	r.False(ok)
+
+	r.NoError(b.Unbond(tx1))
+	r.NoError(b.Unbond(tx2))
+}
+
 type TestAuth struct {
 	SponsorF codec.Address
 }
