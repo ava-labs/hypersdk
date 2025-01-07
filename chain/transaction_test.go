@@ -31,6 +31,7 @@ var (
 	_ chain.Action         = (*mockTransferAction)(nil)
 	_ chain.Action         = (*action2)(nil)
 	_ chain.Action         = (*action3)(nil)
+	_ chain.Action         = (*action4)(nil)
 	_ chain.BalanceHandler = (*abstractMockBalanceHandler)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler1)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler2)(nil)
