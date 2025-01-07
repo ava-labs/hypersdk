@@ -4,10 +4,11 @@
 package fees
 
 import (
-	rand "math/rand/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	rand "math/rand/v2"
 )
 
 func TestLargestSet(t *testing.T) {
