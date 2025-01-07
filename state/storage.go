@@ -9,8 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 )
 
-// ImmutableStorage implements [state.Immutable], allowing the map to be used
-// as a read-only state source, and making it compatible with error-generating backing storage.
+// ImmutableStorage implements [state.Immutable] by wrapping a key-value map
 type ImmutableStorage map[string][]byte
 
 func (i ImmutableStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
