@@ -36,6 +36,10 @@ type Bonder struct {
 // this needs to be thread-safe if it's called from the api
 func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) error {
 	addressBytes := address[:]
+	if maxBalance == 0 {
+		return b.db.Delete(addressBytes)
+	}
+
 	balance, err := b.getBalance(addressBytes)
 	if err != nil {
 		return err
