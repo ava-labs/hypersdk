@@ -1,5 +1,4 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
-
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -7,49 +6,62 @@ package chain
 import (
 	"errors"
 	"fmt"
-	"sync"
 
-	acodec "github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/fdsmr"
 )
 
-var _ fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
+var (
+	_              fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
+	ErrMissingBond                            = errors.New("missing bond")
+)
 
 type BondBalance struct {
 	Pending uint32 `serialize:"true"`
 	Max     uint32 `serialize:"true"`
 }
 
+func NewBonder(db database.Database) *Bonder {
+	return &Bonder{db: db}
+}
+
 // Bonder maintains state of account bond balances to limit the amount of
 // pending transactions per account
 type Bonder struct {
-	codec acodec.Manager
-	db    database.Database
-	lock  sync.Mutex
+	db database.Database
 }
 
 // this needs to be thread-safe if it's called from the api
-func (b *Bonder) SetMaxBalance(address codec.Address, i uint32) error {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
+func (b *Bonder) GetBalance(address codec.Address) (uint32, uint32, error) {
 	addressBytes := address[:]
 	balance, err := b.getBalance(addressBytes)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
-	balance.Max = i
-	return b.putBalance(addressBytes, balance)
+	return balance.Pending, balance.Max, nil
+}
+
+// this needs to be thread-safe if it's called from the api
+func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) (uint32, error) {
+	addressBytes := address[:]
+	balance, err := b.getBalance(addressBytes)
+	if err != nil {
+		return 0, err
+	}
+
+	prev := balance.Max
+	balance.Max = maxBalance
+	if err := b.putBalance(addressBytes, balance); err != nil {
+		return 0, err
+	}
+
+	return prev, nil
 }
 
 func (b *Bonder) Bond(tx *Transaction) (bool, error) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
 	address := tx.Sponsor()
 	addressBytes := address[:]
 
@@ -71,15 +83,16 @@ func (b *Bonder) Bond(tx *Transaction) (bool, error) {
 }
 
 func (b *Bonder) Unbond(tx *Transaction) error {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
 	address := tx.Sponsor()
 	addressBytes := address[:]
 
 	balance, err := b.getBalance(addressBytes)
 	if err != nil {
 		return err
+	}
+
+	if balance.Pending == 0 {
+		return ErrMissingBond
 	}
 
 	balance.Pending--
@@ -113,7 +126,7 @@ func (b *Bonder) putBalance(address []byte, balance BondBalance) error {
 
 	}
 
-	if err := b.db.Put(address[:], p.Bytes); err != nil {
+	if err := b.db.Put(address, p.Bytes); err != nil {
 		return fmt.Errorf("failed to update bond balance: %w", err)
 	}
 
