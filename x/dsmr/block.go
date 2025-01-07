@@ -109,7 +109,8 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 // validityWindowBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
 type validityWindowBlock struct {
 	Block
-	certs set.Set[ids.ID]
+	certs      set.Set[ids.ID]
+	chunkCerts []*emapChunkCertificate
 }
 
 func (e validityWindowBlock) Timestamp() int64 {
@@ -129,21 +130,20 @@ func (e validityWindowBlock) Parent() ids.ID {
 }
 
 func (e validityWindowBlock) Containers() []*emapChunkCertificate {
-	chunkCerts := make([]*emapChunkCertificate, len(e.Block.ChunkCerts))
-	for i := range chunkCerts {
-		chunkCerts[i] = &emapChunkCertificate{*e.Block.ChunkCerts[i]}
-	}
-	return chunkCerts
+	return e.chunkCerts
 }
 
 func NewValidityWindowBlock(innerBlock Block) validityWindowBlock {
 	certSet := set.Set[ids.ID]{}
-	for _, c := range innerBlock.ChunkCerts {
+	chunkCerts := make([]*emapChunkCertificate, len(innerBlock.ChunkCerts))
+	for i, c := range innerBlock.ChunkCerts {
 		certSet.Add(c.ChunkID)
+		chunkCerts[i] = &emapChunkCertificate{*c}
 	}
 	return validityWindowBlock{
-		Block: innerBlock,
-		certs: certSet,
+		Block:      innerBlock,
+		certs:      certSet,
+		chunkCerts: chunkCerts,
 	}
 }
 
