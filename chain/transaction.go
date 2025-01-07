@@ -372,6 +372,10 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
+func (t *Transaction) GetSponsor() codec.Address {
+	return t.Auth.Sponsor()
+}
+
 // Sponsor is the [codec.Address] that pays fees for this transaction.
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
