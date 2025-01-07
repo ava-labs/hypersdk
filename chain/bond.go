@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	_              fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
-	ErrMissingBond                            = errors.New("missing bond")
+	ErrMissingBond = errors.New("missing bond")
+
+	_ fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
 )
 
 type BondBalance struct {
