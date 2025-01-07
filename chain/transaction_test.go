@@ -6,6 +6,7 @@ package chain_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -21,16 +22,23 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	safemath "github.com/ava-labs/avalanchego/utils/math"
+	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
 var (
 	_ chain.Action         = (*mockTransferAction)(nil)
 	_ chain.Action         = (*action2)(nil)
 	_ chain.Action         = (*action3)(nil)
-	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	_ chain.BalanceHandler = (*abstractMockBalanceHandler)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler1)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler2)(nil)
 	_ chain.Auth           = (*abstractMockAuth)(nil)
 	_ chain.Auth           = (*auth1)(nil)
 )
+
+var errMockInsufficientBalance = errors.New("mock insufficient balance error")
 
 type abstractMockAction struct{}
 
@@ -97,26 +105,71 @@ func (*action3) GetTypeID() uint8 {
 	return 3
 }
 
-type mockBalanceHandler struct{}
+type action4 struct {
+	abstractMockAction
+	computeUnits uint64
+}
 
-func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+func (a *action4) ComputeUnits(_ chain.Rules) uint64 {
+	return a.computeUnits
+}
+
+func (*action4) GetTypeID() uint8 {
+	return 4
+}
+
+func (*action4) ValidRange(_ chain.Rules) (int64, int64) {
+	return -1, -1
+}
+
+func (*action4) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{}
+}
+
+type abstractMockBalanceHandler struct{}
+
+func (*abstractMockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
 	panic("unimplemented")
 }
 
-func (*mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+func (*abstractMockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
 	panic("unimplemented")
 }
 
-func (*mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+func (*abstractMockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
 	panic("unimplemented")
 }
 
-func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
+func (*abstractMockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
 	panic("unimplemented")
 }
 
-func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
+func (*abstractMockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 	panic("unimplemented")
+}
+
+type mockBalanceHandler1 struct {
+	abstractMockBalanceHandler
+}
+
+func (*mockBalanceHandler1) SponsorStateKeys(_ codec.Address) state.Keys {
+	return state.Keys{}
+}
+
+func (*mockBalanceHandler1) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+	return errMockInsufficientBalance
+}
+
+type mockBalanceHandler2 struct {
+	abstractMockBalanceHandler
+}
+
+func (*mockBalanceHandler2) SponsorStateKeys(_ codec.Address) state.Keys {
+	return state.Keys{}
+}
+
+func (*mockBalanceHandler2) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+	return nil
 }
 
 type abstractMockAuth struct{}
@@ -161,6 +214,18 @@ type auth1 struct {
 
 func (a *auth1) ValidRange(_ chain.Rules) (int64, int64) {
 	return a.start, a.end
+}
+
+func (*auth1) ComputeUnits(_ chain.Rules) uint64 {
+	return 0
+}
+
+func (*auth1) Actor() codec.Address {
+	return codec.EmptyAddress
+}
+
+func (*auth1) Sponsor() codec.Address {
+	return codec.EmptyAddress
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -346,10 +411,13 @@ func TestPreExecute(t *testing.T) {
 	differentChainID := ids.ID{1}
 
 	tests := []struct {
-		name      string
+		name string
+
 		tx        *chain.Transaction
 		timestamp int64
 		err       error
+		fm        *fees.Manager
+		bh        chain.BalanceHandler
 	}{
 		{
 			name: "base transaction timestamp misaligned",
@@ -363,18 +431,6 @@ func TestPreExecute(t *testing.T) {
 			err: chain.ErrMisalignedTime,
 		},
 		{
-			name: "base transaction timestamp too late",
-			tx: &chain.Transaction{
-				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
-						Timestamp: consts.MillisecondsPerSecond,
-					},
-				},
-			},
-			timestamp: 2 * consts.MillisecondsPerSecond,
-			err:       chain.ErrTimestampTooLate,
-		},
-		{
 			name: "base transaction timestamp too early (61ms > 60ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
@@ -384,6 +440,18 @@ func TestPreExecute(t *testing.T) {
 				},
 			},
 			err: chain.ErrTimestampTooEarly,
+		},
+		{
+			name: "base transaction timestamp too late (1ms < 2ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrTimestampTooLate,
 		},
 		{
 			name: "base transaction invalid chain id",
@@ -415,13 +483,13 @@ func TestPreExecute(t *testing.T) {
 			err: chain.ErrTooManyActions,
 		},
 		{
-			name: "action timestamp too early (0ms < 3ms)",
+			name: "action timestamp too early (0ms < 1ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
 						&action3{
-							start: 3 * consts.MillisecondsPerSecond,
+							start: consts.MillisecondsPerSecond,
 						},
 					},
 				},
@@ -429,20 +497,21 @@ func TestPreExecute(t *testing.T) {
 			err: chain.ErrActionNotActivated,
 		},
 		{
-			name: "action timestamp too late (4ms > 3ms)",
+			name: "action timestamp too late (2ms > 1ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{
-						Timestamp: 4 * consts.MillisecondsPerSecond,
+						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 					Actions: []chain.Action{
 						&action3{
-							end: 3 * consts.MillisecondsPerSecond,
+							start: consts.MillisecondsPerSecond,
+							end:   consts.MillisecondsPerSecond,
 						},
 					},
 				},
 			},
-			timestamp: 4 * consts.MillisecondsPerSecond,
+			timestamp: 2 * consts.MillisecondsPerSecond,
 			err:       chain.ErrActionNotActivated,
 		},
 		{
@@ -472,6 +541,55 @@ func TestPreExecute(t *testing.T) {
 			timestamp: 2 * consts.MillisecondsPerSecond,
 			err:       chain.ErrAuthNotActivated,
 		},
+		{
+			name: "fee overflow",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&action4{
+							computeUnits: 1,
+						},
+					},
+				},
+				Auth: &auth1{},
+			},
+			fm: func() *fees.Manager {
+				fm := fees.NewManager([]byte{})
+				for i := 0; i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(externalfees.Dimension(i), consts.MaxUint64)
+				}
+				return fm
+			}(),
+			bh:  &mockBalanceHandler1{},
+			err: safemath.ErrOverflow,
+		},
+		{
+			name: "insufficient balance",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&action4{
+							computeUnits: 1,
+						},
+					},
+				},
+				Auth: &auth1{},
+			},
+			bh:  &mockBalanceHandler1{},
+			err: errMockInsufficientBalance,
+		},
+		{
+			name: "valid test case",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &auth1{},
+			},
+			bh: &mockBalanceHandler2{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -479,11 +597,18 @@ func TestPreExecute(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
+			if tt.fm == nil {
+				tt.fm = fees.NewManager([]byte{})
+			}
+			if tt.bh == nil {
+				tt.bh = &abstractMockBalanceHandler{}
+			}
+
 			r.ErrorIs(
 				tt.tx.PreExecute(
 					ctx,
-					fees.NewManager([]byte{}),
-					&mockBalanceHandler{},
+					tt.fm,
+					tt.bh,
 					testRules,
 					nil,
 					tt.timestamp,
