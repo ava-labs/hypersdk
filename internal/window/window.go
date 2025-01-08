@@ -35,16 +35,16 @@ type Window [WindowSliceSize]byte
 // Roll >= 4
 // [0, 0, 0, 0]
 // Assumes that [roll] is greater than or equal to 0
-func Roll(w Window, roll int64) (Window, error) {
+func Roll(w Window, roll uint64) Window {
 	// Note: make allocates a zeroed array, so we are guaranteed
 	// that what we do not copy into, will be set to 0
 	res := [WindowSliceSize]byte{}
 	bound := roll * consts.Uint64Len
 	if bound > WindowSliceSize {
-		return res, nil
+		return res
 	}
-	copy(res[:], w[roll*consts.Uint64Len:])
-	return res, nil
+	copy(res[:], w[bound:])
+	return res
 }
 
 // Sum sums [numUint64s] encoded in [window]. Assumes that the length of [window]
