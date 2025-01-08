@@ -34,7 +34,6 @@ type Window [WindowSliceSize]byte
 // [4, 0, 0, 0]
 // Roll >= 4
 // [0, 0, 0, 0]
-// Assumes that [roll] is greater than or equal to 0
 func Roll(w Window, roll uint64) Window {
 	// Note: make allocates a zeroed array, so we are guaranteed
 	// that what we do not copy into, will be set to 0
