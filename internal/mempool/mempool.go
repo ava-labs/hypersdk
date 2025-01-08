@@ -23,7 +23,7 @@ const maxPrealloc = 4_096
 type Item interface {
 	eheap.Item
 
-	Sponsor() codec.Address
+	GetSponsor() codec.Address
 	Size() int
 }
 
@@ -41,7 +41,7 @@ type Mempool[T Item] struct {
 	eh    *eheap.ExpiryHeap[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
-	// [Sponsor]
+	// sponsor
 	owned map[codec.Address]int
 
 	// streamedItems have been removed from the mempool during streaming
@@ -73,7 +73,7 @@ func New[T Item](
 }
 
 func (m *Mempool[T]) removeFromOwned(item T) {
-	sender := item.Sponsor()
+	sender := item.GetSponsor()
 	items, ok := m.owned[sender]
 	if !ok {
 		// May no longer be populated
@@ -113,7 +113,7 @@ func (m *Mempool[T]) Add(ctx context.Context, items []T) {
 
 func (m *Mempool[T]) add(items []T, front bool) {
 	for _, item := range items {
-		sender := item.Sponsor()
+		sender := item.GetSponsor()
 
 		// Ensure no duplicate
 		itemID := item.GetID()
