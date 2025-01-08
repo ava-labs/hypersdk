@@ -143,16 +143,6 @@ type vm[I Block, O Block, A Block] struct {
 	shutdownChan chan struct{}
 }
 
-func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *vm[I, O, A] {
-	v := &vm[I, O, A]{
-		version: version,
-		chain:   chain,
-		app:     VM[I, O, A]{},
-	}
-	v.app.vm = v
-	return v
-}
-
 func (v *vm[I, O, A]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
