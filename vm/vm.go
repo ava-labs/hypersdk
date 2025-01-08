@@ -64,6 +64,11 @@ const (
 	txGossipHandlerID = 0x2
 )
 
+type namedCloser struct {
+	name  string
+	close func() error
+}
+
 type VM struct {
 	DataDir string
 	v       *version.Semantic

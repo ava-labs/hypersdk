@@ -8,92 +8,92 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/api/health"
-	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/event"
 )
 
-// Application exposes functionality to the inner chain implementation.
-// The AvalancheGo VM implementation combines multiple functionalities for use
-// by the consensus engine. Application decouples these functionalities for the chain
-// implementation to set components and subscribe to events individually.
-type Application[I Block, O Block, A Block] struct {
-	vm *VM[I, O, A]
-
-	Version         string
-	Handlers        map[string]http.Handler
-	HealthChecker   health.Checker
-	Network         *p2p.Network
-	StateSyncableVM block.StateSyncableVM
-	Closers         []namedCloser
-
-	OnStateSyncStarted       []func(context.Context) error
-	OnBootstrapStarted       []func(context.Context) error
-	OnNormalOperationStarted []func(context.Context) error
-
-	VerifiedSubs         []event.Subscription[O]
-	RejectedSubs         []event.Subscription[O]
-	AcceptedSubs         []event.Subscription[A]
-	PreReadyAcceptedSubs []event.Subscription[I]
+// VM exposes the VM to the implementation of Chain
+type VM[I Block, O Block, A Block] struct {
+	vm *vm[I, O, A]
 }
 
-type namedCloser struct {
-	name  string
-	close func() error
+func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
+	blk, err := v.vm.GetBlock(ctx, blkID)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
 }
 
-// GetInputCovariantVM returns the VM implementation that returns the wrapper around the generic
-// types (instead of the snowman.Block type)
-func (a *Application[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
-	return &InputCovariantVM[I, O, A]{a.vm}
+func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
+	blk, err := v.vm.GetBlockByHeight(ctx, height)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
 }
 
-func (a *Application[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
-	a.AcceptedSubs = append(a.AcceptedSubs, sub...)
+func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
+	blk, err := v.vm.ParseBlock(ctx, bytes)
+	if err != nil {
+		var emptyI I
+		return emptyI, err
+	}
+	return blk.Input, nil
 }
 
-func (a *Application[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
-	a.RejectedSubs = append(a.RejectedSubs, sub...)
+func (v *VM[I, O, A]) LastAcceptedBlock(ctx context.Context) I {
+	return v.vm.LastAcceptedBlock(ctx).Input
 }
 
-func (a *Application[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
-	a.VerifiedSubs = append(a.VerifiedSubs, sub...)
+func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
+	v.vm.AcceptedSubs = append(v.vm.AcceptedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
-	a.PreReadyAcceptedSubs = append(a.PreReadyAcceptedSubs, sub...)
+func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
+	v.vm.RejectedSubs = append(v.vm.RejectedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) AddHandler(name string, handler http.Handler) {
-	a.Handlers[name] = handler
+func (v *VM[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
+	v.vm.VerifiedSubs = append(v.vm.VerifiedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
-	a.HealthChecker = healthChecker
+func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
+	v.vm.PreReadyAcceptedSubs = append(v.vm.PreReadyAcceptedSubs, sub...)
 }
 
-func (a *Application[I, O, A]) AddCloser(name string, closer func() error) {
-	a.Closers = append(a.Closers, namedCloser{name, closer})
+func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
+	v.vm.Handlers[name] = handler
 }
 
-func (a *Application[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
-	a.OnStateSyncStarted = append(a.OnStateSyncStarted, onStateSyncStarted...)
+func (v *VM[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
+	v.vm.HealthChecker = healthChecker
 }
 
-func (a *Application[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
-	a.OnNormalOperationStarted = append(a.OnNormalOperationStarted, onNormalOpStartedF...)
+func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
+	v.vm.Closers = append(v.vm.Closers, namedCloser{name, closer})
+}
+
+func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
+	v.vm.OnStateSyncStarted = append(v.vm.OnStateSyncStarted, onStateSyncStarted...)
+}
+
+func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
+	v.vm.OnNormalOperationStarted = append(v.vm.OnNormalOperationStarted, onNormalOpStartedF...)
 }
 
 // StartStateSync notifies the VM to enter DynamicStateSync mode.
 // The caller is responsible to eventually call FinishStateSync with a fully populated
 // last accepted state.
-func (a *Application[I, O, A]) StartStateSync(ctx context.Context, block I) error {
-	return a.vm.startStateSync(ctx, block)
+func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
+	return v.vm.startStateSync(ctx, block)
 }
 
 // FinishStateSync completes dynamic state sync mode and sets the last accepted block to
 // the given input/output/accepted value.
-func (a *Application[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
-	return a.vm.finishStateSync(ctx, input, output, accepted)
+func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, accepted A) error {
+	return v.vm.finishStateSync(ctx, input, output, accepted)
 }

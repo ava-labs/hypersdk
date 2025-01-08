@@ -20,7 +20,7 @@ var (
 // alternative block handler functions that provide the snowman.Block type to the
 // consensus engine.
 type SnowVM[I Block, O Block, A Block] struct {
-	*VM[I, O, A]
+	*vm[I, O, A]
 }
 
 func NewSnowVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *SnowVM[I, O, A] {
@@ -28,13 +28,13 @@ func NewSnowVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) 
 }
 
 func (v *SnowVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (snowman.Block, error) {
-	return v.VM.GetBlock(ctx, blkID)
+	return v.vm.GetBlock(ctx, blkID)
 }
 
 func (v *SnowVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
-	return v.VM.ParseBlock(ctx, bytes)
+	return v.vm.ParseBlock(ctx, bytes)
 }
 
 func (v *SnowVM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	return v.VM.BuildBlock(ctx)
+	return v.vm.BuildBlock(ctx)
 }

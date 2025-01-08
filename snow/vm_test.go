@@ -126,9 +126,9 @@ func NewTestChain(
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	_ *Application[*TestBlock, *TestBlock, *TestBlock],
+	_ *VM[*TestBlock, *TestBlock, *TestBlock],
 ) (ChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
-	chainIndex, err := chainindex.New(chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
+	chainIndex, err := chainindex.New[*TestBlock](chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -183,7 +183,7 @@ type TestConsensusEngine struct {
 	require *require.Assertions
 	rand    *rand.Rand
 	chain   *TestChain
-	vm      *VM[*TestBlock, *TestBlock, *TestBlock]
+	vm      *vm[*TestBlock, *TestBlock, *TestBlock]
 
 	lastAccepted *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]
 	preferred    *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]
@@ -201,7 +201,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 	r := require.New(t)
 	ctx := context.Background()
 	chain := NewTestChain(t, r, initLastAcceptedBlock)
-	vm := NewVM(testVersion, chain)
+	vm := NewVM[*TestBlock, *TestBlock, *TestBlock](testVersion, chain)
 	toEngine := make(chan common.Message, 1)
 	ce := &TestConsensusEngine{
 		t:        t,

@@ -49,11 +49,11 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	Accepted A
 	accepted bool
 
-	vm *VM[I, O, A]
+	vm *vm[I, O, A]
 }
 
 func NewInputBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 ) *StatefulBlock[I, O, A] {
 	return &StatefulBlock[I, O, A]{
@@ -63,7 +63,7 @@ func NewInputBlock[I Block, O Block, A Block](
 }
 
 func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 	output O,
 ) *StatefulBlock[I, O, A] {
@@ -76,7 +76,7 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 }
 
 func NewAcceptedBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 	output O,
 	accepted A,
