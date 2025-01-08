@@ -14,8 +14,8 @@ import (
 
 var _ block.StateSyncableVM = (*vm[Block, Block, Block])(nil)
 
-func (v *VM[I, O, A]) WithStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
-	v.StateSyncableVM = stateSyncableVM
+func (v *VM[I, O, A]) SetStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
+	v.vm.stateSyncableVM = stateSyncableVM
 }
 
 // startStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
@@ -87,21 +87,21 @@ func (v *vm[I, O, A]) finishStateSync(ctx context.Context, input I, output O, ac
 }
 
 func (v *vm[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return v.app.StateSyncableVM.StateSyncEnabled(ctx)
+	return v.stateSyncableVM.StateSyncEnabled(ctx)
 }
 
 func (v *vm[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetOngoingSyncStateSummary(ctx)
+	return v.stateSyncableVM.GetOngoingSyncStateSummary(ctx)
 }
 
 func (v *vm[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetLastStateSummary(ctx)
+	return v.stateSyncableVM.GetLastStateSummary(ctx)
 }
 
 func (v *vm[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.ParseStateSummary(ctx, summaryBytes)
+	return v.stateSyncableVM.ParseStateSummary(ctx, summaryBytes)
 }
 
 func (v *vm[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetStateSummary(ctx, summaryHeight)
+	return v.stateSyncableVM.GetStateSummary(ctx, summaryHeight)
 }

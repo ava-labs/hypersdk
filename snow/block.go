@@ -167,7 +167,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			return err
 		}
 
-		if err := event.NotifyAll[O](ctx, b.Output, b.vm.app.VerifiedSubs...); err != nil {
+		if err := event.NotifyAll[O](ctx, b.Output, b.vm.verifiedSubs...); err != nil {
 			return err
 		}
 	}
@@ -258,10 +258,10 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *State
 func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	// If I was not actually marked accepted, notify pre ready subs
 	if !b.accepted {
-		return event.NotifyAll(ctx, b.Input, b.vm.app.PreReadyAcceptedSubs...)
+		return event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...)
 	}
 
-	return event.NotifyAll(ctx, b.Accepted, b.vm.app.AcceptedSubs...)
+	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -324,7 +324,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 		return nil
 	}
 
-	return event.NotifyAll[O](ctx, b.Output, b.vm.app.RejectedSubs...)
+	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
 }
 
 // implements "snowman.Block"
