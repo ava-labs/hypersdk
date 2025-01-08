@@ -58,7 +58,7 @@ func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) error {
 }
 
 func (b *Bonder) Bond(tx *Transaction) (bool, error) {
-	address := tx.Sponsor()
+	address := tx.GetSponsor()
 	addressBytes := address[:]
 
 	balance, err := b.getBalance(addressBytes)
@@ -79,7 +79,7 @@ func (b *Bonder) Bond(tx *Transaction) (bool, error) {
 }
 
 func (b *Bonder) Unbond(tx *Transaction) error {
-	address := tx.Sponsor()
+	address := tx.GetSponsor()
 	addressBytes := address[:]
 
 	balance, err := b.getBalance(addressBytes)
