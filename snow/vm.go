@@ -58,7 +58,7 @@ type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		vm *VM[I, O, A],
+		vm VM[I, O, A],
 	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
 	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
 	// VM with:
@@ -248,7 +248,7 @@ func (v *vm[I, O, A]) Initialize(
 	inputChainIndex, lastOutput, lastAccepted, stateReady, err := v.chain.Initialize(
 		ctx,
 		chainInput,
-		&VM[I, O, A]{vm: v},
+		VM[I, O, A]{vm: v},
 	)
 	if err != nil {
 		return err

@@ -126,7 +126,7 @@ func NewTestChain(
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	_ *VM[*TestBlock, *TestBlock, *TestBlock],
+	_ VM[*TestBlock, *TestBlock, *TestBlock],
 ) (ChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
 	chainIndex, err := chainindex.New[*TestBlock](chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
 	if err != nil {
