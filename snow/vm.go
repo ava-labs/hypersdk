@@ -58,7 +58,7 @@ type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		app *VM[I, O, A],
+		vm *VM[I, O, A],
 	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
 	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
 	// VM with:
@@ -110,7 +110,6 @@ type vm[I Block, O Block, A Block] struct {
 	chain           Chain[I, O, A]
 	inputChainIndex ChainIndex[I]
 	consensusIndex  *ConsensusIndex[I, O, A]
-	app             VM[I, O, A]
 
 	snowCtx  *snow.Context
 	hconfig  hcontext.Config
@@ -144,17 +143,14 @@ type vm[I Block, O Block, A Block] struct {
 }
 
 func newVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *vm[I, O, A] {
-	v := &vm[I, O, A]{
+	return &vm[I, O, A]{
 		handlers: make(map[string]http.Handler),
 		healthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
 			return nil, nil
 		}),
 		version: version,
 		chain:   chain,
-		app:     VM[I, O, A]{},
 	}
-	v.app.vm = v
-	return v
 }
 
 func (v *vm[I, O, A]) Initialize(
@@ -214,7 +210,7 @@ func (v *vm[I, O, A]) Initialize(
 			continuousProfilerConfig.Freq,
 			continuousProfilerConfig.MaxNumFiles,
 		)
-		v.app.AddCloser("continuous profiler", func() error {
+		v.addCloser("continuous profiler", func() error {
 			continuousProfiler.Shutdown()
 			return nil
 		})
@@ -252,7 +248,7 @@ func (v *vm[I, O, A]) Initialize(
 	inputChainIndex, lastOutput, lastAccepted, stateReady, err := v.chain.Initialize(
 		ctx,
 		chainInput,
-		&v.app,
+		&VM[I, O, A]{vm: v},
 	)
 	if err != nil {
 		return err
@@ -518,4 +514,8 @@ func (v *vm[I, O, A]) markReady(ready bool) {
 	defer v.readyL.Unlock()
 
 	v.ready = ready
+}
+
+func (v *vm[I, O, A]) addCloser(name string, closer func() error) {
+	v.closers = append(v.closers, namedCloser{name, closer})
 }

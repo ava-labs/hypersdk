@@ -79,7 +79,7 @@ func (v *VM[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
 }
 
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
-	v.vm.closers = append(v.vm.closers, namedCloser{name, closer})
+	v.vm.addCloser(name, closer)
 }
 
 func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
