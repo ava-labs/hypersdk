@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
 
 	"github.com/ava-labs/hypersdk/event"
 )
@@ -45,44 +46,48 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
 	return blk.Input, nil
 }
 
+func (v *VM[I, O, A]) GetNetwork() *p2p.Network {
+	return v.vm.network
+}
+
 func (v *VM[I, O, A]) LastAcceptedBlock(ctx context.Context) I {
 	return v.vm.LastAcceptedBlock(ctx).Input
 }
 
 func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
-	v.vm.AcceptedSubs = append(v.vm.AcceptedSubs, sub...)
+	v.vm.acceptedSubs = append(v.vm.acceptedSubs, sub...)
 }
 
 func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
-	v.vm.RejectedSubs = append(v.vm.RejectedSubs, sub...)
+	v.vm.rejectedSubs = append(v.vm.rejectedSubs, sub...)
 }
 
 func (v *VM[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
-	v.vm.VerifiedSubs = append(v.vm.VerifiedSubs, sub...)
+	v.vm.verifiedSubs = append(v.vm.verifiedSubs, sub...)
 }
 
 func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
-	v.vm.PreReadyAcceptedSubs = append(v.vm.PreReadyAcceptedSubs, sub...)
+	v.vm.preReadyAcceptedSubs = append(v.vm.preReadyAcceptedSubs, sub...)
 }
 
 func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
-	v.vm.Handlers[name] = handler
+	v.vm.handlers[name] = handler
 }
 
 func (v *VM[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
-	v.vm.HealthChecker = healthChecker
+	v.vm.healthChecker = healthChecker
 }
 
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
-	v.vm.Closers = append(v.vm.Closers, namedCloser{name, closer})
+	v.vm.closers = append(v.vm.closers, namedCloser{name, closer})
 }
 
 func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
-	v.vm.OnStateSyncStarted = append(v.vm.OnStateSyncStarted, onStateSyncStarted...)
+	v.vm.onStateSyncStarted = append(v.vm.onStateSyncStarted, onStateSyncStarted...)
 }
 
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
-	v.vm.OnNormalOperationStarted = append(v.vm.OnNormalOperationStarted, onNormalOpStartedF...)
+	v.vm.onNormalOperationsStarted = append(v.vm.onNormalOperationsStarted, onNormalOpStartedF...)
 }
 
 // StartStateSync notifies the VM to enter DynamicStateSync mode.

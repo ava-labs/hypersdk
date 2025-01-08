@@ -89,20 +89,20 @@ type namedCloser struct {
 }
 
 type vm[I Block, O Block, A Block] struct {
-	Handlers        map[string]http.Handler
-	HealthChecker   health.Checker
-	Network         *p2p.Network
-	StateSyncableVM block.StateSyncableVM
-	Closers         []namedCloser
+	handlers        map[string]http.Handler
+	healthChecker   health.Checker
+	network         *p2p.Network
+	stateSyncableVM block.StateSyncableVM
+	closers         []namedCloser
 
-	OnStateSyncStarted       []func(context.Context) error
-	OnBootstrapStarted       []func(context.Context) error
-	OnNormalOperationStarted []func(context.Context) error
+	onStateSyncStarted        []func(context.Context) error
+	onBootstrapStarted        []func(context.Context) error
+	onNormalOperationsStarted []func(context.Context) error
 
-	VerifiedSubs         []event.Subscription[O]
-	RejectedSubs         []event.Subscription[O]
-	AcceptedSubs         []event.Subscription[A]
-	PreReadyAcceptedSubs []event.Subscription[I]
+	verifiedSubs         []event.Subscription[O]
+	rejectedSubs         []event.Subscription[O]
+	acceptedSubs         []event.Subscription[A]
+	preReadyAcceptedSubs []event.Subscription[I]
 	version              string
 
 	// chainLock must be held to process a block with chain (Build/Verify/Accept).
@@ -145,6 +145,10 @@ type vm[I Block, O Block, A Block] struct {
 
 func newVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *vm[I, O, A] {
 	v := &vm[I, O, A]{
+		handlers: make(map[string]http.Handler),
+		healthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
+			return nil, nil
+		}),
 		version: version,
 		chain:   chain,
 		app:     VM[I, O, A]{},
@@ -217,7 +221,7 @@ func (v *vm[I, O, A]) Initialize(
 		go continuousProfiler.Dispatch() //nolint:errcheck
 	}
 
-	v.Network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
+	v.network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
 	if err != nil {
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
@@ -448,7 +452,7 @@ func (v *vm[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	case snow.StateSyncing:
 		v.log.Info("Starting state sync")
 
-		for _, startStateSyncF := range v.OnStateSyncStarted {
+		for _, startStateSyncF := range v.onStateSyncStarted {
 			if err := startStateSyncF(ctx); err != nil {
 				return err
 			}
@@ -457,7 +461,7 @@ func (v *vm[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	case snow.Bootstrapping:
 		v.log.Info("Starting bootstrapping")
 
-		for _, startBootstrappingF := range v.OnBootstrapStarted {
+		for _, startBootstrappingF := range v.onBootstrapStarted {
 			if err := startBootstrappingF(ctx); err != nil {
 				return err
 			}
@@ -465,7 +469,7 @@ func (v *vm[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 		return nil
 	case snow.NormalOp:
 		v.log.Info("Starting normal operation")
-		for _, startNormalOpF := range v.OnNormalOperationStarted {
+		for _, startNormalOpF := range v.onNormalOperationsStarted {
 			if err := startNormalOpF(ctx); err != nil {
 				return err
 			}
@@ -477,19 +481,19 @@ func (v *vm[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *vm[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	return v.HealthChecker.HealthCheck(ctx)
+	return v.healthChecker.HealthCheck(ctx)
 }
 
 func (v *vm[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
-	return v.Handlers, nil
+	return v.handlers, nil
 }
 
 func (v *vm[I, O, A]) Shutdown(context.Context) error {
 	v.log.Info("Shutting down VM")
 	close(v.shutdownChan)
 
-	errs := make([]error, len(v.Closers))
-	for i, closer := range v.Closers {
+	errs := make([]error, len(v.closers))
+	for i, closer := range v.closers {
 		v.log.Info("Shutting down service", zap.String("service", closer.name))
 		start := time.Now()
 		errs[i] = closer.close()
