@@ -14,7 +14,7 @@ runs:
   using: composite
   steps:
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.83.0
       with:
         targets: ${{ inputs.targets }}
     - if: ${{ inputs.cache == 'true' }}
