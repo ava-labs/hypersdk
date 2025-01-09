@@ -20,4 +20,5 @@ runs:
     - if: ${{ inputs.cache == 'true' }}
       uses: Swatinem/rust-cache@v2
     - name: Install rustfmt
+      shell: bash
       run: rustup component add rustfmt
