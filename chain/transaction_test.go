@@ -407,7 +407,6 @@ func TestSignRawActionBytesTx(t *testing.T) {
 
 func TestPreExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
-	maxNumOfActions := 16
 	differentChainID := ids.ID{1}
 
 	tests := []struct {
@@ -481,8 +480,8 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: func() []chain.Action {
-						actions := make([]chain.Action, maxNumOfActions+1)
-						for i := 0; i < maxNumOfActions+1; i++ {
+						actions := make([]chain.Action, testRules.MaxActionsPerTx+1)
+						for i := 0; i < int(testRules.MaxActionsPerTx)+1; i++ {
 							actions = append(actions, &mockTransferAction{})
 						}
 						return actions
