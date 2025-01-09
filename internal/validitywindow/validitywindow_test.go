@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 )
 
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
@@ -203,7 +203,7 @@ type testChainIndex struct {
 	blocks map[ids.ID]ExecutionBlock[validitywindowtest.Container]
 }
 
-func (t testChainIndex) GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[validitywindowtest.Container], error) {
+func (t testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[validitywindowtest.Container], error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, nil
 	}

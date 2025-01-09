@@ -139,7 +139,7 @@ func TestNode_BuildChunk(t *testing.T) {
 func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
+	nodes, _ := newNodes(t, 2)
 	node := nodes[0]
 
 	r.NoError(node.BuildChunk(
@@ -717,7 +717,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
+	nodes, _ := newNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1050,7 +1050,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2, testingDefaultValidityWindowDuration)
+	nodes, _ := newNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1299,7 +1299,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			nodes, indexers := newNodes(t, 1, testingDefaultValidityWindowDuration)
+			nodes, indexers := newNodes(t, 1)
 			node := nodes[0]
 			indexer := indexers[0]
 
@@ -1339,11 +1339,11 @@ type testNode struct {
 }
 
 func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
-	nodes, _ := newNodes(t, 1, testingDefaultValidityWindowDuration)
+	nodes, _ := newNodes(t, 1)
 	return nodes[0]
 }
 
-func newNodes(t *testing.T, n int, validityWindowDuration time.Duration) ([]*Node[dsmrtest.Tx], []*testValidityWindowChainIndex) {
+func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowChainIndex) {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1437,7 +1437,7 @@ func newNodes(t *testing.T, n int, validityWindowDuration time.Duration) ([]*Nod
 			1,
 			1,
 			indexers[i],
-			validityWindowDuration,
+			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
 

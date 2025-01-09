@@ -5,6 +5,7 @@ package validitywindowtest
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
