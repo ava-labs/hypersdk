@@ -21,4 +21,4 @@ runs:
       uses: Swatinem/rust-cache@v2
     - name: Install rustfmt
       shell: bash
-      run: rustup component add rustfmt
+      run: rustup component add rustfmt clippy
