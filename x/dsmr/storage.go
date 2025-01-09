@@ -28,19 +28,17 @@ const (
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 
-type Verifier[T Tx] interface {
+type Verifier[T Tx[T]] interface {
 	Verify(chunk Chunk[T]) error
 }
 
-var _ Verifier[Tx] = (*NoVerifier[Tx])(nil)
-
-type NoVerifier[T Tx] struct{}
+type NoVerifier[T Tx[T]] struct{}
 
 func (NoVerifier[T]) Verify(Chunk[T]) error {
 	return nil
 }
 
-type StoredChunkSignature[T Tx] struct {
+type StoredChunkSignature[T Tx[T]] struct {
 	Chunk Chunk[T]
 	Cert  *ChunkCertificate
 	// TODO what do we need this flag for?
@@ -55,7 +53,7 @@ type StoredChunkSignature[T Tx] struct {
 // We do not require persistence of chunk certificates.
 // If a valid chunk certificate is included in a block, we already have it.
 // If a valid chunk certificate is dropped, the network may drop the chunk.
-type ChunkStorage[T Tx] struct {
+type ChunkStorage[T Tx[T]] struct {
 	verifier Verifier[T]
 
 	lock sync.RWMutex
@@ -71,7 +69,7 @@ type ChunkStorage[T Tx] struct {
 	chunkMap map[ids.ID]*StoredChunkSignature[T]
 }
 
-func NewChunkStorage[T Tx](
+func NewChunkStorage[T Tx[T]](
 	verifier Verifier[T],
 	db database.Database,
 ) (*ChunkStorage[T], error) {
@@ -158,7 +156,10 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 
 	chunkCertInfo, ok := s.chunkMap[c.id]
 	if ok {
-		return chunkCertInfo.Cert.Signature, nil
+		return &warp.BitSetSignature{
+			Signers:   chunkCertInfo.Cert.Signature.Signers,
+			Signature: chunkCertInfo.Cert.Signature.Signature,
+		}, nil
 	}
 	if err := s.verifier.Verify(c); err != nil {
 		return nil, err
@@ -305,9 +306,7 @@ func acceptedChunkKey(slot int64, chunkID ids.ID) []byte {
 	return createChunkKey(acceptedByte, slot, chunkID)
 }
 
-var _ emap.Item = (*emapChunk[Tx])(nil)
-
-type emapChunk[T Tx] struct {
+type emapChunk[T Tx[T]] struct {
 	chunk Chunk[T]
 }
 

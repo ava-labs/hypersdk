@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -23,9 +22,7 @@ import (
 
 var errInvalidTestItem = errors.New("invalid test item")
 
-var _ Verifier[Tx] = testVerifier[Tx]{}
-
-type testVerifier[T Tx] struct {
+type testVerifier[T Tx[T]] struct {
 	correctIDs set.Set[ids.ID]
 }
 
@@ -37,42 +34,40 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
-	*ChunkStorage[dsmrtest.Tx],
-	[]Chunk[dsmrtest.Tx],
-	[]Chunk[dsmrtest.Tx],
-	func() *ChunkStorage[dsmrtest.Tx],
+	*ChunkStorage[*dsmrtest.Tx],
+	[]Chunk[*dsmrtest.Tx],
+	[]Chunk[*dsmrtest.Tx],
+	func() *ChunkStorage[*dsmrtest.Tx],
 ) {
 	require := require.New(t)
 
-	validChunks := make([]Chunk[dsmrtest.Tx], 0, numValidChunks)
+	validChunks := make([]Chunk[*dsmrtest.Tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newChunk(
-			UnsignedChunk[dsmrtest.Tx]{
+		chunk := newChunk(
+			UnsignedChunk[*dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
 				Expiry:      time.Now().Unix(),
-				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				Txs:         []*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
 			[96]byte{},
 		)
-		require.NoError(err)
 		validChunks = append(validChunks, chunk)
 	}
 
-	invalidChunks := make([]Chunk[dsmrtest.Tx], 0, numInvalidChunks)
+	invalidChunks := make([]Chunk[*dsmrtest.Tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
-		chunk, err := newChunk(
-			UnsignedChunk[dsmrtest.Tx]{
+		chunk := newChunk(
+			UnsignedChunk[*dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
 				Expiry:      time.Now().Unix(),
-				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				Txs:         []*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
 			[96]byte{},
 		)
-		require.NoError(err)
 		invalidChunks = append(invalidChunks, chunk)
 	}
 
@@ -85,19 +80,19 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int) (
 		validChunkIDs = append(validChunkIDs, chunk.id)
 	}
 
-	testVerifier := testVerifier[dsmrtest.Tx]{correctIDs: set.Of(validChunkIDs...)}
-	storage, err := NewChunkStorage[dsmrtest.Tx](
+	testVerifier := testVerifier[*dsmrtest.Tx]{correctIDs: set.Of(validChunkIDs...)}
+	storage, err := NewChunkStorage[*dsmrtest.Tx](
 		testVerifier,
 		db,
 	)
 	require.NoError(err)
 
-	restart := func() *ChunkStorage[dsmrtest.Tx] {
+	restart := func() *ChunkStorage[*dsmrtest.Tx] {
 		require.NoError(db.Close())
 		db, err = pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 		require.NoError(err)
 
-		storage, err := NewChunkStorage[dsmrtest.Tx](
+		storage, err := NewChunkStorage[*dsmrtest.Tx](
 			testVerifier,
 			db,
 		)
@@ -129,7 +124,6 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -167,7 +161,6 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
@@ -209,7 +202,6 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -242,7 +234,6 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 			Producer: ids.GenerateTestNodeID(),
 			Expiry:   1,
 		},
-		Signature: &warp.BitSetSignature{},
 	}
 
 	require.NoError(storage.AddLocalChunkWithCert(chunk, chunkCert))
@@ -284,7 +275,6 @@ func TestRestartSavedChunks(t *testing.T) {
 				Producer: chunk.Producer,
 				Expiry:   chunk.Expiry,
 			},
-			Signature: &warp.BitSetSignature{},
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}
@@ -318,9 +308,9 @@ func TestRestartSavedChunks(t *testing.T) {
 		validChunks[1].id,
 	}))
 
-	confirmChunkStorage := func(storage *ChunkStorage[dsmrtest.Tx]) {
+	confirmChunkStorage := func(storage *ChunkStorage[*dsmrtest.Tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
-		for i, expectedChunk := range []Chunk[dsmrtest.Tx]{
+		for i, expectedChunk := range []Chunk[*dsmrtest.Tx]{
 			validChunks[0],
 			validChunks[1],
 			validChunks[4],
@@ -332,7 +322,7 @@ func TestRestartSavedChunks(t *testing.T) {
 		}
 
 		// Confirm the expired chunks are garbage collected
-		for _, expectedChunk := range []Chunk[dsmrtest.Tx]{
+		for _, expectedChunk := range []Chunk[*dsmrtest.Tx]{
 			validChunks[2],
 			validChunks[3],
 		} {

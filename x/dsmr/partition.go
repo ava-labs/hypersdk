@@ -22,7 +22,7 @@ type weightedValidator struct {
 	accumulatedWeight uint64
 }
 
-type Partition[T Tx] struct {
+type Partition[T Tx[T]] struct {
 	validators  []weightedValidator
 	totalWeight uint64
 }
@@ -31,7 +31,7 @@ func (w weightedValidator) Compare(o weightedValidator) int {
 	return bytes.Compare(w.nodeID[:], o.nodeID[:])
 }
 
-func NewPartition[T Tx](validators []Validator) *Partition[T] {
+func NewPartition[T Tx[T]](validators []Validator) *Partition[T] {
 	weightedVdrs := make([]weightedValidator, len(validators))
 	for i, vdr := range validators {
 		weightedVdrs[i] = weightedValidator{

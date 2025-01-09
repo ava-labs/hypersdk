@@ -19,7 +19,7 @@ import (
 
 // createTestPartition creates a precalculated partition with the provided weights
 // and generates sorted nodeIDs to match the original ordering of weights
-func createTestPartition(weights []uint64) *Partition[dsmrtest.Tx] {
+func createTestPartition(weights []uint64) *Partition[*dsmrtest.Tx] {
 	nodeIDs := make([]ids.NodeID, 0, len(weights))
 	for i := 0; i < len(weights); i++ {
 		nodeIDs = append(nodeIDs, ids.GenerateTestNodeID())
@@ -33,10 +33,10 @@ func createTestPartition(weights []uint64) *Partition[dsmrtest.Tx] {
 			NodeID: nodeIDs[i],
 		}
 	}
-	return NewPartition[dsmrtest.Tx](validators)
+	return NewPartition[*dsmrtest.Tx](validators)
 }
 
-func createTestPartitionTx(weight uint64) dsmrtest.Tx {
+func createTestPartitionTx(weight uint64) *dsmrtest.Tx {
 	sponsorAddrID := ids.GenerateTestID()
 	binary.BigEndian.PutUint64(
 		sponsorAddrID[len(sponsorAddrID)-consts.Uint64Len:],
@@ -44,7 +44,7 @@ func createTestPartitionTx(weight uint64) dsmrtest.Tx {
 	)
 
 	sponsorAddr := codec.CreateAddress(0, sponsorAddrID)
-	return dsmrtest.Tx{
+	return &dsmrtest.Tx{
 		ID:      ids.GenerateTestID(),
 		Expiry:  100,
 		Sponsor: sponsorAddr,
@@ -198,9 +198,9 @@ func BenchmarkAssignTx(b *testing.B) {
 		partition := createTestPartition(vdrWeights)
 
 		// Create txs once for largest batch size
-		testTxs := make([]dsmrtest.Tx, txBatchSizes[len(txBatchSizes)-1])
+		testTxs := make([]*dsmrtest.Tx, txBatchSizes[len(txBatchSizes)-1])
 		for i := range testTxs {
-			testTxs[i] = dsmrtest.Tx{
+			testTxs[i] = &dsmrtest.Tx{
 				ID:      ids.GenerateTestID(),
 				Expiry:  100,
 				Sponsor: codec.CreateAddress(0, ids.GenerateTestID()),
@@ -211,7 +211,7 @@ func BenchmarkAssignTx(b *testing.B) {
 			b.Run("Vdrs-"+strconv.Itoa(numVdrs)+"-Txs-"+strconv.Itoa(numTxs), func(b *testing.B) {
 				r := require.New(b)
 				for n := 0; n < b.N; n++ {
-					assignments := make(map[ids.NodeID]dsmrtest.Tx, numTxs)
+					assignments := make(map[ids.NodeID]*dsmrtest.Tx, numTxs)
 					for _, tx := range testTxs[:numTxs] {
 						nodeID, ok := partition.AssignTx(tx)
 						r.True(ok)

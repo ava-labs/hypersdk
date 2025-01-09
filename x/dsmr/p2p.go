@@ -11,14 +11,11 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 )
 
@@ -38,13 +35,9 @@ var (
 		Code:    3,
 		Message: "invalid chunk",
 	}
-
-	_ acp118.Verifier = (*ChunkSignatureRequestVerifier[Tx])(nil)
-	_ p2p.Handler     = (*GetChunkHandler[Tx])(nil)
-	_ p2p.Handler     = (*ChunkCertificateGossipHandler[Tx])(nil)
 )
 
-type GetChunkHandler[T Tx] struct {
+type GetChunkHandler[T Tx[T]] struct {
 	storage *ChunkStorage[T]
 }
 
@@ -109,7 +102,7 @@ type ChunkSignature struct {
 	Signature  [bls.SignatureLen]byte
 }
 
-type ChunkSignatureRequestVerifier[T Tx] struct {
+type ChunkSignatureRequestVerifier[T Tx[T]] struct {
 	verifier Verifier[T]
 	storage  *ChunkStorage[T]
 }
@@ -154,7 +147,7 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 	return nil
 }
 
-type ChunkCertificateGossipHandler[T Tx] struct {
+type ChunkCertificateGossipHandler[T Tx[T]] struct {
 	storage *ChunkStorage[T]
 }
 
@@ -165,12 +158,10 @@ func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	chunkCert := ChunkCertificate{}
-	packer := wrappers.Packer{MaxSize: MaxMessageSize, Bytes: gossip.ChunkCertificate}
-	if err := codec.LinearCodec.UnmarshalFrom(&packer, &chunkCert); err != nil {
+	var chunkCert ChunkCertificate
+	if err := chunkCert.UnmarshalCanoto(gossip.ChunkCertificate); err != nil {
 		return
 	}
-
 	if err := c.storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
 		return
 	}

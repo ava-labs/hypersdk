@@ -1,6 +1,8 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto --concurrent=false $GOFILE
+
 package dsmrtest
 
 import (
@@ -10,9 +12,11 @@ import (
 )
 
 type Tx struct {
-	ID      ids.ID        `serialize:"true"`
-	Expiry  int64         `serialize:"true"`
-	Sponsor codec.Address `serialize:"true"`
+	ID      ids.ID        `canoto:"fixed bytes,1"`
+	Expiry  int64         `canoto:"int,2"`
+	Sponsor codec.Address `canoto:"fixed bytes,3"`
+
+	canotoData canotoData_Tx
 }
 
 func (t Tx) GetID() ids.ID {
