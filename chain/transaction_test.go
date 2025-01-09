@@ -28,39 +28,44 @@ import (
 )
 
 var (
+	_ chain.Action         = (*mockAction)(nil)
 	_ chain.Action         = (*mockTransferAction)(nil)
 	_ chain.Action         = (*action2)(nil)
-	_ chain.Action         = (*action3)(nil)
-	_ chain.Action         = (*action4)(nil)
-	_ chain.BalanceHandler = (*abstractMockBalanceHandler)(nil)
-	_ chain.BalanceHandler = (*mockBalanceHandler1)(nil)
-	_ chain.BalanceHandler = (*mockBalanceHandler2)(nil)
-	_ chain.Auth           = (*abstractMockAuth)(nil)
-	_ chain.Auth           = (*auth1)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	_ chain.Auth           = (*mockAuth)(nil)
 )
 
 var errMockInsufficientBalance = errors.New("mock insufficient balance error")
 
-type abstractMockAction struct{}
+type mockAction struct {
+	start        int64
+	end          int64
+	computeUnits uint64
+	typeID       uint8
+}
 
-func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
+func (m *mockAction) ComputeUnits(chain.Rules) uint64 {
+	return m.computeUnits
+}
+
+func (*mockAction) Execute(context.Context, chain.Rules, state.Mutable, int64, codec.Address, ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
-	panic("unimplemented")
+func (m *mockAction) GetTypeID() uint8 {
+	return m.typeID
 }
 
-func (*abstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
+func (*mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
+	return state.Keys{}
 }
 
-func (*abstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("unimplemented")
+func (m *mockAction) ValidRange(chain.Rules) (int64, int64) {
+	return m.start, m.end
 }
 
 type mockTransferAction struct {
-	abstractMockAction
+	mockAction
 	To    codec.Address `serialize:"true" json:"to"`
 	Value uint64        `serialize:"true" json:"value"`
 	Memo  []byte        `serialize:"true" json:"memo"`
@@ -71,7 +76,7 @@ func (*mockTransferAction) GetTypeID() uint8 {
 }
 
 type action2 struct {
-	abstractMockAction
+	mockAction
 	A uint64 `serialize:"true" json:"a"`
 	B uint64 `serialize:"true" json:"b"`
 }
@@ -92,141 +97,68 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	return &action, err
 }
 
-type action3 struct {
-	abstractMockAction
-	start int64
-	end   int64
+type mockBalanceHandler struct {
+	canDeductError error
 }
 
-func (a *action3) ValidRange(_ chain.Rules) (int64, int64) {
-	return a.start, a.end
+func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
 }
 
-func (*action3) GetTypeID() uint8 {
-	return 3
+func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+	return m.canDeductError
 }
 
-type action4 struct {
-	abstractMockAction
+func (*mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
+	return state.Keys{}
+}
+
+type mockAuth struct {
+	start        int64
+	end          int64
 	computeUnits uint64
+	actor        codec.Address
+	sponsor      codec.Address
 }
 
-func (a *action4) ComputeUnits(_ chain.Rules) uint64 {
-	return a.computeUnits
+func (m *mockAuth) Actor() codec.Address {
+	return m.actor
 }
 
-func (*action4) GetTypeID() uint8 {
-	return 4
+func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
+	return m.computeUnits
 }
 
-func (*action4) ValidRange(_ chain.Rules) (int64, int64) {
-	return -1, -1
-}
-
-func (*action4) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	return state.Keys{}
-}
-
-type abstractMockBalanceHandler struct{}
-
-func (*abstractMockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+func (*mockAuth) GetTypeID() uint8 {
 	panic("unimplemented")
 }
 
-func (*abstractMockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+func (*mockAuth) Marshal(*codec.Packer) {
 	panic("unimplemented")
 }
 
-func (*abstractMockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+func (*mockAuth) Size() int {
 	panic("unimplemented")
 }
 
-func (*abstractMockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
+func (m *mockAuth) Sponsor() codec.Address {
+	return m.sponsor
+}
+
+func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
+	return m.start, m.end
+}
+
+func (*mockAuth) Verify(context.Context, []byte) error {
 	panic("unimplemented")
-}
-
-func (*abstractMockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
-	panic("unimplemented")
-}
-
-type mockBalanceHandler1 struct {
-	abstractMockBalanceHandler
-}
-
-func (*mockBalanceHandler1) SponsorStateKeys(_ codec.Address) state.Keys {
-	return state.Keys{}
-}
-
-func (*mockBalanceHandler1) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	return errMockInsufficientBalance
-}
-
-type mockBalanceHandler2 struct {
-	abstractMockBalanceHandler
-}
-
-func (*mockBalanceHandler2) SponsorStateKeys(_ codec.Address) state.Keys {
-	return state.Keys{}
-}
-
-func (*mockBalanceHandler2) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	return nil
-}
-
-type abstractMockAuth struct{}
-
-func (*abstractMockAuth) Actor() codec.Address {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) ComputeUnits(_ chain.Rules) uint64 {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) Marshal(_ *codec.Packer) {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) Size() int {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) Sponsor() codec.Address {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) ValidRange(_ chain.Rules) (int64, int64) {
-	panic("unimplemented")
-}
-
-func (*abstractMockAuth) Verify(_ context.Context, _ []byte) error {
-	panic("unimplemented")
-}
-
-type auth1 struct {
-	abstractMockAuth
-	start int64
-	end   int64
-}
-
-func (a *auth1) ValidRange(_ chain.Rules) (int64, int64) {
-	return a.start, a.end
-}
-
-func (*auth1) ComputeUnits(_ chain.Rules) uint64 {
-	return 0
-}
-
-func (*auth1) Actor() codec.Address {
-	return codec.EmptyAddress
-}
-
-func (*auth1) Sponsor() codec.Address {
-	return codec.EmptyAddress
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -423,9 +355,9 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &auth1{},
+				Auth: &mockAuth{},
 			},
-			bh: &mockBalanceHandler2{},
+			bh: &mockBalanceHandler{},
 		},
 		{
 			name: "base transaction timestamp misaligned",
@@ -496,7 +428,7 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&action3{
+						&mockAction{
 							start: consts.MillisecondsPerSecond,
 						},
 					},
@@ -512,7 +444,7 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 					Actions: []chain.Action{
-						&action3{
+						&mockAction{
 							start: consts.MillisecondsPerSecond,
 							end:   consts.MillisecondsPerSecond,
 						},
@@ -528,7 +460,7 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &auth1{
+				Auth: &mockAuth{
 					start: 1 * consts.MillisecondsPerSecond,
 				},
 			},
@@ -542,7 +474,7 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 				},
-				Auth: &auth1{
+				Auth: &mockAuth{
 					end: 1 * consts.MillisecondsPerSecond,
 				},
 			},
@@ -555,12 +487,12 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&action4{
+						&mockAction{
 							computeUnits: 1,
 						},
 					},
 				},
-				Auth: &auth1{},
+				Auth: &mockAuth{},
 			},
 			fm: func() *fees.Manager {
 				fm := fees.NewManager([]byte{})
@@ -569,7 +501,7 @@ func TestPreExecute(t *testing.T) {
 				}
 				return fm
 			}(),
-			bh:  &mockBalanceHandler1{},
+			bh:  &mockBalanceHandler{},
 			err: safemath.ErrOverflow,
 		},
 		{
@@ -578,14 +510,16 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&action4{
+						&mockAction{
 							computeUnits: 1,
 						},
 					},
 				},
-				Auth: &auth1{},
+				Auth: &mockAuth{},
 			},
-			bh:  &mockBalanceHandler1{},
+			bh: &mockBalanceHandler{
+				canDeductError: errMockInsufficientBalance,
+			},
 			err: errMockInsufficientBalance,
 		},
 	}
@@ -599,7 +533,7 @@ func TestPreExecute(t *testing.T) {
 				tt.fm = fees.NewManager([]byte{})
 			}
 			if tt.bh == nil {
-				tt.bh = &abstractMockBalanceHandler{}
+				tt.bh = &mockBalanceHandler{}
 			}
 
 			r.ErrorIs(
