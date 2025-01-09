@@ -411,13 +411,23 @@ func TestPreExecute(t *testing.T) {
 	differentChainID := ids.ID{1}
 
 	tests := []struct {
-		name string
+		name      string
 		tx        *chain.Transaction
 		timestamp int64
 		err       error
 		fm        *fees.Manager
 		bh        chain.BalanceHandler
 	}{
+		{
+			name: "valid test case",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &auth1{},
+			},
+			bh: &mockBalanceHandler2{},
+		},
 		{
 			name: "base transaction timestamp misaligned",
 			tx: &chain.Transaction{
@@ -578,16 +588,6 @@ func TestPreExecute(t *testing.T) {
 			},
 			bh:  &mockBalanceHandler1{},
 			err: errMockInsufficientBalance,
-		},
-		{
-			name: "valid test case",
-			tx: &chain.Transaction{
-				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
-				},
-				Auth: &auth1{},
-			},
-			bh: &mockBalanceHandler2{},
 		},
 	}
 
