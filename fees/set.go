@@ -75,7 +75,7 @@ func LargestSet(dimensions []Dimensions, limit Dimensions) ([]uint64, Dimensions
 			outIndices[i] = uint64(len(dimensions))
 			continue
 		}
-		err = accumulator.AddDimensions(dim)
+		accumulator, err = Add(accumulator, dim)
 		if err != nil {
 			return []uint64{}, Dimensions{}
 		}

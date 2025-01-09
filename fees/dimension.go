@@ -73,19 +73,6 @@ func (d Dimensions) Add(i Dimension, v uint64) error {
 	return nil
 }
 
-func (d *Dimensions) AddDimensions(a Dimensions) error {
-	var combined Dimensions
-	var err error
-	for i := Dimension(0); i < FeeDimensions; i++ {
-		combined[i], err = math.Add(d[i], a[i])
-		if err != nil {
-			return err
-		}
-	}
-	*d = combined
-	return nil
-}
-
 func (d Dimensions) CanAdd(a Dimensions, l Dimensions) bool {
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		consumed, err := math.Add(d[i], a[i])
