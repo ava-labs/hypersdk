@@ -7,7 +7,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'x/contracts/**'
+      - 'Cargo.toml'
   pull_request:
+    paths:
+      - 'x/contracts/**'
+      - 'Cargo.toml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
