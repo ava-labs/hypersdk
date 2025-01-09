@@ -81,11 +81,11 @@ func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
 	minUnitPrice := r.GetMinUnitPrice()
 	lastTimeSeconds := int64(binary.BigEndian.Uint64(f.raw[0:consts.Int64Len]))
 	currTimeSeconds := currTime / consts.MillisecondsPerSecond
-	since := currTimeSeconds - lastTimeSeconds
+	since := uint64(currTimeSeconds - lastTimeSeconds)
 	bytes := make([]byte, consts.Int64Len+dimensionStateLen*fees.FeeDimensions)
 	binary.BigEndian.PutUint64(bytes[0:consts.Int64Len], uint64(currTimeSeconds))
 	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
-		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
+		nextUnitPrice, nextUnitWindow := computeNextPriceWindow(
 			f.Window(i),
 			f.LastConsumed(i),
 			f.UnitPrice(i),
@@ -94,9 +94,6 @@ func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
 			minUnitPrice[i],
 			since,
 		)
-		if err != nil {
-			return nil, err
-		}
 		start := consts.Int64Len + dimensionStateLen*i
 		binary.BigEndian.PutUint64(bytes[start:start+consts.Uint64Len], nextUnitPrice)
 		copy(bytes[start+consts.Uint64Len:start+consts.Uint64Len+window.WindowSliceSize], nextUnitWindow[:])
@@ -210,12 +207,9 @@ func computeNextPriceWindow(
 	target uint64, /* per window */
 	changeDenom uint64,
 	minPrice uint64,
-	since int64, /* seconds */
-) (uint64, window.Window, error) {
-	newRollupWindow, err := window.Roll(previous, since)
-	if err != nil {
-		return 0, window.Window{}, err
-	}
+	since uint64, /* seconds */
+) (uint64, window.Window) {
+	newRollupWindow := window.Roll(previous, since)
 	if since < window.WindowSize {
 		// add in the units used by the parent block in the correct place
 		// If the parent consumed units within the rollup window, add the consumed
@@ -258,7 +252,7 @@ func computeNextPriceWindow(
 		// that has elapsed between the parent and this block.
 		if since > window.WindowSize {
 			// Note: roll/rollupWindow must be greater than 1 since we've checked that roll > rollupWindow
-			baseDelta *= uint64(since / window.WindowSize)
+			baseDelta *= since / window.WindowSize
 		}
 		n, under := math.Sub(nextPrice, baseDelta)
 		if under != nil {
@@ -270,7 +264,7 @@ func computeNextPriceWindow(
 	if nextPrice < minPrice {
 		nextPrice = minPrice
 	}
-	return nextPrice, newRollupWindow, nil
+	return nextPrice, newRollupWindow
 }
 
 type Rules interface {
