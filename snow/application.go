@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/utils"
 
 	"github.com/ava-labs/hypersdk/event"
 )
@@ -22,8 +23,7 @@ type VM[I Block, O Block, A Block] struct {
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := v.vm.GetBlock(ctx, blkID)
 	if err != nil {
-		var emptyI I
-		return emptyI, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -31,8 +31,7 @@ func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := v.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
-		var emptyI I
-		return emptyI, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -40,8 +39,7 @@ func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, e
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
 	blk, err := v.vm.ParseBlock(ctx, bytes)
 	if err != nil {
-		var emptyI I
-		return emptyI, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }

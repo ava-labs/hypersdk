@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +23,7 @@ type ChainIndex[T Block] interface {
 	GetLastAcceptedHeight(ctx context.Context) (uint64, error)
 	GetBlock(ctx context.Context, blkID ids.ID) (T, error)
 	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
-	GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint64, error)
+	GetBlockIDHeight(ctx context.Context, blkID ids.ID) (uint64, error)
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
@@ -105,8 +106,7 @@ type ConsensusIndex[I Block, O Block, A Block] struct {
 func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := c.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
-		var emptyBlk I
-		return emptyBlk, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -114,8 +114,7 @@ func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height u
 func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := c.vm.GetBlock(ctx, blkID)
 	if err != nil {
-		var emptyBlk I
-		return emptyBlk, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -124,10 +123,9 @@ func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, err
 	c.vm.chainLock.Lock()
 	defer c.vm.chainLock.Unlock()
 
-	var emptyOutputBlk O
 	blk, err := c.vm.GetBlock(ctx, c.vm.preferredBlkID)
 	if err != nil {
-		return emptyOutputBlk, err
+		return utils.Zero[O](), err
 	}
 
 	if !blk.verified {
@@ -143,7 +141,7 @@ func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, err
 			zap.Stringer("preferred", blk),
 		)
 		if err := blk.innerVerify(ctx); err != nil {
-			return emptyOutputBlk, fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
+			return utils.Zero[O](), fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
 		}
 		return blk.Output, nil
 	}

@@ -3,7 +3,11 @@
 
 package context
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/ava-labs/avalanchego/utils"
+)
 
 type Config map[string]json.RawMessage
 
@@ -30,9 +34,8 @@ func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
 		return defaultConfig, nil
 	}
 
-	var emptyConfig T
 	if err := json.Unmarshal(val, &defaultConfig); err != nil {
-		return emptyConfig, err
+		return utils.Zero[T](), err
 	}
 	return defaultConfig, nil
 }
