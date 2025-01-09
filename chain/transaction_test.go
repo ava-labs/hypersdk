@@ -406,7 +406,6 @@ func TestSignRawActionBytesTx(t *testing.T) {
 }
 
 func TestPreExecute(t *testing.T) {
-	// Test values
 	testRules := genesis.NewDefaultRules()
 	maxNumOfActions := 16
 	differentChainID := ids.ID{1}
