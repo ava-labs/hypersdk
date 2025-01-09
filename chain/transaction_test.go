@@ -412,7 +412,6 @@ func TestPreExecute(t *testing.T) {
 
 	tests := []struct {
 		name string
-
 		tx        *chain.Transaction
 		timestamp int64
 		err       error
