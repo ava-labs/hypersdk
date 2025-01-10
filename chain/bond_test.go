@@ -240,33 +240,37 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 }
 
 type TestAuth struct {
-	SponsorF codec.Address
+	TypeID        uint8
+	Start         int64
+	End           int64
+	ComputeUnitsF uint64
+	VerifyErr     error
+	ActorF        codec.Address
+	SponsorF      codec.Address
 }
 
-func (TestAuth) GetTypeID() uint8 {
-	return 0
+func (t TestAuth) GetTypeID() uint8 {
+	return t.TypeID
 }
 
-func (TestAuth) ValidRange(Rules) (start int64, end int64) {
-	return 0, 0
+func (t TestAuth) ValidRange(Rules) (start int64, end int64) {
+	return t.Start, t.End
 }
 
-func (TestAuth) Marshal(p *codec.Packer) {}
+func (TestAuth) Marshal(*codec.Packer) {}
 
-func (TestAuth) Size() int {
-	return 0
+func (TestAuth) Size() int { return 0 }
+
+func (t TestAuth) ComputeUnits(Rules) uint64 {
+	return t.ComputeUnitsF
 }
 
-func (TestAuth) ComputeUnits(Rules) uint64 {
-	return 0
+func (t TestAuth) Verify(context.Context, []byte) error {
+	return t.VerifyErr
 }
 
-func (TestAuth) Verify(context.Context, []byte) error {
-	return nil
-}
-
-func (TestAuth) Actor() codec.Address {
-	return codec.EmptyAddress
+func (t TestAuth) Actor() codec.Address {
+	return t.ActorF
 }
 
 func (t TestAuth) Sponsor() codec.Address {

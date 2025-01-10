@@ -22,15 +22,15 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 	addrOne := codectest.NewRandomAddress()
 	addrTwo := codectest.NewRandomAddress()
 
-	// AddBalance() tests are not checked for state keys
+	// AddFeeBalance() tests are not checked for state keys
 	t.Run("add balance", func(t *testing.T) {
 		r := require.New(t)
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
-		balance, err := bh.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -40,11 +40,11 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, consts.MaxUint64))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, consts.MaxUint64))
 
-		r.Error(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.Error(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
-		balance, err := bh.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(consts.MaxUint64, balance)
 	})
@@ -54,14 +54,14 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
-		r.NoError(bh.AddBalance(ctx, addrTwo, ms, 2))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrTwo, ms, 2))
 
-		balance, err := bh.GetBalance(ctx, addrOne, ms)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, ms)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 
-		balance, err = bh.GetBalance(ctx, addrTwo, ms)
+		balance, err = bh.GetFeeBalance(ctx, addrTwo, ms)
 		r.NoError(err)
 		r.Equal(uint64(2), balance)
 	})
@@ -71,7 +71,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		stateKeys := bh.SponsorStateKeys(addrOne)
@@ -81,9 +81,9 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 			len(stateKeys),
 		)
 
-		r.NoError(bh.Deduct(ctx, addrOne, tsv, 1))
+		r.NoError(bh.DeductFeeBalance(ctx, addrOne, tsv, 1))
 
-		balance, err := bh.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(0), balance)
 	})
@@ -93,7 +93,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		stateKeys := bh.SponsorStateKeys(addrOne)
@@ -103,9 +103,9 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 			len(stateKeys),
 		)
 
-		r.Error(bh.Deduct(ctx, addrOne, tsv, 2))
+		r.Error(bh.DeductFeeBalance(ctx, addrOne, tsv, 2))
 
-		balance, err := bh.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -115,7 +115,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		stateKeys := bh.SponsorStateKeys(addrOne)
@@ -125,9 +125,9 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 			len(stateKeys),
 		)
 
-		r.NoError(bh.CanDeduct(ctx, addrOne, tsv, 1))
+		r.NoError(bh.CanDeductFeeBalance(ctx, addrOne, tsv, 1))
 
-		balance, err := bh.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})
@@ -137,7 +137,7 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 		ms := NewInMemoryStore()
 		bh := bf()
 
-		r.NoError(bh.AddBalance(ctx, addrOne, ms, 1))
+		r.NoError(bh.AddFeeBalance(ctx, addrOne, ms, 1))
 
 		ts := tstate.New(1)
 		stateKeys := bh.SponsorStateKeys(addrOne)
@@ -147,9 +147,9 @@ func TestBalanceHandler(t *testing.T, ctx context.Context, bf func() chain.Balan
 			len(stateKeys),
 		)
 
-		r.Error(bh.CanDeduct(ctx, addrOne, tsv, 2))
+		r.Error(bh.CanDeductFeeBalance(ctx, addrOne, tsv, 2))
 
-		balance, err := bh.GetBalance(ctx, addrOne, tsv)
+		balance, err := bh.GetFeeBalance(ctx, addrOne, tsv)
 		r.NoError(err)
 		r.Equal(uint64(1), balance)
 	})

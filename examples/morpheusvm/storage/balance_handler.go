@@ -21,7 +21,7 @@ func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	}
 }
 
-func (*BalanceHandler) CanDeduct(
+func (*BalanceHandler) CanDeductFeeBalance(
 	ctx context.Context,
 	addr codec.Address,
 	im state.Immutable,
@@ -37,7 +37,7 @@ func (*BalanceHandler) CanDeduct(
 	return nil
 }
 
-func (*BalanceHandler) Deduct(
+func (*BalanceHandler) DeductFeeBalance(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -47,7 +47,7 @@ func (*BalanceHandler) Deduct(
 	return err
 }
 
-func (*BalanceHandler) AddBalance(
+func (*BalanceHandler) AddFeeBalance(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -57,6 +57,21 @@ func (*BalanceHandler) AddBalance(
 	return err
 }
 
-func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+func (*BalanceHandler) GetFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	return GetBalance(ctx, im, addr)
+}
+
+func (h *BalanceHandler) SetMaxBondBalance(ctx context.Context, mutable state.Mutable, address codec.Address, maxBalance uint32) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (h *BalanceHandler) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) (bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (h *BalanceHandler) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
+	//TODO implement me
+	panic("implement me")
 }
