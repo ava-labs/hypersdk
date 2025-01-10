@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -30,26 +30,27 @@ func TestSetMaxBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-			b := NewBonder(memdb.New())
+			b := Bonder{}
 
+			mutable := &state.SimpleMutable{}
 			address := codec.Address{1, 2, 3}
-			r.NoError(b.SetMaxBalance(address, tt.maxBalance))
+			r.NoError(b.SetMaxBalance(context.Background(), mutable, address, tt.maxBalance))
 
 			for i := 0; i < int(tt.maxBalance); i++ {
-				ok, err := b.Bond(&Transaction{
-					Auth: TestAuth{
-						SponsorF: address,
-					},
-				})
+				ok, err := b.Bond(
+					context.Background(),
+					mutable,
+					&Transaction{Auth: TestAuth{SponsorF: address}},
+				)
 				r.NoError(err)
 				r.True(ok)
 			}
 
-			ok, err := b.Bond(&Transaction{
-				Auth: TestAuth{
-					SponsorF: address,
-				},
-			})
+			ok, err := b.Bond(
+				context.Background(),
+				mutable,
+				&Transaction{Auth: TestAuth{SponsorF: address}},
+			)
 			r.NoError(err)
 			r.False(ok)
 		})
@@ -139,24 +140,34 @@ func TestBond(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-			b := NewBonder(memdb.New())
+			b := Bonder{}
 
+			mutable := &state.SimpleMutable{}
 			address := codec.Address{1, 2, 3}
-			r.NoError(b.SetMaxBalance(address, tt.max))
+			r.NoError(b.SetMaxBalance(
+				context.Background(),
+				mutable,
+				address,
+				tt.max,
+			))
 
 			for _, wantOk := range tt.wantBond {
-				ok, err := b.Bond(&Transaction{
-					Auth: TestAuth{
-						SponsorF: address,
-					},
-				})
+				ok, err := b.Bond(
+					context.Background(),
+					mutable,
+					&Transaction{Auth: TestAuth{SponsorF: address}},
+				)
 				r.NoError(err)
 				r.Equal(wantOk, ok)
 			}
 
 			for _, wantErr := range tt.wantUnbond {
 				r.ErrorIs(
-					b.Unbond(&Transaction{Auth: TestAuth{SponsorF: address}}),
+					b.Unbond(
+						context.Background(),
+						mutable,
+						&Transaction{Auth: TestAuth{SponsorF: address}},
+					),
 					wantErr,
 				)
 			}
@@ -166,10 +177,11 @@ func TestBond(t *testing.T) {
 
 func TestSetMaxBalanceDuringBond(t *testing.T) {
 	r := require.New(t)
-	b := NewBonder(memdb.New())
+	b := Bonder{}
 
+	mutable := &state.SimpleMutable{}
 	address := codec.Address{1, 2, 3}
-	r.NoError(b.SetMaxBalance(address, 3))
+	r.NoError(b.SetMaxBalance(context.Background(), mutable, address, 3))
 
 	tx1 := &Transaction{
 		Auth: TestAuth{
@@ -189,22 +201,22 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 		},
 	}
 
-	ok, err := b.Bond(tx1)
+	ok, err := b.Bond(context.Background(), mutable, tx1)
 	r.NoError(err)
 	r.True(ok)
 
-	ok, err = b.Bond(tx2)
+	ok, err = b.Bond(context.Background(), mutable, tx2)
 	r.NoError(err)
 	r.True(ok)
 
-	r.NoError(b.SetMaxBalance(address, 0))
+	r.NoError(b.SetMaxBalance(context.Background(), mutable, address, 0))
 
-	ok, err = b.Bond(tx3)
+	ok, err = b.Bond(context.Background(), mutable, tx3)
 	r.NoError(err)
 	r.False(ok)
 
-	r.NoError(b.Unbond(tx1))
-	r.NoError(b.Unbond(tx2))
+	r.NoError(b.Unbond(context.Background(), mutable, tx1))
+	r.NoError(b.Unbond(context.Background(), mutable, tx2))
 }
 
 type TestAuth struct {

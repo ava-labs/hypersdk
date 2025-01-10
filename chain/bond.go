@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/fdsmr"
 )
 
@@ -27,41 +29,40 @@ type BondBalance struct {
 	Max     uint32 `serialize:"true"`
 }
 
-func NewBonder(db database.Database) *Bonder {
-	return &Bonder{db: db}
-}
-
 // Bonder maintains state of account bond balances to limit the amount of
 // pending transactions per account
-type Bonder struct {
-	db database.Database
-}
+type Bonder struct{}
 
 // this needs to be thread-safe if it's called from the api
-func (b *Bonder) SetMaxBalance(address codec.Address, maxBalance uint32) error {
+func (b *Bonder) SetMaxBalance(
+	ctx context.Context,
+	mutable state.Mutable,
+	address codec.Address,
+	maxBalance uint32,
+) error {
 	addressBytes := address[:]
 	if maxBalance == 0 {
-		return b.db.Delete(addressBytes)
+		return mutable.Remove(ctx, addressBytes)
 	}
 
-	balance, err := b.getBalance(addressBytes)
+	balance, err := getBalance(ctx, mutable, addressBytes)
 	if err != nil {
 		return err
 	}
 
 	balance.Max = maxBalance
-	if err := b.putBalance(addressBytes, balance); err != nil {
+	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (b *Bonder) Bond(tx *Transaction) (bool, error) {
+func (b *Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction) (bool, error) {
 	address := tx.GetSponsor()
 	addressBytes := address[:]
 
-	balance, err := b.getBalance(addressBytes)
+	balance, err := getBalance(ctx, mutable, addressBytes)
 	if err != nil {
 		return false, err
 	}
@@ -71,18 +72,18 @@ func (b *Bonder) Bond(tx *Transaction) (bool, error) {
 	}
 
 	balance.Pending++
-	if err := b.putBalance(addressBytes, balance); err != nil {
+	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
 		return false, err
 	}
 
 	return true, nil
 }
 
-func (b *Bonder) Unbond(tx *Transaction) error {
+func (b *Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error {
 	address := tx.GetSponsor()
 	addressBytes := address[:]
 
-	balance, err := b.getBalance(addressBytes)
+	balance, err := getBalance(ctx, mutable, addressBytes)
 	if err != nil {
 		return err
 	}
@@ -92,15 +93,15 @@ func (b *Bonder) Unbond(tx *Transaction) error {
 	}
 
 	balance.Pending--
-	if err := b.putBalance(addressBytes, balance); err != nil {
+	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (b *Bonder) getBalance(address []byte) (BondBalance, error) {
-	currentBytes, err := b.db.Get(address)
+func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (BondBalance, error) {
+	currentBytes, err := mutable.GetValue(ctx, address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return BondBalance{}, fmt.Errorf("failed to get bond balance")
 	}
@@ -120,13 +121,13 @@ func (b *Bonder) getBalance(address []byte) (BondBalance, error) {
 	return balance, nil
 }
 
-func (b *Bonder) putBalance(address []byte, balance BondBalance) error {
+func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance BondBalance) error {
 	p := &wrappers.Packer{Bytes: make([]byte, bondAllocSize)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)
 	}
 
-	if err := b.db.Put(address, p.Bytes); err != nil {
+	if err := mutable.Insert(ctx, address, p.Bytes); err != nil {
 		return fmt.Errorf("failed to update bond balance: %w", err)
 	}
 
