@@ -27,7 +27,7 @@ type ChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *vm[I, O, A]) makeConsensusIndex(
+func (v *VM[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
 	chainIndex ChainIndex[I],
 	outputBlock O,
@@ -64,11 +64,11 @@ func (v *vm[I, O, A]) makeConsensusIndex(
 
 // GetConsensusIndex returns the consensus index exposed to the application. The consensus index is created during chain initialization
 // and is exposed here for testing.
-func (v *vm[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
+func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
 	return v.consensusIndex
 }
 
-func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
+func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
 	if inputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
 		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
 	}
@@ -100,7 +100,7 @@ func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 // ie. last accepted block is guaranteed to have Accepted type available, whereas the preferred block
 // is only guaranteed to have the Output type available.
 type ConsensusIndex[I Block, O Block, A Block] struct {
-	vm *vm[I, O, A]
+	vm *VM[I, O, A]
 }
 
 func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {

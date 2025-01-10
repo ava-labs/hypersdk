@@ -126,7 +126,7 @@ func NewTestChain(
 func (t *TestChain) Initialize(
 	ctx context.Context,
 	chainInput ChainInput,
-	_ VM[*TestBlock, *TestBlock, *TestBlock],
+	_ *VM[*TestBlock, *TestBlock, *TestBlock],
 ) (ChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
 	chainIndex, err := chainindex.New[*TestBlock](chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
 	if err != nil {
@@ -224,7 +224,7 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 // and assumes the VM always builds a correct block.
 func (ce *TestConsensusEngine) BuildBlock(ctx context.Context) (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
 	preferredID := ce.preferred.ID()
-	blk, err := ce.vm.vm.BuildBlock(ctx)
+	blk, err := ce.vm.VM.BuildBlock(ctx)
 
 	ce.require.NoError(err)
 	ce.require.Equal(preferredID, blk.Parent())
@@ -370,7 +370,7 @@ func (ce *TestConsensusEngine) ParseFutureBlock(ctx context.Context) {
 
 func (ce *TestConsensusEngine) ParseAndVerifyNewBlock(ctx context.Context, parent *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) *StatefulBlock[*TestBlock, *TestBlock, *TestBlock] {
 	newBlk := NewTestBlockFromParent(parent.Input)
-	parsedBlk, err := ce.vm.vm.ParseBlock(ctx, newBlk.Bytes())
+	parsedBlk, err := ce.vm.VM.ParseBlock(ctx, newBlk.Bytes())
 	ce.require.NoError(err)
 	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
 	ce.verifyValidBlock(ctx, parsedBlk)
@@ -492,7 +492,7 @@ func (ce *TestConsensusEngine) FinishStateSync(ctx context.Context, blk *Statefu
 	blk.Input.outputPopulated = true
 	blk.Input.acceptedPopulated = true
 	blk.setAccepted(blk.Input, blk.Input)
-	ce.require.NoError(ce.vm.finishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
+	ce.require.NoError(ce.vm.FinishStateSync(ctx, blk.Input, blk.Output, blk.Accepted))
 }
 
 type step int
@@ -829,7 +829,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	invalidTestBlock := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock.Invalid = true
 
-	parsedBlk, err := ce.vm.vm.ParseBlock(ctx, invalidTestBlock.Bytes())
+	parsedBlk, err := ce.vm.VM.ParseBlock(ctx, invalidTestBlock.Bytes())
 	ce.require.NoError(err)
 	ce.verifyValidBlock(ctx, parsedBlk)
 

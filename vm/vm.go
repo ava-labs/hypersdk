@@ -72,7 +72,7 @@ var (
 
 type VM struct {
 	snowInput hsnow.ChainInput
-	snowApp   *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	snowApp   *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 
 	proposerMonitor *validators.ProposerMonitor
 
@@ -153,7 +153,7 @@ func New(
 func (vm *VM) Initialize(
 	ctx context.Context,
 	chainInput hsnow.ChainInput,
-	snowApp *hsnow.Application[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
+	snowApp *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
 ) (hsnow.ChainIndex[*chain.ExecutionBlock], *chain.OutputBlock, *chain.OutputBlock, bool, error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
@@ -175,7 +175,7 @@ func (vm *VM) Initialize(
 	}
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 
-	vm.network = snowApp.Network
+	vm.network = snowApp.GetNetwork()
 
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	vm.GenesisBytes = genesisBytes
