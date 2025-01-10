@@ -102,7 +102,7 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (BondBalance, error) {
 	currentBytes, err := mutable.GetValue(ctx, address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return BondBalance{}, fmt.Errorf("failed to get bond balance")
+		return BondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
 	}
 
 	if currentBytes == nil {
