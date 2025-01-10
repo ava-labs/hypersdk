@@ -39,7 +39,7 @@ var (
 
 type NoVerifier[T Tx] struct{}
 
-func (NoVerifier[T]) Verify(chunk Chunk[T]) error {
+func (NoVerifier[T]) Verify(Chunk[T]) error {
 	return nil
 }
 
