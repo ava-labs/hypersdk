@@ -22,13 +22,12 @@ import (
 )
 
 var (
-	_ state.View                                    = (*abstractMockView)(nil)
 	_ chain.MetadataManager                         = (*mockMetadataManager)(nil)
-	_ validitywindow.ChainIndex[*chain.Transaction] = (*mockChainIndex1)(nil)
-	_ validitywindow.ChainIndex[*chain.Transaction] = (*mockChainIndex2)(nil)
 	_ chain.Action                                  = (*mockAction1)(nil)
 	_ chain.Auth                                    = (*mockAuth)(nil)
 	_ chain.BalanceHandler                          = (*mockBalanceHandler)(nil)
+	_ state.View                                    = (*abstractMockView)(nil)
+	_ validitywindow.ChainIndex[*chain.Transaction] = (*mockChainIndex)(nil)
 )
 
 var (
@@ -81,16 +80,12 @@ func (*mockMetadataManager) TimestampPrefix() []byte {
 	return []byte{}
 }
 
-type mockChainIndex1 struct{}
-
-func (*mockChainIndex1) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
-	return nil, errMockExecutionBlock
+type mockChainIndex struct {
+	err error
 }
 
-type mockChainIndex2 struct{}
-
-func (*mockChainIndex2) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
-	return nil, nil
+func (m *mockChainIndex) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
+	return nil, m.err
 }
 
 type mockAction1 struct {
@@ -182,12 +177,14 @@ func TestPreExecutor(t *testing.T) {
 			err:  errMockView,
 		},
 		{
-			name:       "repeat error",
-			view:       &mockView2{},
-			tx:         &chain.Transaction{},
-			chainIndex: &mockChainIndex1{},
-			height:     1,
-			err:        errMockExecutionBlock,
+			name: "repeat error",
+			view: &mockView2{},
+			tx:   &chain.Transaction{},
+			chainIndex: &mockChainIndex{
+				err: errMockExecutionBlock,
+			},
+			height: 1,
+			err:    errMockExecutionBlock,
 		},
 		{
 			name: "tx state keys are invalid",
@@ -204,7 +201,7 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			chainIndex: &mockChainIndex2{},
+			chainIndex: &mockChainIndex{},
 			err:        chain.ErrInvalidKeyValue,
 		},
 		{
@@ -219,7 +216,7 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			chainIndex: &mockChainIndex2{},
+			chainIndex: &mockChainIndex{},
 			verifyAuth: true,
 			err:        errMockAuth,
 		},
