@@ -439,8 +439,11 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			wantErr:  ErrInvalidChunk,
 		},
 		{
-			name:     "valid chunk",
-			verifier: ChunkVerifier[dsmrtest.Tx]{},
+			name: "valid chunk",
+			verifier: ChunkVerifier[dsmrtest.Tx]{
+				networkID: networkID,
+				chainID:   chainID,
+			},
 		},
 	}
 
@@ -514,22 +517,19 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunk, err := newChunk[dsmrtest.Tx](
-				UnsignedChunk[dsmrtest.Tx]{
-					Producer:    ids.GenerateTestNodeID(),
-					Beneficiary: codec.Address{123},
-					Expiry:      123,
-					Txs: []dsmrtest.Tx{
-						{
-							ID:      ids.GenerateTestID(),
-							Expiry:  456,
-							Sponsor: codec.Address{4, 5, 6},
-						},
+			unsignedChunk := UnsignedChunk[dsmrtest.Tx]{
+				Producer:    ids.GenerateTestNodeID(),
+				Beneficiary: codec.Address{123},
+				Expiry:      123,
+				Txs: []dsmrtest.Tx{
+					{
+						ID:      ids.GenerateTestID(),
+						Expiry:  456,
+						Sponsor: codec.Address{4, 5, 6},
 					},
 				},
-				[48]byte{},
-				[96]byte{},
-			)
+			}
+			chunk, err := signChunk[dsmrtest.Tx](unsignedChunk, networkID, chainID, pk, signer)
 			r.NoError(err)
 
 			packer := wrappers.Packer{MaxSize: MaxMessageSize}
@@ -1269,8 +1269,11 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			storage: chunkStorage,
 		}
 		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[dsmrtest.Tx]{
-			verifier: ChunkVerifier[dsmrtest.Tx]{},
-			storage:  chunkStorage,
+			verifier: ChunkVerifier[dsmrtest.Tx]{
+				networkID: networkID,
+				chainID:   chainID,
+			},
+			storage: chunkStorage,
 		}, signer)
 		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[dsmrtest.Tx]{
 			storage: chunkStorage,

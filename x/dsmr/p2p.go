@@ -114,6 +114,11 @@ type ChunkSignatureRequestVerifier[T Tx] struct {
 	storage  *ChunkStorage[T]
 }
 
+// TODO:
+// check the following:
+// 1. valid signature
+// 2. check expiry is valid right now.
+// 3. Does the producer had the right to produce this chunk ?
 func (c ChunkSignatureRequestVerifier[T]) Verify(
 	_ context.Context,
 	_ *warp.UnsignedMessage,

@@ -43,11 +43,13 @@ func (NoVerifier[T]) Verify(chunk Chunk[T]) error {
 	return nil
 }
 
-type ChunkVerifier[T Tx] struct{}
+type ChunkVerifier[T Tx] struct {
+	networkID uint32
+	chainID   ids.ID
+}
 
-func (ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
-	// chunk.Signature
-	return nil
+func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
+	return chunk.Verify(c.networkID, c.chainID)
 }
 
 type StoredChunkSignature[T Tx] struct {
