@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/dsmr"
 	"github.com/ava-labs/hypersdk/x/dsmr/dsmrtest"
 )
