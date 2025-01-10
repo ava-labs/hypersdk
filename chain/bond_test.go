@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/stretchr/testify/require"
 
@@ -32,7 +34,13 @@ func TestSetMaxBalance(t *testing.T) {
 			r := require.New(t)
 			b := Bonder{}
 
-			mutable := &state.SimpleMutable{}
+			db, err := merkledb.New(
+				context.Background(),
+				memdb.New(),
+				merkledb.Config{BranchFactor: 2},
+			)
+			r.NoError(err)
+			mutable := state.NewSimpleMutable(db)
 			address := codec.Address{1, 2, 3}
 			r.NoError(b.SetMaxBalance(context.Background(), mutable, address, tt.maxBalance))
 
@@ -142,7 +150,13 @@ func TestBond(t *testing.T) {
 			r := require.New(t)
 			b := Bonder{}
 
-			mutable := &state.SimpleMutable{}
+			db, err := merkledb.New(
+				context.Background(),
+				memdb.New(),
+				merkledb.Config{BranchFactor: 2},
+			)
+			r.NoError(err)
+			mutable := state.NewSimpleMutable(db)
 			address := codec.Address{1, 2, 3}
 			r.NoError(b.SetMaxBalance(
 				context.Background(),
@@ -179,7 +193,13 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 	r := require.New(t)
 	b := Bonder{}
 
-	mutable := &state.SimpleMutable{}
+	db, err := merkledb.New(
+		context.Background(),
+		memdb.New(),
+		merkledb.Config{BranchFactor: 2},
+	)
+	r.NoError(err)
+	mutable := state.NewSimpleMutable(db)
 	address := codec.Address{1, 2, 3}
 	r.NoError(b.SetMaxBalance(context.Background(), mutable, address, 3))
 
