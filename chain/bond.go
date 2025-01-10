@@ -36,7 +36,7 @@ type BondBalance struct {
 type Bonder struct{}
 
 // this needs to be thread-safe if it's called from the api
-func (b *Bonder) SetMaxBalance(
+func (Bonder) SetMaxBalance(
 	ctx context.Context,
 	mutable state.Mutable,
 	address codec.Address,
@@ -57,7 +57,7 @@ func (b *Bonder) SetMaxBalance(
 	return nil
 }
 
-func (b *Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction) (bool, error) {
+func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction) (bool, error) {
 	address := tx.GetSponsor()
 	addressBytes := address[:]
 
@@ -78,7 +78,7 @@ func (b *Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transactio
 	return true, nil
 }
 
-func (b *Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error {
+func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error {
 	address := tx.GetSponsor()
 	addressBytes := address[:]
 
