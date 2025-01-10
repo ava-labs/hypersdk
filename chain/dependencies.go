@@ -101,18 +101,6 @@ type BalanceHandler interface {
 	// GetFeeBalance returns the balance of [addr].
 	// If [addr] does not exist, this should return 0 and no error.
 	GetFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
-
-	// SetMaxBondBalance sets the maximum bond balance for and address
-	SetMaxBondBalance(
-		ctx context.Context,
-		mutable state.Mutable,
-		address codec.Address,
-		maxBalance uint32,
-	) error
-	// Bond returns if a transaction is able to be bonded
-	Bond(ctx context.Context, mutable state.Mutable, tx *Transaction) (bool, error)
-	// Unbond unbonds a transaction which has either expired or been accepted
-	Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error
 }
 
 type Object interface {

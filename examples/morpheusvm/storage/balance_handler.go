@@ -66,18 +66,3 @@ func (*BalanceHandler) AddFeeBalance(
 func (*BalanceHandler) GetFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	return GetBalance(ctx, im, addr)
 }
-
-func (h *BalanceHandler) SetMaxBondBalance(ctx context.Context, mutable state.Mutable, address codec.Address, maxBalance uint32) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (h *BalanceHandler) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) (bool, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (h *BalanceHandler) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
-	//TODO implement me
-	panic("implement me")
-}
