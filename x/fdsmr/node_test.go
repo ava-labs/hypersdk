@@ -396,7 +396,8 @@ func TestUnbondOnExpiry(t *testing.T) {
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
-			_, err := n.Accept(context.Background(),
+			_, err := n.Accept(
+				context.Background(),
 				nil,
 				dsmr.Block{
 					BlockHeader: dsmr.BlockHeader{
