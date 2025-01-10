@@ -300,7 +300,7 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	return bh.CanDeductFeeBalance(ctx, t.Auth.Sponsor(), im, fee)
+	return bh.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
@@ -326,7 +326,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, fmt.Errorf("failed to calculate tx fee: %w", err)
 	}
-	if err := bh.DeductFeeBalance(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
+	if err := bh.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, fmt.Errorf("failed to deduct tx fee: %w", err)

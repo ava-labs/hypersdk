@@ -89,18 +89,18 @@ type BalanceHandler interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	SponsorStateKeys(addr codec.Address) state.Keys
 
-	// CanDeductFeeBalance returns an error if [amount] cannot be paid by [addr].
-	CanDeductFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
+	// CanDeduct returns an error if [amount] cannot be paid by [addr].
+	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
 
-	// DeductFeeBalance removes [amount] from [addr] during transaction execution to pay fees.
-	DeductFeeBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
+	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
-	// AddFeeBalance adds [amount] to [addr].
-	AddFeeBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	// AddBalance adds [amount] to [addr].
+	AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
-	// GetFeeBalance returns the balance of [addr].
+	// GetBalance returns the balance of [addr].
 	// If [addr] does not exist, this should return 0 and no error.
-	GetFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
+	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
 type Object interface {

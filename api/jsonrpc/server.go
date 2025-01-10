@@ -351,7 +351,7 @@ func (j *JSONRPCServer) GetBalance(
 	args *GetBalanceArgs,
 	reply *GetBalanceReply,
 ) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetFeeBalance")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetBalance")
 	defer span.End()
 
 	im, err := j.vm.ImmutableState(ctx)
@@ -359,7 +359,7 @@ func (j *JSONRPCServer) GetBalance(
 		return err
 	}
 
-	balance, err := j.vm.BalanceHandler().GetFeeBalance(ctx, args.Address, im)
+	balance, err := j.vm.BalanceHandler().GetBalance(ctx, args.Address, im)
 	if err != nil {
 		return err
 	}
