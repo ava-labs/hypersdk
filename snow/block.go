@@ -49,11 +49,11 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	Accepted A
 	accepted bool
 
-	vm *VM[I, O, A]
+	vm *vm[I, O, A]
 }
 
 func NewInputBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 ) *StatefulBlock[I, O, A] {
 	return &StatefulBlock[I, O, A]{
@@ -63,7 +63,7 @@ func NewInputBlock[I Block, O Block, A Block](
 }
 
 func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 	output O,
 ) *StatefulBlock[I, O, A] {
@@ -76,7 +76,7 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 }
 
 func NewAcceptedBlock[I Block, O Block, A Block](
-	vm *VM[I, O, A],
+	vm *vm[I, O, A],
 	input I,
 	output O,
 	accepted A,
@@ -167,7 +167,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			return err
 		}
 
-		if err := event.NotifyAll[O](ctx, b.Output, b.vm.app.VerifiedSubs...); err != nil {
+		if err := event.NotifyAll[O](ctx, b.Output, b.vm.verifiedSubs...); err != nil {
 			return err
 		}
 	}
@@ -258,10 +258,10 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *State
 func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	// If I was not actually marked accepted, notify pre ready subs
 	if !b.accepted {
-		return event.NotifyAll(ctx, b.Input, b.vm.app.PreReadyAcceptedSubs...)
+		return event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...)
 	}
 
-	return event.NotifyAll(ctx, b.Accepted, b.vm.app.AcceptedSubs...)
+	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -277,7 +277,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Accept")
 	defer span.End()
 
-	defer b.vm.log.Info("Accepting block", zap.Stringer("block", b))
+	defer b.vm.log.Info("accepting block", zap.Stringer("block", b))
 
 	// If I've already been verified, accept myself.
 	if b.verified {
@@ -324,7 +324,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 		return nil
 	}
 
-	return event.NotifyAll[O](ctx, b.Output, b.vm.app.RejectedSubs...)
+	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
 }
 
 // implements "snowman.Block"

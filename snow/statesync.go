@@ -12,15 +12,15 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
+var _ block.StateSyncableVM = (*vm[Block, Block, Block])(nil)
 
-func (a *Application[I, O, A]) WithStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
-	a.StateSyncableVM = stateSyncableVM
+func (v *VM[I, O, A]) SetStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
+	v.vm.stateSyncableVM = stateSyncableVM
 }
 
 // startStateSync marks the VM as "not ready" so that blocks are verified / accepted vaccuously
 // in DynamicStateSync mode until FinishStateSync is called.
-func (v *VM[I, O, A]) startStateSync(ctx context.Context, block I) error {
+func (v *vm[I, O, A]) startStateSync(ctx context.Context, block I) error {
 	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (v *VM[I, O, A]) startStateSync(ctx context.Context, block I) error {
 
 // finishStateSync is responsible for setting the last accepted block of the VM after state sync completes.
 // Expects the caller to hold the snow ctx lock
-func (v *VM[I, O, A]) finishStateSync(ctx context.Context, input I, output O, accepted A) error {
+func (v *vm[I, O, A]) finishStateSync(ctx context.Context, input I, output O, accepted A) error {
 	v.chainLock.Lock()
 	defer v.chainLock.Unlock()
 
@@ -86,22 +86,22 @@ func (v *VM[I, O, A]) finishStateSync(ctx context.Context, input I, output O, ac
 	return nil
 }
 
-func (v *VM[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return v.app.StateSyncableVM.StateSyncEnabled(ctx)
+func (v *vm[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
+	return v.stateSyncableVM.StateSyncEnabled(ctx)
 }
 
-func (v *VM[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetOngoingSyncStateSummary(ctx)
+func (v *vm[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
+	return v.stateSyncableVM.GetOngoingSyncStateSummary(ctx)
 }
 
-func (v *VM[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetLastStateSummary(ctx)
+func (v *vm[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
+	return v.stateSyncableVM.GetLastStateSummary(ctx)
 }
 
-func (v *VM[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.ParseStateSummary(ctx, summaryBytes)
+func (v *vm[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
+	return v.stateSyncableVM.ParseStateSummary(ctx, summaryBytes)
 }
 
-func (v *VM[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
-	return v.app.StateSyncableVM.GetStateSummary(ctx, summaryHeight)
+func (v *vm[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
+	return v.stateSyncableVM.GetStateSummary(ctx, summaryHeight)
 }

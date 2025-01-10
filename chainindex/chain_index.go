@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -26,9 +27,11 @@ const (
 	lastAcceptedByte    byte = 0x3 // lastAcceptedByte -> lastAcceptedHeight
 )
 
-var lastAcceptedKey = []byte{lastAcceptedByte}
+var (
+	lastAcceptedKey = []byte{lastAcceptedByte}
 
-var errBlockCompactionFrequencyZero = errors.New("block compaction frequency must be non-zero")
+	errBlockCompactionFrequencyZero = errors.New("block compaction frequency must be non-zero")
+)
 
 type Config struct {
 	AcceptedBlockWindow      uint64 `json:"acceptedBlockWindow"`
@@ -77,7 +80,8 @@ func New[T Block](
 	}
 
 	return &ChainIndex[T]{
-		config:           config,
+		config: config,
+		// Offset by random number to ensure the network does not compact simultaneously
 		compactionOffset: rand.Uint64() % config.BlockCompactionFrequency, //nolint:gosec
 		metrics:          metrics,
 		log:              log,
@@ -106,7 +110,7 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	err := errors.Join(
 		batch.Put(lastAcceptedKey, heightBytes),
 		batch.Put(prefixBlockIDHeightKey(blkID), heightBytes),
-		batch.Put(prefixBlockHeightIDKey(blk.Height()), blkID[:]),
+		batch.Put(prefixBlockHeightIDKey(height), blkID[:]),
 		batch.Put(prefixBlockKey(height), blkBytes),
 	)
 	if err != nil {
@@ -148,10 +152,9 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 }
 
 func (c *ChainIndex[T]) GetBlock(ctx context.Context, blkID ids.ID) (T, error) {
-	var emptyT T
 	height, err := c.GetBlockIDHeight(ctx, blkID)
 	if err != nil {
-		return emptyT, err
+		return utils.Zero[T](), err
 	}
 	return c.GetBlockByHeight(ctx, height)
 }
@@ -173,10 +176,9 @@ func (c *ChainIndex[T]) GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint6
 }
 
 func (c *ChainIndex[T]) GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error) {
-	var emptyT T
 	blkBytes, err := c.db.Get(prefixBlockKey(blkHeight))
 	if err != nil {
-		return emptyT, err
+		return utils.Zero[T](), err
 	}
 	return c.parser.ParseBlock(ctx, blkBytes)
 }

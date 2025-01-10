@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"go.uber.org/zap"
 )
 
@@ -22,11 +23,11 @@ type ChainIndex[T Block] interface {
 	GetLastAcceptedHeight(ctx context.Context) (uint64, error)
 	GetBlock(ctx context.Context, blkID ids.ID) (T, error)
 	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
-	GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint64, error)
+	GetBlockIDHeight(ctx context.Context, blkID ids.ID) (uint64, error)
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *VM[I, O, A]) makeConsensusIndex(
+func (v *vm[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
 	chainIndex ChainIndex[I],
 	outputBlock O,
@@ -63,11 +64,11 @@ func (v *VM[I, O, A]) makeConsensusIndex(
 
 // GetConsensusIndex returns the consensus index exposed to the application. The consensus index is created during chain initialization
 // and is exposed here for testing.
-func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
+func (v *vm[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
 	return v.consensusIndex
 }
 
-func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
 	if inputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
 		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
 	}
@@ -99,14 +100,13 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 // ie. last accepted block is guaranteed to have Accepted type available, whereas the preferred block
 // is only guaranteed to have the Output type available.
 type ConsensusIndex[I Block, O Block, A Block] struct {
-	vm *VM[I, O, A]
+	vm *vm[I, O, A]
 }
 
 func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := c.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
-		var emptyBlk I
-		return emptyBlk, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -114,8 +114,7 @@ func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height u
 func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := c.vm.GetBlock(ctx, blkID)
 	if err != nil {
-		var emptyBlk I
-		return emptyBlk, err
+		return utils.Zero[I](), err
 	}
 	return blk.Input, nil
 }
@@ -124,10 +123,9 @@ func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, err
 	c.vm.chainLock.Lock()
 	defer c.vm.chainLock.Unlock()
 
-	var emptyOutputBlk O
 	blk, err := c.vm.GetBlock(ctx, c.vm.preferredBlkID)
 	if err != nil {
-		return emptyOutputBlk, err
+		return utils.Zero[O](), err
 	}
 
 	if !blk.verified {
@@ -143,7 +141,7 @@ func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, err
 			zap.Stringer("preferred", blk),
 		)
 		if err := blk.innerVerify(ctx); err != nil {
-			return emptyOutputBlk, fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
+			return utils.Zero[O](), fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
 		}
 		return blk.Output, nil
 	}

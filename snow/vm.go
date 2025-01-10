@@ -34,7 +34,7 @@ import (
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
-var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
+var _ block.StateSyncableVM = (*vm[Block, Block, Block])(nil)
 
 type ChainInput struct {
 	SnowCtx                    *snow.Context
@@ -58,7 +58,7 @@ type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		app *Application[I, O, A],
+		vm VM[I, O, A],
 	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
 	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
 	// VM with:
@@ -83,13 +83,33 @@ type Chain[I Block, O Block, A Block] interface {
 	AcceptBlock(ctx context.Context, acceptedParent A, block O) (A, error)
 }
 
-type VM[I Block, O Block, A Block] struct {
+type namedCloser struct {
+	name  string
+	close func() error
+}
+
+type vm[I Block, O Block, A Block] struct {
+	handlers        map[string]http.Handler
+	healthChecker   health.Checker
+	network         *p2p.Network
+	stateSyncableVM block.StateSyncableVM
+	closers         []namedCloser
+
+	onStateSyncStarted        []func(context.Context) error
+	onBootstrapStarted        []func(context.Context) error
+	onNormalOperationsStarted []func(context.Context) error
+
+	verifiedSubs         []event.Subscription[O]
+	rejectedSubs         []event.Subscription[O]
+	acceptedSubs         []event.Subscription[A]
+	preReadyAcceptedSubs []event.Subscription[I]
+	version              string
+
 	// chainLock must be held to process a block with chain (Build/Verify/Accept).
 	chainLock       sync.Mutex
 	chain           Chain[I, O, A]
 	inputChainIndex ChainIndex[I]
 	consensusIndex  *ConsensusIndex[I, O, A]
-	app             Application[I, O, A]
 
 	snowCtx  *snow.Context
 	hconfig  hcontext.Config
@@ -122,23 +142,18 @@ type VM[I Block, O Block, A Block] struct {
 	shutdownChan chan struct{}
 }
 
-func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
-	v := &VM[I, O, A]{
-		chain: chain,
-		app: Application[I, O, A]{
-			Version: version,
-			HealthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
-				return nil, nil
-			}),
-			Handlers:     make(map[string]http.Handler),
-			AcceptedSubs: make([]event.Subscription[A], 0),
-		},
+func newVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *vm[I, O, A] {
+	return &vm[I, O, A]{
+		handlers: make(map[string]http.Handler),
+		healthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
+			return nil, nil
+		}),
+		version: version,
+		chain:   chain,
 	}
-	v.app.vm = v
-	return v
 }
 
-func (v *VM[I, O, A]) Initialize(
+func (v *vm[I, O, A]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
 	_ database.Database,
@@ -195,14 +210,14 @@ func (v *VM[I, O, A]) Initialize(
 			continuousProfilerConfig.Freq,
 			continuousProfilerConfig.MaxNumFiles,
 		)
-		v.app.AddCloser("continuous profiler", func() error {
+		v.addCloser("continuous profiler", func() error {
 			continuousProfiler.Shutdown()
 			return nil
 		})
 		go continuousProfiler.Dispatch() //nolint:errcheck
 	}
 
-	v.app.Network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
+	v.network, err = p2p.NewNetwork(v.log, appSender, defaultRegistry, "p2p")
 	if err != nil {
 		return fmt.Errorf("failed to initialize p2p: %w", err)
 	}
@@ -233,7 +248,7 @@ func (v *VM[I, O, A]) Initialize(
 	inputChainIndex, lastOutput, lastAccepted, stateReady, err := v.chain.Initialize(
 		ctx,
 		chainInput,
-		&v.app,
+		VM[I, O, A]{vm: v},
 	)
 	if err != nil {
 		return err
@@ -249,7 +264,7 @@ func (v *VM[I, O, A]) Initialize(
 	return nil
 }
 
-func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
+func (v *vm[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
 	v.metaLock.Lock()
 	defer v.metaLock.Unlock()
 
@@ -258,7 +273,7 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
 
-func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
 
@@ -289,7 +304,7 @@ func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return NewInputBlock(v, blk), nil
 }
 
-func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockByHeight")
 	defer span.End()
 
@@ -314,7 +329,7 @@ func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*Sta
 	return v.GetBlock(ctx, blkID)
 }
 
-func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -339,7 +354,7 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBl
 	return blk, nil
 }
 
-func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
 	v.chainLock.Lock()
 	defer v.chainLock.Unlock()
 
@@ -366,7 +381,7 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], 
 }
 
 // getExclusiveBlockRange returns the exclusive range of blocks (startBlock, endBlock)
-func (v *VM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
+func (v *vm[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
 	if startBlock.ID() == endBlock.ID() {
 		return nil, nil
 	}
@@ -399,11 +414,11 @@ func (v *VM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *St
 	return blkRange, nil
 }
 
-func (v *VM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
+func (v *vm[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
 	return v.lastAcceptedBlock
 }
 
-func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
+func (v *vm[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
 	defer span.End()
 
@@ -416,7 +431,7 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
-func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
+func (v *vm[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	v.metaLock.Lock()
 	defer v.metaLock.Unlock()
 
@@ -424,16 +439,16 @@ func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	return nil
 }
 
-func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
+func (v *vm[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
 	return v.lastAcceptedBlock.ID(), nil
 }
 
-func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
+func (v *vm[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		v.log.Info("Starting state sync")
 
-		for _, startStateSyncF := range v.app.OnStateSyncStarted {
+		for _, startStateSyncF := range v.onStateSyncStarted {
 			if err := startStateSyncF(ctx); err != nil {
 				return err
 			}
@@ -442,7 +457,7 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	case snow.Bootstrapping:
 		v.log.Info("Starting bootstrapping")
 
-		for _, startBootstrappingF := range v.app.OnBootstrapStarted {
+		for _, startBootstrappingF := range v.onBootstrapStarted {
 			if err := startBootstrappingF(ctx); err != nil {
 				return err
 			}
@@ -450,7 +465,7 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 		return nil
 	case snow.NormalOp:
 		v.log.Info("Starting normal operation")
-		for _, startNormalOpF := range v.app.OnNormalOperationStarted {
+		for _, startNormalOpF := range v.onNormalOperationsStarted {
 			if err := startNormalOpF(ctx); err != nil {
 				return err
 			}
@@ -461,20 +476,20 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	}
 }
 
-func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	return v.app.HealthChecker.HealthCheck(ctx)
+func (v *vm[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
+	return v.healthChecker.HealthCheck(ctx)
 }
 
-func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
-	return v.app.Handlers, nil
+func (v *vm[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
+	return v.handlers, nil
 }
 
-func (v *VM[I, O, A]) Shutdown(context.Context) error {
+func (v *vm[I, O, A]) Shutdown(context.Context) error {
 	v.log.Info("Shutting down VM")
 	close(v.shutdownChan)
 
-	errs := make([]error, len(v.app.Closers))
-	for i, closer := range v.app.Closers {
+	errs := make([]error, len(v.closers))
+	for i, closer := range v.closers {
 		v.log.Info("Shutting down service", zap.String("service", closer.name))
 		start := time.Now()
 		errs[i] = closer.close()
@@ -483,20 +498,24 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (v *VM[I, O, A]) Version(context.Context) (string, error) {
-	return v.app.Version, nil
+func (v *vm[I, O, A]) Version(context.Context) (string, error) {
+	return v.version, nil
 }
 
-func (v *VM[I, O, A]) isReady() bool {
+func (v *vm[I, O, A]) isReady() bool {
 	v.readyL.RLock()
 	defer v.readyL.RUnlock()
 
 	return v.ready
 }
 
-func (v *VM[I, O, A]) markReady(ready bool) {
+func (v *vm[I, O, A]) markReady(ready bool) {
 	v.readyL.Lock()
 	defer v.readyL.Unlock()
 
 	v.ready = ready
+}
+
+func (v *vm[I, O, A]) addCloser(name string, closer func() error) {
+	v.closers = append(v.closers, namedCloser{name, closer})
 }

@@ -196,11 +196,15 @@ func (p *Processor) Execute(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv := ts.NewView(
+		keys,
+		state.ImmutableStorage(map[string][]byte{
+			heightKeyStr:    parentHeightRaw,
+			timestampKeyStr: parentTimestampRaw,
+			feeKeyStr:       parentFeeManager.Bytes(),
+		}),
+		len(keys),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
@@ -335,7 +339,7 @@ func (p *Processor) executeTxs(
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
+		if err := f.Fetch(ctx, txID, stateKeys.WithoutPermissions()); err != nil {
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() error {
@@ -349,7 +353,11 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(
+				stateKeys,
+				state.ImmutableStorage(storage),
+				len(stateKeys),
+			)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
