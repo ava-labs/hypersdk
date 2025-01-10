@@ -114,16 +114,12 @@ type ChunkSignatureRequestVerifier[T Tx] struct {
 	storage  *ChunkStorage[T]
 }
 
-// TODO:
-// check the following:
-// 1. valid signature
-// 2. check expiry is valid right now.
-// 3. Does the producer had the right to produce this chunk ?
 func (c ChunkSignatureRequestVerifier[T]) Verify(
 	_ context.Context,
 	_ *warp.UnsignedMessage,
 	justification []byte,
 ) *common.AppError {
+	// parse the chunk
 	chunk, err := ParseChunk[T](justification)
 	if err != nil {
 		return &common.AppError{
@@ -132,10 +128,18 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 		}
 	}
 
+	// verify that the signature is a valid signature over the unsigned chunk.
 	if err := c.verifier.Verify(chunk); err != nil {
 		return ErrInvalidChunk
 	}
 
+	// TODO:
+	// check if the expiry of this chunk isn't in the past or too far into the future.
+
+	// TODO:
+	// check if the producer was expected to produce this chunk.
+
+	// check to see if this chunk was already accepted.
 	_, accepted, err := c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return &common.AppError{
