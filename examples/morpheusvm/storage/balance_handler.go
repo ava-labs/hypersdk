@@ -21,7 +21,7 @@ func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	}
 }
 
-func (*BalanceHandler) CanDeductFeeBalance(
+func (*BalanceHandler) CanDeduct(
 	ctx context.Context,
 	addr codec.Address,
 	im state.Immutable,
@@ -37,7 +37,7 @@ func (*BalanceHandler) CanDeductFeeBalance(
 	return nil
 }
 
-func (*BalanceHandler) DeductFeeBalance(
+func (*BalanceHandler) Deduct(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -47,7 +47,7 @@ func (*BalanceHandler) DeductFeeBalance(
 	return err
 }
 
-func (*BalanceHandler) AddFeeBalance(
+func (*BalanceHandler) AddBalance(
 	ctx context.Context,
 	addr codec.Address,
 	mu state.Mutable,
@@ -57,6 +57,6 @@ func (*BalanceHandler) AddFeeBalance(
 	return err
 }
 
-func (*BalanceHandler) GetFeeBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	return GetBalance(ctx, im, addr)
 }
