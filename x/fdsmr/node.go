@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/eheap"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
@@ -19,11 +20,11 @@ type DSMR[T dsmr.Tx] interface {
 type Bonder[T dsmr.Tx] interface {
 	// Bond returns if a transaction can be built into a chunk by this node.
 	// If this returns true, Unbond is guaranteed to be called.
-	Bond(tx T) (bool, error)
+	Bond(ctx context.Context, mutable state.Mutable, tx T) (bool, error)
 	// Unbond is called when a tx from an account either expires or is accepted.
 	// If Unbond is called, Bond is guaranteed to have been called previously on
 	// tx.
-	Unbond(tx T) error
+	Unbond(ctx context.Context, mutable state.Mutable, tx T) error
 }
 
 // New returns a fortified instance of DSMR
@@ -42,10 +43,10 @@ type Node[T DSMR[U], U dsmr.Tx] struct {
 	pending *eheap.ExpiryHeap[U]
 }
 
-func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, beneficiary codec.Address) error {
+func (n *Node[T, U]) BuildChunk(ctx context.Context, mutable state.Mutable, txs []U, expiry int64, beneficiary codec.Address) error {
 	bonded := make([]U, 0, len(txs))
 	for _, tx := range txs {
-		ok, err := n.bonder.Bond(tx)
+		ok, err := n.bonder.Bond(ctx, mutable, tx)
 		if err != nil {
 			return err
 		}
@@ -60,7 +61,7 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, txs []U, expiry int64, bene
 	return n.DSMR.BuildChunk(ctx, bonded, expiry, beneficiary)
 }
 
-func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[U], error) {
+func (n *Node[T, U]) Accept(ctx context.Context, mutable state.Mutable, block dsmr.Block) (dsmr.ExecutedBlock[U], error) {
 	executedBlock, err := n.DSMR.Accept(ctx, block)
 	if err != nil {
 		return dsmr.ExecutedBlock[U]{}, err
@@ -69,7 +70,7 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 	// Un-bond any txs that expired at this block
 	expired := n.pending.SetMin(block.Timestamp)
 	for _, tx := range expired {
-		if err := n.bonder.Unbond(tx); err != nil {
+		if err := n.bonder.Unbond(ctx, mutable, tx); err != nil {
 			return dsmr.ExecutedBlock[U]{}, err
 		}
 	}
@@ -81,7 +82,7 @@ func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.Execute
 				continue
 			}
 
-			if err := n.bonder.Unbond(tx); err != nil {
+			if err := n.bonder.Unbond(ctx, mutable, tx); err != nil {
 				return dsmr.ExecutedBlock[U]{}, err
 			}
 		}
