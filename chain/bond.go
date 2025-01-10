@@ -19,6 +19,8 @@ import (
 const bondAllocSize = 128
 
 var (
+	// ErrMissingBond is fatal and is returned if Unbond is called on a
+	// transaction that was not previously bonded
 	ErrMissingBond = errors.New("missing bond")
 
 	_ fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
@@ -41,9 +43,6 @@ func (b *Bonder) SetMaxBalance(
 	maxBalance uint32,
 ) error {
 	addressBytes := address[:]
-	if maxBalance == 0 {
-		return mutable.Remove(ctx, addressBytes)
-	}
 
 	balance, err := getBalance(ctx, mutable, addressBytes)
 	if err != nil {
