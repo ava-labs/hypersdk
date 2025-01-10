@@ -158,7 +158,6 @@ func (*mockBalanceHandler) SponsorStateKeys(codec.Address) state.Keys {
 }
 
 func TestPreExecutor(t *testing.T) {
-	// Test values
 	ruleFactory := genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()}
 
 	tests := []struct {
