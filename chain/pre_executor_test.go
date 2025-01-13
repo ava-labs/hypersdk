@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
@@ -18,105 +20,71 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/metadata"
 )
 
 var (
-	_ chain.MetadataManager                         = (*mockMetadataManager)(nil)
-	_ chain.Auth                                    = (*mockAuth)(nil)
-	_ chain.BalanceHandler                          = (*mockBalanceHandler)(nil)
-	_ state.View                                    = (*abstractMockView)(nil)
-	_ validitywindow.ChainIndex[*chain.Transaction] = (*mockChainIndex)(nil)
+	_ chain.Auth           = (*mockAuth)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	_ chain.ValidityWindow = (*mockValidityWindow)(nil)
 )
 
 var (
-	errMockView           = errors.New("mock view error")
-	errMockExecutionBlock = errors.New("mock execution block error")
 	errMockAuth           = errors.New("mock auth error")
+	errMockValidityWindow = errors.New("mock validity window error")
 )
 
-type abstractMockView struct{}
+type mockValidityWindow struct {
+	isRepeatError error
+}
 
-func (*abstractMockView) GetValue(context.Context, []byte) ([]byte, error) {
+func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transaction]) {
 	panic("unimplemented")
 }
 
-func (*abstractMockView) GetMerkleRoot(context.Context) (ids.ID, error) {
+func (m *mockValidityWindow) IsRepeat(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
+	return set.NewBits(), m.isRepeatError
+}
+
+func (*mockValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], int64) error {
 	panic("unimplemented")
-}
-
-func (*abstractMockView) NewView(context.Context, merkledb.ViewChanges) (merkledb.View, error) {
-	panic("unimplemented")
-}
-
-type mockView1 struct {
-	abstractMockView
-}
-
-func (*mockView1) GetValue(context.Context, []byte) ([]byte, error) {
-	return nil, errMockView
-}
-
-type mockView2 struct {
-	abstractMockView
-}
-
-func (*mockView2) GetValue(context.Context, []byte) ([]byte, error) {
-	return []byte{}, nil
-}
-
-type mockMetadataManager struct{}
-
-func (*mockMetadataManager) FeePrefix() []byte {
-	return []byte{}
-}
-
-func (*mockMetadataManager) HeightPrefix() []byte {
-	return []byte{}
-}
-
-func (*mockMetadataManager) TimestampPrefix() []byte {
-	return []byte{}
-}
-
-type mockChainIndex struct {
-	err error
-}
-
-func (m *mockChainIndex) GetExecutionBlock(context.Context, ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
-	return nil, m.err
 }
 
 func TestPreExecutor(t *testing.T) {
 	ruleFactory := genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()}
 
 	tests := []struct {
-		name string
-
-		view       state.View
-		tx         *chain.Transaction
-		chainIndex validitywindow.ChainIndex[*chain.Transaction]
-		height     uint64
-		verifyAuth bool
-		err        error
+		name           string
+		state          map[string][]byte
+		view           state.View
+		tx             *chain.Transaction
+		validityWindow chain.ValidityWindow
+		chainIndex     validitywindow.ChainIndex[*chain.Transaction]
+		height         uint64
+		verifyAuth     bool
+		err            error
 	}{
 		{
 			name: "raw fee doesn't exist",
-			view: &mockView1{},
-			err:  errMockView,
+			err:  database.ErrNotFound,
 		},
 		{
 			name: "repeat error",
-			view: &mockView2{},
 			tx:   &chain.Transaction{},
-			chainIndex: &mockChainIndex{
-				err: errMockExecutionBlock,
+			state: map[string][]byte{
+				string(chain.FeeKey([]byte{2})): {},
+			},
+			validityWindow: &mockValidityWindow{
+				isRepeatError: errMockValidityWindow,
 			},
 			height: 1,
-			err:    errMockExecutionBlock,
+			err:    errMockValidityWindow,
 		},
 		{
 			name: "tx state keys are invalid",
-			view: &mockView2{},
+			state: map[string][]byte{
+				string(chain.FeeKey([]byte{2})): {},
+			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Actions: []chain.Action{
@@ -130,12 +98,14 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			chainIndex: &mockChainIndex{},
-			err:        chain.ErrInvalidKeyValue,
+			validityWindow: &mockValidityWindow{},
+			err:            chain.ErrInvalidKeyValue,
 		},
 		{
 			name: "verify auth error",
-			view: &mockView2{},
+			state: map[string][]byte{
+				string(chain.FeeKey([]byte{2})): {},
+			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
@@ -149,9 +119,9 @@ func TestPreExecutor(t *testing.T) {
 					verifyError: errMockAuth,
 				},
 			},
-			chainIndex: &mockChainIndex{},
-			verifyAuth: true,
-			err:        errMockAuth,
+			validityWindow: &mockValidityWindow{},
+			verifyAuth:     true,
+			err:            errMockAuth,
 		},
 	}
 
@@ -168,10 +138,25 @@ func TestPreExecutor(t *testing.T) {
 			)
 			r.NoError(err)
 
+			db, err := merkledb.New(
+				ctx,
+				memdb.New(),
+				merkledb.Config{
+					BranchFactor: merkledb.BranchFactor16,
+					Tracer:       trace.Noop,
+				},
+			)
+			r.NoError(err)
+
+			for k, v := range tt.state {
+				r.NoError(db.Put([]byte(k), v))
+			}
+			r.NoError(db.CommitToDB(ctx))
+
 			preExecutor := chain.NewPreExecutor(
 				&ruleFactory,
-				validitywindow.NewTimeValidityWindow(nil, trace.Noop, tt.chainIndex),
-				&mockMetadataManager{},
+				tt.validityWindow,
+				metadata.NewDefaultManager(),
 				&mockBalanceHandler{},
 			)
 
@@ -179,7 +164,7 @@ func TestPreExecutor(t *testing.T) {
 				preExecutor.PreExecute(
 					ctx,
 					parentBlock,
-					tt.view,
+					db,
 					tt.tx,
 					tt.verifyAuth,
 				), tt.err,
