@@ -37,9 +37,12 @@ const (
 )
 
 var (
-	_       Tx                    = (*dsmrtest.Tx)(nil)
-	_       Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
-	chainID                       = ids.Empty
+	_ Tx                    = (*dsmrtest.Tx)(nil)
+	_ Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
+
+	chainID = ids.Empty
+
+	errTestingInvalidValidityWindow = errors.New("time validity window testing error")
 )
 
 // Test that chunks can be built through Node.BuildChunk
@@ -363,7 +366,6 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
-
 			// Build some chunks
 			for _, args := range tt.availableChunks {
 				r.NoError(node.BuildChunk(
@@ -982,7 +984,6 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
-
 			timestamp := tt.timestamp(node.LastAccepted)
 			chunks := []chunk{}
 
@@ -1158,8 +1159,6 @@ func Test_Verify(t *testing.T) {
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 }
-
-var errTestingInvalidValidityWindow = errors.New("time validity window testing error")
 
 func Test_Verify_BadBlock(t *testing.T) {
 	tests := []struct {
@@ -1545,5 +1544,5 @@ func (v *testingTimeValidityWindowMock) IsRepeat(
 	return set.NewBits(), v.defaultIsRepeatErr
 }
 
-func (v *testingTimeValidityWindowMock) Accept(blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
+func (*testingTimeValidityWindowMock) Accept(validitywindow.ExecutionBlock[*emapChunkCertificate]) {
 }
