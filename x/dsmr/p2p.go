@@ -128,7 +128,6 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 		}
 	}
 
-	// verify that the signature is a valid signature over the unsigned chunk.
 	if err := c.verifier.Verify(chunk); err != nil {
 		return ErrInvalidChunk
 	}
