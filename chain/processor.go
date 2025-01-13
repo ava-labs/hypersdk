@@ -57,18 +57,6 @@ func (b *ExecutionBlock) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) Height() uint64 {
-	return b.Hght
-}
-
-func (b *ExecutionBlock) Parent() ids.ID {
-	return b.Prnt
-}
-
-func (b *ExecutionBlock) Timestamp() int64 {
-	return b.Tmstmp
-}
-
 func (b *ExecutionBlock) Containers() []*Transaction {
 	return b.StatelessBlock.Txs
 }

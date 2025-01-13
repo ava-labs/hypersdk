@@ -113,20 +113,8 @@ type validityWindowBlock struct {
 	chunkCerts []*emapChunkCertificate
 }
 
-func (e validityWindowBlock) Timestamp() int64 {
-	return e.Block.Timestamp
-}
-
-func (e validityWindowBlock) Height() uint64 {
-	return e.Block.Height
-}
-
 func (e validityWindowBlock) Contains(id ids.ID) bool {
 	return e.certs.Contains(id)
-}
-
-func (e validityWindowBlock) Parent() ids.ID {
-	return e.Block.ParentID
 }
 
 func (e validityWindowBlock) Containers() []*emapChunkCertificate {
@@ -163,6 +151,18 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+func (b Block) GetTimestamp() int64 {
+	return b.Timestamp
+}
+
+func (b Block) GetHeight() uint64 {
+	return b.Height
+}
+
+func (b Block) GetParent() ids.ID {
+	return b.ParentID
 }
 
 // ExecutedBlock contains block data with any referenced chunks reconstructed

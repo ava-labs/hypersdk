@@ -247,15 +247,15 @@ func (e executionBlock) GetID() ids.ID {
 	return e.ID
 }
 
-func (e executionBlock) Parent() ids.ID {
+func (e executionBlock) GetParent() ids.ID {
 	return e.Prnt
 }
 
-func (e executionBlock) Timestamp() int64 {
+func (e executionBlock) GetTimestamp() int64 {
 	return e.Tmstmp
 }
 
-func (e executionBlock) Height() uint64 {
+func (e executionBlock) GetHeight() uint64 {
 	return e.Hght
 }
 

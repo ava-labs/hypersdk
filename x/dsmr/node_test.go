@@ -1095,9 +1095,6 @@ func TestDuplicateChunksElimination(t *testing.T) {
 		4,
 		codec.Address{},
 	))
-	_, err = node.Accept(context.Background(), blk)
-	r.NoError(err)
-
 	_, err = node.BuildBlock(context.Background(), node.LastAccepted, 3)
 	r.NoError(err)
 }

@@ -12,9 +12,9 @@ import (
 )
 
 type ExecutionBlock[Container emap.Item] interface {
-	Parent() ids.ID
-	Timestamp() int64
-	Height() uint64
+	GetParent() ids.ID
+	GetTimestamp() int64
+	GetHeight() uint64
 	Containers() []Container
 	Contains(ids.ID) bool
 }

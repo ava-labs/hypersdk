@@ -44,10 +44,10 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	evicted := v.seen.SetMin(blk.Timestamp())
+	evicted := v.seen.SetMin(blk.GetTimestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	v.seen.Add(blk.Containers())
-	v.lastAcceptedBlockHeight = blk.Height()
+	v.lastAcceptedBlockHeight = blk.GetHeight()
 }
 
 func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
@@ -55,10 +55,10 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	blk ExecutionBlock[Container],
 	oldestAllowed int64,
 ) error {
-	if blk.Height() <= v.lastAcceptedBlockHeight {
+	if blk.GetHeight() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.GetParent())
 	if err != nil {
 		return err
 	}
@@ -108,11 +108,11 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 
 	var err error
 	for {
-		if ancestorBlk.Timestamp() < oldestAllowed {
+		if ancestorBlk.GetTimestamp() < oldestAllowed {
 			return marker, nil
 		}
 
-		if ancestorBlk.Height() <= v.lastAcceptedBlockHeight || ancestorBlk.Height() == 0 {
+		if ancestorBlk.GetHeight() <= v.lastAcceptedBlockHeight || ancestorBlk.GetHeight() == 0 {
 			return v.seen.Contains(containers, marker, stop), nil
 		}
 
@@ -128,7 +128,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
 		if err != nil {
 			return marker, err
 		}
