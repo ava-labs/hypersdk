@@ -24,14 +24,14 @@ import (
 )
 
 var (
+	feeKey = string(chain.FeeKey([]byte{2}))
+
+	errMockAuth           = errors.New("mock auth error")
+	errMockValidityWindow = errors.New("mock validity window error")
+
 	_ chain.Auth           = (*mockAuth)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	_ chain.ValidityWindow = (*mockValidityWindow)(nil)
-)
-
-var (
-	errMockAuth           = errors.New("mock auth error")
-	errMockValidityWindow = errors.New("mock validity window error")
 )
 
 type mockValidityWindow struct {
@@ -56,10 +56,8 @@ func TestPreExecutor(t *testing.T) {
 	tests := []struct {
 		name           string
 		state          map[string][]byte
-		view           state.View
 		tx             *chain.Transaction
 		validityWindow chain.ValidityWindow
-		chainIndex     validitywindow.ChainIndex[*chain.Transaction]
 		height         uint64
 		verifyAuth     bool
 		err            error
@@ -72,7 +70,7 @@ func TestPreExecutor(t *testing.T) {
 			name: "repeat error",
 			tx:   &chain.Transaction{},
 			state: map[string][]byte{
-				string(chain.FeeKey([]byte{2})): {},
+				feeKey: {},
 			},
 			validityWindow: &mockValidityWindow{
 				isRepeatError: errMockValidityWindow,
