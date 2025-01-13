@@ -1261,8 +1261,8 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		require.NoError(t, err)
 		pk := bls.PublicFromSecretKey(sk)
 		signer := warp.NewSigner(sk, networkID, chainID)
-
-		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](NoVerifier[dsmrtest.Tx]{}, memdb.New())
+		verifier := ChunkVerifier[dsmrtest.Tx]{networkID: networkID, chainID: chainID}
+		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)
 
 		getChunkHandler := &GetChunkHandler[dsmrtest.Tx]{
