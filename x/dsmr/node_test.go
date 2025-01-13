@@ -996,10 +996,10 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			wantErr: ErrNoAvailableChunkCerts,
 			timevaliditywindow: &testingBadTimeValidityWindow{
 				OnIsRepeat: func(
-					ctx context.Context,
-					parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
-					txs []*emapChunkCertificate,
-					oldestAllowed int64,
+					context.Context,
+					validitywindow.ExecutionBlock[*emapChunkCertificate],
+					[]*emapChunkCertificate,
+					int64,
 				) (set.Bits, error) {
 					marker := set.NewBits()
 					marker.Add(0)
@@ -1587,7 +1587,7 @@ type testingBadTimeValidityWindow struct {
 	) (set.Bits, error)
 }
 
-func (v *testingBadTimeValidityWindow) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], oldestAllowed int64) error {
+func (*testingBadTimeValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error {
 	return errTestingInvalidValidityWindow
 }
 
