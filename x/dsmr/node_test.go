@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
@@ -17,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/proto/pb/sdk"
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -39,10 +37,9 @@ const (
 )
 
 var (
-	_       Tx                                               = (*dsmrtest.Tx)(nil)
-	_       Verifier[dsmrtest.Tx]                            = (*failVerifier)(nil)
-	_       validitywindow.ChainIndex[*emapChunkCertificate] = (*testValidityWindowChainIndex)(nil)
-	chainID                                                  = ids.Empty
+	_       Tx                    = (*dsmrtest.Tx)(nil)
+	_       Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
+	chainID                       = ids.Empty
 )
 
 // Test that chunks can be built through Node.BuildChunk
@@ -139,7 +136,7 @@ func TestNode_BuildChunk(t *testing.T) {
 func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes := newTestNodes(t, 2)
 	node := nodes[0]
 
 	r.NoError(node.BuildChunk(
@@ -183,36 +180,6 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 		onResponse,
 	))
 	<-done
-}
-
-func TestIndexerMissingBlock(t *testing.T) {
-	r := require.New(t)
-
-	node := newTestNode(t)
-	r.NoError(node.BuildChunk(
-		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
-		123,
-		codec.Address{123},
-	))
-
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, 3)
-	r.NoError(err)
-
-	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
-	_, err = node.Accept(context.Background(), blk)
-	r.NoError(err)
-	r.NoError(node.BuildChunk(
-		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 123}},
-		123,
-		codec.Address{123},
-	))
-
-	blkNext, err := node.BuildBlock(context.Background(), node.LastAccepted, 4)
-	r.NoError(err)
-
-	r.ErrorIs(node.Verify(context.Background(), node.LastAccepted, blkNext), database.ErrNotFound)
 }
 
 // Tests that unknown chunks are not available over p2p
@@ -503,7 +470,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 			node, err := New[dsmrtest.Tx](
 				logging.NoLog{},
-				trace.Noop,
 				nodeID,
 				networkID,
 				chainID,
@@ -548,7 +514,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				newTestValidityWindowChainIndex(),
+				&testingTimeValidityWindowMock{},
 				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
@@ -717,7 +683,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes := newTestNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -972,8 +938,10 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			timestamp: func(parent Block) int64 {
 				return parent.Timestamp + 100
 			},
-			wantErr:            errTestingInvalidValidityWindow,
-			timevaliditywindow: &testingBadTimeValidityWindow{},
+			wantErr: errTestingInvalidValidityWindow,
+			timevaliditywindow: &testingTimeValidityWindowMock{
+				defaultIsRepeatErr: errTestingInvalidValidityWindow,
+			},
 		},
 		{
 			name: "no available chunk certs ( all duplicates )",
@@ -994,7 +962,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 				return parent.Timestamp + 100
 			},
 			wantErr: ErrNoAvailableChunkCerts,
-			timevaliditywindow: &testingBadTimeValidityWindow{
+			timevaliditywindow: &testingTimeValidityWindowMock{
 				OnIsRepeat: func(
 					context.Context,
 					validitywindow.ExecutionBlock[*emapChunkCertificate],
@@ -1103,7 +1071,7 @@ func TestDuplicateChunksElimination(t *testing.T) {
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
 
-	nodes, _ := newNodes(t, 2)
+	nodes := newTestNodes(t, 2)
 	node1 := nodes[0]
 	node2 := nodes[1]
 
@@ -1362,17 +1330,17 @@ func Test_Verify_BadBlock(t *testing.T) {
 					ChunkCerts: parent.ChunkCerts,
 				}
 			},
-			wantErr:        errTestingInvalidValidityWindow,
-			validityWindow: &testingBadTimeValidityWindow{},
+			wantErr: errTestingInvalidValidityWindow,
+			validityWindow: &testingTimeValidityWindowMock{
+				defaultVerifyExpiryReplayProtectionErr: errTestingInvalidValidityWindow,
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			nodes, indexers := newNodes(t, 1)
-			node := nodes[0]
-			indexer := indexers[0]
+			node := newTestNode(t)
 
 			r.NoError(node.BuildChunk(
 				context.Background(),
@@ -1384,7 +1352,6 @@ func Test_Verify_BadBlock(t *testing.T) {
 			r.NoError(err)
 			_, err = node.Accept(context.Background(), blk)
 			r.NoError(err)
-			indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
 
 			// optionally replace the node's validity window implementation in order to test
 			// the handling of potential error cases.
@@ -1415,11 +1382,10 @@ type testNode struct {
 }
 
 func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
-	nodes, _ := newNodes(t, 1)
-	return nodes[0]
+	return newTestNodes(t, 1)[0]
 }
 
-func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowChainIndex) {
+func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, 0, n)
 	for i := 0; i < n; i++ {
@@ -1457,11 +1423,8 @@ func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowC
 		})
 	}
 
-	indexers := []*testValidityWindowChainIndex{}
-
 	result := make([]*Node[dsmrtest.Tx], 0, n)
 	for i, n := range nodes {
-		indexers = append(indexers, newTestValidityWindowChainIndex())
 		getChunkPeers := make(map[ids.NodeID]p2p.Handler)
 		chunkSignaturePeers := make(map[ids.NodeID]p2p.Handler)
 		chunkCertGossipPeers := make(map[ids.NodeID]p2p.Handler)
@@ -1477,7 +1440,6 @@ func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowC
 
 		node, err := New[dsmrtest.Tx](
 			logging.NoLog{},
-			trace.Noop,
 			validators[i].NodeID,
 			networkID,
 			chainID,
@@ -1512,7 +1474,7 @@ func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowC
 			Block{},
 			1,
 			1,
-			indexers[i],
+			&testingTimeValidityWindowMock{},
 			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
@@ -1534,9 +1496,6 @@ func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowC
 		123,
 		codec.Address{},
 	))
-	for _, indexer := range indexers {
-		indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
-	}
 
 	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
@@ -1551,47 +1510,30 @@ func newNodes(t *testing.T, n int) ([]*Node[dsmrtest.Tx], []*testValidityWindowC
 		require.NoError(t, err)
 	}
 
-	for _, indexer := range indexers {
-		indexer.set(blk.GetID(), validityWindowBlock{Block: blk})
-	}
-	return result, indexers
+	return result
 }
 
-type testValidityWindowChainIndex struct {
-	blocks map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]
-}
-
-func (t *testValidityWindowChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*emapChunkCertificate], error) {
-	if blk, ok := t.blocks[blkID]; ok {
-		return blk, nil
-	}
-	return nil, database.ErrNotFound
-}
-
-func (t *testValidityWindowChainIndex) set(blkID ids.ID, blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
-	t.blocks[blkID] = blk
-}
-
-func newTestValidityWindowChainIndex() *testValidityWindowChainIndex {
-	return &testValidityWindowChainIndex{
-		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]),
-	}
-}
-
-type testingBadTimeValidityWindow struct {
-	validitywindow.TimeValidityWindow[*emapChunkCertificate]
+type testingTimeValidityWindowMock struct {
 	OnIsRepeat func(ctx context.Context,
 		parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
 		txs []*emapChunkCertificate,
 		oldestAllowed int64,
 	) (set.Bits, error)
+
+	OnVerifyExpiryReplayProtection func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error
+
+	defaultIsRepeatErr                     error
+	defaultVerifyExpiryReplayProtectionErr error
 }
 
-func (*testingBadTimeValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error {
-	return errTestingInvalidValidityWindow
+func (v *testingTimeValidityWindowMock) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], t int64) error {
+	if v.OnVerifyExpiryReplayProtection != nil {
+		return v.OnVerifyExpiryReplayProtection(ctx, blk, t)
+	}
+	return v.defaultVerifyExpiryReplayProtectionErr
 }
 
-func (v *testingBadTimeValidityWindow) IsRepeat(
+func (v *testingTimeValidityWindowMock) IsRepeat(
 	ctx context.Context,
 	parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
 	txs []*emapChunkCertificate,
@@ -1600,5 +1542,8 @@ func (v *testingBadTimeValidityWindow) IsRepeat(
 	if v.OnIsRepeat != nil {
 		return v.OnIsRepeat(ctx, parentBlk, txs, oldestAllowed)
 	}
-	return set.Bits{}, errTestingInvalidValidityWindow
+	return set.NewBits(), v.defaultIsRepeatErr
+}
+
+func (v *testingTimeValidityWindowMock) Accept(blk validitywindow.ExecutionBlock[*emapChunkCertificate]) {
 }

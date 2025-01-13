@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -58,7 +57,6 @@ type Validator struct {
 
 func New[T Tx](
 	log logging.Logger,
-	tracer trace.Tracer,
 	nodeID ids.NodeID,
 	networkID uint32,
 	chainID ids.ID,
@@ -75,7 +73,7 @@ func New[T Tx](
 	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
-	chainIndex validitywindow.ChainIndex[*emapChunkCertificate],
+	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
 	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
@@ -96,8 +94,7 @@ func New[T Tx](
 		ChunkCertificateGossipHandler: chunkCertificateGossipHandler,
 		storage:                       chunkStorage,
 		log:                           log,
-		tracer:                        tracer,
-		validityWindow:                validitywindow.NewTimeValidityWindow(log, tracer, chainIndex),
+		validityWindow:                timeValidityWindow,
 		validityWindowDuration:        validityWindowDuration,
 	}, nil
 }
@@ -136,7 +133,6 @@ type Node[T Tx] struct {
 	ChunkCertificateGossipHandler p2p.Handler
 	storage                       *ChunkStorage[T]
 	log                           logging.Logger
-	tracer                        trace.Tracer
 	validityWindowDuration        time.Duration
 	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
