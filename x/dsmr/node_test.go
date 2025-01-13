@@ -784,10 +784,11 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		chunks    func(parent Block) []chunk
-		timestamp func(parent Block) int64
-		wantErr   error
+		name               string
+		chunks             func(parent Block) []chunk
+		timestamp          func(parent Block) int64
+		wantErr            error
+		timevaliditywindow TimeValidityWindow[*emapChunkCertificate]
 	}{
 		{
 			name: "no chunk certs",
@@ -953,6 +954,59 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 				return parent.Timestamp + 100
 			},
 		},
+		{
+			name: "validity window error",
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []dsmrtest.Tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
+						},
+						expiry: parent.Timestamp + 1_000,
+					},
+				}
+			},
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
+			},
+			wantErr:            errTestingInvalidValidityWindow,
+			timevaliditywindow: &testingBadTimeValidityWindow{},
+		},
+		{
+			name: "no available chunk certs ( all duplicates )",
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []dsmrtest.Tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
+						},
+						expiry: parent.Timestamp + 1_000,
+					},
+				}
+			},
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
+			},
+			wantErr: ErrNoAvailableChunkCerts,
+			timevaliditywindow: &testingBadTimeValidityWindow{
+				OnIsRepeat: func(
+					ctx context.Context,
+					parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
+					txs []*emapChunkCertificate,
+					oldestAllowed int64,
+				) (set.Bits, error) {
+					marker := set.NewBits()
+					marker.Add(0)
+					return marker, nil
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -984,7 +1038,9 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 
 				wantChunks = append(wantChunks, chunk)
 			}
-
+			if tt.timevaliditywindow != nil {
+				node.validityWindow = tt.timevaliditywindow
+			}
 			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, timestamp)
 			r.ErrorIs(err, tt.wantErr)
 			if err != nil {
@@ -1138,11 +1194,14 @@ func Test_Verify(t *testing.T) {
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 }
 
+var errTestingInvalidValidityWindow = errors.New("time validity window testing error")
+
 func Test_Verify_BadBlock(t *testing.T) {
 	tests := []struct {
-		name    string
-		blk     func(parent Block) Block
-		wantErr error
+		name           string
+		blk            func(parent Block) Block
+		wantErr        error
+		validityWindow TimeValidityWindow[*emapChunkCertificate]
 	}{
 		{
 			name: "invalid parent",
@@ -1294,6 +1353,21 @@ func Test_Verify_BadBlock(t *testing.T) {
 			},
 			wantErr: ErrInvalidWarpSignature,
 		},
+		{
+			name: "invalid validity window",
+			blk: func(parent Block) Block {
+				return Block{
+					BlockHeader: BlockHeader{
+						ParentID:  parent.GetID(),
+						Height:    parent.Height + 1,
+						Timestamp: parent.Timestamp + 1,
+					},
+					ChunkCerts: parent.ChunkCerts,
+				}
+			},
+			wantErr:        errTestingInvalidValidityWindow,
+			validityWindow: &testingBadTimeValidityWindow{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1315,6 +1389,11 @@ func Test_Verify_BadBlock(t *testing.T) {
 			r.NoError(err)
 			indexer.set(node.LastAccepted.GetID(), validityWindowBlock{Block: node.LastAccepted})
 
+			// optionally replace the node's validity window implementation in order to test
+			// the handling of potential error cases.
+			if tt.validityWindow != nil {
+				node.validityWindow = tt.validityWindow
+			}
 			r.ErrorIs(node.Verify(
 				context.Background(),
 				node.LastAccepted,
@@ -1500,4 +1579,29 @@ func newTestValidityWindowChainIndex() *testValidityWindowChainIndex {
 	return &testValidityWindowChainIndex{
 		blocks: make(map[ids.ID]validitywindow.ExecutionBlock[*emapChunkCertificate]),
 	}
+}
+
+type testingBadTimeValidityWindow struct {
+	validitywindow.TimeValidityWindow[*emapChunkCertificate]
+	OnIsRepeat func(ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
+		txs []*emapChunkCertificate,
+		oldestAllowed int64,
+	) (set.Bits, error)
+}
+
+func (v *testingBadTimeValidityWindow) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], oldestAllowed int64) error {
+	return errTestingInvalidValidityWindow
+}
+
+func (v *testingBadTimeValidityWindow) IsRepeat(
+	ctx context.Context,
+	parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
+	txs []*emapChunkCertificate,
+	oldestAllowed int64,
+) (set.Bits, error) {
+	if v.OnIsRepeat != nil {
+		return v.OnIsRepeat(ctx, parentBlk, txs, oldestAllowed)
+	}
+	return set.Bits{}, errTestingInvalidValidityWindow
 }

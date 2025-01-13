@@ -17,11 +17,13 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
@@ -100,6 +102,21 @@ func New[T Tx](
 	}, nil
 }
 
+type TimeValidityWindow[Container emap.Item] interface {
+	Accept(blk validitywindow.ExecutionBlock[Container])
+	VerifyExpiryReplayProtection(
+		ctx context.Context,
+		blk validitywindow.ExecutionBlock[Container],
+		oldestAllowed int64,
+	) error
+	IsRepeat(
+		ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[Container],
+		txs []Container,
+		oldestAllowed int64,
+	) (set.Bits, error)
+}
+
 type Node[T Tx] struct {
 	ID                           ids.NodeID
 	PublicKey                    *bls.PublicKey
@@ -121,7 +138,7 @@ type Node[T Tx] struct {
 	log                           logging.Logger
 	tracer                        trace.Tracer
 	validityWindowDuration        time.Duration
-	validityWindow                *validitywindow.TimeValidityWindow[*emapChunkCertificate]
+	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
 
 // BuildChunk builds transactions into a Chunk
