@@ -58,7 +58,6 @@ func TestPreExecutor(t *testing.T) {
 		state          map[string][]byte
 		tx             *chain.Transaction
 		validityWindow chain.ValidityWindow
-		height         uint64
 		verifyAuth     bool
 		err            error
 	}{
@@ -75,8 +74,7 @@ func TestPreExecutor(t *testing.T) {
 			validityWindow: &mockValidityWindow{
 				isRepeatError: errMockValidityWindow,
 			},
-			height: 1,
-			err:    errMockValidityWindow,
+			err: errMockValidityWindow,
 		},
 		{
 			name: "tx state keys are invalid",
@@ -130,7 +128,6 @@ func TestPreExecutor(t *testing.T) {
 
 			parentBlock, err := chain.NewExecutionBlock(
 				&chain.StatelessBlock{
-					Hght:   tt.height,
 					Tmstmp: time.Now().UnixMilli(),
 				},
 			)
