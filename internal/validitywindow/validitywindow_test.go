@@ -5,6 +5,7 @@ package validitywindow
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -13,44 +14,42 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 )
 
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
 		Name          string
-		Accepted      []validitywindowtest.ExecutionBlock
-		VerifyBlock   validitywindowtest.ExecutionBlock
+		Accepted      []executionBlock
+		VerifyBlock   executionBlock
 		OldestAllowed int64
 		ExpectedError error
 	}{
 		{
 			Name: "no duplicate",
-			Accepted: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Accepted: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   validitywindowtest.NewExecutionBlock(2, 3, 3, 3),
+			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{3}),
 			OldestAllowed: 1,
 		},
 		{
 			Name: "expected duplicate",
-			Accepted: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Accepted: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   validitywindowtest.NewExecutionBlock(2, 3, 3, 2),
+			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
 			OldestAllowed: 1,
 			ExpectedError: ErrDuplicateContainer,
 		},
 		{
 			Name: "duplicate outside window",
-			Accepted: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Accepted: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   validitywindowtest.NewExecutionBlock(2, 3, 3, 2),
+			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
 			OldestAllowed: 2,
 			ExpectedError: nil,
 		},
@@ -75,37 +74,37 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 func TestValidityWindowIsRepeat(t *testing.T) {
 	tests := []struct {
 		Name           string
-		Blocks         []validitywindowtest.ExecutionBlock
+		Blocks         []executionBlock
 		Accepted       uint64 // index into Blocks of the last accepted block.
-		ParentBlock    validitywindowtest.ExecutionBlock
-		Containers     []validitywindowtest.Container
+		ParentBlock    executionBlock
+		Containers     []container
 		OldestAllowewd int64
 		ExpectedError  error
 		ExpectedBits   set.Bits
 	}{
 		{
 			Name: "no containers",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
 			Accepted:       1,
-			ParentBlock:    validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
-			Containers:     []validitywindowtest.Container{},
+			ParentBlock:    newExecutionBlock(1, 1, 1, []int64{1, 2}),
+			Containers:     []container{},
 			OldestAllowewd: 1,
 			ExpectedError:  nil,
 			ExpectedBits:   set.NewBits(),
 		},
 		{
 			Name: "no repeats",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
 			Accepted:    1,
-			ParentBlock: validitywindowtest.NewExecutionBlock(2, 2, 2, 3),
-			Containers: []validitywindowtest.Container{
-				validitywindowtest.NewContainer(5),
+			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			Containers: []container{
+				newContainer(5),
 			},
 			OldestAllowewd: 0,
 			ExpectedError:  nil,
@@ -113,14 +112,14 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 		},
 		{
 			Name: "repeats outside validity window",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
 			Accepted:    1,
-			ParentBlock: validitywindowtest.NewExecutionBlock(2, 2, 2, 3),
-			Containers: []validitywindowtest.Container{
-				validitywindowtest.NewContainer(1),
+			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			Containers: []container{
+				newContainer(1),
 			},
 			OldestAllowewd: 2,
 			ExpectedError:  nil,
@@ -128,14 +127,14 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 		},
 		{
 			Name: "repeats within latest accepted validity window block",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1, 2),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
 			Accepted:    1,
-			ParentBlock: validitywindowtest.NewExecutionBlock(2, 2, 2, 3),
-			Containers: []validitywindowtest.Container{
-				validitywindowtest.NewContainer(1),
+			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			Containers: []container{
+				newContainer(1),
 			},
 			OldestAllowewd: 1,
 			ExpectedError:  nil,
@@ -143,17 +142,17 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 		},
 		{
 			Name: "repeats after latest accepted block",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1),
-				validitywindowtest.NewExecutionBlock(2, 2, 2, 2),
-				validitywindowtest.NewExecutionBlock(3, 3, 3, 3),
-				validitywindowtest.NewExecutionBlock(4, 4, 4, 4),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1}),
+				newExecutionBlock(2, 2, 2, []int64{2}),
+				newExecutionBlock(3, 3, 3, []int64{3}),
+				newExecutionBlock(4, 4, 4, []int64{4}),
 			},
 			Accepted:    1,
-			ParentBlock: validitywindowtest.NewExecutionBlock(5, 5, 5),
-			Containers: []validitywindowtest.Container{
-				validitywindowtest.NewContainer(3),
+			ParentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			Containers: []container{
+				newContainer(3),
 			},
 			OldestAllowewd: 1,
 			ExpectedError:  nil,
@@ -161,15 +160,15 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 		},
 		{
 			Name: "missing block in ancestery",
-			Blocks: []validitywindowtest.ExecutionBlock{
-				validitywindowtest.NewExecutionBlock(0, 0, 0),
-				validitywindowtest.NewExecutionBlock(1, 1, 1, 1),
-				validitywindowtest.NewExecutionBlock(2, 2, 2, 2),
+			Blocks: []executionBlock{
+				newExecutionBlock(0, 0, 0, []int64{}),
+				newExecutionBlock(1, 1, 1, []int64{1}),
+				newExecutionBlock(2, 2, 2, []int64{2}),
 			},
 			Accepted:    1,
-			ParentBlock: validitywindowtest.NewExecutionBlock(5, 5, 5),
-			Containers: []validitywindowtest.Container{
-				validitywindowtest.NewContainer(3),
+			ParentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			Containers: []container{
+				newContainer(3),
 			},
 			OldestAllowewd: 1,
 			ExpectedError:  database.ErrNotFound,
@@ -198,21 +197,96 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	}
 }
 
-// testing structures.
 type testChainIndex struct {
-	blocks map[ids.ID]ExecutionBlock[validitywindowtest.Container]
+	blocks map[ids.ID]ExecutionBlock[container]
 }
 
-func (t testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[validitywindowtest.Container], error) {
+func (t testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, nil
 	}
 	return nil, database.ErrNotFound
 }
 
-func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[validitywindowtest.Container]) {
+func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[container]) {
 	if t.blocks == nil {
-		t.blocks = make(map[ids.ID]ExecutionBlock[validitywindowtest.Container])
+		t.blocks = make(map[ids.ID]ExecutionBlock[container])
 	}
 	t.blocks[blkID] = blk
+}
+
+type container struct {
+	ID     ids.ID
+	Expiry int64
+}
+
+func (c container) GetID() ids.ID {
+	return c.ID
+}
+
+func (c container) GetExpiry() int64 {
+	return c.Expiry
+}
+
+func newContainer(expiry int64) container {
+	return container{
+		Expiry: expiry,
+		ID:     int64ToID(expiry),
+	}
+}
+
+type executionBlock struct {
+	Prnt   ids.ID
+	Tmstmp int64
+	Hght   uint64
+	Ctrs   []container
+	ID     ids.ID
+}
+
+func (e executionBlock) GetID() ids.ID {
+	return e.ID
+}
+
+func (e executionBlock) Parent() ids.ID {
+	return e.Prnt
+}
+
+func (e executionBlock) Timestamp() int64 {
+	return e.Tmstmp
+}
+
+func (e executionBlock) Height() uint64 {
+	return e.Hght
+}
+
+func (e executionBlock) Containers() []container {
+	return e.Ctrs
+}
+
+func (e executionBlock) Contains(id ids.ID) bool {
+	for _, c := range e.Ctrs {
+		if c.GetID() == id {
+			return true
+		}
+	}
+	return false
+}
+
+func newExecutionBlock(parent int64, timestamp int64, height uint64, containers []int64) executionBlock {
+	e := executionBlock{
+		Prnt:   int64ToID(parent),
+		Tmstmp: timestamp,
+		Hght:   height,
+		ID:     int64ToID(parent + 1),
+	}
+	for _, c := range containers {
+		e.Ctrs = append(e.Ctrs, newContainer(c))
+	}
+	return e
+}
+
+func int64ToID(n int64) ids.ID {
+	var id ids.ID
+	binary.BigEndian.PutUint64(id[0:8], uint64(n))
+	return id
 }
