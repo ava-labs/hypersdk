@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
@@ -23,7 +22,6 @@ import (
 
 var (
 	_ chain.MetadataManager                         = (*mockMetadataManager)(nil)
-	_ chain.Action                                  = (*mockAction1)(nil)
 	_ chain.Auth                                    = (*mockAuth)(nil)
 	_ chain.BalanceHandler                          = (*mockBalanceHandler)(nil)
 	_ state.View                                    = (*abstractMockView)(nil)
@@ -88,75 +86,6 @@ func (m *mockChainIndex) GetExecutionBlock(context.Context, ids.ID) (validitywin
 	return nil, m.err
 }
 
-type mockAction1 struct {
-	abstractMockAction
-	stateKeys state.Keys
-}
-
-func (*mockAction1) GetTypeID() uint8 {
-	return 1
-}
-
-func (m *mockAction1) StateKeys(codec.Address, ids.ID) state.Keys {
-	return m.stateKeys
-}
-
-type mockAuth struct{}
-
-func (*mockAuth) Actor() codec.Address {
-	return codec.Address{}
-}
-
-func (*mockAuth) ComputeUnits(chain.Rules) uint64 {
-	panic("unimplemented")
-}
-
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Marshal(*codec.Packer) {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Size() int {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Sponsor() codec.Address {
-	return codec.Address{}
-}
-
-func (*mockAuth) ValidRange(chain.Rules) (int64, int64) {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Verify(context.Context, []byte) error {
-	return errMockAuth
-}
-
-type mockBalanceHandler struct{}
-
-func (*mockBalanceHandler) AddBalance(context.Context, codec.Address, state.Mutable, uint64) error {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) CanDeduct(context.Context, codec.Address, state.Immutable, uint64) error {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) Deduct(context.Context, codec.Address, state.Mutable, uint64) error {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) GetBalance(context.Context, codec.Address, state.Immutable) (uint64, error) {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) SponsorStateKeys(codec.Address) state.Keys {
-	return state.Keys{}
-}
-
 func TestPreExecutor(t *testing.T) {
 	ruleFactory := genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()}
 
@@ -191,10 +120,11 @@ func TestPreExecutor(t *testing.T) {
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Actions: []chain.Action{
-						&mockAction1{
+						&mockAction{
 							stateKeys: state.Keys{
 								"": state.None,
 							},
+							typeID: 1,
 						},
 					},
 				},
@@ -210,10 +140,14 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&mockAction1{},
+						&mockAction{
+							typeID: 1,
+						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &mockAuth{
+					verifyError: errMockAuth,
+				},
 			},
 			chainIndex: &mockChainIndex{},
 			verifyAuth: true,
