@@ -142,7 +142,7 @@ func (p *Processor) Execute(
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, ErrParsingInvalidUint64
 	}
 	if b.Hght != parentHeight+1 {
 		return nil, nil, ErrInvalidBlockHeight
@@ -159,7 +159,7 @@ func (p *Processor) Execute(
 	}
 	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, ErrParsingInvalidUint64
 	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {

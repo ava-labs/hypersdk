@@ -127,6 +127,7 @@ type mockAuth struct {
 	computeUnits uint64
 	actor        codec.Address
 	sponsor      codec.Address
+	typeID       uint8
 }
 
 func (m *mockAuth) Actor() codec.Address {
@@ -137,8 +138,8 @@ func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
 	return m.computeUnits
 }
 
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
+func (m *mockAuth) GetTypeID() uint8 {
+	return m.typeID
 }
 
 func (*mockAuth) Marshal(*codec.Packer) {
@@ -158,7 +159,7 @@ func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
 }
 
 func (*mockAuth) Verify(context.Context, []byte) error {
-	panic("unimplemented")
+	return nil
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
