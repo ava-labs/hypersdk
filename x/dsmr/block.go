@@ -91,16 +91,16 @@ func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
 	if err != nil {
 		return err
 	}
+
 	pk, err := bls.PublicKeyFromCompressedBytes(c.Signer[:])
 	if err != nil {
 		return err
 	}
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(c.UnsignedChunk, &packer); err != nil {
-		return err
-	}
 
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	// remove the encoding of the Signer and Signature out of the encoded bytes slice
+	// so that we could calculate the unsigned message.
+	unsignedChunkBytes := c.bytes[:len(c.bytes)-bls.PublicKeyLen-bls.SignatureLen]
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, unsignedChunkBytes)
 	if err != nil {
 		return err
 	}
