@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/hypersdk/api"
 )
 

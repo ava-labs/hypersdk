@@ -4,8 +4,9 @@
 package registry
 
 import (
-	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
 type TestFunc func(t require.TestingT, tn workload.TestNetwork)

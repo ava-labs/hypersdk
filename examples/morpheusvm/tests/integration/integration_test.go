@@ -7,12 +7,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
+
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	morpheusvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/vm/vmtest"
-	"github.com/stretchr/testify/require"
+
+	morpheusvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 )
 
 func TestIntegration(t *testing.T) {
