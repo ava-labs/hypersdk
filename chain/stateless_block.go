@@ -68,7 +68,7 @@ func (b *StatelessBlock) Parent() ids.ID       { return b.Prnt }
 func (b *StatelessBlock) Timestamp() int64     { return b.Tmstmp }
 
 func (b *StatelessBlock) String() string {
-	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, Size=%d)", b.id, b.Hght, b.Prnt, len(b.bytes))
+	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Hght, b.Prnt, len(b.Txs), len(b.bytes))
 }
 
 func (b *StatelessBlock) Marshal() ([]byte, error) {

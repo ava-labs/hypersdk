@@ -6,6 +6,7 @@ package snow
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -83,7 +84,48 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 
 	v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
 	v.setLastAccepted(v.lastAcceptedBlock)
+
+	if err := v.verifyProcessingBlocks(ctx); err != nil {
+		return err
+	}
+
 	v.markReady(true)
+	return nil
+}
+
+func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
+	// Sort processing blocks by height
+	v.verifiedL.Lock()
+	defer v.verifiedL.Unlock()
+
+	v.log.Info("Verifying processing blocks after state sync", zap.Int("numBlocks", len(v.verifiedBlocks)))
+	processingBlocks := make([]*StatefulBlock[I, O, A], 0, len(v.verifiedBlocks))
+	for _, blk := range v.verifiedBlocks {
+		processingBlocks = append(processingBlocks, blk)
+	}
+	slices.SortFunc(processingBlocks, func(a *StatefulBlock[I, O, A], b *StatefulBlock[I, O, A]) int {
+		return int(a.Height()) - int(b.Height())
+	})
+
+	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
+	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
+	// and we can safely drop the error here.
+	for _, blk := range processingBlocks {
+		parent, err := v.GetBlock(ctx, blk.Parent())
+		if err != nil {
+			return fmt.Errorf("failed to fetch parent block %s while verifying processing block %s after state sync: %w", blk.Parent(), blk, err)
+		}
+		if !parent.verified {
+			v.log.Warn("Parent block not verified, skipping verification of processing block",
+				zap.Stringer("parent", parent),
+				zap.Stringer("block", blk),
+			)
+			continue
+		}
+		if err := blk.verify(ctx, parent.Output); err != nil {
+			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
+		}
+	}
 	return nil
 }
 

@@ -52,10 +52,15 @@ func init() {
 	}
 }
 
-// NewWithOptions returns a VM with the specified options
+// New returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With()) // Add MorpheusVM API
-	return defaultvm.New(
+	factory := NewFactory()
+	return factory.New(options...)
+}
+
+func NewFactory() *vm.Factory {
+	options := append(defaultvm.NewDefaultOptions(), With())
+	return vm.NewFactory(
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),

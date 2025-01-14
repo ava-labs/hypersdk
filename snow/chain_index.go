@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
-	"go.uber.org/zap"
 )
 
 // ChainIndex defines the generic on-disk index for the Input block type required
@@ -120,37 +119,27 @@ func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I
 }
 
 func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
-	c.vm.chainLock.Lock()
-	defer c.vm.chainLock.Unlock()
+	c.vm.metaLock.Lock()
+	preference := c.vm.preferredBlkID
+	c.vm.metaLock.Unlock()
 
-	blk, err := c.vm.GetBlock(ctx, c.vm.preferredBlkID)
+	blk, err := c.vm.GetBlock(ctx, preference)
 	if err != nil {
 		return utils.Zero[O](), err
 	}
-
 	if !blk.verified {
-		// The block may not be populated if we are transitioning from dynamic state sync.
-		// This is jank as hell.
-		// To handle this, we re-process from the last verified ancestor to the preferred
-		// block.
-		// If the preferred block is invalid (which can happen if a malicious peer sends us
-		// an invalid block and we hit a poll that causes us to set it to our preference),
-		// then we will return an error.
-		c.vm.log.Info("Reprocessing to preferred block",
-			zap.Stringer("lastAccepted", c.vm.lastAcceptedBlock),
-			zap.Stringer("preferred", blk),
-		)
-		if err := blk.innerVerify(ctx); err != nil {
-			return utils.Zero[O](), fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
-		}
-		return blk.Output, nil
+		return utils.Zero[O](), fmt.Errorf("preferred block %s has not been verified", blk)
 	}
 	return blk.Output, nil
 }
 
-func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) A {
+func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) (A, error) {
 	c.vm.metaLock.Lock()
-	defer c.vm.metaLock.Unlock()
+	lastAccepted := c.vm.lastAcceptedBlock
+	c.vm.metaLock.Unlock()
 
-	return c.vm.lastAcceptedBlock.Accepted
+	if !lastAccepted.accepted {
+		return utils.Zero[A](), fmt.Errorf("last accepted block %s has not been populated", lastAccepted)
+	}
+	return lastAccepted.Accepted, nil
 }

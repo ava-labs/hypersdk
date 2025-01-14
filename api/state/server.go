@@ -6,6 +6,7 @@ package state
 import (
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/api"
 )
 
@@ -57,6 +58,9 @@ func (s *JSONRPCStateServer) ReadState(req *http.Request, args *ReadStateRequest
 	for i, err := range errs {
 		if err != nil {
 			res.Errors[i] = err.Error()
+		}
+		if err != nil && err != database.ErrNotFound {
+			return err
 		}
 	}
 	return nil

@@ -56,6 +56,30 @@ func New(
 	)
 }
 
+// NewFactory returns a VM Factory with DefaultOptions pre-supplied
+func NewFactory(
+	genesisFactory genesis.GenesisAndRuleFactory,
+	balanceHandler chain.BalanceHandler,
+	metadataManager chain.MetadataManager,
+	actionCodec *codec.TypeParser[chain.Action],
+	authCodec *codec.TypeParser[chain.Auth],
+	outputCodec *codec.TypeParser[codec.Typed],
+	authEngine map[uint8]vm.AuthEngine,
+	options ...vm.Option,
+) *vm.Factory {
+	options = append(options, NewDefaultOptions()...)
+	return vm.NewFactory(
+		genesisFactory,
+		balanceHandler,
+		metadataManager,
+		actionCodec,
+		authCodec,
+		outputCodec,
+		authEngine,
+		options...,
+	)
+}
+
 func NewSnowVM(
 	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,

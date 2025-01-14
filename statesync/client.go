@@ -111,6 +111,14 @@ func (c *Client[T]) finish(ctx context.Context, err error) {
 	defer func() {
 		c.err = err
 		close(c.done)
+		// AvalancheGo does not provide a mechanism to propagate a fatal error from
+		// DynamicStateSync. Log a fatal error and then panic to fail fast.
+		// TODO: add a proper mechanism in AvalancheGo to propagate a fatal error
+		// from the VM.
+		if c.err != nil {
+			c.log.Fatal("State sync failed", zap.Error(err))
+			panic(c.err)
+		}
 	}()
 
 	if err != nil {
