@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 
 type mockValidityWindow struct {
 	isRepeatError error
+	setBits       []int
 }
 
 func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transaction]) {
@@ -43,7 +45,7 @@ func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transacti
 }
 
 func (m *mockValidityWindow) IsRepeat(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
-	return set.NewBits(), m.isRepeatError
+	return set.NewBits(m.setBits...), m.isRepeatError
 }
 
 func (*mockValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], int64) error {
@@ -51,7 +53,10 @@ func (*mockValidityWindow) VerifyExpiryReplayProtection(context.Context, validit
 }
 
 func TestPreExecutor(t *testing.T) {
-	ruleFactory := genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()}
+	testRules := genesis.NewDefaultRules()
+	ruleFactory := genesis.ImmutableRuleFactory{
+		Rules: testRules,
+	}
 
 	tests := []struct {
 		name           string
@@ -62,11 +67,32 @@ func TestPreExecutor(t *testing.T) {
 		err            error
 	}{
 		{
+			name: "valid test case",
+			state: map[string][]byte{
+				feeKey: {},
+			},
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: utils.UnixRMilli(
+							time.Now().UnixMilli(),
+							testRules.GetValidityWindow(),
+						),
+					},
+				},
+				Auth: &mockAuth{
+					start: -1,
+					end:   -1,
+				},
+			},
+			validityWindow: &mockValidityWindow{},
+		},
+		{
 			name: "raw fee doesn't exist",
 			err:  database.ErrNotFound,
 		},
 		{
-			name: "repeat error",
+			name: "validity window error",
 			tx:   &chain.Transaction{},
 			state: map[string][]byte{
 				feeKey: {},
@@ -77,9 +103,20 @@ func TestPreExecutor(t *testing.T) {
 			err: errMockValidityWindow,
 		},
 		{
+			name: "duplicate transaction",
+			tx:   &chain.Transaction{},
+			state: map[string][]byte{
+				feeKey: {},
+			},
+			validityWindow: &mockValidityWindow{
+				setBits: []int{0},
+			},
+			err: chain.ErrDuplicateTx,
+		},
+		{
 			name: "tx state keys are invalid",
 			state: map[string][]byte{
-				string(chain.FeeKey([]byte{2})): {},
+				feeKey: {},
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
@@ -88,7 +125,6 @@ func TestPreExecutor(t *testing.T) {
 							stateKeys: state.Keys{
 								"": state.None,
 							},
-							typeID: 1,
 						},
 					},
 				},
@@ -100,16 +136,11 @@ func TestPreExecutor(t *testing.T) {
 		{
 			name: "verify auth error",
 			state: map[string][]byte{
-				string(chain.FeeKey([]byte{2})): {},
+				feeKey: {},
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
-					Actions: []chain.Action{
-						&mockAction{
-							typeID: 1,
-						},
-					},
 				},
 				Auth: &mockAuth{
 					verifyError: errMockAuth,
@@ -119,19 +150,26 @@ func TestPreExecutor(t *testing.T) {
 			verifyAuth:     true,
 			err:            errMockAuth,
 		},
+		{
+			name: "transaction pre-execute error",
+			state: map[string][]byte{
+				feeKey: {},
+			},
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &mockAuth{},
+			},
+			validityWindow: &mockValidityWindow{},
+			err:            chain.ErrTimestampTooLate,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
-
-			parentBlock, err := chain.NewExecutionBlock(
-				&chain.StatelessBlock{
-					Tmstmp: time.Now().UnixMilli(),
-				},
-			)
-			r.NoError(err)
 
 			db, err := merkledb.New(
 				ctx,
@@ -158,7 +196,7 @@ func TestPreExecutor(t *testing.T) {
 			r.ErrorIs(
 				preExecutor.PreExecute(
 					ctx,
-					parentBlock,
+					nil,
 					db,
 					tt.tx,
 					tt.verifyAuth,
