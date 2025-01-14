@@ -57,7 +57,7 @@ func (b *ExecutionBlock) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) Containers() []*Transaction {
+func (b *ExecutionBlock) GetContainers() []*Transaction {
 	return b.StatelessBlock.Txs
 }
 

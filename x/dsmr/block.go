@@ -106,7 +106,7 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
-// validityWindowBlock bridge the gap between the dsmr's block implementation and the validity window's execution block interface.
+// validityWindowBlock implements the validity window's execution block interface
 type validityWindowBlock struct {
 	Block
 	certs      set.Set[ids.ID]
@@ -117,7 +117,7 @@ func (e validityWindowBlock) Contains(id ids.ID) bool {
 	return e.certs.Contains(id)
 }
 
-func (e validityWindowBlock) Containers() []*emapChunkCertificate {
+func (e validityWindowBlock) GetContainers() []*emapChunkCertificate {
 	return e.chunkCerts
 }
 

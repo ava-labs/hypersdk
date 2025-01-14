@@ -46,7 +46,7 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 
 	evicted := v.seen.SetMin(blk.GetTimestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	v.seen.Add(blk.Containers())
+	v.seen.Add(blk.GetContainers())
 	v.lastAcceptedBlockHeight = blk.GetHeight()
 }
 
@@ -63,7 +63,7 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return err
 	}
 
-	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Containers(), true)
+	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.GetContainers(), true)
 	if err != nil {
 		return err
 	}
@@ -71,8 +71,8 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
 	}
 	// make sure we have no repeats within the block itself.
-	blkContainerIDs := set.NewSet[ids.ID](len(blk.Containers()))
-	for _, container := range blk.Containers() {
+	blkContainerIDs := set.NewSet[ids.ID](len(blk.GetContainers()))
+	for _, container := range blk.GetContainers() {
 		id := container.GetID()
 		if blkContainerIDs.Contains(id) {
 			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)

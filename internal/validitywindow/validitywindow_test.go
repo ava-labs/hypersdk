@@ -18,180 +18,180 @@ import (
 
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
-		Name          string
-		Accepted      []executionBlock
-		VerifyBlock   executionBlock
-		OldestAllowed int64
-		ExpectedError error
+		name          string
+		accepted      []executionBlock
+		verifyBlock   executionBlock
+		oldestAllowed int64
+		expectedError error
 	}{
 		{
-			Name: "no duplicate",
-			Accepted: []executionBlock{
+			name: "no duplicate",
+			accepted: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{3}),
-			OldestAllowed: 1,
+			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{3}),
+			oldestAllowed: 1,
 		},
 		{
-			Name: "expected duplicate",
-			Accepted: []executionBlock{
+			name: "expected duplicate",
+			accepted: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
-			OldestAllowed: 1,
-			ExpectedError: ErrDuplicateContainer,
+			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
+			oldestAllowed: 1,
+			expectedError: ErrDuplicateContainer,
 		},
 		{
-			Name: "duplicate outside window",
-			Accepted: []executionBlock{
+			name: "duplicate outside window",
+			accepted: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			VerifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
-			OldestAllowed: 2,
-			ExpectedError: nil,
+			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
+			oldestAllowed: 2,
+			expectedError: nil,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
 			r.NoError(nil)
 
 			chainIndex := &testChainIndex{}
 			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
 			r.NotNil(tvw)
-			for _, acceptedBlk := range test.Accepted {
+			for _, acceptedBlk := range test.accepted {
 				tvw.Accept(acceptedBlk)
 				chainIndex.set(acceptedBlk.GetID(), acceptedBlk)
 			}
-			r.ErrorIs(tvw.VerifyExpiryReplayProtection(context.Background(), test.VerifyBlock, test.OldestAllowed), test.ExpectedError)
+			r.ErrorIs(tvw.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock, test.oldestAllowed), test.expectedError)
 		})
 	}
 }
 
 func TestValidityWindowIsRepeat(t *testing.T) {
 	tests := []struct {
-		Name           string
-		Blocks         []executionBlock
-		Accepted       uint64 // index into Blocks of the last accepted block.
-		ParentBlock    executionBlock
-		Containers     []container
-		OldestAllowewd int64
-		ExpectedError  error
-		ExpectedBits   set.Bits
+		name           string
+		blocks         []executionBlock
+		accepted       uint64 // index into Blocks of the last accepted block.
+		parentBlock    executionBlock
+		containers     []container
+		oldestAllowewd int64
+		expectedError  error
+		expectedBits   set.Bits
 	}{
 		{
-			Name: "no containers",
-			Blocks: []executionBlock{
+			name: "no containers",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			Accepted:       1,
-			ParentBlock:    newExecutionBlock(1, 1, 1, []int64{1, 2}),
-			Containers:     []container{},
-			OldestAllowewd: 1,
-			ExpectedError:  nil,
-			ExpectedBits:   set.NewBits(),
+			accepted:       1,
+			parentBlock:    newExecutionBlock(1, 1, 1, []int64{1, 2}),
+			containers:     []container{},
+			oldestAllowewd: 1,
+			expectedError:  nil,
+			expectedBits:   set.NewBits(),
 		},
 		{
-			Name: "no repeats",
-			Blocks: []executionBlock{
+			name: "no repeats",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			Accepted:    1,
-			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
-			Containers: []container{
+			accepted:    1,
+			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			containers: []container{
 				newContainer(5),
 			},
-			OldestAllowewd: 0,
-			ExpectedError:  nil,
-			ExpectedBits:   set.NewBits(),
+			oldestAllowewd: 0,
+			expectedError:  nil,
+			expectedBits:   set.NewBits(),
 		},
 		{
-			Name: "repeats outside validity window",
-			Blocks: []executionBlock{
+			name: "repeats outside validity window",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			Accepted:    1,
-			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
-			Containers: []container{
+			accepted:    1,
+			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			containers: []container{
 				newContainer(1),
 			},
-			OldestAllowewd: 2,
-			ExpectedError:  nil,
-			ExpectedBits:   set.NewBits(),
+			oldestAllowewd: 2,
+			expectedError:  nil,
+			expectedBits:   set.NewBits(),
 		},
 		{
-			Name: "repeats within latest accepted validity window block",
-			Blocks: []executionBlock{
+			name: "repeats within latest accepted validity window block",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
-			Accepted:    1,
-			ParentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
-			Containers: []container{
+			accepted:    1,
+			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			containers: []container{
 				newContainer(1),
 			},
-			OldestAllowewd: 1,
-			ExpectedError:  nil,
-			ExpectedBits:   set.NewBits(0),
+			oldestAllowewd: 1,
+			expectedError:  nil,
+			expectedBits:   set.NewBits(0),
 		},
 		{
-			Name: "repeats after latest accepted block",
-			Blocks: []executionBlock{
+			name: "repeats after latest accepted block",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1}),
 				newExecutionBlock(2, 2, 2, []int64{2}),
 				newExecutionBlock(3, 3, 3, []int64{3}),
 				newExecutionBlock(4, 4, 4, []int64{4}),
 			},
-			Accepted:    1,
-			ParentBlock: newExecutionBlock(5, 5, 5, []int64{}),
-			Containers: []container{
+			accepted:    1,
+			parentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			containers: []container{
 				newContainer(3),
 			},
-			OldestAllowewd: 1,
-			ExpectedError:  nil,
-			ExpectedBits:   set.NewBits(0),
+			oldestAllowewd: 1,
+			expectedError:  nil,
+			expectedBits:   set.NewBits(0),
 		},
 		{
-			Name: "missing block in ancestery",
-			Blocks: []executionBlock{
+			name: "missing block in ancestery",
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1}),
 				newExecutionBlock(2, 2, 2, []int64{2}),
 			},
-			Accepted:    1,
-			ParentBlock: newExecutionBlock(5, 5, 5, []int64{}),
-			Containers: []container{
+			accepted:    1,
+			parentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			containers: []container{
 				newContainer(3),
 			},
-			OldestAllowewd: 1,
-			ExpectedError:  database.ErrNotFound,
+			oldestAllowewd: 1,
+			expectedError:  database.ErrNotFound,
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
 			r.NoError(nil)
 
 			chainIndex := &testChainIndex{}
 			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
 			r.NotNil(tvw)
-			for i, blk := range test.Blocks {
-				if i <= int(test.Accepted) {
+			for i, blk := range test.blocks {
+				if i <= int(test.accepted) {
 					tvw.Accept(blk)
 				}
 				chainIndex.set(blk.GetID(), blk)
 			}
-			bits, err := tvw.IsRepeat(context.Background(), test.ParentBlock, test.Containers, test.OldestAllowewd)
-			r.ErrorIs(err, test.ExpectedError)
+			bits, err := tvw.IsRepeat(context.Background(), test.parentBlock, test.containers, test.oldestAllowewd)
+			r.ErrorIs(err, test.expectedError)
 			if err == nil {
-				r.Equal(test.ExpectedBits.Bytes(), bits.Bytes())
+				r.Equal(test.expectedBits.Bytes(), bits.Bytes())
 			}
 		})
 	}
@@ -259,7 +259,7 @@ func (e executionBlock) GetHeight() uint64 {
 	return e.Hght
 }
 
-func (e executionBlock) Containers() []container {
+func (e executionBlock) GetContainers() []container {
 	return e.Ctrs
 }
 

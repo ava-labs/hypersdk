@@ -15,7 +15,7 @@ type ExecutionBlock[Container emap.Item] interface {
 	GetParent() ids.ID
 	GetTimestamp() int64
 	GetHeight() uint64
-	Containers() []Container
+	GetContainers() []Container
 	Contains(ids.ID) bool
 }
 

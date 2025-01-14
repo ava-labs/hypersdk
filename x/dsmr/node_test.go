@@ -517,7 +517,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				&testingTimeValidityWindowMock{},
+				&mockTimeValidityWindow{},
 				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
@@ -757,7 +757,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 		chunks             func(parent Block) []chunk
 		timestamp          func(parent Block) int64
 		wantErr            error
-		timevaliditywindow TimeValidityWindow[*emapChunkCertificate]
+		timeValidityWindow TimeValidityWindow[*emapChunkCertificate]
 	}{
 		{
 			name: "no chunk certs",
@@ -942,8 +942,10 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 				return parent.Timestamp + 100
 			},
 			wantErr: errTestingInvalidValidityWindow,
-			timevaliditywindow: &testingTimeValidityWindowMock{
-				defaultIsRepeatErr: errTestingInvalidValidityWindow,
+			timeValidityWindow: &mockTimeValidityWindow{
+				onIsRepeat: func(ctx context.Context, parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate], txs []*emapChunkCertificate, oldestAllowed int64) (set.Bits, error) {
+					return set.NewBits(), errTestingInvalidValidityWindow
+				},
 			},
 		},
 		{
@@ -965,8 +967,8 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 				return parent.Timestamp + 100
 			},
 			wantErr: ErrNoAvailableChunkCerts,
-			timevaliditywindow: &testingTimeValidityWindowMock{
-				OnIsRepeat: func(
+			timeValidityWindow: &mockTimeValidityWindow{
+				onIsRepeat: func(
 					context.Context,
 					validitywindow.ExecutionBlock[*emapChunkCertificate],
 					[]*emapChunkCertificate,
@@ -1009,8 +1011,8 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 
 				wantChunks = append(wantChunks, chunk)
 			}
-			if tt.timevaliditywindow != nil {
-				node.validityWindow = tt.timevaliditywindow
+			if tt.timeValidityWindow != nil {
+				node.validityWindow = tt.timeValidityWindow
 			}
 			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, timestamp)
 			r.ErrorIs(err, tt.wantErr)
@@ -1332,8 +1334,10 @@ func Test_Verify_BadBlock(t *testing.T) {
 				}
 			},
 			wantErr: errTestingInvalidValidityWindow,
-			validityWindow: &testingTimeValidityWindowMock{
-				defaultVerifyExpiryReplayProtectionErr: errTestingInvalidValidityWindow,
+			validityWindow: &mockTimeValidityWindow{
+				onVerifyExpiryReplayProtection: func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error {
+					return errTestingInvalidValidityWindow
+				},
 			},
 		},
 	}
@@ -1474,7 +1478,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			Block{},
 			1,
 			1,
-			&testingTimeValidityWindowMock{},
+			&mockTimeValidityWindow{},
 			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
@@ -1513,37 +1517,33 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	return result
 }
 
-type testingTimeValidityWindowMock struct {
-	OnIsRepeat func(ctx context.Context,
+type mockTimeValidityWindow struct {
+	onIsRepeat func(ctx context.Context,
 		parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
 		txs []*emapChunkCertificate,
 		oldestAllowed int64,
 	) (set.Bits, error)
 
-	OnVerifyExpiryReplayProtection func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error
-
-	defaultIsRepeatErr                     error
-	defaultVerifyExpiryReplayProtectionErr error
+	onVerifyExpiryReplayProtection func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error
 }
 
-func (v *testingTimeValidityWindowMock) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], t int64) error {
-	if v.OnVerifyExpiryReplayProtection != nil {
-		return v.OnVerifyExpiryReplayProtection(ctx, blk, t)
+func (v *mockTimeValidityWindow) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], t int64) error {
+	if v.onVerifyExpiryReplayProtection != nil {
+		return v.onVerifyExpiryReplayProtection(ctx, blk, t)
 	}
-	return v.defaultVerifyExpiryReplayProtectionErr
+	return nil
 }
 
-func (v *testingTimeValidityWindowMock) IsRepeat(
+func (v *mockTimeValidityWindow) IsRepeat(
 	ctx context.Context,
 	parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
 	txs []*emapChunkCertificate,
 	oldestAllowed int64,
 ) (set.Bits, error) {
-	if v.OnIsRepeat != nil {
-		return v.OnIsRepeat(ctx, parentBlk, txs, oldestAllowed)
+	if v.onIsRepeat != nil {
+		return v.onIsRepeat(ctx, parentBlk, txs, oldestAllowed)
 	}
-	return set.NewBits(), v.defaultIsRepeatErr
+	return set.NewBits(), nil
 }
 
-func (*testingTimeValidityWindowMock) Accept(validitywindow.ExecutionBlock[*emapChunkCertificate]) {
-}
+func (*mockTimeValidityWindow) Accept(validitywindow.ExecutionBlock[*emapChunkCertificate]) {}
