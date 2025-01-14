@@ -943,7 +943,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			},
 			wantErr: errTestingInvalidValidityWindow,
 			timeValidityWindow: &mockTimeValidityWindow{
-				onIsRepeat: func(ctx context.Context, parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate], txs []*emapChunkCertificate, oldestAllowed int64) (set.Bits, error) {
+				onIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], []*emapChunkCertificate, int64) (set.Bits, error) {
 					return set.NewBits(), errTestingInvalidValidityWindow
 				},
 			},
