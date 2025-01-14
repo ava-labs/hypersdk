@@ -132,12 +132,6 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 		return ErrInvalidChunk
 	}
 
-	// TODO:
-	// check if the expiry of this chunk isn't in the past or too far into the future.
-
-	// TODO:
-	// check if the producer was expected to produce this chunk.
-
 	// check to see if this chunk was already accepted.
 	_, accepted, err := c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {

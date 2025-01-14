@@ -40,6 +40,14 @@ type ChunkVerifier[T Tx] struct {
 }
 
 func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
+	// TODO:
+	// check if the expiry of this chunk isn't in the past or too far into the future.
+
+	// TODO:
+	// check if the producer was expected to produce this chunk.
+
+	// TODO:
+	// add rate limiting for a given producer.
 	return chunk.Verify(c.networkID, c.chainID)
 }
 

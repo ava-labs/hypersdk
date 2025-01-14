@@ -18,7 +18,7 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
-var ErrFailedSigVerification = errors.New("failed to verify signature")
+var ErrFailedSigVerification = errors.New("failed to verify bls chunk signature")
 
 type Tx interface {
 	GetID() ids.ID
