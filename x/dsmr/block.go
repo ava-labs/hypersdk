@@ -19,7 +19,7 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
-var ErrFailedSigVerification = errors.New("failed to verify bls chunk signature")
+var ErrFailedChunkSigVerification = errors.New("failed to verify bls chunk signature")
 
 type Tx interface {
 	GetID() ids.ID
@@ -110,7 +110,7 @@ func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
 	}
 
 	if !bls.Verify(pk, signature, msg.Bytes()) {
-		return ErrFailedSigVerification
+		return ErrFailedChunkSigVerification
 	}
 
 	return nil
