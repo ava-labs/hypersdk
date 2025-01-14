@@ -106,7 +106,7 @@ func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
 
 	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, "failed to create unsigned warp message from chunk", err)
+		return fmt.Errorf("failed to create unsigned warp message from chunk: %w", err)
 	}
 
 	if !bls.Verify(pk, signature, msg.Bytes()) {
