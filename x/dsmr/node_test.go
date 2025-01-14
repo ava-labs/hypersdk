@@ -366,6 +366,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
+
 			// Build some chunks
 			for _, args := range tt.availableChunks {
 				r.NoError(node.BuildChunk(
@@ -984,6 +985,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
+
 			timestamp := tt.timestamp(node.LastAccepted)
 			chunks := []chunk{}
 
@@ -1340,7 +1342,6 @@ func Test_Verify_BadBlock(t *testing.T) {
 			r := require.New(t)
 
 			node := newTestNode(t)
-
 			r.NoError(node.BuildChunk(
 				context.Background(),
 				[]dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 2}},
