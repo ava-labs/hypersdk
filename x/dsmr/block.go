@@ -5,6 +5,7 @@ package dsmr
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -18,7 +19,7 @@ import (
 
 const InitialChunkSize = 250 * 1024
 
-var ErrFailedSigVerification = errors.New("failed to verify bls chunk signature")
+var ErrFailedChunkSigVerification = errors.New("failed to verify bls chunk signature")
 
 type Tx interface {
 	GetID() ids.ID
@@ -97,16 +98,19 @@ func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
 		return err
 	}
 
-	// remove the encoding of the Signer and Signature out of the encoded bytes slice
-	// so that we could calculate the unsigned message.
-	unsignedChunkBytes := c.bytes[:len(c.bytes)-bls.PublicKeyLen-bls.SignatureLen]
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, unsignedChunkBytes)
-	if err != nil {
+	// Construct the unsigned message from the UnsignedChunk (stripping the signature fields)
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(c.UnsignedChunk, &packer); err != nil {
 		return err
 	}
 
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to create unsigned warp message from chunk: %w", err)
+	}
+
 	if !bls.Verify(pk, signature, msg.Bytes()) {
-		return ErrFailedSigVerification
+		return ErrFailedChunkSigVerification
 	}
 
 	return nil
