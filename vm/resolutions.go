@@ -100,19 +100,11 @@ func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, err
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	acceptedBlock, err := vm.consensusIndex.GetLastAccepted(ctx)
-	if err != nil {
-		return nil, []error{err}
-	}
-	return acceptedBlock.View.GetValues(ctx, keys)
+	return vm.stateDB.GetValues(ctx, keys)
 }
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
-	acceptedBlock, err := vm.consensusIndex.GetLastAccepted(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return acceptedBlock.View.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
+	return vm.stateDB.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
 }
 
 func (vm *VM) Mempool() chain.Mempool {

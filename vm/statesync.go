@@ -117,7 +117,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			}
 			// Execute at least one block after state sync to ensure ExecutionResults is populated for the last
 			// accepted block.
-			outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, block)
+			outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, block, false)
 			if err != nil {
 				return fmt.Errorf("failed to execute final block %s after state sync: %w", block, err)
 			}
