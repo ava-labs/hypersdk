@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -61,16 +62,19 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 type Builder struct {
-	tracer                    trace.Tracer
-	ruleFactory               RuleFactory
-	log                       logging.Logger
-	metadataManager           MetadataManager
-	transactionManagerFactory TransactionManagerFactory
-	balanceHandler            BalanceHandler
-	mempool                   Mempool
-	validityWindow            ValidityWindow
-	metrics                   *chainMetrics
-	config                    Config
+	tracer             trace.Tracer
+	ruleFactory        RuleFactory
+	log                logging.Logger
+	metadataManager    MetadataManager
+	balanceHandler     BalanceHandler
+	mempool            Mempool
+	validityWindow     ValidityWindow
+	metrics            *chainMetrics
+	executionShim      shim.Execution
+	exportStateDiff    ExportStateDiffFunc
+	resultModifierFunc ResultModifierFunc
+	refundFunc         RefundFunc
+	config             Config
 }
 
 func NewBuilder(
@@ -78,24 +82,30 @@ func NewBuilder(
 	ruleFactory RuleFactory,
 	log logging.Logger,
 	metadataManager MetadataManager,
-	transactionManagerFactory TransactionManagerFactory,
 	balanceHandler BalanceHandler,
 	mempool Mempool,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
+	executionShim shim.Execution,
+	afterBlock ExportStateDiffFunc,
+	resultModifierFunc ResultModifierFunc,
+	refundFunc RefundFunc,
 	config Config,
 ) *Builder {
 	return &Builder{
-		tracer:                    tracer,
-		ruleFactory:               ruleFactory,
-		log:                       log,
-		metadataManager:           metadataManager,
-		transactionManagerFactory: transactionManagerFactory,
-		balanceHandler:            balanceHandler,
-		mempool:                   mempool,
-		validityWindow:            validityWindow,
-		metrics:                   metrics,
-		config:                    config,
+		tracer:             tracer,
+		ruleFactory:        ruleFactory,
+		log:                log,
+		metadataManager:    metadataManager,
+		balanceHandler:     balanceHandler,
+		mempool:            mempool,
+		validityWindow:     validityWindow,
+		metrics:            metrics,
+		executionShim:      executionShim,
+		exportStateDiff:    afterBlock,
+		resultModifierFunc: resultModifierFunc,
+		refundFunc:         refundFunc,
+		config:             config,
 	}
 }
 
@@ -292,8 +302,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}()
 				}
 
-				tm := c.transactionManagerFactory()
-				state, err := tm.ExecutableState(storage, height)
+				state, err := c.executionShim.ImmutableView(ctx, stateKeys, state.ImmutableStorage(storage), height)
 				if err != nil {
 					return err
 				}
@@ -331,7 +340,12 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				blockLock.Lock()
 				defer blockLock.Unlock()
 
-				if err := tm.AfterTX(ctx, tx, result, tsv, c.balanceHandler, feeManager, true); err != nil {
+				resultChanges, err := c.resultModifierFunc(state, result, feeManager)
+				if err != nil {
+					return err
+				}
+
+				if err := c.refundFunc(ctx, resultChanges, c.balanceHandler, tx.Auth.Sponsor(), tsv); err != nil {
 					return err
 				}
 
@@ -414,11 +428,6 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		c.metrics.emptyBlockBuilt.Inc()
 	}
 
-	tm := c.transactionManagerFactory()
-	if err := tm.RawState(ts, height); err != nil {
-		return nil, nil, nil, err
-	}
-
 	// Update chain metadata
 	heightKey := HeightKey(c.metadataManager.HeightPrefix())
 	heightKeyStr := string(heightKey)
@@ -458,7 +467,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	}
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
+	view, err := c.exportStateDiff(ctx, ts, parentView, c.metadataManager, height)
 	if err != nil {
 		return nil, nil, nil, err
 	}

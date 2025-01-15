@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -74,17 +75,21 @@ func (b *ExecutionBlock) Txs() []*Transaction {
 }
 
 type Processor struct {
-	tracer                    trace.Tracer
-	log                       logging.Logger
-	ruleFactory               RuleFactory
-	authVerificationWorkers   workers.Workers
-	authVM                    AuthVM
-	metadataManager           MetadataManager
-	transactionManagerFactory TransactionManagerFactory
-	balanceHandler            BalanceHandler
-	validityWindow            ValidityWindow
-	metrics                   *chainMetrics
-	config                    Config
+	tracer                  trace.Tracer
+	log                     logging.Logger
+	ruleFactory             RuleFactory
+	authVerificationWorkers workers.Workers
+	authVM                  AuthVM
+	metadataManager         MetadataManager
+	balanceHandler          BalanceHandler
+	validityWindow          ValidityWindow
+	metrics                 *chainMetrics
+	executionShim           shim.Execution
+	exportStateDiff         ExportStateDiffFunc
+	dimsModifierFunc        FeeManagerModifierFunc
+	resultModifierFunc      ResultModifierFunc
+	refundFunc              RefundFunc
+	config                  Config
 }
 
 func NewProcessor(
@@ -94,24 +99,32 @@ func NewProcessor(
 	authVerificationWorkers workers.Workers,
 	authVM AuthVM,
 	metadataManager MetadataManager,
-	transactionManagerFactory TransactionManagerFactory,
 	balanceHandler BalanceHandler,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
+	executionShim shim.Execution,
+	afterBlock ExportStateDiffFunc,
+	dimsModifierFunc FeeManagerModifierFunc,
+	resultModifierFunc ResultModifierFunc,
+	refundFunc RefundFunc,
 	config Config,
 ) *Processor {
 	return &Processor{
-		tracer:                    tracer,
-		log:                       log,
-		ruleFactory:               ruleFactory,
-		authVerificationWorkers:   authVerificationWorkers,
-		authVM:                    authVM,
-		metadataManager:           metadataManager,
-		transactionManagerFactory: transactionManagerFactory,
-		balanceHandler:            balanceHandler,
-		validityWindow:            validityWindow,
-		metrics:                   metrics,
-		config:                    config,
+		tracer:                  tracer,
+		log:                     log,
+		ruleFactory:             ruleFactory,
+		authVerificationWorkers: authVerificationWorkers,
+		authVM:                  authVM,
+		metadataManager:         metadataManager,
+		balanceHandler:          balanceHandler,
+		validityWindow:          validityWindow,
+		metrics:                 metrics,
+		executionShim:           executionShim,
+		exportStateDiff:         afterBlock,
+		dimsModifierFunc:        dimsModifierFunc,
+		resultModifierFunc:      resultModifierFunc,
+		refundFunc:              refundFunc,
+		config:                  config,
 	}
 }
 
@@ -195,11 +208,6 @@ func (p *Processor) Execute(
 		return nil, nil, err
 	}
 
-	tm := p.transactionManagerFactory()
-	if err := tm.RawState(ts, b.Height()); err != nil {
-		return nil, nil, err
-	}
-
 	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
@@ -265,7 +273,7 @@ func (p *Processor) Execute(
 	// Get view from [tstate] after processing all state transitions
 	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
 	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
-	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
+	view, err := p.exportStateDiff(ctx, ts, parentView, p.metadataManager, b.Height())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -359,11 +367,24 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			tm := p.transactionManagerFactory()
-			state, err := tm.ExecutableState(state.ImmutableStorage(storage), b.Height())
+			state, err := p.executionShim.ImmutableView(
+				ctx,
+				stateKeys,
+				state.ImmutableStorage(storage),
+				b.Height(),
+			)
 			if err != nil {
 				return err
 			}
+
+			// Ideally, this function converts storage into a state.Immutable
+			// type
+			// However, what we can do is return a struct which impls
+			// state.Immutable AND also keep track of the hot keys
+			// This way, we can then pass in executionState into another
+			// function (similar to afterTX), typecast to T, and then get the
+			// hot keys from there
+			// executionState := executionStateFunc(storage)
 
 			// Execute transaction
 			//
@@ -385,7 +406,17 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			if err := tm.AfterTX(ctx, tx, result, tsv, p.balanceHandler, feeManager, false); err != nil {
+			resultChanges, err := p.resultModifierFunc(state, result, feeManager)
+			if err != nil {
+				return err
+			}
+
+			if err := p.refundFunc(ctx, resultChanges, p.balanceHandler, tx.Auth.Sponsor(), tsv); err != nil {
+				return err
+			}
+
+			// This refunds the dims from the feeManager (only called in the Processor)
+			if err := p.dimsModifierFunc(feeManager, resultChanges); err != nil {
 				return err
 			}
 

@@ -43,7 +43,7 @@ func NewChain(
 		return nil, err
 	}
 
-	options := &Options{}
+	options := NewDefaultOptions()
 	applyOptions(options, ops)
 
 	return &Chain{
@@ -52,11 +52,14 @@ func NewChain(
 			ruleFactory,
 			logger,
 			metadataManager,
-			options.TransactionManagerFactory,
 			balanceHandler,
 			mempool,
 			validityWindow,
 			metrics,
+			options.executionShim,
+			options.exportStateDiffFunc,
+			options.resultModifierFunc,
+			options.refundFunc,
 			config,
 		),
 		processor: NewProcessor(
@@ -66,10 +69,14 @@ func NewChain(
 			authVerifiers,
 			authVM,
 			metadataManager,
-			options.TransactionManagerFactory,
 			balanceHandler,
 			validityWindow,
 			metrics,
+			options.executionShim,
+			options.exportStateDiffFunc,
+			options.dimsModifierFunc,
+			options.resultModifierFunc,
+			options.refundFunc,
 			config,
 		),
 		accepter: NewAccepter(
@@ -81,7 +88,7 @@ func NewChain(
 			ruleFactory,
 			validityWindow,
 			metadataManager,
-			options.TransactionManagerFactory,
+			options.executionShim,
 			balanceHandler,
 		),
 		blockParser: NewBlockParser(tracer, parser),
@@ -123,13 +130,4 @@ func (c *Chain) PreExecute(
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
 	return c.blockParser.ParseBlock(ctx, bytes)
-}
-
-func applyOptions(options *Options, ops []Option) {
-	for _, op := range ops {
-		op(options)
-	}
-	if options.TransactionManagerFactory == nil {
-		options.TransactionManagerFactory = NewDefaultTransactionManager
-	}
 }

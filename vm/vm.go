@@ -568,7 +568,7 @@ func (vm *VM) applyOptions(o *Options) error {
 	if o.executionShim != nil {
 		vm.executionShim = o.executionShim
 	} else {
-		vm.executionShim = &shim.NoOp{}
+		vm.executionShim = &shim.ExecutionNoOp{}
 	}
 
 	if o.builder {
@@ -692,7 +692,11 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) (state.Immutable, er
 	}
 	// Atomic read to ensure consistency
 	values, errs := vm.stateDB.GetValues(ctx, keys)
-	return vm.executionShim.ImmutableView(NewRState(keys, values, errs)), nil
+	stateKeys := state.Keys{}
+	for _, key := range keys {
+		stateKeys.Add(string(key), state.All)
+	}
+	return vm.executionShim.ImmutableView(ctx, stateKeys, NewRState(keys, values, errs), 0)
 }
 
 func (vm *VM) SetState(ctx context.Context, state snow.State) error {

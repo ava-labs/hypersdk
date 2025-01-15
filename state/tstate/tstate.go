@@ -87,10 +87,3 @@ func (ts *TState) ChangedKeys() map[string]maybe.Maybe[[]byte] {
 
 	return ts.changedKeys
 }
-
-func (ts *TState) SetChangedKeys(mp map[string]maybe.Maybe[[]byte]) {
-	ts.l.Lock()
-	defer ts.l.Unlock()
-
-	ts.changedKeys = mp
-}

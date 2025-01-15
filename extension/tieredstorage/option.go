@@ -9,9 +9,7 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-const Namespace = "tieredStorageTransactionManager"
-
-var _ chain.TransactionManager = (*TieredStorageTransactionManager)(nil)
+const Namespace = "tieredStorage"
 
 type Config struct {
 	Epsilon                uint64 `json:"epsilon"`
@@ -34,20 +32,22 @@ func With() vm.Option {
 func OptionFunc(_ api.VM, config Config) (vm.Opt, error) {
 	return vm.NewOpt(
 		vm.WithChainOptions(
-			chain.WithTransactionManagerFactory(
-				NewTieredStorageTransactionManager(config),
+			chain.WithExecutionShim(
+				ExecutionShim(config),
 			),
+			chain.WithExportStateDiffFunc(ExportStateDiff),
+			chain.WithRefundFunc(Refund),
+			chain.WithDimsModifierFunc(FeeManagerModifier),
+			chain.WithResultModifierFunc(ResultModifier),
 		),
 		vm.WithExecutionShim(
-			NewTieredStorageTransactionManager(config)(),
+			ExecutionShim(config),
 		),
 	), nil
 }
 
-func NewTieredStorageTransactionManager(config Config) chain.TransactionManagerFactory {
-	return func() chain.TransactionManager {
-		return &TieredStorageTransactionManager{
-			config: config,
-		}
+func ExecutionShim(config Config) *Shim {
+	return &Shim{
+		config: config,
 	}
 }

@@ -8,12 +8,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/shim"
+	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -225,25 +226,16 @@ type ValidityWindow interface {
 	) (set.Bits, error)
 }
 
-// Hooks can be used to change the fees and compute units of a
-// transaction
-// This is called after transaction execution, but before the end of block execution
-type Hooks interface {
-	// AfterTX is called post-transaction execution
-	AfterTX(
-		ctx context.Context,
-		tx *Transaction,
-		result *Result,
-		mu state.Mutable,
-		bh BalanceHandler,
-		fm *internalfees.Manager,
-		isBuilder bool,
-	) error
-}
+// ExportStateDiffFunc finalizes the state diff
+type ExportStateDiffFunc func(context.Context, *tstate.TState, state.View, MetadataManager, uint64) (merkledb.View, error)
 
-type TransactionManager interface {
-	shim.Execution
-	Hooks
-}
+// ResultModifierFunc modifies the result of a transaction
+// Any changes should be reflected in ResultChanges
+type ResultModifierFunc func(state.Immutable, *Result, *internalfees.Manager) (*ResultChanges, error)
 
-type TransactionManagerFactory func() TransactionManager
+// RefundFunc refunds any fees to the transaction sponsor
+type RefundFunc func(context.Context, *ResultChanges, BalanceHandler, codec.Address, state.Mutable) error
+
+// FeeManagerModifierFunc can be used to modify the fee manager
+// Any changes to a result's units should be reflected here
+type FeeManagerModifierFunc func(*internalfees.Manager, *ResultChanges) error
