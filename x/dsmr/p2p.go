@@ -119,7 +119,6 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 	_ *warp.UnsignedMessage,
 	justification []byte,
 ) *common.AppError {
-	// parse the chunk
 	chunk, err := ParseChunk[T](justification)
 	if err != nil {
 		return &common.AppError{

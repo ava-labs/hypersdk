@@ -434,33 +434,54 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 
 // Node should be willing to sign valid chunks
 func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
+	nodeID := ids.GenerateTestNodeID()
+	sk, err := bls.NewSecretKey()
+	require.NoError(t, err)
+	pk := bls.PublicFromSecretKey(sk)
 	tests := []struct {
-		name     string
-		verifier Verifier[dsmrtest.Tx]
-		wantErr  error
+		name         string
+		verifier     Verifier[dsmrtest.Tx]
+		producerNode ids.NodeID
+		wantErr      error
 	}{
 		{
-			name:     "invalid chunk",
-			verifier: failVerifier{},
-			wantErr:  ErrInvalidChunk,
+			name:         "invalid chunk",
+			verifier:     failVerifier{},
+			wantErr:      ErrInvalidChunk,
+			producerNode: ids.GenerateTestNodeID(),
 		},
 		{
-			name: "valid chunk",
-			verifier: ChunkVerifier[dsmrtest.Tx]{
-				networkID: networkID,
-				chainID:   chainID,
-			},
+			name: "invalid chunk ( bad producer id )",
+			verifier: NewChunkVerifier[dsmrtest.Tx](
+				networkID,
+				chainID,
+				[]Validator{{
+					NodeID:    nodeID,
+					Weight:    1,
+					PublicKey: pk,
+				}},
+			),
+			wantErr:      ErrInvalidChunk,
+			producerNode: ids.GenerateTestNodeID(),
+		},
+		{
+			name:         "valid chunk",
+			producerNode: nodeID,
+			verifier: NewChunkVerifier[dsmrtest.Tx](
+				networkID,
+				chainID,
+				[]Validator{{
+					NodeID:    nodeID,
+					Weight:    1,
+					PublicKey: pk,
+				}},
+			),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
-
-			nodeID := ids.GenerateTestNodeID()
-			sk, err := bls.NewSecretKey()
-			r.NoError(err)
-			pk := bls.PublicFromSecretKey(sk)
 			signer := warp.NewSigner(sk, networkID, chainID)
 
 			validators := []Validator{
@@ -526,7 +547,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			r.NoError(err)
 
 			unsignedChunk := UnsignedChunk[dsmrtest.Tx]{
-				Producer:    ids.GenerateTestNodeID(),
+				Producer:    tt.producerNode,
 				Beneficiary: codec.Address{123},
 				Expiry:      123,
 				Txs: []dsmrtest.Tx{
@@ -1348,13 +1369,27 @@ func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
 
 func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	nodes := make([]testNode, 0, n)
-	validators := make([]Validator, 0, n)
+	validators := make([]Validator, n)
+	secretKeys := make([]*bls.SecretKey, n)
+	var err error
 	for i := 0; i < n; i++ {
-		sk, err := bls.NewSecretKey()
+		secretKeys[i], err = bls.NewSecretKey()
 		require.NoError(t, err)
-		pk := bls.PublicFromSecretKey(sk)
-		signer := warp.NewSigner(sk, networkID, chainID)
-		verifier := ChunkVerifier[dsmrtest.Tx]{networkID: networkID, chainID: chainID}
+		pk := bls.PublicFromSecretKey(secretKeys[i])
+		validators[i] = Validator{
+			NodeID:    ids.GenerateTestNodeID(),
+			Weight:    1,
+			PublicKey: pk,
+		}
+	}
+
+	for i := 0; i < n; i++ {
+		signer := warp.NewSigner(secretKeys[i], networkID, chainID)
+		verifier := NewChunkVerifier[dsmrtest.Tx](
+			networkID,
+			chainID,
+			validators,
+		)
 		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)
 
@@ -1362,10 +1397,11 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			storage: chunkStorage,
 		}
 		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[dsmrtest.Tx]{
-			verifier: ChunkVerifier[dsmrtest.Tx]{
-				networkID: networkID,
-				chainID:   chainID,
-			},
+			verifier: NewChunkVerifier[dsmrtest.Tx](
+				networkID,
+				chainID,
+				validators,
+			),
 			storage: chunkStorage,
 		}, signer)
 		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[dsmrtest.Tx]{
@@ -1377,13 +1413,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			GetChunkHandler:               getChunkHandler,
 			ChunkSignatureRequestHandler:  chunkSignatureRequestHandler,
 			ChunkCertificateGossipHandler: chunkCertificateGossipHandler,
-			Sk:                            sk,
-		})
-
-		validators = append(validators, Validator{
-			NodeID:    ids.GenerateTestNodeID(),
-			Weight:    1,
-			PublicKey: pk,
+			Sk:                            secretKeys[i],
 		})
 	}
 

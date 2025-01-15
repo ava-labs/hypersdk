@@ -5,11 +5,13 @@ package dsmr
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/consts"
@@ -28,6 +30,8 @@ const (
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 
+var ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
+
 type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
 }
@@ -35,16 +39,36 @@ type Verifier[T Tx] interface {
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
 type ChunkVerifier[T Tx] struct {
-	networkID uint32
-	chainID   ids.ID
+	networkID  uint32
+	chainID    ids.ID
+	validators map[ids.NodeID]*validators.GetValidatorOutput // this is the equivilent of the return value of GetValidatorSet(), when we integrate with snow.Context.
+}
+
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, validatorsList []Validator) ChunkVerifier[T] {
+	verifier := ChunkVerifier[T]{
+		networkID:  networkID,
+		chainID:    chainID,
+		validators: map[ids.NodeID]*validators.GetValidatorOutput{},
+	}
+	for _, validator := range validatorsList {
+		verifier.validators[validator.NodeID] = &validators.GetValidatorOutput{
+			NodeID:    validator.NodeID,
+			PublicKey: validator.PublicKey,
+			Weight:    validator.Weight,
+		}
+	}
+	return verifier
 }
 
 func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	// TODO:
 	// check if the expiry of this chunk isn't in the past or too far into the future.
 
-	// TODO:
 	// check if the producer was expected to produce this chunk.
+	if _, ok := c.validators[chunk.UnsignedChunk.Producer]; !ok {
+		// the producer of this chunk isn't in the validator set.
+		return fmt.Errorf("%w: producer node id %v", ErrChunkProducerNotValidator, chunk.UnsignedChunk.Producer)
+	}
 
 	// TODO:
 	// add rate limiting for a given producer.
