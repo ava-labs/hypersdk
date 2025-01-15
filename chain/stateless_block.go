@@ -150,5 +150,5 @@ func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlock(sb)
+	return NewExecutionBlock(sb), nil
 }

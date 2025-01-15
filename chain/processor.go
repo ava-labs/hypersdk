@@ -35,13 +35,10 @@ type ExecutionBlock struct {
 	sigJob     workers.Job
 }
 
-func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
+func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	authCounts := make(map[uint8]int)
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
 	for _, tx := range block.Txs {
-		if txsSet.Contains(tx.GetID()) {
-			return nil, ErrDuplicateTx
-		}
 		txsSet.Add(tx.GetID())
 		authCounts[tx.Auth.GetTypeID()]++
 	}
@@ -50,7 +47,7 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 		authCounts:     authCounts,
 		txsSet:         txsSet,
 		StatelessBlock: block,
-	}, nil
+	}
 }
 
 func (b *ExecutionBlock) Contains(id ids.ID) bool {
