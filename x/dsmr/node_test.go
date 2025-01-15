@@ -459,11 +459,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			verifier: NewChunkVerifier[dsmrtest.Tx](
 				networkID,
 				chainID,
-				[]Validator{{
-					NodeID:    nodeID,
-					Weight:    1,
-					PublicKey: pk,
-				}},
+				pChain{
+					validators: []Validator{{
+						NodeID:    nodeID,
+						Weight:    1,
+						PublicKey: pk,
+					}},
+				},
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              ids.GenerateTestNodeID(),
@@ -475,11 +477,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			verifier: NewChunkVerifier[dsmrtest.Tx](
 				networkID,
 				chainID,
-				[]Validator{{
-					NodeID:    nodeID,
-					Weight:    1,
-					PublicKey: pk,
-				}},
+				pChain{
+					validators: []Validator{{
+						NodeID:    nodeID,
+						Weight:    1,
+						PublicKey: pk,
+					}},
+				},
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
@@ -491,11 +495,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			verifier: NewChunkVerifier[dsmrtest.Tx](
 				networkID,
 				chainID,
-				[]Validator{{
-					NodeID:    nodeID,
-					Weight:    1,
-					PublicKey: pk,
-				}},
+				pChain{
+					validators: []Validator{{
+						NodeID:    nodeID,
+						Weight:    1,
+						PublicKey: pk,
+					}},
+				},
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
@@ -508,11 +514,13 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			verifier: NewChunkVerifier[dsmrtest.Tx](
 				networkID,
 				chainID,
-				[]Validator{{
-					NodeID:    nodeID,
-					Weight:    1,
-					PublicKey: pk,
-				}},
+				pChain{
+					validators: []Validator{{
+						NodeID:    nodeID,
+						Weight:    1,
+						PublicKey: pk,
+					}},
+				},
 			),
 			nodeLastAcceptedTimestamp: 1,
 			chunkExpiry:               123,
@@ -1442,7 +1450,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		verifier := NewChunkVerifier[dsmrtest.Tx](
 			networkID,
 			chainID,
-			validators,
+			pChain{validators: validators},
 		)
 		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)
