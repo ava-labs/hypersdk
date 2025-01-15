@@ -28,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -120,12 +119,12 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 }
 
 func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
-	ts := tstate.New(0)
 	state, err := vm.State()
 	if err != nil {
 		return nil, err
 	}
-	return ts.ExportMerkleDBView(ctx, vm.tracer, state)
+
+	return state.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
 }
 
 func (vm *VM) Mempool() chain.Mempool {
