@@ -26,5 +26,5 @@ func (*NoOp) ExecutableState(
 	mp map[string][]byte,
 	_ uint64,
 ) (state.Immutable, error) {
-	return tstate.ImmutableScopeStorage(mp), nil
+	return state.ImmutableStorage(mp), nil
 }

@@ -360,7 +360,7 @@ func (p *Processor) executeTxs(
 			}
 
 			tm := p.transactionManagerFactory()
-			state, err := tm.ExecutableState(tstate.ImmutableScopeStorage(storage), b.Height())
+			state, err := tm.ExecutableState(state.ImmutableStorage(storage), b.Height())
 			if err != nil {
 				return err
 			}
@@ -371,7 +371,7 @@ func (p *Processor) executeTxs(
 			// processed
 			tsv := ts.NewView(
 				stateKeys,
-				state.ImmutableStorage(storage),
+				state,
 				len(stateKeys),
 			)
 

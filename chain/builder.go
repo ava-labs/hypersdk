@@ -301,7 +301,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				// Execute block
 				tsv := ts.NewView(
 					stateKeys,
-					state.ImmutableStorage(storage),
+					state,
 					len(stateKeys),
 				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
