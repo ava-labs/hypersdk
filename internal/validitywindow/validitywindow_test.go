@@ -57,7 +57,6 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
-			r.NoError(nil)
 
 			chainIndex := &testChainIndex{}
 			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
