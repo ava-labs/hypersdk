@@ -439,8 +439,8 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		return nil, nil, err
 	}
 
-	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
+	// Calculate new view from parent and state diff
+	view, err := createView(ctx, c.tracer, parentView, ts.ChangedKeys())
 	if err != nil {
 		return nil, nil, err
 	}
