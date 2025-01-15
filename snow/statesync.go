@@ -43,7 +43,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	}
 
 	// If the block is already the last accepted block, update the fields and return
-	if input.ID() == v.lastAcceptedBlock.ID() {
+	if input.GetID() == v.lastAcceptedBlock.GetID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
 		v.log.Info("Finishing state sync with original target", zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock))
 	} else {

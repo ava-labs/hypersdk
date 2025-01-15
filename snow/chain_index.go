@@ -71,13 +71,13 @@ func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
 // assumes that outputBlock and acceptedBlock represent the same block and that all blocks in the range
 // [output/accepted, input] have been added to the inputChainIndex.
 func (v *VM[I, O, A]) reprocessFromOutputToInput(ctx context.Context, targetInputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
-	if targetInputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
+	if targetInputBlock.GetHeight() < outputBlock.GetHeight() || outputBlock.GetID() != acceptedBlock.GetID() {
 		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", targetInputBlock, outputBlock, acceptedBlock)
 	}
 
 	// Re-process from the last output block, to the last accepted input block
-	for targetInputBlock.Height() > outputBlock.Height() {
-		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
+	for targetInputBlock.GetHeight() > outputBlock.GetHeight() {
+		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.GetHeight()+1)
 		if err != nil {
 			return nil, err
 		}

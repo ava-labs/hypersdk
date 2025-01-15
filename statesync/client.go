@@ -96,7 +96,7 @@ func (c *Client[T]) Accept(
 ) (block.StateSyncMode, error) {
 	c.log.Info("Accepting state sync", zap.Stringer("target", target))
 	lastAcceptedBlk := c.chain.LastAcceptedBlock(ctx)
-	if !c.mustStateSync && lastAcceptedBlk.Height()+c.minBlocks > target.Height() {
+	if !c.mustStateSync && lastAcceptedBlk.GetHeight()+c.minBlocks > target.GetHeight() {
 		c.log.Info("Skipping state sync", zap.Stringer("lastAccepted", lastAcceptedBlk), zap.Stringer("target", target))
 		c.skipped = true
 		close(c.done)

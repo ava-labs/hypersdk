@@ -62,26 +62,26 @@ type TestBlock struct {
 
 func NewTestBlockFromParent(parent *TestBlock) *TestBlock {
 	return &TestBlock{
-		PrntID:     parent.ID(),
-		Tmstmp:     parent.Timestamp() + 1,
-		Hght:       parent.Height() + 1,
+		PrntID:     parent.GetID(),
+		Tmstmp:     parent.GetTimestamp() + 1,
+		Hght:       parent.GetHeight() + 1,
 		RandomData: utils.RandomBytes(32),
 	}
 }
 
-func (t *TestBlock) ID() ids.ID {
-	return hashing.ComputeHash256Array(t.Bytes())
+func (t *TestBlock) GetID() ids.ID {
+	return hashing.ComputeHash256Array(t.GetBytes())
 }
 
-func (t *TestBlock) Parent() ids.ID {
+func (t *TestBlock) GetParent() ids.ID {
 	return t.PrntID
 }
 
-func (t *TestBlock) Timestamp() int64 {
+func (t *TestBlock) GetTimestamp() int64 {
 	return t.Tmstmp
 }
 
-func (t *TestBlock) Bytes() []byte {
+func (t *TestBlock) GetBytes() []byte {
 	b, err := json.Marshal(t)
 	if err != nil {
 		panic(err)
@@ -89,12 +89,12 @@ func (t *TestBlock) Bytes() []byte {
 	return b
 }
 
-func (t *TestBlock) Height() uint64 {
+func (t *TestBlock) GetHeight() uint64 {
 	return t.Hght
 }
 
 func (t *TestBlock) String() string {
-	return fmt.Sprintf(blockStringerF, t.ID(), t.PrntID, t.Tmstmp, t.Hght, t.RandomData, t.Invalid)
+	return fmt.Sprintf(blockStringerF, t.GetID(), t.PrntID, t.Tmstmp, t.Hght, t.RandomData, t.Invalid)
 }
 
 func NewTestBlockFromBytes(b []byte) (*TestBlock, error) {
@@ -363,19 +363,19 @@ func (ce *TestConsensusEngine) ParseFutureBlock(ctx context.Context) {
 		Tmstmp: math.MaxInt64,
 		Hght:   math.MaxUint64,
 	}
-	blk, err := ce.vm.ParseBlock(ctx, tBlk.Bytes())
+	blk, err := ce.vm.ParseBlock(ctx, tBlk.GetBytes())
 	ce.require.NoError(err)
-	ce.require.Equal(tBlk.ID(), blk.ID())
-	ce.require.Equal(tBlk.Parent(), blk.Parent())
-	ce.require.Equal(time.UnixMilli(tBlk.Timestamp()), blk.Timestamp())
-	ce.require.Equal(tBlk.Height(), blk.Height())
+	ce.require.Equal(tBlk.GetID(), blk.ID())
+	ce.require.Equal(tBlk.GetParent(), blk.Parent())
+	ce.require.Equal(time.UnixMilli(tBlk.GetTimestamp()), blk.Timestamp())
+	ce.require.Equal(tBlk.GetHeight(), blk.Height())
 }
 
 func (ce *TestConsensusEngine) ParseAndVerifyNewBlock(ctx context.Context, parent *StatefulBlock[*TestBlock, *TestBlock, *TestBlock]) *StatefulBlock[*TestBlock, *TestBlock, *TestBlock] {
 	newBlk := NewTestBlockFromParent(parent.Input)
-	parsedBlk, err := ce.vm.VM.ParseBlock(ctx, newBlk.Bytes())
+	parsedBlk, err := ce.vm.VM.ParseBlock(ctx, newBlk.GetBytes())
 	ce.require.NoError(err)
-	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
+	ce.require.Equal(newBlk.GetID(), parsedBlk.ID())
 	ce.verifyValidBlock(ctx, parsedBlk)
 	return parsedBlk
 }
@@ -410,9 +410,9 @@ func (ce *TestConsensusEngine) ParseAndVerifyInvalidBlock(ctx context.Context) {
 
 	newBlk := NewTestBlockFromParent(blk.Input)
 	newBlk.Invalid = true
-	parsedBlk, err := ce.vm.ParseBlock(ctx, newBlk.Bytes())
+	parsedBlk, err := ce.vm.ParseBlock(ctx, newBlk.GetBytes())
 	ce.require.NoError(err)
-	ce.require.Equal(newBlk.ID(), parsedBlk.ID())
+	ce.require.Equal(newBlk.GetID(), parsedBlk.ID())
 	ce.require.ErrorIs(parsedBlk.Verify(ctx), errVerifyInvalidBlock)
 	_, ok = ce.verified[parsedBlk.ID()]
 	ce.require.False(ok)
@@ -841,14 +841,14 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock1.Invalid = true
 
-	parsedBlk1, err := ce.vm.VM.ParseBlock(ctx, invalidTestBlock1.Bytes())
+	parsedBlk1, err := ce.vm.VM.ParseBlock(ctx, invalidTestBlock1.GetBytes())
 	ce.require.NoError(err)
 	ce.verifyValidBlock(ctx, parsedBlk1)
 
 	invalidTestBlock2 := NewTestBlockFromParent(invalidTestBlock1)
 	invalidTestBlock2.Invalid = true
 
-	parsedBlk2, err := ce.vm.VM.ParseBlock(ctx, invalidTestBlock2.Bytes())
+	parsedBlk2, err := ce.vm.VM.ParseBlock(ctx, invalidTestBlock2.GetBytes())
 	ce.require.NoError(err)
 	ce.verifyValidBlock(ctx, parsedBlk2)
 
@@ -856,7 +856,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
-	invalidatedChildBlock1, err := ce.vm.ParseBlock(ctx, invalidatedChildTestBlock1.Bytes())
+	invalidatedChildBlock1, err := ce.vm.ParseBlock(ctx, invalidatedChildTestBlock1.GetBytes())
 	ce.require.NoError(err)
 
 	invalidatedChildBlock1Err := invalidatedChildBlock1.Verify(ctx)
@@ -866,7 +866,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	// This tests that if a parent block fails verification, a re-processing child
 	// will also fail verification after transitioning out of state sync.
 	invalidatedChildTestBlock2 := NewTestBlockFromParent(invalidTestBlock2)
-	invalidatedChildBlock2, err := ce.vm.ParseBlock(ctx, invalidatedChildTestBlock2.Bytes())
+	invalidatedChildBlock2, err := ce.vm.ParseBlock(ctx, invalidatedChildTestBlock2.GetBytes())
 	ce.require.NoError(err)
 
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)

@@ -374,7 +374,7 @@ func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.State
 
 func (n *TestNetwork) ConfirmTxsInBlock(_ context.Context, blk *chain.ExecutionBlock, txs []*chain.Transaction) {
 	for i, tx := range txs {
-		n.require.True(blk.ContainsTx(tx.GetID()), "block does not contain tx %s at index %d", tx.GetID(), i)
+		n.require.True(blk.Contains(tx.GetID()), "block does not contain tx %s at index %d", tx.GetID(), i)
 	}
 }
 
@@ -417,7 +417,7 @@ func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
 	for i, vm := range n.VMs {
 		lastAccepted, err := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 		n.require.NoError(err)
-		height := lastAccepted.Height()
+		height := lastAccepted.GetHeight()
 		if height >= greatestHeight {
 			greatestHeightIndex = i
 			greatestHeight = height
@@ -434,12 +434,12 @@ func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
 
 		lastAccepted, err := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 		n.require.NoError(err)
-		lastAcceptedHeight := lastAccepted.Height()
+		lastAcceptedHeight := lastAccepted.GetHeight()
 		for lastAcceptedHeight < greatestHeight {
 			blk, err := greatestVMChainIndex.GetBlockByHeight(ctx, lastAcceptedHeight+1)
 			n.require.NoError(err)
 
-			parsedBlk := vm.ParseAndSetPreference(ctx, blk.Bytes())
+			parsedBlk := vm.ParseAndSetPreference(ctx, blk.GetBytes())
 			n.require.NoError(parsedBlk.Accept(ctx))
 			lastAcceptedHeight++
 		}

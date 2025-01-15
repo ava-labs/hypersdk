@@ -26,11 +26,11 @@ var (
 
 type Block interface {
 	fmt.Stringer
-	ID() ids.ID
-	Parent() ids.ID
-	Timestamp() int64
-	Bytes() []byte
-	Height() uint64
+	GetID() ids.ID
+	GetParent() ids.ID
+	GetTimestamp() int64
+	GetBytes() []byte
+	GetHeight() uint64
 }
 
 // StatefulBlock implements snowman.Block and abstracts away the caching
@@ -141,8 +141,8 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
-			attribute.Int("size", len(b.Input.Bytes())),
-			attribute.Int64("height", int64(b.Input.Height())),
+			attribute.Int("size", len(b.Input.GetBytes())),
+			attribute.Int64("height", int64(b.Input.GetHeight())),
 			attribute.Bool("ready", ready),
 			attribute.Bool("built", b.verified),
 		),
@@ -154,8 +154,8 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		// If the VM is not ready (dynamic state sync), skip verifying the block.
 		b.vm.log.Info(
 			"skipping verification, state not ready",
-			zap.Uint64("height", b.Input.Height()),
-			zap.Stringer("blkID", b.Input.ID()),
+			zap.Uint64("height", b.Input.GetHeight()),
+			zap.Stringer("blkID", b.Input.GetID()),
 		)
 	case b.verified:
 		// If we built the block, the state will already be populated and we don't
@@ -163,8 +163,8 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		// necessary to re-verify anything).
 		b.vm.log.Info(
 			"skipping verification of locally built block",
-			zap.Uint64("height", b.Input.Height()),
-			zap.Stringer("blkID", b.Input.ID()),
+			zap.Uint64("height", b.Input.GetHeight()),
+			zap.Stringer("blkID", b.Input.GetID()),
 		)
 	default:
 		b.vm.log.Info("Verifying block", zap.Stringer("block", b))
@@ -195,7 +195,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	}
 
 	b.vm.verifiedL.Lock()
-	b.vm.verifiedBlocks[b.Input.ID()] = b
+	b.vm.verifiedBlocks[b.Input.GetID()] = b
 	b.vm.verifiedL.Unlock()
 
 	if b.verified {
@@ -227,7 +227,7 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *State
 	}
 
 	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.ID())
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
 	b.vm.setLastAccepted(b)
@@ -288,7 +288,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	defer span.End()
 
 	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.ID())
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
 	// Skip notifying rejected subs if we were still in dynamic state sync
@@ -300,19 +300,18 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.Parent() }
+func (b *StatefulBlock[I, O, A]) ID() ids.ID           { return b.Input.GetID() }
+func (b *StatefulBlock[I, O, A]) Parent() ids.ID       { return b.Input.GetParent() }
+func (b *StatefulBlock[I, O, A]) Height() uint64       { return b.Input.GetHeight() }
+func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.GetTimestamp()) }
+func (b *StatefulBlock[I, O, A]) Bytes() []byte        { return b.Input.GetBytes() }
 
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.Height() }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.Timestamp()) }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.Bytes() }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
+// Implements GetXXX for internal consistency
+func (b *StatefulBlock[I, O, A]) GetID() ids.ID       { return b.Input.GetID() }
+func (b *StatefulBlock[I, O, A]) GetParent() ids.ID   { return b.Input.GetParent() }
+func (b *StatefulBlock[I, O, A]) GetHeight() uint64   { return b.Input.GetHeight() }
+func (b *StatefulBlock[I, O, A]) GetTimestamp() int64 { return b.Input.GetTimestamp() }
+func (b *StatefulBlock[I, O, A]) GetBytes() []byte    { return b.Input.GetBytes() }
 
 // implements "fmt.Stringer"
 func (b *StatefulBlock[I, O, A]) String() string {

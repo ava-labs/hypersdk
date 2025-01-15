@@ -42,13 +42,10 @@ type OutputBlock struct {
 	ExecutionResults ExecutionResults
 }
 
-func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
+func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	authCounts := make(map[uint8]int)
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
 	for _, tx := range block.Txs {
-		if txsSet.Contains(tx.GetID()) {
-			return nil, ErrDuplicateTx
-		}
 		txsSet.Add(tx.GetID())
 		authCounts[tx.Auth.GetTypeID()]++
 	}
@@ -57,14 +54,14 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 		authCounts:     authCounts,
 		txsSet:         txsSet,
 		StatelessBlock: block,
-	}, nil
+	}
 }
 
-func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
+func (b *ExecutionBlock) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) Txs() []*Transaction {
+func (b *ExecutionBlock) GetContainers() []*Transaction {
 	return b.StatelessBlock.Txs
 }
 

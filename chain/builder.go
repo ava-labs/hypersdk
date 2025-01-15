@@ -108,7 +108,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		return nil, nil, fmt.Errorf("%w: proposed build block time (%d) < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, nextTime, parent.Tmstmp, r.GetMinBlockGap())
 	}
 	var (
-		parentID          = parent.ID()
+		parentID          = parent.GetID()
 		timestamp         = nextTime
 		height            = parent.Hght + 1
 		blockTransactions = []*Transaction{}
@@ -467,7 +467,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		}
 		c.log.Info("merkle root generated",
 			zap.Uint64("height", blk.Hght),
-			zap.Stringer("blkID", blk.ID()),
+			zap.Stringer("blkID", blk.GetID()),
 			zap.Stringer("root", root),
 		)
 		c.metrics.rootCalculatedCount.Inc()
@@ -485,10 +485,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", timestamp),
 	)
-	execBlock, err := NewExecutionBlock(blk)
-	if err != nil {
-		return nil, nil, err
-	}
+	execBlock := NewExecutionBlock(blk)
 	return execBlock, &OutputBlock{
 		ExecutionBlock: execBlock,
 		View:           view,

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -43,10 +44,10 @@ func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	evicted := v.seen.SetMin(blk.Timestamp())
+	evicted := v.seen.SetMin(blk.GetTimestamp())
 	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	v.seen.Add(blk.Txs())
-	v.lastAcceptedBlockHeight = blk.Height()
+	v.seen.Add(blk.GetContainers())
+	v.lastAcceptedBlockHeight = blk.GetHeight()
 }
 
 func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
@@ -54,20 +55,29 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 	blk ExecutionBlock[Container],
 	oldestAllowed int64,
 ) error {
-	if blk.Height() <= v.lastAcceptedBlockHeight {
+	if blk.GetHeight() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
-	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.Parent())
+	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.GetParent())
 	if err != nil {
 		return err
 	}
 
-	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.Txs(), true)
+	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.GetContainers(), true)
 	if err != nil {
 		return err
 	}
 	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate bytes %q for %d txs", ErrDuplicateContainer, dup.Bytes(), len(blk.Txs()))
+		return fmt.Errorf("%w: duplicate bytes %q for %d txs", ErrDuplicateContainer, dup.Bytes(), len(blk.GetContainers()))
+	}
+	// make sure we have no repeats within the block itself.
+	blkContainerIDs := set.NewSet[ids.ID](len(blk.GetContainers()))
+	for _, container := range blk.GetContainers() {
+		id := container.GetID()
+		if blkContainerIDs.Contains(id) {
+			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
+		}
+		blkContainerIDs.Add(id)
 	}
 	return nil
 }
@@ -85,7 +95,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 	ctx context.Context,
 	ancestorBlk ExecutionBlock[Container],
 	oldestAllowed int64,
-	txs []Container,
+	containers []Container,
 	stop bool,
 ) (set.Bits, error) {
 	marker := set.NewBits()
@@ -98,19 +108,19 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 
 	var err error
 	for {
-		if ancestorBlk.Timestamp() < oldestAllowed {
+		if ancestorBlk.GetTimestamp() < oldestAllowed {
 			return marker, nil
 		}
 
-		if ancestorBlk.Height() <= v.lastAcceptedBlockHeight || ancestorBlk.Height() == 0 {
-			return v.seen.Contains(txs, marker, stop), nil
+		if ancestorBlk.GetHeight() <= v.lastAcceptedBlockHeight || ancestorBlk.GetHeight() == 0 {
+			return v.seen.Contains(containers, marker, stop), nil
 		}
 
-		for i, tx := range txs {
+		for i, container := range containers {
 			if marker.Contains(i) {
 				continue
 			}
-			if ancestorBlk.ContainsTx(tx.GetID()) {
+			if ancestorBlk.Contains(container.GetID()) {
 				marker.Add(i)
 				if stop {
 					return marker, nil
@@ -118,7 +128,7 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.Parent())
+		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
 		if err != nil {
 			return marker, err
 		}

@@ -86,7 +86,7 @@ type VM struct {
 	options               []Option
 
 	chain                   *chain.Chain
-	chainTimeValidityWindow chain.ValidityWindow
+	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
 	SyncClient              *statesync.Client[*chain.ExecutionBlock]
 
@@ -199,7 +199,7 @@ func (vm *VM) Initialize(
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
 			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
-				zap.Stringer("blkID", b.ID()),
+				zap.Stringer("blkID", b.GetID()),
 				zap.Int("numTxs", len(droppedTxs)),
 			)
 			return nil
@@ -634,7 +634,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		vm.gossiper = txGossiper
 		vm.snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 			NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
-				txGossiper.BlockVerified(b.Timestamp())
+				txGossiper.BlockVerified(b.GetTimestamp())
 				return nil
 			},
 		})
