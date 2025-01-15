@@ -7,9 +7,11 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/shim"
 
@@ -206,6 +208,21 @@ type AuthFactory interface {
 	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
+}
+
+type ValidityWindow interface {
+	VerifyExpiryReplayProtection(
+		ctx context.Context,
+		blk validitywindow.ExecutionBlock[*Transaction],
+		oldestAllowed int64,
+	) error
+	Accept(blk validitywindow.ExecutionBlock[*Transaction])
+	IsRepeat(
+		ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[*Transaction],
+		txs []*Transaction,
+		oldestAllowed int64,
+	) (set.Bits, error)
 }
 
 // Hooks can be used to change the fees and compute units of a
