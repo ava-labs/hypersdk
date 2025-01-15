@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,7 +22,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"go.uber.org/zap"
 
@@ -378,40 +376,6 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], 
 	v.parsedBlocks.Put(sb.ID(), sb)
 
 	return sb, nil
-}
-
-// getExclusiveBlockRange returns the exclusive range of blocks (startBlock, endBlock)
-func (v *VM[I, O, A]) getExclusiveBlockRange(ctx context.Context, startBlock *StatefulBlock[I, O, A], endBlock *StatefulBlock[I, O, A]) ([]*StatefulBlock[I, O, A], error) {
-	if startBlock.ID() == endBlock.ID() {
-		return nil, nil
-	}
-
-	diff, err := math.Sub(endBlock.Height(), startBlock.Height())
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate height difference for exclusive block range: %w", err)
-	}
-	// If the difference is 0, then the block range is invalid because we already checked they are not
-	// the same block.
-	if diff == 0 {
-		return nil, fmt.Errorf("cannot fetch invalid block range (%s, %s)", startBlock, endBlock)
-	}
-	blkRange := make([]*StatefulBlock[I, O, A], 0, diff)
-	blk := endBlock
-	for {
-		blk, err = v.GetBlock(ctx, blk.Parent())
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch parent of %s while fetching exclusive block range (%s, %s): %w", blk, startBlock, endBlock, err)
-		}
-		if blk.ID() == startBlock.ID() {
-			break
-		}
-		if blk.Height() <= startBlock.Height() {
-			return nil, fmt.Errorf("invalid block range (%s, %s) terminated at %s", startBlock, endBlock, blk)
-		}
-		blkRange = append(blkRange, blk)
-	}
-	slices.Reverse(blkRange)
-	return blkRange, nil
 }
 
 func (v *VM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
