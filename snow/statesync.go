@@ -82,7 +82,14 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 	}
 	v.verifiedL.Unlock()
 	slices.SortFunc(processingBlocks, func(a *StatefulBlock[I, O, A], b *StatefulBlock[I, O, A]) int {
-		return int(a.Height()) - int(b.Height())
+		switch {
+		case a.Height() < b.Height():
+			return -1
+		case a.Height() == b.Height():
+			return 0
+		default:
+			return 1
+		}
 	})
 
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
