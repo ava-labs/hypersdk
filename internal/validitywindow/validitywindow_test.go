@@ -19,36 +19,40 @@ import (
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
 		name          string
-		accepted      []executionBlock
+		blocks        []executionBlock
+		accepted      int // index into Blocks of the last accepted block.
 		verifyBlock   executionBlock
 		oldestAllowed int64
 		expectedError error
 	}{
 		{
 			name: "no duplicate",
-			accepted: []executionBlock{
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
+			accepted:      1,
 			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{3}),
 			oldestAllowed: 1,
 		},
 		{
 			name: "expected duplicate",
-			accepted: []executionBlock{
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
+			accepted:      1,
 			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
 			oldestAllowed: 1,
 			expectedError: ErrDuplicateContainer,
 		},
 		{
 			name: "duplicate outside window",
-			accepted: []executionBlock{
+			blocks: []executionBlock{
 				newExecutionBlock(0, 0, 0, []int64{}),
 				newExecutionBlock(1, 1, 1, []int64{1, 2}),
 			},
+			accepted:      1,
 			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
 			oldestAllowed: 2,
 			expectedError: nil,
@@ -61,9 +65,11 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 			chainIndex := &testChainIndex{}
 			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
 			r.NotNil(tvw)
-			for _, acceptedBlk := range test.accepted {
-				tvw.Accept(acceptedBlk)
-				chainIndex.set(acceptedBlk.GetID(), acceptedBlk)
+			for i, blk := range test.blocks {
+				if i <= test.accepted {
+					tvw.Accept(blk)
+				}
+				chainIndex.set(blk.GetID(), blk)
 			}
 			r.ErrorIs(tvw.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock, test.oldestAllowed), test.expectedError)
 		})
@@ -74,7 +80,7 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	tests := []struct {
 		name           string
 		blocks         []executionBlock
-		accepted       uint64 // index into Blocks of the last accepted block.
+		accepted       int // index into Blocks of the last accepted block.
 		parentBlock    executionBlock
 		containers     []container
 		oldestAllowewd int64
@@ -181,7 +187,7 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
 			r.NotNil(tvw)
 			for i, blk := range test.blocks {
-				if i <= int(test.accepted) {
+				if i <= test.accepted {
 					tvw.Accept(blk)
 				}
 				chainIndex.set(blk.GetID(), blk)
