@@ -408,10 +408,9 @@ func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
 }
 
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
+	v.log.Info("Setting state to %s", zap.Stringer("state", state))
 	switch state {
 	case snow.StateSyncing:
-		v.log.Info("Starting state sync")
-
 		for _, startStateSyncF := range v.onStateSyncStarted {
 			if err := startStateSyncF(ctx); err != nil {
 				return err
@@ -419,8 +418,6 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 		}
 		return nil
 	case snow.Bootstrapping:
-		v.log.Info("Starting bootstrapping")
-
 		for _, startBootstrappingF := range v.onBootstrapStarted {
 			if err := startBootstrappingF(ctx); err != nil {
 				return err
@@ -428,7 +425,6 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 		}
 		return nil
 	case snow.NormalOp:
-		v.log.Info("Starting normal operation")
 		for _, startNormalOpF := range v.onNormalOperationsStarted {
 			if err := startNormalOpF(ctx); err != nil {
 				return err
