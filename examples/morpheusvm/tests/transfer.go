@@ -9,9 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/tests/registry"
 
@@ -24,23 +23,36 @@ import (
 // ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
-var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
-	require := require.New(t)
-	other, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
-	toAddress := auth.NewED25519Address(other.PublicKey())
+var _ = registry.Register(TestsRegistry, "Transfer Transaction",
+	func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories []chain.AuthFactory) {
+		require := require.New(t)
+		ctx := context.Background()
+		sourceAuthFactory, targetAuthFactory := authFactories[0], authFactories[1]
 
-	authFactory := tn.Configuration().AuthFactories()[0]
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
-		To:    toAddress,
-		Value: 1,
-	}},
-		authFactory,
-	)
-	require.NoError(err)
+		client := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
+		sourceBalance, err := client.GetBalance(ctx, sourceAuthFactory.Address())
+		require.NoError(err)
+		require.Equal(uint64(1000000), sourceBalance)
+		targetBalance, err := client.GetBalance(ctx, targetAuthFactory.Address())
+		require.NoError(err)
+		require.Equal(uint64(1000000), targetBalance)
 
-	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
-	defer timeoutCtxFnc()
+		tx, err := tn.GenerateTx(ctx, []chain.Action{&actions.Transfer{
+			To:    targetAuthFactory.Address(),
+			Value: 1,
+		}},
+			sourceAuthFactory,
+		)
+		require.NoError(err)
 
-	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
-})
+		timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
+		defer timeoutCtxFnc()
+		require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+		sourceBalance, err = client.GetBalance(ctx, sourceAuthFactory.Address())
+		require.NoError(err)
+		require.True(uint64(1000000) > sourceBalance)
+		targetBalance, err = client.GetBalance(ctx, targetAuthFactory.Address())
+		require.NoError(err)
+		require.Equal(uint64(1000001), targetBalance)
+	}, 1000000, 1000000)

@@ -8,10 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
-
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/integration"
@@ -27,7 +26,9 @@ func TestIntegration(t *testing.T) {
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	testingNetworkConfig, err := workload.NewTestNetworkConfig(0)
+	customAllocs, err := tests.TestsRegistry.GenerateCustomAllocations(auth.GenerateED25519AuthFactory)
+	require.NoError(err)
+	testingNetworkConfig, err := workload.NewTestNetworkConfig(0, customAllocs)
 	require.NoError(err)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()

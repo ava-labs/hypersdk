@@ -355,7 +355,7 @@ import (
 // ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
-var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories []chain.AuthFactory) {
 
 })
 ```
@@ -365,30 +365,36 @@ registry of all the tests that we want to run against our VM.
 Afterwards, we have the following snippet:
 
 ```go
-registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork, authFactories ...chain.AuthFactory) {
 
-})
+}, 1000000, 1000000)
 ```
 
-Here, we are adding a test to `TestRegistry`. However, we're
+Here, we are adding a test to `TestRegistry`, requesting an authFactory to be funded with 1_000_000 tokens. However, we're
 missing the test itself. In short, here's what we want to do in
 our testing logic:
 
-- Setup necessary values
+- Setup necessary values & Check the funds of the requested authFactories
 - Create our test TX
 - Send our TX
 - Require that our TX is sent and that the outputs are as expected
+- Check the receiver has received the funds
 
 Focusing on the first step, we can write the following inside the anonymous
 function:
 
 ```go
 	require := require.New(t)
-	other, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
-	toAddress := auth.NewED25519Address(other.PublicKey())
+	ctx := context.Background()
+	sourceAuthFactory, targetAuthFactory := authFactories[0], authFactories[1]
 
-	authFactory := tn.Configuration().AuthFactories()[0]
+	client := jsonrpc.NewJSONRPCClient(tn.URIs()[0])
+	sourceBalance, err := client.GetBalance(ctx, sourceAuthFactory.Address())
+	require.NoError(err)
+	require.Equal(uint64(1000000), sourceBalance)
+	targetBalance, err := client.GetBalance(ctx, targetAuthFactory.Address())
+	require.NoError(err)
+	require.Equal(uint64(1000000), targetBalance)
 ```
 
 Next, we'll create our test transaction. In short, we'll want to send a value of
@@ -396,20 +402,21 @@ Next, we'll create our test transaction. In short, we'll want to send a value of
 
 ```go
 	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.Transfer{
-		To:    toAddress,
+		To:    targetAuthFactory.Address(,
 		Value: 1,
 	}},
-		authFactory,
+		sourceAuthFactory,
 	)
 	require.NoError(err)
 ```
 
-Finally, we'll want to send our TX and do the checks mentioned in the last step.
+Finally, we'll want to send our TX, check that the Tx has been executed and receiver has received the amount of token.
 This step will consist of the following:
 
 - Creating a context with a deadline of 2 seconds
   - If the test takes longer than 2 seconds, it will fail
 - Calling `ConfirmTxs` with our TX being passed in
+- Requesting the balance
 
 The function `ConfirmTXs` is useful as it checks that our TX was
 sent and that, if finalized, our transaction has the expected outputs. We have
@@ -418,8 +425,14 @@ the following:
 ```go
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()
-
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
+
+	sourceBalance, err = client.GetBalance(ctx, sourceAuthFactory.Address())
+	require.NoError(err)
+	require.True(uint64(1000000) > sourceBalance)
+	targetBalance, err = client.GetBalance(ctx, targetAuthFactory.Address())
+	require.NoError(err)
+	require.Equal(uint64(1000001), targetBalance)
 ```
 
 ## Registering our Tests
