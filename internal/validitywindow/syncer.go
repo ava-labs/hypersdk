@@ -37,23 +37,23 @@ func (s *Syncer[Container]) start(ctx context.Context, lastAcceptedBlock Executi
 		parent             = s.initialBlock
 		parents            = []ExecutionBlock[Container]{parent}
 		seenValidityWindow = false
-		validityWindow     = s.getValidityWindow(lastAcceptedBlock.Timestamp())
+		validityWindow     = s.getValidityWindow(lastAcceptedBlock.GetTimestamp())
 		err                error
 	)
 	for {
-		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.Parent())
+		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
 			break // If we can't fetch far enough back or we've gone past genesis, execute what we can
 		}
 		parents = append(parents, parent)
-		seenValidityWindow = lastAcceptedBlock.Timestamp()-parent.Timestamp() > validityWindow
+		seenValidityWindow = lastAcceptedBlock.GetTimestamp()-parent.GetTimestamp() > validityWindow
 		if seenValidityWindow {
 			break
 		}
 	}
 
 	s.initialBlock = parents[len(parents)-1]
-	if s.initialBlock.Height() == 0 {
+	if s.initialBlock.GetHeight() == 0 {
 		seenValidityWindow = true
 	}
 	for i := len(parents) - 1; i >= 0; i-- {
@@ -68,7 +68,7 @@ func (s *Syncer[Container]) Accept(ctx context.Context, blk ExecutionBlock[Conta
 	if s.initialBlock == nil {
 		return s.start(ctx, blk)
 	}
-	seenValidityWindow := blk.Timestamp()-s.initialBlock.Timestamp() > s.getValidityWindow(blk.Timestamp())
+	seenValidityWindow := blk.GetTimestamp()-s.initialBlock.GetTimestamp() > s.getValidityWindow(blk.GetTimestamp())
 	s.timeValidityWindow.Accept(blk)
 	return seenValidityWindow, nil
 }

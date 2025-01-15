@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -139,6 +140,35 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
+// validityWindowBlock implements the validity window's execution block interface
+type validityWindowBlock struct {
+	Block
+	certs      set.Set[ids.ID]
+	chunkCerts []*emapChunkCertificate
+}
+
+func (e validityWindowBlock) Contains(id ids.ID) bool {
+	return e.certs.Contains(id)
+}
+
+func (e validityWindowBlock) GetContainers() []*emapChunkCertificate {
+	return e.chunkCerts
+}
+
+func NewValidityWindowBlock(innerBlock Block) validityWindowBlock {
+	certSet := set.Set[ids.ID]{}
+	chunkCerts := make([]*emapChunkCertificate, len(innerBlock.ChunkCerts))
+	for i, c := range innerBlock.ChunkCerts {
+		certSet.Add(c.ChunkID)
+		chunkCerts[i] = &emapChunkCertificate{*c}
+	}
+	return validityWindowBlock{
+		Block:      innerBlock,
+		certs:      certSet,
+		chunkCerts: chunkCerts,
+	}
+}
+
 type BlockHeader struct {
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
@@ -155,6 +185,18 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+func (b Block) GetTimestamp() int64 {
+	return b.Timestamp
+}
+
+func (b Block) GetHeight() uint64 {
+	return b.Height
+}
+
+func (b Block) GetParent() ids.ID {
+	return b.ParentID
 }
 
 // ExecutedBlock contains block data with any referenced chunks reconstructed

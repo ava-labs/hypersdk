@@ -24,19 +24,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/x/dsmr/dsmrtest"
 
 	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
-const networkID = uint32(123)
+const (
+	networkID                            = uint32(123)
+	testingDefaultValidityWindowDuration = time.Duration(5)
+)
 
 var (
 	_ Tx                    = (*dsmrtest.Tx)(nil)
 	_ Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
 
 	chainID = ids.Empty
+
+	errTestingInvalidValidityWindow = errors.New("time validity window testing error")
 )
 
 // Test that chunks can be built through Node.BuildChunk
@@ -101,7 +107,7 @@ func TestNode_BuildChunk(t *testing.T) {
 				return
 			}
 
-			blk, err := node.BuildBlock(node.LastAccepted, tt.expiry)
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, tt.expiry)
 			r.NoError(err)
 			r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 			executedBlk, err := node.Accept(context.Background(), blk)
@@ -143,7 +149,7 @@ func TestNode_GetChunk_AvailableChunk(t *testing.T) {
 		codec.Address{123},
 	))
 
-	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	executedBlk, err := node.Accept(context.Background(), blk)
@@ -371,7 +377,7 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 				))
 			}
 
-			blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 			r.NoError(err)
 			r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 			executedBlk, err := node.Accept(context.Background(), blk)
@@ -514,6 +520,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
+				&mockTimeValidityWindow{},
+				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -625,7 +633,7 @@ func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
 		123,
 		codec.Address{123},
 	))
-	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 	executedBlk, err := node.Accept(context.Background(), blk)
@@ -696,7 +704,7 @@ func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 		err error
 	)
 	for {
-		blk, err = node2.BuildBlock(node2.LastAccepted, node2.LastAccepted.Timestamp+1)
+		blk, err = node2.BuildBlock(context.Background(), node2.LastAccepted, node2.LastAccepted.Timestamp+1)
 		if err == nil {
 			break
 		}
@@ -745,10 +753,11 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		chunks    func(parent Block) []chunk
-		timestamp func(parent Block) int64
-		wantErr   error
+		name               string
+		chunks             func(parent Block) []chunk
+		timestamp          func(parent Block) int64
+		wantErr            error
+		timeValidityWindow TimeValidityWindow[*emapChunkCertificate]
 	}{
 		{
 			name: "no chunk certs",
@@ -914,6 +923,63 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 				return parent.Timestamp + 100
 			},
 		},
+		{
+			name: "validity window error",
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []dsmrtest.Tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
+						},
+						expiry: parent.Timestamp + 1_000,
+					},
+				}
+			},
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
+			},
+			wantErr: errTestingInvalidValidityWindow,
+			timeValidityWindow: &mockTimeValidityWindow{
+				onIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], []*emapChunkCertificate, int64) (set.Bits, error) {
+					return set.NewBits(), errTestingInvalidValidityWindow
+				},
+			},
+		},
+		{
+			name: "no available chunk certs ( all duplicates )",
+			chunks: func(parent Block) []chunk {
+				return []chunk{
+					{
+						txs: []dsmrtest.Tx{
+							{
+								ID:     ids.GenerateTestID(),
+								Expiry: parent.Timestamp + 1_000,
+							},
+						},
+						expiry: parent.Timestamp + 1_000,
+					},
+				}
+			},
+			timestamp: func(parent Block) int64 {
+				return parent.Timestamp + 100
+			},
+			wantErr: ErrNoAvailableChunkCerts,
+			timeValidityWindow: &mockTimeValidityWindow{
+				onIsRepeat: func(
+					context.Context,
+					validitywindow.ExecutionBlock[*emapChunkCertificate],
+					[]*emapChunkCertificate,
+					int64,
+				) (set.Bits, error) {
+					marker := set.NewBits()
+					marker.Add(0)
+					return marker, nil
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -945,8 +1011,10 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 
 				wantChunks = append(wantChunks, chunk)
 			}
-
-			blk, err := node.BuildBlock(node.LastAccepted, timestamp)
+			if tt.timeValidityWindow != nil {
+				node.validityWindow = tt.timeValidityWindow
+			}
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, timestamp)
 			r.ErrorIs(err, tt.wantErr)
 			if err != nil {
 				return
@@ -975,7 +1043,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 		123,
 		codec.Address{123},
 	))
-	blk, err := node1.BuildBlock(node1.LastAccepted, node1.LastAccepted.Timestamp+1)
+	blk, err := node1.BuildBlock(context.Background(), node1.LastAccepted, node1.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node1.Verify(context.Background(), node1.LastAccepted, blk))
 	_, err = node1.Accept(context.Background(), blk)
@@ -1048,16 +1116,17 @@ func Test_Verify(t *testing.T) {
 		codec.Address{123},
 	))
 
-	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	r.NoError(err)
 	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
 }
 
 func Test_Verify_BadBlock(t *testing.T) {
 	tests := []struct {
-		name    string
-		blk     func(parent Block) Block
-		wantErr error
+		name           string
+		blk            func(parent Block) Block
+		wantErr        error
+		validityWindow TimeValidityWindow[*emapChunkCertificate]
 	}{
 		{
 			name: "invalid parent",
@@ -1209,6 +1278,25 @@ func Test_Verify_BadBlock(t *testing.T) {
 			},
 			wantErr: ErrInvalidWarpSignature,
 		},
+		{
+			name: "invalid validity window",
+			blk: func(parent Block) Block {
+				return Block{
+					BlockHeader: BlockHeader{
+						ParentID:  parent.GetID(),
+						Height:    parent.Height + 1,
+						Timestamp: parent.Timestamp + 1,
+					},
+					ChunkCerts: parent.ChunkCerts,
+				}
+			},
+			wantErr: errTestingInvalidValidityWindow,
+			validityWindow: &mockTimeValidityWindow{
+				onVerifyExpiryReplayProtection: func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error {
+					return errTestingInvalidValidityWindow
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1221,11 +1309,16 @@ func Test_Verify_BadBlock(t *testing.T) {
 				100,
 				codec.Address{123},
 			))
-			blk, err := node.BuildBlock(node.LastAccepted, 100)
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, 100)
 			r.NoError(err)
 			_, err = node.Accept(context.Background(), blk)
 			r.NoError(err)
 
+			// optionally replace the node's validity window implementation in order to test
+			// the handling of potential error cases.
+			if tt.validityWindow != nil {
+				node.validityWindow = tt.validityWindow
+			}
 			r.ErrorIs(node.Verify(
 				context.Background(),
 				node.LastAccepted,
@@ -1345,6 +1438,8 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			Block{},
 			1,
 			1,
+			&mockTimeValidityWindow{},
+			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
 
@@ -1366,7 +1461,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		codec.Address{},
 	))
 
-	blk, err := node.BuildBlock(node.LastAccepted, node.LastAccepted.Timestamp+1)
+	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Verify(context.Background(), node.LastAccepted, blk))
@@ -1381,3 +1476,34 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 
 	return result
 }
+
+type mockTimeValidityWindow struct {
+	onIsRepeat func(ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
+		txs []*emapChunkCertificate,
+		oldestAllowed int64,
+	) (set.Bits, error)
+
+	onVerifyExpiryReplayProtection func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate], int64) error
+}
+
+func (v *mockTimeValidityWindow) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[*emapChunkCertificate], t int64) error {
+	if v.onVerifyExpiryReplayProtection != nil {
+		return v.onVerifyExpiryReplayProtection(ctx, blk, t)
+	}
+	return nil
+}
+
+func (v *mockTimeValidityWindow) IsRepeat(
+	ctx context.Context,
+	parentBlk validitywindow.ExecutionBlock[*emapChunkCertificate],
+	txs []*emapChunkCertificate,
+	oldestAllowed int64,
+) (set.Bits, error) {
+	if v.onIsRepeat != nil {
+		return v.onIsRepeat(ctx, parentBlk, txs, oldestAllowed)
+	}
+	return set.NewBits(), nil
+}
+
+func (*mockTimeValidityWindow) Accept(validitywindow.ExecutionBlock[*emapChunkCertificate]) {}
