@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/tests/registry"
 
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 // TestsRegistry initialized during init to ensure tests are identical during ginkgo
@@ -24,7 +23,7 @@ import (
 // ref https://onsi.github.io/ginkgo/#mental-model-how-ginkgo-traverses-the-spec-hierarchy
 var TestsRegistry = &registry.Registry{}
 
-var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.FullGinkgoTInterface, tn tworkload.TestNetwork) {
+func TransferTest(t require.TestingT, tn tworkload.TestNetwork) {
 	require := require.New(t)
 	other, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
@@ -43,4 +42,6 @@ var _ = registry.Register(TestsRegistry, "Transfer Transaction", func(t ginkgo.F
 	defer timeoutCtxFnc()
 
 	require.NoError(tn.ConfirmTxs(timeoutCtx, []*chain.Transaction{tx}))
-})
+}
+
+var _ = registry.Register(TestsRegistry, "Transfer", TransferTest)

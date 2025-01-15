@@ -15,19 +15,18 @@ var _ block.StateSummary = (*SyncableBlock[StateSummaryBlock])(nil)
 
 type StateSummaryBlock interface {
 	fmt.Stringer
-	ID() ids.ID
-	Height() uint64
-	Bytes() []byte
+	GetID() ids.ID
+	GetHeight() uint64
+	GetBytes() []byte
 	GetStateRoot() ids.ID
-	MarkAccepted(context.Context)
 }
 
 type SyncableBlock[T StateSummaryBlock] struct {
 	container T
-	accepter  Accepter[T] // accepter is nil if the SyncableBlock is constructed by the server
+	accepter  *Client[T]
 }
 
-func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *SyncableBlock[T] {
+func NewSyncableBlock[T StateSummaryBlock](container T, accepter *Client[T]) *SyncableBlock[T] {
 	return &SyncableBlock[T]{
 		container: container,
 		accepter:  accepter,
@@ -35,23 +34,19 @@ func NewSyncableBlock[T StateSummaryBlock](container T, accepter Accepter[T]) *S
 }
 
 func (sb *SyncableBlock[T]) ID() ids.ID {
-	return sb.container.ID()
+	return sb.container.GetID()
 }
 
 func (sb *SyncableBlock[T]) Height() uint64 {
-	return sb.container.Height()
+	return sb.container.GetHeight()
 }
 
 func (sb *SyncableBlock[T]) Bytes() []byte {
-	return sb.container.Bytes()
+	return sb.container.GetBytes()
 }
 
 func (sb *SyncableBlock[T]) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.accepter.Accept(ctx, sb.container)
-}
-
-func (sb *SyncableBlock[T]) MarkAccepted(ctx context.Context) {
-	sb.container.MarkAccepted(ctx)
 }
 
 func (sb *SyncableBlock[T]) String() string {

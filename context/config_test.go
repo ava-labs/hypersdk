@@ -14,7 +14,7 @@ type testConfig struct {
 	MinFee uint64 `json:"minFee"`
 }
 
-func TestConfigC(t *testing.T) {
+func TestConfig(t *testing.T) {
 	type test struct {
 		name          string
 		providedStr   string

@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
-	"go.uber.org/zap"
 )
 
 // ChainIndex defines the generic on-disk index for the Input block type required
@@ -27,7 +26,7 @@ type ChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
-func (v *vm[I, O, A]) makeConsensusIndex(
+func (v *VM[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
 	chainIndex ChainIndex[I],
 	outputBlock O,
@@ -46,13 +45,13 @@ func (v *vm[I, O, A]) makeConsensusIndex(
 
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
-		v.markReady(true)
-		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
+		v.ready.Store(true)
+		lastAcceptedBlock, err = v.reprocessFromOutputToInput(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
 			return err
 		}
 	} else {
-		v.markReady(false)
+		v.ready.Store(false)
 		lastAcceptedBlock = NewInputBlock(v, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
@@ -64,18 +63,21 @@ func (v *vm[I, O, A]) makeConsensusIndex(
 
 // GetConsensusIndex returns the consensus index exposed to the application. The consensus index is created during chain initialization
 // and is exposed here for testing.
-func (v *vm[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
+func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
 	return v.consensusIndex
 }
 
-func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
-	if inputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
-		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
+// reprocessFromOutputToInput re-processes blocks from output/accepted to align with the supplied input block.
+// assumes that outputBlock and acceptedBlock represent the same block and that all blocks in the range
+// [output/accepted, input] have been added to the inputChainIndex.
+func (v *VM[I, O, A]) reprocessFromOutputToInput(ctx context.Context, targetInputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
+	if targetInputBlock.GetHeight() < outputBlock.GetHeight() || outputBlock.GetID() != acceptedBlock.GetID() {
+		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", targetInputBlock, outputBlock, acceptedBlock)
 	}
 
 	// Re-process from the last output block, to the last accepted input block
-	for inputBlock.Height() > outputBlock.Height() {
-		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
+	for targetInputBlock.GetHeight() > outputBlock.GetHeight() {
+		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.GetHeight()+1)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +92,7 @@ func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 		}
 	}
 
-	return NewAcceptedBlock(v, inputBlock, outputBlock, acceptedBlock), nil
+	return NewAcceptedBlock(v, targetInputBlock, outputBlock, acceptedBlock), nil
 }
 
 // ConsensusIndex provides a wrapper around the VM, which enables the chain developer to share the
@@ -100,7 +102,7 @@ func (v *vm[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 // ie. last accepted block is guaranteed to have Accepted type available, whereas the preferred block
 // is only guaranteed to have the Output type available.
 type ConsensusIndex[I Block, O Block, A Block] struct {
-	vm *vm[I, O, A]
+	vm *VM[I, O, A]
 }
 
 func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
@@ -120,37 +122,27 @@ func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I
 }
 
 func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
-	c.vm.chainLock.Lock()
-	defer c.vm.chainLock.Unlock()
+	c.vm.metaLock.Lock()
+	preference := c.vm.preferredBlkID
+	c.vm.metaLock.Unlock()
 
-	blk, err := c.vm.GetBlock(ctx, c.vm.preferredBlkID)
+	blk, err := c.vm.GetBlock(ctx, preference)
 	if err != nil {
 		return utils.Zero[O](), err
 	}
-
 	if !blk.verified {
-		// The block may not be populated if we are transitioning from dynamic state sync.
-		// This is jank as hell.
-		// To handle this, we re-process from the last verified ancestor to the preferred
-		// block.
-		// If the preferred block is invalid (which can happen if a malicious peer sends us
-		// an invalid block and we hit a poll that causes us to set it to our preference),
-		// then we will return an error.
-		c.vm.log.Info("Reprocessing to preferred block",
-			zap.Stringer("lastAccepted", c.vm.lastAcceptedBlock),
-			zap.Stringer("preferred", blk),
-		)
-		if err := blk.innerVerify(ctx); err != nil {
-			return utils.Zero[O](), fmt.Errorf("failed to verify preferred block %s: %w", blk, err)
-		}
-		return blk.Output, nil
+		return utils.Zero[O](), fmt.Errorf("preferred block %s has not been verified", blk)
 	}
 	return blk.Output, nil
 }
 
-func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) A {
+func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) (A, error) {
 	c.vm.metaLock.Lock()
-	defer c.vm.metaLock.Unlock()
+	lastAccepted := c.vm.lastAcceptedBlock
+	c.vm.metaLock.Unlock()
 
-	return c.vm.lastAcceptedBlock.Accepted
+	if !lastAccepted.accepted {
+		return utils.Zero[A](), fmt.Errorf("last accepted block %s has not been populated", lastAccepted)
+	}
+	return lastAccepted.Accepted, nil
 }

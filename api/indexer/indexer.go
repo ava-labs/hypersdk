@@ -88,7 +88,7 @@ func (i *Indexer) initBlocks() error {
 			return err
 		}
 
-		i.blockIDToHeight.Put(blk.Block.ID(), blk.Block.Hght)
+		i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
 		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
 		lastHeight = blk.Block.Hght
 	}
@@ -135,7 +135,7 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	i.blockIDToHeight.Put(blk.Block.ID(), blk.Block.Hght)
+	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
 	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
 	i.lastHeight.Store(blk.Block.Hght)
 

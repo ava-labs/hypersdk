@@ -640,9 +640,7 @@ func TestCreateView(t *testing.T) {
 	}
 	tsv.Commit()
 
-	// Create merkle view
 	stateDiff = ts.ChangedKeys()
-
 	// Check if state diff was updated correctly
 	for _, key := range keys {
 		maybeValue := stateDiff[string(key)]
