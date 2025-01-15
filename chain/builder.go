@@ -484,10 +484,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", timestamp),
 	)
-	execBlock, err := NewExecutionBlock(blk)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	execBlock := NewExecutionBlock(blk)
 	return execBlock, &ExecutedBlock{
 		Block:         blk,
 		Results:       results,

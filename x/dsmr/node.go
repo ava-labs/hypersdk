@@ -16,11 +16,14 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p/acp118"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -70,6 +73,8 @@ func New[T Tx](
 	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
+	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
+	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
@@ -88,7 +93,25 @@ func New[T Tx](
 		GetChunkSignatureHandler:      getChunkSignatureHandler,
 		ChunkCertificateGossipHandler: chunkCertificateGossipHandler,
 		storage:                       chunkStorage,
+		log:                           log,
+		validityWindow:                timeValidityWindow,
+		validityWindowDuration:        validityWindowDuration,
 	}, nil
+}
+
+type TimeValidityWindow[Container emap.Item] interface {
+	Accept(blk validitywindow.ExecutionBlock[Container])
+	VerifyExpiryReplayProtection(
+		ctx context.Context,
+		blk validitywindow.ExecutionBlock[Container],
+		oldestAllowed int64,
+	) error
+	IsRepeat(
+		ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[Container],
+		txs []Container,
+		oldestAllowed int64,
+	) (set.Bits, error)
 }
 
 type Node[T Tx] struct {
@@ -109,6 +132,9 @@ type Node[T Tx] struct {
 	GetChunkSignatureHandler      p2p.Handler
 	ChunkCertificateGossipHandler p2p.Handler
 	storage                       *ChunkStorage[T]
+	log                           logging.Logger
+	validityWindowDuration        time.Duration
+	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
 
 // BuildChunk builds transactions into a Chunk
@@ -217,19 +243,28 @@ func (n *Node[T]) BuildChunk(
 	return n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Timestamp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
 	chunkCerts := n.storage.GatherChunkCerts()
+	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
+	chunkCert := make([]*emapChunkCertificate, len(chunkCerts))
+	for i := range chunkCert {
+		chunkCert[i] = &emapChunkCertificate{*chunkCerts[i]}
+	}
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), chunkCert, oldestAllowed)
+	if err != nil {
+		return Block{}, err
+	}
+
 	availableChunkCerts := make([]*ChunkCertificate, 0)
-	for _, chunkCert := range chunkCerts {
-		// avoid building blocks with expired chunk certs
-		if chunkCert.Expiry < timestamp {
+	for i, chunkCert := range chunkCerts {
+		// avoid building blocks with duplicate or expired chunk certs
+		if chunkCert.Expiry < timestamp || duplicates.Contains(i) {
 			continue
 		}
-
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
@@ -281,6 +316,13 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 
 	if len(block.ChunkCerts) == 0 {
 		return fmt.Errorf("%w: %s", ErrEmptyBlock, block.GetID())
+	}
+
+	// Find repeats
+	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
+
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block), oldestAllowed); err != nil {
+		return fmt.Errorf("%w: block %s oldestAllowed - %d", err, block.GetID(), oldestAllowed)
 	}
 
 	for _, chunkCert := range block.ChunkCerts {
@@ -353,6 +395,8 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 
 		chunks = append(chunks, chunk)
 	}
+	// update the validity window with the accepted block.
+	n.validityWindow.Accept(NewValidityWindowBlock(block))
 
 	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
 		return ExecutedBlock[T]{}, fmt.Errorf("failed to prune chunks: %w", err)
