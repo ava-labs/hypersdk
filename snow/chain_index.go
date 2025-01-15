@@ -45,13 +45,13 @@ func (v *VM[I, O, A]) makeConsensusIndex(
 
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
-		v.markReady(true)
+		v.ready.Store(true)
 		lastAcceptedBlock, err = v.reprocessFromOutputToInput(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
 			return err
 		}
 	} else {
-		v.markReady(false)
+		v.ready.Store(false)
 		lastAcceptedBlock = NewInputBlock(v, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)

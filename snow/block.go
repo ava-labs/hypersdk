@@ -137,7 +137,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		b.vm.metrics.blockVerify.Observe(float64(time.Since(start)))
 	}()
 
-	ready := b.vm.isReady()
+	ready := b.vm.ready.Load()
 	ctx, span := b.vm.tracer.Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
@@ -260,7 +260,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	defer b.vm.log.Info("accepting block", zap.Stringer("block", b))
 
 	// If I'm not ready yet, mark myself as accepted, and return early.
-	isReady := b.vm.isReady()
+	isReady := b.vm.ready.Load()
 	if !isReady {
 		return b.markAccepted(ctx, nil)
 	}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/health"
@@ -132,8 +133,7 @@ type VM[I Block, O Block, A Block] struct {
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
 
-	readyL sync.RWMutex
-	ready  bool
+	ready atomic.Bool
 
 	metrics *Metrics
 	log     logging.Logger
@@ -500,20 +500,6 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {
 	return v.version, nil
-}
-
-func (v *VM[I, O, A]) isReady() bool {
-	v.readyL.RLock()
-	defer v.readyL.RUnlock()
-
-	return v.ready
-}
-
-func (v *VM[I, O, A]) markReady(ready bool) {
-	v.readyL.Lock()
-	defer v.readyL.Unlock()
-
-	v.ready = ready
 }
 
 func (v *VM[I, O, A]) addCloser(name string, closer func() error) {
