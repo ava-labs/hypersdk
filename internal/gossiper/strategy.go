@@ -12,6 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
+var (
+	_ TargetStrategy[Tx] = (*TargetProposers[Tx])(nil)
+	_ TargetStrategy[Tx] = (*TargetAssigner[Tx])(nil)
+)
+
 type TargetStrategy[T any] interface {
 	Target(ctx context.Context, txs []T) ([]GossipContainer[T], error)
 }
