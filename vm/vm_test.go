@@ -105,7 +105,7 @@ func NewVMTestNetwork(ctx context.Context, t *testing.T, numVMs int, opts ...VMT
 	privKey, err := ed25519.GeneratePrivateKey()
 	r.NoError(err)
 	authFactory := auth.NewED25519Factory(privKey)
-	funds := uint64(1_000_000_000)
+	funds := uint64(1_000_000_000_000_000)
 	allocations := []*genesis.CustomAllocation{
 		{
 			Address: authFactory.Address(),
