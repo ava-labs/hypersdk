@@ -445,8 +445,11 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			wantErr:  ErrInvalidChunk,
 		},
 		{
-			name:     "valid chunk",
-			verifier: NoVerifier[dsmrtest.Tx]{},
+			name: "valid chunk",
+			verifier: ChunkVerifier[dsmrtest.Tx]{
+				networkID: networkID,
+				chainID:   chainID,
+			},
 		},
 	}
 
@@ -522,22 +525,19 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
-			chunk, err := newChunk[dsmrtest.Tx](
-				UnsignedChunk[dsmrtest.Tx]{
-					Producer:    ids.GenerateTestNodeID(),
-					Beneficiary: codec.Address{123},
-					Expiry:      123,
-					Txs: []dsmrtest.Tx{
-						{
-							ID:      ids.GenerateTestID(),
-							Expiry:  456,
-							Sponsor: codec.Address{4, 5, 6},
-						},
+			unsignedChunk := UnsignedChunk[dsmrtest.Tx]{
+				Producer:    ids.GenerateTestNodeID(),
+				Beneficiary: codec.Address{123},
+				Expiry:      123,
+				Txs: []dsmrtest.Tx{
+					{
+						ID:      ids.GenerateTestID(),
+						Expiry:  456,
+						Sponsor: codec.Address{4, 5, 6},
 					},
 				},
-				[48]byte{},
-				[96]byte{},
-			)
+			}
+			chunk, err := signChunk[dsmrtest.Tx](unsignedChunk, networkID, chainID, pk, signer)
 			r.NoError(err)
 
 			packer := wrappers.Packer{MaxSize: MaxMessageSize}
@@ -1354,16 +1354,19 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 		require.NoError(t, err)
 		pk := bls.PublicFromSecretKey(sk)
 		signer := warp.NewSigner(sk, networkID, chainID)
-
-		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](NoVerifier[dsmrtest.Tx]{}, memdb.New())
+		verifier := ChunkVerifier[dsmrtest.Tx]{networkID: networkID, chainID: chainID}
+		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)
 
 		getChunkHandler := &GetChunkHandler[dsmrtest.Tx]{
 			storage: chunkStorage,
 		}
 		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[dsmrtest.Tx]{
-			verifier: NoVerifier[dsmrtest.Tx]{},
-			storage:  chunkStorage,
+			verifier: ChunkVerifier[dsmrtest.Tx]{
+				networkID: networkID,
+				chainID:   chainID,
+			},
+			storage: chunkStorage,
 		}, signer)
 		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[dsmrtest.Tx]{
 			storage: chunkStorage,

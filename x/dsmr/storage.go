@@ -32,12 +32,23 @@ type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
 }
 
-var _ Verifier[Tx] = (*NoVerifier[Tx])(nil)
+var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
-type NoVerifier[T Tx] struct{}
+type ChunkVerifier[T Tx] struct {
+	networkID uint32
+	chainID   ids.ID
+}
 
-func (NoVerifier[T]) Verify(Chunk[T]) error {
-	return nil
+func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
+	// TODO:
+	// check if the expiry of this chunk isn't in the past or too far into the future.
+
+	// TODO:
+	// check if the producer was expected to produce this chunk.
+
+	// TODO:
+	// add rate limiting for a given producer.
+	return chunk.Verify(c.networkID, c.chainID)
 }
 
 type StoredChunkSignature[T Tx] struct {
