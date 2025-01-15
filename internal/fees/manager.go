@@ -152,6 +152,28 @@ func (f *Manager) Consume(d fees.Dimensions, l fees.Dimensions) (bool, fees.Dime
 	return true, 0
 }
 
+func (f *Manager) Refund(d fees.Dimensions) (bool, fees.Dimension) {
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	// Ensure we can refund (don't want partial update of values)
+	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
+		if _, err := math.Sub(f.lastConsumed(i), d[i]); err != nil {
+			return false, i
+		}
+	}
+
+	// Commit to refund
+	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
+		consumed, err := math.Sub(f.lastConsumed(i), d[i])
+		if err != nil {
+			return false, i
+		}
+		f.setLastConsumed(i, consumed)
+	}
+	return true, 0
+}
+
 func (f *Manager) Bytes() []byte {
 	f.l.RLock()
 	defer f.l.RUnlock()

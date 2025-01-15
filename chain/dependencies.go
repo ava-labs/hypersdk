@@ -8,11 +8,15 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 type Parser interface {
@@ -221,3 +225,17 @@ type ValidityWindow interface {
 		oldestAllowed int64,
 	) (set.Bits, error)
 }
+
+// ExportStateDiffFunc finalizes the state diff
+type ExportStateDiffFunc func(context.Context, *tstate.TState, state.View, MetadataManager, uint64) (merkledb.View, error)
+
+// ResultModifierFunc modifies the result of a transaction
+// Any changes should be reflected in ResultChanges
+type ResultModifierFunc func(state.Immutable, *Result, *internalfees.Manager) (*ResultChanges, error)
+
+// RefundFunc refunds any fees to the transaction sponsor
+type RefundFunc func(context.Context, *ResultChanges, BalanceHandler, codec.Address, state.Mutable) error
+
+// FeeManagerModifierFunc can be used to modify the fee manager
+// Any changes to a result's units should be reflected here
+type FeeManagerModifierFunc func(*internalfees.Manager, *ResultChanges) error

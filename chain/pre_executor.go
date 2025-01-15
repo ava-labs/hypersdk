@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -16,6 +17,7 @@ type PreExecutor struct {
 	ruleFactory     RuleFactory
 	validityWindow  ValidityWindow
 	metadataManager MetadataManager
+	executionShim   shim.Execution
 	balanceHandler  BalanceHandler
 }
 
@@ -23,12 +25,14 @@ func NewPreExecutor(
 	ruleFactory RuleFactory,
 	validityWindow ValidityWindow,
 	metadataManager MetadataManager,
+	executionShim shim.Execution,
 	balanceHandler BalanceHandler,
 ) *PreExecutor {
 	return &PreExecutor{
 		ruleFactory:     ruleFactory,
 		validityWindow:  validityWindow,
 		metadataManager: metadataManager,
+		executionShim:   executionShim,
 		balanceHandler:  balanceHandler,
 	}
 }
@@ -66,7 +70,7 @@ func (p *PreExecutor) PreExecute(
 	}
 
 	// Ensure state keys are valid
-	_, err = tx.StateKeys(p.balanceHandler)
+	stateKeys, err := tx.StateKeys(p.balanceHandler)
 	if err != nil {
 		return err
 	}
@@ -87,7 +91,12 @@ func (p *PreExecutor) PreExecute(
 	// Note, [PreExecute] ensures that the pending transaction does not have
 	// an expiry time further ahead than [ValidityWindow]. This ensures anything
 	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, view, now); err != nil {
+	executionView, err := p.executionShim.ImmutableView(ctx, stateKeys, view, parentBlk.Height()+1)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, executionView, now); err != nil {
 		return err
 	}
 	return nil

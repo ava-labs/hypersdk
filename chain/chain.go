@@ -36,11 +36,16 @@ func NewChain(
 	authVM AuthVM,
 	validityWindow ValidityWindow,
 	config Config,
+	ops []Option,
 ) (*Chain, error) {
 	metrics, err := newMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}
+
+	options := NewDefaultOptions()
+	applyOptions(options, ops)
+
 	return &Chain{
 		builder: NewBuilder(
 			tracer,
@@ -51,6 +56,10 @@ func NewChain(
 			mempool,
 			validityWindow,
 			metrics,
+			options.executionShim,
+			options.exportStateDiffFunc,
+			options.resultModifierFunc,
+			options.refundFunc,
 			config,
 		),
 		processor: NewProcessor(
@@ -63,6 +72,11 @@ func NewChain(
 			balanceHandler,
 			validityWindow,
 			metrics,
+			options.executionShim,
+			options.exportStateDiffFunc,
+			options.dimsModifierFunc,
+			options.resultModifierFunc,
+			options.refundFunc,
 			config,
 		),
 		accepter: NewAccepter(
@@ -74,6 +88,7 @@ func NewChain(
 			ruleFactory,
 			validityWindow,
 			metadataManager,
+			options.executionShim,
 			balanceHandler,
 		),
 		blockParser: NewBlockParser(tracer, parser),

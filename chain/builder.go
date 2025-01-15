@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -61,15 +62,19 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 }
 
 type Builder struct {
-	tracer          trace.Tracer
-	ruleFactory     RuleFactory
-	log             logging.Logger
-	metadataManager MetadataManager
-	balanceHandler  BalanceHandler
-	mempool         Mempool
-	validityWindow  ValidityWindow
-	metrics         *chainMetrics
-	config          Config
+	tracer             trace.Tracer
+	ruleFactory        RuleFactory
+	log                logging.Logger
+	metadataManager    MetadataManager
+	balanceHandler     BalanceHandler
+	mempool            Mempool
+	validityWindow     ValidityWindow
+	metrics            *chainMetrics
+	executionShim      shim.Execution
+	exportStateDiff    ExportStateDiffFunc
+	resultModifierFunc ResultModifierFunc
+	refundFunc         RefundFunc
+	config             Config
 }
 
 func NewBuilder(
@@ -81,18 +86,26 @@ func NewBuilder(
 	mempool Mempool,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
+	executionShim shim.Execution,
+	afterBlock ExportStateDiffFunc,
+	resultModifierFunc ResultModifierFunc,
+	refundFunc RefundFunc,
 	config Config,
 ) *Builder {
 	return &Builder{
-		tracer:          tracer,
-		ruleFactory:     ruleFactory,
-		log:             log,
-		metadataManager: metadataManager,
-		balanceHandler:  balanceHandler,
-		mempool:         mempool,
-		validityWindow:  validityWindow,
-		metrics:         metrics,
-		config:          config,
+		tracer:             tracer,
+		ruleFactory:        ruleFactory,
+		log:                log,
+		metadataManager:    metadataManager,
+		balanceHandler:     balanceHandler,
+		mempool:            mempool,
+		validityWindow:     validityWindow,
+		metrics:            metrics,
+		executionShim:      executionShim,
+		exportStateDiff:    afterBlock,
+		resultModifierFunc: resultModifierFunc,
+		refundFunc:         refundFunc,
+		config:             config,
 	}
 }
 
@@ -289,10 +302,15 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					}()
 				}
 
+				state, err := c.executionShim.ImmutableView(ctx, stateKeys, state.ImmutableStorage(storage), height)
+				if err != nil {
+					return err
+				}
+
 				// Execute block
 				tsv := ts.NewView(
 					stateKeys,
-					state.ImmutableStorage(storage),
+					state,
 					len(stateKeys),
 				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
@@ -321,6 +339,15 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 
 				blockLock.Lock()
 				defer blockLock.Unlock()
+
+				resultChanges, err := c.resultModifierFunc(state, result, feeManager)
+				if err != nil {
+					return err
+				}
+
+				if err := c.refundFunc(ctx, resultChanges, c.balanceHandler, tx.Auth.Sponsor(), tsv); err != nil {
+					return err
+				}
 
 				// Ensure block isn't too big
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
@@ -440,7 +467,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	}
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
+	view, err := c.exportStateDiff(ctx, ts, parentView, c.metadataManager, height)
 	if err != nil {
 		return nil, nil, nil, err
 	}

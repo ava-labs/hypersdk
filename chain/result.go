@@ -138,3 +138,8 @@ func UnmarshalResults(src []byte) ([]*Result, error) {
 	}
 	return results, nil
 }
+
+type ResultChanges struct {
+	DimsDiff fees.Dimensions
+	FeeDiff  uint64
+}

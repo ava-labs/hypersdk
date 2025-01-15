@@ -43,6 +43,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -99,6 +100,7 @@ type VM struct {
 	rawStateDB            database.Database
 	stateDB               merkledb.MerkleDB
 	vmDB                  database.Database
+	executionShim         shim.Execution
 	handlers              map[string]http.Handler
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
@@ -372,6 +374,7 @@ func (vm *VM) Initialize(
 		vm,
 		vm.chainTimeValidityWindow,
 		vm.config.ChainConfig,
+		options.chainOptions,
 	)
 	if err != nil {
 		return err
@@ -424,7 +427,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.balanceHandler); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, vm.executionShim.MutableView(sps, 0), vm.balanceHandler); err != nil {
 			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
@@ -561,6 +564,13 @@ func (vm *VM) Initialize(
 func (vm *VM) applyOptions(o *Options) error {
 	vm.asyncAcceptedSubscriptionFactories = o.blockSubscriptionFactories
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
+
+	if o.executionShim != nil {
+		vm.executionShim = o.executionShim
+	} else {
+		vm.executionShim = &shim.ExecutionNoOp{}
+	}
+
 	if o.builder {
 		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
 	} else {
@@ -676,12 +686,17 @@ func (vm *VM) IsReady() bool {
 	}
 }
 
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+func (vm *VM) ReadState(ctx context.Context, keys [][]byte) (state.Immutable, error) {
 	if !vm.IsReady() {
-		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
+		return nil, ErrNotReady
 	}
 	// Atomic read to ensure consistency
-	return vm.stateDB.GetValues(ctx, keys)
+	values, errs := vm.stateDB.GetValues(ctx, keys)
+	stateKeys := state.Keys{}
+	for _, key := range keys {
+		stateKeys.Add(string(key), state.All)
+	}
+	return vm.executionShim.ImmutableView(ctx, stateKeys, NewRState(keys, values, errs), 0)
 }
 
 func (vm *VM) SetState(ctx context.Context, state snow.State) error {

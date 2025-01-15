@@ -56,7 +56,12 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address)
+	im, err := j.vm.ReadState(ctx, [][]byte{storage.BalanceKey(args.Address)})
+	if err != nil {
+		return err
+	}
+
+	balance, err := storage.GetBalance(ctx, im, args.Address)
 	if err != nil {
 		return err
 	}

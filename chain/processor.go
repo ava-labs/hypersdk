@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fetcher"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/shim"
 	"github.com/ava-labs/hypersdk/state/tstate"
 )
 
@@ -68,6 +69,11 @@ type Processor struct {
 	balanceHandler          BalanceHandler
 	validityWindow          ValidityWindow
 	metrics                 *chainMetrics
+	executionShim           shim.Execution
+	exportStateDiff         ExportStateDiffFunc
+	dimsModifierFunc        FeeManagerModifierFunc
+	resultModifierFunc      ResultModifierFunc
+	refundFunc              RefundFunc
 	config                  Config
 }
 
@@ -81,6 +87,11 @@ func NewProcessor(
 	balanceHandler BalanceHandler,
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
+	executionShim shim.Execution,
+	afterBlock ExportStateDiffFunc,
+	dimsModifierFunc FeeManagerModifierFunc,
+	resultModifierFunc ResultModifierFunc,
+	refundFunc RefundFunc,
 	config Config,
 ) *Processor {
 	return &Processor{
@@ -93,6 +104,11 @@ func NewProcessor(
 		balanceHandler:          balanceHandler,
 		validityWindow:          validityWindow,
 		metrics:                 metrics,
+		executionShim:           executionShim,
+		exportStateDiff:         afterBlock,
+		dimsModifierFunc:        dimsModifierFunc,
+		resultModifierFunc:      resultModifierFunc,
+		refundFunc:              refundFunc,
 		config:                  config,
 	}
 }
@@ -242,7 +258,7 @@ func (p *Processor) Execute(
 	// Get view from [tstate] after processing all state transitions
 	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
 	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
-	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
+	view, err := p.exportStateDiff(ctx, ts, parentView, p.metadataManager, b.Height())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -336,13 +352,32 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
+			state, err := p.executionShim.ImmutableView(
+				ctx,
+				stateKeys,
+				state.ImmutableStorage(storage),
+				b.Height(),
+			)
+			if err != nil {
+				return err
+			}
+
+			// Ideally, this function converts storage into a state.Immutable
+			// type
+			// However, what we can do is return a struct which impls
+			// state.Immutable AND also keep track of the hot keys
+			// This way, we can then pass in executionState into another
+			// function (similar to afterTX), typecast to T, and then get the
+			// hot keys from there
+			// executionState := executionStateFunc(storage)
+
 			// Execute transaction
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
 			tsv := ts.NewView(
 				stateKeys,
-				state.ImmutableStorage(storage),
+				state,
 				len(stateKeys),
 			)
 
@@ -355,6 +390,21 @@ func (p *Processor) executeTxs(
 			if err != nil {
 				return err
 			}
+
+			resultChanges, err := p.resultModifierFunc(state, result, feeManager)
+			if err != nil {
+				return err
+			}
+
+			if err := p.refundFunc(ctx, resultChanges, p.balanceHandler, tx.Auth.Sponsor(), tsv); err != nil {
+				return err
+			}
+
+			// This refunds the dims from the feeManager (only called in the Processor)
+			if err := p.dimsModifierFunc(feeManager, resultChanges); err != nil {
+				return err
+			}
+
 			results[i] = result
 
 			// Commit results to parent [TState]
