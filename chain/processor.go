@@ -111,6 +111,7 @@ func (p *Processor) Execute(
 	ctx context.Context,
 	parentView merkledb.View,
 	b *ExecutionBlock,
+	isNormalOp bool,
 ) (*OutputBlock, error) {
 	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
@@ -164,8 +165,10 @@ func (p *Processor) Execute(
 		return nil, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, b.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
 	}
 
-	if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
-		return nil, err
+	if isNormalOp {
+		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
+			return nil, err
+		}
 	}
 
 	// Compute next unit prices to use

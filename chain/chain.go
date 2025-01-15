@@ -88,8 +88,9 @@ func (c *Chain) Execute(
 	ctx context.Context,
 	parentView merkledb.View,
 	b *ExecutionBlock,
+	isNormalOp bool,
 ) (*OutputBlock, error) {
-	return c.processor.Execute(ctx, parentView, b)
+	return c.processor.Execute(ctx, parentView, b, isNormalOp)
 }
 
 func (c *Chain) AsyncVerify(

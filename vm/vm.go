@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
@@ -92,6 +93,7 @@ type VM struct {
 	consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 	chainStore     *chainindex.ChainIndex[*chain.ExecutionBlock]
 
+	normalOp atomic.Bool
 	builder  builder.Builder
 	gossiper gossiper.Gossiper
 	mempool  *mempool.Mempool[*chain.Transaction]
@@ -461,7 +463,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
 	}
-	outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, blk)
+	outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, blk, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute block at latest state height %d: %w", stateHeight, err)
 	}
@@ -552,6 +554,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 		return fmt.Errorf("failed to add tx gossip handler: %w", err)
 	}
 	vm.checkActivity(ctx)
+	vm.normalOp.Store(true)
 
 	return nil
 }
@@ -655,7 +658,7 @@ func (vm *VM) BuildBlock(ctx context.Context, parent *chain.OutputBlock) (*chain
 }
 
 func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {
-	return vm.chain.Execute(ctx, parent.View, block)
+	return vm.chain.Execute(ctx, parent.View, block, vm.normalOp.Load())
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
