@@ -20,6 +20,8 @@ import (
 // TODO: consider replacing this with AvalancheGo block build metering
 const minBuildGap int64 = 25 // ms
 
+var _ Builder = (*Time)(nil)
+
 type Mempool interface {
 	Len(context.Context) int // items
 }
@@ -60,9 +62,9 @@ func NewTime(engineCh chan<- common.Message, logger logging.Logger, mempool Memp
 	return b
 }
 
-func (b *Time) Run() {
+func (b *Time) Start() {
 	b.Queue(context.TODO()) // start building loop (may not be an initial trigger)
-	b.timer.Dispatch()      // this blocks
+	go b.timer.Dispatch()   // this blocks
 }
 
 func (b *Time) handleTimerNotify(ctx context.Context) {

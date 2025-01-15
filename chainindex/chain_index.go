@@ -55,9 +55,9 @@ type ChainIndex[T Block] struct {
 }
 
 type Block interface {
-	ID() ids.ID
-	Height() uint64
-	Bytes() []byte
+	GetID() ids.ID
+	GetHeight() uint64
+	GetBytes() []byte
 }
 
 type Parser[T Block] interface {
@@ -102,9 +102,9 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	batch := c.db.NewBatch()
 
 	var (
-		blkID    = blk.ID()
-		height   = blk.Height()
-		blkBytes = blk.Bytes()
+		blkID    = blk.GetID()
+		height   = blk.GetHeight()
+		blkBytes = blk.GetBytes()
 	)
 	heightBytes := binary.BigEndian.AppendUint64(nil, height)
 	err := errors.Join(

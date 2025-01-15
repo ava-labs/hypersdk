@@ -15,17 +15,10 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
 			{
 				VMID:    vmID,
 				Genesis: genesisBytes,
-				// TODO: remove stateSyncServerDelay from the config
 				Config: `{
-  					"mempoolSize": 10000000,
-  					"mempoolSponsorSize": 10000000,
-  					"authVerificationCores": 2,
-  					"rootGenerationCores": 2,
-  					"transactionExecutionCores": 2,
-  					"verifyAuth":true,
-  					"streamingBacklogSize": 10000000,
-  					"stateSyncServerDelay": 100000000,
-					"stateSyncMinBlocks": 512
+					"statesync": {
+						"minBlocks": 512
+					}
 				}`,
 			},
 		},

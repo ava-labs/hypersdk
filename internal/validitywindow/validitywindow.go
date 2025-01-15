@@ -68,7 +68,7 @@ func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
 		return err
 	}
 	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateContainer)
+		return fmt.Errorf("%w: duplicate bytes %q for %d txs", ErrDuplicateContainer, dup.Bytes(), len(blk.GetContainers()))
 	}
 	// make sure we have no repeats within the block itself.
 	blkContainerIDs := set.NewSet[ids.ID](len(blk.GetContainers()))
