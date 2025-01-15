@@ -5,6 +5,7 @@ package snow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,15 +18,19 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
-var _ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+var (
+	_ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+
+	errParentFailedVerification = errors.New("parent failed verification")
+)
 
 type Block interface {
 	fmt.Stringer
-	ID() ids.ID
-	Parent() ids.ID
-	Timestamp() int64
-	Bytes() []byte
-	Height() uint64
+	GetID() ids.ID
+	GetParent() ids.ID
+	GetTimestamp() int64
+	GetBytes() []byte
+	GetHeight() uint64
 }
 
 // StatefulBlock implements snowman.Block and abstracts away the caching
@@ -49,11 +54,11 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	Accepted A
 	accepted bool
 
-	vm *vm[I, O, A]
+	vm *VM[I, O, A]
 }
 
 func NewInputBlock[I Block, O Block, A Block](
-	vm *vm[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 ) *StatefulBlock[I, O, A] {
 	return &StatefulBlock[I, O, A]{
@@ -63,7 +68,7 @@ func NewInputBlock[I Block, O Block, A Block](
 }
 
 func NewVerifiedBlock[I Block, O Block, A Block](
-	vm *vm[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 	output O,
 ) *StatefulBlock[I, O, A] {
@@ -76,7 +81,7 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 }
 
 func NewAcceptedBlock[I Block, O Block, A Block](
-	vm *vm[I, O, A],
+	vm *VM[I, O, A],
 	input I,
 	output O,
 	accepted A,
@@ -132,12 +137,12 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		b.vm.metrics.blockVerify.Observe(float64(time.Since(start)))
 	}()
 
-	ready := b.vm.isReady()
+	ready := b.vm.ready.Load()
 	ctx, span := b.vm.tracer.Start(
 		ctx, "StatefulBlock.Verify",
 		trace.WithAttributes(
-			attribute.Int("size", len(b.Input.Bytes())),
-			attribute.Int64("height", int64(b.Input.Height())),
+			attribute.Int("size", len(b.Input.GetBytes())),
+			attribute.Int64("height", int64(b.Input.GetHeight())),
 			attribute.Bool("ready", ready),
 			attribute.Bool("built", b.verified),
 		),
@@ -149,8 +154,8 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		// If the VM is not ready (dynamic state sync), skip verifying the block.
 		b.vm.log.Info(
 			"skipping verification, state not ready",
-			zap.Uint64("height", b.Input.Height()),
-			zap.Stringer("blkID", b.Input.ID()),
+			zap.Uint64("height", b.Input.GetHeight()),
+			zap.Stringer("blkID", b.Input.GetID()),
 		)
 	case b.verified:
 		// If we built the block, the state will already be populated and we don't
@@ -158,12 +163,29 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		// necessary to re-verify anything).
 		b.vm.log.Info(
 			"skipping verification of locally built block",
-			zap.Uint64("height", b.Input.Height()),
-			zap.Stringer("blkID", b.Input.ID()),
+			zap.Uint64("height", b.Input.GetHeight()),
+			zap.Stringer("blkID", b.Input.GetID()),
 		)
 	default:
 		b.vm.log.Info("Verifying block", zap.Stringer("block", b))
-		if err := b.innerVerify(ctx); err != nil {
+		// Fetch my parent to verify against
+		parent, err := b.vm.GetBlock(ctx, b.Parent())
+		if err != nil {
+			return err
+		}
+
+		// If my parent has not been verified and we're no longer in dynamic state sync,
+		// we must be transitioning to normal consensus.
+		// Attempt to verify from the last accepted block through to this block to
+		// compute my parent's Output state.
+		if !parent.verified {
+			return errParentFailedVerification
+		} else {
+			b.vm.log.Info("parent was already verified")
+		}
+
+		// Verify the block against the parent
+		if err := b.verify(ctx, parent.Output); err != nil {
 			return err
 		}
 
@@ -173,7 +195,7 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	}
 
 	b.vm.verifiedL.Lock()
-	b.vm.verifiedBlocks[b.Input.ID()] = b
+	b.vm.verifiedBlocks[b.Input.GetID()] = b
 	b.vm.verifiedL.Unlock()
 
 	if b.verified {
@@ -188,48 +210,6 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		)
 	}
 	return nil
-}
-
-func (b *StatefulBlock[I, O, A]) innerVerify(ctx context.Context) error {
-	// Fetch my parent to verify against
-	parent, err := b.vm.GetBlock(ctx, b.Parent())
-	if err != nil {
-		return err
-	}
-
-	// If my parent has not been verified and we're no longer in dynamic state sync,
-	// we must be transitioning to normal consensus.
-	// Attempt to verify from the last accepted block through to this block to
-	// compute my parent's Output state.
-	if !parent.verified {
-		b.vm.log.Info("parent was not verified during innerVerify",
-			zap.Stringer("lastAccepted", b.vm.lastAcceptedBlock),
-			zap.Stringer("parent", parent),
-			zap.Stringer("block", b),
-		)
-		blksToProcess, err := b.vm.getExclusiveBlockRange(ctx, b.vm.lastAcceptedBlock, b)
-		if err != nil {
-			return err
-		}
-		b.vm.log.Info("found blks to process",
-			zap.Int("numBlks", len(blksToProcess)),
-			zap.Stringer("first", blksToProcess[0]),
-			zap.Stringer("last", blksToProcess[len(blksToProcess)-1]),
-		)
-		parent := b.vm.lastAcceptedBlock
-		for _, ancestor := range blksToProcess {
-			if err := ancestor.verify(ctx, parent.Output); err != nil {
-				return err
-			}
-			parent = ancestor
-		}
-		b.vm.log.Info("finished verified ancestors")
-	} else {
-		b.vm.log.Info("parent was already verified")
-	}
-
-	// Verify the block against the parent
-	return b.verify(ctx, parent.Output)
 }
 
 // markAccepted marks the block and updates the required VM state.
@@ -247,7 +227,7 @@ func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *State
 	}
 
 	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.ID())
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
 	b.vm.setLastAccepted(b)
@@ -279,33 +259,25 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	defer b.vm.log.Info("accepting block", zap.Stringer("block", b))
 
-	// If I've already been verified, accept myself.
-	if b.verified {
-		parent, err := b.vm.GetBlock(ctx, b.Parent())
-		if err != nil {
-			return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
-		}
-		return b.markAccepted(ctx, parent)
-	}
-
 	// If I'm not ready yet, mark myself as accepted, and return early.
-	isReady := b.vm.isReady()
+	isReady := b.vm.ready.Load()
 	if !isReady {
 		return b.markAccepted(ctx, nil)
 	}
 
-	// If I haven't verified myself, then I need to verify myself before
-	// accepting myself.
-	// if I am ready and haven't been verified, then I need to verify myself.
-	// Note: I don't need to verify/accept my parent because my parent was already
-	// marked as accepted and I'm ready. This means the last accepted block must
-	// be fully populated.
+	// If I'm ready and not verified, then I or my ancestor must have failed
+	// verification after completing dynamic state sync. This indicates
+	// an invalid block has been accepted, which should be prevented by consensus.
+	// If we hit this case, return a fatal error here.
+	if !b.verified {
+		return errParentFailedVerification
+	}
+
+	// If I am verified and ready, fetch my parent and accept myself. I'm verified, which
+	// implies my parent is verified as well.
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
-		return fmt.Errorf("failed to fetch parent while accepting previously unverified block %s: %w", b, err)
-	}
-	if err := b.verify(ctx, parent.Output); err != nil {
-		return err
+		return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
 	}
 	return b.markAccepted(ctx, parent)
 }
@@ -316,7 +288,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	defer span.End()
 
 	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.ID())
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
 	// Skip notifying rejected subs if we were still in dynamic state sync
@@ -328,19 +300,18 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 }
 
 // implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.Parent() }
+func (b *StatefulBlock[I, O, A]) ID() ids.ID           { return b.Input.GetID() }
+func (b *StatefulBlock[I, O, A]) Parent() ids.ID       { return b.Input.GetParent() }
+func (b *StatefulBlock[I, O, A]) Height() uint64       { return b.Input.GetHeight() }
+func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.GetTimestamp()) }
+func (b *StatefulBlock[I, O, A]) Bytes() []byte        { return b.Input.GetBytes() }
 
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.Height() }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.Timestamp()) }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.Bytes() }
-
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.ID() }
+// Implements GetXXX for internal consistency
+func (b *StatefulBlock[I, O, A]) GetID() ids.ID       { return b.Input.GetID() }
+func (b *StatefulBlock[I, O, A]) GetParent() ids.ID   { return b.Input.GetParent() }
+func (b *StatefulBlock[I, O, A]) GetHeight() uint64   { return b.Input.GetHeight() }
+func (b *StatefulBlock[I, O, A]) GetTimestamp() int64 { return b.Input.GetTimestamp() }
+func (b *StatefulBlock[I, O, A]) GetBytes() []byte    { return b.Input.GetBytes() }
 
 // implements "fmt.Stringer"
 func (b *StatefulBlock[I, O, A]) String() string {

@@ -5,6 +5,8 @@ package chaintest
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,7 +18,64 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ state.Mutable = (*InMemoryStore)(nil)
+var (
+	_ chain.Action  = (*TestAction)(nil)
+	_ state.Mutable = (*InMemoryStore)(nil)
+)
+
+var errTestActionExecute = errors.New("test action execute error")
+
+type TestAction struct {
+	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
+	SpecifiedStateKeys state.Keys `serialize:"true" json:"specifiedStateKeys"`
+	ReadKeys           [][]byte   `serialize:"true" json:"reads"`
+	WriteKeys          [][]byte   `serialize:"true" json:"writeKeys"`
+	WriteValues        [][]byte   `serialize:"true" json:"writeValues"`
+	ExecuteErr         bool       `serialize:"true" json:"executeErr"`
+	Nonce              uint64     `serialize:"true" json:"nonce"`
+}
+
+func (*TestAction) GetTypeID() uint8 {
+	return 0
+}
+
+func (t *TestAction) ComputeUnits(_ chain.Rules) uint64 {
+	return t.NumComputeUnits
+}
+
+func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return t.SpecifiedStateKeys
+}
+
+func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+	if t.ExecuteErr {
+		return nil, errTestActionExecute
+	}
+	for _, key := range t.ReadKeys {
+		if _, err := state.GetValue(ctx, key); err != nil {
+			return nil, err
+		}
+	}
+	if len(t.WriteKeys) != len(t.WriteValues) {
+		return nil, fmt.Errorf("mismatch write keys/values (%d != %d)", len(t.WriteKeys), len(t.WriteValues))
+	}
+	for i, key := range t.WriteKeys {
+		if err := state.Insert(ctx, key, t.WriteValues[i]); err != nil {
+			return nil, err
+		}
+	}
+	return &TestOutput{}, nil
+}
+
+func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
+	return -1, -1
+}
+
+type TestOutput struct{}
+
+func (*TestOutput) GetTypeID() uint8 {
+	return 0
+}
 
 // InMemoryStore is an in-memory implementation of `state.Mutable`
 type InMemoryStore struct {

@@ -4,13 +4,12 @@
 package vm
 
 import (
-	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"errors"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
@@ -33,11 +32,11 @@ func init() {
 	OutputParser = codec.NewTypeParser[codec.Typed]()
 	AuthProvider = auth.NewAuthProvider()
 
-	errs := &wrappers.Errs{}
+	if err := auth.WithDefaultPrivateKeyFactories(AuthProvider); err != nil {
+		panic(err)
+	}
 
-	auth.WithDefaultPrivateKeyFactories(AuthProvider, errs)
-
-	errs.Add(
+	if err := errors.Join(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		ActionParser.Register(&actions.Transfer{}, nil),
@@ -48,18 +47,20 @@ func init() {
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
 		OutputParser.Register(&actions.TransferResult{}, nil),
-	)
-
-	if errs.Errored() {
-		panic(errs.Err)
+	); err != nil {
+		panic(err)
 	}
 }
 
-// NewWithOptions returns a VM with the specified options
+// New returns a VM with the specified options
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With()) // Add MorpheusVM API
-	return defaultvm.New(
-		consts.Version,
+	factory := NewFactory()
+	return factory.New(options...)
+}
+
+func NewFactory() *vm.Factory {
+	options := append(defaultvm.NewDefaultOptions(), With())
+	return vm.NewFactory(
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
 		metadata.NewDefaultManager(),

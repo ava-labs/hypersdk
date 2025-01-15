@@ -16,4 +16,4 @@ source ../../scripts/constants.sh
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck
 # shellcheck disable=SC2046
-go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find . -name "*.go" | grep -v "./cmd" | grep -v "./tests" | xargs -n1 dirname | sort -u | xargs)
+go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find . -name "*.go" | grep -v "./cmd" | grep -v "./tests/e2e" | xargs -n1 dirname | sort -u | xargs)

@@ -5,6 +5,7 @@ package externalsubscriber
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
@@ -40,7 +41,7 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		v.GetGenesisBytes(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create external subscriber client: %w", err)
 	}
 
 	blockSubscription := event.SubscriptionFuncFactory[*chain.ExecutedBlock]{

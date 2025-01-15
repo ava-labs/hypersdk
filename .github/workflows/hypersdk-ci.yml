@@ -135,10 +135,6 @@ jobs:
         working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/tests.unit.sh
-      - name: Run integration tests
-        working-directory: ./examples/morpheusvm
-        shell: bash
-        run: scripts/tests.integration.sh
 
   morpheusvm-e2e-tests:
     needs: [morpheusvm-lint, morpheusvm-unit-tests]
