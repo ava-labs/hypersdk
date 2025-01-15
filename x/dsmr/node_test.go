@@ -439,16 +439,20 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	require.NoError(t, err)
 	pk := bls.PublicFromSecretKey(sk)
 	tests := []struct {
-		name         string
-		verifier     Verifier[dsmrtest.Tx]
-		producerNode ids.NodeID
-		wantErr      error
+		name                      string
+		verifier                  Verifier[dsmrtest.Tx]
+		producerNode              ids.NodeID
+		wantErr                   error
+		nodeLastAcceptedTimestamp int64
+		chunkExpiry               int64
 	}{
 		{
-			name:         "invalid chunk",
-			verifier:     failVerifier{},
-			wantErr:      ErrInvalidChunk,
-			producerNode: ids.GenerateTestNodeID(),
+			name:                      "invalid chunk",
+			verifier:                  failVerifier{},
+			wantErr:                   ErrInvalidChunk,
+			producerNode:              ids.GenerateTestNodeID(),
+			nodeLastAcceptedTimestamp: 1,
+			chunkExpiry:               123,
 		},
 		{
 			name: "invalid chunk ( bad producer id )",
@@ -461,8 +465,42 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					PublicKey: pk,
 				}},
 			),
-			wantErr:      ErrInvalidChunk,
-			producerNode: ids.GenerateTestNodeID(),
+			wantErr:                   ErrInvalidChunk,
+			producerNode:              ids.GenerateTestNodeID(),
+			nodeLastAcceptedTimestamp: 1,
+			chunkExpiry:               123,
+		},
+		{
+			name: "invalid chunk ( chunk timestamp too old )",
+			verifier: NewChunkVerifier[dsmrtest.Tx](
+				networkID,
+				chainID,
+				[]Validator{{
+					NodeID:    nodeID,
+					Weight:    1,
+					PublicKey: pk,
+				}},
+			),
+			wantErr:                   ErrInvalidChunk,
+			producerNode:              nodeID,
+			nodeLastAcceptedTimestamp: 5000,
+			chunkExpiry:               123,
+		},
+		{
+			name: "invalid chunk ( chunk timestamp too into the future )",
+			verifier: NewChunkVerifier[dsmrtest.Tx](
+				networkID,
+				chainID,
+				[]Validator{{
+					NodeID:    nodeID,
+					Weight:    1,
+					PublicKey: pk,
+				}},
+			),
+			wantErr:                   ErrInvalidChunk,
+			producerNode:              nodeID,
+			nodeLastAcceptedTimestamp: 1,
+			chunkExpiry:               1 + maxChunkStorageAheadDuration,
 		},
 		{
 			name:         "valid chunk",
@@ -476,6 +514,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					PublicKey: pk,
 				}},
 			),
+			nodeLastAcceptedTimestamp: 1,
+			chunkExpiry:               123,
 		},
 	}
 
@@ -546,10 +586,22 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			)
 			r.NoError(err)
 
+			r.NoError(node.BuildChunk(context.Background(), []dsmrtest.Tx{
+				{
+					ID:      ids.GenerateTestID(),
+					Expiry:  456,
+					Sponsor: codec.Address{4, 5, 6},
+				},
+			}, tt.nodeLastAcceptedTimestamp, codec.Address{123}))
+
+			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, tt.nodeLastAcceptedTimestamp)
+			r.NoError(err)
+			node.Accept(context.Background(), blk)
+
 			unsignedChunk := UnsignedChunk[dsmrtest.Tx]{
 				Producer:    tt.producerNode,
 				Beneficiary: codec.Address{123},
-				Expiry:      123,
+				Expiry:      tt.chunkExpiry,
 				Txs: []dsmrtest.Tx{
 					{
 						ID:      ids.GenerateTestID(),
@@ -1351,6 +1403,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 
 type failVerifier struct{}
 
+func (failVerifier) SetMin(min int64) {}
 func (failVerifier) Verify(Chunk[dsmrtest.Tx]) error {
 	return errors.New("fail")
 }
@@ -1397,12 +1450,8 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			storage: chunkStorage,
 		}
 		chunkSignatureRequestHandler := acp118.NewHandler(ChunkSignatureRequestVerifier[dsmrtest.Tx]{
-			verifier: NewChunkVerifier[dsmrtest.Tx](
-				networkID,
-				chainID,
-				validators,
-			),
-			storage: chunkStorage,
+			verifier: verifier,
+			storage:  chunkStorage,
 		}, signer)
 		chunkCertificateGossipHandler := ChunkCertificateGossipHandler[dsmrtest.Tx]{
 			storage: chunkStorage,

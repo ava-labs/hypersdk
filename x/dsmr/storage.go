@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -26,14 +27,21 @@ const (
 	minSlotByte byte = 0x00
 
 	chunkKeySize = 1 + consts.Uint64Len + ids.IDLen
+
+	maxChunkStorageAheadDuration = int64(120 * time.Second)
 )
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 
-var ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
+var (
+	ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
+	ErrChunkTooOld               = errors.New("chunk is too old")
+	ErrChunkTooFarAhead          = errors.New("chunk is too far ahead")
+)
 
 type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
+	SetMin(min int64)
 }
 
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
@@ -42,10 +50,11 @@ type ChunkVerifier[T Tx] struct {
 	networkID  uint32
 	chainID    ids.ID
 	validators map[ids.NodeID]*validators.GetValidatorOutput // this is the equivilent of the return value of GetValidatorSet(), when we integrate with snow.Context.
+	min        int64
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, validatorsList []Validator) ChunkVerifier[T] {
-	verifier := ChunkVerifier[T]{
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, validatorsList []Validator) *ChunkVerifier[T] {
+	verifier := &ChunkVerifier[T]{
 		networkID:  networkID,
 		chainID:    chainID,
 		validators: map[ids.NodeID]*validators.GetValidatorOutput{},
@@ -60,9 +69,18 @@ func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, validatorsList []V
 	return verifier
 }
 
+func (c *ChunkVerifier[T]) SetMin(min int64) {
+	c.min = min
+}
+
 func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
-	// TODO:
 	// check if the expiry of this chunk isn't in the past or too far into the future.
+	if chunk.Expiry < c.min {
+		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooOld, chunk.Expiry, c.min)
+	}
+	if chunk.Expiry >= c.min+maxChunkStorageAheadDuration {
+		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooFarAhead, chunk.Expiry, c.min)
+	}
 
 	// check if the producer was expected to produce this chunk.
 	if _, ok := c.validators[chunk.UnsignedChunk.Producer]; !ok {
@@ -256,6 +274,7 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("failed to write SetMin batch: %w", err)
 	}
+	s.verifier.SetMin(updatedMin)
 	return nil
 }
 
