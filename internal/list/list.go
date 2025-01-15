@@ -3,7 +3,9 @@
 
 package list
 
-import "github.com/ava-labs/avalanchego/ids"
+import (
+	"github.com/ava-labs/avalanchego/ids"
+)
 
 // Item defines an interface accepted by [List].
 //
@@ -13,6 +15,7 @@ import "github.com/ava-labs/avalanchego/ids"
 type Item interface {
 	GetID() ids.ID    // method for returning an id of the item
 	GetExpiry() int64 // method for returning this items timestamp
+	Priority() uint64
 }
 
 // List implements a double-linked list. It offers
@@ -62,6 +65,10 @@ func (e *Element[T]) GetID() ids.ID {
 
 func (e *Element[T]) GetExpiry() int64 {
 	return e.value.GetExpiry()
+}
+
+func (e *Element[T]) Priority() uint64 {
+	return e.value.Priority()
 }
 
 func (l *List[T]) First() *Element[T] {
