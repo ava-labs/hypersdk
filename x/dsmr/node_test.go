@@ -596,7 +596,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 			blk, err := node.BuildBlock(context.Background(), node.LastAccepted, tt.nodeLastAcceptedTimestamp)
 			r.NoError(err)
-			node.Accept(context.Background(), blk)
+			_, err = node.Accept(context.Background(), blk)
+			r.NoError(err)
 
 			unsignedChunk := UnsignedChunk[dsmrtest.Tx]{
 				Producer:    tt.producerNode,
@@ -1403,7 +1404,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 
 type failVerifier struct{}
 
-func (failVerifier) SetMin(min int64) {}
+func (failVerifier) SetMin(int64) {}
 func (failVerifier) Verify(Chunk[dsmrtest.Tx]) error {
 	return errors.New("fail")
 }

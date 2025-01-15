@@ -49,7 +49,7 @@ var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 type ChunkVerifier[T Tx] struct {
 	networkID  uint32
 	chainID    ids.ID
-	validators map[ids.NodeID]*validators.GetValidatorOutput // this is the equivilent of the return value of GetValidatorSet(), when we integrate with snow.Context.
+	validators map[ids.NodeID]*validators.GetValidatorOutput // this is the equivalent of the return value of GetValidatorSet(), when we integrate with snow.Context.
 	min        int64
 }
 
