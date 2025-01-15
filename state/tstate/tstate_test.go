@@ -9,13 +9,9 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -576,19 +572,6 @@ func TestCreateView(t *testing.T) {
 
 	ctx := context.TODO()
 	ts := New(10)
-	tracer, err := trace.New(&trace.Config{Enabled: false})
-	require.NoError(err)
-	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
-		BranchFactor:                merkledb.BranchFactor16,
-		RootGenConcurrency:          1,
-		HistoryLength:               100,
-		ValueNodeCacheSize:          units.MiB,
-		IntermediateNodeCacheSize:   units.MiB,
-		IntermediateWriteBufferSize: units.KiB,
-		IntermediateWriteBatchSize:  units.KiB,
-		Tracer:                      tracer,
-	})
-	require.NoError(err)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
 		key1str: state.All,
@@ -629,15 +612,13 @@ func TestCreateView(t *testing.T) {
 	require.Empty(allocates)
 	require.Equal(map[string]uint16{key1str: 1}, writes)
 
-	// Create merkle view
-	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
-	require.NoError(err, "error writing changes")
-	require.NoError(view.CommitToDB(ctx))
-
-	// Check if db was updated correctly
+	// Extract state diff
+	stateDiff := ts.ChangedKeys()
+	// Check if diff includes the correct keys
 	for i, key := range keys {
-		val, _ := db.GetValue(ctx, key)
-		require.Equal(vals[i], val, "value not updated in db")
+		maybeValue := stateDiff[string(key)]
+		require.True(maybeValue.HasValue())
+		require.Equal(vals[i], maybeValue.Value())
 	}
 
 	// Remove
@@ -660,14 +641,13 @@ func TestCreateView(t *testing.T) {
 	tsv.Commit()
 
 	// Create merkle view
-	view, err = tsv.ts.ExportMerkleDBView(ctx, tracer, db)
-	require.NoError(err, "error writing changes")
-	require.NoError(view.CommitToDB(ctx))
+	stateDiff = ts.ChangedKeys()
 
-	// Check if db was updated correctly
+	// Check if state diff was updated correctly
 	for _, key := range keys {
-		_, err := db.GetValue(ctx, key)
-		require.ErrorIs(err, database.ErrNotFound, "value not removed from db")
+		maybeValue := stateDiff[string(key)]
+		require.NotNil(maybeValue)
+		require.False(maybeValue.HasValue())
 	}
 }
 

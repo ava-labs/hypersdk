@@ -13,8 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
@@ -23,6 +25,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
+
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type ExecutionBlock struct {
@@ -242,7 +246,8 @@ func (p *Processor) Execute(
 	// Get view from [tstate] after processing all state transitions
 	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
 	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
-	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
+
+	view, err := createView(ctx, p.tracer, parentView, ts.ChangedKeys())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -408,4 +413,19 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return nil
+}
+
+func createView(ctx context.Context, tracer trace.Tracer, parentView state.View, stateDiff map[string]maybe.Maybe[[]byte]) (merkledb.View, error) {
+	ctx, span := tracer.Start(
+		ctx, "Chain.CreateView",
+		oteltrace.WithAttributes(
+			attribute.Int("items", len(stateDiff)),
+		),
+	)
+	defer span.End()
+
+	return parentView.NewView(ctx, merkledb.ViewChanges{
+		MapOps:       stateDiff,
+		ConsumeBytes: true,
+	})
 }
