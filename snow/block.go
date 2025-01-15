@@ -5,6 +5,7 @@ package snow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,7 +18,11 @@ import (
 	"github.com/ava-labs/hypersdk/event"
 )
 
-var _ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+var (
+	_ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+
+	errParentFailedVerification = errors.New("parent failed verification")
+)
 
 type Block interface {
 	fmt.Stringer
@@ -163,7 +168,24 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		)
 	default:
 		b.vm.log.Info("Verifying block", zap.Stringer("block", b))
-		if err := b.innerVerify(ctx); err != nil {
+		// Fetch my parent to verify against
+		parent, err := b.vm.GetBlock(ctx, b.Parent())
+		if err != nil {
+			return err
+		}
+
+		// If my parent has not been verified and we're no longer in dynamic state sync,
+		// we must be transitioning to normal consensus.
+		// Attempt to verify from the last accepted block through to this block to
+		// compute my parent's Output state.
+		if !parent.verified {
+			return errParentFailedVerification
+		} else {
+			b.vm.log.Info("parent was already verified")
+		}
+
+		// Verify the block against the parent
+		if err := b.verify(ctx, parent.Output); err != nil {
 			return err
 		}
 
@@ -188,48 +210,6 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		)
 	}
 	return nil
-}
-
-func (b *StatefulBlock[I, O, A]) innerVerify(ctx context.Context) error {
-	// Fetch my parent to verify against
-	parent, err := b.vm.GetBlock(ctx, b.Parent())
-	if err != nil {
-		return err
-	}
-
-	// If my parent has not been verified and we're no longer in dynamic state sync,
-	// we must be transitioning to normal consensus.
-	// Attempt to verify from the last accepted block through to this block to
-	// compute my parent's Output state.
-	if !parent.verified {
-		b.vm.log.Info("parent was not verified during innerVerify",
-			zap.Stringer("lastAccepted", b.vm.lastAcceptedBlock),
-			zap.Stringer("parent", parent),
-			zap.Stringer("block", b),
-		)
-		blksToProcess, err := b.vm.getExclusiveBlockRange(ctx, b.vm.lastAcceptedBlock, b)
-		if err != nil {
-			return err
-		}
-		b.vm.log.Info("found blks to process",
-			zap.Int("numBlks", len(blksToProcess)),
-			zap.Stringer("first", blksToProcess[0]),
-			zap.Stringer("last", blksToProcess[len(blksToProcess)-1]),
-		)
-		parent := b.vm.lastAcceptedBlock
-		for _, ancestor := range blksToProcess {
-			if err := ancestor.verify(ctx, parent.Output); err != nil {
-				return err
-			}
-			parent = ancestor
-		}
-		b.vm.log.Info("finished verified ancestors")
-	} else {
-		b.vm.log.Info("parent was already verified")
-	}
-
-	// Verify the block against the parent
-	return b.verify(ctx, parent.Output)
 }
 
 // markAccepted marks the block and updates the required VM state.
@@ -279,33 +259,25 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	defer b.vm.log.Info("accepting block", zap.Stringer("block", b))
 
-	// If I've already been verified, accept myself.
-	if b.verified {
-		parent, err := b.vm.GetBlock(ctx, b.Parent())
-		if err != nil {
-			return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
-		}
-		return b.markAccepted(ctx, parent)
-	}
-
 	// If I'm not ready yet, mark myself as accepted, and return early.
 	isReady := b.vm.isReady()
 	if !isReady {
 		return b.markAccepted(ctx, nil)
 	}
 
-	// If I haven't verified myself, then I need to verify myself before
-	// accepting myself.
-	// if I am ready and haven't been verified, then I need to verify myself.
-	// Note: I don't need to verify/accept my parent because my parent was already
-	// marked as accepted and I'm ready. This means the last accepted block must
-	// be fully populated.
+	// If I'm ready and not verified, then I or my ancestor must have failed
+	// verification after completing dynamic state sync. This indicates
+	// an invalid block has been accepted, which should be prevented by consensus.
+	// If we hit this case, return a fatal error here.
+	if !b.verified {
+		return errParentFailedVerification
+	}
+
+	// If I am verified and ready, fetch my parent and accept myself. I'm verified, which
+	// implies my parent is verified as well.
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
-		return fmt.Errorf("failed to fetch parent while accepting previously unverified block %s: %w", b, err)
-	}
-	if err := b.verify(ctx, parent.Output); err != nil {
-		return err
+		return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
 	}
 	return b.markAccepted(ctx, parent)
 }

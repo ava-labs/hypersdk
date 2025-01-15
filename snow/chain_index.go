@@ -46,7 +46,7 @@ func (v *VM[I, O, A]) makeConsensusIndex(
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
 		v.markReady(true)
-		lastAcceptedBlock, err = v.reprocessToLastAccepted(ctx, inputBlock, outputBlock, acceptedBlock)
+		lastAcceptedBlock, err = v.reprocessFromOutputToInput(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
 			return err
 		}
@@ -67,13 +67,16 @@ func (v *VM[I, O, A]) GetConsensusIndex() *ConsensusIndex[I, O, A] {
 	return v.consensusIndex
 }
 
-func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
-	if inputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
-		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", inputBlock, outputBlock, acceptedBlock)
+// reprocessFromOutputToInput re-processes blocks from output/accepted to align with the supplied input block.
+// assumes that outputBlock and acceptedBlock represent the same block and that all blocks in the range
+// [output/accepted, input] have been added to the inputChainIndex.
+func (v *VM[I, O, A]) reprocessFromOutputToInput(ctx context.Context, targetInputBlock I, outputBlock O, acceptedBlock A) (*StatefulBlock[I, O, A], error) {
+	if targetInputBlock.Height() < outputBlock.Height() || outputBlock.ID() != acceptedBlock.ID() {
+		return nil, fmt.Errorf("invalid initial accepted state (Input = %s, Output = %s, Accepted = %s)", targetInputBlock, outputBlock, acceptedBlock)
 	}
 
 	// Re-process from the last output block, to the last accepted input block
-	for inputBlock.Height() > outputBlock.Height() {
+	for targetInputBlock.Height() > outputBlock.Height() {
 		reprocessInputBlock, err := v.inputChainIndex.GetBlockByHeight(ctx, outputBlock.Height()+1)
 		if err != nil {
 			return nil, err
@@ -89,7 +92,7 @@ func (v *VM[I, O, A]) reprocessToLastAccepted(ctx context.Context, inputBlock I,
 		}
 	}
 
-	return NewAcceptedBlock(v, inputBlock, outputBlock, acceptedBlock), nil
+	return NewAcceptedBlock(v, targetInputBlock, outputBlock, acceptedBlock), nil
 }
 
 // ConsensusIndex provides a wrapper around the VM, which enables the chain developer to share the

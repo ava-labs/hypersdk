@@ -46,44 +46,23 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	if input.ID() == v.lastAcceptedBlock.ID() {
 		v.lastAcceptedBlock.setAccepted(output, accepted)
 		v.log.Info("Finishing state sync with original target", zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock))
-		v.markReady(true)
-		return nil
-	}
-
-	// Dynamic state sync notifies completion async, so the engine may continue to process/accept new blocks
-	// before we grab chainLock.
-	// This means we must reprocess blocks from the target state sync finished on to the updated last
-	// accepted block.
-	blk := NewAcceptedBlock(v, input, output, accepted)
-	v.log.Info("Finishing state sync with target behind last accepted tip",
-		zap.Stringer("target", blk),
-		zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock),
-	)
-	reprocessBlks, err := v.getExclusiveBlockRange(ctx, blk, v.lastAcceptedBlock)
-	if err != nil {
-		return fmt.Errorf("failed to get block range while completing state sync: %w", err)
-	}
-	// include lastAcceptedBlock as the last block to re-process
-	reprocessBlks = append(reprocessBlks, v.lastAcceptedBlock)
-	parent := blk
-	v.log.Info("Reprocessing blocks from target to last accepted tip",
-		zap.Stringer("target", blk),
-		zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock),
-		zap.Int("numBlocks", len(reprocessBlks)),
-	)
-	start := time.Now()
-	for _, reprocessBlk := range reprocessBlks {
-		if err := reprocessBlk.verify(ctx, parent.Output); err != nil {
-			return fmt.Errorf("failed to finish state sync while verifying block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
+	} else {
+		v.log.Info("Finishing state sync with target behind last accepted tip",
+			zap.Stringer("target", input),
+			zap.Stringer("lastAcceptedBlock", v.lastAcceptedBlock.Input),
+		)
+		start := time.Now()
+		// Dynamic state sync notifies completion async, so the engine may continue to process/accept new blocks
+		// before we grab chainLock.
+		// This means we must reprocess blocks from the target state sync finished on to the updated last
+		// accepted block.
+		updatedLastAccepted, err := v.reprocessFromOutputToInput(ctx, v.lastAcceptedBlock.Input, output, accepted)
+		if err != nil {
+			return fmt.Errorf("failed to finish state sync while reprocessing to last accepted tip: %w", err)
 		}
-		if err := reprocessBlk.accept(ctx, parent.Accepted); err != nil {
-			return fmt.Errorf("failed to finish state sync while accepting block %s in range (%s, %s): %w", reprocessBlk, blk, v.lastAcceptedBlock, err)
-		}
-		parent = reprocessBlk
+		v.setLastAccepted(updatedLastAccepted)
+		v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
 	}
-
-	v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
-	v.setLastAccepted(v.lastAcceptedBlock)
 
 	if err := v.verifyProcessingBlocks(ctx); err != nil {
 		return err
@@ -96,13 +75,12 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 	// Sort processing blocks by height
 	v.verifiedL.Lock()
-	defer v.verifiedL.Unlock()
-
 	v.log.Info("Verifying processing blocks after state sync", zap.Int("numBlocks", len(v.verifiedBlocks)))
 	processingBlocks := make([]*StatefulBlock[I, O, A], 0, len(v.verifiedBlocks))
 	for _, blk := range v.verifiedBlocks {
 		processingBlocks = append(processingBlocks, blk)
 	}
+	v.verifiedL.Unlock()
 	slices.SortFunc(processingBlocks, func(a *StatefulBlock[I, O, A], b *StatefulBlock[I, O, A]) int {
 		return int(a.Height()) - int(b.Height())
 	})
