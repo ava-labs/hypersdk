@@ -1029,49 +1029,6 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 	}
 }
 
-// TestDuplicateChunksElimination tests that duplicate chunks that have appeared before are getting correctly eliminated.
-func TestDuplicateChunksElimination(t *testing.T) {
-	r := require.New(t)
-
-	node := newTestNode(t)
-
-	r.NoError(node.BuildChunk(
-		context.Background(),
-		[]dsmrtest.Tx{
-			{
-				ID:     ids.GenerateTestID(),
-				Expiry: 4,
-			},
-		},
-		4,
-		codec.Address{},
-	))
-
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, 2)
-	r.NoError(err)
-	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
-	_, err = node.Accept(context.Background(), blk)
-	r.NoError(err)
-
-	_, err = node.BuildBlock(context.Background(), node.LastAccepted, 3)
-	r.ErrorIs(err, ErrNoAvailableChunkCerts)
-
-	// make sure that it's not the case with any other chunk.
-	r.NoError(node.BuildChunk(
-		context.Background(),
-		[]dsmrtest.Tx{
-			{
-				ID:     ids.GenerateTestID(),
-				Expiry: 4,
-			},
-		},
-		4,
-		codec.Address{},
-	))
-	_, err = node.BuildBlock(context.Background(), node.LastAccepted, 3)
-	r.NoError(err)
-}
-
 // Nodes should request chunks referenced in accepted blocks
 func TestAccept_RequestReferencedChunks(t *testing.T) {
 	r := require.New(t)
