@@ -126,6 +126,20 @@ func (vm *VM) ParseAndSetPreference(ctx context.Context, bytes []byte) *snow.Sta
 	return blk
 }
 
+func (vm *VM) ParseAndVerifyInvalidBlk(ctx context.Context, blkBytes []byte, expectedErr error) {
+	vm.snowCtx.Lock.Lock()
+	defer vm.snowCtx.Lock.Unlock()
+
+	// Invalid block should fail during either parsing or verification.
+	blk, err := vm.SnowVM.ParseBlock(ctx, blkBytes)
+	if err != nil {
+		vm.require.ErrorIs(err, expectedErr)
+		return
+	}
+
+	vm.require.ErrorIs(blk.Verify(ctx), expectedErr)
+}
+
 type TestNetwork struct {
 	t       *testing.T
 	require *require.Assertions
@@ -327,13 +341,28 @@ func (n *TestNetwork) initAppNetwork(ctx context.Context) {
 }
 
 // ConfirmInvalidTx confirms that attempting to issue the transaction to the mempool results in the target error
-func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, tx *chain.Transaction, targetErr error) {
-	err := n.VMs[0].VM.SubmitTx(ctx, tx)
+// Assumes that we can build a block without first submitting a valid tx
+func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, invalidTx *chain.Transaction, targetErr error) {
+	err := n.VMs[0].VM.SubmitTx(ctx, invalidTx)
 	n.require.ErrorIs(err, targetErr)
 
-	// TODO: manually construct a block and confirm that attempting to execute the block against tip results in the same
-	// target error.
-	// This requires a refactor of block building to easily construct a block while skipping over tx validity checks.
+	// Build on top of preferred block identical to how SubmitTx will simulate on the preferred block
+	parentBlk, err := n.VMs[0].SnowVM.GetConsensusIndex().GetPreferredBlock(ctx)
+	n.require.NoError(err)
+
+	// Create alternative block with invalid tx.
+	parentRoot, err := parentBlk.View.GetMerkleRoot(ctx)
+	n.require.NoError(err)
+	invalidBlk, err := chain.NewStatelessBlock(
+		parentBlk.GetID(),
+		max(time.Now().UnixMilli(), parentBlk.Tmstmp),
+		parentBlk.Hght+1,
+		[]*chain.Transaction{invalidTx},
+		parentRoot,
+	)
+	n.require.NoError(err)
+
+	n.VMs[0].ParseAndVerifyInvalidBlk(ctx, invalidBlk.GetBytes(), targetErr)
 }
 
 // SubmitTxs submits the provided transactions to the first VM in the network and requires that no errors occur

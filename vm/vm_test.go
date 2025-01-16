@@ -48,8 +48,9 @@ import (
 )
 
 type VMTestNetworkOptions struct {
-	GenesisOverrides func(*genesis.DefaultGenesis)
-	ConfigBytes      func() []byte
+	AllocationOverride  func() []uint64
+	GenesisRuleOverride func(*genesis.Rules)
+	ConfigBytes         func() []byte
 }
 
 type VMTestNetworkOption func(*VMTestNetworkOptions)
@@ -62,9 +63,15 @@ func NewVMTestNetworkOptions(opts ...VMTestNetworkOption) *VMTestNetworkOptions 
 	return options
 }
 
-func WithGenesisOverride(f func(*genesis.DefaultGenesis)) func(*VMTestNetworkOptions) {
+func WithAllocationOverride(f func() []uint64) func(*VMTestNetworkOptions) {
 	return func(opts *VMTestNetworkOptions) {
-		opts.GenesisOverrides = f
+		opts.AllocationOverride = f
+	}
+}
+
+func WithGenesisRulesOverride(f func(*genesis.Rules)) func(*VMTestNetworkOptions) {
+	return func(opts *VMTestNetworkOptions) {
+		opts.GenesisRuleOverride = f
 	}
 }
 
@@ -102,16 +109,27 @@ func NewVMTestNetwork(ctx context.Context, t *testing.T, numVMs int, opts ...VMT
 	options := NewVMTestNetworkOptions(opts...)
 	factory := NewTestVMFactory(r)
 
-	privKey, err := ed25519.GeneratePrivateKey()
-	r.NoError(err)
-	authFactory := auth.NewED25519Factory(privKey)
-	funds := uint64(1_000_000_000_000_000)
-	allocations := []*genesis.CustomAllocation{
-		{
-			Address: authFactory.Address(),
-			Balance: funds,
-		},
+	var fundRequests []uint64
+	if options.AllocationOverride == nil {
+		fundRequests = append(fundRequests, uint64(1_000_000_000_000_000))
+	} else {
+		fundRequests = options.AllocationOverride()
 	}
+
+	allocations := make([]*genesis.CustomAllocation, 0, len(fundRequests))
+	authFactories := make([]chain.AuthFactory, 0, len(fundRequests))
+	for _, fundRequest := range fundRequests {
+		privKey, err := ed25519.GeneratePrivateKey()
+		r.NoError(err)
+		authFactory := auth.NewED25519Factory(privKey)
+
+		authFactories = append(authFactories, authFactory)
+		allocations = append(allocations, &genesis.CustomAllocation{
+			Address: authFactory.Address(),
+			Balance: fundRequest,
+		})
+	}
+
 	testRules := genesis.NewDefaultRules()
 	testRules.MinBlockGap = 0
 	testRules.MinEmptyBlockGap = 0
@@ -120,8 +138,11 @@ func NewVMTestNetwork(ctx context.Context, t *testing.T, numVMs int, opts ...VMT
 		CustomAllocation:  allocations,
 		Rules:             testRules,
 	}
-	if options.GenesisOverrides != nil {
-		options.GenesisOverrides(genesis)
+	// Set test default of MinEmptyBlockGap = 0
+	// so we don't need to wait to build a block
+	genesis.Rules.MinEmptyBlockGap = 0
+	if options.GenesisRuleOverride != nil {
+		options.GenesisRuleOverride(genesis.Rules)
 	}
 	genesisBytes, err := json.Marshal(genesis)
 	r.NoError(err)
@@ -130,7 +151,6 @@ func NewVMTestNetwork(ctx context.Context, t *testing.T, numVMs int, opts ...VMT
 		configBytes = options.ConfigBytes()
 	}
 
-	authFactories := []chain.AuthFactory{authFactory}
 	return vmtest.NewTestNetwork(ctx, t, factory, numVMs, authFactories, genesisBytes, nil, configBytes)
 }
 
@@ -670,8 +690,8 @@ func TestSkipStateSync(t *testing.T) {
 func TestStateSync(t *testing.T) {
 	ctx := context.Background()
 	r := require.New(t)
-	network := NewVMTestNetwork(ctx, t, 1, WithGenesisOverride(func(genesis *genesis.DefaultGenesis) {
-		genesis.Rules.ValidityWindow = time.Second.Milliseconds()
+	network := NewVMTestNetwork(ctx, t, 1, WithGenesisRulesOverride(func(rules *genesis.Rules) {
+		rules.ValidityWindow = time.Second.Milliseconds()
 	}))
 
 	initialVM := network.VMs[0]
