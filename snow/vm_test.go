@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	"github.com/thepudds/fzgen/fuzzer"
 	"golang.org/x/exp/slices"
 
 	"github.com/ava-labs/hypersdk/chainindex"
@@ -34,10 +33,7 @@ var (
 	_ Chain[*TestBlock, *TestBlock, *TestBlock] = (*TestChain)(nil)
 )
 
-var (
-	errParseInvalidBlock  = errors.New("parsed invalid block")
-	errVerifyInvalidBlock = errors.New("verified invalid block")
-)
+var errVerifyInvalidBlock = errors.New("verified invalid block")
 
 const (
 	testVersion    = "v0.0.1"
@@ -214,7 +210,15 @@ func NewTestConsensusEngineWithRand(t *testing.T, rand *rand.Rand, initLastAccep
 	}
 	snowCtx := snowtest.Context(t, ids.GenerateTestID())
 	snowCtx.ChainDataDir = t.TempDir()
-	r.NoError(vm.Initialize(ctx, snowCtx, nil, nil, nil, nil, toEngine, nil, &enginetest.Sender{T: t}))
+	config := map[string]interface{}{
+		SnowVMConfigKey: VMConfig{
+			ParsedBlockCacheSize:     2,
+			AcceptedBlockWindowCache: 2,
+		},
+	}
+	configBytes, err := json.Marshal(config)
+	r.NoError(err)
+	r.NoError(vm.Initialize(ctx, snowCtx, nil, nil, configBytes, nil, toEngine, nil, &enginetest.Sender{T: t}))
 	ce.lastAccepted = vm.LastAcceptedBlock(ctx)
 	ce.preferred = ce.lastAccepted
 	t.Cleanup(func() {
@@ -350,11 +354,10 @@ func (ce *TestConsensusEngine) GetAcceptedBlock(ctx context.Context) {
 	retrievedBlkID, err := ce.vm.GetBlockIDAtHeight(ctx, selectedBlk.Height())
 	ce.require.NoError(err)
 	ce.require.Equal(selectedBlk.ID(), retrievedBlkID)
-}
 
-func (ce *TestConsensusEngine) ParseInvalidBlockBytes(ctx context.Context) {
-	_, err := ce.vm.ParseBlock(ctx, utils.RandomBytes(100))
-	ce.require.ErrorIs(err, errParseInvalidBlock)
+	retrievedBlk, err = ce.vm.GetBlockByHeight(ctx, selectedBlk.GetHeight())
+	ce.require.NoError(err)
+	ce.require.Equal(retrievedBlk.ID(), selectedBlk.ID())
 }
 
 func (ce *TestConsensusEngine) ParseFutureBlock(ctx context.Context) {
@@ -463,10 +466,13 @@ func (ce *TestConsensusEngine) AcceptNonPreferredBlock(ctx context.Context) {
 	}
 	if selectedBlk == nil {
 		ce.t.Log("no non-preferred block to accept")
+		return
 	}
 
 	nonPreferredChain := ce.getLastAcceptedToBlk(ctx, selectedBlk)
 	ce.acceptChain(ctx, nonPreferredChain)
+	_, _, changedPref := ce.SetPreference(ctx, nonPreferredChain[len(nonPreferredChain)-1].ID())
+	ce.require.True(changedPref)
 }
 
 func (ce *TestConsensusEngine) GetVerifiedBlock(ctx context.Context) (*StatefulBlock[*TestBlock, *TestBlock, *TestBlock], bool) {
@@ -508,7 +514,6 @@ const (
 	buildBlock step = iota
 	acceptPreferredChain
 	getAcceptedBlock
-	parseInvalidBlockBytes
 	parseFutureBlock
 	parseAndVerifyNewRandomBlock
 	parseVerifiedBlock
@@ -517,7 +522,37 @@ const (
 	acceptNonPreferredBlock
 	getVerifiedBlock
 	getLastAcceptedBlock
+	maxStepValue
 )
+
+func (s step) String() string {
+	switch s {
+	case buildBlock:
+		return "buildBlock"
+	case acceptPreferredChain:
+		return "acceptPreferredChain"
+	case getAcceptedBlock:
+		return "getAcceptedBlock"
+	case parseFutureBlock:
+		return "parseFutureBlock"
+	case parseAndVerifyNewRandomBlock:
+		return "parseAndVerifyNewRandomBlock"
+	case parseVerifiedBlock:
+		return "parseVerifiedBlock"
+	case parseAndVerifyInvalidBlock:
+		return "parseAndVerifyInvalidBlock"
+	case swapRandomPreference:
+		return "swapRandomPreference"
+	case acceptNonPreferredBlock:
+		return "acceptNonPreferredBlock"
+	case getVerifiedBlock:
+		return "getVerifiedBlock"
+	case getLastAcceptedBlock:
+		return "getLastAcceptedBlock"
+	default:
+		panic("invalid step")
+	}
+}
 
 func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
 	switch s {
@@ -527,8 +562,6 @@ func (ce *TestConsensusEngine) Step(ctx context.Context, s step) {
 		ce.AcceptPreferredChain(ctx)
 	case getAcceptedBlock:
 		ce.GetAcceptedBlock(ctx)
-	case parseInvalidBlockBytes:
-		ce.ParseInvalidBlockBytes(ctx)
 	case parseFutureBlock:
 		ce.ParseFutureBlock(ctx)
 	case parseAndVerifyNewRandomBlock:
@@ -914,23 +947,23 @@ func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
 
 func FuzzSnowVM(f *testing.F) {
 	for i := byte(0); i < 100; i++ {
-		f.Add(i, []byte{i})
+		randomSteps := hashing.ComputeHash256([]byte{i})
+		f.Add(int64(i), randomSteps)
 	}
-	// Cap the number of steps to take by using byte as the type
-	f.Fuzz(func(t *testing.T, numSteps byte, data []byte) {
-		fz := fuzzer.NewFuzzer(data)
 
-		randSource := int64(0)
-		fz.Fill(&randSource)
+	maxFuzzSteps := 50
+	// Cap the number of steps to take by using byte as the type
+	f.Fuzz(func(t *testing.T, randSource int64, byteSteps []byte) {
 		rand := rand.New(rand.NewSource(randSource)) //nolint:gosec
 
 		ctx := context.Background()
 		ce := NewTestConsensusEngineWithRand(t, rand, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
-		for i := byte(0); i < numSteps; i++ {
-			var s step
-			fz.Fill(&s)
-			ce.Step(ctx, s)
+		byteSteps = byteSteps[:min(maxFuzzSteps, len(byteSteps))]
+		for _, byteStep := range byteSteps {
+			selectedStep := step(byteStep % byte(maxStepValue))
+			t.Logf("Step: %s", selectedStep)
+			ce.Step(ctx, selectedStep)
 		}
 	})
 }
