@@ -135,11 +135,11 @@ func (p *Processor) Execute(
 	heightKey := HeightKey(p.metadataManager.HeightPrefix())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch parent height from state: %w", err)
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse parent height from state: %w", err)
 	}
 	if b.Hght != parentHeight+1 {
 		return nil, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, b.Hght, parentHeight)
@@ -152,11 +152,11 @@ func (p *Processor) Execute(
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch timestamp from state: %w", err)
 	}
 	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse timestamp from state: %w", err)
 	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if minBlockGap := r.GetMinBlockGap(); b.Tmstmp < parentTimestamp+minBlockGap {
@@ -167,8 +167,9 @@ func (p *Processor) Execute(
 	}
 
 	if isNormalOp {
-		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
-			return nil, err
+		oldestAllowed := max(0, b.Tmstmp-r.GetValidityWindow())
+		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, oldestAllowed); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDuplicateTx, err)
 		}
 	}
 
@@ -176,19 +177,18 @@ func (p *Processor) Execute(
 	feeKey := FeeKey(p.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch fee manager from state: %w", err)
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to compute next fee manager: %w", err)
 	}
 
 	// Process transactions
 	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
 	if err != nil {
-		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to execute txs: %w", err)
 	}
 
 	// Update chain metadata
@@ -210,13 +210,13 @@ func (p *Processor) Execute(
 		len(keys),
 	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to insert height into state: %w", err)
 	}
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to insert timestamp into state: %w", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to insert fee manager into state: %w", err)
 	}
 	tsv.Commit()
 
@@ -229,7 +229,7 @@ func (p *Processor) Execute(
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to calculate parent state root: %w", err)
 	}
 	p.metrics.waitRootCount.Inc()
 	p.metrics.waitRootSum.Add(float64(time.Since(start)))
@@ -248,7 +248,7 @@ func (p *Processor) Execute(
 	err = b.sigJob.Wait()
 	sspan.End()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("signatures failed verification: %w", err)
 	}
 	p.metrics.waitSignaturesCount.Inc()
 	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
