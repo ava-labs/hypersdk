@@ -656,7 +656,10 @@ func TestSkipStateSync(t *testing.T) {
 	r.Equal(block.StateSyncSkipped, stateSyncMode)
 	r.Equal(lastAccepted.GetID(), initialVMGenesisBlock.GetID())
 
+	r.NoError(vm.SnowVM.SetState(ctx, avasnow.Bootstrapping))
 	r.NoError(vm.SnowVM.SetState(ctx, avasnow.NormalOp))
+	_, err = vm.SnowVM.HealthCheck(ctx)
+	r.NoError(err)
 
 	network.SynchronizeNetwork(ctx)
 	blk, err := vm.SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
@@ -750,6 +753,8 @@ func TestStateSync(t *testing.T) {
 	defer cancel()
 	err = vm.VM.SyncClient.Wait(awaitSyncCtx)
 	close(stopCh)
+	r.NoError(err)
+	_, err = vm.SnowVM.HealthCheck(ctx)
 	r.NoError(err)
 	<-stoppedCh
 
