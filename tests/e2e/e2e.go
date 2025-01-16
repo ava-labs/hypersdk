@@ -141,8 +141,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 
 		uris := getE2EURIs(tc, blockchainID)
-		ginkgo.By("Generate 128 blocks", func() {
-			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, 128)
+		ginkgo.By("Generate 32 blocks", func() {
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, 32)
 		})
 
 		var (
@@ -161,8 +161,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		ginkgo.By("Restart the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
 		})
-		ginkgo.By("Generate > StateSyncMinBlocks=512", func() {
-			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 512)
+		ginkgo.By("Generate > StateSyncMinBlocks=128", func() {
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 128)
 		})
 		var (
 			syncNode    *tmpnet.Node
@@ -191,10 +191,10 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			require.Error(err) //nolint:forbidigo
 			require.False(ok)
 		})
-		ginkgo.By("Generate 256 blocks", func() {
+		ginkgo.By("Generate 32 blocks", func() {
 			// Generate blocks on all nodes except the paused node
 			runningURIs := uris[:len(uris)-1]
-			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 256)
+			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 32)
 		})
 		ginkgo.By("Resume the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
