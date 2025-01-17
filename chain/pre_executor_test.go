@@ -37,7 +37,7 @@ var (
 
 type mockValidityWindow struct {
 	isRepeatError error
-	setBits       []int
+	setBits       set.Bits
 }
 
 func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transaction]) {
@@ -45,7 +45,7 @@ func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transacti
 }
 
 func (m *mockValidityWindow) IsRepeat(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
-	return set.NewBits(m.setBits...), m.isRepeatError
+	return m.setBits, m.isRepeatError
 }
 
 func (*mockValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], int64) error {
@@ -56,6 +56,20 @@ func TestPreExecutor(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	ruleFactory := genesis.ImmutableRuleFactory{
 		Rules: testRules,
+	}
+	validTX := &chain.Transaction{
+		TransactionData: chain.TransactionData{
+			Base: &chain.Base{
+				Timestamp: utils.UnixRMilli(
+					time.Now().UnixMilli(),
+					testRules.GetValidityWindow(),
+				),
+			},
+		},
+		Auth: &mockAuth{
+			start: -1,
+			end:   -1,
+		},
 	}
 
 	tests := []struct {
@@ -71,29 +85,19 @@ func TestPreExecutor(t *testing.T) {
 			state: map[string][]byte{
 				feeKey: {},
 			},
-			tx: &chain.Transaction{
-				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
-						Timestamp: utils.UnixRMilli(
-							time.Now().UnixMilli(),
-							testRules.GetValidityWindow(),
-						),
-					},
-				},
-				Auth: &mockAuth{
-					start: -1,
-					end:   -1,
-				},
+			tx: validTX,
+			validityWindow: &mockValidityWindow{
+				setBits: set.NewBits(),
 			},
-			validityWindow: &mockValidityWindow{},
 		},
 		{
 			name: "raw fee doesn't exist",
+			tx:   validTX,
 			err:  database.ErrNotFound,
 		},
 		{
 			name: "validity window error",
-			tx:   &chain.Transaction{},
+			tx:   validTX,
 			state: map[string][]byte{
 				feeKey: {},
 			},
@@ -104,12 +108,12 @@ func TestPreExecutor(t *testing.T) {
 		},
 		{
 			name: "duplicate transaction",
-			tx:   &chain.Transaction{},
+			tx:   validTX,
 			state: map[string][]byte{
 				feeKey: {},
 			},
 			validityWindow: &mockValidityWindow{
-				setBits: []int{0},
+				setBits: set.NewBits(0),
 			},
 			err: chain.ErrDuplicateTx,
 		},
@@ -130,8 +134,10 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			validityWindow: &mockValidityWindow{},
-			err:            chain.ErrInvalidKeyValue,
+			validityWindow: &mockValidityWindow{
+				setBits: set.NewBits(),
+			},
+			err: chain.ErrInvalidKeyValue,
 		},
 		{
 			name: "verify auth error",
@@ -146,9 +152,11 @@ func TestPreExecutor(t *testing.T) {
 					verifyError: errMockAuth,
 				},
 			},
-			validityWindow: &mockValidityWindow{},
-			verifyAuth:     true,
-			err:            errMockAuth,
+			validityWindow: &mockValidityWindow{
+				setBits: set.NewBits(),
+			},
+			verifyAuth: true,
+			err:        errMockAuth,
 		},
 		{
 			name: "transaction pre-execute error",
@@ -161,8 +169,10 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			validityWindow: &mockValidityWindow{},
-			err:            chain.ErrTimestampTooLate,
+			validityWindow: &mockValidityWindow{
+				setBits: set.NewBits(),
+			},
+			err: chain.ErrTimestampTooLate,
 		},
 	}
 
@@ -199,7 +209,6 @@ func TestPreExecutor(t *testing.T) {
 					nil,
 					db,
 					tt.tx,
-					tt.verifyAuth,
 				), tt.err,
 			)
 		})
