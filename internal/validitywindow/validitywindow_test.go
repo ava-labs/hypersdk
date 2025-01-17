@@ -274,7 +274,7 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 			r := require.New(t)
 
 			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(timestamp int64) int64 {
+			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
 				return test.validityWindow
 			})
 			for i, blk := range test.blocks {

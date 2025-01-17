@@ -1288,7 +1288,7 @@ func Test_Verify_BadBlock(t *testing.T) {
 			},
 			wantErr: errTestingInvalidValidityWindow,
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*emapChunkCertificate]{
-				OnVerifyExpiryReplayProtection: func(ctx context.Context, block validitywindow.ExecutionBlock[*emapChunkCertificate]) error {
+				OnVerifyExpiryReplayProtection: func(context.Context, validitywindow.ExecutionBlock[*emapChunkCertificate]) error {
 					return errTestingInvalidValidityWindow
 				},
 			},

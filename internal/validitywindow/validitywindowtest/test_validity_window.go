@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
@@ -18,9 +19,9 @@ type MockTimeValidityWindow[T emap.Item] struct {
 	OnIsRepeat                     func(ctx context.Context, parentBlk validitywindow.ExecutionBlock[T], containers []T, currentTime int64) (set.Bits, error)
 }
 
-func (m *MockTimeValidityWindow[T]) Accept(blk validitywindow.ExecutionBlock[T]) {
-
+func (*MockTimeValidityWindow[T]) Accept(validitywindow.ExecutionBlock[T]) {
 }
+
 func (m *MockTimeValidityWindow[T]) VerifyExpiryReplayProtection(ctx context.Context, blk validitywindow.ExecutionBlock[T]) error {
 	if m.OnVerifyExpiryReplayProtection != nil {
 		return m.OnVerifyExpiryReplayProtection(ctx, blk)
