@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
+	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/utils"
@@ -28,27 +29,22 @@ var (
 
 	errMockAuth           = errors.New("mock auth error")
 	errMockValidityWindow = errors.New("mock validity window error")
-
-	_ chain.Auth           = (*mockAuth)(nil)
-	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
-	_ chain.ValidityWindow = (*mockValidityWindow)(nil)
 )
 
-type mockValidityWindow struct {
-	isRepeatError error
-	setBits       set.Bits
-}
-
-func (*mockValidityWindow) Accept(validitywindow.ExecutionBlock[*chain.Transaction]) {
-	panic("unimplemented")
-}
-
-func (m *mockValidityWindow) IsRepeat(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
-	return m.setBits, m.isRepeatError
-}
-
-func (*mockValidityWindow) VerifyExpiryReplayProtection(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], int64) error {
-	panic("unimplemented")
+func isRepeatFuncGenerator(bits set.Bits, err error) func(
+	ctx context.Context,
+	parentBlk validitywindow.ExecutionBlock[*chain.Transaction],
+	containers []*chain.Transaction,
+	currentTime int64,
+) (set.Bits, error) {
+	return func(
+		context.Context,
+		validitywindow.ExecutionBlock[*chain.Transaction],
+		[]*chain.Transaction,
+		int64,
+	) (set.Bits, error) {
+		return bits, err
+	}
 }
 
 func TestPreExecutor(t *testing.T) {
@@ -76,7 +72,6 @@ func TestPreExecutor(t *testing.T) {
 		state          map[string][]byte
 		tx             *chain.Transaction
 		validityWindow chain.ValidityWindow
-		verifyAuth     bool
 		err            error
 	}{
 		{
@@ -84,15 +79,13 @@ func TestPreExecutor(t *testing.T) {
 			state: map[string][]byte{
 				feeKey: {},
 			},
-			tx: validTx,
-			validityWindow: &mockValidityWindow{
-				setBits: set.NewBits(),
-			},
+			tx:             validTx,
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 		},
 		{
 			name: "raw fee doesn't exist",
 			tx:   validTx,
-			err:  chain.ErrFeeNotFound,
+			err:  chain.ErrFailedToFetchFee,
 		},
 		{
 			name: "validity window error",
@@ -100,8 +93,8 @@ func TestPreExecutor(t *testing.T) {
 			state: map[string][]byte{
 				feeKey: {},
 			},
-			validityWindow: &mockValidityWindow{
-				isRepeatError: errMockValidityWindow,
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
+				OnIsRepeat: isRepeatFuncGenerator(set.NewBits(), errMockValidityWindow),
 			},
 			err: errMockValidityWindow,
 		},
@@ -111,8 +104,8 @@ func TestPreExecutor(t *testing.T) {
 			state: map[string][]byte{
 				feeKey: {},
 			},
-			validityWindow: &mockValidityWindow{
-				setBits: set.NewBits(0),
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
+				OnIsRepeat: isRepeatFuncGenerator(set.NewBits(0), nil),
 			},
 			err: chain.ErrDuplicateTx,
 		},
@@ -133,10 +126,8 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			validityWindow: &mockValidityWindow{
-				setBits: set.NewBits(),
-			},
-			err: chain.ErrInvalidKeyValue,
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			err:            chain.ErrInvalidKeyValue,
 		},
 		{
 			name: "verify auth error",
@@ -151,11 +142,8 @@ func TestPreExecutor(t *testing.T) {
 					verifyError: errMockAuth,
 				},
 			},
-			validityWindow: &mockValidityWindow{
-				setBits: set.NewBits(),
-			},
-			verifyAuth: true,
-			err:        errMockAuth,
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			err:            errMockAuth,
 		},
 		{
 			name: "transaction pre-execute error",
@@ -168,10 +156,8 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &mockAuth{},
 			},
-			validityWindow: &mockValidityWindow{
-				setBits: set.NewBits(),
-			},
-			err: chain.ErrTimestampTooLate,
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			err:            chain.ErrTimestampTooLate,
 		},
 	}
 

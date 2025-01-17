@@ -58,7 +58,7 @@ var (
 	ErrKeyNotSpecified = errors.New("key not specified")
 
 	// State Correctness
-	ErrFeeNotFound = errors.New("fee not found")
+	ErrFailedToFetchFee = errors.New("failed to fetch fee")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
