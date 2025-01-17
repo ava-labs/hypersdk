@@ -320,7 +320,6 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 
 	// Find repeats
 	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
-
 	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block), oldestAllowed); err != nil {
 		return fmt.Errorf("%w: block %s oldestAllowed - %d", err, block.GetID(), oldestAllowed)
 	}
