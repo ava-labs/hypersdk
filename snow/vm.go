@@ -366,7 +366,7 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], 
 
 	preferredBlk, err := v.GetBlock(ctx, v.preferredBlkID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get preferred block: %w", err)
+		return nil, fmt.Errorf("failed to get preferred block %s to build: %w", v.preferredBlkID, err)
 	}
 	inputBlock, outputBlock, err := v.chain.BuildBlock(ctx, preferredBlk.Output)
 	if err != nil {
