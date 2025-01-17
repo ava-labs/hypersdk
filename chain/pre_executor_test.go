@@ -56,7 +56,7 @@ func TestPreExecutor(t *testing.T) {
 	ruleFactory := genesis.ImmutableRuleFactory{
 		Rules: testRules,
 	}
-	validTX := &chain.Transaction{
+	validTx := &chain.Transaction{
 		TransactionData: chain.TransactionData{
 			Base: &chain.Base{
 				Timestamp: utils.UnixRMilli(
@@ -84,19 +84,19 @@ func TestPreExecutor(t *testing.T) {
 			state: map[string][]byte{
 				feeKey: {},
 			},
-			tx: validTX,
+			tx: validTx,
 			validityWindow: &mockValidityWindow{
 				setBits: set.NewBits(),
 			},
 		},
 		{
 			name: "raw fee doesn't exist",
-			tx:   validTX,
+			tx:   validTx,
 			err:  chain.ErrFeeNotFound,
 		},
 		{
 			name: "validity window error",
-			tx:   validTX,
+			tx:   validTx,
 			state: map[string][]byte{
 				feeKey: {},
 			},
@@ -107,7 +107,7 @@ func TestPreExecutor(t *testing.T) {
 		},
 		{
 			name: "duplicate transaction",
-			tx:   validTX,
+			tx:   validTx,
 			state: map[string][]byte{
 				feeKey: {},
 			},
