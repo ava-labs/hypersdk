@@ -264,7 +264,7 @@ func TestStoreAndExpireLocalChunk(t *testing.T) {
 }
 
 func TestRestartSavedChunks(t *testing.T) {
-	t.Skip("TODO")
+	// t.Skip("TODO")
 	require := require.New(t)
 
 	// Test persistent chunk storage for each of the following cases:
@@ -275,6 +275,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 5. Pending local chunk
 	// 6. Pending remote chunk
 	numChunks := 6
+	now := time.Now()
 	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0)
 	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
@@ -288,6 +289,9 @@ func TestRestartSavedChunks(t *testing.T) {
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}
+
+	validChunks[2].Expiry = now.Add(-time.Hour).Unix()
+	validChunks[3].Expiry = now.Add(-time.Hour).Unix()
 
 	// Case 1
 	require.NoError(storage.AddLocalChunkWithCert(validChunks[0], chunkCerts[0]))
@@ -312,11 +316,19 @@ func TestRestartSavedChunks(t *testing.T) {
 	require.NoError(err)
 	require.NoError(storage.SetChunkCert(validChunks[5].id, chunkCerts[5]))
 
-	// Set the minimum to 5 and mark cases 1 and 2 as saved
-	require.NoError(storage.SetMin(5, []ids.ID{
+	// Set the minimum to current time and mark cases 1 and 2 as saved
+	require.NoError(storage.SetMin(now.Unix(), []ids.ID{
 		validChunks[0].id,
 		validChunks[1].id,
 	}))
+
+	// Case 7
+	// Call AddLocalChunkWithCert on a previously accepted chunk and make sure it remains accepted.
+	err = storage.AddLocalChunkWithCert(validChunks[1], nil)
+	require.NoError(err)
+	_, accepted, err := storage.GetChunkBytes(validChunks[1].Expiry, validChunks[1].id)
+	require.NoError(err)
+	require.True(accepted)
 
 	confirmChunkStorage := func(storage *ChunkStorage[dsmrtest.Tx]) {
 		// Confirm we can fetch the chunk bytes for the accepted and pending chunks
