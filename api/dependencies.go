@@ -35,12 +35,11 @@ type VM interface {
 		ctx context.Context,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastAcceptedBlockResult() *chain.ExecutedBlock
+	LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error)
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
-	GetVerifyAuth() bool
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
 	BalanceHandler() chain.BalanceHandler

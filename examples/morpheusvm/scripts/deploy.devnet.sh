@@ -128,7 +128,6 @@ cat <<EOF > "${TMPDIR}/${PROJECT_NAME}".config
   "precheckCores": 16,
   "actionExecutionCores": 8,
   "missingChunkFetchers": 48,
-  "verifyAuth": true,
   "authRPCCores": 48,
   "authRPCBacklog": 10000000,
   "authGossipCores": 16,

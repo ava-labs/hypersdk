@@ -18,9 +18,9 @@ import (
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
-	accepter    *Accepter
 	preExecutor *PreExecutor
 	blockParser *BlockParser
+	accepter    *Accepter
 }
 
 func NewChain(
@@ -65,11 +65,6 @@ func NewChain(
 			metrics,
 			config,
 		),
-		accepter: NewAccepter(
-			tracer,
-			validityWindow,
-			metrics,
-		),
 		preExecutor: NewPreExecutor(
 			ruleFactory,
 			validityWindow,
@@ -77,19 +72,21 @@ func NewChain(
 			balanceHandler,
 		),
 		blockParser: NewBlockParser(tracer, parser),
+		accepter:    NewAccepter(tracer, validityWindow, metrics),
 	}, nil
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
-	return c.builder.BuildBlock(ctx, parentView, parent)
+func (c *Chain) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+	return c.builder.BuildBlock(ctx, parentOutputBlock)
 }
 
 func (c *Chain) Execute(
 	ctx context.Context,
-	parentView state.View,
+	parentView merkledb.View,
 	b *ExecutionBlock,
-) (*ExecutedBlock, merkledb.View, error) {
-	return c.processor.Execute(ctx, parentView, b)
+	isNormalOp bool,
+) (*OutputBlock, error) {
+	return c.processor.Execute(ctx, parentView, b, isNormalOp)
 }
 
 func (c *Chain) AsyncVerify(
@@ -99,20 +96,19 @@ func (c *Chain) AsyncVerify(
 	return c.processor.AsyncVerify(ctx, b)
 }
 
-func (c *Chain) AcceptBlock(ctx context.Context, blk *ExecutionBlock) error {
-	return c.accepter.AcceptBlock(ctx, blk)
-}
-
 func (c *Chain) PreExecute(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
 	view state.View,
 	tx *Transaction,
-	verifyAuth bool,
 ) error {
-	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx, verifyAuth)
+	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx)
 }
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
 	return c.blockParser.ParseBlock(ctx, bytes)
+}
+
+func (c *Chain) AcceptBlock(ctx context.Context, block *OutputBlock) error {
+	return c.accepter.AcceptBlock(ctx, block)
 }

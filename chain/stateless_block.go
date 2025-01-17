@@ -59,13 +59,16 @@ func NewStatelessBlock(
 	return block, nil
 }
 
-func (b *StatelessBlock) ID() ids.ID           { return b.id }
-func (b *StatelessBlock) Bytes() []byte        { return b.bytes }
+func (b *StatelessBlock) GetID() ids.ID        { return b.id }
+func (b *StatelessBlock) GetBytes() []byte     { return b.bytes }
 func (b *StatelessBlock) Size() int            { return len(b.bytes) }
 func (b *StatelessBlock) GetStateRoot() ids.ID { return b.StateRoot }
+func (b *StatelessBlock) GetHeight() uint64    { return b.Hght }
+func (b *StatelessBlock) GetTimestamp() int64  { return b.Tmstmp }
+func (b *StatelessBlock) GetParent() ids.ID    { return b.Prnt }
 
 func (b *StatelessBlock) String() string {
-	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, Size=%d)", b.id, b.Hght, b.Prnt, len(b.bytes))
+	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Hght, b.Prnt, len(b.Txs), len(b.bytes))
 }
 
 func (b *StatelessBlock) Marshal() ([]byte, error) {
@@ -147,5 +150,5 @@ func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionBlock(sb)
+	return NewExecutionBlock(sb), nil
 }

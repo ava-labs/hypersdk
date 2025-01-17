@@ -12,8 +12,8 @@ import (
 )
 
 type ChainServer[T StateSummaryBlock] interface {
-	LastAcceptedStatefulBlock() T
-	GetDiskBlock(ctx context.Context, height uint64) (T, error)
+	LastAcceptedBlock(ctx context.Context) T
+	GetBlockByHeight(ctx context.Context, height uint64) (T, error)
 }
 
 type Server[T StateSummaryBlock] struct {
@@ -30,8 +30,8 @@ func NewServer[T StateSummaryBlock](log logging.Logger, chain ChainServer[T]) *S
 
 // GetLastStateSummary returns the latest state summary.
 // If no summary is available, [database.ErrNotFound] must be returned.
-func (s *Server[T]) GetLastStateSummary(context.Context) (block.StateSummary, error) {
-	summary := NewSyncableBlock(s.chain.LastAcceptedStatefulBlock(), nil)
+func (s *Server[T]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
+	summary := NewSyncableBlock(s.chain.LastAcceptedBlock(ctx), nil)
 	s.log.Info("Serving syncable block at latest height", zap.Stringer("summary", summary))
 	return summary, nil
 }
@@ -40,7 +40,7 @@ func (s *Server[T]) GetLastStateSummary(context.Context) (block.StateSummary, er
 // to the provided [height] if the node can serve state sync data for that key.
 // If not, [database.ErrNotFound] must be returned.
 func (s *Server[T]) GetStateSummary(ctx context.Context, height uint64) (block.StateSummary, error) {
-	block, err := s.chain.GetDiskBlock(ctx, height)
+	block, err := s.chain.GetBlockByHeight(ctx, height)
 	if err != nil {
 		return nil, err
 	}
