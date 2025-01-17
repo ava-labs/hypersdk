@@ -290,7 +290,9 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
+		return vm.Rules(timestamp).GetValidityWindow()
+	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
