@@ -37,10 +37,10 @@ func NewPreExecutor(
 func (p *PreExecutor) PreExecute(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
-	view state.View,
+	im state.Immutable,
 	tx *Transaction,
 ) error {
-	feeRaw, err := view.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
+	feeRaw, err := im.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrFailedToFetchFee, err)
 	}
@@ -81,7 +81,7 @@ func (p *PreExecutor) PreExecute(
 	// Note, [PreExecute] ensures that the pending transaction does not have
 	// an expiry time further ahead than [ValidityWindow]. This ensures anything
 	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, view, now); err != nil {
+	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, im, now); err != nil {
 		return err
 	}
 	return nil

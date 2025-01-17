@@ -9,10 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -166,21 +163,6 @@ func TestPreExecutor(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			db, err := merkledb.New(
-				ctx,
-				memdb.New(),
-				merkledb.Config{
-					BranchFactor: merkledb.BranchFactor16,
-					Tracer:       trace.Noop,
-				},
-			)
-			r.NoError(err)
-
-			for k, v := range tt.state {
-				r.NoError(db.Put([]byte(k), v))
-			}
-			r.NoError(db.CommitToDB(ctx))
-
 			preExecutor := chain.NewPreExecutor(
 				&ruleFactory,
 				tt.validityWindow,
@@ -192,7 +174,7 @@ func TestPreExecutor(t *testing.T) {
 				preExecutor.PreExecute(
 					ctx,
 					nil,
-					db,
+					state.ImmutableStorage(tt.state),
 					tt.tx,
 				), tt.err,
 			)
