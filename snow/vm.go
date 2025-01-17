@@ -104,7 +104,7 @@ type VM[I Block, O Block, A Block] struct {
 	version              string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
-	// To complete dynamic state sync, we may:
+	// To complete dynamic state sync, we must:
 	// 1. Accept a sequence of blocks from the final state sync target to the last accepted block
 	// 2. Re-process all outstanding processing blocks
 	// 3. Mark the VM as ready for normal operation
