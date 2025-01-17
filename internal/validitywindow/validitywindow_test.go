@@ -18,44 +18,99 @@ import (
 
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
-		name          string
-		blocks        []executionBlock
-		accepted      int // index into Blocks of the last accepted block.
-		verifyBlock   executionBlock
-		oldestAllowed int64
-		expectedError error
+		name           string
+		blocks         []executionBlock
+		accepted       int // index into Blocks of the last accepted block.
+		verifyBlock    executionBlock
+		validityWindow int64
+		expectedError  error
 	}{
 		{
 			name: "no duplicate",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:      1,
-			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{3}),
-			oldestAllowed: 1,
+			accepted:       1,
+			verifyBlock:    newExecutionBlock(2, 3, []int64{3}),
+			validityWindow: 5,
 		},
 		{
-			name: "expected duplicate",
+			name: "expected duplicate within block",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{0}),
+				newExecutionBlock(1, 1, []int64{1}),
 			},
-			accepted:      1,
-			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
-			oldestAllowed: 1,
-			expectedError: ErrDuplicateContainer,
+			accepted:       1,
+			verifyBlock:    newExecutionBlock(2, 3, []int64{2, 2}),
+			validityWindow: 5,
+			expectedError:  ErrDuplicateContainer,
 		},
 		{
-			name: "duplicate outside window",
+			name: "expected duplicate within boundary (accepted)",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:      1,
-			verifyBlock:   newExecutionBlock(2, 3, 3, []int64{2}),
-			oldestAllowed: 2,
-			expectedError: nil,
+			accepted:       1,
+			verifyBlock:    newExecutionBlock(2, 2, []int64{2}),
+			validityWindow: 5,
+			expectedError:  ErrDuplicateContainer,
+		},
+		{
+			name: "expected duplicate within boundary (processing)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted:       0,
+			verifyBlock:    newExecutionBlock(2, 2, []int64{2}),
+			validityWindow: 5,
+			expectedError:  ErrDuplicateContainer,
+		},
+		{
+			name: "expected duplicate at boundary (accepted)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted:       1,
+			verifyBlock:    newExecutionBlock(2, 2, []int64{2}),
+			validityWindow: 1,
+			expectedError:  ErrDuplicateContainer,
+		},
+		{
+			name: "expected duplicate at boundary (processing)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted:       0,
+			verifyBlock:    newExecutionBlock(2, 2, []int64{2}),
+			validityWindow: 1,
+			expectedError:  ErrDuplicateContainer,
+		},
+		{
+			name: "duplicate outside window (accepted)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted:       1,
+			verifyBlock:    newExecutionBlock(2, 3, []int64{2}),
+			validityWindow: 1,
+			expectedError:  nil,
+		},
+		{
+			name: "duplicate outside window (processing)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted:       0,
+			verifyBlock:    newExecutionBlock(2, 3, []int64{2}),
+			validityWindow: 1,
+			expectedError:  nil,
 		},
 	}
 	for _, test := range tests {
@@ -63,120 +118,155 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 			r := require.New(t)
 
 			chainIndex := &testChainIndex{}
-			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
-			r.NotNil(tvw)
+			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+				return test.validityWindow
+			})
 			for i, blk := range test.blocks {
 				if i <= test.accepted {
-					tvw.Accept(blk)
+					validityWindow.Accept(blk)
 				}
 				chainIndex.set(blk.GetID(), blk)
 			}
-			r.ErrorIs(tvw.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock, test.oldestAllowed), test.expectedError)
+			r.ErrorIs(validityWindow.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock), test.expectedError)
 		})
 	}
 }
 
 func TestValidityWindowIsRepeat(t *testing.T) {
 	tests := []struct {
-		name           string
-		blocks         []executionBlock
-		accepted       int // index into Blocks of the last accepted block.
-		parentBlock    executionBlock
-		containers     []container
-		oldestAllowewd int64
-		expectedError  error
-		expectedBits   set.Bits
+		name   string
+		blocks []executionBlock
+		// if non-nil, use this block as the parent block instead of
+		// the last item in blocks.
+		// Used to test missing chain index.
+		overrideParentBlock func() executionBlock
+		accepted            int // index into Blocks of the last accepted block.
+		containers          []container
+		currentTimestamp    int64
+		validityWindow      int64
+		expectedError       error
+		expectedBits        set.Bits
 	}{
 		{
 			name: "no containers",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:       1,
-			parentBlock:    newExecutionBlock(1, 1, 1, []int64{1, 2}),
-			containers:     []container{},
-			oldestAllowewd: 1,
-			expectedError:  nil,
-			expectedBits:   set.NewBits(),
+			accepted:         1,
+			containers:       []container{},
+			currentTimestamp: 2,
+			validityWindow:   1,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(),
 		},
 		{
-			name: "no repeats",
+			name: "no repeats (accepted)",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:    1,
-			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			accepted: 1,
 			containers: []container{
 				newContainer(5),
 			},
-			oldestAllowewd: 0,
-			expectedError:  nil,
-			expectedBits:   set.NewBits(),
+			currentTimestamp: 2,
+			validityWindow:   5,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(),
 		},
 		{
-			name: "repeats outside validity window",
+			name: "no repeats (processing)",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:    1,
-			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			accepted: 0,
+			containers: []container{
+				newContainer(5),
+			},
+			currentTimestamp: 2,
+			validityWindow:   5,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(),
+		},
+		{
+			name: "repeats outside validity window (accepted)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{1}),
+				newExecutionBlock(1, 1, []int64{2}),
+			},
+			accepted: 1,
 			containers: []container{
 				newContainer(1),
 			},
-			oldestAllowewd: 2,
-			expectedError:  nil,
-			expectedBits:   set.NewBits(),
+			currentTimestamp: 3,
+			validityWindow:   1,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(),
 		},
 		{
-			name: "repeats within latest accepted validity window block",
+			name: "repeats outside validity window (processing)",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1, 2}),
+				newExecutionBlock(0, 0, []int64{1}),
+				newExecutionBlock(1, 1, []int64{2}),
 			},
-			accepted:    1,
-			parentBlock: newExecutionBlock(2, 2, 2, []int64{3}),
+			accepted: 0,
 			containers: []container{
 				newContainer(1),
 			},
-			oldestAllowewd: 1,
-			expectedError:  nil,
-			expectedBits:   set.NewBits(0),
+			currentTimestamp: 2,
+			validityWindow:   1,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(),
 		},
 		{
-			name: "repeats after latest accepted block",
+			name: "repeats within validity window parent (accepted)",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1}),
-				newExecutionBlock(2, 2, 2, []int64{2}),
-				newExecutionBlock(3, 3, 3, []int64{3}),
-				newExecutionBlock(4, 4, 4, []int64{4}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
 			},
-			accepted:    1,
-			parentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			accepted: 1,
 			containers: []container{
-				newContainer(3),
+				newContainer(1),
 			},
-			oldestAllowewd: 1,
-			expectedError:  nil,
-			expectedBits:   set.NewBits(0),
+			currentTimestamp: 2,
+			validityWindow:   2,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(0),
+		},
+		{
+			name: "repeats within validity window parent (processing)",
+			blocks: []executionBlock{
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1, 2}),
+			},
+			accepted: 0,
+			containers: []container{
+				newContainer(1),
+			},
+			currentTimestamp: 2,
+			validityWindow:   2,
+			expectedError:    nil,
+			expectedBits:     set.NewBits(0),
 		},
 		{
 			name: "missing block in ancestery",
 			blocks: []executionBlock{
-				newExecutionBlock(0, 0, 0, []int64{}),
-				newExecutionBlock(1, 1, 1, []int64{1}),
-				newExecutionBlock(2, 2, 2, []int64{2}),
+				newExecutionBlock(0, 0, []int64{}),
+				newExecutionBlock(1, 1, []int64{1}),
+				newExecutionBlock(2, 2, []int64{2}),
 			},
-			accepted:    1,
-			parentBlock: newExecutionBlock(5, 5, 5, []int64{}),
+			accepted: 1,
+			overrideParentBlock: func() executionBlock {
+				return newExecutionBlock(5, 5, []int64{})
+			},
 			containers: []container{
 				newContainer(3),
 			},
-			oldestAllowewd: 1,
-			expectedError:  database.ErrNotFound,
+			currentTimestamp: 5,
+			validityWindow:   4,
+			expectedError:    database.ErrNotFound,
 		},
 	}
 	for _, test := range tests {
@@ -184,19 +274,26 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 			r := require.New(t)
 
 			chainIndex := &testChainIndex{}
-			tvw := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex)
-			r.NotNil(tvw)
+			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(timestamp int64) int64 {
+				return test.validityWindow
+			})
 			for i, blk := range test.blocks {
 				if i <= test.accepted {
-					tvw.Accept(blk)
+					validityWindow.Accept(blk)
 				}
 				chainIndex.set(blk.GetID(), blk)
 			}
-			bits, err := tvw.IsRepeat(context.Background(), test.parentBlock, test.containers, test.oldestAllowewd)
-			r.ErrorIs(err, test.expectedError)
-			if err == nil {
-				r.Equal(test.expectedBits.Bytes(), bits.Bytes())
+			parent := test.blocks[len(test.blocks)-1]
+			if test.overrideParentBlock != nil {
+				parent = test.overrideParentBlock()
 			}
+			bits, err := validityWindow.IsRepeat(context.Background(), parent, test.currentTimestamp, test.containers)
+			r.ErrorIs(err, test.expectedError)
+			if err != nil {
+				return
+			}
+
+			r.Equal(test.expectedBits.Bytes(), bits.Bytes())
 		})
 	}
 }
@@ -235,7 +332,7 @@ func (c container) GetExpiry() int64 {
 func newContainer(expiry int64) container {
 	return container{
 		Expiry: expiry,
-		ID:     int64ToID(expiry),
+		ID:     uint64ToID(uint64(expiry)),
 	}
 }
 
@@ -276,12 +373,12 @@ func (e executionBlock) Contains(id ids.ID) bool {
 	return false
 }
 
-func newExecutionBlock(parent int64, timestamp int64, height uint64, containers []int64) executionBlock {
+func newExecutionBlock(height uint64, timestamp int64, containers []int64) executionBlock {
 	e := executionBlock{
-		Prnt:   int64ToID(parent),
+		Prnt:   uint64ToID(height - 1), // Allow underflow for genesis
 		Tmstmp: timestamp,
 		Hght:   height,
-		ID:     int64ToID(parent + 1),
+		ID:     uint64ToID(height),
 	}
 	for _, c := range containers {
 		e.Ctrs = append(e.Ctrs, newContainer(c))
@@ -289,8 +386,8 @@ func newExecutionBlock(parent int64, timestamp int64, height uint64, containers 
 	return e
 }
 
-func int64ToID(n int64) ids.ID {
+func uint64ToID(n uint64) ids.ID {
 	var id ids.ID
-	binary.BigEndian.PutUint64(id[0:8], uint64(n))
+	binary.BigEndian.PutUint64(id[:], n)
 	return id
 }
