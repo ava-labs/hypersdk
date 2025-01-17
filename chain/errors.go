@@ -57,6 +57,9 @@ var (
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
+	// State Correctness
+	ErrFeeNotFound = errors.New("fee not found")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
@@ -40,8 +42,11 @@ func (p *PreExecutor) PreExecute(
 	tx *Transaction,
 ) error {
 	feeRaw, err := view.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
-	if err != nil {
+	if err != nil && err != database.ErrNotFound {
 		return err
+	}
+	if err == database.ErrNotFound {
+		return ErrFeeNotFound
 	}
 	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()

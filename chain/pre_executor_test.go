@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -93,7 +92,7 @@ func TestPreExecutor(t *testing.T) {
 		{
 			name: "raw fee doesn't exist",
 			tx:   validTX,
-			err:  database.ErrNotFound,
+			err:  chain.ErrFeeNotFound,
 		},
 		{
 			name: "validity window error",
