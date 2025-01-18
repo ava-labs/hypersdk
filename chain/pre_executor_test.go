@@ -75,7 +75,7 @@ func TestPreExecutor(t *testing.T) {
 				feeKey: {},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
-				OnIsRepeat: func(ctx context.Context, parentBlk validitywindow.ExecutionBlock[*chain.Transaction], containers []*chain.Transaction, currentTime int64) (set.Bits, error) {
+				OnIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
 					return set.NewBits(), errMockValidityWindow
 				},
 			},
@@ -88,7 +88,7 @@ func TestPreExecutor(t *testing.T) {
 				feeKey: {},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
-				OnIsRepeat: func(ctx context.Context, parentBlk validitywindow.ExecutionBlock[*chain.Transaction], containers []*chain.Transaction, currentTime int64) (set.Bits, error) {
+				OnIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
 					return set.NewBits(0), nil
 				},
 			},
