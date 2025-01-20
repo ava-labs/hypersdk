@@ -99,10 +99,10 @@ func (c *Chain) AsyncVerify(
 func (c *Chain) PreExecute(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
-	view state.View,
+	im state.Immutable,
 	tx *Transaction,
 ) error {
-	return c.preExecutor.PreExecute(ctx, parentBlk, view, tx)
+	return c.preExecutor.PreExecute(ctx, parentBlk, im, tx)
 }
 
 func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
