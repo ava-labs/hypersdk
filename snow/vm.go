@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/health"
@@ -104,9 +103,17 @@ type VM[I Block, O Block, A Block] struct {
 	preReadyAcceptedSubs []event.Subscription[I]
 	version              string
 
-	// chainLock must be held to process a block with chain (Build/Verify/Accept).
-	chainLock       sync.Mutex
-	chain           Chain[I, O, A]
+	// chainLock provides a synchronization point between state sync and normal operation.
+	// To complete dynamic state sync, we must:
+	// 1. Accept a sequence of blocks from the final state sync target to the last accepted block
+	// 2. Re-process all outstanding processing blocks
+	// 3. Mark the VM as ready for normal operation
+	//
+	// During this time, we must not allow any new blocks to be verified/accepted.
+	chainLock sync.Mutex
+	chain     Chain[I, O, A]
+	ready     bool
+
 	inputChainIndex ChainIndex[I]
 	consensusIndex  *ConsensusIndex[I, O, A]
 
@@ -130,8 +137,6 @@ type VM[I Block, O Block, A Block] struct {
 	metaLock          sync.Mutex
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
-
-	ready atomic.Bool
 
 	metrics *Metrics
 	log     logging.Logger
@@ -283,10 +288,6 @@ func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	}
 	v.verifiedL.RUnlock()
 
-	// Check if last accepted block or recently accepted
-	if v.lastAcceptedBlock.ID() == blkID {
-		return v.lastAcceptedBlock, nil
-	}
 	if blk, ok := v.acceptedBlocksByID.Get(blkID); ok {
 		return blk, nil
 	}

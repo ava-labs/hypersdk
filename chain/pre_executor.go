@@ -52,11 +52,7 @@ func (p *PreExecutor) PreExecute(
 	}
 
 	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
-	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, []*Transaction{tx}, oldestAllowed)
+	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
 	if err != nil {
 		return err
 	}

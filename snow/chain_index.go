@@ -45,13 +45,13 @@ func (v *VM[I, O, A]) makeConsensusIndex(
 
 	var lastAcceptedBlock *StatefulBlock[I, O, A]
 	if stateReady {
-		v.ready.Store(true)
+		v.ready = true
 		lastAcceptedBlock, err = v.reprocessFromOutputToInput(ctx, inputBlock, outputBlock, acceptedBlock)
 		if err != nil {
 			return err
 		}
 	} else {
-		v.ready.Store(false)
+		v.ready = false
 		lastAcceptedBlock = NewInputBlock(v, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
@@ -121,6 +121,18 @@ func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I
 	return blk.Input, nil
 }
 
+// GetPreferredBlock returns the output block of the current preference.
+//
+// Prior to dynamic state sync, GetPreferredBlock will return an error because the preference
+// will not have been verified.
+// After completing dynamic state sync, all outstanding processing blocks will be verified.
+// However, there's an edge case where the node may have vacuously verified an invalid block
+// during dynamic state sync, such that the preferred block is invalid and its output is
+// empty.
+// Consensus should guarantee that we do not accept such a block even if it's preferred as
+// long as a majority of validators are correct.
+// After outstanding processing blocks have been Accepted/Rejected, the preferred block
+// will be verified and the output will be available.
 func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, error) {
 	c.vm.metaLock.Lock()
 	preference := c.vm.preferredBlkID
@@ -136,10 +148,15 @@ func (c *ConsensusIndex[I, O, A]) GetPreferredBlock(ctx context.Context) (O, err
 	return blk.Output, nil
 }
 
+// GetLastAccepted returns the last accepted block of the chain.
+//
+// If the chain is mid dynamic state sync, GetLastAccepted will return an error
+// because the last accepted block will not be populated.
 func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) (A, error) {
 	c.vm.metaLock.Lock()
+	defer c.vm.metaLock.Unlock()
+
 	lastAccepted := c.vm.lastAcceptedBlock
-	c.vm.metaLock.Unlock()
 
 	if !lastAccepted.accepted {
 		return utils.Zero[A](), fmt.Errorf("last accepted block %s has not been populated", lastAccepted)
