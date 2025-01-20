@@ -28,22 +28,6 @@ var (
 	errMockValidityWindow = errors.New("mock validity window error")
 )
 
-func isRepeatFuncGenerator(bits set.Bits, err error) func(
-	ctx context.Context,
-	parentBlk validitywindow.ExecutionBlock[*chain.Transaction],
-	containers []*chain.Transaction,
-	currentTime int64,
-) (set.Bits, error) {
-	return func(
-		context.Context,
-		validitywindow.ExecutionBlock[*chain.Transaction],
-		[]*chain.Transaction,
-		int64,
-	) (set.Bits, error) {
-		return bits, err
-	}
-}
-
 func TestPreExecutor(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	ruleFactory := genesis.ImmutableRuleFactory{
@@ -72,7 +56,7 @@ func TestPreExecutor(t *testing.T) {
 		err            error
 	}{
 		{
-			name: "valid test case",
+			name: "valid tx",
 			state: map[string][]byte{
 				feeKey: {},
 			},
@@ -80,7 +64,7 @@ func TestPreExecutor(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 		},
 		{
-			name: "raw fee doesn't exist",
+			name: "raw fee missing",
 			tx:   validTx,
 			err:  chain.ErrFailedToFetchFee,
 		},
@@ -91,23 +75,27 @@ func TestPreExecutor(t *testing.T) {
 				feeKey: {},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
-				OnIsRepeat: isRepeatFuncGenerator(set.NewBits(), errMockValidityWindow),
+				OnIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
+					return set.NewBits(), errMockValidityWindow
+				},
 			},
 			err: errMockValidityWindow,
 		},
 		{
-			name: "duplicate transaction",
+			name: "duplicate tx",
 			tx:   validTx,
 			state: map[string][]byte{
 				feeKey: {},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
-				OnIsRepeat: isRepeatFuncGenerator(set.NewBits(0), nil),
+				OnIsRepeat: func(context.Context, validitywindow.ExecutionBlock[*chain.Transaction], []*chain.Transaction, int64) (set.Bits, error) {
+					return set.NewBits(0), nil
+				},
 			},
 			err: chain.ErrDuplicateTx,
 		},
 		{
-			name: "tx state keys are invalid",
+			name: "invalid state keys",
 			state: map[string][]byte{
 				feeKey: {},
 			},
@@ -143,7 +131,7 @@ func TestPreExecutor(t *testing.T) {
 			err:            errMockAuth,
 		},
 		{
-			name: "transaction pre-execute error",
+			name: "tx pre-execute error",
 			state: map[string][]byte{
 				feeKey: {},
 			},
