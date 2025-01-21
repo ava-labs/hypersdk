@@ -42,6 +42,7 @@ type mockAction struct {
 	end          int64
 	computeUnits uint64
 	typeID       uint8
+	stateKeys    state.Keys
 }
 
 func (m *mockAction) ComputeUnits(chain.Rules) uint64 {
@@ -56,8 +57,8 @@ func (m *mockAction) GetTypeID() uint8 {
 	return m.typeID
 }
 
-func (*mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
-	return state.Keys{}
+func (m *mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
+	return m.stateKeys
 }
 
 func (m *mockAction) ValidRange(chain.Rules) (int64, int64) {
@@ -127,6 +128,7 @@ type mockAuth struct {
 	computeUnits uint64
 	actor        codec.Address
 	sponsor      codec.Address
+	verifyError  error
 	typeID       uint8
 }
 
@@ -158,8 +160,8 @@ func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
 	return m.start, m.end
 }
 
-func (*mockAuth) Verify(context.Context, []byte) error {
-	return nil
+func (m *mockAuth) Verify(context.Context, []byte) error {
+	return m.verifyError
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {

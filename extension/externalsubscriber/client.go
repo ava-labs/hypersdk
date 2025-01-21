@@ -65,7 +65,7 @@ func (e *ExternalSubscriberClient) Notify(ctx context.Context, blk *chain.Execut
 		BlockData: blockBytes,
 	}
 	e.log.Debug("sending accepted block to server",
-		zap.Stringer("blockID", blk.Block.ID()),
+		zap.Stringer("blockID", blk.Block.GetID()),
 		zap.Uint64("blockHeight", blk.Block.Hght),
 	)
 	_, err = e.client.Notify(ctx, req)

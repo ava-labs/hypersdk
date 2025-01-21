@@ -4,44 +4,44 @@
 package integration_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
 
-	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
-	"github.com/ava-labs/hypersdk/tests/integration"
+	"github.com/ava-labs/hypersdk/tests/registry"
+	"github.com/ava-labs/hypersdk/vm/vmtest"
 
-	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	ginkgo "github.com/onsi/ginkgo/v2"
+	morpheusvm "github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 )
 
 func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
-}
-
-var _ = ginkgo.BeforeSuite(func() {
-	require := require.New(ginkgo.GinkgoT())
+	r := require.New(t)
+	ctx := context.Background()
+	vmFactory := morpheusvm.NewFactory()
 
 	testingNetworkConfig, err := workload.NewTestNetworkConfig(0)
-	require.NoError(err)
+	r.NoError(err)
 
-	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
-
-	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
-
-	generator := workload.NewTxGenerator(testingNetworkConfig.AuthFactories()[0])
-	// Setup imports the integration test coverage
-	integration.Setup(
-		vm.New,
-		testingNetworkConfig,
-		lconsts.ID,
-		generator,
-		randomEd25519AuthFactory,
+	testNetwork := vmtest.NewTestNetwork(
+		ctx,
+		t,
+		vmFactory,
+		2,
+		testingNetworkConfig.AuthFactories(),
+		testingNetworkConfig.GenesisBytes(),
+		nil,
+		nil,
 	)
-})
+
+	for testRegistry := range registry.GetTestsRegistries() {
+		for _, test := range testRegistry.List() {
+			t.Run(test.Name, func(t *testing.T) {
+				test.Fnc(t, testNetwork)
+			})
+		}
+	}
+}

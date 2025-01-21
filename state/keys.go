@@ -17,8 +17,9 @@ import (
 var errInvalidHexadecimalString = errors.New("invalid hexadecimal string")
 
 var (
-	_ Scope = (*Keys)(nil)
-	_ Scope = (*SimulatedKeys)(nil)
+	_                   Scope = (*Keys)(nil)
+	_                   Scope = (*SimulatedKeys)(nil)
+	CompletePermissions Scope = fullAccess{}
 )
 
 const (
@@ -33,6 +34,10 @@ const (
 type Scope interface {
 	Has(key []byte, perm Permissions) bool
 }
+
+type fullAccess struct{}
+
+func (fullAccess) Has([]byte, Permissions) bool { return true }
 
 // StateKey holds the name of the key and its permission (Read/Allocate/Write). By default,
 // initialization of Keys with duplicate key will not work. And to prevent duplicate

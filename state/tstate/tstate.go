@@ -7,14 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/ava-labs/hypersdk/state"
-
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // TState defines a struct for storing temporary state.
@@ -60,23 +53,9 @@ func (ts *TState) OpIndex() int {
 	return ts.ops
 }
 
-// ExportMerkleDBView creates a slice of [database.BatchOp] of all
-// changes in [TState] that can be used to commit to [merkledb].
-func (ts *TState) ExportMerkleDBView(
-	ctx context.Context,
-	t trace.Tracer, //nolint:interfacer
-	view state.View,
-) (merkledb.View, error) {
+func (ts *TState) ChangedKeys() map[string]maybe.Maybe[[]byte] {
 	ts.l.RLock()
 	defer ts.l.RUnlock()
 
-	ctx, span := t.Start(
-		ctx, "TState.ExportMerkleDBView",
-		oteltrace.WithAttributes(
-			attribute.Int("items", len(ts.changedKeys)),
-		),
-	)
-	defer span.End()
-
-	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
+	return ts.changedKeys
 }

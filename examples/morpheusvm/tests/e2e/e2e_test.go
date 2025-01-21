@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests that are shared between the integration and e2e
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/auth"
@@ -52,10 +52,11 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		KeyType: auth.ED25519Key,
 	}
 
-	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
-	generator := workload.NewTxGenerator(firstAuthFactory)
+	authFactories := testingNetworkConfig.AuthFactories()
+	spamKey := authFactories[0]
+	generator := workload.NewTxGenerator(authFactories[1])
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, firstAuthFactory)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {

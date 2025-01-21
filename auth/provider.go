@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
 
 var (
@@ -17,8 +15,8 @@ var (
 )
 
 // WithDefaultPrivateKeyFactories registers the default PrivateKeyFactories
-func WithDefaultPrivateKeyFactories(authProvider *AuthProvider, errs *wrappers.Errs) {
-	errs.Add(
+func WithDefaultPrivateKeyFactories(authProvider *AuthProvider) error {
+	return errors.Join(
 		authProvider.Register(ED25519Key, NewED25519PrivateKeyFactory()),
 		authProvider.Register(Secp256r1Key, NewSECP256R1PrivateKeyFactory()),
 		authProvider.Register(BLSKey, NewBLSPrivateKeyFactory()),

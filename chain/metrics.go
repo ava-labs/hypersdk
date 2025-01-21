@@ -13,6 +13,7 @@ import (
 const namespace = "chain"
 
 type chainMetrics struct {
+	txsBuilt    prometheus.Counter
 	txsVerified prometheus.Counter
 	txsAccepted prometheus.Counter
 
@@ -54,6 +55,21 @@ func (em *executorMetrics) RecordExecutable() {
 
 func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 	m := &chainMetrics{
+		txsBuilt: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "txs_built",
+			Help:      "Total # of txs included within a locally built block",
+		}),
+		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "txs_verified",
+			Help:      "Total # of txs verified within block execution",
+		}),
+		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "txs_accepted",
+			Help:      "Total # of txs accepted within a block",
+		}),
 		rootCalculatedCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "root_calculated_count",
@@ -129,16 +145,6 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
-		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "txs_verified",
-			Help:      "number of txs verified by chain",
-		}),
-		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "txs_accepted",
-			Help:      "number of txs accepted by chain",
-		}),
 	}
 
 	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
@@ -146,6 +152,9 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 
 	errs := wrappers.Errs{}
 	errs.Add(
+		reg.Register(m.txsBuilt),
+		reg.Register(m.txsVerified),
+		reg.Register(m.txsAccepted),
 		reg.Register(m.rootCalculatedCount),
 		reg.Register(m.rootCalculatedSum),
 		reg.Register(m.waitRootCount),
@@ -161,8 +170,6 @@ func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 		reg.Register(m.stateChanges),
 		reg.Register(m.stateOperations),
 		reg.Register(m.clearedMempool),
-		reg.Register(m.txsVerified),
-		reg.Register(m.txsAccepted),
 	)
 	return m, errs.Err
 }
