@@ -52,9 +52,8 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 type StoredChunkSignature[T Tx] struct {
-	Chunk    Chunk[T]
-	Cert     *ChunkCertificate
-	Accepted bool
+	Chunk Chunk[T]
+	Cert  *ChunkCertificate
 }
 
 // ChunkStorage provides chunk, signature share, and chunk certificate storage
@@ -126,10 +125,6 @@ func (s *ChunkStorage[T]) init() error {
 		if err != nil {
 			return err
 		}
-		// if the chunk is not a pending chunk then it's an accepted chunk. mark it as such.
-		if storedChunk, ok := s.chunkMap[chunk.id]; ok {
-			storedChunk.Accepted = true
-		}
 	}
 
 	if err := iter.Error(); err != nil {
@@ -139,6 +134,7 @@ func (s *ChunkStorage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
+// Assume caller has already verify chunk and cert are not duplicate of any previously accepted chunk.
 func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -166,6 +162,7 @@ func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
+// Assume caller has already verify chunk and cert are not duplicate of any previously accepted chunk.
 func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -201,7 +198,6 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 }
 
 // TODO need to call this to expire chunks in server
-// TODO make sure that in case of a database error, the storage state won't get modified.
 // SetMin sets the minimum timestamp on the expiring storage and marks the chunks that
 // must be saved, which would otherwise expire.
 func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
@@ -220,10 +216,10 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		chunk.Accepted = true
 		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id), chunk.Chunk.bytes); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
+		delete(s.chunkMap, saveChunkID)
 	}
 	expiredChunks := s.chunkEMap.SetMin(updatedMin)
 	for _, chunkID := range expiredChunks {
@@ -254,7 +250,7 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 
 	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
 	for _, chunk := range s.chunkMap {
-		if chunk.Cert == nil || chunk.Accepted {
+		if chunk.Cert == nil {
 			continue
 		}
 		chunkCerts = append(chunkCerts, chunk.Cert)
@@ -265,28 +261,20 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 // GetChunkBytes returns the corresponding chunk bytes of the requested chunk
 // Both the slot and chunkID must be provided to create the relevant DB key, which
 // includes the slot to create a more sequential DB workload.
-func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, bool, error) {
+func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	chunk, ok := s.chunkMap[chunkID]
 	if ok {
-		return chunk.Chunk.bytes, chunk.Accepted, nil
+		return chunk.Chunk.bytes, nil
 	}
 
-	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB
-		chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
-		}
-		return chunkBytes, true, nil
-	}
-
-	chunkBytes, err := s.chunkDB.Get(pendingChunkKey(expiry, chunkID))
+	chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to fetch chunk bytes for %s: %w", chunkID, err)
+		return nil, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
 	}
-	return chunkBytes, false, nil
+	return chunkBytes, nil
 }
 
 func createChunkKey(prefix byte, slot int64, chunkID ids.ID) []byte {

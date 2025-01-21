@@ -348,7 +348,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 	for _, chunkCert := range block.ChunkCerts {
 		acceptedChunkIDs = append(acceptedChunkIDs, chunkCert.ChunkID)
 
-		chunkBytes, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
+		chunkBytes, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if errors.Is(err, database.ErrNotFound) {
 			for {
 				result := make(chan error)

@@ -622,66 +622,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	}
 }
 
-// Node should not sign duplicate chunks that have already been accepted
-func TestNode_GetChunkSignature_DuplicateChunk(t *testing.T) {
-	r := require.New(t)
-
-	node := newTestNode(t)
-	r.NoError(node.BuildChunk(
-		context.Background(),
-		[]dsmrtest.Tx{{ID: ids.Empty, Expiry: 123}},
-		123,
-		codec.Address{123},
-	))
-	blk, err := node.BuildBlock(context.Background(), node.LastAccepted, node.LastAccepted.Timestamp+1)
-	r.NoError(err)
-	r.NoError(node.Verify(context.Background(), node.LastAccepted, blk))
-	executedBlk, err := node.Accept(context.Background(), blk)
-	r.NoError(err)
-	r.Len(executedBlk.Chunks, 1)
-	chunk := executedBlk.Chunks[0]
-
-	done := make(chan struct{})
-	onResponse := func(_ context.Context, _ ids.NodeID, _ *sdk.SignatureResponse, err error) {
-		defer close(done)
-
-		r.ErrorIs(err, ErrDuplicateChunk)
-	}
-
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	r.NoError(codec.LinearCodec.MarshalInto(ChunkReference{
-		ChunkID:  chunk.id,
-		Producer: chunk.Producer,
-		Expiry:   chunk.Expiry,
-	}, &packer))
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
-	r.NoError(err)
-
-	client := NewGetChunkSignatureClient(
-		networkID,
-		chainID,
-		p2ptest.NewClient(
-			t,
-			context.Background(),
-			ids.EmptyNodeID,
-			p2p.NoOpHandler{},
-			node.ID,
-			node.GetChunkSignatureHandler,
-		),
-	)
-	r.NoError(client.AppRequest(
-		context.Background(),
-		node.ID,
-		&sdk.SignatureRequest{
-			Message:       msg.Bytes(),
-			Justification: chunk.bytes,
-		},
-		onResponse,
-	))
-
-	<-done
-}
-
 // Nodes must persist chunks that they sign from other nodes
 func TestGetChunkSignature_PersistAttestedBlocks(t *testing.T) {
 	r := require.New(t)
