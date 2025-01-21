@@ -35,7 +35,8 @@ const (
 )
 
 var (
-	_ snowValidators.State = (*pChain)(nil)
+	_ snowValidators.State                      = (*pChain)(nil)
+	_ TimeValidityWindow[*emapChunkCertificate] = (validitywindow.Interface[*emapChunkCertificate])(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
@@ -99,18 +100,17 @@ func New[T Tx](
 	}, nil
 }
 
-type TimeValidityWindow[Container emap.Item] interface {
-	Accept(blk validitywindow.ExecutionBlock[Container])
+type TimeValidityWindow[T emap.Item] interface {
+	Accept(blk validitywindow.ExecutionBlock[T])
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
-		blk validitywindow.ExecutionBlock[Container],
-		oldestAllowed int64,
+		blk validitywindow.ExecutionBlock[T],
 	) error
 	IsRepeat(
 		ctx context.Context,
-		parentBlk validitywindow.ExecutionBlock[Container],
-		txs []Container,
-		oldestAllowed int64,
+		parentBlk validitywindow.ExecutionBlock[T],
+		currentTimestamp int64,
+		txs []T,
 	) (set.Bits, error)
 }
 
@@ -248,19 +248,18 @@ func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64)
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
-	chunkCerts := n.storage.GatherChunkCerts()
-	oldestAllowed := max(0, timestamp-int64(n.validityWindowDuration))
-	chunkCert := make([]*emapChunkCertificate, len(chunkCerts))
-	for i := range chunkCert {
-		chunkCert[i] = &emapChunkCertificate{*chunkCerts[i]}
+	gatheredChunkCerts := n.storage.GatherChunkCerts()
+	emapChunkCerts := make([]*emapChunkCertificate, len(gatheredChunkCerts))
+	for i := range emapChunkCerts {
+		emapChunkCerts[i] = &emapChunkCertificate{*gatheredChunkCerts[i]}
 	}
-	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), chunkCert, oldestAllowed)
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), timestamp, emapChunkCerts)
 	if err != nil {
 		return Block{}, err
 	}
 
 	availableChunkCerts := make([]*ChunkCertificate, 0)
-	for i, chunkCert := range chunkCerts {
+	for i, chunkCert := range gatheredChunkCerts {
 		// avoid building blocks with duplicate or expired chunk certs
 		if chunkCert.Expiry < timestamp || duplicates.Contains(i) {
 			continue
@@ -319,9 +318,8 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	}
 
 	// Find repeats
-	oldestAllowed := max(0, block.Timestamp-int64(n.validityWindowDuration))
-	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block), oldestAllowed); err != nil {
-		return fmt.Errorf("%w: block %s oldestAllowed - %d", err, block.GetID(), oldestAllowed)
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block)); err != nil {
+		return err
 	}
 
 	for _, chunkCert := range block.ChunkCerts {

@@ -211,13 +211,12 @@ type ValidityWindow interface {
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
 		blk validitywindow.ExecutionBlock[*Transaction],
-		oldestAllowed int64,
 	) error
 	Accept(blk validitywindow.ExecutionBlock[*Transaction])
 	IsRepeat(
 		ctx context.Context,
 		parentBlk validitywindow.ExecutionBlock[*Transaction],
+		currentTimestamp int64,
 		txs []*Transaction,
-		oldestAllowed int64,
 	) (set.Bits, error)
 }
