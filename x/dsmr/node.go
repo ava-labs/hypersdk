@@ -228,6 +228,15 @@ func (n *Node[T]) BuildChunk(
 		Signature: bitSetSignature,
 	}
 
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(n.LastAccepted), n.LastAccepted.Timestamp, []*emapChunkCertificate{{chunkCert}})
+	if err != nil {
+		return fmt.Errorf("failed to varify repeated chunk certificates : %w", err)
+	}
+	if duplicates.Len() > 0 {
+		// we have duplicates
+		return ErrDuplicateChunk
+	}
+
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(&chunkCert, &packer); err != nil {
 		return err

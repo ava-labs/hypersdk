@@ -315,7 +315,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	require.NoError(err)
 	require.NoError(storage.SetChunkCert(validChunks[5].id, chunkCerts[5]))
 
-	// Set the minimum to current time and mark cases 1 and 2 as saved
+	// Set the minimum to 2 and mark cases 1 and 2 as saved
 	require.NoError(storage.SetMin(2, []ids.ID{
 		validChunks[0].id,
 		validChunks[1].id,
