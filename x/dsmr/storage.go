@@ -52,10 +52,9 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 }
 
 type StoredChunkSignature[T Tx] struct {
-	Chunk Chunk[T]
-	Cert  *ChunkCertificate
-	// TODO what do we need this flag for?
-	Available bool
+	Chunk    Chunk[T]
+	Cert     *ChunkCertificate
+	Accepted bool
 }
 
 // ChunkStorage provides chunk, signature share, and chunk certificate storage
@@ -127,6 +126,10 @@ func (s *ChunkStorage[T]) init() error {
 		if err != nil {
 			return err
 		}
+		// if the chunk is not a pending chunk then it's an accepted chunk. mark it as such.
+		if storedChunk, ok := s.chunkMap[chunk.id]; ok {
+			storedChunk.Accepted = true
+		}
 	}
 
 	if err := iter.Error(); err != nil {
@@ -186,12 +189,19 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	}
 	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
+	if chunkCert, ok := s.chunkMap[c.id]; ok {
+		if cert != nil {
+			chunkCert.Cert = cert
+		}
+		return nil
+	}
 	chunkCert := &StoredChunkSignature[T]{Chunk: c, Cert: cert}
 	s.chunkMap[c.id] = chunkCert
 	return nil
 }
 
 // TODO need to call this to expire chunks in server
+// TODO make sure that in case of a database error, the storage state won't get modified.
 // SetMin sets the minimum timestamp on the expiring storage and marks the chunks that
 // must be saved, which would otherwise expire.
 func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
@@ -210,7 +220,7 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		chunk.Available = true
+		chunk.Accepted = true
 		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id), chunk.Chunk.bytes); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
@@ -244,7 +254,7 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 
 	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
 	for _, chunk := range s.chunkMap {
-		if chunk.Cert == nil || chunk.Available {
+		if chunk.Cert == nil || chunk.Accepted {
 			continue
 		}
 		chunkCerts = append(chunkCerts, chunk.Cert)
@@ -261,7 +271,7 @@ func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, b
 
 	chunk, ok := s.chunkMap[chunkID]
 	if ok {
-		return chunk.Chunk.bytes, chunk.Available, nil
+		return chunk.Chunk.bytes, chunk.Accepted, nil
 	}
 
 	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB
