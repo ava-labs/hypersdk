@@ -107,7 +107,7 @@ func TestWindowRollOverflow(t *testing.T) {
 			r := require.New(t)
 
 			window := Window{}
-			for i := 0; i < WindowSize; i++ {
+			for i := 0; i < WindowSliceSize; i++ {
 				window[i] = consts.MaxUint8
 			}
 
