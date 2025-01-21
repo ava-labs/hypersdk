@@ -47,10 +47,7 @@ func (p *PreExecutor) PreExecute(
 	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := p.ruleFactory.GetRules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return err
-	}
+	nextFeeManager := feeManager.ComputeNext(now, r)
 
 	// Find repeats
 	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
