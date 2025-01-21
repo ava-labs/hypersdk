@@ -29,6 +29,8 @@ type testVerifier[T Tx] struct {
 	correctIDs set.Set[ids.ID]
 }
 
+func (testVerifier[T]) SetMin(int64) {}
+
 func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 	if t.correctIDs.Contains(chunk.id) {
 		return nil
