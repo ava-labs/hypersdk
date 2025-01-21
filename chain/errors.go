@@ -7,7 +7,8 @@ import "errors"
 
 var (
 	// Parsing
-	ErrInvalidObject = errors.New("invalid object")
+	ErrInvalidObject        = errors.New("invalid object")
+	ErrParsingInvalidUint64 = errors.New("parsing invalid uint64")
 
 	// Genesis Correctness
 	ErrInvalidChainID   = errors.New("invalid chain ID")
