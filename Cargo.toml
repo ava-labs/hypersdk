@@ -4,6 +4,7 @@ members = [
   "x/contracts/wasmlanche",
   "x/contracts/examples/token",
   "x/contracts/examples/counter",
+  "x/contracts/examples/timelock",
   "x/contracts/examples/counter-external",
   "x/contracts/examples/automated-market-maker",
   "x/contracts/wasmlanche/tests/test-crate",
