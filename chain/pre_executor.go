@@ -42,7 +42,7 @@ func (p *PreExecutor) PreExecute(
 ) error {
 	feeRaw, err := im.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrFailedToFetchFee, err)
+		return fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
 	}
 	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()

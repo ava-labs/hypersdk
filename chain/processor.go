@@ -120,6 +120,10 @@ func (p *Processor) Execute(
 	var (
 		r   = p.ruleFactory.GetRules(b.Tmstmp)
 		log = p.log
+
+		heightKey    = HeightKey(p.metadataManager.HeightPrefix())
+		timestampKey = TimestampKey(p.metadataManager.TimestampPrefix())
+		feeKey       = FeeKey(p.metadataManager.FeePrefix())
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -131,33 +135,20 @@ func (p *Processor) Execute(
 		return nil, err
 	}
 
-	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(p.metadataManager.HeightPrefix())
-	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
+	// Extract parent metadata
+	parentHeight, parentTimestampUint64, parentFeeRaw, err := p.extractParentMetadata(ctx, parentView)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch parent height from state: %w", err)
+		return nil, err
 	}
-	parentHeight, err := database.ParseUInt64(parentHeightRaw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse parent height from state: %w", err)
-	}
+
 	if b.Hght != parentHeight+1 {
 		return nil, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, b.Hght, parentHeight)
 	}
 
-	// Fetch parent timestamp and confirm block timestamp is valid
+	// Confirm block timestamp is valid
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
-	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch timestamp from state: %w", err)
-	}
-	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse timestamp from state: %w", err)
-	}
 	parentTimestamp := int64(parentTimestampUint64)
 	if minBlockGap := r.GetMinBlockGap(); b.Tmstmp < parentTimestamp+minBlockGap {
 		return nil, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, b.Tmstmp, parentTimestamp, minBlockGap)
@@ -173,12 +164,7 @@ func (p *Processor) Execute(
 	}
 
 	// Compute next unit prices to use
-	feeKey := FeeKey(p.metadataManager.FeePrefix())
-	feeRaw, err := parentView.GetValue(ctx, feeKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch fee manager from state: %w", err)
-	}
-	parentFeeManager := fees.NewManager(feeRaw)
+	parentFeeManager := fees.NewManager(parentFeeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute next fee manager: %w", err)
@@ -202,8 +188,8 @@ func (p *Processor) Execute(
 	tsv := ts.NewView(
 		keys,
 		state.ImmutableStorage(map[string][]byte{
-			heightKeyStr:    parentHeightRaw,
-			timestampKeyStr: parentTimestampRaw,
+			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parentHeight),
+			timestampKeyStr: binary.BigEndian.AppendUint64(nil, parentTimestampUint64),
 			feeKeyStr:       parentFeeManager.Bytes(),
 		}),
 		len(keys),
@@ -425,6 +411,38 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return nil
+}
+
+// Returns the following metadata: height, timestamp, rawFee
+func (p *Processor) extractParentMetadata(ctx context.Context, im state.Immutable) (uint64, uint64, []byte, error) {
+	// Get parent height
+	heightKey := HeightKey(p.metadataManager.HeightPrefix())
+	parentHeightRaw, err := im.GetValue(ctx, heightKey)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+	}
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("failed to parse parent height from state: %w", err)
+	}
+	// Get parent timestamp
+	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
+	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+	}
+	parentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("failed to parse timestamp from state: %w", err)
+	}
+	// Get parent raw fee
+	feeKey := FeeKey(p.metadataManager.FeePrefix())
+	parentFeeRaw, err := im.GetValue(ctx, feeKey)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
+	}
+
+	return parentHeight, parentTimestamp, parentFeeRaw, nil
 }
 
 func createView(ctx context.Context, tracer trace.Tracer, parentView state.View, stateDiff map[string]maybe.Maybe[[]byte]) (merkledb.View, error) {

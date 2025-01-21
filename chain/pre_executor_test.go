@@ -22,8 +22,6 @@ import (
 )
 
 var (
-	feeKey = string(chain.FeeKey([]byte{2}))
-
 	errMockAuth           = errors.New("mock auth error")
 	errMockValidityWindow = errors.New("mock validity window error")
 )
@@ -66,7 +64,7 @@ func TestPreExecutor(t *testing.T) {
 		{
 			name: "raw fee missing",
 			tx:   validTx,
-			err:  chain.ErrFailedToFetchFee,
+			err:  chain.ErrFailedToFetchParentFee,
 		},
 		{
 			name: "validity window error",
