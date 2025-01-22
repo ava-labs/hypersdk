@@ -121,10 +121,8 @@ func (s *ChunkStorage[T]) init() error {
 			}
 			return fmt.Errorf("failed to parse chunk %s at slot %d", chunkID, slot)
 		}
-		_, err = s.VerifyRemoteChunk(chunk)
-		if err != nil {
-			return err
-		}
+		s.chunkEMap.Add([]emapChunk[T]{{chunk: chunk}})
+		s.chunkMap[chunk.id] = &StoredChunkSignature[T]{Chunk: chunk}
 	}
 
 	if err := iter.Error(); err != nil {
