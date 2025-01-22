@@ -39,7 +39,7 @@ func Roll(w Window, roll uint64) Window {
 	// that what we do not copy into, will be set to 0
 	res := [WindowSliceSize]byte{}
 	bound := roll * consts.Uint64Len
-	if bound > WindowSliceSize {
+	if roll > WindowSize {
 		return res
 	}
 	copy(res[:], w[bound:])

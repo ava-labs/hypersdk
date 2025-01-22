@@ -83,6 +83,39 @@ func TestRollupWindow(t *testing.T) {
 	}
 }
 
+func TestWindowRollOverflow(t *testing.T) {
+	tests := []struct {
+		name string
+		roll uint64
+	}{
+		{
+			name: "roll = WindowSize",
+			roll: WindowSize,
+		},
+		{
+			name: "roll > WindowSize",
+			roll: WindowSize + 1,
+		},
+		{
+			name: "multiplication overflow",
+			roll: (consts.MaxUint64 / consts.Uint64Len) + 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			window := Window{}
+			for i := 0; i < WindowSliceSize; i++ {
+				window[i] = consts.MaxUint8
+			}
+
+			r.Equal(Window{}, Roll(window, tt.roll))
+		})
+	}
+}
+
 func TestUint64Window(t *testing.T) {
 	require := require.New(t)
 	uint64s := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}

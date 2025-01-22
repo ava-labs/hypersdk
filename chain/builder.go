@@ -121,10 +121,8 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		return nil, nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
-	if err != nil {
-		return nil, nil, err
-	}
+	feeManager := parentFeeManager.ComputeNext(nextTime, r)
+
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
