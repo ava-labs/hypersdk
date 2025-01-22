@@ -36,7 +36,6 @@ type ExecutionBlock struct {
 	// to preallocate memory
 	authCounts map[uint8]int
 	txsSet     set.Set[ids.ID]
-	sigJob     workers.Job
 }
 
 type OutputBlock struct {
@@ -46,9 +45,10 @@ type OutputBlock struct {
 	ExecutionResults ExecutionResults
 }
 
-type BlockContext struct {
-	height    uint64
-	timestamp int64
+type blockContext struct {
+	height     uint64
+	timestamp  int64
+	feeManager *fees.Manager
 }
 
 func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
@@ -131,24 +131,25 @@ func (p *Processor) Execute(
 	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, ErrTimestampTooLate
 	}
-	// AsyncVerify should have been called already. We call it here defensively.
-	if err := p.asyncVerify(ctx, b); err != nil {
-		return nil, err
-	}
-
-	parentHeight, parentTimestampUint64, parentFeeManager, err := p.extractParentMetadata(ctx, parentView)
+	// create and start signature verification job async
+	sigJob, err := p.verifySignatures(ctx, b)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := p.verifyMetadata(ctx, r, parentHeight, parentTimestampUint64, b, isNormalOp); err != nil {
+	blockContext, err := p.createBlockContext(ctx, parentView, b, r)
+	if err != nil {
 		return nil, err
 	}
 
-	feeManager := parentFeeManager.ComputeNext(b.Tmstmp, r)
+	if isNormalOp {
+		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDuplicateTx, err)
+		}
+	}
 
 	// Process transactions
-	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
+	results, ts, err := p.executeTxs(ctx, b, parentView, blockContext.feeManager, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute txs: %w", err)
 	}
@@ -158,29 +159,25 @@ func (p *Processor) Execute(
 		state.ImmutableStorage(map[string][]byte{}),
 		0,
 	)
-	if err := p.updateMetadata(
+	if err := p.writeBlockContext(
 		ctx,
 		tsv,
-		BlockContext{
-			height:    b.Hght,
-			timestamp: b.Tmstmp,
-		},
-		feeManager,
+		blockContext,
 	); err != nil {
 		return nil, err
 	}
 	tsv.Commit()
 
-	// Compare state root
+	// Verify parent root
 	//
-	// Because fee bytes are not recorded in state, it is sufficient to check the state root
+	// Because fee bytes are recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	if err := p.compareStateRoot(ctx, parentView, b.StateRoot); err != nil {
+	if err := p.verifyParentRoot(ctx, parentView, b.StateRoot); err != nil {
 		return nil, err
 	}
 
 	// Ensure signatures are verified
-	if err := p.verifySignatures(ctx, b.sigJob); err != nil {
+	if err := p.waitSignatures(ctx, sigJob); err != nil {
 		return nil, err
 	}
 
@@ -215,8 +212,8 @@ func (p *Processor) Execute(
 		View:           view,
 		ExecutionResults: ExecutionResults{
 			Results:       results,
-			UnitPrices:    feeManager.UnitPrices(),
-			UnitsConsumed: feeManager.UnitsConsumed(),
+			UnitPrices:    blockContext.feeManager.UnitPrices(),
+			UnitsConsumed: blockContext.feeManager.UnitsConsumed(),
 		},
 	}, nil
 }
@@ -235,7 +232,7 @@ func (p *Processor) executeTxs(
 	feeManager *fees.Manager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := p.tracer.Start(ctx, "Chain.Execute.ExecuteTxs")
+	ctx, span := p.tracer.Start(ctx, "Chain.Execute.executeTxs")
 	defer span.End()
 
 	var (
@@ -324,22 +321,16 @@ func (p *Processor) executeTxs(
 	return results, ts, nil
 }
 
-// asyncVerify starts async signature verification as early as possible
-func (p *Processor) asyncVerify(ctx context.Context, block *ExecutionBlock) error {
-	ctx, span := p.tracer.Start(ctx, "Chain.AsyncVerify")
-	defer span.End()
-
-	if block.sigJob != nil {
-		return nil
-	}
+// verifySignatures creates and kicks off signature verification job for the provided block
+// Assumes that the executionBlock's authCounts field has been populated correctly during construction
+func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock) (workers.Job, error) {
 	sigJob, err := p.authVerificationWorkers.NewJob(len(block.StatelessBlock.Txs))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	block.sigJob = sigJob
 
 	// Setup signature verification job
-	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.AsyncVerify.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures") //nolint:spancheck
 
 	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
@@ -352,86 +343,95 @@ func (p *Processor) asyncVerify(ctx context.Context, block *ExecutionBlock) erro
 	for _, tx := range block.StatelessBlock.Txs {
 		unsignedTxBytes, err := tx.UnsignedBytes()
 		if err != nil {
-			return err //nolint:spancheck
+			return nil, err //nolint:spancheck
 		}
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
+	return sigJob, nil
+}
+
+func (p *Processor) waitSignatures(ctx context.Context, sigJob workers.Job) error {
+	_, span := p.tracer.Start(ctx, "Chain.Execute.waitSignatures")
+	defer span.End()
+
+	start := time.Now()
+	err := sigJob.Wait()
+	if err != nil {
+		return fmt.Errorf("signatures failed verification: %w", err)
+	}
+	p.metrics.waitSignaturesCount.Inc()
+	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
 	return nil
 }
 
-// Returns the following parent metadata: height, timestamp, feeManager
-func (p *Processor) extractParentMetadata(
+// createBlockContext extracts and verifies the block context from the parent view
+// and provided block
+func (p *Processor) createBlockContext(
 	ctx context.Context,
 	im state.Immutable,
-) (uint64, uint64, *fees.Manager, error) {
+	block *ExecutionBlock,
+	r Rules,
+) (blockContext, error) {
+	_, span := p.tracer.Start(ctx, "Chain.Execute.createBlockContext")
+	defer span.End()
+
 	// Get parent height
 	heightKey := HeightKey(p.metadataManager.HeightPrefix())
 	parentHeightRaw, err := im.GetValue(ctx, heightKey)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to parse parent height from state: %w", err)
+		return blockContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
 	}
+	if block.Hght != parentHeight+1 {
+		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
+	}
+
 	// Get parent timestamp
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
 	}
-	parentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
+	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to parse timestamp from state: %w", err)
-	}
-	// Get parent raw fee
-	feeKey := FeeKey(p.metadataManager.FeePrefix())
-	parentFeeRaw, err := im.GetValue(ctx, feeKey)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
-	}
-
-	return parentHeight, parentTimestamp, fees.NewManager(parentFeeRaw), nil
-}
-
-func (p *Processor) verifyMetadata(
-	ctx context.Context,
-	r Rules,
-	parentHeight uint64,
-	parentTimestampUint64 uint64,
-	block *ExecutionBlock,
-	isNormalOp bool,
-) error {
-	if block.Hght != parentHeight+1 {
-		return fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
+		return blockContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
 	}
 
 	// Confirm block timestamp is valid
 	//
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
-	parentTimestamp := int64(parentTimestampUint64)
+	parentTimestamp := int64(parsedParentTimestamp)
 	if minBlockGap := r.GetMinBlockGap(); block.Tmstmp < parentTimestamp+minBlockGap {
-		return fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
+		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
 	}
 	if len(block.StatelessBlock.Txs) == 0 && block.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
+		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
 	}
 
-	if isNormalOp {
-		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, block); err != nil {
-			return fmt.Errorf("%w: %w", ErrDuplicateTx, err)
-		}
+	// Calculate fee manager for this block
+	feeKey := FeeKey(p.metadataManager.FeePrefix())
+	parentFeeRaw, err := im.GetValue(ctx, feeKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
 	}
+	parentFeeManager := fees.NewManager(parentFeeRaw)
+	blockFeeManager := parentFeeManager.ComputeNext(block.Tmstmp, r)
 
-	return nil
+	return blockContext{
+		height:     block.Hght,
+		timestamp:  block.Tmstmp,
+		feeManager: blockFeeManager,
+	}, nil
 }
 
-func (p *Processor) updateMetadata(
+func (p *Processor) writeBlockContext(
 	ctx context.Context,
 	mu state.Mutable,
-	blockCtx BlockContext,
-	fm *fees.Manager,
+	blockCtx blockContext,
 ) error {
 	var (
 		heightKey    = HeightKey(p.metadataManager.HeightPrefix())
@@ -444,21 +444,22 @@ func (p *Processor) updateMetadata(
 	if err := mu.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(blockCtx.timestamp))); err != nil {
 		return fmt.Errorf("failed to insert timestamp into state: %w", err)
 	}
-	if err := mu.Insert(ctx, feeKey, fm.Bytes()); err != nil {
+	if err := mu.Insert(ctx, feeKey, blockCtx.feeManager.Bytes()); err != nil {
 		return fmt.Errorf("failed to insert fee manager into state: %w", err)
 	}
 	return nil
 }
 
-func (p *Processor) compareStateRoot(
+func (p *Processor) verifyParentRoot(
 	ctx context.Context,
 	parentView merkledb.View,
 	stateRoot ids.ID,
 ) error {
-	_, rspan := p.tracer.Start(ctx, "Chain.Execute.WaitRoot")
+	_, span := p.tracer.Start(ctx, "Chain.Execute.verifyParentRoot")
+	defer span.End()
+
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
-	rspan.End()
 	if err != nil {
 		return fmt.Errorf("failed to calculate parent state root: %w", err)
 	}
@@ -472,19 +473,6 @@ func (p *Processor) compareStateRoot(
 			stateRoot,
 		)
 	}
-	return nil
-}
-
-func (p *Processor) verifySignatures(ctx context.Context, sigJob workers.Job) error {
-	_, sspan := p.tracer.Start(ctx, "Chain.Execute.WaitSignatures")
-	start := time.Now()
-	err := sigJob.Wait()
-	sspan.End()
-	if err != nil {
-		return fmt.Errorf("signatures failed verification: %w", err)
-	}
-	p.metrics.waitSignaturesCount.Inc()
-	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
 	return nil
 }
 
