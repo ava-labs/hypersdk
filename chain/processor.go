@@ -167,8 +167,7 @@ func (p *Processor) Execute(
 	}
 
 	if isNormalOp {
-		oldestAllowed := max(0, b.Tmstmp-r.GetValidityWindow())
-		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, oldestAllowed); err != nil {
+		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrDuplicateTx, err)
 		}
 	}
@@ -180,10 +179,7 @@ func (p *Processor) Execute(
 		return nil, fmt.Errorf("failed to fetch fee manager from state: %w", err)
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute next fee manager: %w", err)
-	}
+	feeManager := parentFeeManager.ComputeNext(b.Tmstmp, r)
 
 	// Process transactions
 	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)

@@ -121,10 +121,8 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		return nil, nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
-	if err != nil {
-		return nil, nil, err
-	}
+	feeManager := parentFeeManager.ComputeNext(nextTime, r)
+
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
@@ -132,8 +130,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
-		ts            = tstate.New(changesEstimate)
-		oldestAllowed = nextTime - r.GetValidityWindow()
+		ts = tstate.New(changesEstimate)
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
@@ -172,7 +169,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := c.validityWindow.IsRepeat(ctx, parent, txs, oldestAllowed)
+		dup, err := c.validityWindow.IsRepeat(ctx, parent, nextTime, txs)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break

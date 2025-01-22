@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -18,90 +19,130 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-var ErrDuplicateContainer = errors.New("duplicate container")
+var (
+	_                     Interface[emap.Item] = (*TimeValidityWindow[emap.Item])(nil)
+	ErrDuplicateContainer                      = errors.New("duplicate container")
+)
 
-type TimeValidityWindow[Container emap.Item] struct {
+type GetTimeValidityWindowFunc func(timestamp int64) int64
+
+type ExecutionBlock[T emap.Item] interface {
+	GetID() ids.ID
+	GetParent() ids.ID
+	GetTimestamp() int64
+	GetHeight() uint64
+	GetContainers() []T
+	Contains(ids.ID) bool
+}
+
+type ChainIndex[T emap.Item] interface {
+	GetExecutionBlock(ctx context.Context, blkID ids.ID) (ExecutionBlock[T], error)
+}
+
+type Interface[T emap.Item] interface {
+	Accept(blk ExecutionBlock[T])
+	VerifyExpiryReplayProtection(ctx context.Context, blk ExecutionBlock[T]) error
+	IsRepeat(ctx context.Context, parentBlk ExecutionBlock[T], currentTimestamp int64, containers []T) (set.Bits, error)
+}
+
+type TimeValidityWindow[T emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
 
 	lock                    sync.Mutex
-	chainIndex              ChainIndex[Container]
-	seen                    *emap.EMap[Container]
+	chainIndex              ChainIndex[T]
+	seen                    *emap.EMap[T]
 	lastAcceptedBlockHeight uint64
+	getTimeValidityWindow   GetTimeValidityWindowFunc
 }
 
-func NewTimeValidityWindow[Container emap.Item](log logging.Logger, tracer trace.Tracer, chainIndex ChainIndex[Container]) *TimeValidityWindow[Container] {
-	return &TimeValidityWindow[Container]{
-		log:        log,
-		tracer:     tracer,
-		chainIndex: chainIndex,
-		seen:       emap.NewEMap[Container](),
+func NewTimeValidityWindow[T emap.Item](
+	log logging.Logger,
+	tracer trace.Tracer,
+	chainIndex ChainIndex[T],
+	getTimeValidityWindowF GetTimeValidityWindowFunc,
+) *TimeValidityWindow[T] {
+	return &TimeValidityWindow[T]{
+		log:                   log,
+		tracer:                tracer,
+		chainIndex:            chainIndex,
+		seen:                  emap.NewEMap[T](),
+		getTimeValidityWindow: getTimeValidityWindowF,
 	}
 }
 
-func (v *TimeValidityWindow[Container]) Accept(blk ExecutionBlock[Container]) {
+func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 	// Grab the lock before modifiying seen
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
 	evicted := v.seen.SetMin(blk.GetTimestamp())
-	v.log.Debug("txs evicted from seen", zap.Int("len", len(evicted)))
+	v.log.Debug("accepting block to validity window",
+		zap.Stringer("blkID", blk.GetID()),
+		zap.Time("minTimestamp", time.UnixMilli(blk.GetTimestamp())),
+		zap.Int("evicted", len(evicted)),
+	)
 	v.seen.Add(blk.GetContainers())
 	v.lastAcceptedBlockHeight = blk.GetHeight()
 }
 
-func (v *TimeValidityWindow[Container]) VerifyExpiryReplayProtection(
+func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 	ctx context.Context,
-	blk ExecutionBlock[Container],
-	oldestAllowed int64,
+	blk ExecutionBlock[T],
 ) error {
+	_, span := v.tracer.Start(ctx, "Chain.VerifyExpiryReplayProtection")
+	defer span.End()
+
 	if blk.GetHeight() <= v.lastAcceptedBlockHeight {
 		return nil
 	}
+
+	// make sure we have no repeats within the block itself.
+	blkContainerIDs := set.NewSet[ids.ID](len(blk.GetContainers()))
+	for _, container := range blk.GetContainers() {
+		containerID := container.GetID()
+		if blkContainerIDs.Contains(containerID) {
+			return fmt.Errorf("%w: %s", ErrDuplicateContainer, containerID)
+		}
+		blkContainerIDs.Add(containerID)
+	}
+
 	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.GetParent())
 	if err != nil {
 		return err
 	}
 
+	oldestAllowed := v.calculateOldestAllowed(blk.GetTimestamp())
 	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.GetContainers(), true)
 	if err != nil {
 		return err
 	}
 	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate bytes %q for %d txs", ErrDuplicateContainer, dup.Bytes(), len(blk.GetContainers()))
-	}
-	// make sure we have no repeats within the block itself.
-	blkContainerIDs := set.NewSet[ids.ID](len(blk.GetContainers()))
-	for _, container := range blk.GetContainers() {
-		id := container.GetID()
-		if blkContainerIDs.Contains(id) {
-			return fmt.Errorf("%w: duplicate in block", ErrDuplicateContainer)
-		}
-		blkContainerIDs.Add(id)
+		return fmt.Errorf("%w: contains %d duplicates out of %d containers", ErrDuplicateContainer, dup.BitLen(), len(blk.GetContainers()))
 	}
 	return nil
 }
 
-func (v *TimeValidityWindow[Container]) IsRepeat(
+func (v *TimeValidityWindow[T]) IsRepeat(
 	ctx context.Context,
-	parentBlk ExecutionBlock[Container],
-	txs []Container,
-	oldestAllowed int64,
+	parentBlk ExecutionBlock[T],
+	currentTimestamp int64,
+	containers []T,
 ) (set.Bits, error) {
-	return v.isRepeat(ctx, parentBlk, oldestAllowed, txs, false)
+	_, span := v.tracer.Start(ctx, "Chain.IsRepeat")
+	defer span.End()
+	oldestAllowed := v.calculateOldestAllowed(currentTimestamp)
+	return v.isRepeat(ctx, parentBlk, oldestAllowed, containers, false)
 }
 
-func (v *TimeValidityWindow[Container]) isRepeat(
+func (v *TimeValidityWindow[T]) isRepeat(
 	ctx context.Context,
-	ancestorBlk ExecutionBlock[Container],
+	ancestorBlk ExecutionBlock[T],
 	oldestAllowed int64,
-	containers []Container,
+	containers []T,
 	stop bool,
 ) (set.Bits, error) {
 	marker := set.NewBits()
-
-	_, span := v.tracer.Start(ctx, "Chain.isRepeat")
-	defer span.End()
 
 	v.lock.Lock()
 	defer v.lock.Unlock()
@@ -133,4 +174,8 @@ func (v *TimeValidityWindow[Container]) isRepeat(
 			return marker, err
 		}
 	}
+}
+
+func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
+	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
 }

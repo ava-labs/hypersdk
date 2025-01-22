@@ -72,7 +72,7 @@ func (f *Manager) lastConsumed(d fees.Dimension) uint64 {
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
-func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
+func (f *Manager) ComputeNext(currTime int64, r Rules) *Manager {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
@@ -99,7 +99,7 @@ func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
 		copy(bytes[start+consts.Uint64Len:start+consts.Uint64Len+window.WindowSliceSize], nextUnitWindow[:])
 		// Usage must be set after block is processed (we leave as 0 for now)
 	}
-	return &Manager{raw: bytes}, nil
+	return &Manager{raw: bytes}
 }
 
 func (f *Manager) SetUnitPrice(d fees.Dimension, price uint64) {

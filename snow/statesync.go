@@ -26,7 +26,7 @@ func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
 	if err := v.inputChainIndex.UpdateLastAccepted(ctx, block); err != nil {
 		return err
 	}
-	v.ready.Store(false)
+	v.ready = false
 	v.setLastAccepted(NewInputBlock(v, block))
 	return nil
 }
@@ -38,7 +38,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 	defer v.chainLock.Unlock()
 
 	// Cannot call FinishStateSync if already marked as ready and in normal operation
-	if v.ready.Load() {
+	if v.ready {
 		return fmt.Errorf("can't finish dynamic state sync from normal operation: %s", input)
 	}
 
@@ -68,7 +68,7 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		return err
 	}
 
-	v.ready.Store(true)
+	v.ready = true
 	return nil
 }
 
