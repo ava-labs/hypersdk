@@ -43,16 +43,14 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 	func() *ChunkStorage[dsmrtest.Tx],
 ) {
 	require := require.New(t)
-	numValidChunks := len(validChunkExpiry)
-	numInvalidChunks := len(invalidChunkExpiry)
 
-	validChunks := make([]Chunk[dsmrtest.Tx], 0, numValidChunks)
-	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
+	validChunks := make([]Chunk[dsmrtest.Tx], 0, len(validChunkExpiry))
+	for _, expiry := range validChunkExpiry {
 		chunk, err := newChunk(
 			UnsignedChunk[dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
-				Expiry:      validChunkExpiry[i-1],
+				Expiry:      expiry,
 				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
@@ -62,13 +60,13 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 		validChunks = append(validChunks, chunk)
 	}
 
-	invalidChunks := make([]Chunk[dsmrtest.Tx], 0, numInvalidChunks)
-	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
+	invalidChunks := make([]Chunk[dsmrtest.Tx], 0, len(invalidChunkExpiry))
+	for _, expiry := range invalidChunkExpiry {
 		chunk, err := newChunk(
 			UnsignedChunk[dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
-				Expiry:      invalidChunkExpiry[i-1],
+				Expiry:      expiry,
 				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
@@ -82,7 +80,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 
 	db, err := pebble.New(tempDir, pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	require.NoError(err)
-	validChunkIDs := make([]ids.ID, 0, numValidChunks)
+	validChunkIDs := make([]ids.ID, 0, len(validChunks))
 	for _, chunk := range validChunks {
 		validChunkIDs = append(validChunkIDs, chunk.id)
 	}
