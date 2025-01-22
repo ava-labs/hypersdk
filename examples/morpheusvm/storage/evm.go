@@ -89,6 +89,7 @@ func DeleteStorage(
 	return mu.Remove(ctx, k)
 }
 
+// Is this correct or do we need to grab the balance from a separate key and load that into the account as well?
 func GetAccount(
 	ctx context.Context,
 	im state.Immutable,
