@@ -11,12 +11,16 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 )
 
 const (
-	evmPrefix = 0xdd
+	accountPrefix byte = metadata.DefaultMinimumPrefix + iota
+	storagePrefix
+	codePrefix
 
 	StorageChunks = 1
 	AccountChunks = 2
@@ -24,23 +28,27 @@ const (
 )
 
 func AccountKey(addr common.Address) []byte {
-	// TODO: can we skip hashing and use the address directly
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
-	k := make([]byte, 0, 1+common.HashLength+consts.Uint16Len)
-	k = append(k, evmPrefix)
-	k = append(k, addrHash.Bytes()...)
-	k = binary.BigEndian.AppendUint16(k, AccountChunks)
+	k := make([]byte, consts.ByteLen+common.AddressLength+consts.Uint16Len)
+	k[0] = accountPrefix
+	copy(k[1:1+common.AddressLength], addr.Bytes())
+	binary.BigEndian.PutUint16(k[1+common.AddressLength:], AccountChunks)
 	return k
 }
 
 func StorageKey(addr common.Address, key []byte) []byte {
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
-	keyHash := crypto.Keccak256Hash(key)
-	k := make([]byte, 0, 1+2*common.HashLength+consts.Uint16Len)
-	k = append(k, evmPrefix)
-	k = append(k, addrHash.Bytes()...)
-	k = append(k, keyHash.Bytes()...)
-	k = binary.BigEndian.AppendUint16(k, StorageChunks)
+	k := make([]byte, consts.ByteLen+common.AddressLength+len(key)+consts.Uint16Len)
+	k[0] = storagePrefix
+	copy(k[1:1+common.AddressLength], addr.Bytes())
+	copy(k[1+common.AddressLength:], key)
+	binary.BigEndian.PutUint16(k[1+common.AddressLength+len(key):], StorageChunks)
+	return k
+}
+
+func CodeKey(addr common.Address) []byte {
+	k := make([]byte, consts.ByteLen+common.AddressLength+consts.Uint16Len)
+	k[0] = codePrefix
+	copy(k[1:1+common.AddressLength], addr.Bytes())
+	binary.BigEndian.PutUint16(k[1+common.AddressLength:], CodeChunks)
 	return k
 }
 
@@ -90,7 +98,17 @@ func GetAccount(
 	k := AccountKey(addr)
 	val, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return nil, nil
+		newAcc := types.StateAccount{
+			Nonce:    0,
+			Balance:  uint256.NewInt(0),
+			Root:     common.Hash{},
+			CodeHash: []byte{},
+		}
+		encoded, err := EncodeAccount(&newAcc)
+		if err != nil {
+			return nil, err
+		}
+		return encoded, nil
 	}
 	if err != nil {
 		return nil, err
@@ -117,15 +135,6 @@ func DeleteAccount(
 	return mu.Remove(ctx, k)
 }
 
-func CodeKey(addr common.Address) []byte {
-	addrHash := crypto.Keccak256Hash(addr.Bytes())
-	k := make([]byte, 0, 1+common.HashLength+consts.Uint16Len)
-	k = append(k, evmPrefix)
-	k = append(k, addrHash.Bytes()...)
-	k = binary.BigEndian.AppendUint16(k, CodeChunks)
-	return k
-}
-
 func GetCode(
 	ctx context.Context,
 	im state.Immutable,
@@ -150,4 +159,24 @@ func SetCode(
 ) error {
 	k := CodeKey(addr)
 	return mu.Insert(ctx, k, code)
+}
+
+func GetNonce(
+	ctx context.Context,
+	im state.Immutable,
+	addr common.Address,
+) (uint64, error) {
+	k := AccountKey(addr)
+	val, err := im.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	account, err := DecodeAccount(val)
+	if err != nil {
+		return 0, err
+	}
+	return account.Nonce, nil
 }

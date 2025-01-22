@@ -28,16 +28,18 @@ var (
 	maxBlockUnits         []string
 	windowTargetUnits     []string
 	minBlockGap           int64
+	validityWindow        int64
 	hideTxs               bool
 	checkAllChains        bool
 	spamDefaults          bool
+	spamKey               string
+	clusterInfo           string
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-
-	rootCmd = &cobra.Command{
+	rootCmd               = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
@@ -53,6 +55,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		MakeEVMCmd(),
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -106,6 +109,12 @@ func init() {
 		-1,
 		"minimum block gap (ms)",
 	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&validityWindow,
+		"validity-window",
+		-1,
+		"validity window (ms)",
+	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,
 	)
@@ -135,6 +144,7 @@ func init() {
 		importChainCmd,
 		setChainCmd,
 		chainInfoCmd,
+		importAvalancheCliChainCmd,
 		watchChainCmd,
 	)
 
@@ -148,6 +158,20 @@ func init() {
 		"defaults",
 		false,
 		"use default spam parameters",
+	)
+
+	runSpamCmd.PersistentFlags().StringVar(
+		&clusterInfo,
+		"cluster-info",
+		"",
+		"output from avalanche-cli with cluster info",
+	)
+
+	runSpamCmd.PersistentFlags().StringVar(
+		&spamKey,
+		"key",
+		"",
+		"private key used to distribute funds",
 	)
 
 	// spam

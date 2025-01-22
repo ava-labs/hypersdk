@@ -49,17 +49,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// Import HyperSDK e2e test coverage and inject MorpheusVM name
 	// and workload factory to orchestrate the test.
 	spamHelper := throughput.SpamHelper{
-		KeyType: auth.ED25519Key,
+		KeyType: auth.Secp256k1Key,
 	}
 
-	firstKey := testingNetworkConfig.Keys()[0]
-	generator := workload.NewTxGenerator(firstKey)
-	spamKey := &auth.PrivateKey{
-		Address: auth.NewED25519Address(firstKey.PublicKey()),
-		Bytes:   firstKey[:],
-	}
+	firstAuthFactory := testingNetworkConfig.AuthFactories()[0]
+	generator := workload.NewTxGenerator(firstAuthFactory)
 	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
+	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, firstAuthFactory)
 
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {

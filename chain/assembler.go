@@ -5,70 +5,53 @@ package chain
 
 import (
 	"context"
-	"time"
 
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/avalanchego/trace"
+
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type Assembler struct {
-	vm VM
+	tracer    trace.Tracer
+	processor *Processor
+}
+
+func NewAssembler(tracer trace.Tracer, processor *Processor) *Assembler {
+	return &Assembler{
+		tracer:    tracer,
+		processor: processor,
+	}
 }
 
 func (a *Assembler) AssembleBlock(
 	ctx context.Context,
-	parent *StatefulBlock,
+	parentView state.View,
+	parent *ExecutionBlock,
 	timestamp int64,
 	blockHeight uint64,
 	txs []*Transaction,
-) (*StatefulBlock, error) {
-	ctx, span := a.vm.Tracer().Start(ctx, "chain.AssembleBlock")
+) (*ExecutedBlock, state.View, error) {
+	ctx, span := a.tracer.Start(ctx, "Chain.AssembleBlock")
 	defer span.End()
 
-	parentView, err := parent.View(ctx, true)
-	if err != nil {
-		return nil, err
-	}
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	blk := &StatelessBlock{
-		Prnt:      parent.ID(),
-		Tmstmp:    timestamp,
-		Hght:      blockHeight,
-		Txs:       txs,
-		StateRoot: parentStateRoot,
-	}
-	for _, tx := range txs {
-		blk.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	blkBytes, err := blk.Marshal()
+	sb, err := NewStatelessBlock(
+		parent.ID(),
+		timestamp,
+		blockHeight,
+		txs,
+		parentStateRoot,
+	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	b := &StatefulBlock{
-		StatelessBlock: blk,
-		t:              time.UnixMilli(blk.Tmstmp),
-		bytes:          blkBytes,
-		accepted:       false,
-		vm:             a.vm,
-		id:             utils.ToID(blkBytes),
+	executionBlock, err := NewExecutionBlock(sb)
+	if err != nil {
+		return nil, nil, err
 	}
-	return b, b.populateTxs(ctx) // TODO: simplify since txs are guaranteed to already be de-duplicated here
-}
-
-func (a *Assembler) ExecuteBlock(
-	ctx context.Context,
-	b *StatefulBlock,
-) (*ExecutedBlock, error) {
-	ctx, span := a.vm.Tracer().Start(ctx, "chain.ExecuteBlock")
-	defer span.End()
-
-	if err := b.Verify(ctx); err != nil {
-		return nil, err
-	}
-
-	return NewExecutedBlockFromStateful(b), nil
+	return a.processor.Execute(ctx, parentView, executionBlock)
 }

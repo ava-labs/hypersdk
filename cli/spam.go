@@ -6,14 +6,19 @@ package cli
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/cli/prompt"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/throughput"
 )
 
-// BuildSpammer prompts the user for the spammer parameters. If [defaults], the default values are used once the
+// BuildSpammer prompts the user for the spammer parameters.
+// If [spamKey] is provided, the user is not prompted for the root key.
+// If [defaults], the default values are used once the
 // chain and root key are selected. Otherwise, the user is prompted for all parameters.
-func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throughput.Spammer, error) {
+func (h *Handler) BuildSpammer(sh throughput.SpamHelper, spamKey string, defaults bool) (*throughput.Spammer, error) {
 	// Select chain
 	chains, err := h.GetChains()
 	if err != nil {
@@ -24,27 +29,47 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 		return nil, err
 	}
 
-	// Select root key
-	keys, err := h.GetKeys()
-	if err != nil {
-		return nil, err
-	}
 	if err := sh.CreateClient(uris[0]); err != nil {
 		return nil, err
 	}
 
-	keyIndex, err := prompt.Choice("select root key", len(keys))
-	if err != nil {
-		return nil, err
+	var key *auth.PrivateKey
+
+	if len(spamKey) == 0 {
+		// Select root key
+		keys, err := h.GetKeys()
+		if err != nil {
+			return nil, err
+		}
+		keyIndex, err := prompt.Choice("select root key", len(keys))
+		if err != nil {
+			return nil, err
+		}
+		key = keys[keyIndex]
+	} else {
+		bytes, err := codec.LoadHex(spamKey, ed25519.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		privateKey := ed25519.PrivateKey(bytes)
+		key = &auth.PrivateKey{
+			Address: auth.NewED25519Address(privateKey.PublicKey()),
+			Bytes:   bytes,
+		}
 	}
-	key := keys[keyIndex]
+
 	// No longer using db, so we close
 	if err := h.CloseDatabase(); err != nil {
 		return nil, err
 	}
 
+	authFactory, err := auth.GetFactory(key)
+	if err != nil {
+		return nil, err
+	}
+
 	if defaults {
-		sc := throughput.NewDefaultConfig(uris, key)
+		sc := throughput.NewFastConfig(uris, authFactory)
 		return throughput.NewSpammer(sc, sh)
 	}
 	// Collect parameters
@@ -83,7 +108,7 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 
 	sc := throughput.NewConfig(
 		uris,
-		key,
+		authFactory,
 		sZipf,
 		vZipf,
 		txsPerSecond,
@@ -96,8 +121,8 @@ func (h *Handler) BuildSpammer(sh throughput.SpamHelper, defaults bool) (*throug
 	return throughput.NewSpammer(sc, sh)
 }
 
-func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, defaults bool) error {
-	spammer, err := h.BuildSpammer(sh, defaults)
+func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, spamKey string, defaults bool) error {
+	spammer, err := h.BuildSpammer(sh, spamKey, defaults)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ package cli
 
 import (
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -26,7 +27,7 @@ type Handler struct {
 }
 
 func New(c Controller) (*Handler, error) {
-	db, _, err := pebble.New(c.DatabasePath(), pebble.NewDefaultConfig())
+	db, err := pebble.New(c.DatabasePath(), pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	if err != nil {
 		return nil, err
 	}

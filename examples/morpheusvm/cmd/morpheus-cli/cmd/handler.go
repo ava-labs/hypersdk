@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/crypto/secp256k1"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
@@ -14,9 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/bls"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -45,21 +43,23 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	var factory chain.AuthFactory
-	switch addr[0] {
-	case auth.ED25519ID:
-		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
-	case auth.SECP256R1ID:
-		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
-	case auth.BLSID:
-		p, err := bls.PrivateKeyFromBytes(priv)
-		if err != nil {
-			return ids.Empty, nil, nil, nil, nil, nil, err
-		}
-		factory = auth.NewBLSFactory(p)
-	default:
-		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
-	}
+	// var factory chain.AuthFactory
+	// switch addr[0] {
+	// case auth.ED25519ID:
+	// 	factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
+	// case auth.SECP256R1ID:
+	// 	factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
+	// case auth.BLSID:
+	// 	p, err := bls.PrivateKeyFromBytes(priv)
+	// 	if err != nil {
+	// 		return ids.Empty, nil, nil, nil, nil, nil, err
+	// 	}
+	// 	factory = auth.NewBLSFactory(p)
+	// case auth.SECP256K1ID:
+	factory := auth.NewSECP256K1Factory(secp256k1.PrivateKey(priv))
+	// default:
+	// 	return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
+	// }
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err

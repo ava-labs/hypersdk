@@ -40,13 +40,15 @@ func init() {
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
+		ActionParser.Register(&actions.EvmCall{}, nil),
 		ActionParser.Register(&actions.Transfer{}, nil),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
-
+		AuthParser.Register(&auth.SECP256K1{}, auth.UnmarshalSECP256K1),
+		OutputParser.Register(&actions.EvmCallResult{}, nil),
 		OutputParser.Register(&actions.TransferResult{}, nil),
 	)
 

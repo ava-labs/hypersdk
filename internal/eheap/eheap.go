@@ -11,8 +11,8 @@ import (
 
 // Item is the interface that any item put in the heap must adheare to.
 type Item interface {
-	ID() ids.ID
-	Expiry() int64
+	GetID() ids.ID
+	GetExpiry() int64
 }
 
 // ExpiryHeap keeps a min heap of [Items] sorted by [Expiry].
@@ -35,11 +35,11 @@ func New[T Item](items int) *ExpiryHeap[T] {
 
 // Add pushes [item] to eh.
 func (eh *ExpiryHeap[T]) Add(item T) {
-	itemID := item.ID()
+	itemID := item.GetID()
 	poolLen := eh.minHeap.Len()
 	eh.minHeap.Push(&heap.Entry[T, int64]{
 		ID:    itemID,
-		Val:   item.Expiry(),
+		Val:   item.GetExpiry(),
 		Item:  item,
 		Index: poolLen,
 	})
@@ -66,7 +66,7 @@ func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 		if !ok {
 			break
 		}
-		if min.Expiry() < val {
+		if min.GetExpiry() < val {
 			eh.PopMin() // Assumes that there is not concurrent access to [ExpiryHeap]
 			removed = append(removed, min)
 			continue
@@ -92,7 +92,7 @@ func (eh *ExpiryHeap[T]) PopMin() (T, bool) {
 		return *new(T), false
 	}
 	item := first.Item
-	eh.Remove(item.ID())
+	eh.Remove(item.GetID())
 	return item, true
 }
 

@@ -21,6 +21,8 @@ import (
 var (
 	ErrUnableToConfirmTx = errors.New("unable to confirm transaction")
 	ErrInvalidURI        = errors.New("invalid uri")
+
+	_ workload.TestNetwork = (*Network)(nil)
 )
 
 const (

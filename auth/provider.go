@@ -22,6 +22,7 @@ func WithDefaultPrivateKeyFactories(authProvider *AuthProvider, errs *wrappers.E
 		authProvider.Register(ED25519Key, NewED25519PrivateKeyFactory()),
 		authProvider.Register(Secp256r1Key, NewSECP256R1PrivateKeyFactory()),
 		authProvider.Register(BLSKey, NewBLSPrivateKeyFactory()),
+		authProvider.Register(Secp256k1Key, NewSECP256K1PrivateKeyFactory()),
 	)
 }
 

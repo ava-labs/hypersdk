@@ -1,50 +1,51 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package actions
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/subnet-evm/core"
 	"github.com/ava-labs/subnet-evm/core/vm"
 	"github.com/ava-labs/subnet-evm/params"
+	"github.com/ava-labs/subnet-evm/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var _ chain.Action = (*EvmCall)(nil)
 
+var zeroAddress = common.HexToAddress("0x0000000000000000000000000000000000000000")
+
 type EvmCall struct {
 	To       *common.Address `serialize:"true" json:"to"`        // Address of the contract to call (nil means contract creation)
-	Value    *big.Int        `serialize:"true" json:"value"`     // Amount of native tokens to send
+	Value    uint64          `serialize:"true" json:"value"`     // Amount of native tokens to send
 	GasLimit uint64          `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
 	Data     []byte          `serialize:"true" json:"data"`      // Input data for the transaction
 	Keys     state.Keys      `serialize:"true" json:"stateKeys"` // State keys accessed by this call
+	From     common.Address  `serialize:"true" json:"from"`      // Address of the sender
 }
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 	return e.GasLimit
 }
 
-func ToEVMAddress(addr codec.Address) common.Address {
-	hashed := hashing.ComputeHash256(addr[:])
-	return common.BytesToAddress(hashed[len(hashed)-common.AddressLength:])
-}
-
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
-	return &core.Message{
+	coreMessage := &core.Message{
 		From:              from,
 		To:                e.To,
-		Value:             e.Value,
+		Value:             big.NewInt(int64(e.Value)),
 		GasLimit:          e.GasLimit,
 		Data:              e.Data,
 		GasPrice:          big.NewInt(0),
@@ -52,6 +53,10 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		GasTipCap:         big.NewInt(0),
 		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
+	if e.To == nil || *e.To == (common.Address{}) {
+		coreMessage.To = nil
+	}
+	return coreMessage
 }
 
 func (*EvmCall) GetTypeID() uint8 {
@@ -86,7 +91,12 @@ func (e *EvmCall) Execute(
 	}
 
 	statedb, shim := shim.NewStateDB(ctx, mu)
-	from := ToEVMAddress(actor)
+	var from common.Address
+	if e.From != (common.Address{}) {
+		from = e.From
+	} else {
+		from = storage.ConvertAddress(actor)
+	}
 	msg := e.toMessage(from)
 	txContext := core.NewEVMTxContext(msg)
 	chainConfig := params.SubnetEVMDefaultChainConfig
@@ -99,32 +109,91 @@ func (e *EvmCall) Execute(
 		return nil, err
 	}
 	if err := shim.Error(); err != nil {
+		fmt.Println("shim error", err)
 		return nil, err
 	}
 	if err := statedb.Error(); err != nil {
+		fmt.Println("statedb error", err)
 		return nil, err
 	}
+	_ = statedb.IntermediateRoot(true)
 
-	// hash := statedb.IntermediateRoot(true)
+	var resultErrCode ErrorCode
+	switch result.Err {
+	case nil:
+		resultErrCode = NilError
+	case vmerrs.ErrExecutionReverted:
+		resultErrCode = ErrExecutionReverted
+	default:
+		resultErrCode = ErrExecutionFailed
+	}
 
-	// NOTE: we must explicitly check the error from statedb, since if the tx
-	// accesses a key that is not allowed, the EVM will not return an error
-	// from ApplyMessage, but the statedb will have an error instead.
+	var contractAddress common.Address
+	if msg.To == nil || *msg.To == (common.Address{}) || *msg.To == zeroAddress {
+		nonce := statedb.GetNonce(from)
+		contractAddress = crypto.CreateAddress(from, nonce-1)
+	}
 	return &EvmCallResult{
-		Success: result.Err == nil,
-		Return:  result.ReturnData,
-		UsedGas: result.UsedGas,
-		Err:     result.Err,
+		Success:         result.Err == nil,
+		Return:          result.ReturnData,
+		UsedGas:         result.UsedGas,
+		ErrorCode:       resultErrCode,
+		ContractAddress: contractAddress,
 	}, nil
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)
 
 type EvmCallResult struct {
-	Success bool   `json:"success"`
-	UsedGas uint64 `json:"usedGas"`
-	Return  []byte `json:"return"`
-	Err     error  `json:"err"`
+	Success         bool           `serialize:"true" json:"success"`
+	Return          []byte         `serialize:"true" json:"return"`
+	UsedGas         uint64         `serialize:"true" json:"usedGas"`
+	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
+	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
+}
+
+// The result.Err field returned by core.ApplyMessage contains an error type, but
+// the actual value is not part of the EVM's state transition function. ie. if the
+// error changes it should not change the state transition (block/state).
+// We convert it to an error code representing the three differentiated error types:
+// nil (success), revert (special case), and all other erros as a generic failure.
+type ErrorCode byte
+
+const (
+	NilError ErrorCode = iota
+	ErrExecutionReverted
+	ErrExecutionFailed
+)
+
+func (e ErrorCode) String() string {
+	switch {
+	case e == NilError:
+		return "nil"
+	case e == ErrExecutionReverted:
+		return "reverted"
+	case e == ErrExecutionFailed:
+		return "failed"
+	default:
+		return "unknown"
+	}
+}
+
+func (e ErrorCode) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+func (e *ErrorCode) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "nil":
+		*e = NilError
+	case "reverted":
+		*e = ErrExecutionReverted
+	case "failed":
+		*e = ErrExecutionFailed
+	default:
+		return fmt.Errorf("failed to unmarshal error code: %s", text)
+	}
+	return nil
 }
 
 func (*EvmCallResult) GetTypeID() uint8 {

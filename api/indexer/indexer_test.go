@@ -4,6 +4,7 @@
 package indexer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,6 +16,7 @@ import (
 
 func createTestIndexer(
 	t *testing.T,
+	ctx context.Context,
 	numExecutedBlocks int,
 	blockWindow int,
 ) (indexer *Indexer, executedBlocks []*chain.ExecutedBlock, indexerDir string) {
@@ -33,7 +35,7 @@ func createTestIndexer(
 		numExecutedBlocks,
 	)
 	for _, blk := range executedBlocks {
-		err = indexer.Accept(blk)
+		err = indexer.Notify(ctx, blk)
 		require.NoError(err)
 	}
 	return indexer, executedBlocks, tempDir
@@ -50,7 +52,7 @@ func checkBlocks(
 	expectedLatestBlk := expectedBlocks[len(expectedBlocks)-1]
 	latestBlk, err := indexer.GetLatestBlock()
 	require.NoError(err)
-	require.Equal(expectedLatestBlk.BlockID, latestBlk.BlockID)
+	require.Equal(expectedLatestBlk.Block.ID(), latestBlk.Block.ID())
 
 	// Confirm all blocks in the window are retrievable
 	for i := 0; i < blockWindow; i++ {
@@ -58,11 +60,11 @@ func checkBlocks(
 		height := expectedBlk.Block.Hght
 		blkByHeight, err := indexer.GetBlockByHeight(height)
 		require.NoError(err)
-		require.Equal(expectedBlk.BlockID, blkByHeight.BlockID)
+		require.Equal(expectedBlk.Block.ID(), blkByHeight.Block.ID())
 
-		blkByID, err := indexer.GetBlock(expectedBlk.BlockID)
+		blkByID, err := indexer.GetBlock(expectedBlk.Block.ID())
 		require.NoError(err)
-		require.Equal(expectedBlk.BlockID, blkByID.BlockID)
+		require.Equal(expectedBlk.Block.ID(), blkByID.Block.ID())
 	}
 
 	// Confirm blocks outside the window are not retrievable
@@ -74,11 +76,12 @@ func checkBlocks(
 
 func TestBlockIndex(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
@@ -86,11 +89,12 @@ func TestBlockIndex(t *testing.T) {
 
 func TestBlockIndexRestart(t *testing.T) {
 	require := require.New(t)
+	ctx := context.Background()
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
 
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)

@@ -7,18 +7,21 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 var _ Builder = (*Manual)(nil)
 
 type Manual struct {
-	vm        VM
+	engineCh  chan<- common.Message
+	logger    logging.Logger
 	doneBuild chan struct{}
 }
 
-func NewManual(vm VM) *Manual {
+func NewManual(engineCh chan<- common.Message, logger logging.Logger) *Manual {
 	return &Manual{
-		vm:        vm,
+		engineCh:  engineCh,
+		logger:    logger,
 		doneBuild: make(chan struct{}),
 	}
 }
@@ -32,9 +35,9 @@ func (*Manual) Queue(context.Context) {}
 
 func (b *Manual) Force(context.Context) error {
 	select {
-	case b.vm.EngineChan() <- common.PendingTxs:
+	case b.engineCh <- common.PendingTxs:
 	default:
-		b.vm.Logger().Debug("dropping message to consensus engine")
+		b.logger.Debug("dropping message to consensus engine")
 	}
 	return nil
 }

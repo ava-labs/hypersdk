@@ -4,18 +4,14 @@
 package secp256k1
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"math/big"
-
-	"github.com/consensys/gnark-crypto/ecc/secp256k1"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	PublicKeyLen  = 64 // fp.Size (uncompressed from)
-	PrivateKeyLen = 96 // fr.Size + PublicKeyLen
-	SignatureLen  = 64 // 2*fr.Size
+	PublicKeyLen  = 33
+	PrivateKeyLen = 32
+	SignatureLen  = 65
 )
 
 type (
@@ -32,37 +28,39 @@ var (
 
 // GeneratePrivateKey returns a secp256k1 private key.
 func GeneratePrivateKey() (PrivateKey, error) {
-	// this returns a public key + private key
-	privKey, err := ecdsa.GenerateKey(rand.Reader)
+	privKey, err := crypto.GenerateKey()
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	return PrivateKey(privKey.Bytes()[:PrivateKeyLen]), nil
+	if len(privKey.D.Bytes()) != PrivateKeyLen {
+		return GeneratePrivateKey()
+	}
+	return PrivateKey(privKey.D.Bytes()), nil
 }
 
 // PublicKey returns the secp256k1 public key associated with the private key.
 func (p PrivateKey) PublicKey() PublicKey {
-
-	_, g := secp256k1.Generators()
-
-	pubKey := ecdsa.PublicKey{}
-	pubKey.A.ScalarMultiplication(&g, new(big.Int).SetBytes(p[PublicKeyLen:]))
-	return PublicKey(pubKey.Bytes())
+	privKey, err := crypto.ToECDSA(p[:])
+	if err != nil {
+		return EmptyPublicKey
+	}
+	return PublicKey(crypto.CompressPubkey(&privKey.PublicKey))
 }
 
 func (p PrivateKey) Scalar() [32]byte {
 	var scalar [32]byte
-	copy(scalar[:], p[PublicKeyLen:])
+	copy(scalar[:], p[:])
 	return scalar
 }
 
 // Sign returns a valid signature for msg using pk.
 func (p PrivateKey) Sign(msg []byte) Signature {
-
-	privKeyL := ecdsa.PrivateKey{}
-	privKeyL.SetBytes(p[:])
-
-	sig, err := privKeyL.Sign(msg, sha256.New())
+	privKey, err := crypto.ToECDSA(p[:])
+	if err != nil {
+		return EmptySignature
+	}
+	digest := crypto.Keccak256Hash(msg)
+	sig, err := crypto.Sign(digest.Bytes(), privKey)
 	if err != nil {
 		return EmptySignature
 	}
@@ -71,8 +69,31 @@ func (p PrivateKey) Sign(msg []byte) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	publicKey := ecdsa.PublicKey{}
-	publicKey.SetBytes(p[:])
-	res, _ := publicKey.Verify(s[:], msg, sha256.New())
+	pk, err := crypto.DecompressPubkey(p[:])
+	if err != nil {
+		return false
+	}
+	publicKeyBytes := crypto.FromECDSAPub(pk)
+	// pk, err := secp256k1.RecoverPubkey(msg, s[:])
+	// if err != nil {
+	// 	fmt.Println("err", err)
+	// 	return false
+	// }
+	digest := crypto.Keccak256Hash(msg)
+	signatureNoRecoverID := s[:len(s)-1]
+	res := crypto.VerifySignature(publicKeyBytes[:], digest.Bytes(), signatureNoRecoverID[:])
 	return res
+}
+func PublicKeyBytesToAddress(publicKey []byte) common.Address {
+	hash := crypto.Keccak256Hash(publicKey[1:])
+	address := hash.Bytes()[12:]
+	return common.BytesToAddress(address)
+}
+
+func PublicKeyToAddress(p PublicKey) (common.Address, error) {
+	pk, err := crypto.DecompressPubkey(p[:])
+	if err != nil {
+		return common.Address{}, err
+	}
+	return crypto.PubkeyToAddress(*pk), nil
 }

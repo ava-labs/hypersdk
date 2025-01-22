@@ -21,6 +21,6 @@ const (
 
 func Engines() map[uint8]vm.AuthEngine {
 	return map[uint8]vm.AuthEngine{
-		ED25519ID: &ED25519AuthEngine{},
+		// ED25519ID: &ED25519AuthEngine{},
 	}
 }

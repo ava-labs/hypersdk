@@ -4,13 +4,20 @@
 package vm
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state/tstate"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const JSONRPCEndpoint = "/morpheusapi"
@@ -52,14 +59,153 @@ type BalanceReply struct {
 	Amount uint64 `json:"amount"`
 }
 
+type NonceArgs struct {
+	Address codec.Address `json:"address"`
+}
+
+type NonceReply struct {
+	Nonce uint64 `json:"nonce"`
+}
+
+type TxArgs struct {
+	TxID ids.ID `json:"txId"`
+}
+
+type TxReply struct {
+	Timestamp int64           `json:"timestamp"`
+	Success   bool            `json:"success"`
+	Units     fees.Dimensions `json:"units"`
+	Fee       uint64          `json:"fee"`
+}
+
 func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
-
-	balance, err := storage.GetBalanceFromState(ctx, j.vm.ReadState, args.Address[:])
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	evmAddr := common.Address{}
+	copy(evmAddr[:], args.Address[13:])
+	balance, err := storage.GetBalance(ctx, im, evmAddr)
 	if err != nil {
 		return err
 	}
 	reply.Amount = balance
 	return err
+}
+
+func (j *JSONRPCServer) Nonce(req *http.Request, args *NonceArgs, reply *NonceReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Nonce")
+	defer span.End()
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	nonce, err := storage.GetNonce(ctx, im, storage.ConvertAddress(args.Address))
+	if err != nil {
+		return err
+	}
+	reply.Nonce = nonce
+	return nil
+}
+
+func (j *JSONRPCServer) SimulateActions(
+	req *http.Request,
+	args *SimulatActionsArgs,
+	reply *SimulateActionsReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
+	defer span.End()
+
+	actionRegistry := j.vm.ActionCodec()
+	var actions chain.Actions
+	for _, actionBytes := range args.Actions {
+		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
+		action, err := (*actionRegistry).Unmarshal(actionsReader)
+		if err != nil {
+			return err
+		}
+		if !actionsReader.Empty() {
+			return fmt.Errorf("transaction extra bytes")
+		}
+		actions = append(actions, action)
+	}
+	if len(actions) == 0 {
+		return fmt.Errorf("simulate zero actions")
+	}
+	currentState, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+
+	currentTime := time.Now().UnixMilli()
+	for i, action := range actions {
+		recorder := tstate.NewRecorder(currentState)
+		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+		if err != nil {
+			return fmt.Errorf("failed to execute action: %w", err)
+		}
+
+		actionOutputBytes, err := chain.MarshalTyped(actionOutput)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output simulating action (%d: %v) output = %v: %w", i, action, actionOutput, err)
+		}
+		reply.ActionResults = append(reply.ActionResults, SimulateActionResult{
+			Output:    actionOutputBytes,
+			StateKeys: recorder.GetStateKeys(),
+		})
+		currentState = recorder
+	}
+	return nil
+}
+
+type EVMGetCodeArgs struct {
+	Address common.Address `json:"address"`
+}
+
+type EVMGetCodeReply struct {
+	Code []byte `json:"code"`
+}
+
+func (j *JSONRPCServer) EvmGetCode(req *http.Request, args *EVMGetCodeArgs, reply *EVMGetCodeReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Nonce")
+	defer span.End()
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	code, err := storage.GetCode(ctx, im, args.Address)
+	if err != nil {
+		return err
+	}
+	reply.Code = code
+	return nil
+}
+
+type GetBalanceEVMArgs struct {
+	Address common.Address
+}
+
+type GetBalanceEVMReply struct {
+	Balance uint64
+}
+
+func (j *JSONRPCServer) GetBalanceEVM(
+	req *http.Request,
+	args *GetBalanceEVMArgs,
+	reply *GetBalanceEVMReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.GetBalanceEVM")
+	defer span.End()
+	im, err := j.vm.ImmutableState(ctx)
+	if err != nil {
+		return err
+	}
+	balance, err := storage.GetBalance(ctx, im, args.Address)
+	if err != nil {
+		return err
+	}
+	reply.Balance = balance
+	return nil
 }

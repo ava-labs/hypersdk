@@ -26,11 +26,6 @@ func (em *executorMetrics) RecordExecutable() {
 
 type Metrics struct {
 	txsSubmitted             prometheus.Counter // includes gossip
-	txsReceived              prometheus.Counter
-	seenTxsReceived          prometheus.Counter
-	txsGossiped              prometheus.Counter
-	txsVerified              prometheus.Counter
-	txsAccepted              prometheus.Counter
 	stateChanges             prometheus.Counter
 	stateOperations          prometheus.Counter
 	buildCapped              prometheus.Counter
@@ -49,9 +44,6 @@ type Metrics struct {
 	storageReadPrice         prometheus.Gauge
 	storageAllocatePrice     prometheus.Gauge
 	storageWritePrice        prometheus.Gauge
-	rootCalculated           metric.Averager
-	waitRoot                 metric.Averager
-	waitSignatures           metric.Averager
 	blockBuild               metric.Averager
 	blockParse               metric.Averager
 	blockVerify              metric.Averager
@@ -65,30 +57,6 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
-	rootCalculated, err := metric.NewAverager(
-		"chain_root_calculated",
-		"time spent calculating the state root in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitRoot, err := metric.NewAverager(
-		"chain_wait_root",
-		"time spent waiting for root calculation in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitSignatures, err := metric.NewAverager(
-		"chain_wait_signatures",
-		"time spent waiting for signature verification in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 	blockBuild, err := metric.NewAverager(
 		"chain_block_build",
 		"time spent building blocks",
@@ -135,31 +103,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "vm",
 			Name:      "txs_submitted",
 			Help:      "number of txs submitted to vm",
-		}),
-		txsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_received",
-			Help:      "number of txs received over gossip",
-		}),
-		seenTxsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "seen_txs_received",
-			Help:      "number of txs received over gossip that we've already seen",
-		}),
-		txsGossiped: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_gossiped",
-			Help:      "number of txs gossiped by vm",
-		}),
-		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_verified",
-			Help:      "number of txs verified by vm",
-		}),
-		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_accepted",
-			Help:      "number of txs accepted by vm",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -251,14 +194,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "storage_modify_price",
 			Help:      "unit price of storage modifications",
 		}),
-		rootCalculated: rootCalculated,
-		waitRoot:       waitRoot,
-		waitSignatures: waitSignatures,
-		blockBuild:     blockBuild,
-		blockParse:     blockParse,
-		blockVerify:    blockVerify,
-		blockAccept:    blockAccept,
-		blockProcess:   blockProcess,
+		blockBuild:   blockBuild,
+		blockParse:   blockParse,
+		blockVerify:  blockVerify,
+		blockAccept:  blockAccept,
+		blockProcess: blockProcess,
 	}
 	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
 	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
@@ -266,11 +206,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.txsSubmitted),
-		r.Register(m.txsReceived),
-		r.Register(m.seenTxsReceived),
-		r.Register(m.txsGossiped),
-		r.Register(m.txsVerified),
-		r.Register(m.txsAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),

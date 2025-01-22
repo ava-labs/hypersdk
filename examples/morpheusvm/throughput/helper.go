@@ -9,15 +9,18 @@ package throughput
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"sync/atomic"
 
 	"golang.org/x/exp/rand"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/throughput"
@@ -54,6 +57,11 @@ func (sh *SpamHelper) CreateClient(uri string) error {
 	return nil
 }
 
+func (sh *SpamHelper) CreateJSONRPCClient(uri string) (*jsonrpc.JSONRPCClient, error) {
+	cli := jsonrpc.NewJSONRPCClient(uri)
+	return cli, nil
+}
+
 func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
@@ -67,18 +75,38 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 	return balance, err
 }
 
-func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
-	return []chain.Action{&actions.Transfer{
-		To:    address,
-		Value: amount,
-		Memo:  memo,
-	}}
+func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, factory chain.AuthFactory) []chain.Action {
+
+	to := storage.ConvertAddress(address)
+
+	call := &actions.EvmCall{
+		To:       &to,
+		Value:    amount,
+		GasLimit: 100000,
+		Data:     []byte{},
+	}
+
+	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
+	if err != nil {
+		fmt.Println("simulate actions error", err)
+		return []chain.Action{} // TODO: handle this better, return err
+	}
+	actionResult := simRes[0]
+	call.Keys = actionResult.StateKeys
+
+	// call := &actions.Transfer{
+	// 	To:    address,
+	// 	Value: amount,
+	// 	Memo:  memo,
+	// }
+
+	return []chain.Action{call}
 }
 
-func (sh *SpamHelper) GetActions() []chain.Action {
+func (sh *SpamHelper) GetActions(factory chain.AuthFactory) []chain.Action {
 	pkIndex := rand.Int() % len(sh.pks)
 	// transfers 1 unit to a random address
-	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes())
+	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes(), factory)
 }
 
 func (sh *SpamHelper) uniqueBytes() []byte {

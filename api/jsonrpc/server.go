@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -105,12 +106,9 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errTransactionExtraBytes
 	}
-	if err := tx.VerifyAuth(ctx); err != nil {
-		return err
-	}
-	txID := tx.ID()
+	txID := tx.GetID()
 	reply.TxID = txID
-	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, []*chain.Transaction{tx})[0]
 }
 
 type LastAcceptedReply struct {
@@ -120,10 +118,10 @@ type LastAcceptedReply struct {
 }
 
 func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := j.vm.LastAcceptedBlock()
-	reply.Height = blk.Hght
-	reply.BlockID = blk.ID()
-	reply.Timestamp = blk.Tmstmp
+	blk := j.vm.LastAcceptedBlockResult()
+	reply.Height = blk.Block.Hght
+	reply.BlockID = blk.Block.ID()
+	reply.Timestamp = blk.Block.Tmstmp
 	return nil
 }
 
@@ -296,24 +294,21 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 
 	currentTime := time.Now().UnixMilli()
-	for _, action := range actions {
+	for i, action := range actions {
 		recorder := tstate.NewRecorder(currentState)
 		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
-
-		var actionResult SimulateActionResult
-		if actionOutput == nil {
-			actionResult.Output = []byte{}
-		} else {
-			actionResult.Output, err = chain.MarshalTyped(actionOutput)
-			if err != nil {
-				return fmt.Errorf("failed to marshal output: %w", err)
-			}
-		}
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to execute action: %w", err)
 		}
-		actionResult.StateKeys = recorder.GetStateKeys()
-		reply.ActionResults = append(reply.ActionResults, actionResult)
+
+		actionOutputBytes, err := chain.MarshalTyped(actionOutput)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output simulating action (%d: %v) output = %v: %w", i, action, actionOutput, err)
+		}
+		reply.ActionResults = append(reply.ActionResults, SimulateActionResult{
+			Output:    actionOutputBytes,
+			StateKeys: recorder.GetStateKeys(),
+		})
 		currentState = recorder
 	}
 	return nil

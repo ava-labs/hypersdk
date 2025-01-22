@@ -11,7 +11,7 @@ option go_package = "github.com/ava-labs/hypersdk/proto/pb/externalsubscriber";
 
 service ExternalSubscriber {
   rpc Initialize(InitializeRequest) returns (google.protobuf.Empty);
-  rpc AcceptBlock(BlockRequest) returns (google.protobuf.Empty);
+  rpc Notify(BlockRequest) returns (google.protobuf.Empty);
 }
 
 message InitializeRequest {

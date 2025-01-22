@@ -15,7 +15,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const balanceCheckInterval = 500 * time.Millisecond
@@ -23,6 +25,20 @@ const balanceCheckInterval = 500 * time.Millisecond
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
 	g         *genesis.DefaultGenesis
+}
+
+type SimulatActionsArgs struct {
+	Actions []codec.Bytes `json:"actions"`
+	Actor   codec.Address `json:"actor"`
+}
+
+type SimulateActionResult struct {
+	Output    codec.Bytes `json:"output"`
+	StateKeys state.Keys  `json:"stateKeys"`
+}
+
+type SimulateActionsReply struct {
+	ActionResults []SimulateActionResult `json:"actionresults"`
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -87,6 +103,30 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
+func (cli *JSONRPCClient) Nonce(ctx context.Context, addr codec.Address) (uint64, error) {
+	resp := new(NonceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nonce",
+		&NonceArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Nonce, err
+}
+
+func (cli *JSONRPCClient) WaitForNonce(ctx context.Context, addr codec.Address, min uint64) error {
+	return jsonrpc.Wait(ctx, balanceCheckInterval, func(ctx context.Context) (bool, error) {
+		nonce, err := cli.Nonce(ctx, addr)
+		shouldExit := nonce >= min
+		if !shouldExit {
+			utils.Outf("{{yellow}}waiting for %s nonce: %d{{/}}\n", addr, nonce)
+		}
+		return shouldExit, err
+	})
+}
+
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	g, err := cli.Genesis(ctx)
 	if err != nil {
@@ -128,4 +168,58 @@ func CreateParser(genesisBytes []byte) (chain.Parser, error) {
 		return nil, err
 	}
 	return NewParser(&genesis), nil
+}
+
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+	args := &SimulatActionsArgs{
+		Actor: actor,
+	}
+
+	for _, action := range actions {
+		marshaledAction, err := chain.MarshalTyped(action)
+		if err != nil {
+			return nil, err
+		}
+		args.Actions = append(args.Actions, marshaledAction)
+	}
+
+	resp := new(SimulateActionsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"simulateActions",
+		args,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.ActionResults, nil
+}
+
+func (cli *JSONRPCClient) EvmGetCode(ctx context.Context, addr common.Address) ([]byte, error) {
+	resp := new(EVMGetCodeReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"evmGetCode",
+		&EVMGetCodeArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Code, err
+}
+
+func (cli *JSONRPCClient) GetBalanceEVM(ctx context.Context, addr common.Address) (uint64, error) {
+	args := &GetBalanceEVMArgs{
+		Address: addr,
+	}
+	resp := new(GetBalanceEVMReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getBalanceEVM",
+		args,
+		resp,
+	)
+	return resp.Balance, err
 }

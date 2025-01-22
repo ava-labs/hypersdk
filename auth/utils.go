@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256k1"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 )
 
@@ -38,7 +39,43 @@ func GetFactory(pk *PrivateKey) (chain.AuthFactory, error) {
 			return nil, err
 		}
 		return NewBLSFactory(p), nil
+	case SECP256K1ID:
+		return NewSECP256K1Factory(secp256k1.PrivateKey(pk.Bytes)), nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
+}
+
+func FromString(typeID uint8, keyHex string) (*PrivateKey, error) {
+	var key *PrivateKey
+	switch typeID {
+	case ED25519ID:
+		bytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		privateKey := ed25519.PrivateKey(bytes)
+		key = &PrivateKey{
+			Address: NewED25519Address(privateKey.PublicKey()),
+			Bytes:   bytes,
+		}
+	case SECP256R1ID:
+	// unimplemented
+	case BLSID:
+		// unimplemented
+	case SECP256K1ID:
+		bytes, err := codec.LoadHex(keyHex, secp256k1.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		privateKey := secp256k1.PrivateKey(bytes)
+		key = &PrivateKey{
+			Address: NewSECP256K1Address(privateKey.PublicKey()),
+			Bytes:   bytes,
+		}
+	default:
+		return nil, ErrInvalidKeyType
+	}
+
+	return key, nil
 }
