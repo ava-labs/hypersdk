@@ -93,7 +93,7 @@ func (c *Chain) AsyncVerify(
 	ctx context.Context,
 	b *ExecutionBlock,
 ) error {
-	return c.processor.AsyncVerify(ctx, b)
+	return c.processor.asyncVerify(ctx, b)
 }
 
 func (c *Chain) PreExecute(

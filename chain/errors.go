@@ -58,7 +58,9 @@ var (
 	ErrKeyNotSpecified = errors.New("key not specified")
 
 	// State Correctness
-	ErrFailedToFetchFee = errors.New("failed to fetch fee")
+	ErrFailedToFetchParentHeight    = errors.New("failed to fetch height from state")
+	ErrFailedToFetchParentTimestamp = errors.New("failed to fetch timestamp from state")
+	ErrFailedToFetchParentFee       = errors.New("failed to fetch fee manager from state")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")

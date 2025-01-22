@@ -66,7 +66,7 @@ func TestPreExecutor(t *testing.T) {
 		{
 			name: "raw fee missing",
 			tx:   validTx,
-			err:  chain.ErrFailedToFetchFee,
+			err:  chain.ErrFailedToFetchParentFee,
 		},
 		{
 			name: "validity window error",
