@@ -134,7 +134,7 @@ func (s *ChunkStorage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
-// Assume caller has already verify chunk and cert are not duplicate of any previously accepted chunk.
+// Assumes caller has already verified this does not add a duplicate chunk
 func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
