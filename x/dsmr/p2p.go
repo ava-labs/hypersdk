@@ -70,7 +70,7 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 	}
 
 	// TODO check chunk status?
-	chunkBytes, available, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	chunkBytes, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil && errors.Is(err, database.ErrNotFound) {
 		return nil, ErrChunkNotAvailable
 	}
@@ -79,10 +79,6 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 			Code:    common.ErrUndefined.Code,
 			Message: err.Error(),
 		}
-	}
-
-	if !available {
-		return nil, ErrChunkNotAvailable
 	}
 
 	response := &dsmr.GetChunkResponse{
@@ -132,17 +128,12 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 	}
 
 	// check to see if this chunk was already accepted.
-	_, accepted, err := c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
+	_, err = c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
 			Message: err.Error(),
 		}
-	}
-
-	if accepted {
-		// Don't sign a chunk that is already marked as accepted
-		return ErrDuplicateChunk
 	}
 
 	if _, err := c.storage.VerifyRemoteChunk(chunk); err != nil {
