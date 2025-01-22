@@ -165,12 +165,22 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(ChunkReference{
+	chunkRef := ChunkReference{
 		ChunkID:  chunk.id,
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
-	}, &packer); err != nil {
+	}
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(n.LastAccepted), n.LastAccepted.Timestamp, []*emapChunkCertificate{{ChunkCertificate{ChunkReference: chunkRef}}})
+	if err != nil {
+		return fmt.Errorf("failed to varify repeated chunk certificates : %w", err)
+	}
+	if duplicates.Len() > 0 {
+		// we have duplicates
+		return ErrDuplicateChunk
+	}
+
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(chunkRef, &packer); err != nil {
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
@@ -220,21 +230,8 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	chunkCert := ChunkCertificate{
-		ChunkReference: ChunkReference{
-			ChunkID:  chunk.id,
-			Producer: chunk.Producer,
-			Expiry:   chunk.Expiry,
-		},
-		Signature: bitSetSignature,
-	}
-
-	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(n.LastAccepted), n.LastAccepted.Timestamp, []*emapChunkCertificate{{chunkCert}})
-	if err != nil {
-		return fmt.Errorf("failed to varify repeated chunk certificates : %w", err)
-	}
-	if duplicates.Len() > 0 {
-		// we have duplicates
-		return ErrDuplicateChunk
+		ChunkReference: chunkRef,
+		Signature:      bitSetSignature,
 	}
 
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}

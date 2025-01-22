@@ -143,7 +143,6 @@ func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 }
 
 // SetChunkCert sets the chunk certificate for the given chunkID
-// Assumes the caller has already verified the cert references the provided chunkID
 func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()

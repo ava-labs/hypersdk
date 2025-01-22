@@ -36,13 +36,15 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 	return fmt.Errorf("%w: %s", errInvalidTestItem, chunk.id)
 }
 
-func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int, validChunkExpiry []int64) (
+func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int, validChunkExpiry, invalidChunkExpiry []int64) (
 	*ChunkStorage[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
 	func() *ChunkStorage[dsmrtest.Tx],
 ) {
 	require := require.New(t)
+	require.True(len(validChunkExpiry) == numValidChunks || len(validChunkExpiry) == 0)
+	require.True(len(invalidChunkExpiry) == numInvalidChunks || len(invalidChunkExpiry) == 0)
 
 	validChunks := make([]Chunk[dsmrtest.Tx], 0, numValidChunks)
 	for i := 1; i <= numValidChunks; i++ { // emap does not support expiry of 0
@@ -66,11 +68,15 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int, valid
 
 	invalidChunks := make([]Chunk[dsmrtest.Tx], 0, numInvalidChunks)
 	for i := 1; i <= numInvalidChunks; i++ { // emap does not support expiry of 0
+		expiryTime := time.Now().Unix()
+		if len(invalidChunkExpiry) == numInvalidChunks {
+			expiryTime = invalidChunkExpiry[i-1]
+		}
 		chunk, err := newChunk(
 			UnsignedChunk[dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
-				Expiry:      time.Now().Unix(),
+				Expiry:      expiryTime,
 				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
@@ -114,7 +120,7 @@ func createTestStorage(t *testing.T, numValidChunks, numInvalidChunks int, valid
 func TestStoreAndSaveValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{})
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{}, []int64{})
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -152,7 +158,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 func TestStoreAndExpireValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{})
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{}, []int64{})
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -189,7 +195,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 func TestStoreInvalidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, _, invalidChunks, _ := createTestStorage(t, 0, 1, []int64{})
+	storage, _, invalidChunks, _ := createTestStorage(t, 0, 1, []int64{}, []int64{})
 	chunk := invalidChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -205,7 +211,7 @@ func TestStoreInvalidChunk(t *testing.T) {
 func TestStoreAndSaveLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{})
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{}, []int64{})
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -238,7 +244,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 func TestStoreAndExpireLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{})
+	storage, validChunks, _, _ := createTestStorage(t, 1, 0, []int64{}, []int64{})
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -278,7 +284,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 5. Pending local chunk
 	// 6. Pending remote chunk
 	numChunks := 6
-	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0, []int64{2, 2, 1, 1, 2, 2})
+	storage, validChunks, _, restart := createTestStorage(t, numChunks, 0, []int64{2, 2, 1, 1, 2, 2}, []int64{})
 	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
 		chunkCert := &ChunkCertificate{
