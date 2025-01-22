@@ -162,7 +162,7 @@ func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
-// Assume caller has already verify chunk and cert are not duplicate of any previously accepted chunk.
+// Assumes caller has already verified this does not add a duplicate chunk
 func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
