@@ -89,13 +89,6 @@ func (c *Chain) Execute(
 	return c.processor.Execute(ctx, parentView, b, isNormalOp)
 }
 
-func (c *Chain) AsyncVerify(
-	ctx context.Context,
-	b *ExecutionBlock,
-) error {
-	return c.processor.asyncVerify(ctx, b)
-}
-
 func (c *Chain) PreExecute(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
