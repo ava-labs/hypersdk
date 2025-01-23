@@ -6,80 +6,27 @@ package vm
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/validators"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/genesis"
-	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
+	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
-	"github.com/ava-labs/hypersdk/internal/workers"
-	"github.com/ava-labs/hypersdk/state"
-
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
 	_ gossiper.ValidatorSet                         = (*VM)(nil)
+	_ validators.Backend                            = (*VM)(nil)
 	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
+	_ chain.AuthVM                                  = (*VM)(nil)
+	_ ConsensusAPI                                  = (*VM)(nil)
+	_ Submitter                                     = (*VM)(nil)
 )
 
-func (vm *VM) ChainID() ids.ID {
-	return vm.snowCtx.ChainID
-}
-
-func (vm *VM) NetworkID() uint32 {
-	return vm.snowCtx.NetworkID
-}
-
-func (vm *VM) SubnetID() ids.ID {
-	return vm.snowCtx.SubnetID
-}
-
-func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
-	return vm.actionCodec
-}
-
-func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
-	return vm.outputCodec
-}
-
-func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
-	return vm.authCodec
-}
-
-func (vm *VM) AuthVerifiers() workers.Workers {
-	return vm.authVerifiers
-}
-
-func (vm *VM) RuleFactory() chain.RuleFactory {
-	return vm.ruleFactory
-}
-
-func (vm *VM) Metrics() metrics.MultiGatherer {
-	return vm.snowCtx.Metrics
-}
-
-func (vm *VM) Tracer() trace.Tracer {
-	return vm.tracer
-}
-
-func (vm *VM) Logger() logging.Logger {
-	return vm.snowCtx.Log
-}
-
-func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.ruleFactory.GetRules(t)
-}
-
+// validitywindow.ChainIndex[*chain.Transaction]
 func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
@@ -91,26 +38,7 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	return blk, nil
 }
 
-func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error) {
-	outputBlk, err := vm.consensusIndex.GetLastAccepted(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return outputBlk.StatelessBlock, nil
-}
-
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	return vm.stateDB.GetValues(ctx, keys)
-}
-
-func (vm *VM) ImmutableState(ctx context.Context) (state.Immutable, error) {
-	return vm.stateDB.NewView(ctx, merkledb.ViewChanges{MapOps: nil, ConsumeBytes: true})
-}
-
-func (vm *VM) Mempool() chain.Mempool {
-	return vm.mempool
-}
-
+// validators.Backend
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }
@@ -119,16 +47,11 @@ func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.N
 	return vm.proposerMonitor.Proposers(ctx, diff, depth)
 }
 
-func (vm *VM) CurrentValidators(
-	ctx context.Context,
-) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
-	return vm.proposerMonitor.Validators(ctx)
-}
-
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
+// validators.Backend
 func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 	blk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 	if err != nil {
@@ -137,30 +60,9 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 	return blk.Hght, nil
 }
 
-// Used for integration and load testing
-func (vm *VM) Builder() builder.Builder {
-	return vm.builder
-}
-
-func (vm *VM) Gossiper() gossiper.Gossiper {
-	return vm.gossiper
-}
-
-func (vm *VM) Genesis() genesis.Genesis {
-	return vm.genesis
-}
-
-func (vm *VM) BalanceHandler() chain.BalanceHandler {
-	return vm.balanceHandler
-}
-
-func (vm *VM) MetadataManager() chain.MetadataManager {
-	return vm.metadataManager
-}
-
-func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
-	errs := vm.Submit(ctx, []*chain.Transaction{tx})
-	return errs[0]
+// chain.AuthVM
+func (vm *VM) Logger() logging.Logger {
+	return vm.snowCtx.Log
 }
 
 func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
@@ -171,18 +73,59 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
+// Submitter
+func (vm *VM) Submit(
+	ctx context.Context,
+	txs []*chain.Transaction,
+) (errs []error) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
+	defer span.End()
+	vm.metrics.txsSubmitted.Add(float64(len(txs)))
+
+	// Create temporary execution context
+	preferredBlk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 	if err != nil {
-		return fees.Dimensions{}, err
+		return []error{err}
 	}
-	return internalfees.NewManager(v).UnitPrices(), nil
+	view := preferredBlk.View
+
+	validTxs := []*chain.Transaction{}
+	for _, tx := range txs {
+		// Avoid any sig verification or state lookup if we already have tx in mempool
+		txID := tx.GetID()
+		if vm.Mempool.Has(ctx, txID) {
+			// Don't remove from listeners, it will be removed elsewhere if not
+			// included
+			errs = append(errs, ErrNotAdded)
+			continue
+		}
+
+		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		errs = append(errs, nil)
+		validTxs = append(validTxs, tx)
+	}
+	vm.Mempool.Add(ctx, validTxs)
+	vm.checkActivity(ctx)
+	vm.metrics.mempoolSize.Set(float64(vm.Mempool.Len(ctx)))
+	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.Mempool.Len(ctx)))
+	return errs
 }
 
-func (vm *VM) GetDataDir() string {
-	return vm.DataDir
+func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
+	return vm.Submit(ctx, []*chain.Transaction{tx})[0]
 }
 
-func (vm *VM) GetGenesisBytes() []byte {
-	return vm.GenesisBytes
+// ConsensusAPI
+func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.ExecutedBlock, error) {
+	blk, err := vm.consensusIndex.GetLastAccepted(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &chain.ExecutedBlock{
+		Block:            blk.StatelessBlock,
+		ExecutionResults: blk.ExecutionResults,
+	}, nil
 }

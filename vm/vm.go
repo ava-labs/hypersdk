@@ -23,11 +23,9 @@ import (
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
@@ -80,11 +78,10 @@ type VM struct {
 
 	config Config
 
-	genesisAndRuleFactory genesis.GenesisAndRuleFactory
-	genesis               genesis.Genesis
-	GenesisBytes          []byte
-	ruleFactory           chain.RuleFactory
-	options               []Option
+	chainDefinitionFactory ChainDefinitionFactory
+	ChainDefinition        ChainDefinition
+	authEngine             map[uint8]AuthEngine
+	options                []Option
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
@@ -95,24 +92,14 @@ type VM struct {
 	chainStore     *chainindex.ChainIndex[*chain.ExecutionBlock]
 
 	normalOp atomic.Bool
-	builder  builder.Builder
-	gossiper gossiper.Gossiper
-	mempool  *mempool.Mempool[*chain.Transaction]
+	Builder  builder.Builder
+	Gossiper gossiper.Gossiper
+	Mempool  *mempool.Mempool[*chain.Transaction]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
 	stateDB               merkledb.MerkleDB
 	executionResultsDB    database.Database
-	balanceHandler        chain.BalanceHandler
-	metadataManager       chain.MetadataManager
-	actionCodec           *codec.TypeParser[chain.Action]
-	authCodec             *codec.TypeParser[chain.Auth]
-	outputCodec           *codec.TypeParser[codec.Typed]
-	authEngine            map[uint8]AuthEngine
-
-	// authVerifiers are used to verify signatures in parallel
-	// with limited parallelism
-	authVerifiers workers.Workers
 
 	metrics *Metrics
 
@@ -123,12 +110,7 @@ type VM struct {
 }
 
 func New(
-	genesisFactory genesis.GenesisAndRuleFactory,
-	balanceHandler chain.BalanceHandler,
-	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
+	chainDefinitionFactory ChainDefinitionFactory,
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
 ) (*VM, error) {
@@ -141,14 +123,9 @@ func New(
 	}
 
 	return &VM{
-		balanceHandler:        balanceHandler,
-		metadataManager:       metadataManager,
-		actionCodec:           actionCodec,
-		authCodec:             authCodec,
-		outputCodec:           outputCodec,
-		authEngine:            authEngine,
-		genesisAndRuleFactory: genesisFactory,
-		options:               options,
+		chainDefinitionFactory: chainDefinitionFactory,
+		authEngine:             authEngine,
+		options:                options,
 	}, nil
 }
 
@@ -180,8 +157,7 @@ func (vm *VM) Initialize(
 
 	vm.network = snowApp.GetNetwork()
 
-	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
-	vm.GenesisBytes = genesisBytes
+	vm.ChainDefinition, err = vm.chainDefinitionFactory.NewChainDefinition(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -195,10 +171,10 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
+	vm.Mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	snowApp.AddAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
+			droppedTxs := vm.Mempool.SetMinTimestamp(ctx, b.Tmstmp)
 			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
 				zap.Stringer("blkID", b.GetID()),
 				zap.Int("numTxs", len(droppedTxs)),
@@ -208,13 +184,13 @@ func (vm *VM) Initialize(
 	})
 	snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-			vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
+			vm.Mempool.Remove(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
 	snowApp.AddRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-			vm.mempool.Add(ctx, b.StatelessBlock.Txs)
+			vm.Mempool.Add(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
@@ -230,7 +206,7 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		BranchFactor: vm.genesis.GetStateBranchFactor(),
+		BranchFactor: vm.ChainDefinition.Genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations
 		RootGenConcurrency:          uint(vm.config.RootGenerationCores),
@@ -270,16 +246,17 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
+	authVerifiers := workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 	snowApp.AddCloser("auth verifiers", func() error {
-		vm.authVerifiers.Stop()
+		authVerifiers.Stop()
 		return nil
 	})
 
 	// Set defaults
 	options := &Options{}
+	apiBackend := NewAPIBackend(chainInput, vm.ChainDefinition, vm.stateDB, vm, vm)
 	for _, Option := range vm.options {
-		opt, err := Option.optionFunc(vm, vm.snowInput.Config.GetRawConfig(Option.Namespace))
+		opt, err := Option.optionFunc(apiBackend, vm.snowInput.Config.GetRawConfig(Option.Namespace))
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
@@ -291,7 +268,7 @@ func (vm *VM) Initialize(
 	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
-		return vm.Rules(timestamp).GetValidityWindow()
+		return vm.ChainDefinition.RuleFactory.GetRules(timestamp).GetValidityWindow()
 	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
@@ -302,16 +279,16 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to get chain config: %w", err)
 	}
 	vm.chain, err = chain.NewChain(
-		vm.Tracer(),
+		vm.snowInput.Tracer,
 		chainRegistry,
-		vm,
-		vm.Mempool(),
-		vm.Logger(),
-		vm.ruleFactory,
-		vm.MetadataManager(),
-		vm.BalanceHandler(),
-		vm.AuthVerifiers(),
-		vm,
+		vm.ChainDefinition,
+		vm.Mempool,
+		vm.snowCtx.Log,
+		vm.ChainDefinition.RuleFactory,
+		vm.ChainDefinition.MetadataManager,
+		vm.ChainDefinition.BalanceHandler,
+		authVerifiers,
+		vm, // TODO: replace VM directly with separate type
 		vm.chainTimeValidityWindow,
 		chainConfig,
 	)
@@ -335,7 +312,7 @@ func (vm *VM) Initialize(
 	})
 
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
-		api, err := apiFactory.New(vm)
+		api, err := apiFactory.New(apiBackend)
 		if err != nil {
 			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
 		}
@@ -405,7 +382,7 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 }
 
 func (vm *VM) extractStateHeight() (uint64, error) {
-	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
+	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.ChainDefinition.MetadataManager.HeightPrefix()))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get state height: %w", err)
 	}
@@ -479,25 +456,25 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	ts := tstate.New(0)
 	tsv := ts.NewView(state.CompletePermissions, vm.stateDB, 0)
-	if err := vm.genesis.InitializeState(ctx, vm.tracer, tsv, vm.balanceHandler); err != nil {
+	if err := vm.ChainDefinition.Genesis.InitializeState(ctx, vm.tracer, tsv, vm.ChainDefinition.BalanceHandler); err != nil {
 		return nil, fmt.Errorf("failed to initialize genesis state: %w", err)
 	}
 
 	// Update chain metadata
-	if err := tsv.Insert(ctx, chain.HeightKey(vm.metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+	if err := tsv.Insert(ctx, chain.HeightKey(vm.ChainDefinition.MetadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 		return nil, fmt.Errorf("failed to set genesis height: %w", err)
 	}
-	if err := tsv.Insert(ctx, chain.TimestampKey(vm.metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+	if err := tsv.Insert(ctx, chain.TimestampKey(vm.ChainDefinition.MetadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 		return nil, fmt.Errorf("failed to set genesis timestamp: %w", err)
 	}
-	genesisRules := vm.ruleFactory.GetRules(0)
+	genesisRules := vm.ChainDefinition.RuleFactory.GetRules(0)
 	feeManager := internalfees.NewManager(nil)
 	minUnitPrice := genesisRules.GetMinUnitPrice()
 	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 		feeManager.SetUnitPrice(i, minUnitPrice[i])
 		vm.snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 	}
-	if err := tsv.Insert(ctx, chain.FeeKey(vm.metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
+	if err := tsv.Insert(ctx, chain.FeeKey(vm.ChainDefinition.MetadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("failed to set genesis fee manager: %w", err)
 	}
 
@@ -535,15 +512,15 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 }
 
 func (vm *VM) startNormalOp(ctx context.Context) error {
-	vm.builder.Start()
+	vm.Builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
-		vm.builder.Done()
+		vm.Builder.Done()
 		return nil
 	})
 
-	vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
+	vm.Gossiper.Start(vm.network.NewClient(txGossipHandlerID))
 	vm.snowApp.AddCloser("gossiper", func() error {
-		vm.gossiper.Done()
+		vm.Gossiper.Done()
 		return nil
 	})
 
@@ -551,7 +528,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 		txGossipHandlerID,
 		gossiper.NewTxGossipHandler(
 			vm.snowCtx.Log,
-			vm.gossiper,
+			vm.Gossiper,
 		),
 	); err != nil {
 		return fmt.Errorf("failed to add tx gossip handler: %w", err)
@@ -581,14 +558,14 @@ func (vm *VM) applyOptions(o *Options) error {
 	vm.snowApp.AddAcceptedSub(outputBlockSub)
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm.snowInput.ToEngine, vm.snowCtx.Log)
+		vm.Builder = builder.NewManual(vm.snowInput.ToEngine, vm.snowCtx.Log)
 	} else {
-		vm.builder = builder.NewTime(vm.snowInput.ToEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
+		vm.Builder = builder.NewTime(vm.snowInput.ToEngine, vm.snowCtx.Log, vm.Mempool, func(ctx context.Context, t int64) (int64, int64, error) {
 			blk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 			if err != nil {
 				return 0, 0, err
 			}
-			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+			return blk.Tmstmp, vm.ChainDefinition.RuleFactory.GetRules(t).GetMinBlockGap(), nil
 		})
 	}
 
@@ -597,13 +574,13 @@ func (vm *VM) applyOptions(o *Options) error {
 		return fmt.Errorf("failed to register %s metrics: %w", gossiperNamespace, err)
 	}
 	if o.gossiper {
-		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
+		vm.Gossiper, err = gossiper.NewManual[*chain.Transaction](
 			vm.snowCtx.Log,
 			gossipRegistry,
-			vm.mempool,
+			vm.Mempool,
 			&chain.TxSerializer{
-				ActionRegistry: vm.actionCodec,
-				AuthRegistry:   vm.authCodec,
+				ActionRegistry: vm.ChainDefinition.actionCodec,
+				AuthRegistry:   vm.ChainDefinition.authCodec,
 			},
 			vm,
 			vm.config.TargetGossipDuration,
@@ -616,10 +593,10 @@ func (vm *VM) applyOptions(o *Options) error {
 			vm.tracer,
 			vm.snowCtx.Log,
 			gossipRegistry,
-			vm.mempool,
+			vm.Mempool,
 			&chain.TxSerializer{
-				ActionRegistry: vm.actionCodec,
-				AuthRegistry:   vm.authCodec,
+				ActionRegistry: vm.ChainDefinition.actionCodec,
+				AuthRegistry:   vm.ChainDefinition.authCodec,
 			},
 			vm,
 			vm,
@@ -634,7 +611,7 @@ func (vm *VM) applyOptions(o *Options) error {
 		if err != nil {
 			return err
 		}
-		vm.gossiper = txGossiper
+		vm.Gossiper = txGossiper
 		vm.snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 			NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
 				txGossiper.BlockVerified(b.GetTimestamp())
@@ -646,8 +623,8 @@ func (vm *VM) applyOptions(o *Options) error {
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
-	vm.gossiper.Queue(ctx)
-	vm.builder.Queue(ctx)
+	vm.Gossiper.Queue(ctx)
+	vm.Builder.Queue(ctx)
 }
 
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBlock, error) {
@@ -678,45 +655,4 @@ func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chai
 		return nil, fmt.Errorf("failed to accept block %s: %w", block, err)
 	}
 	return block, nil
-}
-
-func (vm *VM) Submit(
-	ctx context.Context,
-	txs []*chain.Transaction,
-) (errs []error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
-	defer span.End()
-	vm.metrics.txsSubmitted.Add(float64(len(txs)))
-
-	// Create temporary execution context
-	preferredBlk, err := vm.consensusIndex.GetPreferredBlock(ctx)
-	if err != nil {
-		vm.snowCtx.Log.Error("failed to fetch preferred block for tx submission", zap.Error(err))
-		return []error{err}
-	}
-	view := preferredBlk.View
-
-	validTxs := []*chain.Transaction{}
-	for _, tx := range txs {
-		// Avoid any sig verification or state lookup if we already have tx in mempool
-		txID := tx.GetID()
-		if vm.mempool.Has(ctx, txID) {
-			// Don't remove from listeners, it will be removed elsewhere if not
-			// included
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-
-		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
-	}
-	vm.mempool.Add(ctx, validTxs)
-	vm.checkActivity(ctx)
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
-	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.mempool.Len(ctx)))
-	return errs
 }

@@ -66,7 +66,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	}
 
 	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
-		return vm.ruleFactory.GetRules(time).GetValidityWindow()
+		return vm.ChainDefinition.RuleFactory.GetRules(time).GetValidityWindow()
 	})
 	blockWindowSyncer := statesync.NewBlockWindowSyncer[*chain.ExecutionBlock](validityWindowAdapter{vm.syncer})
 
@@ -76,7 +76,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		vm.network,
 		rangeProofHandlerID,
 		changeProofHandlerID,
-		vm.genesis.GetStateBranchFactor(),
+		vm.ChainDefinition.Genesis.GetStateBranchFactor(),
 		stateSyncConfig.MerkleSimultaneousWorkLimit,
 		stateSyncRegistry,
 	)

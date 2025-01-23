@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -37,9 +36,6 @@ type VM interface {
 	) (errs []error)
 	LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error)
 	UnitPrices(context.Context) (fees.Dimensions, error)
-	CurrentValidators(
-		context.Context,
-	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 	ImmutableState(ctx context.Context) (state.Immutable, error)
 	BalanceHandler() chain.BalanceHandler

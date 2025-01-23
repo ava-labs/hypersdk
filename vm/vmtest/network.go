@@ -193,9 +193,9 @@ func NewTestNetwork(
 	testNetwork.nodeIDToVM = nodeIDToVM
 	testNetwork.uris = uris
 	configuration := workload.NewDefaultTestNetworkConfiguration(
-		vms[0].VM.GenesisBytes,
+		vms[0].VM.ChainDefinition.GenesisBytes,
 		"hypervmtests",
-		vms[0].VM,
+		vms[0].VM.ChainDefinition,
 		authFactories,
 	)
 	testNetwork.configuration = configuration
@@ -379,7 +379,7 @@ func (n *TestNetwork) SubmitTxs(ctx context.Context, txs []*chain.Transaction) {
 // of the initial VM, so that it correctly mimics the engine's behavior of guaranteeing that all VMs have
 // verified the parent block before verifying its child.
 func (n *TestNetwork) BuildBlockAndUpdateHead(ctx context.Context) []*snow.StatefulBlock[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] {
-	n.require.NoError(n.VMs[0].VM.Builder().Force(ctx))
+	n.require.NoError(n.VMs[0].VM.Builder.Force(ctx))
 	select {
 	case <-n.VMs[0].toEngine:
 	case <-time.After(time.Second):
@@ -427,7 +427,7 @@ func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) 
 
 func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, authFactory chain.AuthFactory) (*chain.Transaction, error) {
 	cli := jsonrpc.NewJSONRPCClient(n.VMs[0].server.URL)
-	_, tx, _, err := cli.GenerateTransaction(ctx, n.VMs[0].VM, actions, authFactory)
+	_, tx, _, err := cli.GenerateTransaction(ctx, n.VMs[0].VM.ChainDefinition, actions, authFactory)
 	return tx, err
 }
 
