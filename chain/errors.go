@@ -57,6 +57,11 @@ var (
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
+	// State Correctness
+	ErrFailedToFetchParentHeight    = errors.New("failed to fetch height from state")
+	ErrFailedToFetchParentTimestamp = errors.New("failed to fetch timestamp from state")
+	ErrFailedToFetchParentFee       = errors.New("failed to fetch fee manager from state")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

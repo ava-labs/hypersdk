@@ -64,7 +64,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 }
 ```
 
-To configure your option via config file, see [here](./docs/reference/Config.md).
+To configure your option via config file, see [here](./docs/reference/config.md).
 
 Services are registered as Options to the VM. This allows developers to provide the set of options they want when they instantiate their VM. The options are executed during `vm.Initialize`, so that the VM has all of the parameters the Service may need populated.
 
