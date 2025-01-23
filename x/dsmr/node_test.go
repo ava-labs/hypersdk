@@ -34,7 +34,7 @@ import (
 
 const (
 	networkID                            = uint32(123)
-	testingDefaultValidityWindowDuration = time.Duration(5 * time.Second)
+	testingDefaultValidityWindowDuration = 5 * time.Second
 )
 
 var (
