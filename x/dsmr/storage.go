@@ -27,8 +27,6 @@ const (
 	minSlotByte byte = 0x00
 
 	chunkKeySize = 1 + consts.Uint64Len + ids.IDLen
-
-	maxChunkStorageAheadDuration = int64(120 * time.Second)
 )
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
@@ -49,21 +47,23 @@ type Verifier[T Tx] interface {
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
 type ChunkVerifier[T Tx] struct {
-	networkID  uint32
-	chainID    ids.ID
-	chainState pChain
-	min        int64
-	quorumNum  uint64
-	quorumDen  uint64
+	networkID              uint32
+	chainID                ids.ID
+	chainState             pChain
+	min                    int64
+	quorumNum              uint64
+	quorumDen              uint64
+	validityWindowDuration time.Duration
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
-		networkID:  networkID,
-		chainID:    chainID,
-		chainState: chainState,
-		quorumNum:  quorumNum,
-		quorumDen:  quorumDen,
+		networkID:              networkID,
+		chainID:                chainID,
+		chainState:             chainState,
+		quorumNum:              quorumNum,
+		quorumDen:              quorumDen,
+		validityWindowDuration: validityWindowDuration,
 	}
 	return verifier
 }
@@ -77,12 +77,17 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	if chunk.Expiry < c.min {
 		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooOld, chunk.Expiry, c.min)
 	}
-	if chunk.Expiry >= c.min+maxChunkStorageAheadDuration {
+	if chunk.Expiry >= c.min+int64(c.validityWindowDuration) {
 		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooFarAhead, chunk.Expiry, c.min)
 	}
 
 	// check if the producer was expected to produce this chunk.
-	validatorSet, err := c.chainState.GetValidatorSet(context.Background(), 0, ids.Empty)
+	subnetID, err := c.chainState.GetSubnetID(context.Background(), c.chainID)
+	if err != nil {
+		return fmt.Errorf("%w: failed to retrieve subnet-id for chain-id while verifying chunk", err)
+	}
+
+	validatorSet, err := c.chainState.GetValidatorSet(context.Background(), 0, subnetID)
 	if err != nil {
 		return err
 	}
@@ -202,6 +207,7 @@ func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 }
 
 // SetChunkCert sets the chunk certificate for the given chunkID
+// Assumes the caller would call this function with a valid cert.
 func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -210,9 +216,7 @@ func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert
 	if !ok {
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
 	}
-	if cert == nil {
-		return ErrInvalidChunkCertificate
-	}
+
 	if err := s.verifier.VerifyCertificate(ctx, cert); err != nil {
 		return fmt.Errorf("failed to store invalid cert for chunk %s : %w", chunkID, err)
 	}

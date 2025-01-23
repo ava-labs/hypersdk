@@ -34,7 +34,7 @@ import (
 
 const (
 	networkID                            = uint32(123)
-	testingDefaultValidityWindowDuration = time.Duration(5)
+	testingDefaultValidityWindowDuration = time.Duration(5 * time.Second)
 )
 
 var (
@@ -469,8 +469,9 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
+				testingDefaultValidityWindowDuration,
 			),
-			wantErr:                   ErrInvalidChunk,
+			wantErr:                   ErrAppChunkProducerNotValidator,
 			producerNode:              ids.GenerateTestNodeID(),
 			nodeLastAcceptedTimestamp: 1,
 			chunkExpiry:               123,
@@ -489,8 +490,9 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
+				testingDefaultValidityWindowDuration,
 			),
-			wantErr:                   ErrInvalidChunk,
+			wantErr:                   ErrAppChunkTooOld,
 			producerNode:              nodeID,
 			nodeLastAcceptedTimestamp: 5000,
 			chunkExpiry:               123,
@@ -509,11 +511,12 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
+				testingDefaultValidityWindowDuration,
 			),
-			wantErr:                   ErrInvalidChunk,
+			wantErr:                   ErrAppChunkTooFarAhead,
 			producerNode:              nodeID,
 			nodeLastAcceptedTimestamp: 1,
-			chunkExpiry:               1 + maxChunkStorageAheadDuration,
+			chunkExpiry:               1 + int64(testingDefaultValidityWindowDuration),
 		},
 		{
 			name:         "valid chunk",
@@ -530,6 +533,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
+				testingDefaultValidityWindowDuration,
 			),
 			nodeLastAcceptedTimestamp: 1,
 			chunkExpiry:               123,
@@ -1402,6 +1406,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			pChain{validators: validators},
 			1,
 			1,
+			testingDefaultValidityWindowDuration,
 		)
 		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)

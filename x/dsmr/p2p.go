@@ -39,6 +39,42 @@ var (
 		Message: "invalid chunk",
 	}
 
+	ErrAppChunkProducerNotValidator = &common.AppError{
+		Code:    4,
+		Message: "chunk producer is not in the validator set",
+	}
+
+	ErrAppChunkTooOld = &common.AppError{
+		Code:    5,
+		Message: "chunk is too old",
+	}
+
+	ErrAppChunkTooFarAhead = &common.AppError{
+		Code:    6,
+		Message: "chunk is too far ahead",
+	}
+
+	ErrAppInvalidChunkCertificate = &common.AppError{
+		Code:    7,
+		Message: "invalid chunk certificate",
+	}
+
+	ErrAppFailedChunkSigVerification = &common.AppError{
+		Code:    7,
+		Message: "chunk signature verification failed",
+	}
+
+	verifierAppErrors = []struct {
+		AppError *common.AppError
+		Error    error
+	}{
+		{ErrAppChunkProducerNotValidator, ErrChunkProducerNotValidator},
+		{ErrAppChunkTooOld, ErrChunkTooOld},
+		{ErrAppChunkTooFarAhead, ErrChunkTooFarAhead},
+		{ErrAppInvalidChunkCertificate, ErrInvalidChunkCertificate},
+		{ErrAppFailedChunkSigVerification, ErrFailedChunkSigVerification},
+	}
+
 	_ acp118.Verifier = (*ChunkSignatureRequestVerifier[Tx])(nil)
 	_ p2p.Handler     = (*GetChunkHandler[Tx])(nil)
 	_ p2p.Handler     = (*ChunkCertificateGossipHandler[Tx])(nil)
@@ -124,6 +160,11 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 	}
 
 	if err := c.verifier.Verify(chunk); err != nil {
+		for _, e := range verifierAppErrors {
+			if errors.Is(err, e.Error) {
+				return e.AppError
+			}
+		}
 		return ErrInvalidChunk
 	}
 
