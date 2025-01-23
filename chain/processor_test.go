@@ -47,7 +47,6 @@ func TestProcessorExecute(t *testing.T) {
 		},
 	}
 
-	// TODO: make sure to add a valid transaction to all applicable tests!
 	tests := []struct {
 		name           string
 		block          *chain.ExecutionBlock
