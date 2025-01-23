@@ -125,6 +125,7 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 type mockAuth struct {
 	start        int64
 	end          int64
+	typeID       uint8
 	computeUnits uint64
 	actor        codec.Address
 	sponsor      codec.Address
@@ -139,8 +140,8 @@ func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
 	return m.computeUnits
 }
 
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
+func (m *mockAuth) GetTypeID() uint8 {
+	return m.typeID
 }
 
 func (*mockAuth) Marshal(*codec.Packer) {

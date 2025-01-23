@@ -61,6 +61,8 @@ var (
 	ErrFailedToFetchParentHeight    = errors.New("failed to fetch height from state")
 	ErrFailedToFetchParentTimestamp = errors.New("failed to fetch timestamp from state")
 	ErrFailedToFetchParentFee       = errors.New("failed to fetch fee manager from state")
+	ErrFailedToParseParentHeight    = errors.New("failed to parse height")
+	ErrFailedToParseParentTimestamp = errors.New("failed to parse timestamp")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
