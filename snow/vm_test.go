@@ -870,6 +870,10 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	ce.StartStateSync(ctx, ce.lastAccepted.Input)
 
+	// Check health - should be unhealthy during state sync
+	_, err := ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, ErrVMNotReady)
+
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock1.Invalid = true
@@ -886,6 +890,10 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.verifyValidBlock(ctx, parsedBlk2)
 
 	ce.FinishStateSync(ctx, ce.lastAccepted)
+
+	// Check health - should be unhealthy due to unresolved blocks
+	_, err = ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, ErrUnresolvedBlocks)
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
@@ -904,6 +912,19 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)
 	ce.require.ErrorIs(invalidatedChildBlk2, errParentFailedVerification)
+	//
+	//// Reject all blocks
+	//for _, blk := range []*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]{
+	//	parsedBlk1, parsedBlk2,
+	//} {
+	//	fmt.Printf("%s: ID\n", blk.ID())
+	//	fmt.Printf("%s: ParentID\n", blk.Parent())
+	//	blk.verified = true
+	//	ce.require.NoError(blk.Reject(ctx))
+	//}
+	//
+	//_, err = ce.vm.HealthCheck(ctx)
+	//ce.require.NoError(err)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
