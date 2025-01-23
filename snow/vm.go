@@ -264,8 +264,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
 
-	v.AddHealthCheck("dynamicStateSync", newStateSyncHealthChecker(v))
-
+	v.AddHealthCheck("stateSync", newStateSyncHealthChecker(v))
 	return nil
 }
 
@@ -440,18 +439,13 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	ssHealthChecker, ok := v.healthCheckers["dynamicStateSync"].(*stateSyncHealthChecker[I, O, A])
-	if !ok {
-		return nil, fmt.Errorf("couldn't find 'dynamicStateSync' healtcheck")
-	}
-
-	dynamicStateSyncRes, err := ssHealthChecker.HealthCheck(ctx)
+	stateSync, err := v.stateSyncHealthChecker().HealthCheck(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dynamic state sync health check failed: %w", err)
 	}
 
 	return map[string]interface{}{
-		"dynamicStateSync": dynamicStateSyncRes,
+		"stateSync": stateSync,
 	}, nil
 }
 
@@ -510,11 +504,6 @@ func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
 }
 
 func (v *VM[I, O, A]) AddHealthCheck(name string, healthChecker health.Checker) {
-	// override
-	// the idea is register your own health check
-	// default + whatever you defined
-	// healthy as long as you're not in dynamic state
-	// register your won under the namespace
 	v.healthCheckers[name] = healthChecker
 }
 
@@ -532,4 +521,14 @@ func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Con
 
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
 	v.onNormalOperationsStarted = append(v.onNormalOperationsStarted, onNormalOpStartedF...)
+}
+
+func (v *VM[I, O, A]) stateSyncHealthChecker() *stateSyncHealthChecker[I, O, A] {
+	if checker, ok := v.healthCheckers[StateSyncHealthCheckerNamespace].(*stateSyncHealthChecker[I, O, A]); ok {
+		return checker
+	}
+	newChecker := newStateSyncHealthChecker(v)
+	v.healthCheckers[StateSyncHealthCheckerNamespace] = newChecker
+
+	return newChecker
 }

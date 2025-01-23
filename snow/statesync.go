@@ -91,11 +91,7 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 			return 1
 		}
 	})
-
-	var dynamicStateSyncHealthChecker *stateSyncHealthChecker[I, O, A]
-	if checker, ok := v.healthCheckers["dynamicStateSync"].(*stateSyncHealthChecker[I, O, A]); ok {
-		dynamicStateSyncHealthChecker = checker
-	}
+	healthChecker := v.stateSyncHealthChecker()
 
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
 	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
@@ -110,17 +106,13 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 				zap.Stringer("parent", parent),
 				zap.Stringer("block", blk),
 			)
-			if dynamicStateSyncHealthChecker != nil {
-				dynamicStateSyncHealthChecker.MarkFailed(blk.ID())
-			}
+			healthChecker.MarkFailed(blk.ID())
 			continue
 		}
 		// the parent failed verification and this block is transitively invalid,
 		// we should fail the health check until it has been rejected
 		if err := blk.verify(ctx, parent.Output); err != nil {
-			if dynamicStateSyncHealthChecker != nil {
-				dynamicStateSyncHealthChecker.MarkFailed(blk.ID())
-			}
+			healthChecker.MarkFailed(blk.ID())
 			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
 		}
 	}
