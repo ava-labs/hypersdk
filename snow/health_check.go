@@ -2,22 +2,36 @@ package snow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/event"
 	"sync"
 )
 
+const StateSyncHealthCheckerNamespace = "stateSyncHealthChecker"
+
+var (
+	ErrVMNotReady       = errors.New("vm is not ready")
+	ErrUnresolvedBlocks = errors.New("blocks remain unresolved after verification and must be explicitly rejected")
+)
+
+// stateSyncHealthChecker is a concrete implementation of a health check that monitors the state of the VM
+// during and after dynamic state synchronization. It ensures the following:
+//  1. The VM is ready for normal operation (`vm.ready` is true).
+//  2. Tracks `unresolvedBlocks`, which are outstanding processing blocks that were vacuously verified.
+//     These blocks were marked as successfully verified even though the VM lacked the necessary state
+//     information to properly verify them at the time.
 type stateSyncHealthChecker[I, O, A Block] struct {
-	vm           *VM[I, O, A]
-	failedBlocks map[ids.ID]struct{}
-	lock         sync.RWMutex
+	vm               *VM[I, O, A]
+	unresolvedBlocks map[ids.ID]struct{}
+	lock             sync.RWMutex
 }
 
 func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthChecker[I, O, A] {
 	s := &stateSyncHealthChecker[I, O, A]{
-		vm:           vm,
-		failedBlocks: make(map[ids.ID]struct{}),
+		vm:               vm,
+		unresolvedBlocks: make(map[ids.ID]struct{}),
 	}
 
 	vm.AddRejectedSub(event.SubscriptionFunc[O]{
@@ -25,7 +39,7 @@ func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthC
 			s.lock.Lock()
 			defer s.lock.Unlock()
 
-			delete(s.failedBlocks, output.GetID())
+			delete(s.unresolvedBlocks, output.GetID())
 			return nil
 		},
 	})
@@ -40,17 +54,17 @@ func (s *stateSyncHealthChecker[I, O, A]) HealthCheck(_ context.Context) (interf
 
 	// Report unhealthy while VM is not ready
 	if !s.vm.ready {
-		return details, fmt.Errorf("vm is not ready")
+		return details, ErrVMNotReady
 	}
 
 	// Check vacuously verified blocks
 	s.lock.RLock()
-	numFailed := len(s.failedBlocks)
+	unresolvedNum := len(s.unresolvedBlocks)
 	s.lock.RUnlock()
 
-	details["failedBlocks"] = numFailed
-	if numFailed > 0 {
-		return details, fmt.Errorf("%d blocks failed verification and must be rejected", numFailed)
+	details["unresolvedBlocks"] = unresolvedNum
+	if unresolvedNum > 0 {
+		return details, fmt.Errorf("%w: %d block(s)\n", ErrUnresolvedBlocks, unresolvedNum)
 	}
 
 	return details, nil
@@ -60,5 +74,5 @@ func (s *stateSyncHealthChecker[I, O, A]) MarkFailed(blkID ids.ID) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.failedBlocks[blkID] = struct{}{}
+	s.unresolvedBlocks[blkID] = struct{}{}
 }
