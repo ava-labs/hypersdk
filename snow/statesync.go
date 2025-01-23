@@ -92,6 +92,11 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 		}
 	})
 
+	var dynamicStateSyncHealthChecker *stateSyncHealthChecker[I, O, A]
+	if checker, ok := v.healthCheckers["dynamicStateSync"].(*stateSyncHealthChecker[I, O, A]); ok {
+		dynamicStateSyncHealthChecker = checker
+	}
+
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
 	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
 	// and we can safely drop the error here.
@@ -105,12 +110,28 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 				zap.Stringer("parent", parent),
 				zap.Stringer("block", blk),
 			)
+			if dynamicStateSyncHealthChecker != nil {
+				dynamicStateSyncHealthChecker.MarkFailed(blk.ID())
+			}
 			continue
 		}
+		// the parent failed verification and this block is transitively invalid,
+		// we should fail the health check until it has been rejected
 		if err := blk.verify(ctx, parent.Output); err != nil {
+			if dynamicStateSyncHealthChecker != nil {
+				dynamicStateSyncHealthChecker.MarkFailed(blk.ID())
+			}
 			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
 		}
 	}
+
+	// track blocks that failed verification
+	// never accept these blocks
+
+	// after we exit the loop, there may still be blocks that failed verification and are still in processing
+	// lets add a health check that will report unhealthy until dynamic state has finished and the processing set of blocks has returned to normal
+	// when we finish, create the set of blocks in processing that we must mark accepted/rejected before the state sync health check passes
+	// create a subscription to accepted/rejected notifications and mark itself as healthy once passes
 	return nil
 }
 

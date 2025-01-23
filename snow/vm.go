@@ -88,7 +88,6 @@ type namedCloser struct {
 
 type VM[I Block, O Block, A Block] struct {
 	handlers        map[string]http.Handler
-	healthChecker   health.Checker
 	network         *p2p.Network
 	stateSyncableVM block.StateSyncableVM
 	closers         []namedCloser
@@ -143,16 +142,16 @@ type VM[I Block, O Block, A Block] struct {
 	tracer  trace.Tracer
 
 	shutdownChan chan struct{}
+
+	healthCheckers map[string]health.Checker
 }
 
 func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
-		handlers: make(map[string]http.Handler),
-		healthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
-			return nil, nil
-		}),
-		version: version,
-		chain:   chain,
+		handlers:       make(map[string]http.Handler),
+		healthCheckers: make(map[string]health.Checker),
+		version:        version,
+		chain:          chain,
 	}
 }
 
@@ -264,6 +263,9 @@ func (v *VM[I, O, A]) Initialize(
 	if err := v.lastAcceptedBlock.notifyAccepted(ctx); err != nil {
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
+
+	v.AddHealthCheck("dynamicStateSync", newStateSyncHealthChecker(v))
+
 	return nil
 }
 
@@ -438,7 +440,19 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	return v.healthChecker.HealthCheck(ctx)
+	ssHealthChecker, ok := v.healthCheckers["dynamicStateSync"].(*stateSyncHealthChecker[I, O, A])
+	if !ok {
+		return nil, fmt.Errorf("couldn't find 'dynamicStateSync' healtcheck")
+	}
+
+	dynamicStateSyncRes, err := ssHealthChecker.HealthCheck(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"dynamicStateSync": dynamicStateSyncRes,
+	}, nil
 }
 
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
@@ -495,8 +509,17 @@ func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
 	v.handlers[name] = handler
 }
 
-func (v *VM[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
-	v.healthChecker = healthChecker
+func (v *VM[I, O, A]) AddHealthCheck(name string, healthChecker health.Checker) {
+	// override
+	// the idea is register your own health check
+	// default + whatever you defined
+	// healthy as long as you're not in dynamic state
+	// register your won under the namespace
+	v.healthCheckers[name] = healthChecker
+}
+
+func (v *VM[I, O, A]) HealthCheckers() map[string]health.Checker {
+	return v.healthCheckers
 }
 
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
