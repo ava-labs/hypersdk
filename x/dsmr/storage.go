@@ -37,11 +37,13 @@ var (
 	ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
 	ErrChunkTooOld               = errors.New("chunk is too old")
 	ErrChunkTooFarAhead          = errors.New("chunk is too far ahead")
+	ErrInvalidChunkCertificate   = errors.New("invalid chunk certificate")
 )
 
 type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
 	SetMin(min int64)
+	VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error
 }
 
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
@@ -51,13 +53,17 @@ type ChunkVerifier[T Tx] struct {
 	chainID    ids.ID
 	chainState pChain
 	min        int64
+	quorumNum  uint64
+	quorumDen  uint64
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
 		networkID:  networkID,
 		chainID:    chainID,
 		chainState: chainState,
+		quorumNum:  quorumNum,
+		quorumDen:  quorumDen,
 	}
 	return verifier
 }
@@ -88,6 +94,22 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	// TODO:
 	// add rate limiting for a given producer.
 	return chunk.Verify(c.networkID, c.chainID)
+}
+
+func (c ChunkVerifier[T]) VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error {
+	err := chunkCert.Verify(
+		ctx,
+		c.networkID,
+		c.chainID,
+		c.chainState,
+		0,
+		c.quorumNum,
+		c.quorumDen,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to verify chunk certificate: %w", err)
+	}
+	return nil
 }
 
 type StoredChunkSignature[T Tx] struct {
@@ -180,13 +202,19 @@ func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 }
 
 // SetChunkCert sets the chunk certificate for the given chunkID
-func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
+func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	storedChunk, ok := s.chunkMap[chunkID]
 	if !ok {
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
+	}
+	if cert == nil {
+		return ErrInvalidChunkCertificate
+	}
+	if err := s.verifier.VerifyCertificate(ctx, cert); err != nil {
+		return fmt.Errorf("failed to store invalid cert for chunk %s : %w", chunkID, err)
 	}
 	storedChunk.Cert = cert
 	return nil

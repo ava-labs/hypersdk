@@ -467,6 +467,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 						PublicKey: pk,
 					}},
 				},
+				1,
+				1,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              ids.GenerateTestNodeID(),
@@ -485,6 +487,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 						PublicKey: pk,
 					}},
 				},
+				1,
+				1,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
@@ -503,6 +507,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 						PublicKey: pk,
 					}},
 				},
+				1,
+				1,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
@@ -522,6 +528,8 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 						PublicKey: pk,
 					}},
 				},
+				1,
+				1,
 			),
 			nodeLastAcceptedTimestamp: 1,
 			chunkExpiry:               123,
@@ -1349,7 +1357,12 @@ func Test_Verify_BadBlock(t *testing.T) {
 type failVerifier struct{}
 
 func (failVerifier) SetMin(int64) {}
+
 func (failVerifier) Verify(Chunk[dsmrtest.Tx]) error {
+	return errors.New("fail")
+}
+
+func (failVerifier) VerifyCertificate(context.Context, *ChunkCertificate) error {
 	return errors.New("fail")
 }
 
@@ -1387,6 +1400,8 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			networkID,
 			chainID,
 			pChain{validators: validators},
+			1,
+			1,
 		)
 		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)

@@ -4,6 +4,7 @@
 package dsmr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -26,7 +27,8 @@ var errInvalidTestItem = errors.New("invalid test item")
 var _ Verifier[Tx] = testVerifier[Tx]{}
 
 type testVerifier[T Tx] struct {
-	correctIDs set.Set[ids.ID]
+	correctIDs   set.Set[ids.ID]
+	correctCerts set.Set[*ChunkCertificate]
 }
 
 func (testVerifier[T]) SetMin(int64) {}
@@ -38,11 +40,19 @@ func (t testVerifier[T]) Verify(chunk Chunk[T]) error {
 	return fmt.Errorf("%w: %s", errInvalidTestItem, chunk.id)
 }
 
+func (t testVerifier[T]) VerifyCertificate(_ context.Context, cert *ChunkCertificate) error {
+	if t.correctCerts.Contains(cert) {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", errInvalidTestItem, cert.ChunkID)
+}
+
 func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int64) (
 	*ChunkStorage[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
 	func() *ChunkStorage[dsmrtest.Tx],
+	testVerifier[dsmrtest.Tx],
 ) {
 	require := require.New(t)
 
@@ -87,7 +97,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 		validChunkIDs = append(validChunkIDs, chunk.id)
 	}
 
-	testVerifier := testVerifier[dsmrtest.Tx]{correctIDs: set.Of(validChunkIDs...)}
+	testVerifier := testVerifier[dsmrtest.Tx]{correctIDs: set.Of(validChunkIDs...), correctCerts: set.NewSet[*ChunkCertificate](0)}
 	storage, err := NewChunkStorage[dsmrtest.Tx](
 		testVerifier,
 		db,
@@ -106,13 +116,13 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 		require.NoError(err)
 		return storage
 	}
-	return storage, validChunks, invalidChunks, restart
+	return storage, validChunks, invalidChunks, restart, testVerifier
 }
 
 func TestStoreAndSaveValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -133,7 +143,11 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 		},
 		Signature: &warp.BitSetSignature{},
 	}
-	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
+	// test to see that the storage cert verification fails.
+	require.ErrorIs(storage.SetChunkCert(context.Background(), chunk.id, chunkCert), errInvalidTestItem)
+	// test to see that the storage cert verification passes.
+	verifier.correctCerts.Add(chunkCert)
+	require.NoError(storage.SetChunkCert(context.Background(), chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
 	require.Equal(chunkCert, chunkCerts[0])
@@ -150,7 +164,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 func TestStoreAndExpireValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -171,7 +185,8 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 		},
 		Signature: &warp.BitSetSignature{},
 	}
-	require.NoError(storage.SetChunkCert(chunk.id, chunkCert))
+	verifier.correctCerts.Add(chunkCert)
+	require.NoError(storage.SetChunkCert(context.Background(), chunk.id, chunkCert))
 	chunkCerts = storage.GatherChunkCerts()
 	require.Len(chunkCerts, 1)
 	require.Equal(chunkCert, chunkCerts[0])
@@ -187,7 +202,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 func TestStoreInvalidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, _, invalidChunks, _ := createTestStorage(t, []int64{}, []int64{time.Now().Unix()})
+	storage, _, invalidChunks, _, _ := createTestStorage(t, []int64{}, []int64{time.Now().Unix()})
 	chunk := invalidChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -203,7 +218,7 @@ func TestStoreInvalidChunk(t *testing.T) {
 func TestStoreAndSaveLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -236,7 +251,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 func TestStoreAndExpireLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -276,7 +291,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 5. Pending local chunk
 	// 6. Pending remote chunk
 	numChunks := 6
-	storage, validChunks, _, restart := createTestStorage(t, []int64{2, 2, 1, 1, 2, 2}, []int64{})
+	storage, validChunks, _, restart, verifier := createTestStorage(t, []int64{2, 2, 1, 1, 2, 2}, []int64{})
 	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
 		chunkCert := &ChunkCertificate{
@@ -289,6 +304,8 @@ func TestRestartSavedChunks(t *testing.T) {
 		}
 		chunkCerts = append(chunkCerts, chunkCert)
 	}
+	verifier.correctCerts.Add(chunkCerts[1])
+	verifier.correctCerts.Add(chunkCerts[5])
 
 	// Case 1
 	require.NoError(storage.AddLocalChunkWithCert(validChunks[0], chunkCerts[0]))
@@ -296,7 +313,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// Case 2
 	_, err := storage.VerifyRemoteChunk(validChunks[1])
 	require.NoError(err)
-	require.NoError(storage.SetChunkCert(validChunks[1].id, chunkCerts[1]))
+	require.NoError(storage.SetChunkCert(context.Background(), validChunks[1].id, chunkCerts[1]))
 
 	// Case 3
 	require.NoError(storage.AddLocalChunkWithCert(validChunks[2], chunkCerts[2]))
@@ -311,7 +328,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// Case 6
 	_, err = storage.VerifyRemoteChunk(validChunks[5])
 	require.NoError(err)
-	require.NoError(storage.SetChunkCert(validChunks[5].id, chunkCerts[5]))
+	require.NoError(storage.SetChunkCert(context.Background(), validChunks[5].id, chunkCerts[5]))
 
 	// Set the minimum to 2 and mark cases 1 and 2 as saved
 	require.NoError(storage.SetMin(2, []ids.ID{
