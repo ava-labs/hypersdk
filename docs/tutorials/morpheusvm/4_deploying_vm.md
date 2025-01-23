@@ -18,10 +18,10 @@ Let's get started!
 
 To head over, follow the installation instructions in the Avalanche-CLI [README](https://github.com/ava-labs/avalanche-cli?tab=readme-ov-file#installation).
 
-To verify that your version is at least `2.0.0`, run the following:
+To verify that your version is at least `2.0.0`, run `avalanche --version`,
+which should give you the following output:
 
 ```bash
-AVL-0W5L7Y:avalanche-cli rodrigo.villar$ avalanche --version
 avalanche version 2.0.0
 ```
 
@@ -354,20 +354,22 @@ We're now ready to use the HyperSDK-CLI!
 ## CLI Setup
 
 We want to store the private key of our (test!) account
-and the RPC endpoint. We can do this by executing the following commands:
+and the RPC endpoint. We first store the RPC endpoint:
 
 ```bash
 ./hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/tutorial/ 
-./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+
+# Output
+Endpoint set to: http://localhost:9650/ext/bc/tutorial/
 ```
 
-Your command line should look as follows:
+Now storing our private key:
 
 ```bash
-AVL-0W5L7Y:tutorial rodrigo.villar$ ./hypersdk-cli endpoint set --endpoint=http://localhost:9650/ext/bc/tutorial/ 
-Endpoint set to: http://localhost:9650/ext/bc/tutorial/
-AVL-0W5L7Y:tutorial rodrigo.villar$ ./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
-✅ Key added successfully!
+./hypersdk-cli key set --key=0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+
+# Output
+✅ Key added successfully! 
 Address: 0x00c4cb545f748a28770042f893784ce85b107389004d6a0e0d6d7518eeae1292d9
 ```
 

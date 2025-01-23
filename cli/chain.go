@@ -125,10 +125,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 		}
 		if lastBlock != 0 {
 			since := now.Unix() - lastBlock
-			newWindow, err := window.Roll(tpsWindow, since)
-			if err != nil {
-				return err
-			}
+			newWindow := window.Roll(tpsWindow, uint64(since))
 			tpsWindow = newWindow
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 			runningDuration := time.Since(start)

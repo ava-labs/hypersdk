@@ -117,8 +117,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 // 		uris := getE2EURIs(tc, blockchainID)
 // 		key := spamKey
 
-// 		err := spamHelper.CreateClient(uris[0])
-// 		require.NoError(err)
+// 		// 		err := spamHelper.CreateClient(uris[0])
+// 		// 		require.NoError(err)
 
 // 		spamConfig := throughput.NewFastConfig(uris, key)
 // 		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
@@ -135,82 +135,83 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 // 		require := require.New(tc)
 // 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 
-// 		uris := getE2EURIs(tc, blockchainID)
-// 		ginkgo.By("Generate 128 blocks", func() {
-// 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, 128)
-// 		})
+// uris := getE2EURIs(tc, blockchainID)
+// ginkgo.By("Generate 32 blocks", func() {
+// 	txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, 32)
+// })
 
-// 		var (
-// 			bootstrapNode    *tmpnet.Node
-// 			bootstrapNodeURI string
-// 		)
-// 		ginkgo.By("Start a new node to bootstrap", func() {
-// 			bootstrapNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-// 			bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
-// 			uris = append(uris, bootstrapNodeURI)
-// 		})
-// 		ginkgo.By("Accept a transaction after state sync", func() {
-// 			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, bootstrapNodeURI, uris)
-// 		})
+// var (
+// 	bootstrapNode    *tmpnet.Node
+// 	bootstrapNodeURI string
+// )
+// ginkgo.By("Start a new node to bootstrap", func() {
+// 	bootstrapNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
+// 	bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
+// 	uris = append(uris, bootstrapNodeURI)
+// })
+// ginkgo.By("Accept a transaction after bootstrapping", func() {
+// 	txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, bootstrapNodeURI, uris)
+// })
 
-// 		ginkgo.By("Restart the node", func() {
-// 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
-// 		})
-// 		ginkgo.By("Generate > StateSyncMinBlocks=512", func() {
-// 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 512)
-// 		})
-// 		var (
-// 			syncNode    *tmpnet.Node
-// 			syncNodeURI string
-// 		)
-// 		ginkgo.By("Start a new node to state sync", func() {
-// 			syncNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-// 			syncNodeURI = formatURI(syncNode.URI, blockchainID)
-// 			uris = append(uris, syncNodeURI)
-// 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
-// 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
-// 			_, _, _, err := c.Network(tc.DefaultContext())
-// 			require.NoError(err)
-// 		})
-// 		ginkgo.By("Accept a transaction after state sync", func() {
-// 			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
-// 		})
-// 		ginkgo.By("Pause the node", func() {
-// 			// TODO: remove the need to call SaveAPIPort from the test
-// 			require.NoError(syncNode.SaveAPIPort())
-// 			require.NoError(syncNode.Stop(tc.DefaultContext()))
+// ginkgo.By("Restart the node", func() {
+// 	require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
+// })
+// ginkgo.By("Generate > StateSyncMinBlocks=128", func() {
+// 	txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 128)
+// })
+// var (
+// 	syncNode    *tmpnet.Node
+// 	syncNodeURI string
+// )
+// ginkgo.By("Start a new node to state sync", func() {
+// 	syncNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
+// 	syncNodeURI = formatURI(syncNode.URI, blockchainID)
+// 	uris = append(uris, syncNodeURI)
+// 	utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
+// 	c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+// 	_, _, _, err := c.Network(tc.DefaultContext())
+// 	require.NoError(err)
+// })
+// ginkgo.By("Accept a transaction after state sync", func() {
+// 	txWorkload.GenerateTxs(tc.ContextWithTimeout(20*time.Second), require, 1, syncNodeURI, uris)
+// })
+// ginkgo.By("Pause the node", func() {
+// 	// TODO: remove the need to call SaveAPIPort from the test
+// 	require.NoError(syncNode.SaveAPIPort())
+// 	require.NoError(syncNode.Stop(tc.DefaultContext()))
 
-// 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
-// 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
-// 			ok, err := c.Ping(tc.DefaultContext())
-// 			require.Error(err) //nolint:forbidigo
-// 			require.False(ok)
-// 		})
-// 		ginkgo.By("Generate 256 blocks", func() {
-// 			// Generate blocks on all nodes except the paused node
-// 			runningURIs := uris[:len(uris)-1]
-// 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 256)
-// 		})
-// 		ginkgo.By("Resume the node", func() {
-// 			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
-// 			utils.Outf("Waiting for sync node to restart")
-// 			require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
+// 	// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
+// 	c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+// 	ok, err := c.Ping(tc.ContextWithTimeout(10 * time.Second))
+// 	require.Error(err) //nolint:forbidigo
+// 	require.False(ok)
+// })
+// ginkgo.By("Generate 32 blocks", func() {
+// 	// Generate blocks on all nodes except the paused node
+// 	runningURIs := uris[:len(uris)-1]
+// 	txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 32)
+// })
+// ginkgo.By("Resume the node", func() {
+// 	require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
+// 	utils.Outf("Waiting for sync node to restart")
+// 	require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
 
-// 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
+// 	// 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
 
-// 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
-// 			_, _, _, err := c.Network(tc.DefaultContext())
-// 			require.NoError(err)
-// 		})
+// 	// 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
+// 	// 			_, _, _, err := c.Network(tc.DefaultContext())
+// 	// 			require.NoError(err)
+// })
 
-// 		ginkgo.By("Accept a transaction after resuming", func() {
-// 			txWorkload.GenerateTxs(tc.DefaultContext(), require, 1, syncNodeURI, uris)
-// 		})
-// 		ginkgo.By("State sync while broadcasting txs", func() {
-// 			stopChannel := make(chan struct{})
-// 			wg := &sync.WaitGroup{}
-// 			defer wg.Wait()
-// 			defer close(stopChannel)
+// ginkgo.By("Accept a transaction after resuming", func() {
+// 	txWorkload.GenerateTxs(tc.ContextWithTimeout(20*time.Second), require, 1, syncNodeURI, uris)
+// })
+// ginkgo.By("State sync while broadcasting txs", func() {
+// 	stopChannel := make(chan struct{})
+// 	wg := &sync.WaitGroup{}
+// 	defer wg.Wait()
+// 	defer close(stopChannel)
+// })
 
 // 			wg.Add(1)
 // 			go func() {

@@ -26,7 +26,7 @@ func NewManual(engineCh chan<- common.Message, logger logging.Logger) *Manual {
 	}
 }
 
-func (b *Manual) Run() {
+func (b *Manual) Start() {
 	close(b.doneBuild)
 }
 

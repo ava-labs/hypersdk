@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -44,8 +43,6 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	case errors.Is(err, ErrTimestampTooEarly):
 		return true
 	case errors.Is(err, ErrTimestampTooLate):
-		return false
-	case errors.Is(err, ErrInvalidBalance):
 		return false
 	case errors.Is(err, ErrAuthNotActivated):
 		return false
@@ -96,19 +93,22 @@ func NewBuilder(
 	}
 }
 
-func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent *ExecutionBlock) (*ExecutionBlock, *ExecutedBlock, merkledb.View, error) {
+func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
 	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
+
+	parent := parentOutputBlock.ExecutionBlock
+	parentView := parentOutputBlock.View
 
 	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
 	r := c.ruleFactory.GetRules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
-		return nil, nil, nil, ErrTimestampTooEarly
+		return nil, nil, fmt.Errorf("%w: proposed build block time (%d) < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, nextTime, parent.Tmstmp, r.GetMinBlockGap())
 	}
 	var (
-		parentID          = parent.ID()
+		parentID          = parent.GetID()
 		timestamp         = nextTime
 		height            = parent.Hght + 1
 		blockTransactions = []*Transaction{}
@@ -118,13 +118,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	feeKey := FeeKey(c.metadataManager.FeePrefix())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	feeManager := parentFeeManager.ComputeNext(nextTime, r)
+
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
@@ -132,8 +130,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	changesEstimate := min(mempoolSize, maxViewPreallocation)
 
 	var (
-		ts            = tstate.New(changesEstimate)
-		oldestAllowed = nextTime - r.GetValidityWindow()
+		ts = tstate.New(changesEstimate)
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
@@ -172,7 +169,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
 		// This should only happen after startup, so we add the transactions back to the mempool.
-		dup, err := c.validityWindow.IsRepeat(ctx, parent, txs, oldestAllowed)
+		dup, err := c.validityWindow.IsRepeat(ctx, parent, nextTime, txs)
 		if err != nil {
 			restorable = append(restorable, txs...)
 			break
@@ -290,7 +287,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 
 				// Execute block
-				tsv := ts.NewView(stateKeys, storage)
+				tsv := ts.NewView(
+					stateKeys,
+					state.ImmutableStorage(storage),
+					len(stateKeys),
+				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
@@ -366,7 +367,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 					c.log.Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
 				c.log.Warn("build failed", zap.Error(execErr))
-				return nil, nil, nil, execErr
+				return nil, nil, execErr
 			}
 			break
 		}
@@ -392,7 +393,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(blockTransactions) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
+			return nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
 		c.metrics.emptyBlockBuilt.Inc()
 	}
@@ -408,19 +409,23 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
-		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
+	tsv := ts.NewView(
+		keys,
+		state.ImmutableStorage(map[string][]byte{
+			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+			feeKeyStr:       parentFeeManager.Bytes(),
+		}),
+		len(keys),
+	)
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, height)); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to insert height", err)
+		return nil, nil, fmt.Errorf("%w: unable to insert height", err)
 	}
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(timestamp))); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to insert timestamp", err)
+		return nil, nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: unable to insert fees", err)
+		return nil, nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 	tsv.Commit()
 
@@ -428,13 +433,13 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 	// for async processing to complete
 	parentStateRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleDBView(ctx, c.tracer, parentView)
+	// Calculate new view from parent and state diff
+	view, err := createView(ctx, c.tracer, parentView, ts.ChangedKeys())
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Initialize finalized metadata fields
@@ -446,7 +451,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		parentStateRoot,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Kickoff root generation
@@ -459,13 +464,14 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		}
 		c.log.Info("merkle root generated",
 			zap.Uint64("height", blk.Hght),
-			zap.Stringer("blkID", blk.ID()),
+			zap.Stringer("blkID", blk.GetID()),
 			zap.Stringer("root", root),
 		)
 		c.metrics.rootCalculatedCount.Inc()
 		c.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
+	c.metrics.txsBuilt.Add(float64(len(blockTransactions)))
 	c.log.Info(
 		"built block",
 		zap.Uint64("hght", height),
@@ -476,14 +482,14 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", timestamp),
 	)
-	execBlock, err := NewExecutionBlock(blk)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return execBlock, &ExecutedBlock{
-		Block:         blk,
-		Results:       results,
-		UnitPrices:    feeManager.UnitPrices(),
-		UnitsConsumed: feeManager.UnitsConsumed(),
-	}, view, nil
+	execBlock := NewExecutionBlock(blk)
+	return execBlock, &OutputBlock{
+		ExecutionBlock: execBlock,
+		View:           view,
+		ExecutionResults: ExecutionResults{
+			Results:       results,
+			UnitPrices:    feeManager.UnitPrices(),
+			UnitsConsumed: feeManager.UnitsConsumed(),
+		},
+	}, nil
 }

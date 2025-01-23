@@ -15,10 +15,10 @@ PROJECT_NAME="morpheusvm"
 PROJECT_CLI_NAME="morpheus-cli"
 
 # Commit of the MorpheusVM repository to build and install
-PROJECT_VM_COMMIT=fd36681b939cd28b26526eaf1e5089c2c21fb91d
+PROJECT_VM_COMMIT="c3c9cafd5726aeb4b608e3315922910aeb0baeeb"
 
 # Set AvalancheGo Build (should have canPop disabled)
-AVALANCHEGO_COMMIT=94be34ac64cba099d7be198965f0dd551f7cdefb
+AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
 
 # Install avalanche-cli
 LOCAL_CLI_COMMIT=18e5259b499bb9b487bb5e1e620d3107e68f2171
@@ -69,7 +69,7 @@ cd $pw
 # Install and build the project and project CLI
 echo -e "${YELLOW}building ${PROJECT_CLI_NAME}${NC}"
 cd $TMPDIR
-git clone https://github.com/furkan-ux/hypersdk
+git clone https://github.com/ava-labs/hypersdk
 cd hypersdk
 git checkout $PROJECT_VM_COMMIT
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
@@ -128,7 +128,6 @@ cat <<EOF > "${TMPDIR}/${PROJECT_NAME}".config
   "precheckCores": 16,
   "actionExecutionCores": 8,
   "missingChunkFetchers": 48,
-  "verifyAuth": true,
   "authRPCCores": 48,
   "authRPCBacklog": 10000000,
   "authGossipCores": 16,
@@ -201,7 +200,7 @@ trap cleanup SIGINT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,us-west-2 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/furkan-ux/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/${PROJECT_NAME}/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/${PROJECT_NAME}.genesis" --subnet-config="${TMPDIR}/${PROJECT_NAME}.genesis" --chain-config="${TMPDIR}/${PROJECT_NAME}.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/${PROJECT_NAME}/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,us-west-2 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/${PROJECT_NAME}/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/${PROJECT_NAME}.genesis" --subnet-config="${TMPDIR}/${PROJECT_NAME}.genesis" --chain-config="${TMPDIR}/${PROJECT_NAME}.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/${PROJECT_NAME}/grafana.json"
 
 # Import the cluster into project cli for local interaction
 $TMPDIR/$PROJECT_CLI_NAME chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
@@ -210,7 +209,7 @@ $TMPDIR/$PROJECT_CLI_NAME chain import-cli ~/.avalanche-cli/nodes/inventories/$C
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
 echo -e "\n${YELLOW}starting load test...${NC}"
-$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region us-west-2 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/furkan-ux/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/${PROJECT_NAME}; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/${PROJECT_CLI_NAME}" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --cluster-info=/home/ubuntu/clusterInfo.yaml --key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region us-west-2 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/${PROJECT_NAME}; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/${PROJECT_CLI_NAME}" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --cluster-info=/home/ubuntu/clusterInfo.yaml --key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 
 # Log dashboard information
 echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"

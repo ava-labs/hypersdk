@@ -7,9 +7,11 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -203,4 +205,18 @@ type AuthFactory interface {
 	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
 	Address() codec.Address
+}
+
+type ValidityWindow interface {
+	VerifyExpiryReplayProtection(
+		ctx context.Context,
+		blk validitywindow.ExecutionBlock[*Transaction],
+	) error
+	Accept(blk validitywindow.ExecutionBlock[*Transaction])
+	IsRepeat(
+		ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[*Transaction],
+		currentTimestamp int64,
+		txs []*Transaction,
+	) (set.Bits, error)
 }

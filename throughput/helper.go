@@ -36,8 +36,8 @@ type SpamHelper interface {
 	//
 	// Memo is used to ensure that each transaction is unique (even if between the same
 	// sender and receiver for the same amount).
-	GetTransfer(address codec.Address, amount uint64, memo []byte, factory chain.AuthFactory) []chain.Action
+	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
 
 	// GetActions returns a list of actions the spammer sends to the network.
-	GetActions(factory chain.AuthFactory) []chain.Action
+	GetActions() []chain.Action
 }

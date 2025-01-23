@@ -6,70 +6,76 @@ package vm
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"path/filepath"
-	"sync"
-	"time"
+	"sync/atomic"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
-	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
 	"github.com/ava-labs/hypersdk/internal/mempool"
 	"github.com/ava-labs/hypersdk/internal/pebble"
-	"github.com/ava-labs/hypersdk/internal/trace"
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
-	"github.com/ava-labs/hypersdk/utils"
 
-	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
-	avautils "github.com/ava-labs/avalanchego/utils"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
+	hsnow "github.com/ava-labs/hypersdk/snow"
 )
 
 const (
-	blockDB   = "blockdb"
-	stateDB   = "statedb"
-	vmDataDir = "vm"
+	blockDB             = "blockdb"
+	stateDB             = "statedb"
+	resultsDB           = "results"
+	lastResultKey       = byte(0)
+	syncerDB            = "syncerdb"
+	vmDataDir           = "vm"
+	hyperNamespace      = "hypervm"
+	chainNamespace      = "chain"
+	chainIndexNamespace = "chainindex"
+	gossiperNamespace   = "gossiper"
 
-	MaxAcceptorSize        = 256
-	MinAcceptedBlockWindow = 1024
+	changeProofHandlerID = 0x0
+	rangeProofHandlerID  = 0x1
+	txGossipHandlerID    = 0x2
+)
 
-	txGossipHandlerID = 0x2
+var ErrNotAdded = errors.New("not added")
+
+var (
+	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
+	_ hsnow.Block = (*chain.OutputBlock)(nil)
+
+	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] = (*VM)(nil)
+	_ hsnow.ChainIndex[*chain.ExecutionBlock]                                    = (*chainindex.ChainIndex[*chain.ExecutionBlock])(nil)
 )
 
 type VM struct {
-	DataDir string
-	v       *version.Semantic
+	snowInput hsnow.ChainInput
+	snowApp   *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 
-	snowCtx         *snow.Context
-	pkBytes         []byte
 	proposerMonitor *validators.ProposerMonitor
 
 	config Config
@@ -81,76 +87,42 @@ type VM struct {
 	options               []Option
 
 	chain                   *chain.Chain
-	chainTimeValidityWindow chain.ValidityWindow
+	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
-	seenValidityWindowOnce  sync.Once
-	seenValidityWindow      chan struct{}
+	SyncClient              *statesync.Client[*chain.ExecutionBlock]
 
+	consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	chainStore     *chainindex.ChainIndex[*chain.ExecutionBlock]
+
+	normalOp atomic.Bool
 	builder  builder.Builder
 	gossiper gossiper.Gossiper
-
-	asyncAcceptedSubscriptionFactories []event.SubscriptionFactory[*chain.ExecutedBlock]
-	asyncAcceptedSubscriptions         []event.Subscription[*chain.ExecutedBlock]
-	acceptedSubscriptions              []event.Subscription[*StatefulBlock]
-	verifiedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
-	rejectedSubscriptions              []event.Subscription[*chain.ExecutedBlock]
+	mempool  *mempool.Mempool[*chain.Transaction]
 
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
 	stateDB               merkledb.MerkleDB
-	vmDB                  database.Database
-	handlers              map[string]http.Handler
+	executionResultsDB    database.Database
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
 	authEngine            map[uint8]AuthEngine
-	network               *p2p.Network
-
-	tracer  avatrace.Tracer
-	mempool *mempool.Mempool[*chain.Transaction]
-
-	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock]
-
-	// Each element is a block that passed verification but
-	// hasn't yet been accepted/rejected
-	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*StatefulBlock
-
-	// We store the last [AcceptedBlockWindowCache] blocks in memory
-	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock]
-	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
-
-	// Accepted block queue
-	acceptedQueue chan *StatefulBlock
-	acceptorDone  chan struct{}
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
 	authVerifiers workers.Workers
 
-	bootstrapped avautils.Atomic[bool]
-	genesisBlk   *StatefulBlock
-	preferred    ids.ID
-	lastAccepted *StatefulBlock
-	toEngine     chan<- common.Message
+	metrics *Metrics
 
-	// State Sync client and AppRequest handlers
-	StateSyncClient *statesync.Client[*StatefulBlock]
-	StateSyncServer *statesync.Server[*StatefulBlock]
-
-	metrics  *Metrics
-	profiler profiler.ContinuousProfiler
-
-	ready chan struct{}
-	stop  chan struct{}
+	network *p2p.Network
+	snowCtx *snow.Context
+	DataDir string
+	tracer  avatrace.Tracer
 }
 
 func New(
-	v *version.Semantic,
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
@@ -169,10 +141,8 @@ func New(
 	}
 
 	return &VM{
-		v:                     v,
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
-		config:                NewConfig(),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
@@ -185,112 +155,80 @@ func New(
 // implements "block.ChainVM.common.VM"
 func (vm *VM) Initialize(
 	ctx context.Context,
-	snowCtx *snow.Context,
-	_ database.Database,
-	genesisBytes []byte,
-	upgradeBytes []byte,
-	configBytes []byte,
-	toEngine chan<- common.Message,
-	_ []*common.Fx,
-	appSender common.AppSender,
-) error {
+	chainInput hsnow.ChainInput,
+	snowApp *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
+) (hsnow.ChainIndex[*chain.ExecutionBlock], *chain.OutputBlock, *chain.OutputBlock, bool, error) {
+	var (
+		snowCtx      = chainInput.SnowCtx
+		genesisBytes = chainInput.GenesisBytes
+		upgradeBytes = chainInput.UpgradeBytes
+	)
 	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
 	vm.snowCtx = snowCtx
-	// Init channels before initializing other structs
-	vm.toEngine = toEngine
-	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	vm.seenValidityWindow = make(chan struct{})
-	vm.ready = make(chan struct{})
-	vm.stop = make(chan struct{})
-	// TODO: cleanup metrics registration
-	defaultRegistry, metrics, err := newMetrics()
+	vm.snowInput = chainInput
+	vm.snowApp = snowApp
+
+	vmRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, hyperNamespace)
 	if err != nil {
-		return err
+		return nil, nil, nil, false, err
 	}
-	if err := vm.snowCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
-		return err
+	vm.metrics, err = newMetrics(vmRegistry)
+	if err != nil {
+		return nil, nil, nil, false, err
 	}
-	vm.metrics = metrics
 	vm.proposerMonitor = validators.NewProposerMonitor(vm, vm.snowCtx)
 
-	vm.network, err = p2p.NewNetwork(vm.snowCtx.Log, appSender, defaultRegistry, "p2p")
-	if err != nil {
-		return fmt.Errorf("failed to initialize p2p: %w", err)
-	}
-
-	blockDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("blockdb", blockDBRegistry); err != nil {
-		return fmt.Errorf("failed to register blockdb metrics: %w", err)
-	}
-	pebbleConfig := pebble.NewDefaultConfig()
-	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
-	if err != nil {
-		return err
-	}
-
-	rawStateDBRegistry := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("rawstatedb", rawStateDBRegistry); err != nil {
-		return fmt.Errorf("failed to register rawstatedb metrics: %w", err)
-	}
-	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, rawStateDBRegistry)
-	if err != nil {
-		return err
-	}
+	vm.network = snowApp.GetNetwork()
 
 	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	vm.GenesisBytes = genesisBytes
 	if err != nil {
-		return err
+		return nil, nil, nil, false, err
 	}
 
-	if len(configBytes) > 0 {
-		if err := json.Unmarshal(configBytes, &vm.config); err != nil {
-			return fmt.Errorf("failed to unmarshal config: %w", err)
-		}
-	}
-	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
-
-	// Setup tracer
-	vm.tracer, err = trace.New(&vm.config.TraceConfig)
+	vm.config, err = GetVMConfig(chainInput.Config)
 	if err != nil {
-		return err
+		return nil, nil, nil, false, err
 	}
+
+	vm.tracer = chainInput.Tracer
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
-	// Set defaults
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
-	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
-		NotifyF: func(ctx context.Context, b *StatefulBlock) error {
+	snowApp.AddAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
 			droppedTxs := vm.mempool.SetMinTimestamp(ctx, b.Tmstmp)
 			vm.snowCtx.Log.Debug("dropping expired transactions from mempool",
-				zap.Stringer("blkID", b.ID()),
+				zap.Stringer("blkID", b.GetID()),
 				zap.Int("numTxs", len(droppedTxs)),
 			)
 			return nil
 		},
 	})
-	vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-		NotifyF: func(ctx context.Context, b *chain.ExecutedBlock) error {
-			vm.mempool.Remove(ctx, b.Block.Txs)
+	snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+			vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
-	vm.rejectedSubscriptions = append(vm.rejectedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-		NotifyF: func(ctx context.Context, b *chain.ExecutedBlock) error {
-			vm.mempool.Add(ctx, b.Block.Txs)
+	snowApp.AddRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+			vm.mempool.Add(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
-
-	// Setup profiler
-	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
-		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
-		go vm.profiler.Dispatch() //nolint:errcheck
-	}
 
 	// Instantiate DBs
-	merkleRegistry := prometheus.NewRegistry()
+	pebbleConfig := pebble.NewDefaultConfig()
+	stateDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, stateDB)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to register statedb metrics: %w", err)
+	}
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, stateDBRegistry)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
@@ -301,67 +239,71 @@ func (vm *VM) Initialize(
 		IntermediateNodeCacheSize:   uint(vm.config.IntermediateNodeCacheSize),
 		IntermediateWriteBufferSize: uint(vm.config.StateIntermediateWriteBufferSize),
 		IntermediateWriteBatchSize:  uint(vm.config.StateIntermediateWriteBatchSize),
-		Reg:                         merkleRegistry,
+		Reg:                         stateDBRegistry,
 		TraceLevel:                  merkledb.InfoTrace,
 		Tracer:                      vm.tracer,
 	})
 	if err != nil {
-		return err
+		return nil, nil, nil, false, err
 	}
-	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
-		return err
+	snowApp.AddCloser(stateDB, func() error {
+		if err := vm.stateDB.Close(); err != nil {
+			return fmt.Errorf("failed to close state db: %w", err)
+		}
+		if err := vm.rawStateDB.Close(); err != nil {
+			return fmt.Errorf("failed to close raw state db: %w", err)
+		}
+		return nil
+	})
+	vm.executionResultsDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, resultsDB, prometheus.NewRegistry() /* throwaway metrics registry */)
+	if err != nil {
+		return nil, nil, nil, false, err
 	}
+	snowApp.AddCloser(resultsDB, func() error {
+		if err := vm.executionResultsDB.Close(); err != nil {
+			return fmt.Errorf("failed to close execution results db: %w", err)
+		}
+		return nil
+	})
 
 	// Setup worker cluster for verifying signatures
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
 	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *StatefulBlock]{Size: vm.config.ParsedBlockCacheSize}
-	vm.verifiedBlocks = make(map[ids.ID]*StatefulBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *StatefulBlock](vm.config.AcceptedBlockWindowCache)
-	if err != nil {
-		return err
-	}
-	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.AcceptedBlockWindowCache)
-	if err != nil {
-		return err
-	}
-	acceptorSize := vm.config.AcceptorSize
-	if acceptorSize > MaxAcceptorSize {
-		return fmt.Errorf("AcceptorSize (%d) must be <= MaxAcceptorSize (%d)", acceptorSize, MaxAcceptorSize)
-	}
-	acceptedBlockWindow := vm.config.AcceptedBlockWindow
-	if acceptedBlockWindow < MinAcceptedBlockWindow {
-		return fmt.Errorf("AcceptedBlockWindow (%d) must be >= to MinAcceptedBlockWindow (%d)", acceptedBlockWindow, MinAcceptedBlockWindow)
-	}
-	vm.acceptedQueue = make(chan *StatefulBlock, vm.config.AcceptorSize)
-	vm.acceptorDone = make(chan struct{})
+	snowApp.AddCloser("auth verifiers", func() error {
+		vm.authVerifiers.Stop()
+		return nil
+	})
 
 	// Set defaults
 	options := &Options{}
 	for _, Option := range vm.options {
-		config := vm.config.ServiceConfig[Option.Namespace]
-		opt, err := Option.optionFunc(vm, config)
+		opt, err := Option.optionFunc(vm, vm.snowInput.Config.GetRawConfig(Option.Namespace))
 		if err != nil {
-			return err
+			return nil, nil, nil, false, err
 		}
 		opt.apply(options)
 	}
 	err = vm.applyOptions(options)
 	if err != nil {
-		return fmt.Errorf("failed to apply options : %w", err)
+		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm)
-	registerer := prometheus.NewRegistry()
-	if err := vm.snowCtx.Metrics.Register("chain", registerer); err != nil {
-		return err
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
+		return vm.Rules(timestamp).GetValidityWindow()
+	})
+	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
+	}
+	chainConfig, err := GetChainConfig(chainInput.Config)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to get chain config: %w", err)
 	}
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
-		registerer,
+		chainRegistry,
 		vm,
 		vm.Mempool(),
 		vm.Logger(),
@@ -371,201 +313,278 @@ func (vm *VM) Initialize(
 		vm.AuthVerifiers(),
 		vm,
 		vm.chainTimeValidityWindow,
-		vm.config.ChainConfig,
+		chainConfig,
 	)
 	if err != nil {
-		return err
+		return nil, nil, nil, false, err
 	}
-	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
-		return vm.ruleFactory.GetRules(time).GetValidityWindow()
-	})
-	vm.acceptedSubscriptions = append(vm.acceptedSubscriptions, event.SubscriptionFunc[*StatefulBlock]{
-		NotifyF: func(ctx context.Context, b *StatefulBlock) error {
-			seenValidityWindow, err := vm.syncer.Accept(ctx, b.ExecutionBlock)
-			if err != nil {
-				vm.Fatal("syncer failed to accept block", zap.Error(err))
-			}
-			if seenValidityWindow {
-				vm.seenValidityWindowOnce.Do(func() {
-					close(vm.seenValidityWindow)
-				})
-			}
+
+	if err := vm.initChainStore(); err != nil {
+		return nil, nil, nil, false, err
+	}
+
+	if err := vm.initStateSync(ctx); err != nil {
+		return nil, nil, nil, false, err
+	}
+
+	snowApp.AddNormalOpStarter(func(_ context.Context) error {
+		if vm.SyncClient.Started() {
 			return nil
-		},
+		}
+		return vm.startNormalOp(ctx)
 	})
 
-	// Try to load last accepted
-	has, err := vm.HasLastAccepted()
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
+		if err != nil {
+			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
+		}
+		snowApp.AddHandler(api.Path, api.Handler)
+	}
+
+	stateReady := !vm.SyncClient.MustStateSync()
+	var lastAccepted *chain.OutputBlock
+	if stateReady {
+		lastAccepted, err = vm.initLastAccepted(ctx)
+		if err != nil {
+			return nil, nil, nil, false, err
+		}
+	}
+	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
+}
+
+func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]) {
+	vm.consensusIndex = consensusIndex
+}
+
+func (vm *VM) initChainStore() error {
+	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
-		snowCtx.Log.Error("could not determine if have last accepted")
-		return err
+		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
 	}
-	if has { //nolint:nestif
-		genesisBlk, err := vm.GetGenesis(ctx)
-		if err != nil {
-			snowCtx.Log.Error("could not get genesis", zap.Error(err))
-			return err
-		}
-		vm.genesisBlk = genesisBlk
-		lastAcceptedHeight, err := vm.GetLastAcceptedHeight()
-		if err != nil {
-			snowCtx.Log.Error("could not get last accepted height", zap.Error(err))
-			return err
-		}
-		blk, err := vm.GetDiskBlock(ctx, lastAcceptedHeight)
-		if err != nil {
-			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
-			return err
-		}
-		vm.preferred, vm.lastAccepted = blk.ID(), blk
-		vm.loadAcceptedBlocks(ctx)
-		// It is not guaranteed that the last accepted state on-disk matches the post-execution
-		// result of the last accepted block.
-		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
-	} else {
-		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.balanceHandler); err != nil {
-			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
-			return err
-		}
-		if err := sps.Commit(ctx); err != nil {
-			return err
-		}
-		root, err := vm.stateDB.GetMerkleRoot(ctx)
-		if err != nil {
-			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
-			return err
-		}
-		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
-
-		// Create genesis block
-		genesisExecutionBlk, err := chain.NewGenesisBlock(root)
-		if err != nil {
-			snowCtx.Log.Error("could not create genesis block", zap.Error(err))
-			return err
-		}
-		genesisBlk, err := ParseStatefulBlock(
-			ctx,
-			genesisExecutionBlk,
-			true,
-			vm,
-		)
-		if err != nil {
-			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
-			return err
-		}
-		// Set executed block, since we will never execute the genesis block
-		genesisBlk.executedBlock = &chain.ExecutedBlock{
-			Block: genesisExecutionBlk.StatelessBlock,
-		}
-
-		// Update chain metadata
-		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.MetadataManager().HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.MetadataManager().TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		genesisRules := vm.Rules(0)
-		feeManager := internalfees.NewManager(nil)
-		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
-			feeManager.SetUnitPrice(i, minUnitPrice[i])
-			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.MetadataManager().FeePrefix()), feeManager.Bytes()); err != nil {
-			return err
-		}
-
-		// Commit genesis block post-execution state and compute root
-		if err := sps.Commit(ctx); err != nil {
-			return err
-		}
-		genesisRoot, err := vm.stateDB.GetMerkleRoot(ctx)
-		if err != nil {
-			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
-			return err
-		}
-
-		// Update last accepted and preferred block
-		vm.genesisBlk = genesisBlk
-		if err := vm.UpdateLastAccepted(genesisBlk); err != nil {
-			snowCtx.Log.Error("could not set genesis block as last accepted", zap.Error(err))
-			return err
-		}
-		gBlkID := genesisBlk.ID()
-		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
-		snowCtx.Log.Info("initialized vm from genesis",
-			zap.Stringer("block", gBlkID),
-			zap.Stringer("pre-execution root", genesisBlk.StateRoot),
-			zap.Stringer("post-execution root", genesisRoot),
-		)
+	pebbleConfig := pebble.NewDefaultConfig()
+	chainStoreDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
+	if err != nil {
+		return fmt.Errorf("failed to create chain index database: %w", err)
 	}
-	// accept the last block in order to initialize the internal lastBlockHeight
-	vm.chainTimeValidityWindow.Accept(vm.lastAccepted.ExecutionBlock)
-	go vm.processAcceptedBlocks()
-
-	if err := vm.initStateSync(); err != nil {
-		return err
+	vm.snowApp.AddCloser(chainIndexNamespace, chainStoreDB.Close)
+	config, err := GetChainIndexConfig(vm.snowInput.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
+	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
+	if err != nil {
+		return fmt.Errorf("failed to create chain index: %w", err)
+	}
+	return nil
+}
+
+func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
+	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
+	if err != nil && err != database.ErrNotFound {
+		return nil, fmt.Errorf("failed to load genesis block: %w", err)
+	}
+	if err == database.ErrNotFound {
+		return vm.initGenesisAsLastAccepted(ctx)
+	}
+	if lastAcceptedHeight == 0 {
+		blk, err := vm.chainStore.GetBlockByHeight(ctx, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch genesis block: %w", err)
+		}
+		return &chain.OutputBlock{
+			ExecutionBlock:   blk,
+			View:             vm.stateDB,
+			ExecutionResults: chain.ExecutionResults{},
+		}, nil
+	}
+
+	// If the chain index is initialized, return the output block that matches with the latest
+	// state.
+	return vm.extractLatestOutputBlock(ctx)
+}
+
+func (vm *VM) extractStateHeight() (uint64, error) {
+	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
+	if err != nil {
+		return 0, fmt.Errorf("failed to get state height: %w", err)
+	}
+	stateHeight, err := database.ParseUInt64(heightBytes)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse state height: %w", err)
+	}
+	return stateHeight, nil
+}
+
+func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
+	stateHeight, err := vm.extractStateHeight()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
+	}
+	lastIndexedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last accepted height: %w", err)
+	}
+	if lastIndexedHeight != stateHeight && lastIndexedHeight != stateHeight+1 {
+		return nil, fmt.Errorf("cannot extract latest output block from invalid state with last indexed height %d and state height %d", lastIndexedHeight, stateHeight)
+	}
+
+	// If the heights match exactly, we must have stored the last execution results
+	if lastIndexedHeight == stateHeight {
+		resultBytes, err := vm.executionResultsDB.Get([]byte{lastResultKey})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch last execution results: %w", err)
+		}
+		if len(resultBytes) < consts.Uint64Len {
+			return nil, fmt.Errorf("invalid execution results length: %d", len(resultBytes))
+		}
+		executionResultsHeight, err := database.ParseUInt64(resultBytes[len(resultBytes)-consts.Uint64Len:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse execution results height: %w", err)
+		}
+		if executionResultsHeight != stateHeight {
+			return nil, fmt.Errorf("execution results height %d does not match state height %d", executionResultsHeight, stateHeight)
+		}
+		blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
+		}
+		executionResults, err := chain.UnmarshalExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal execution results for last accepted block: %w", err)
+		}
+		return &chain.OutputBlock{
+			ExecutionBlock:   blk,
+			View:             vm.stateDB,
+			ExecutionResults: *executionResults,
+		}, nil
+	}
+
+	// The last indexedHeight must be stateHeight+1, so we can execute the last block to populate
+	// execution results
+	blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight+1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
+	}
+	outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, blk, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute block at latest state height %d: %w", stateHeight, err)
+	}
+	if _, err := vm.AcceptBlock(ctx, nil, outputBlock); err != nil {
+		return nil, err
+	}
+	return outputBlock, nil
+}
+
+func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
+	ts := tstate.New(0)
+	tsv := ts.NewView(state.CompletePermissions, vm.stateDB, 0)
+	if err := vm.genesis.InitializeState(ctx, vm.tracer, tsv, vm.balanceHandler); err != nil {
+		return nil, fmt.Errorf("failed to initialize genesis state: %w", err)
+	}
+
+	// Update chain metadata
+	if err := tsv.Insert(ctx, chain.HeightKey(vm.metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		return nil, fmt.Errorf("failed to set genesis height: %w", err)
+	}
+	if err := tsv.Insert(ctx, chain.TimestampKey(vm.metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		return nil, fmt.Errorf("failed to set genesis timestamp: %w", err)
+	}
+	genesisRules := vm.ruleFactory.GetRules(0)
+	feeManager := internalfees.NewManager(nil)
+	minUnitPrice := genesisRules.GetMinUnitPrice()
+	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
+		feeManager.SetUnitPrice(i, minUnitPrice[i])
+		vm.snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
+	}
+	if err := tsv.Insert(ctx, chain.FeeKey(vm.metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
+		return nil, fmt.Errorf("failed to set genesis fee manager: %w", err)
+	}
+
+	// Commit genesis block post-execution state and compute root
+	tsv.Commit()
+	view, err := vm.stateDB.NewView(ctx, merkledb.ViewChanges{
+		MapOps:       ts.ChangedKeys(),
+		ConsumeBytes: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit genesis initialized state diff: %w", err)
+	}
+	if err := view.CommitToDB(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit genesis view: %w", err)
+	}
+	root, err := vm.stateDB.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get initialized genesis root: %w", err)
+	}
+	vm.snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
+	// Create genesis block
+	genesisExecutionBlk, err := chain.NewGenesisBlock(root)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create genesis block: %w", err)
+	}
+	if err := vm.chainStore.UpdateLastAccepted(ctx, genesisExecutionBlk); err != nil {
+		return nil, fmt.Errorf("failed to write genesis block: %w", err)
+	}
+
+	return &chain.OutputBlock{
+		ExecutionBlock:   genesisExecutionBlk,
+		View:             vm.stateDB,
+		ExecutionResults: chain.ExecutionResults{},
+	}, nil
+}
+
+func (vm *VM) startNormalOp(ctx context.Context) error {
+	vm.builder.Start()
+	vm.snowApp.AddCloser("builder", func() error {
+		vm.builder.Done()
+		return nil
+	})
+
+	vm.gossiper.Start(vm.network.NewClient(txGossipHandlerID))
+	vm.snowApp.AddCloser("gossiper", func() error {
+		vm.gossiper.Done()
+		return nil
+	})
+
 	if err := vm.network.AddHandler(
 		txGossipHandlerID,
 		gossiper.NewTxGossipHandler(
-			vm,
 			vm.snowCtx.Log,
 			vm.gossiper,
 		),
 	); err != nil {
-		return err
+		return fmt.Errorf("failed to add tx gossip handler: %w", err)
 	}
-
-	// Startup block builder and gossiper
-	go vm.builder.Run()
-	go vm.gossiper.Run(vm.network.NewClient(txGossipHandlerID))
-
-	// Wait until VM is ready and then send a state sync message to engine
-	go vm.markReady()
-
-	for _, factory := range vm.asyncAcceptedSubscriptionFactories {
-		subscription, err := factory.New()
-		if err != nil {
-			return fmt.Errorf("failed to initialize block subscription: %w", err)
-		}
-
-		vm.asyncAcceptedSubscriptions = append(vm.asyncAcceptedSubscriptions, subscription)
-	}
-
-	vm.handlers = make(map[string]http.Handler)
-	for _, apiFactory := range vm.vmAPIHandlerFactories {
-		api, err := apiFactory.New(vm)
-		if err != nil {
-			return fmt.Errorf("failed to initialize api: %w", err)
-		}
-
-		if _, ok := vm.handlers[api.Path]; ok {
-			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
-		}
-
-		vm.handlers[api.Path] = api.Handler
-	}
-
-	err = vm.restoreAcceptedQueue(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to restore accepted blocks to the queue: %w", err)
-	}
+	vm.checkActivity(ctx)
+	vm.normalOp.Store(true)
 
 	return nil
 }
 
 func (vm *VM) applyOptions(o *Options) error {
-	vm.asyncAcceptedSubscriptionFactories = o.blockSubscriptionFactories
+	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(o.blockSubscriptionFactories))
+	for i, factory := range o.blockSubscriptionFactories {
+		sub, err := factory.New()
+		if err != nil {
+			return err
+		}
+		blockSubs[i] = sub
+	}
+	executedBlockSub := event.Aggregate(blockSubs...)
+	outputBlockSub := event.Map(func(b *chain.OutputBlock) *chain.ExecutedBlock {
+		return &chain.ExecutedBlock{
+			Block:            b.StatelessBlock,
+			ExecutionResults: b.ExecutionResults,
+		}
+	}, executedBlockSub)
+	vm.snowApp.AddAcceptedSub(outputBlockSub)
 	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
 	if o.builder {
-		vm.builder = builder.NewManual(vm.toEngine, vm.snowCtx.Log)
+		vm.builder = builder.NewManual(vm.snowInput.ToEngine, vm.snowCtx.Log)
 	} else {
-		vm.builder = builder.NewTime(vm.toEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
-			blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+		vm.builder = builder.NewTime(vm.snowInput.ToEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
+			blk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -573,10 +592,9 @@ func (vm *VM) applyOptions(o *Options) error {
 		})
 	}
 
-	gossipRegistry := prometheus.NewRegistry()
-	err := vm.snowCtx.Metrics.Register("gossiper", gossipRegistry)
+	gossipRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, gossiperNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to register gossiper metrics: %w", err)
+		return fmt.Errorf("failed to register %s metrics: %w", gossiperNamespace, err)
 	}
 	if o.gossiper {
 		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
@@ -611,15 +629,15 @@ func (vm *VM) applyOptions(o *Options) error {
 				Config:     gossiper.DefaultTargetProposerConfig(),
 			},
 			gossiper.DefaultTargetConfig(),
-			vm.stop,
+			vm.snowInput.Shutdown,
 		)
 		if err != nil {
 			return err
 		}
 		vm.gossiper = txGossiper
-		vm.verifiedSubscriptions = append(vm.verifiedSubscriptions, event.SubscriptionFunc[*chain.ExecutedBlock]{
-			NotifyF: func(_ context.Context, b *chain.ExecutedBlock) error {
-				txGossiper.BlockVerified(b.Block.Tmstmp)
+		vm.snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+			NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
+				txGossiper.BlockVerified(b.GetTimestamp())
 				return nil
 			},
 		})
@@ -632,371 +650,34 @@ func (vm *VM) checkActivity(ctx context.Context) {
 	vm.builder.Queue(ctx)
 }
 
-func (vm *VM) markReady() {
-	// Wait for state syncing to complete
-	select {
-	case <-vm.stop:
-		return
-	case <-vm.StateSyncClient.Done():
-	}
-
-	// We can begin partailly verifying blocks here because
-	// we have the full state but can't detect duplicate transactions
-	// because we haven't yet observed a full [ValidityWindow].
-	vm.snowCtx.Log.Info("state sync client ready")
-
-	// Wait for a full [ValidityWindow] before
-	// we are willing to vote on blocks.
-	select {
-	case <-vm.stop:
-		return
-	case <-vm.seenValidityWindow:
-	}
-	vm.snowCtx.Log.Info("validity window ready")
-	if vm.StateSyncClient.Started() {
-		vm.toEngine <- common.StateSyncDone
-	}
-	close(vm.ready)
-
-	// Mark node ready and attempt to build a block.
-	vm.snowCtx.Log.Info(
-		"node is now ready",
-		zap.Bool("synced", vm.StateSyncClient.Started()),
-	)
-	vm.checkActivity(context.TODO())
+func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBlock, error) {
+	return vm.chain.ParseBlock(ctx, source)
 }
 
-func (vm *VM) IsReady() bool {
-	select {
-	case <-vm.ready:
-		return true
-	default:
-		vm.snowCtx.Log.Info("node is not ready yet")
-		return false
-	}
-}
-
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	if !vm.IsReady() {
-		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
-	}
-	// Atomic read to ensure consistency
-	return vm.stateDB.GetValues(ctx, keys)
-}
-
-func (vm *VM) SetState(ctx context.Context, state snow.State) error {
-	switch state {
-	case snow.StateSyncing:
-		vm.Logger().Info("state sync started")
-		return nil
-	case snow.Bootstrapping:
-		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.StateSyncClient.Started()
-		if !syncStarted {
-			// We must check if we finished syncing before starting bootstrapping.
-			// This should only ever occur if we began a state sync, restarted, and
-			// were unable to find any acceptable summaries.
-			syncing, err := vm.GetDiskIsSyncing()
-			if err != nil {
-				vm.Logger().Error("could not determine if syncing", zap.Error(err))
-				return err
-			}
-			if syncing {
-				vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
-				// This is a fatal error that will require retrying sync or deleting the
-				// node database.
-				return ErrStateSyncing
-			}
-
-			// If we weren't previously syncing, we force state syncer completion so
-			// that the node will mark itself as ready.
-			vm.StateSyncClient.ForceDone()
-
-			// TODO: add a config to FATAL here if could not state sync (likely won't be
-			// able to recover in networks where no one has the full state, bypass
-			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
-		}
-
-		// Start the chain syncer and mark the validity window as completed if possible.
-		seenValidityWindow, err := vm.syncer.Accept(ctx, vm.lastAccepted.ExecutionBlock)
-		if err != nil {
-			return err
-		}
-		if seenValidityWindow {
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-		}
-
-		// Trigger that bootstrapping has started
-		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
-		return vm.onBootstrapStarted()
-	case snow.NormalOp:
-		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.StateSyncClient.Started()))
-		return vm.onNormalOperationsStarted()
-	default:
-		return snow.ErrUnknownState
-	}
-}
-
-// onBootstrapStarted marks this VM as bootstrapping
-func (vm *VM) onBootstrapStarted() error {
-	vm.bootstrapped.Set(false)
-	return nil
-}
-
-// ForceReady is used in integration testing
-func (vm *VM) ForceReady() {
-	// Only works if haven't already started syncing
-	vm.StateSyncClient.ForceDone()
-	vm.seenValidityWindowOnce.Do(func() {
-		close(vm.seenValidityWindow)
-	})
-}
-
-// onNormalOperationsStarted marks this VM as bootstrapped
-func (vm *VM) onNormalOperationsStarted() error {
-	defer vm.checkActivity(context.TODO())
-
-	if vm.bootstrapped.Get() {
-		return nil
-	}
-	vm.bootstrapped.Set(true)
-	return nil
-}
-
-// implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(context.Context) error {
-	close(vm.stop)
-
-	// Shutdown state sync client if still running
-	if err := vm.StateSyncClient.Shutdown(); err != nil {
-		return err
-	}
-
-	// Process remaining accepted blocks before shutdown
-	close(vm.acceptedQueue)
-	<-vm.acceptorDone
-
-	// Shutdown other async VM mechanisms
-	vm.builder.Done()
-	vm.gossiper.Done()
-	vm.authVerifiers.Stop()
-	if vm.profiler != nil {
-		vm.profiler.Shutdown()
-	}
-
-	// Close DBs
-	if vm.snowCtx == nil {
-		return nil
-	}
-	if err := vm.vmDB.Close(); err != nil {
-		return err
-	}
-	if err := vm.stateDB.Close(); err != nil {
-		return err
-	}
-
-	if err := vm.rawStateDB.Close(); err != nil {
-		return err
-	}
-
-	for _, subscription := range vm.asyncAcceptedSubscriptions {
-		if err := subscription.Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// implements "block.ChainVM.common.VM"
-// TODO: this must be callable in the factory before initializing
-func (vm *VM) Version(_ context.Context) (string, error) { return vm.v.String(), nil }
-
-// implements "block.ChainVM.common.VM"
-// for "ext/vm/[chainID]"
-func (vm *VM) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
-	return vm.handlers, nil
-}
-
-// implements "block.ChainVM.commom.VM.health.Checkable"
-func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
-	// TODO: engine will mark VM as ready when we return
-	// [block.StateSyncDynamic]. This should change in v1.9.11.
-	//
-	// We return "unhealthy" here until synced to block RPC traffic in the
-	// meantime.
-	if !vm.IsReady() {
-		return http.StatusServiceUnavailable, ErrNotReady
-	}
-	return http.StatusOK, nil
-}
-
-// implements "block.ChainVM.commom.VM.Getter"
-// replaces "core.SnowmanVM.GetBlock"
-//
-// This is ONLY called on accepted blocks pre-ProposerVM fork.
-func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetBlock")
-	defer span.End()
-
-	// We purposely don't return parsed but unverified blocks from here
-	return vm.GetStatefulBlock(ctx, id)
-}
-
-func (vm *VM) GetStatefulBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock, error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetStatefulBlock")
-	defer span.End()
-
-	// Check if verified block
-	vm.verifiedL.RLock()
-	if blk, exists := vm.verifiedBlocks[blkID]; exists {
-		vm.verifiedL.RUnlock()
-		return blk, nil
-	}
-	vm.verifiedL.RUnlock()
-
-	// Check if last accepted
-	if vm.lastAccepted.ID() == blkID {
-		return vm.lastAccepted, nil
-	}
-
-	// Check if genesis
-	if vm.genesisBlk.ID() == blkID {
-		return vm.genesisBlk, nil
-	}
-
-	// Check if recently accepted block
-	if blk, ok := vm.acceptedBlocksByID.Get(blkID); ok {
-		return blk, nil
-	}
-
-	// Check to see if the block is on disk
-	blkHeight, err := vm.GetBlockIDHeight(blkID)
-	if err != nil {
-		return nil, err
-	}
-	// We wait to count this metric until we know we have
-	// the index on-disk because peers may query us for
-	// blocks we don't have yet at tip and we don't want
-	// to count that as a historical read.
-	vm.metrics.blocksFromDisk.Inc()
-	return vm.GetDiskBlock(ctx, blkHeight)
-}
-
-func (vm *VM) ParseStatefulBlock(ctx context.Context, source []byte) (*StatefulBlock, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockParse.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
-	defer span.End()
-
-	// Check to see if we've already parsed
-	id := utils.ToID(source)
-
-	// If we have seen this block before, return it with the most
-	// up-to-date info
-	if oldBlk, err := vm.GetStatefulBlock(ctx, id); err == nil {
-		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
-		return oldBlk, nil
-	}
-
-	// Attempt to parse and cache block
-	blk, exist := vm.parsedBlocks.Get(id)
-	if exist {
-		return blk, nil
-	}
-	newBlk, err := ParseBlock(
-		ctx,
-		source,
-		false,
-		vm,
-	)
-	if err != nil {
-		vm.snowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
-		return nil, err
-	}
-	vm.parsedBlocks.Put(id, newBlk)
-	vm.snowCtx.Log.Info(
-		"parsed block",
-		zap.Stringer("id", newBlk.ID()),
-		zap.Uint64("height", newBlk.Hght),
-	)
-	return newBlk, nil
-}
-
-// implements "block.ChainVM.commom.VM.Parser"
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
-	return vm.ParseStatefulBlock(ctx, source)
-}
-
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
-	// If the node isn't ready, we should exit.
-	//
-	// We call [QueueNotify] when the VM becomes ready, so exiting
-	// early here should not cause us to stop producing blocks.
-	if !vm.IsReady() {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
-		return nil, ErrNotReady
-	}
-
-	// Notify builder if we should build again (whether or not we are successful this time)
-	//
-	// Note: builder should regulate whether or not it actually decides to build based on state
-	// of the mempool.
+func (vm *VM) BuildBlock(ctx context.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
 	defer vm.checkActivity(ctx)
 
-	vm.verifiedL.RLock()
-	processingBlocks := len(vm.verifiedBlocks)
-	vm.verifiedL.RUnlock()
-	if processingBlocks > vm.config.ProcessingBuildSkip {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
-		return nil, ErrTooManyProcessing
+	return vm.chain.BuildBlock(ctx, parent)
+}
+
+func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {
+	return vm.chain.Execute(ctx, parent.View, block, vm.normalOp.Load())
+}
+
+func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
+	resultBytes, err := block.ExecutionResults.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
+	}
+	resultBytes = binary.BigEndian.AppendUint64(resultBytes, block.Hght)
+	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
+		return nil, fmt.Errorf("failed to write execution results: %w", err)
 	}
 
-	// Build block and store as parsed
-	preferredBlk, err := vm.GetStatefulBlock(ctx, vm.preferred)
-	if err != nil {
-		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
-		return nil, err
+	if err := vm.chain.AcceptBlock(ctx, block); err != nil {
+		return nil, fmt.Errorf("failed to accept block %s: %w", block, err)
 	}
-	preferredView, err := preferredBlk.View(ctx, true)
-	if err != nil {
-		vm.snowCtx.Log.Warn("unable to get preferred block view", zap.Error(err))
-		return nil, err
-	}
-	executionBlk, executedBlk, view, err := vm.chain.BuildBlock(ctx, preferredView, preferredBlk.ExecutionBlock)
-	if err != nil {
-		// This is a DEBUG log because BuildBlock may fail before
-		// the min build gap (especially when there are no transactions).
-		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
-		return nil, err
-	}
-	blk := &StatefulBlock{
-		ExecutionBlock: executionBlk,
-		accepted:       false,
-		t:              time.UnixMilli(executionBlk.Tmstmp),
-		executedBlock:  executedBlk,
-		vm:             vm,
-		executor:       vm.chain,
-		view:           view,
-	}
-
-	vm.parsedBlocks.Put(blk.ID(), blk)
-	return blk, nil
+	return block, nil
 }
 
 func (vm *VM) Submit(
@@ -1007,23 +688,13 @@ func (vm *VM) Submit(
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
 
-	// We should not allow any transactions to be submitted if the VM is not
-	// ready yet. We should never reach this point because of other checks but it
-	// is good to be defensive.
-	if !vm.IsReady() {
-		return []error{ErrNotReady}
-	}
-
 	// Create temporary execution context
-	blk, err := vm.GetStatefulBlock(ctx, vm.preferred)
+	preferredBlk, err := vm.consensusIndex.GetPreferredBlock(ctx)
 	if err != nil {
+		vm.snowCtx.Log.Error("failed to fetch preferred block for tx submission", zap.Error(err))
 		return []error{err}
 	}
-	view, err := blk.View(ctx, false)
-	if err != nil {
-		// This will error if a block does not yet have processed state.
-		return []error{err}
-	}
+	view := preferredBlk.View
 
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
@@ -1036,7 +707,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		if err := vm.chain.PreExecute(ctx, blk.ExecutionBlock, view, tx, vm.config.VerifyAuth); err != nil {
+		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -1046,175 +717,6 @@ func (vm *VM) Submit(
 	vm.mempool.Add(ctx, validTxs)
 	vm.checkActivity(ctx)
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
+	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.mempool.Len(ctx)))
 	return errs
-}
-
-// "SetPreference" implements "block.ChainVM"
-// replaces "core.SnowmanVM.SetPreference"
-func (vm *VM) SetPreference(_ context.Context, id ids.ID) error {
-	vm.snowCtx.Log.Debug("set preference", zap.Stringer("id", id))
-	vm.preferred = id
-	return nil
-}
-
-// "LastAccepted" implements "block.ChainVM"
-// replaces "core.SnowmanVM.LastAccepted"
-func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) {
-	return vm.lastAccepted.ID(), nil
-}
-
-// Handles incoming "AppGossip" messages, parses them to transactions,
-// and submits them to the mempool. The "AppGossip" message is sent by
-// the other VM  via "common.AppSender" to receive txs and
-// forward them to the other node (validator).
-//
-// implements "snowmanblock.ChainVM.commom.VM.AppHandler"
-// assume gossip via proposervm has been activated
-// ref. "avalanchego/vms/platformvm/network.AppGossip"
-func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
-	defer span.End()
-
-	return vm.network.AppGossip(ctx, nodeID, msg)
-}
-
-// implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequest(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	requestID uint32,
-	deadline time.Time,
-	request []byte,
-) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.AppRequest")
-	defer span.End()
-
-	return vm.network.AppRequest(ctx, nodeID, requestID, deadline, request)
-}
-
-// implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, err *common.AppError) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
-	defer span.End()
-
-	return vm.network.AppRequestFailed(ctx, nodeID, requestID, err)
-}
-
-// implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppResponse(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	requestID uint32,
-	response []byte,
-) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.AppResponse")
-	defer span.End()
-
-	return vm.network.AppResponse(ctx, nodeID, requestID, response)
-}
-
-// implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
-	defer span.End()
-
-	return vm.network.Connected(ctx, nodeID, v)
-}
-
-// implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.Disconnected")
-	defer span.End()
-
-	return vm.network.Disconnected(ctx, nodeID)
-}
-
-// GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
-// Note: must return database.ErrNotFound if the index at height is unknown.
-//
-// This is called by the VM pre-ProposerVM fork and by the sync server
-// in [GetStateSummary].
-func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
-	if height == vm.lastAccepted.Height() {
-		return vm.lastAccepted.ID(), nil
-	}
-	if height == vm.genesisBlk.Height() {
-		return vm.genesisBlk.ID(), nil
-	}
-	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
-		return blkID, nil
-	}
-	vm.metrics.blocksHeightsFromDisk.Inc()
-	return vm.GetBlockHeightID(height)
-}
-
-func (vm *VM) loadAcceptedBlocks(ctx context.Context) {
-	start := uint64(0)
-	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
-	if vm.lastAccepted.Hght > lookback {
-		start = vm.lastAccepted.Hght - lookback
-	}
-	for i := start; i <= vm.lastAccepted.Hght; i++ {
-		blk, err := vm.GetDiskBlock(ctx, i)
-		if err != nil {
-			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
-			continue
-		}
-		vm.acceptedBlocksByID.Put(blk.ID(), blk)
-		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	}
-	vm.snowCtx.Log.Info("loaded blocks from disk",
-		zap.Uint64("start", start),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
-	)
-}
-
-func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
-	has, err := vm.HasLastProcessed()
-	if err != nil {
-		return fmt.Errorf("could not load last processed block: %w", err)
-	}
-	if !has {
-		return nil
-	}
-
-	lastProcessedHeight, err := vm.GetLastProcessedHeight()
-	if err != nil {
-		return fmt.Errorf("could not get last processed height: %w", err)
-	}
-
-	start := lastProcessedHeight + 1
-	end := vm.lastAccepted.Height()
-	if end < start {
-		return nil
-	}
-	acceptedToRestore := end - start + 1
-	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
-
-	for height := start; height <= end; height++ {
-		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
-		if err != nil {
-			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
-		}
-
-		blk, err := vm.GetStatefulBlock(ctx, blkID)
-		if err != nil {
-			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
-		}
-
-		vm.acceptedQueue <- blk
-	}
-	vm.snowCtx.Log.Info("finished restoring accepted queue")
-
-	return nil
-}
-
-// Fatal logs the provided message and then panics to force an exit.
-//
-// While we could attempt a graceful shutdown, it is not clear that
-// the shutdown will complete given that we have encountered a fatal
-// issue. It is better to ensure we exit to surface the error.
-func (vm *VM) Fatal(msg string, fields ...zap.Field) {
-	vm.snowCtx.Log.Fatal(msg, fields...)
-	panic("fatal error")
 }

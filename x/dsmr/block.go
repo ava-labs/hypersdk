@@ -4,8 +4,12 @@
 package dsmr
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -15,6 +19,8 @@ import (
 )
 
 const InitialChunkSize = 250 * 1024
+
+var ErrFailedChunkSigVerification = errors.New("failed to verify bls chunk signature")
 
 type Tx interface {
 	GetID() ids.ID
@@ -82,6 +88,35 @@ func signChunk[T Tx](
 	return newChunk(chunk, pkBytes, signature)
 }
 
+func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
+	signature, err := bls.SignatureFromBytes(c.Signature[:])
+	if err != nil {
+		return err
+	}
+
+	pk, err := bls.PublicKeyFromCompressedBytes(c.Signer[:])
+	if err != nil {
+		return err
+	}
+
+	// Construct the unsigned message from the UnsignedChunk (stripping the signature fields)
+	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
+	if err := codec.LinearCodec.MarshalInto(c.UnsignedChunk, &packer); err != nil {
+		return err
+	}
+
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to create unsigned warp message from chunk: %w", err)
+	}
+
+	if !bls.Verify(pk, signature, msg.Bytes()) {
+		return ErrFailedChunkSigVerification
+	}
+
+	return nil
+}
+
 // newChunk signs a chunk
 func newChunk[T Tx](
 	unsignedChunk UnsignedChunk[T],
@@ -105,11 +140,43 @@ func ParseChunk[T Tx](chunkBytes []byte) (Chunk[T], error) {
 	return c, c.init()
 }
 
-type Block struct {
+// validityWindowBlock implements the validity window's execution block interface
+type validityWindowBlock struct {
+	Block
+	certs      set.Set[ids.ID]
+	chunkCerts []*emapChunkCertificate
+}
+
+func (e validityWindowBlock) Contains(id ids.ID) bool {
+	return e.certs.Contains(id)
+}
+
+func (e validityWindowBlock) GetContainers() []*emapChunkCertificate {
+	return e.chunkCerts
+}
+
+func NewValidityWindowBlock(innerBlock Block) validityWindowBlock {
+	certSet := set.Set[ids.ID]{}
+	chunkCerts := make([]*emapChunkCertificate, len(innerBlock.ChunkCerts))
+	for i, c := range innerBlock.ChunkCerts {
+		certSet.Add(c.ChunkID)
+		chunkCerts[i] = &emapChunkCertificate{*c}
+	}
+	return validityWindowBlock{
+		Block:      innerBlock,
+		certs:      certSet,
+		chunkCerts: chunkCerts,
+	}
+}
+
+type BlockHeader struct {
 	ParentID  ids.ID `serialize:"true"`
 	Height    uint64 `serialize:"true"`
 	Timestamp int64  `serialize:"true"`
+}
 
+type Block struct {
+	BlockHeader
 	ChunkCerts []*ChunkCertificate `serialize:"true"`
 
 	blkID    ids.ID
@@ -118,4 +185,23 @@ type Block struct {
 
 func (b Block) GetID() ids.ID {
 	return b.blkID
+}
+
+func (b Block) GetTimestamp() int64 {
+	return b.Timestamp
+}
+
+func (b Block) GetHeight() uint64 {
+	return b.Height
+}
+
+func (b Block) GetParent() ids.ID {
+	return b.ParentID
+}
+
+// ExecutedBlock contains block data with any referenced chunks reconstructed
+type ExecutedBlock[T Tx] struct {
+	BlockHeader
+	ID     ids.ID
+	Chunks []Chunk[T] `serialize:"true"`
 }

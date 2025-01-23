@@ -16,14 +16,6 @@ message GetChunkResponse {
   bytes chunk = 1;
 }
 
-message GetChunkSignatureRequest {
-  bytes chunk = 1;
-}
-
-message GetChunkSignatureResponse {
-  bytes signature = 1;
-}
-
 message ChunkCertificateGossip {
   bytes chunk_certificate = 1;
 }

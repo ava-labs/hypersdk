@@ -13,8 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/internal/executor"
@@ -23,6 +25,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
+
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type ExecutionBlock struct {
@@ -32,16 +36,25 @@ type ExecutionBlock struct {
 	// to preallocate memory
 	authCounts map[uint8]int
 	txsSet     set.Set[ids.ID]
-	sigJob     workers.Job
 }
 
-func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
+type OutputBlock struct {
+	*ExecutionBlock
+
+	View             merkledb.View
+	ExecutionResults ExecutionResults
+}
+
+type blockContext struct {
+	height     uint64
+	timestamp  int64
+	feeManager *fees.Manager
+}
+
+func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
 	authCounts := make(map[uint8]int)
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
 	for _, tx := range block.Txs {
-		if txsSet.Contains(tx.GetID()) {
-			return nil, ErrDuplicateTx
-		}
 		txsSet.Add(tx.GetID())
 		authCounts[tx.Auth.GetTypeID()]++
 	}
@@ -50,26 +63,14 @@ func NewExecutionBlock(block *StatelessBlock) (*ExecutionBlock, error) {
 		authCounts:     authCounts,
 		txsSet:         txsSet,
 		StatelessBlock: block,
-	}, nil
+	}
 }
 
-func (b *ExecutionBlock) ContainsTx(id ids.ID) bool {
+func (b *ExecutionBlock) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) Height() uint64 {
-	return b.Hght
-}
-
-func (b *ExecutionBlock) Parent() ids.ID {
-	return b.Prnt
-}
-
-func (b *ExecutionBlock) Timestamp() int64 {
-	return b.Tmstmp
-}
-
-func (b *ExecutionBlock) Txs() []*Transaction {
+func (b *ExecutionBlock) GetContainers() []*Transaction {
 	return b.StatelessBlock.Txs
 }
 
@@ -114,9 +115,10 @@ func NewProcessor(
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	parentView state.View,
+	parentView merkledb.View,
 	b *ExecutionBlock,
-) (*ExecutedBlock, merkledb.View, error) {
+	isNormalOp bool,
+) (*OutputBlock, error) {
 	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
 
@@ -127,135 +129,65 @@ func (p *Processor) Execute(
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, nil, ErrTimestampTooLate
+		return nil, ErrTimestampTooLate
 	}
-	// AsyncVerify should have been called already. We call it here defensively.
-	if err := p.AsyncVerify(ctx, b); err != nil {
-		return nil, nil, err
+	// create and start signature verification job async
+	sigJob, err := p.verifySignatures(ctx, b)
+	if err != nil {
+		return nil, err
 	}
 
-	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(p.metadataManager.HeightPrefix())
-	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
+	blockContext, err := p.createBlockContext(ctx, parentView, b, r)
 	if err != nil {
-		return nil, nil, err
-	}
-	parentHeight, err := database.ParseUInt64(parentHeightRaw)
-	if err != nil {
-		return nil, nil, err
-	}
-	if b.Hght != parentHeight+1 {
-		return nil, nil, ErrInvalidBlockHeight
+		return nil, err
 	}
 
-	// Fetch parent timestamp and confirm block timestamp is valid
-	//
-	// Parent may not be available (if we preformed state sync), so we
-	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
-	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	parentTimestampUint64, err := database.ParseUInt64(parentTimestampRaw)
-	if err != nil {
-		return nil, nil, err
-	}
-	parentTimestamp := int64(parentTimestampUint64)
-	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return nil, nil, ErrTimestampTooEarly
-	}
-	if len(b.StatelessBlock.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return nil, nil, ErrTimestampTooEarly
-	}
-
-	if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b, parentTimestamp); err != nil {
-		return nil, nil, err
-	}
-
-	// Compute next unit prices to use
-	feeKey := FeeKey(p.metadataManager.FeePrefix())
-	feeRaw, err := parentView.GetValue(ctx, feeKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(b.Tmstmp, r)
-	if err != nil {
-		return nil, nil, err
+	if isNormalOp {
+		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDuplicateTx, err)
+		}
 	}
 
 	// Process transactions
-	results, ts, err := p.executeTxs(ctx, b, parentView, feeManager, r)
+	results, ts, err := p.executeTxs(ctx, b, parentView, blockContext.feeManager, r)
 	if err != nil {
-		log.Error("failed to execute block", zap.Error(err))
-		return nil, nil, err
+		return nil, fmt.Errorf("failed to execute txs: %w", err)
 	}
 
-	// Update chain metadata
-	heightKeyStr := string(heightKey)
-	timestampKeyStr := string(timestampKey)
-	feeKeyStr := string(feeKey)
-
-	keys := make(state.Keys)
-	keys.Add(heightKeyStr, state.Write)
-	keys.Add(timestampKeyStr, state.Write)
-	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, nil, err
-	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, nil, err
-	}
-	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, nil, err
+	tsv := ts.NewView(
+		state.CompletePermissions,
+		state.ImmutableStorage(map[string][]byte{}),
+		0,
+	)
+	if err := p.writeBlockContext(
+		ctx,
+		tsv,
+		blockContext,
+	); err != nil {
+		return nil, err
 	}
 	tsv.Commit()
 
-	// Compare state root
+	// Verify parent root
 	//
-	// Because fee bytes are not recorded in state, it is sufficient to check the state root
+	// Because fee bytes are recorded in state, it is sufficient to check the state root
 	// to verify all fee calculations were correct.
-	_, rspan := p.tracer.Start(ctx, "Chain.Execute.WaitRoot")
-	start := time.Now()
-	computedRoot, err := parentView.GetMerkleRoot(ctx)
-	rspan.End()
-	if err != nil {
-		return nil, nil, err
-	}
-	p.metrics.waitRootCount.Inc()
-	p.metrics.waitRootSum.Add(float64(time.Since(start)))
-	if b.StateRoot != computedRoot {
-		return nil, nil, fmt.Errorf(
-			"%w: expected=%s found=%s",
-			ErrStateRootMismatch,
-			computedRoot,
-			b.StateRoot,
-		)
+	if err := p.verifyParentRoot(ctx, parentView, b.StateRoot); err != nil {
+		return nil, err
 	}
 
 	// Ensure signatures are verified
-	_, sspan := p.tracer.Start(ctx, "Chain.Execute.WaitSignatures")
-	start = time.Now()
-	err = b.sigJob.Wait()
-	sspan.End()
-	if err != nil {
-		return nil, nil, err
+	if err := p.waitSignatures(ctx, sigJob); err != nil {
+		return nil, err
 	}
-	p.metrics.waitSignaturesCount.Inc()
-	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
 
 	// Get view from [tstate] after processing all state transitions
 	p.metrics.stateChanges.Add(float64(ts.PendingChanges()))
 	p.metrics.stateOperations.Add(float64(ts.OpIndex()))
-	view, err := ts.ExportMerkleDBView(ctx, p.tracer, parentView)
+
+	view, err := createView(ctx, p.tracer, parentView, ts.ChangedKeys())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Kickoff root generation
@@ -275,12 +207,15 @@ func (p *Processor) Execute(
 		p.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
-	return &ExecutedBlock{
-		Block:         b.StatelessBlock,
-		Results:       results,
-		UnitPrices:    feeManager.UnitPrices(),
-		UnitsConsumed: feeManager.UnitsConsumed(),
-	}, view, nil
+	return &OutputBlock{
+		ExecutionBlock: b,
+		View:           view,
+		ExecutionResults: ExecutionResults{
+			Results:       results,
+			UnitPrices:    blockContext.feeManager.UnitPrices(),
+			UnitsConsumed: blockContext.feeManager.UnitsConsumed(),
+		},
+	}, nil
 }
 
 type fetchData struct {
@@ -297,7 +232,7 @@ func (p *Processor) executeTxs(
 	feeManager *fees.Manager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := p.tracer.Start(ctx, "Chain.Execute.ExecuteTxs")
+	ctx, span := p.tracer.Start(ctx, "Chain.Execute.executeTxs")
 	defer span.End()
 
 	var (
@@ -337,7 +272,7 @@ func (p *Processor) executeTxs(
 
 		// Prefetch state keys from disk
 		txID := tx.GetID()
-		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
+		if err := f.Fetch(ctx, txID, stateKeys.WithoutPermissions()); err != nil {
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() error {
@@ -351,7 +286,11 @@ func (p *Processor) executeTxs(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := ts.NewView(
+				stateKeys,
+				state.ImmutableStorage(storage),
+				len(stateKeys),
+			)
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
@@ -376,28 +315,22 @@ func (p *Processor) executeTxs(
 		return nil, nil, err
 	}
 
-	p.metrics.txsVerified.Add(float64(len(b.StatelessBlock.Txs)))
+	p.metrics.txsVerified.Add(float64(numTxs))
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
 }
 
-// AsyncVerify starts async signature verification as early as possible
-func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) error {
-	ctx, span := p.tracer.Start(ctx, "Chain.AsyncVerify")
-	defer span.End()
-
-	if block.sigJob != nil {
-		return nil
-	}
+// verifySignatures creates and kicks off signature verification job for the provided block
+// Assumes that the executionBlock's authCounts field has been populated correctly during construction
+func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock) (workers.Job, error) {
 	sigJob, err := p.authVerificationWorkers.NewJob(len(block.StatelessBlock.Txs))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	block.sigJob = sigJob
 
 	// Setup signature verification job
-	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.AsyncVerify.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures") //nolint:spancheck
 
 	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
@@ -410,9 +343,150 @@ func (p *Processor) AsyncVerify(ctx context.Context, block *ExecutionBlock) erro
 	for _, tx := range block.StatelessBlock.Txs {
 		unsignedTxBytes, err := tx.UnsignedBytes()
 		if err != nil {
-			return err //nolint:spancheck
+			return nil, err //nolint:spancheck
 		}
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
+	return sigJob, nil
+}
+
+func (p *Processor) waitSignatures(ctx context.Context, sigJob workers.Job) error {
+	_, span := p.tracer.Start(ctx, "Chain.Execute.waitSignatures")
+	defer span.End()
+
+	start := time.Now()
+	err := sigJob.Wait()
+	if err != nil {
+		return fmt.Errorf("signatures failed verification: %w", err)
+	}
+	p.metrics.waitSignaturesCount.Inc()
+	p.metrics.waitSignaturesSum.Add(float64(time.Since(start)))
 	return nil
+}
+
+// createBlockContext extracts and verifies the block context from the parent view
+// and provided block
+func (p *Processor) createBlockContext(
+	ctx context.Context,
+	im state.Immutable,
+	block *ExecutionBlock,
+	r Rules,
+) (blockContext, error) {
+	_, span := p.tracer.Start(ctx, "Chain.Execute.createBlockContext")
+	defer span.End()
+
+	// Get parent height
+	heightKey := HeightKey(p.metadataManager.HeightPrefix())
+	parentHeightRaw, err := im.GetValue(ctx, heightKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+	}
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
+	}
+	if block.Hght != parentHeight+1 {
+		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
+	}
+
+	// Get parent timestamp
+	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
+	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+	}
+	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
+	}
+
+	// Confirm block timestamp is valid
+	//
+	// Parent may not be available (if we preformed state sync), so we
+	// can't rely on being able to fetch it during verification.
+	parentTimestamp := int64(parsedParentTimestamp)
+	if minBlockGap := r.GetMinBlockGap(); block.Tmstmp < parentTimestamp+minBlockGap {
+		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
+	}
+	if len(block.StatelessBlock.Txs) == 0 && block.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
+		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
+	}
+
+	// Calculate fee manager for this block
+	feeKey := FeeKey(p.metadataManager.FeePrefix())
+	parentFeeRaw, err := im.GetValue(ctx, feeKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
+	}
+	parentFeeManager := fees.NewManager(parentFeeRaw)
+	blockFeeManager := parentFeeManager.ComputeNext(block.Tmstmp, r)
+
+	return blockContext{
+		height:     block.Hght,
+		timestamp:  block.Tmstmp,
+		feeManager: blockFeeManager,
+	}, nil
+}
+
+func (p *Processor) writeBlockContext(
+	ctx context.Context,
+	mu state.Mutable,
+	blockCtx blockContext,
+) error {
+	var (
+		heightKey    = HeightKey(p.metadataManager.HeightPrefix())
+		timestampKey = TimestampKey(p.metadataManager.TimestampPrefix())
+		feeKey       = FeeKey(p.metadataManager.FeePrefix())
+	)
+	if err := mu.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, blockCtx.height)); err != nil {
+		return fmt.Errorf("failed to insert height into state: %w", err)
+	}
+	if err := mu.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(blockCtx.timestamp))); err != nil {
+		return fmt.Errorf("failed to insert timestamp into state: %w", err)
+	}
+	if err := mu.Insert(ctx, feeKey, blockCtx.feeManager.Bytes()); err != nil {
+		return fmt.Errorf("failed to insert fee manager into state: %w", err)
+	}
+	return nil
+}
+
+func (p *Processor) verifyParentRoot(
+	ctx context.Context,
+	parentView merkledb.View,
+	stateRoot ids.ID,
+) error {
+	_, span := p.tracer.Start(ctx, "Chain.Execute.verifyParentRoot")
+	defer span.End()
+
+	start := time.Now()
+	computedRoot, err := parentView.GetMerkleRoot(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to calculate parent state root: %w", err)
+	}
+	p.metrics.waitRootCount.Inc()
+	p.metrics.waitRootSum.Add(float64(time.Since(start)))
+	if stateRoot != computedRoot {
+		return fmt.Errorf(
+			"%w: expected=%s found=%s",
+			ErrStateRootMismatch,
+			computedRoot,
+			stateRoot,
+		)
+	}
+	return nil
+}
+
+func createView(ctx context.Context, tracer trace.Tracer, parentView state.View, stateDiff map[string]maybe.Maybe[[]byte]) (merkledb.View, error) {
+	ctx, span := tracer.Start(
+		ctx, "Chain.CreateView",
+		oteltrace.WithAttributes(
+			attribute.Int("items", len(stateDiff)),
+		),
+	)
+	defer span.End()
+
+	return parentView.NewView(ctx, merkledb.ViewChanges{
+		MapOps:       stateDiff,
+		ConsumeBytes: true,
+	})
 }

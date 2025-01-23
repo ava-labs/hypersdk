@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -117,11 +116,14 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := j.vm.LastAcceptedBlockResult()
-	reply.Height = blk.Block.Hght
-	reply.BlockID = blk.Block.ID()
-	reply.Timestamp = blk.Block.Tmstmp
+func (j *JSONRPCServer) LastAccepted(req *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+	blk, err := j.vm.LastAcceptedBlock(req.Context())
+	if err != nil {
+		return err
+	}
+	reply.Height = blk.Hght
+	reply.BlockID = blk.GetID()
+	reply.Timestamp = blk.Tmstmp
 	return nil
 }
 
@@ -223,7 +225,11 @@ func (j *JSONRPCServer) ExecuteActions(
 			storage[string(storageKeysToRead[i])] = value
 		}
 
-		tsv := ts.NewView(stateKeysWithPermissions, storage)
+		tsv := ts.NewView(
+			stateKeysWithPermissions,
+			state.ImmutableStorage(storage),
+			len(stateKeysWithPermissions),
+		)
 
 		output, err := action.Execute(
 			ctx,
@@ -293,23 +299,41 @@ func (j *JSONRPCServer) SimulateActions(
 		return err
 	}
 
-	currentTime := time.Now().UnixMilli()
-	for i, action := range actions {
-		recorder := tstate.NewRecorder(currentState)
-		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
-		if err != nil {
-			return fmt.Errorf("failed to execute action: %w", err)
-		}
+	ts := tstate.New(0)
+	scope := state.SimulatedKeys{}
+	tsv := ts.NewView(
+		scope,
+		currentState,
+		0,
+	)
 
-		actionOutputBytes, err := chain.MarshalTyped(actionOutput)
-		if err != nil {
-			return fmt.Errorf("failed to marshal output simulating action (%d: %v) output = %v: %w", i, action, actionOutput, err)
+	currentTime := time.Now().UnixMilli()
+	for _, action := range actions {
+		actionOutput, err := action.Execute(
+			ctx,
+			j.vm.Rules(currentTime),
+			tsv,
+			currentTime,
+			args.Actor,
+			ids.Empty,
+		)
+
+		var actionResult SimulateActionResult
+		if actionOutput == nil {
+			actionResult.Output = []byte{}
+		} else {
+			actionResult.Output, err = chain.MarshalTyped(actionOutput)
+			if err != nil {
+				return fmt.Errorf("failed to marshal output: %w", err)
+			}
 		}
-		reply.ActionResults = append(reply.ActionResults, SimulateActionResult{
-			Output:    actionOutputBytes,
-			StateKeys: recorder.GetStateKeys(),
-		})
-		currentState = recorder
+		if err != nil {
+			return err
+		}
+		actionResult.StateKeys = scope.StateKeys()
+		reply.ActionResults = append(reply.ActionResults, actionResult)
+		// Reset state keys for the next action
+		clear(scope)
 	}
 	return nil
 }

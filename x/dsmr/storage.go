@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
@@ -31,22 +32,31 @@ type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
 }
 
-var _ Verifier[Tx] = (*NoVerifier[Tx])(nil)
+var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
-type NoVerifier[T Tx] struct{}
+type ChunkVerifier[T Tx] struct {
+	networkID uint32
+	chainID   ids.ID
+}
 
-func (NoVerifier[T]) Verify(Chunk[T]) error {
-	return nil
+func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
+	// TODO:
+	// check if the expiry of this chunk isn't in the past or too far into the future.
+
+	// TODO:
+	// check if the producer was expected to produce this chunk.
+
+	// TODO:
+	// add rate limiting for a given producer.
+	return chunk.Verify(c.networkID, c.chainID)
 }
 
 type StoredChunkSignature[T Tx] struct {
-	Chunk          Chunk[T]
-	LocalSignature NoVerifyChunkSignatureShare // Decouple signature share / certificate types
-	Cert           *ChunkCertificate
-	Available      bool
+	Chunk Chunk[T]
+	Cert  *ChunkCertificate
 }
 
-// chunkStorage provides chunk, signature share, and chunk certificate storage
+// ChunkStorage provides chunk, signature share, and chunk certificate storage
 //
 // Note: we only require chunk persistence until it has either been included
 // or expired.
@@ -54,7 +64,7 @@ type StoredChunkSignature[T Tx] struct {
 // We do not require persistence of chunk certificates.
 // If a valid chunk certificate is included in a block, we already have it.
 // If a valid chunk certificate is dropped, the network may drop the chunk.
-type chunkStorage[T Tx] struct {
+type ChunkStorage[T Tx] struct {
 	verifier Verifier[T]
 
 	lock sync.RWMutex
@@ -70,10 +80,10 @@ type chunkStorage[T Tx] struct {
 	chunkMap map[ids.ID]*StoredChunkSignature[T]
 }
 
-func newChunkStorage[T Tx](
+func NewChunkStorage[T Tx](
 	verifier Verifier[T],
 	db database.Database,
-) (*chunkStorage[T], error) {
+) (*ChunkStorage[T], error) {
 	minSlot := int64(0)
 	minSlotBytes, err := db.Get(minSlotKey)
 	if err != nil && err != database.ErrNotFound {
@@ -88,7 +98,7 @@ func newChunkStorage[T Tx](
 		minSlot = int64(minSlotUint64)
 	}
 
-	storage := &chunkStorage[T]{
+	storage := &ChunkStorage[T]{
 		minimumExpiry: minSlot,
 		chunkEMap:     emap.NewEMap[emapChunk[T]](),
 		chunkMap:      make(map[ids.ID]*StoredChunkSignature[T]),
@@ -98,7 +108,7 @@ func newChunkStorage[T Tx](
 	return storage, storage.init()
 }
 
-func (s *chunkStorage[T]) init() error {
+func (s *ChunkStorage[T]) init() error {
 	iter := s.chunkDB.NewIteratorWithPrefix([]byte{pendingByte})
 	defer iter.Release()
 
@@ -111,10 +121,8 @@ func (s *chunkStorage[T]) init() error {
 			}
 			return fmt.Errorf("failed to parse chunk %s at slot %d", chunkID, slot)
 		}
-		_, err = s.VerifyRemoteChunk(chunk)
-		if err != nil {
-			return err
-		}
+		s.chunkEMap.Add([]emapChunk[T]{{chunk: chunk}})
+		s.chunkMap[chunk.id] = &StoredChunkSignature[T]{Chunk: chunk}
 	}
 
 	if err := iter.Error(); err != nil {
@@ -124,7 +132,8 @@ func (s *chunkStorage[T]) init() error {
 }
 
 // AddLocalChunkWithCert adds a chunk to storage with the local signature share and aggregated certificate
-func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate) error {
+// Assumes caller has already verified this does not add a duplicate chunk
+func (s *ChunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -132,8 +141,7 @@ func (s *chunkStorage[T]) AddLocalChunkWithCert(c Chunk[T], cert *ChunkCertifica
 }
 
 // SetChunkCert sets the chunk certificate for the given chunkID
-// Assumes the caller has already verified the cert references the provided chunkID
-func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
+func (s *ChunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -142,7 +150,6 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
 	}
 	storedChunk.Cert = cert
-	storedChunk.Available = true
 	return nil
 }
 
@@ -152,34 +159,37 @@ func (s *chunkStorage[T]) SetChunkCert(chunkID ids.ID, cert *ChunkCertificate) e
 // 3. Generate a local signature share and store it in memory
 // 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
-func (s *chunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (NoVerifyChunkSignatureShare, error) {
+// Assumes caller has already verified this does not add a duplicate chunk
+func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	chunkCertInfo, ok := s.chunkMap[c.id]
 	if ok {
-		return chunkCertInfo.LocalSignature, nil
+		return chunkCertInfo.Cert.Signature, nil
 	}
 	if err := s.verifier.Verify(c); err != nil {
-		return NoVerifyChunkSignatureShare{}, err
+		return nil, err
 	}
 	if err := s.putVerifiedChunk(c, nil); err != nil {
-		return NoVerifyChunkSignatureShare{}, err
+		return nil, err
 	}
-	return NoVerifyChunkSignatureShare{}, nil
+	return nil, nil
 }
 
-func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
+func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
 	}
 	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
-	chunkCert := &StoredChunkSignature[T]{
-		Chunk:          c,
-		LocalSignature: NoVerifyChunkSignatureShare{}, // TODO: add signer to generate actual signature share
-		Cert:           cert,
+	if chunkCert, ok := s.chunkMap[c.id]; ok {
+		if cert != nil {
+			chunkCert.Cert = cert
+		}
+		return nil
 	}
+	chunkCert := &StoredChunkSignature[T]{Chunk: c, Cert: cert}
 	s.chunkMap[c.id] = chunkCert
 	return nil
 }
@@ -187,7 +197,7 @@ func (s *chunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 // TODO need to call this to expire chunks in server
 // SetMin sets the minimum timestamp on the expiring storage and marks the chunks that
 // must be saved, which would otherwise expire.
-func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
+func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -203,10 +213,10 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
-		chunk.Available = true
 		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id), chunk.Chunk.bytes); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
+		delete(s.chunkMap, saveChunkID)
 	}
 	expiredChunks := s.chunkEMap.SetMin(updatedMin)
 	for _, chunkID := range expiredChunks {
@@ -231,7 +241,7 @@ func (s *chunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 // GatherChunkCerts provides a slice of chunk certificates to build
 // a chunk based block.
 // TODO: switch from returning random chunk certs to ordered by expiry
-func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
+func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -248,28 +258,20 @@ func (s *chunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 // GetChunkBytes returns the corresponding chunk bytes of the requested chunk
 // Both the slot and chunkID must be provided to create the relevant DB key, which
 // includes the slot to create a more sequential DB workload.
-func (s *chunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, bool, error) {
+func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	chunk, ok := s.chunkMap[chunkID]
 	if ok {
-		return chunk.Chunk.bytes, chunk.Available, nil
+		return chunk.Chunk.bytes, nil
 	}
 
-	if expiry < s.minimumExpiry { // Chunk can only be in accepted section of the DB
-		chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
-		}
-		return chunkBytes, true, nil
-	}
-
-	chunkBytes, err := s.chunkDB.Get(pendingChunkKey(expiry, chunkID))
+	chunkBytes, err := s.chunkDB.Get(acceptedChunkKey(expiry, chunkID))
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to fetch chunk bytes for %s: %w", chunkID, err)
+		return nil, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
 	}
-	return chunkBytes, false, nil
+	return chunkBytes, nil
 }
 
 func createChunkKey(prefix byte, slot int64, chunkID ids.ID) []byte {

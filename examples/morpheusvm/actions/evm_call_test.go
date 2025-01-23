@@ -545,20 +545,21 @@ func TestEVMTstate(t *testing.T) {
 		ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 	}
 
-	recorder := tstate.NewRecorder(testCtx.State)
-	result, err := tstateTest.Action.Execute(testCtx.Context, testCtx.Rules, recorder, testCtx.Timestamp, testCtx.From, testCtx.ActionID)
+	ts := tstate.New(0)
+	stateKeys := state.SimulatedKeys{}
+	tsv := ts.NewView(stateKeys, testCtx.State, 0)
+	result, err := tstateTest.Action.Execute(testCtx.Context, testCtx.Rules, tsv, testCtx.Timestamp, testCtx.From, testCtx.ActionID)
 	require.NoError(err)
 	require.Equal(result.(*EvmCallResult).ErrorCode, NilError)
-	call.Keys = recorder.GetStateKeys()
 
-	stateKeys := call.StateKeys(testCtx.From, testCtx.ActionID)
+	actionStateKeys := call.StateKeys(testCtx.From, testCtx.ActionID)
 
 	wrongKeys := state.Keys{
 		"wrongKey": state.All,
 	}
 
-	storage := make(map[string][]byte, len(stateKeys))
-	for key := range stateKeys {
+	storage := make(map[string][]byte, len(actionStateKeys))
+	for key := range actionStateKeys {
 		val, err := testCtx.State.GetValue(testCtx.Context, []byte(key))
 		if errors.Is(err, database.ErrNotFound) {
 			continue
@@ -566,14 +567,14 @@ func TestEVMTstate(t *testing.T) {
 		require.NoError(err)
 		storage[key] = val
 	}
-	ts := tstate.New(0)
-	tsv := ts.NewView(wrongKeys, storage)
+	ts = tstate.New(0)
+	tsv = ts.NewView(wrongKeys, state.ImmutableStorage(storage), 0)
 
 	tstateTest.State = tsv
 
 	tstateTest.Run(testCtx.Context, t)
 
-	tsv = ts.NewView(stateKeys, storage)
+	tsv = ts.NewView(stateKeys, state.ImmutableStorage(storage), 0)
 	tstateTest.State = tsv
 	tstateTest.Name = "correct state keys should succeed"
 	tstateTest.ExpectedErr = nil

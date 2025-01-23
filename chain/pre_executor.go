@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -36,28 +37,20 @@ func NewPreExecutor(
 func (p *PreExecutor) PreExecute(
 	ctx context.Context,
 	parentBlk *ExecutionBlock,
-	view state.View,
+	im state.Immutable,
 	tx *Transaction,
-	verifyAuth bool,
 ) error {
-	feeRaw, err := view.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
+	feeRaw, err := im.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
 	}
 	feeManager := internalfees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := p.ruleFactory.GetRules(now)
-	nextFeeManager, err := feeManager.ComputeNext(now, r)
-	if err != nil {
-		return err
-	}
+	nextFeeManager := feeManager.ComputeNext(now, r)
 
 	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
-	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, []*Transaction{tx}, oldestAllowed)
+	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
 	if err != nil {
 		return err
 	}
@@ -72,10 +65,8 @@ func (p *PreExecutor) PreExecute(
 	}
 
 	// Verify auth if not already verified by caller
-	if verifyAuth {
-		if err := tx.VerifyAuth(ctx); err != nil {
-			return err
-		}
+	if err := tx.VerifyAuth(ctx); err != nil {
+		return err
 	}
 
 	// PreExecute does not make any changes to state
@@ -87,7 +78,7 @@ func (p *PreExecutor) PreExecute(
 	// Note, [PreExecute] ensures that the pending transaction does not have
 	// an expiry time further ahead than [ValidityWindow]. This ensures anything
 	// added to the [Mempool] is immediately executable.
-	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, view, now); err != nil {
+	if err := tx.PreExecute(ctx, nextFeeManager, p.balanceHandler, r, im, now); err != nil {
 		return err
 	}
 	return nil

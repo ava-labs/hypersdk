@@ -14,20 +14,21 @@ var (
 	ErrInvalidBlockRate = errors.New("invalid block rate")
 
 	// Block Correctness
-	ErrTimestampTooEarly    = errors.New("timestamp too early")
-	ErrTimestampTooLate     = errors.New("timestamp too late")
-	ErrStateRootEmpty       = errors.New("state root empty")
-	ErrNoTxs                = errors.New("no transactions")
-	ErrInvalidFee           = errors.New("invalid fee")
-	ErrInvalidUnitWindow    = errors.New("invalid unit window")
-	ErrInvalidBlockCost     = errors.New("invalid block cost")
-	ErrInvalidBlockWindow   = errors.New("invalid block window")
-	ErrInvalidUnitsConsumed = errors.New("invalid units consumed")
-	ErrInsufficientSurplus  = errors.New("insufficient surplus fee")
-	ErrInvalidSurplus       = errors.New("invalid surplus fee")
-	ErrStateRootMismatch    = errors.New("state root mismatch")
-	ErrInvalidResult        = errors.New("invalid result")
-	ErrInvalidBlockHeight   = errors.New("invalid block height")
+	ErrTimestampTooEarly           = errors.New("timestamp too early")
+	ErrTimestampTooEarlyEmptyBlock = errors.New("timestamp too early for empty block")
+	ErrTimestampTooLate            = errors.New("timestamp too late")
+	ErrStateRootEmpty              = errors.New("state root empty")
+	ErrNoTxs                       = errors.New("no transactions")
+	ErrInvalidFee                  = errors.New("invalid fee")
+	ErrInvalidUnitWindow           = errors.New("invalid unit window")
+	ErrInvalidBlockCost            = errors.New("invalid block cost")
+	ErrInvalidBlockWindow          = errors.New("invalid block window")
+	ErrInvalidUnitsConsumed        = errors.New("invalid units consumed")
+	ErrInsufficientSurplus         = errors.New("insufficient surplus fee")
+	ErrInvalidSurplus              = errors.New("invalid surplus fee")
+	ErrStateRootMismatch           = errors.New("state root mismatch")
+	ErrInvalidResult               = errors.New("invalid result")
+	ErrInvalidBlockHeight          = errors.New("invalid block height")
 
 	// Tx Correctness
 	ErrInvalidSignature     = errors.New("invalid signature")
@@ -53,9 +54,13 @@ var (
 	ErrTooManyActions       = errors.New("too many actions")
 
 	// Execution Correctness
-	ErrInvalidBalance  = errors.New("invalid balance")
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
+
+	// State Correctness
+	ErrFailedToFetchParentHeight    = errors.New("failed to fetch height from state")
+	ErrFailedToFetchParentTimestamp = errors.New("failed to fetch timestamp from state")
+	ErrFailedToFetchParentFee       = errors.New("failed to fetch fee manager from state")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
