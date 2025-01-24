@@ -151,7 +151,7 @@ type ChunkCertificateGossipHandler[T Tx] struct {
 }
 
 // TODO error handling + logs
-func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
+func (c ChunkCertificateGossipHandler[T]) AppGossip(ctx context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
 		return
@@ -163,7 +163,7 @@ func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	if err := c.storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
+	if err := c.storage.SetChunkCert(ctx, chunkCert.ChunkID, &chunkCert); err != nil {
 		return
 	}
 }
