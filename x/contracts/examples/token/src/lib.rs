@@ -113,7 +113,7 @@ pub fn approve(context: &mut Context, spender: Address, amount: Units) {
         .expect("failed to store allowance");
 }
 
-/// Transfers balance from the sender to the the recipient.
+/// Transfers balance from the sender to the recipient.
 #[public]
 pub fn transfer(context: &mut Context, recipient: Address, amount: Units) {
     let sender = context.actor();
