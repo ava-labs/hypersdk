@@ -144,9 +144,7 @@ func (m *mockAuth) GetTypeID() uint8 {
 	return m.typeID
 }
 
-func (*mockAuth) Marshal(*codec.Packer) {
-	panic("unimplemented")
-}
+func (*mockAuth) Marshal(*codec.Packer) {}
 
 func (*mockAuth) Size() int {
 	panic("unimplemented")

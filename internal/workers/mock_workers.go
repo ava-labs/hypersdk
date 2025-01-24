@@ -31,5 +31,5 @@ func (m *MockJob) Wait() error {
 }
 
 func (*MockJob) Workers() int {
-	panic("unimplemented")
+	return 0
 }

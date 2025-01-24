@@ -28,6 +28,8 @@ import (
 )
 
 var (
+	_ chain.AuthVM = (*mockAuthVM)(nil)
+
 	heightKey    = string(chain.HeightKey([]byte{0}))
 	timestampKey = string(chain.TimestampKey([]byte{1}))
 
@@ -36,23 +38,36 @@ var (
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
+type createBlock func(parentRoot ids.ID) (*chain.StatelessBlock, error)
+
+type mockAuthVM struct{}
+
+func (m *mockAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	return nil, false
+}
+
+func (m *mockAuthVM) Logger() logging.Logger {
+	panic("unimplemented")
+}
+
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	testRuleFactory := genesis.ImmutableRuleFactory{Rules: testRules}
-	invalidStateRoot := ids.ID{1}
-	validBlock := &chain.ExecutionBlock{
-		StatelessBlock: &chain.StatelessBlock{
-			Hght:   1,
-			Tmstmp: testRules.GetMinEmptyBlockGap(),
-		},
+	createValidBlock := func(root ids.ID) (*chain.StatelessBlock, error) {
+		return chain.NewStatelessBlock(
+			ids.Empty,
+			testRules.GetMinEmptyBlockGap(),
+			1,
+			nil,
+			root,
+		)
 	}
 
 	tests := []struct {
 		name           string
-		block          *chain.ExecutionBlock
 		validityWindow chain.ValidityWindow
-		includeRoot    bool
 		isNormalOp     bool
+		createBlock    createBlock
 		state          map[string][]byte
 		workers        workers.Workers
 		expectedErr    error
@@ -64,21 +79,24 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			block:       validBlock,
-			includeRoot: true,
+			createBlock: createValidBlock,
 		},
 		{
 			name: "block timestamp too late",
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Tmstmp: time.Now().Add(chain.FutureBound).UnixMilli() + int64(time.Second),
-				},
+			createBlock: func(root ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
+					0,
+					nil,
+					root,
+				)
 			},
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
-			name:  "verify signatures fails",
-			block: validBlock,
+			name:        "verify signatures fails",
+			createBlock: createValidBlock,
 			workers: &workers.MockWorkers{
 				OnNewJob: func(_ int) (workers.Job, error) {
 					return nil, errMockWorker
@@ -88,7 +106,7 @@ func TestProcessorExecute(t *testing.T) {
 		},
 		{
 			name:        "failed to get parent height",
-			block:       validBlock,
+			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentHeight,
 		},
 		{
@@ -96,7 +114,7 @@ func TestProcessorExecute(t *testing.T) {
 			state: map[string][]byte{
 				heightKey: {},
 			},
-			block:       validBlock,
+			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
 		{
@@ -104,10 +122,14 @@ func TestProcessorExecute(t *testing.T) {
 			state: map[string][]byte{
 				heightKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Hght: 2,
-				},
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					testRules.GetMinEmptyBlockGap(),
+					2,
+					nil,
+					parentRoot,
+				)
 			},
 			expectedErr: chain.ErrInvalidBlockHeight,
 		},
@@ -116,7 +138,7 @@ func TestProcessorExecute(t *testing.T) {
 			state: map[string][]byte{
 				heightKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			block:       validBlock,
+			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
 		},
 		{
@@ -125,7 +147,7 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: {},
 			},
-			block:       validBlock,
+			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
 		{
@@ -134,10 +156,12 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Hght: 1,
-					Txs: []*chain.Transaction{
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					0,
+					1,
+					[]*chain.Transaction{
 						{
 							TransactionData: chain.TransactionData{
 								Base: &chain.Base{},
@@ -147,7 +171,8 @@ func TestProcessorExecute(t *testing.T) {
 							},
 						},
 					},
-				},
+					parentRoot,
+				)
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
@@ -157,10 +182,14 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Hght: 1,
-				},
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					0,
+					1,
+					nil,
+					parentRoot,
+				)
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
@@ -170,7 +199,7 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			block:       validBlock,
+			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
 		{
@@ -180,7 +209,7 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			block: validBlock,
+			createBlock: createValidBlock,
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
 				OnVerifyExpiryReplayProtection: func(_ context.Context, _ validitywindow.ExecutionBlock[*chain.Transaction]) error {
 					return errMockVerifyExpiryReplayProtection
@@ -196,11 +225,12 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Hght:   1,
-					Tmstmp: testRules.GetMinEmptyBlockGap(),
-					Txs: []*chain.Transaction{
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					testRules.GetMinEmptyBlockGap(),
+					1,
+					[]*chain.Transaction{
 						{
 							TransactionData: chain.TransactionData{
 								Base: &chain.Base{},
@@ -217,7 +247,8 @@ func TestProcessorExecute(t *testing.T) {
 							},
 						},
 					},
-				},
+					parentRoot,
+				)
 			},
 			expectedErr: chain.ErrInvalidKeyValue,
 		},
@@ -228,12 +259,14 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			block: &chain.ExecutionBlock{
-				StatelessBlock: &chain.StatelessBlock{
-					Hght:      1,
-					Tmstmp:    testRules.GetMinEmptyBlockGap(),
-					StateRoot: invalidStateRoot,
-				},
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					testRules.GetMinEmptyBlockGap(),
+					1,
+					nil,
+					ids.GenerateTestID(),
+				)
 			},
 			expectedErr: chain.ErrStateRootMismatch,
 		},
@@ -244,7 +277,7 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			block: validBlock,
+			createBlock: createValidBlock,
 			workers: &workers.MockWorkers{
 				OnNewJob: func(_ int) (workers.Job, error) {
 					return &workers.MockJob{
@@ -252,7 +285,6 @@ func TestProcessorExecute(t *testing.T) {
 					}, nil
 				},
 			},
-			includeRoot: true,
 			expectedErr: errMockWorkerJob,
 		},
 	}
@@ -282,7 +314,7 @@ func TestProcessorExecute(t *testing.T) {
 				&logging.NoLog{},
 				&testRuleFactory,
 				tt.workers,
-				nil,
+				&mockAuthVM{},
 				metadata.NewDefaultManager(),
 				nil,
 				tt.validityWindow,
@@ -305,13 +337,13 @@ func TestProcessorExecute(t *testing.T) {
 			}
 			r.NoError(db.CommitToDB(ctx))
 
-			if tt.includeRoot {
-				root, err := db.GetMerkleRoot(ctx)
-				r.NoError(err)
-				tt.block.StateRoot = root
-			}
+			root, err := db.GetMerkleRoot(ctx)
+			r.NoError(err)
 
-			_, err = processor.Execute(ctx, db, tt.block, tt.isNormalOp)
+			block, err := tt.createBlock(root)
+			r.NoError(err)
+
+			_, err = processor.Execute(ctx, db, chain.NewExecutionBlock(block), tt.isNormalOp)
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}
