@@ -117,13 +117,6 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 		}
 	}
 
-	// track blocks that failed verification
-	// never accept these blocks
-
-	// after we exit the loop, there may still be blocks that failed verification and are still in processing
-	// lets add a health check that will report unhealthy until dynamic state has finished and the processing set of blocks has returned to normal
-	// when we finish, create the set of blocks in processing that we must mark accepted/rejected before the state sync health check passes
-	// create a subscription to accepted/rejected notifications and mark itself as healthy once passes
 	return nil
 }
 

@@ -264,7 +264,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
 
-	v.AddHealthCheck("stateSync", newStateSyncHealthChecker(v))
+	v.AddHealthCheck(StateSyncHealthCheckerNamespace, newStateSyncHealthChecker(v))
 	return nil
 }
 
@@ -441,7 +441,7 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
 	stateSync, err := v.stateSyncHealthChecker().HealthCheck(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("dynamic state sync health check failed: %w", err)
+		return nil, fmt.Errorf("state sync health check failed: %w", err)
 	}
 
 	return map[string]interface{}{
