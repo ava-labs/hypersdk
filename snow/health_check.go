@@ -34,13 +34,12 @@ func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthC
 		unresolvedBlocks: make(map[ids.ID]struct{}),
 	}
 
-	vm.AddRejectedSub(event.SubscriptionFunc[O]{
-		NotifyF: func(_ context.Context, output O) error {
+	vm.AddRejectedSub(event.SubscriptionFunc[I]{
+		NotifyF: func(_ context.Context, input I) error {
 			s.lock.Lock()
 			defer s.lock.Unlock()
 
-			fmt.Printf("Received: %s\n", output.GetID())
-			delete(s.unresolvedBlocks, output.GetID())
+			delete(s.unresolvedBlocks, input.GetID())
 			return nil
 		},
 	})
