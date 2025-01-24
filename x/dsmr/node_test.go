@@ -40,6 +40,7 @@ const (
 var (
 	_ Tx                    = (*dsmrtest.Tx)(nil)
 	_ Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
+	_ ChainState            = (*testChainState)(nil)
 
 	chainID = ids.Empty
 
@@ -556,9 +557,16 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			chunkStorage, err := NewChunkStorage[dsmrtest.Tx](tt.verifier, memdb.New())
 			r.NoError(err)
 
+			chainState := &testChainState{
+				validators,
+				1,
+				1,
+			}
+
 			node, err := New[dsmrtest.Tx](
 				logging.NoLog{},
 				nodeID,
+				chainState,
 				networkID,
 				chainID,
 				pk,
@@ -1445,10 +1453,15 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			chunkSignaturePeers[validators[j].NodeID] = nodes[j].ChunkSignatureRequestHandler
 			chunkCertGossipPeers[validators[j].NodeID] = nodes[j].ChunkCertificateGossipHandler
 		}
-
+		chainState := &testChainState{
+			validators,
+			1,
+			1,
+		}
 		node, err := New[dsmrtest.Tx](
 			logging.NoLog{},
 			validators[i].NodeID,
+			chainState,
 			networkID,
 			chainID,
 			validators[i].PublicKey,
@@ -1519,4 +1532,27 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	}
 
 	return result
+}
+
+type testChainState struct {
+	validators []Validator
+	quorumNum  uint64
+	quorumDen  uint64
+}
+
+func (t *testChainState) GetNetworkParams() (uint32, ids.ID, ids.ID) {
+	return networkID /*subnetID*/, ids.Empty, chainID
+}
+
+func (t *testChainState) GetSignatureParams(ctx context.Context) ([]*warp.Validator, uint64, uint64, error) {
+	canonicalValidators, _, err := warp.GetCanonicalValidatorSet(
+		ctx,
+		pChain{validators: t.validators},
+		0,
+		ids.Empty,
+	)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return canonicalValidators, t.quorumNum, t.quorumDen, err
 }

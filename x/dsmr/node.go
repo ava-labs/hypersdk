@@ -50,6 +50,11 @@ var (
 	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
 
+type ChainState interface {
+	GetNetworkParams() (networdID uint32, subnetID, chainID ids.ID)
+	GetSignatureParams(ctx context.Context) (canonicalValidators []*warp.Validator, quorumNum uint64, quorumDen uint64, err error)
+}
+
 type Validator struct {
 	NodeID    ids.NodeID
 	Weight    uint64
@@ -59,6 +64,7 @@ type Validator struct {
 func New[T Tx](
 	log logging.Logger,
 	nodeID ids.NodeID,
+	chainState ChainState,
 	networkID uint32,
 	chainID ids.ID,
 	pk *bls.PublicKey,
@@ -79,6 +85,7 @@ func New[T Tx](
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
+		chainState:                    chainState,
 		LastAccepted:                  lastAccepted,
 		networkID:                     networkID,
 		chainID:                       chainID,
@@ -126,6 +133,7 @@ type Node[T Tx] struct {
 	validators                   []Validator
 	quorumNum                    uint64
 	quorumDen                    uint64
+	chainState                   ChainState
 	chunkSignatureAggregator     *acp118.SignatureAggregator
 
 	GetChunkHandler               p2p.Handler
@@ -198,14 +206,9 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
-	canonicalValidators, _, err := warp.GetCanonicalValidatorSet(
-		ctx,
-		pChain{validators: n.validators},
-		0,
-		ids.Empty,
-	)
+	canonicalValidators, quorumNum, quorumDen, err := n.chainState.GetSignatureParams(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get canonical validator set: %w", err)
+		return fmt.Errorf("failed to get signature parameters: %w", err)
 	}
 
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
@@ -213,8 +216,8 @@ func (n *Node[T]) BuildChunk(
 		msg,
 		chunk.bytes,
 		canonicalValidators,
-		n.quorumNum,
-		n.quorumDen,
+		quorumNum,
+		quorumDen,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate signatures: %w", err)
