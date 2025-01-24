@@ -97,7 +97,7 @@ type VM[I Block, O Block, A Block] struct {
 	onNormalOperationsStarted []func(context.Context) error
 
 	verifiedSubs         []event.Subscription[O]
-	rejectedSubs         []event.Subscription[O]
+	rejectedSubs         []event.Subscription[I]
 	acceptedSubs         []event.Subscription[A]
 	preReadyAcceptedSubs []event.Subscription[I]
 	version              string
@@ -487,7 +487,7 @@ func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
 	v.acceptedSubs = append(v.acceptedSubs, sub...)
 }
 
-func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
+func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[I]) {
 	v.rejectedSubs = append(v.rejectedSubs, sub...)
 }
 

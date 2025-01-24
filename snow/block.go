@@ -296,7 +296,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 		return nil
 	}
 
-	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
+	return event.NotifyAll[I](ctx, b.Input, b.vm.rejectedSubs...)
 }
 
 // implements "snowman.Block"
