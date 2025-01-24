@@ -38,7 +38,7 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	return blk, nil
 }
 
-// validators.Backend
+// gossiper.ValidatorSet
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }
