@@ -13,11 +13,11 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
@@ -274,21 +274,21 @@ func TestProcessorExecute(t *testing.T) {
 				tt.validityWindow = &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{}
 			}
 
-			testChain, err := chain.NewChain(
+			metrics, err := chain.NewMetrics(prometheus.NewRegistry())
+			r.NoError(err)
+
+			processor := chain.NewProcessor(
 				trace.Noop,
-				prometheus.NewRegistry(),
-				nil,
-				nil,
 				&logging.NoLog{},
 				&testRuleFactory,
-				metadata.NewDefaultManager(),
-				nil,
 				tt.workers,
 				nil,
+				metadata.NewDefaultManager(),
+				nil,
 				tt.validityWindow,
+				metrics,
 				chain.Config{},
 			)
-			r.NoError(err)
 
 			db, err := merkledb.New(
 				ctx,
@@ -311,7 +311,7 @@ func TestProcessorExecute(t *testing.T) {
 				tt.block.StateRoot = root
 			}
 
-			_, err = testChain.Execute(ctx, db, tt.block, tt.isNormalOp)
+			_, err = processor.Execute(ctx, db, tt.block, tt.isNormalOp)
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}

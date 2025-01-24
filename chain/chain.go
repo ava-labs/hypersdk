@@ -37,7 +37,7 @@ func NewChain(
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
-	metrics, err := newMetrics(registerer)
+	metrics, err := NewMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}

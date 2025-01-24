@@ -53,7 +53,7 @@ func (em *executorMetrics) RecordExecutable() {
 	em.executable.Inc()
 }
 
-func newMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
+func NewMetrics(reg *prometheus.Registry) (*chainMetrics, error) {
 	m := &chainMetrics{
 		txsBuilt: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
