@@ -17,9 +17,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
-	"github.com/ava-labs/hypersdk/internal/logging"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/internal/workers"
@@ -279,7 +279,7 @@ func TestProcessorExecute(t *testing.T) {
 				prometheus.NewRegistry(),
 				nil,
 				nil,
-				&logging.Noop{},
+				&logging.NoLog{},
 				&testRuleFactory,
 				metadata.NewDefaultManager(),
 				nil,
