@@ -912,19 +912,17 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)
 	ce.require.ErrorIs(invalidatedChildBlk2, errParentFailedVerification)
-	//
-	//// Reject all blocks
-	//for _, blk := range []*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]{
-	//	parsedBlk1, parsedBlk2,
-	//} {
-	//	fmt.Printf("%s: ID\n", blk.ID())
-	//	fmt.Printf("%s: ParentID\n", blk.Parent())
-	//	blk.verified = true
-	//	ce.require.NoError(blk.Reject(ctx))
-	//}
-	//
-	//_, err = ce.vm.HealthCheck(ctx)
-	//ce.require.NoError(err)
+
+	// Reject all blocks
+	for _, blk := range []*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]{
+		parsedBlk1, parsedBlk2,
+	} {
+		blk.verified = true
+		ce.require.NoError(blk.Reject(ctx))
+	}
+
+	_, err = ce.vm.HealthCheck(ctx)
+	ce.require.NoError(err)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {

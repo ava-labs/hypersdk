@@ -39,6 +39,7 @@ func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthC
 			s.lock.Lock()
 			defer s.lock.Unlock()
 
+			fmt.Printf("Received: %s\n", output.GetID())
 			delete(s.unresolvedBlocks, output.GetID())
 			return nil
 		},
