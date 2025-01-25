@@ -32,10 +32,7 @@ import (
 	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
-const (
-	networkID                            = uint32(123)
-	testingDefaultValidityWindowDuration = time.Duration(5)
-)
+const networkID = uint32(123)
 
 var (
 	_ Tx                    = (*dsmrtest.Tx)(nil)
@@ -522,7 +519,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				1,
 				1,
 				&validitywindowtest.MockTimeValidityWindow[*emapChunkCertificate]{},
-				testingDefaultValidityWindowDuration,
 			)
 			r.NoError(err)
 
@@ -1435,7 +1431,6 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			1,
 			1,
 			&validitywindowtest.MockTimeValidityWindow[*emapChunkCertificate]{},
-			testingDefaultValidityWindowDuration,
 		)
 		require.NoError(t, err)
 

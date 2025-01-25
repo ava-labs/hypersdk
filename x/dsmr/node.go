@@ -75,7 +75,6 @@ func New[T Tx](
 	quorumNum uint64,
 	quorumDen uint64,
 	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
-	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
@@ -96,7 +95,6 @@ func New[T Tx](
 		storage:                       chunkStorage,
 		log:                           log,
 		validityWindow:                timeValidityWindow,
-		validityWindowDuration:        validityWindowDuration,
 	}, nil
 }
 
@@ -133,7 +131,6 @@ type Node[T Tx] struct {
 	ChunkCertificateGossipHandler p2p.Handler
 	storage                       *ChunkStorage[T]
 	log                           logging.Logger
-	validityWindowDuration        time.Duration
 	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
 
