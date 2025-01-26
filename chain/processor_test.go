@@ -42,11 +42,11 @@ type createBlock func(parentRoot ids.ID) (*chain.StatelessBlock, error)
 
 type mockAuthVM struct{}
 
-func (m *mockAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+func (*mockAuthVM) GetAuthBatchVerifier(_ uint8, _ int, _ int) (chain.AuthBatchVerifier, bool) {
 	return nil, false
 }
 
-func (m *mockAuthVM) Logger() logging.Logger {
+func (*mockAuthVM) Logger() logging.Logger {
 	panic("unimplemented")
 }
 
@@ -162,14 +162,18 @@ func TestProcessorExecute(t *testing.T) {
 					0,
 					1,
 					[]*chain.Transaction{
-						{
-							TransactionData: chain.TransactionData{
-								Base: &chain.Base{},
-							},
-							Auth: &mockAuth{
-								typeID: 1,
-							},
-						},
+						func() *chain.Transaction {
+							r := require.New(t)
+							tx, err := chain.NewTransaction(
+								&chain.Base{},
+								[]chain.Action{},
+								&mockAuth{
+									typeID: 1,
+								},
+							)
+							r.NoError(err)
+							return tx
+						}(),
 					},
 					parentRoot,
 				)
@@ -231,21 +235,24 @@ func TestProcessorExecute(t *testing.T) {
 					testRules.GetMinEmptyBlockGap(),
 					1,
 					[]*chain.Transaction{
-						{
-							TransactionData: chain.TransactionData{
-								Base: &chain.Base{},
-								Actions: []chain.Action{
+						func() *chain.Transaction {
+							r := require.New(t)
+							tx, err := chain.NewTransaction(
+								&chain.Base{},
+								[]chain.Action{
 									&mockAction{
 										stateKeys: state.Keys{
 											"": state.None,
 										},
 									},
 								},
-							},
-							Auth: &mockAuth{
-								typeID: 1,
-							},
-						},
+								&mockAuth{
+									typeID: 1,
+								},
+							)
+							r.NoError(err)
+							return tx
+						}(),
 					},
 					parentRoot,
 				)
@@ -259,7 +266,7 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+			createBlock: func(_ ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -340,10 +347,15 @@ func TestProcessorExecute(t *testing.T) {
 			root, err := db.GetMerkleRoot(ctx)
 			r.NoError(err)
 
-			block, err := tt.createBlock(root)
+			statelessBlock, err := tt.createBlock(root)
 			r.NoError(err)
 
-			_, err = processor.Execute(ctx, db, chain.NewExecutionBlock(block), tt.isNormalOp)
+			_, err = processor.Execute(
+				ctx,
+				db,
+				chain.NewExecutionBlock(statelessBlock),
+				tt.isNormalOp,
+			)
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}

@@ -130,6 +130,7 @@ type mockAuth struct {
 	actor        codec.Address
 	sponsor      codec.Address
 	verifyError  error
+	size         int
 }
 
 func (m *mockAuth) Actor() codec.Address {
@@ -146,8 +147,8 @@ func (m *mockAuth) GetTypeID() uint8 {
 
 func (*mockAuth) Marshal(*codec.Packer) {}
 
-func (*mockAuth) Size() int {
-	panic("unimplemented")
+func (m *mockAuth) Size() int {
+	return m.size
 }
 
 func (m *mockAuth) Sponsor() codec.Address {
