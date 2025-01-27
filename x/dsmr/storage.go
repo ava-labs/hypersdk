@@ -82,12 +82,12 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	}
 
 	// check if the producer was expected to produce this chunk.
-	subnetID, err := c.chainState.GetSubnetID(context.Background(), c.chainID)
+	subnetID, err := c.chainState.GetSubnetID(context.TODO(), c.chainID)
 	if err != nil {
 		return fmt.Errorf("%w: failed to retrieve subnet-id for chain-id while verifying chunk", err)
 	}
 
-	validatorSet, err := c.chainState.GetValidatorSet(context.Background(), 0, subnetID)
+	validatorSet, err := c.chainState.GetValidatorSet(context.TODO(), 0, subnetID)
 	if err != nil {
 		return err
 	}
