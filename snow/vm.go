@@ -97,9 +97,10 @@ type VM[I Block, O Block, A Block] struct {
 	onNormalOperationsStarted []func(context.Context) error
 
 	verifiedSubs         []event.Subscription[O]
-	rejectedSubs         []event.Subscription[I]
+	rejectedSubs         []event.Subscription[O]
 	acceptedSubs         []event.Subscription[A]
 	preReadyAcceptedSubs []event.Subscription[I]
+	preReadyRejectedSubs []event.Subscription[I]
 	version              string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
@@ -487,7 +488,7 @@ func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
 	v.acceptedSubs = append(v.acceptedSubs, sub...)
 }
 
-func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[I]) {
+func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
 	v.rejectedSubs = append(v.rejectedSubs, sub...)
 }
 
@@ -497,6 +498,10 @@ func (v *VM[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
 
 func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	v.preReadyAcceptedSubs = append(v.preReadyAcceptedSubs, sub...)
+}
+
+func (v *VM[I, O, A]) AddPreReadyRejectedSub(sub ...event.Subscription[I]) {
+	v.preReadyRejectedSubs = append(v.preReadyRejectedSubs, sub...)
 }
 
 func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {

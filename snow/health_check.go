@@ -34,7 +34,7 @@ func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthC
 		unresolvedBlocks: make(map[ids.ID]struct{}),
 	}
 
-	vm.AddRejectedSub(event.SubscriptionFunc[I]{
+	vm.AddPreReadyRejectedSub(event.SubscriptionFunc[I]{
 		NotifyF: func(_ context.Context, input I) error {
 			s.lock.Lock()
 			defer s.lock.Unlock()
