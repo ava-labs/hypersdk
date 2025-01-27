@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
@@ -184,11 +183,10 @@ func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
 	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
 }
 
-func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, validityWindow int64) error {
+func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {
 	switch {
-	case containerTimestamp%consts.MillisecondsPerSecond != 0:
-		// TODO: make this modulus configurable
-		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, containerTimestamp)
+	case containerTimestamp%divisor != 0:
+		return fmt.Errorf("%w: timestamp (%d) %% divisor (%d) != 0", ErrMisalignedTime, containerTimestamp, divisor)
 	case containerTimestamp < executionTimestamp: // expiry: 100 block: 110
 		return fmt.Errorf("%w: timestamp (%d) < block timestamp (%d)", ErrTimestampExpired, containerTimestamp, executionTimestamp)
 	case containerTimestamp > executionTimestamp+validityWindow: // expiry: 100 block 10
