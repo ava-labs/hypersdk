@@ -334,12 +334,7 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 	for _, chunkCert := range block.ChunkCerts {
 		if err := chunkCert.Verify(
 			ctx,
-			n.networkID,
-			n.chainID,
-			pChain{validators: n.validators},
-			0,
-			n.quorumNum,
-			n.quorumDen,
+			n.chainState,
 		); err != nil {
 			return fmt.Errorf("%w %s: %w", ErrInvalidWarpSignature, chunkCert.ChunkID, err)
 		}
