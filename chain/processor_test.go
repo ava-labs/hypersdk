@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var (
@@ -126,7 +127,7 @@ func TestProcessorExecute(t *testing.T) {
 			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
+					time.Now().UnixMilli(),
 					2,
 					nil,
 					parentRoot,
@@ -233,7 +234,7 @@ func TestProcessorExecute(t *testing.T) {
 			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
+					time.Now().UnixMilli(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -270,7 +271,7 @@ func TestProcessorExecute(t *testing.T) {
 			createBlock: func(_ ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
+					time.Now().UnixMilli(),
 					1,
 					nil,
 					ids.GenerateTestID(),
@@ -288,7 +289,7 @@ func TestProcessorExecute(t *testing.T) {
 			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.MinBlockGap,
+					time.Now().UnixMilli(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -299,7 +300,10 @@ func TestProcessorExecute(t *testing.T) {
 
 							tx, err := chain.NewTransaction(
 								&chain.Base{
-									Timestamp: testRules.GetMinBlockGap() * 10,
+									Timestamp: utils.UnixRMilli(
+										time.Now().UnixMilli(),
+										testRules.GetValidityWindow(),
+									),
 								},
 								[]chain.Action{},
 								&auth.ED25519{
