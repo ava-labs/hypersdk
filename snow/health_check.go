@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inv. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package snow
 
 import (
