@@ -16,12 +16,16 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 var (
 	_                     Interface[emap.Item] = (*TimeValidityWindow[emap.Item])(nil)
 	ErrDuplicateContainer                      = errors.New("duplicate container")
+	ErrMisalignedTime                          = errors.New("misaligned time")
+	ErrTimestampExpired                        = errors.New("declared timestamp expired")
+	ErrFutureTimestamp                         = errors.New("declared timestamp too far in the future")
 )
 
 type GetTimeValidityWindowFunc func(timestamp int64) int64
@@ -178,4 +182,18 @@ func (v *TimeValidityWindow[T]) isRepeat(
 
 func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
 	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
+}
+
+func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, validityWindow int64) error {
+	switch {
+	case containerTimestamp%consts.MillisecondsPerSecond != 0:
+		// TODO: make this modulus configurable
+		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, containerTimestamp)
+	case containerTimestamp < executionTimestamp: // expiry: 100 block: 110
+		return fmt.Errorf("%w: timestamp (%d) < block timestamp (%d)", ErrTimestampExpired, containerTimestamp, executionTimestamp)
+	case containerTimestamp > executionTimestamp+validityWindow: // expiry: 100 block 10
+		return fmt.Errorf("%w: timestamp (%d) > block timestamp (%d) + validity window (%d)", ErrFutureTimestamp, containerTimestamp, executionTimestamp, validityWindow)
+	default:
+		return nil
+	}
 }
