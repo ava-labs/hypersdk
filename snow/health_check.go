@@ -16,12 +16,18 @@ var (
 	ErrUnresolvedBlocks = errors.New("blocks remain unresolved after verification and must be explicitly rejected")
 )
 
-// stateSyncHealthChecker is a concrete implementation of a health check that monitors the state of the VM
-// during and after dynamic state synchronization. It ensures the following:
-//  1. The VM is ready for normal operation (`vm.ready` is true).
-//  2. Tracks `unresolvedBlocks`, which are outstanding processing blocks that were vacuously verified.
-//     These blocks were marked as successfully verified even though the VM lacked the necessary state
-//     information to properly verify them at the time.
+// stateSyncHealthChecker monitors VM health during and after dynamic state synchronization.
+// During state sync, blocks are vacuously verified/accepted without proper verification since the VM lacks state.
+// While we trust consensus to eventually reject invalid blocks, this checker acts as a safeguard
+// by tracking these unresolved blocks and reporting unhealthy status until they are properly handled.
+//
+// The health checker ensures:
+//  1. VM readiness; Tracks if VM is ready for normal operation (`vm.ready`)
+//  2. Block resolution; Monitors blocks that were vacuously verified during state sync
+//     and reports unhealthy status if any remain unresolved
+//
+// Safety guarantee: We rely on consensus and correct validator set that any invalid blocks
+// accepted during state sync will eventually be rejected in favor of valid blocks.
 type stateSyncHealthChecker[I, O, A Block] struct {
 	vm               *VM[I, O, A]
 	unresolvedBlocks map[ids.ID]struct{}
@@ -34,7 +40,7 @@ func newStateSyncHealthChecker[I, O, A Block](vm *VM[I, O, A]) *stateSyncHealthC
 		unresolvedBlocks: make(map[ids.ID]struct{}),
 	}
 
-	vm.AddPreReadyRejectedSub(event.SubscriptionFunc[I]{
+	vm.AddPreRejectedSub(event.SubscriptionFunc[I]{
 		NotifyF: func(_ context.Context, input I) error {
 			s.lock.Lock()
 			defer s.lock.Unlock()

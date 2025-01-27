@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -296,7 +297,13 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 		return nil
 	}
 
-	return event.NotifyAll[I](ctx, b.Input, b.vm.rejectedSubs...)
+	// Notify subscribers about the rejected blocks
+	// that were vacuously verified/accepted during state sync
+	if reflect.ValueOf(b.Output).IsNil() {
+		return event.NotifyAll[I](ctx, b.Input, b.vm.preRejectedSubs...)
+	}
+
+	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
 }
 
 // implements "snowman.Block"
