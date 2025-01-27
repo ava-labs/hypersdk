@@ -165,12 +165,22 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(ChunkReference{
+	chunkRef := ChunkReference{
 		ChunkID:  chunk.id,
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
-	}, &packer); err != nil {
+	}
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(n.LastAccepted), n.LastAccepted.Timestamp, []*emapChunkCertificate{{ChunkCertificate{ChunkReference: chunkRef}}})
+	if err != nil {
+		return fmt.Errorf("failed to varify repeated chunk certificates : %w", err)
+	}
+	if duplicates.Len() > 0 {
+		// we have duplicates
+		return ErrDuplicateChunk
+	}
+
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(chunkRef, &packer); err != nil {
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
@@ -220,12 +230,8 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	chunkCert := ChunkCertificate{
-		ChunkReference: ChunkReference{
-			ChunkID:  chunk.id,
-			Producer: chunk.Producer,
-			Expiry:   chunk.Expiry,
-		},
-		Signature: bitSetSignature,
+		ChunkReference: chunkRef,
+		Signature:      bitSetSignature,
 	}
 
 	packer = wrappers.Packer{MaxSize: MaxMessageSize}
@@ -340,13 +346,13 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 }
 
 func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], error) {
-	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
+	acceptedChunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	chunks := make([]Chunk[T], 0, len(block.ChunkCerts))
 
 	for _, chunkCert := range block.ChunkCerts {
-		chunkIDs = append(chunkIDs, chunkCert.ChunkID)
+		acceptedChunkIDs = append(acceptedChunkIDs, chunkCert.ChunkID)
 
-		chunkBytes, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
+		chunkBytes, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if errors.Is(err, database.ErrNotFound) {
 			for {
 				result := make(chan error)
@@ -395,7 +401,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 	// update the validity window with the accepted block.
 	n.validityWindow.Accept(NewValidityWindowBlock(block))
 
-	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
+	if err := n.storage.SetMin(block.Timestamp, acceptedChunkIDs); err != nil {
 		return ExecutedBlock[T]{}, fmt.Errorf("failed to prune chunks: %w", err)
 	}
 

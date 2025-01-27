@@ -70,7 +70,7 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 	}
 
 	// TODO check chunk status?
-	chunkBytes, available, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
+	chunkBytes, err := g.storage.GetChunkBytes(request.Expiry, chunkID)
 	if err != nil && errors.Is(err, database.ErrNotFound) {
 		return nil, ErrChunkNotAvailable
 	}
@@ -79,10 +79,6 @@ func (g *GetChunkHandler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.
 			Code:    common.ErrUndefined.Code,
 			Message: err.Error(),
 		}
-	}
-
-	if !available {
-		return nil, ErrChunkNotAvailable
 	}
 
 	response := &dsmr.GetChunkResponse{
@@ -132,17 +128,12 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 	}
 
 	// check to see if this chunk was already accepted.
-	_, accepted, err := c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
+	_, err = c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,
 			Message: err.Error(),
 		}
-	}
-
-	if accepted {
-		// Don't sign a chunk that is already marked as accepted
-		return ErrDuplicateChunk
 	}
 
 	if _, err := c.storage.VerifyRemoteChunk(chunk); err != nil {
@@ -160,7 +151,7 @@ type ChunkCertificateGossipHandler[T Tx] struct {
 }
 
 // TODO error handling + logs
-func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, gossipBytes []byte) {
+func (c ChunkCertificateGossipHandler[T]) AppGossip(ctx context.Context, _ ids.NodeID, gossipBytes []byte) {
 	gossip := &dsmr.ChunkCertificateGossip{}
 	if err := proto.Unmarshal(gossipBytes, gossip); err != nil {
 		return
@@ -172,7 +163,7 @@ func (c ChunkCertificateGossipHandler[T]) AppGossip(_ context.Context, _ ids.Nod
 		return
 	}
 
-	if err := c.storage.SetChunkCert(chunkCert.ChunkID, &chunkCert); err != nil {
+	if err := c.storage.SetChunkCert(ctx, chunkCert.ChunkID, &chunkCert); err != nil {
 		return
 	}
 }
