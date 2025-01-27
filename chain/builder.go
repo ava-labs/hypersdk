@@ -272,9 +272,10 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 					len(stateKeys),
 				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
+					// Ignore the error and drop the transaction.
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
-					return nil
+					return nil //nolint:nilerr
 				}
 				result, err := tx.Execute(
 					ctx,
