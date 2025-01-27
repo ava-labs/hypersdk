@@ -18,7 +18,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -33,8 +36,6 @@ var (
 	heightKey    = string(chain.HeightKey([]byte{0}))
 	timestampKey = string(chain.TimestampKey([]byte{1}))
 
-	errMockWorker                       = errors.New("mock worker error")
-	errMockWorkerJob                    = errors.New("mock worker job error")
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
@@ -56,7 +57,7 @@ func TestProcessorExecute(t *testing.T) {
 	createValidBlock := func(root ids.ID) (*chain.StatelessBlock, error) {
 		return chain.NewStatelessBlock(
 			ids.Empty,
-			testRules.GetMinEmptyBlockGap(),
+			time.Now().UnixMilli(),
 			1,
 			nil,
 			root,
@@ -97,12 +98,12 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:        "verify signatures fails",
 			createBlock: createValidBlock,
-			workers: &workers.MockWorkers{
-				OnNewJob: func(_ int) (workers.Job, error) {
-					return nil, errMockWorker
-				},
-			},
-			expectedErr: errMockWorker,
+			workers: func() workers.Workers {
+				w := workers.NewParallel(0, 0)
+				w.Stop()
+				return w
+			}(),
+			expectedErr: workers.ErrShutdown,
 		},
 		{
 			name:        "failed to get parent height",
@@ -284,15 +285,35 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			createBlock: createValidBlock,
-			workers: &workers.MockWorkers{
-				OnNewJob: func(_ int) (workers.Job, error) {
-					return &workers.MockJob{
-						OnWaitError: errMockWorkerJob,
-					}, nil
-				},
+			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
+				return chain.NewStatelessBlock(
+					ids.Empty,
+					testRules.MinBlockGap,
+					1,
+					[]*chain.Transaction{
+						func() *chain.Transaction {
+							r := require.New(t)
+
+							p, err := ed25519.GeneratePrivateKey()
+							r.NoError(err)
+
+							tx, err := chain.NewTransaction(
+								&chain.Base{
+									Timestamp: testRules.GetMinBlockGap() * 10,
+								},
+								[]chain.Action{},
+								&auth.ED25519{
+									Signer: p.PublicKey(),
+								},
+							)
+							r.NoError(err)
+							return tx
+						}(),
+					},
+					parentRoot,
+				)
 			},
-			expectedErr: errMockWorkerJob,
+			expectedErr: crypto.ErrInvalidSignature,
 		},
 	}
 
@@ -301,16 +322,12 @@ func TestProcessorExecute(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			if tt.workers == nil {
-				tt.workers = &workers.MockWorkers{
-					OnNewJob: func(_ int) (workers.Job, error) {
-						return &workers.MockJob{}, nil
-					},
-				}
-			}
-
 			if tt.validityWindow == nil {
 				tt.validityWindow = &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{}
+			}
+
+			if tt.workers == nil {
+				tt.workers = workers.NewSerial()
 			}
 
 			metrics, err := chain.NewMetrics(prometheus.NewRegistry())
@@ -323,10 +340,10 @@ func TestProcessorExecute(t *testing.T) {
 				tt.workers,
 				&mockAuthVM{},
 				metadata.NewDefaultManager(),
-				nil,
+				&mockBalanceHandler{},
 				tt.validityWindow,
 				metrics,
-				chain.Config{},
+				chain.NewDefaultConfig(),
 			)
 
 			db, err := merkledb.New(
