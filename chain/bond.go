@@ -35,7 +35,6 @@ type BondBalance struct {
 // pending transactions per account
 type Bonder struct{}
 
-// this needs to be thread-safe if it's called from the api
 func (Bonder) SetMaxBalance(
 	ctx context.Context,
 	mutable state.Mutable,
