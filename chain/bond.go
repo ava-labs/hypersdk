@@ -16,8 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/x/fdsmr"
 )
 
-const bondAllocSize = 128
-
 var (
 	// ErrMissingBond is fatal and is returned if Unbond is called on a
 	// transaction that was not previously bonded
@@ -105,7 +103,7 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (Bon
 	}
 
 	if currentBytes == nil {
-		currentBytes = make([]byte, bondAllocSize)
+		currentBytes = make([]byte, 0)
 	}
 
 	balance := BondBalance{}
@@ -120,7 +118,7 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (Bon
 }
 
 func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance BondBalance) error {
-	p := &wrappers.Packer{Bytes: make([]byte, bondAllocSize)}
+	p := &wrappers.Packer{Bytes: make([]byte, 0)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)
 	}
