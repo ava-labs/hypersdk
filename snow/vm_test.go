@@ -917,7 +917,6 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	for _, blk := range []*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]{
 		parsedBlk1, parsedBlk2,
 	} {
-		blk.verified = true
 		ce.require.NoError(blk.Reject(ctx))
 	}
 

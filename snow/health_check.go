@@ -76,7 +76,7 @@ func (s *stateSyncHealthChecker[I, O, A]) HealthCheck(_ context.Context) (interf
 	return details, nil
 }
 
-func (s *stateSyncHealthChecker[I, O, A]) MarkFailed(blkID ids.ID) {
+func (s *stateSyncHealthChecker[I, O, A]) MarkUnresolved(blkID ids.ID) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

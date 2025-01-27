@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -44,7 +43,7 @@ type Block interface {
 // 2. Accept is always called against a verified block
 // 3. Reject is always called against a verified block
 //
-// StatefulBlock additionally handles DynamicStateSync where blocks are vaccuously
+// StatefulBlock additionally handles DynamicStateSync where blocks are vacuously
 // verified/accepted to update a moving state sync target.
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
@@ -292,14 +291,8 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
-	// Skip notifying rejected subs if we were still in dynamic state sync
+	// Notify subscribers about the rejected blocks that were vacuously verified/accepted during state sync
 	if !b.verified {
-		return nil
-	}
-
-	// Notify subscribers about the rejected blocks
-	// that were vacuously verified/accepted during state sync
-	if reflect.ValueOf(b.Output).IsNil() {
 		return event.NotifyAll[I](ctx, b.Input, b.vm.preRejectedSubs...)
 	}
 
