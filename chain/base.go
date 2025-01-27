@@ -54,7 +54,7 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	base.Timestamp = p.UnpackInt64(true)
 	if base.Timestamp%consts.MillisecondsPerSecond != 0 {
 		// TODO: make this modulus configurable
-		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, base.Timestamp)
+		return nil, fmt.Errorf("%w: timestamp=%d", validitywindow.ErrMisalignedTime, base.Timestamp)
 	}
 	p.UnpackID(true, &base.ChainID)
 	base.MaxFee = p.UnpackUint64(true)
