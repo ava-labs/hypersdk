@@ -383,7 +383,7 @@ func (p *Processor) createBlockContext(
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("%w %w", ErrFailedToParseParentHeight, err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentHeight, err)
 	}
 	if block.Hght != parentHeight+1 {
 		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
