@@ -40,18 +40,6 @@ var (
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
-type createBlock func(parentRoot ids.ID) *chain.StatelessBlock
-
-type mockAuthVM struct{}
-
-func (*mockAuthVM) GetAuthBatchVerifier(uint8, int, int) (chain.AuthBatchVerifier, bool) {
-	return nil, false
-}
-
-func (*mockAuthVM) Logger() logging.Logger {
-	panic("unimplemented")
-}
-
 func TestProcessorExecute(t *testing.T) {
 	createValidBlock := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
@@ -83,7 +71,7 @@ func TestProcessorExecute(t *testing.T) {
 		workers        workers.Workers
 		isNormalOp     bool
 		db             merkledb.MerkleDB
-		createBlock    createBlock
+		createBlock    func(ids.ID) *chain.StatelessBlock
 		expectedErr    error
 	}{
 		{
@@ -432,4 +420,14 @@ func TestProcessorExecute(t *testing.T) {
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}
+}
+
+type mockAuthVM struct{}
+
+func (*mockAuthVM) GetAuthBatchVerifier(uint8, int, int) (chain.AuthBatchVerifier, bool) {
+	return nil, false
+}
+
+func (*mockAuthVM) Logger() logging.Logger {
+	panic("unimplemented")
 }
