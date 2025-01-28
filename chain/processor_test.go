@@ -394,7 +394,6 @@ func TestProcessorExecute(t *testing.T) {
 			for k, v := range tt.state {
 				r.NoError(db.Put([]byte(k), v))
 			}
-			r.NoError(db.CommitToDB(ctx))
 
 			root, err := db.GetMerkleRoot(ctx)
 			r.NoError(err)
