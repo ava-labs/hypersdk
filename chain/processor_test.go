@@ -40,7 +40,7 @@ var (
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
-type createBlock func(parentRoot ids.ID) (*chain.StatelessBlock, error)
+type createBlock func(parentRoot ids.ID) *chain.StatelessBlock
 
 type mockAuthVM struct{}
 
@@ -55,14 +55,16 @@ func (*mockAuthVM) Logger() logging.Logger {
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	testRuleFactory := genesis.ImmutableRuleFactory{Rules: testRules}
-	createValidBlock := func(root ids.ID) (*chain.StatelessBlock, error) {
-		return chain.NewStatelessBlock(
+	createValidBlock := func(root ids.ID) *chain.StatelessBlock {
+		block, err := chain.NewStatelessBlock(
 			ids.Empty,
 			time.Now().UnixMilli(),
 			1,
 			nil,
 			root,
 		)
+		require.NoError(t, err)
+		return block
 	}
 
 	tests := []struct {
@@ -89,14 +91,16 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "block timestamp too late",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			createBlock: func(root ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
 					0,
 					nil,
 					root,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrTimestampTooLate,
 		},
@@ -135,14 +139,16 @@ func TestProcessorExecute(t *testing.T) {
 			state: map[string][]byte{
 				heightKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
 					2,
 					nil,
 					parentRoot,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrInvalidBlockHeight,
 		},
@@ -175,8 +181,8 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
 					1,
@@ -196,6 +202,8 @@ func TestProcessorExecute(t *testing.T) {
 					},
 					parentRoot,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
@@ -207,14 +215,16 @@ func TestProcessorExecute(t *testing.T) {
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
 					1,
 					nil,
 					parentRoot,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
@@ -255,8 +265,8 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
 					1,
@@ -282,6 +292,8 @@ func TestProcessorExecute(t *testing.T) {
 					},
 					parentRoot,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrInvalidKeyValue,
 		},
@@ -294,14 +306,16 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			createBlock: func(_ ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(_ ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
 					1,
 					nil,
 					ids.GenerateTestID(),
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: chain.ErrStateRootMismatch,
 		},
@@ -314,8 +328,8 @@ func TestProcessorExecute(t *testing.T) {
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				feeKey:       {},
 			},
-			createBlock: func(parentRoot ids.ID) (*chain.StatelessBlock, error) {
-				return chain.NewStatelessBlock(
+			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
 					1,
@@ -344,6 +358,8 @@ func TestProcessorExecute(t *testing.T) {
 					},
 					parentRoot,
 				)
+				require.NoError(t, err)
+				return block
 			},
 			expectedErr: crypto.ErrInvalidSignature,
 		},
@@ -388,13 +404,10 @@ func TestProcessorExecute(t *testing.T) {
 			root, err := db.GetMerkleRoot(ctx)
 			r.NoError(err)
 
-			statelessBlock, err := tt.createBlock(root)
-			r.NoError(err)
-
 			_, err = processor.Execute(
 				ctx,
 				db,
-				chain.NewExecutionBlock(statelessBlock),
+				chain.NewExecutionBlock(tt.createBlock(root)),
 				tt.isNormalOp,
 			)
 			r.ErrorIs(err, tt.expectedErr)
