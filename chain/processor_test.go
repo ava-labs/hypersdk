@@ -64,13 +64,25 @@ func TestProcessorExecute(t *testing.T) {
 		require.NoError(t, err)
 		return block
 	}
+	createDB := func() merkledb.MerkleDB {
+		db, err := merkledb.New(
+			context.Background(),
+			memdb.New(),
+			merkledb.Config{
+				BranchFactor: merkledb.BranchFactor16,
+				Tracer:       trace.Noop,
+			},
+		)
+		require.NoError(t, err)
+		return db
+	}
 
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
 		workers        workers.Workers
 		isNormalOp     bool
-		state          map[string][]byte
+		db             merkledb.MerkleDB
 		createBlock    createBlock
 		expectedErr    error
 	}{
@@ -78,11 +90,13 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "valid test case",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-				feeKey:       {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
+				return db
+			}(),
 			createBlock: createValidBlock,
 		},
 		{
@@ -100,6 +114,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, err)
 				return block
 			},
+			db:          createDB(),
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
@@ -110,6 +125,7 @@ func TestProcessorExecute(t *testing.T) {
 				w.Stop()
 				return w
 			}(),
+			db:          createDB(),
 			createBlock: createValidBlock,
 			expectedErr: workers.ErrShutdown,
 		},
@@ -117,6 +133,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
+			db:             createDB(),
 			createBlock:    createValidBlock,
 			expectedErr:    chain.ErrFailedToFetchParentHeight,
 		},
@@ -124,9 +141,11 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to parse parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey: {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), []byte{}))
+				return db
+			}(),
 			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
@@ -134,9 +153,11 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "block height is not one more than parent height (2 != 0 + 1)",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey: binary.BigEndian.AppendUint64(nil, 0),
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				return db
+			}(),
 			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -154,9 +175,11 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey: binary.BigEndian.AppendUint64(nil, 0),
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				return db
+			}(),
 			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
 		},
@@ -164,10 +187,12 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to parse timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), []byte{}))
+				return db
+			}(),
 			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
@@ -175,10 +200,12 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "non-empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				return db
+			}(),
 			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -208,10 +235,12 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				return db
+			}(),
 			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -229,10 +258,12 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get fee",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				return db
+			}(),
 			createBlock: createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
@@ -245,11 +276,13 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			workers:    workers.NewSerial(),
 			isNormalOp: true,
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-				feeKey:       {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
+				return db
+			}(),
 			createBlock: createValidBlock,
 			expectedErr: errMockVerifyExpiryReplayProtection,
 		},
@@ -257,11 +290,13 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to execute txs",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-				feeKey:       {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
+				return db
+			}(),
 			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -297,11 +332,13 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "state root mismatch",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-				feeKey:       {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
+				return db
+			}(),
 			createBlock: func(_ ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -319,11 +356,13 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to verify signatures",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			state: map[string][]byte{
-				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
-				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
-				feeKey:       {},
-			},
+			db: func() merkledb.MerkleDB {
+				db := createDB()
+				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
+				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
+				return db
+			}(),
 			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -381,26 +420,12 @@ func TestProcessorExecute(t *testing.T) {
 				chain.NewDefaultConfig(),
 			)
 
-			db, err := merkledb.New(
-				ctx,
-				memdb.New(),
-				merkledb.Config{
-					BranchFactor: merkledb.BranchFactor16,
-					Tracer:       trace.Noop,
-				},
-			)
-			r.NoError(err)
-
-			for k, v := range tt.state {
-				r.NoError(db.Put([]byte(k), v))
-			}
-
-			root, err := db.GetMerkleRoot(ctx)
+			root, err := tt.db.GetMerkleRoot(ctx)
 			r.NoError(err)
 
 			_, err = processor.Execute(
 				ctx,
-				db,
+				tt.db,
 				chain.NewExecutionBlock(tt.createBlock(root)),
 				tt.isNormalOp,
 			)
