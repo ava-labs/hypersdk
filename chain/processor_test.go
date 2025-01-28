@@ -44,7 +44,7 @@ type createBlock func(parentRoot ids.ID) *chain.StatelessBlock
 
 type mockAuthVM struct{}
 
-func (*mockAuthVM) GetAuthBatchVerifier(_ uint8, _ int, _ int) (chain.AuthBatchVerifier, bool) {
+func (*mockAuthVM) GetAuthBatchVerifier(uint8, int, int) (chain.AuthBatchVerifier, bool) {
 	return nil, false
 }
 
@@ -150,7 +150,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
 		{
-			name:           "block height is not one more than parent height (2 != 0 + 1)",
+			name:           "block height is not one more than parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
@@ -270,7 +270,7 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name: "fails replay protection",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
-				OnVerifyExpiryReplayProtection: func(_ context.Context, _ validitywindow.ExecutionBlock[*chain.Transaction]) error {
+				OnVerifyExpiryReplayProtection: func(context.Context, validitywindow.ExecutionBlock[*chain.Transaction]) error {
 					return errMockVerifyExpiryReplayProtection
 				},
 			},
@@ -339,7 +339,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: func(_ ids.ID) *chain.StatelessBlock {
+			createBlock: func(ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
