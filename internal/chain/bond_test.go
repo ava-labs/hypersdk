@@ -149,7 +149,6 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	r.NoError(err)
 
 	r.ErrorIs(b.Unbond(context.Background(), view, tx), ErrMissingBond)
-
 }
 
 func TestUnbond_DuplicateUnbond(t *testing.T) {
@@ -254,17 +253,17 @@ func (NoAuthFactory) MaxUnits() (uint64, uint64) {
 	return 0, 0
 }
 
-func (n NoAuthFactory) Address() codec.Address {
+func (NoAuthFactory) Address() codec.Address {
 	return codec.EmptyAddress
 }
 
 type NoAuth struct{}
 
-func (t NoAuth) GetTypeID() uint8 {
+func (NoAuth) GetTypeID() uint8 {
 	return 0
 }
 
-func (t NoAuth) ValidRange(chain.Rules) (start int64, end int64) {
+func (NoAuth) ValidRange(chain.Rules) (start int64, end int64) {
 	return 0, math.MaxInt64
 }
 
@@ -284,6 +283,6 @@ func (NoAuth) Actor() codec.Address {
 	return codec.EmptyAddress
 }
 
-func (n NoAuth) Sponsor() codec.Address {
+func (NoAuth) Sponsor() codec.Address {
 	return codec.EmptyAddress
 }
