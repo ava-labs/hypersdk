@@ -71,7 +71,7 @@ func TestProcessorExecute(t *testing.T) {
 		workers        workers.Workers
 		isNormalOp     bool
 		db             merkledb.MerkleDB
-		createBlock    func(ids.ID) *chain.StatelessBlock
+		newBlockF      func(ids.ID) *chain.StatelessBlock
 		expectedErr    error
 	}{
 		{
@@ -85,13 +85,13 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF: createValidBlock,
 		},
 		{
 			name:           "block timestamp too late",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			createBlock: func(root ids.ID) *chain.StatelessBlock {
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
@@ -114,7 +114,7 @@ func TestProcessorExecute(t *testing.T) {
 				return w
 			}(),
 			db:          createDB(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: workers.ErrShutdown,
 		},
 		{
@@ -122,7 +122,7 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db:             createDB(),
-			createBlock:    createValidBlock,
+			newBlockF:      createValidBlock,
 			expectedErr:    chain.ErrFailedToFetchParentHeight,
 		},
 		{
@@ -134,7 +134,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(heightKey), []byte{}))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
 		{
@@ -146,7 +146,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
@@ -168,7 +168,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
 		},
 		{
@@ -181,7 +181,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(timestampKey), []byte{}))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
 		{
@@ -194,7 +194,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
@@ -229,7 +229,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
@@ -252,7 +252,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
 		{
@@ -271,7 +271,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: createValidBlock,
+			newBlockF:   createValidBlock,
 			expectedErr: errMockVerifyExpiryReplayProtection,
 		},
 		{
@@ -285,7 +285,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
@@ -327,7 +327,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: func(ids.ID) *chain.StatelessBlock {
+			newBlockF: func(ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
@@ -351,7 +351,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			createBlock: func(parentRoot ids.ID) *chain.StatelessBlock {
+			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().UnixMilli(),
@@ -414,7 +414,7 @@ func TestProcessorExecute(t *testing.T) {
 			_, err = processor.Execute(
 				ctx,
 				tt.db,
-				chain.NewExecutionBlock(tt.createBlock(root)),
+				chain.NewExecutionBlock(tt.newBlockF(root)),
 				tt.isNormalOp,
 			)
 			r.ErrorIs(err, tt.expectedErr)
