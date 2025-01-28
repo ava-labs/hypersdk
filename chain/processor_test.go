@@ -41,10 +41,11 @@ var (
 )
 
 func TestProcessorExecute(t *testing.T) {
+	currentTime := time.Now()
 	createValidBlock := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
 			ids.Empty,
-			time.Now().UnixMilli(),
+			currentTime.UnixMilli(),
 			1,
 			nil,
 			root,
@@ -94,7 +95,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
+					currentTime.Add(chain.FutureBound).UnixMilli()+int64(time.Second),
 					0,
 					nil,
 					root,
@@ -149,7 +150,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().UnixMilli(),
+					currentTime.UnixMilli(),
 					2,
 					nil,
 					parentRoot,
@@ -288,7 +289,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().UnixMilli(),
+					currentTime.UnixMilli(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -330,7 +331,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().UnixMilli(),
+					currentTime.UnixMilli(),
 					1,
 					nil,
 					ids.GenerateTestID(),
@@ -354,7 +355,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().UnixMilli(),
+					currentTime.UnixMilli(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -365,7 +366,7 @@ func TestProcessorExecute(t *testing.T) {
 							tx, err := chain.NewTransaction(
 								&chain.Base{
 									Timestamp: utils.UnixRMilli(
-										time.Now().UnixMilli(),
+										currentTime.UnixMilli(),
 										testRules.GetValidityWindow(),
 									),
 								},
