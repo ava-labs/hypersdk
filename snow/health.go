@@ -51,8 +51,7 @@ func (v *VM[I, O, A]) initHealthCheckers() error {
 		return err
 	}
 
-	// Remove vacuously verified blocks that has been rejected
-	// Passing health check
+	// Subscribe to Reject event removing vacuously verified (unresolved) blocks
 	v.AddPreRejectedSub(unresolvedBlockHealthChecker.Resolve())
 
 	return nil
