@@ -86,7 +86,8 @@ func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transac
 		return false, err
 	}
 
-	if err := mutable.Insert(ctx, newStateKey(tx.id[:]), fee.Bytes()); err != nil {
+	txID := tx.GetID()
+	if err := mutable.Insert(ctx, newStateKey(txID[:]), fee.Bytes()); err != nil {
 		return false, fmt.Errorf("failed to write tx fee: %w", err)
 	}
 
@@ -102,7 +103,8 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 		return err
 	}
 
-	txStateKey := newStateKey(tx.id[:])
+	txID := tx.GetID()
+	txStateKey := newStateKey(txID[:])
 	feeBytes, err := mutable.GetValue(ctx, txStateKey)
 	if errors.Is(err, database.ErrNotFound) {
 		return ErrMissingBond
