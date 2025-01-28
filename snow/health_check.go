@@ -19,10 +19,9 @@ var (
 	ErrUnresolvedBlocks = errors.New("blocks remain unresolved after verification and must be explicitly rejected")
 )
 
-// stateSyncHealthChecker monitors VM health during and after dynamic state synchronization.
-// During state sync, blocks are vacuously verified/accepted without proper verification since the VM lacks state.
-// While we trust consensus to eventually reject invalid blocks, this checker acts as a safeguard
-// by tracking these unresolved blocks and reporting unhealthy status until they are properly handled.
+// stateSyncHealthChecker monitors VM health during and after dynamic state sync.
+// During state sync, blocks are vacuously marked as verified because the VM is missing the current state.
+// Consensus will eventually reject any invalid blocks, but this check ensures the VM waits to report healthy until it has cleared all invalid blocks from the processing set.
 //
 // The health checker ensures:
 //  1. VM readiness; Tracks if VM is ready for normal operation (`vm.ready`)

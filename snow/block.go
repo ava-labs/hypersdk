@@ -291,7 +291,7 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	delete(b.vm.verifiedBlocks, b.Input.GetID())
 	b.vm.verifiedL.Unlock()
 
-	// Notify subscribers about the rejected blocks that were vacuously verified/accepted during state sync
+	// Notify subscribers about the rejected blocks that were vacuously verified during dynamic state sync
 	if !b.verified {
 		return event.NotifyAll[I](ctx, b.Input, b.vm.preRejectedSubs...)
 	}

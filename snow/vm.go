@@ -501,8 +501,8 @@ func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	v.preReadyAcceptedSubs = append(v.preReadyAcceptedSubs, sub...)
 }
 
-// AddPreRejectedSub adds subscriptions tacking rejections of blocks that were
-// vacuously verified/accepted during state sync before VM had state to verify them
+// AddPreRejectedSub adds subscriptions tracking rejected blocks that were
+// vacuously verified during state sync before the VM had the state to verify them
 func (v *VM[I, O, A]) AddPreRejectedSub(sub ...event.Subscription[I]) {
 	v.preRejectedSubs = append(v.preRejectedSubs, sub...)
 }
