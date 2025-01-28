@@ -188,7 +188,6 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
-							r := require.New(t)
 							tx, err := chain.NewTransaction(
 								&chain.Base{},
 								[]chain.Action{},
@@ -196,7 +195,7 @@ func TestProcessorExecute(t *testing.T) {
 									typeID: 1,
 								},
 							)
-							r.NoError(err)
+							require.NoError(t, err)
 							return tx
 						}(),
 					},
@@ -272,7 +271,6 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
-							r := require.New(t)
 							tx, err := chain.NewTransaction(
 								&chain.Base{},
 								[]chain.Action{
@@ -286,7 +284,7 @@ func TestProcessorExecute(t *testing.T) {
 									typeID: 1,
 								},
 							)
-							r.NoError(err)
+							require.NoError(t, err)
 							return tx
 						}(),
 					},
@@ -335,10 +333,8 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
-							r := require.New(t)
-
 							p, err := ed25519.GeneratePrivateKey()
-							r.NoError(err)
+							require.NoError(t, err)
 
 							tx, err := chain.NewTransaction(
 								&chain.Base{
@@ -352,7 +348,7 @@ func TestProcessorExecute(t *testing.T) {
 									Signer: p.PublicKey(),
 								},
 							)
-							r.NoError(err)
+							require.NoError(t, err)
 							return tx
 						}(),
 					},
