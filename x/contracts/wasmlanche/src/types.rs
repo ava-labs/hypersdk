@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use borsh::io;
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
 use core::{array, mem::size_of};
@@ -12,8 +13,51 @@ use core::{array, mem::size_of};
 pub const ID_LEN: usize = 32;
 /// Action id.
 pub type Id = [u8; ID_LEN];
+
 /// Gas type alias.
-pub type Gas = u64;
+#[derive(Clone, Copy, Debug)]
+pub enum Gas {
+    PassAll,
+    Units(u64),
+}
+
+impl From<u64> for Gas {
+    fn from(value: u64) -> Self {
+        Self::Units(value)
+    }
+}
+
+impl BorshSerialize for Gas {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        let units = match self {
+            Self::PassAll => {
+                true.serialize(writer)?;
+                0
+            }
+            Self::Units(units) => {
+                false.serialize(writer)?;
+                *units
+            }
+        };
+        units.serialize(writer)
+    }
+}
+
+impl BorshDeserialize for Gas {
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let pass_all = bool::deserialize_reader(reader)?;
+        let units = u64::deserialize_reader(reader)?;
+        let gas = if pass_all {
+            if units > 0 {
+                return Err(io::Error::other("cannot pass units while passing all gas"));
+            }
+            Gas::PassAll
+        } else {
+            Gas::Units(units)
+        };
+        Ok(gas)
+    }
+}
 
 /// The ID bytes of a contract.
 #[derive(BorshSerialize, BorshDeserialize)]

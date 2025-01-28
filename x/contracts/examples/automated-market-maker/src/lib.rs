@@ -17,14 +17,11 @@ state_schema! {
     LiquidityToken => Address,
 }
 
-const MAX_GAS: Gas = 10_000_000;
-const ZERO: u64 = 0;
-
 fn call_args_from_address(address: Address) -> ExternalCallArgs {
     ExternalCallArgs {
         contract_address: address,
-        max_units: MAX_GAS,
-        value: ZERO,
+        max_units: Gas::PassAll,
+        value: 0,
     }
 }
 

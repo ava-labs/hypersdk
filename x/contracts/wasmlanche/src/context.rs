@@ -260,6 +260,10 @@ impl Context {
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
+    pub fn call_contract_builder(&mut self, address: Address) -> CallContractBuilder<'_> {
+        CallContractBuilder::with_address(self, address)
+    }
+
     #[cfg(feature = "bindings")]
     #[must_use]
     pub fn to_extern(&mut self, args: ExternalCallArgs) -> ExternalCallContext<'_, Self> {
@@ -308,7 +312,7 @@ impl Context {
             function_name,
             args,
             value,
-            max_units: 0,
+            max_units: Gas::PassAll,
         };
 
         let contract_args = borsh::to_vec(&(CALL_FUNCTION_PREFIX, contract_args))
@@ -340,6 +344,58 @@ impl Context {
     #[cfg(feature = "test")]
     pub fn mock_set_balance(&self, account: Address, balance: u64) {
         self.host_accessor.set_balance(account, balance);
+    }
+}
+
+pub struct CallContractBuilder<'a> {
+    ctx: &'a mut Context,
+    address: Address,
+    max_units: Gas,
+    value: u64,
+}
+
+impl<'a> CallContractBuilder<'a> {
+    /// Creates a new context with an address.
+    fn with_address(ctx: &'a mut Context, address: Address) -> Self {
+        CallContractBuilder {
+            ctx,
+            address,
+            max_units: Gas::PassAll,
+            value: 0,
+        }
+    }
+
+    /// Specifies the amount of units that should be passed to the context.
+    pub fn with_max_units(mut self, units: u64) -> Self {
+        self.max_units = units.into();
+        self
+    }
+
+    /// Sets the gas forwarding rule to be "pass-all". This is the default behaviour.
+    pub fn with_pass_all(mut self) -> Self {
+        self.max_units = Gas::PassAll;
+        self
+    }
+
+    /// Sets the value passed to the context. Defaults to 0.
+    pub fn with_value(mut self, value: u64) -> Self {
+        self.value = value;
+        self
+    }
+
+    /// Consumes the builder and call the specified function with the args.
+    pub fn call_function<T: BorshDeserialize>(
+        self,
+        function_name: &str,
+        args: &[u8],
+    ) -> Result<T, ExternalCallError> {
+        self.ctx.call_contract(
+            self.address,
+            function_name,
+            args,
+            self.max_units,
+            self.value,
+        )
     }
 }
 

@@ -42,7 +42,10 @@ func CallContract(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallContractResp
 	// build the db
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	// build the call info
-	callInfo := createRuntimeCallInfo(state, ctx)
+	callInfo, err := createRuntimeCallInfo(state, ctx)
+	if err != nil {
+		return newCallContractResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
+	}
 	config := runtime.NewConfig()
 	config.SetDebugInfo(true)
 
@@ -56,11 +59,24 @@ func CallContract(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallContractResp
 	return newCallContractResponse(result, fuel, nil)
 }
 
-func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
+func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) (*runtime.CallInfo, error) {
 	paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
 	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)       //nolint:all
 	contractBytes := C.GoBytes(unsafe.Pointer(&ctx.contract_address), codec.AddressLen) //nolint:all
+
+	var passAll bool
+	switch ctx.gas.pass_all {
+	case 0:
+		passAll = false
+	case 1:
+		passAll = true
+		if ctx.gas.units > 0 {
+			return nil, errors.New("cannot spend gas while passing all")
+		}
+	default:
+		return nil, errors.New("passAll should be a boolean")
+	}
 
 	return &runtime.CallInfo{
 		State:        simState.NewContractStateManager(db),
@@ -68,10 +84,11 @@ func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runti
 		FunctionName: methodName,
 		Contract:     codec.Address(contractBytes),
 		Params:       paramBytes,
-		Fuel:         uint64(ctx.max_gas),
+		PassAll:      passAll,
+		Fuel:         uint64(ctx.gas.units),
 		Height:       uint64(ctx.height),
 		Timestamp:    uint64(ctx.timestamp),
-	}
+	}, nil
 }
 
 //export CreateContract
