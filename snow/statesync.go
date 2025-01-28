@@ -91,7 +91,15 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 			return 1
 		}
 	})
-	healthChecker := v.stateSyncHealthChecker()
+	healthChecker, err := v.HealthChecker(UnresolvedBlocksHealthChecker)
+	if err != nil {
+		return err
+	}
+
+	unresolvedBlkHealthChecker, typeConvOK := healthChecker.(*UnresolvedBlocksCheck[I])
+	if !typeConvOK {
+		return fmt.Errorf("type conversion for health check unresolved blocks failed")
+	}
 
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
 	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
@@ -101,18 +109,18 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch parent block %s while verifying processing block %s after state sync: %w", blk.Parent(), blk, err)
 		}
+		// the parent failed verification and this block is transitively invalid,
+		// we are marking this block as unresolved
 		if !parent.verified {
 			v.log.Warn("Parent block not verified, skipping verification of processing block",
 				zap.Stringer("parent", parent),
 				zap.Stringer("block", blk),
 			)
-			healthChecker.MarkUnresolved(blk.ID())
+			unresolvedBlkHealthChecker.MarkUnresolved(blk.ID())
 			continue
 		}
-		// the parent failed verification and this block is transitively invalid,
-		// we should fail the health check until it has been rejected
 		if err := blk.verify(ctx, parent.Output); err != nil {
-			healthChecker.MarkUnresolved(blk.ID())
+			unresolvedBlkHealthChecker.MarkUnresolved(blk.ID())
 			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
 		}
 	}

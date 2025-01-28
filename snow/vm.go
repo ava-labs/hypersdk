@@ -145,15 +145,14 @@ type VM[I Block, O Block, A Block] struct {
 
 	shutdownChan chan struct{}
 
-	healthCheckers map[string]health.Checker
+	healthCheckers sync.Map
 }
 
 func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
-		handlers:       make(map[string]http.Handler),
-		healthCheckers: make(map[string]health.Checker),
-		version:        version,
-		chain:          chain,
+		handlers: make(map[string]http.Handler),
+		version:  version,
+		chain:    chain,
 	}
 }
 
@@ -266,7 +265,11 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
 
-	v.AddHealthCheck(StateSyncHealthCheckerNamespace, newStateSyncHealthChecker(v))
+	healthCheckersErr := v.initHealthCheckers()
+	if healthCheckersErr != nil {
+		return healthCheckersErr
+	}
+
 	return nil
 }
 
@@ -441,14 +444,34 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	stateSync, err := v.stateSyncHealthChecker().HealthCheck(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("state sync health check failed: %w", err)
-	}
+	var (
+		detailsMu sync.Mutex
+		details   = make(map[string]interface{})
+		errsMu    sync.Mutex
+		errs      []error
+	)
 
-	return map[string]interface{}{
-		"stateSync": stateSync,
-	}, nil
+	v.healthCheckers.Range(func(k, v interface{}) bool {
+		name := k.(string)
+		checker := v.(health.Checker)
+		checkerDetails, err := checker.HealthCheck(ctx)
+
+		if checkerDetails != nil {
+			detailsMu.Lock()
+			details[name] = checkerDetails
+			detailsMu.Unlock()
+		}
+
+		if err != nil {
+			errsMu.Lock()
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
+			errsMu.Unlock()
+		}
+
+		return true
+	})
+
+	return details, errors.Join(errs...)
 }
 
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
@@ -511,14 +534,6 @@ func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
 	v.handlers[name] = handler
 }
 
-func (v *VM[I, O, A]) AddHealthCheck(name string, healthChecker health.Checker) {
-	v.healthCheckers[name] = healthChecker
-}
-
-func (v *VM[I, O, A]) HealthCheckers() map[string]health.Checker {
-	return v.healthCheckers
-}
-
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
 	v.addCloser(name, closer)
 }
@@ -529,14 +544,4 @@ func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Con
 
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
 	v.onNormalOperationsStarted = append(v.onNormalOperationsStarted, onNormalOpStartedF...)
-}
-
-func (v *VM[I, O, A]) stateSyncHealthChecker() *stateSyncHealthChecker[I, O, A] {
-	if checker, ok := v.healthCheckers[StateSyncHealthCheckerNamespace].(*stateSyncHealthChecker[I, O, A]); ok {
-		return checker
-	}
-	newChecker := newStateSyncHealthChecker(v)
-	v.healthCheckers[StateSyncHealthCheckerNamespace] = newChecker
-
-	return newChecker
 }

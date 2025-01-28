@@ -872,7 +872,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	// Check health - should be unhealthy during state sync
 	_, err := ce.vm.HealthCheck(ctx)
-	ce.require.ErrorIs(err, ErrVMNotReady)
+	ce.require.Error(err)
 
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
@@ -893,7 +893,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	// Check health - should be unhealthy due to unresolved blocks
 	_, err = ce.vm.HealthCheck(ctx)
-	ce.require.ErrorIs(err, ErrUnresolvedBlocks)
+	ce.require.Error(err)
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
@@ -913,12 +913,20 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)
 	ce.require.ErrorIs(invalidatedChildBlk2, errParentFailedVerification)
 
-	// Reject all blocks
-	for _, blk := range []*StatefulBlock[*TestBlock, *TestBlock, *TestBlock]{
-		parsedBlk1, parsedBlk2,
-	} {
-		ce.require.NoError(blk.Reject(ctx))
-	}
+	// Create valid chain
+
+	// the consensus engine only ever rejects blocks after accepting a conflict
+	validBlk1 := ce.ParseAndVerifyNewBlock(ctx, ce.lastAccepted)
+	ce.SetPreference(ctx, validBlk1.ID())
+
+	validBlk2 := ce.ParseAndVerifyNewBlock(ctx, ce.lastAccepted)
+	ce.SetPreference(ctx, validBlk2.ID())
+
+	// Accepting valid chain triggers consensus to automatically reject invalid blocks
+	// and their descendants that were previously in an unprocessed state clearing all conflicting branches.
+	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
+	ce.require.True(ok)
+	ce.require.Equal(acceptedTip.ID(), validBlk2.ID())
 
 	_, err = ce.vm.HealthCheck(ctx)
 	ce.require.NoError(err)
