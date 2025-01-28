@@ -75,8 +75,9 @@ func TestProcessorExecute(t *testing.T) {
 		expectedErr    error
 	}{
 		{
-			name:    "valid test case",
-			workers: workers.NewSerial(),
+			name:           "valid test case",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -85,8 +86,9 @@ func TestProcessorExecute(t *testing.T) {
 			createBlock: createValidBlock,
 		},
 		{
-			name:    "block timestamp too late",
-			workers: workers.NewSerial(),
+			name:           "block timestamp too late",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			createBlock: func(root ids.ID) (*chain.StatelessBlock, error) {
 				return chain.NewStatelessBlock(
 					ids.Empty,
@@ -99,24 +101,27 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
-			name:        "verify signatures fails",
-			createBlock: createValidBlock,
+			name:           "verify signatures fails",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers: func() workers.Workers {
 				w := workers.NewParallel(0, 0)
 				w.Stop()
 				return w
 			}(),
+			createBlock: createValidBlock,
 			expectedErr: workers.ErrShutdown,
 		},
 		{
-			name:        "failed to get parent height",
-			workers:     workers.NewSerial(),
-			createBlock: createValidBlock,
-			expectedErr: chain.ErrFailedToFetchParentHeight,
+			name:           "failed to get parent height",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
+			createBlock:    createValidBlock,
+			expectedErr:    chain.ErrFailedToFetchParentHeight,
 		},
 		{
-			name:    "failed to parse parent height",
-			workers: workers.NewSerial(),
+			name:           "failed to parse parent height",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey: {},
 			},
@@ -124,8 +129,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
 		{
-			name:    "block height is not one more than parent height (2 != 0 + 1)",
-			workers: workers.NewSerial(),
+			name:           "block height is not one more than parent height (2 != 0 + 1)",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
@@ -141,8 +147,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrInvalidBlockHeight,
 		},
 		{
-			name:    "failed to get timestamp",
-			workers: workers.NewSerial(),
+			name:           "failed to get timestamp",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey: binary.BigEndian.AppendUint64(nil, 0),
 			},
@@ -150,8 +157,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
 		},
 		{
-			name:    "failed to parse timestamp",
-			workers: workers.NewSerial(),
+			name:           "failed to parse timestamp",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: {},
@@ -160,8 +168,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
 		{
-			name:    "non-empty block timestamp less than parent timestamp with gap",
-			workers: workers.NewSerial(),
+			name:           "non-empty block timestamp less than parent timestamp with gap",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -191,8 +200,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
 		{
-			name:    "empty block timestamp less than parent timestamp with gap",
-			workers: workers.NewSerial(),
+			name:           "empty block timestamp less than parent timestamp with gap",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -209,8 +219,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
 		{
-			name:    "failed to get fee",
-			workers: workers.NewSerial(),
+			name:           "failed to get fee",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -219,13 +230,13 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
 		{
-			name:    "fails replay protection",
-			workers: workers.NewSerial(),
+			name: "fails replay protection",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{
 				OnVerifyExpiryReplayProtection: func(_ context.Context, _ validitywindow.ExecutionBlock[*chain.Transaction]) error {
 					return errMockVerifyExpiryReplayProtection
 				},
 			},
+			workers:    workers.NewSerial(),
 			isNormalOp: true,
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -236,8 +247,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: errMockVerifyExpiryReplayProtection,
 		},
 		{
-			name:    "failed to execute txs",
-			workers: workers.NewSerial(),
+			name:           "failed to execute txs",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -274,8 +286,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrInvalidKeyValue,
 		},
 		{
-			name:    "state root mismatch",
-			workers: workers.NewSerial(),
+			name:           "state root mismatch",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -293,8 +306,9 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrStateRootMismatch,
 		},
 		{
-			name:    "failed to verify signatures",
-			workers: workers.NewSerial(),
+			name:           "failed to verify signatures",
+			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+			workers:        workers.NewSerial(),
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -339,10 +353,6 @@ func TestProcessorExecute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
-
-			if tt.validityWindow == nil {
-				tt.validityWindow = &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{}
-			}
 
 			metrics, err := chain.NewMetrics(prometheus.NewRegistry())
 			r.NoError(err)
