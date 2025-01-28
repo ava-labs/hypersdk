@@ -53,8 +53,6 @@ func (*mockAuthVM) Logger() logging.Logger {
 }
 
 func TestProcessorExecute(t *testing.T) {
-	testRules := genesis.NewDefaultRules()
-	testRuleFactory := genesis.ImmutableRuleFactory{Rules: testRules}
 	createValidBlock := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
 			ids.Empty,
@@ -336,6 +334,7 @@ func TestProcessorExecute(t *testing.T) {
 							p, err := ed25519.GeneratePrivateKey()
 							require.NoError(t, err)
 
+							testRules := genesis.NewDefaultRules()
 							tx, err := chain.NewTransaction(
 								&chain.Base{
 									Timestamp: utils.UnixRMilli(
@@ -372,7 +371,7 @@ func TestProcessorExecute(t *testing.T) {
 			processor := chain.NewProcessor(
 				trace.Noop,
 				&logging.NoLog{},
-				&testRuleFactory,
+				&genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
 				tt.workers,
 				&mockAuthVM{},
 				metadata.NewDefaultManager(),
