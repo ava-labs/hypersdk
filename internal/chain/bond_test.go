@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -23,15 +24,15 @@ func TestBond(t *testing.T) {
 	tests := []struct {
 		name       string
 		maxBalance *big.Int
-		tx         *Transaction
+		tx         *chain.Transaction
 		feeRate    *big.Int
 		wantOk     bool
 	}{
 		{
 			name: "no balance",
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -43,9 +44,9 @@ func TestBond(t *testing.T) {
 		{
 			name:       "zero balance",
 			maxBalance: big.NewInt(0),
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -57,9 +58,9 @@ func TestBond(t *testing.T) {
 		{
 			name:       "balance less than fee",
 			maxBalance: big.NewInt(1),
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -71,9 +72,9 @@ func TestBond(t *testing.T) {
 		{
 			name:       "balance greater than or equal to fee",
 			maxBalance: big.NewInt(1_000_000),
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -86,9 +87,9 @@ func TestBond(t *testing.T) {
 		{
 			name:       "balance greater than or equal to fee - zero fee and zero balance",
 			maxBalance: big.NewInt(0),
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -101,9 +102,9 @@ func TestBond(t *testing.T) {
 		{
 			name:       "balance greater than or equal to fee - zero fee",
 			maxBalance: big.NewInt(123),
-			tx: func() *Transaction {
-				tx, err := NewTxData(
-					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+			tx: func() *chain.Transaction {
+				tx, err := chain.NewTxData(
+					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				).Sign(&NoAuthFactory{})
 				require.NoError(t, err)
@@ -141,8 +142,8 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
-	tx, err := NewTxData(
-		&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+	tx, err := chain.NewTxData(
+		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
@@ -158,8 +159,8 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
-	tx, err := NewTxData(
-		&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+	tx, err := chain.NewTxData(
+		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
@@ -179,8 +180,8 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
-	tx, err := NewTxData(
-		&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+	tx, err := chain.NewTxData(
+		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
@@ -200,11 +201,11 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 	authFactory := &NoAuthFactory{}
 
-	tx1, err := NewTxData(&Base{Timestamp: 0}, nil).Sign(authFactory)
+	tx1, err := chain.NewTxData(&chain.Base{Timestamp: 0}, nil).Sign(authFactory)
 	r.NoError(err)
-	tx2, err := NewTxData(&Base{Timestamp: 1}, nil).Sign(authFactory)
+	tx2, err := chain.NewTxData(&chain.Base{Timestamp: 1}, nil).Sign(authFactory)
 	r.NoError(err)
-	tx3, err := NewTxData(&Base{Timestamp: 2}, nil).Sign(authFactory)
+	tx3, err := chain.NewTxData(&chain.Base{Timestamp: 2}, nil).Sign(authFactory)
 	r.NoError(err)
 
 	r.NoError(b.SetMaxBalance(
@@ -245,7 +246,7 @@ func newDB(t *testing.T) merkledb.MerkleDB {
 
 type NoAuthFactory struct{}
 
-func (NoAuthFactory) Sign([]byte) (Auth, error) {
+func (NoAuthFactory) Sign([]byte) (chain.Auth, error) {
 	return NoAuth{}, nil
 }
 
@@ -263,7 +264,7 @@ func (t NoAuth) GetTypeID() uint8 {
 	return 0
 }
 
-func (t NoAuth) ValidRange(Rules) (start int64, end int64) {
+func (t NoAuth) ValidRange(chain.Rules) (start int64, end int64) {
 	return 0, math.MaxInt64
 }
 
@@ -271,7 +272,7 @@ func (NoAuth) Marshal(*codec.Packer) {}
 
 func (NoAuth) Size() int { return 0 }
 
-func (NoAuth) ComputeUnits(Rules) uint64 {
+func (NoAuth) ComputeUnits(chain.Rules) uint64 {
 	return 0
 }
 

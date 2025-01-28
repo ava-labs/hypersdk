@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/hypersdk/chain"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
@@ -25,10 +26,10 @@ var (
 	// transaction that was not previously bonded
 	ErrMissingBond = errors.New("missing bond")
 
-	_ fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
+	_ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
 )
 
-type BondBalance struct {
+type bondBalance struct {
 	Pending *big.Int
 	Max     *big.Int
 
@@ -62,7 +63,7 @@ func (Bonder) SetMaxBalance(
 	return nil
 }
 
-func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction, feeRate *big.Int) (bool, error) {
+func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction, feeRate *big.Int) (bool, error) {
 	address := tx.GetSponsor()
 	addressStateKey := newStateKey(address[:])
 
@@ -92,7 +93,7 @@ func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction, 
 	return true, nil
 }
 
-func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error {
+func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
 	address := tx.GetSponsor()
 	addressStateKey := newStateKey(address[:])
 
@@ -126,22 +127,22 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 	return nil
 }
 
-func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (BondBalance, error) {
+func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (bondBalance, error) {
 	currentBytes, err := mutable.GetValue(ctx, address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return BondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
+		return bondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
 	}
 
 	if currentBytes == nil {
 		currentBytes = make([]byte, allocSize)
 	}
 
-	balance := BondBalance{}
+	balance := bondBalance{}
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: currentBytes},
 		&balance,
 	); err != nil {
-		return BondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
+		return bondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
 	}
 
 	balance.Pending = big.NewInt(0).SetBytes(balance.PendingBytes)
@@ -149,7 +150,7 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (Bon
 	return balance, nil
 }
 
-func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance BondBalance) error {
+func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance bondBalance) error {
 	p := &wrappers.Packer{Bytes: make([]byte, allocSize)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)
