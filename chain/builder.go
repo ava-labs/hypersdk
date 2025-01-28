@@ -36,27 +36,6 @@ const (
 
 var errBlockFull = errors.New("block full")
 
-func HandlePreExecute(log logging.Logger, err error) bool {
-	switch {
-	case errors.Is(err, ErrInsufficientPrice):
-		return false
-	case errors.Is(err, ErrTimestampTooEarly):
-		return true
-	case errors.Is(err, ErrTimestampTooLate):
-		return false
-	case errors.Is(err, ErrAuthNotActivated):
-		return false
-	case errors.Is(err, ErrAuthFailed):
-		return false
-	case errors.Is(err, ErrActionNotActivated):
-		return false
-	default:
-		// If unknown error, drop
-		log.Warn("unknown PreExecute error", zap.Error(err))
-		return false
-	}
-}
-
 type Builder struct {
 	tracer          trace.Tracer
 	ruleFactory     RuleFactory
@@ -293,12 +272,10 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 					len(stateKeys),
 				)
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
+					// Ignore the error and drop the transaction.
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
-					if HandlePreExecute(c.log, err) {
-						restore = true
-					}
-					return nil
+					return nil //nolint:nilerr
 				}
 				result, err := tx.Execute(
 					ctx,
