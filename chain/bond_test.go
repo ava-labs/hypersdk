@@ -5,17 +5,17 @@ package chain
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/codec"
 )
 
 func TestSetMaxBalance(t *testing.T) {
@@ -27,14 +27,15 @@ func TestSetMaxBalance(t *testing.T) {
 		wantOk     bool
 	}{
 		{
-			name: "no balance",
+			name:       "zero balance",
+			maxBalance: big.NewInt(0),
 			tx: func() *Transaction {
 				txData := NewTxData(
 					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 
-				tx, err := txData.Sign(&NoAuthFactory{AddressF: codec.EmptyAddress})
+				tx, err := txData.Sign(&NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -43,19 +44,19 @@ func TestSetMaxBalance(t *testing.T) {
 		},
 		{
 			name:       "balance less than fee",
-			maxBalance: big.NewInt(1_000),
+			maxBalance: big.NewInt(1),
 			tx: func() *Transaction {
 				txData := NewTxData(
 					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 
-				tx, err := txData.Sign(&NoAuthFactory{AddressF: codec.EmptyAddress})
+				tx, err := txData.Sign(&NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
 			}(),
-			feeRate: big.NewInt(1_000),
+			feeRate: big.NewInt(1),
 		},
 		{
 			name:       "balance greater than fee",
@@ -66,7 +67,7 @@ func TestSetMaxBalance(t *testing.T) {
 					nil,
 				)
 
-				tx, err := txData.Sign(&NoAuthFactory{AddressF: codec.EmptyAddress})
+				tx, err := txData.Sign(&NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -104,7 +105,7 @@ func TestSetMaxBalance(t *testing.T) {
 //		name       string
 //		wantBond   []bool
 //		wantUnbond []error
-//		max        uint32
+//		max        *big.Int
 //	}{
 //		{
 //			name: "bond with no balance",
@@ -222,60 +223,55 @@ func TestSetMaxBalance(t *testing.T) {
 //		})
 //	}
 //}
-//
-//func TestSetMaxBalanceDuringBond(t *testing.T) {
-//	r := require.New(t)
-//	b := Bonder{}
-//
-//	db, err := merkledb.New(
-//		context.Background(),
-//		memdb.New(),
-//		merkledb.Config{BranchFactor: 2},
-//	)
-//	r.NoError(err)
-//	mutable := state.NewSimpleMutable(db)
-//	address := codec.Address{1, 2, 3}
-//	r.NoError(b.SetMaxBalance(context.Background(), mutable, address, 3))
-//
-//	tx1 := &Transaction{
-//		Auth: NoAuth{
-//			SponsorF: address,
-//		},
-//	}
-//
-//	tx2 := &Transaction{
-//		Auth: NoAuth{
-//			SponsorF: address,
-//		},
-//	}
-//
-//	tx3 := &Transaction{
-//		Auth: NoAuth{
-//			SponsorF: address,
-//		},
-//	}
-//
-//	ok, err := b.Bond(context.Background(), mutable, tx1)
-//	r.NoError(err)
-//	r.True(ok)
-//
-//	ok, err = b.Bond(context.Background(), mutable, tx2)
-//	r.NoError(err)
-//	r.True(ok)
-//
-//	r.NoError(b.SetMaxBalance(context.Background(), mutable, address, 0))
-//
-//	ok, err = b.Bond(context.Background(), mutable, tx3)
-//	r.NoError(err)
-//	r.False(ok)
-//
-//	r.NoError(b.Unbond(context.Background(), mutable, tx1))
-//	r.NoError(b.Unbond(context.Background(), mutable, tx2))
-//}
 
-type NoAuthFactory struct {
-	AddressF codec.Address
+func TestSetMaxBalanceDuringBond(t *testing.T) {
+	r := require.New(t)
+	b := Bonder{}
+
+	db, err := merkledb.New(
+		context.Background(),
+		memdb.New(),
+		merkledb.Config{BranchFactor: 2},
+	)
+	r.NoError(err)
+	ts := tstate.New(0)
+	view := ts.NewView(state.CompletePermissions, db, 0)
+	authFactory := &NoAuthFactory{}
+
+	tx1, err := NewTxData(&Base{Timestamp: 0}, nil).Sign(authFactory)
+	r.NoError(err)
+	tx2, err := NewTxData(&Base{Timestamp: 1}, nil).Sign(authFactory)
+	r.NoError(err)
+	tx3, err := NewTxData(&Base{Timestamp: 2}, nil).Sign(authFactory)
+	r.NoError(err)
+
+	r.NoError(b.SetMaxBalance(
+		context.Background(),
+		view,
+		codec.EmptyAddress,
+		big.NewInt(int64(tx1.Size()+tx2.Size()+tx3.Size())),
+	))
+
+	feeRate := big.NewInt(1)
+	ok, err := b.Bond(context.Background(), view, tx1, feeRate)
+	r.NoError(err)
+	r.True(ok)
+
+	ok, err = b.Bond(context.Background(), view, tx2, feeRate)
+	r.NoError(err)
+	r.True(ok)
+
+	r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, big.NewInt(0)))
+
+	ok, err = b.Bond(context.Background(), view, tx3, feeRate)
+	r.NoError(err)
+	r.False(ok)
+
+	r.NoError(b.Unbond(context.Background(), view, tx1))
+	r.NoError(b.Unbond(context.Background(), view, tx2))
 }
+
+type NoAuthFactory struct{}
 
 func (NoAuthFactory) Sign([]byte) (Auth, error) {
 	return NoAuth{}, nil
@@ -286,43 +282,35 @@ func (NoAuthFactory) MaxUnits() (uint64, uint64) {
 }
 
 func (n NoAuthFactory) Address() codec.Address {
-	return n.AddressF
+	return codec.EmptyAddress
 }
 
-type NoAuth struct {
-	TypeID        uint8
-	Start         int64
-	End           int64
-	ComputeUnitsF uint64
-	VerifyErr     error
-	ActorF        codec.Address
-	SponsorF      codec.Address
-}
+type NoAuth struct{}
 
 func (t NoAuth) GetTypeID() uint8 {
-	return t.TypeID
+	return 0
 }
 
 func (t NoAuth) ValidRange(Rules) (start int64, end int64) {
-	return t.Start, t.End
+	return 0, math.MaxInt64
 }
 
 func (NoAuth) Marshal(*codec.Packer) {}
 
 func (NoAuth) Size() int { return 0 }
 
-func (t NoAuth) ComputeUnits(Rules) uint64 {
-	return t.ComputeUnitsF
+func (NoAuth) ComputeUnits(Rules) uint64 {
+	return 0
 }
 
-func (t NoAuth) Verify(context.Context, []byte) error {
+func (NoAuth) Verify(context.Context, []byte) error {
 	return nil
 }
 
-func (t NoAuth) Actor() codec.Address {
-	return t.ActorF
+func (NoAuth) Actor() codec.Address {
+	return codec.EmptyAddress
 }
 
-func (t NoAuth) Sponsor() codec.Address {
-	return t.SponsorF
+func (n NoAuth) Sponsor() codec.Address {
+	return codec.EmptyAddress
 }

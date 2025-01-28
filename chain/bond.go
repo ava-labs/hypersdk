@@ -13,9 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/fdsmr"
 )
+
+const allocSize = 16
 
 var (
 	// ErrMissingBond is fatal and is returned if Unbond is called on a
@@ -43,15 +46,16 @@ func (Bonder) SetMaxBalance(
 	address codec.Address,
 	maxBalance *big.Int,
 ) error {
-	addressBytes := address[:]
-
-	balance, err := getBalance(ctx, mutable, addressBytes)
+	addressStateKey := newStateKey(address[:])
+	balance, err := getBalance(ctx, mutable, addressStateKey)
 	if err != nil {
 		return err
 	}
 
 	balance.Max = maxBalance
-	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
+	balance.MaxBytes = balance.Max.Bytes()
+
+	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
 		return err
 	}
 
@@ -60,26 +64,27 @@ func (Bonder) SetMaxBalance(
 
 func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction, feeRate *big.Int) (bool, error) {
 	address := tx.GetSponsor()
-	addressBytes := address[:]
+	addressStateKey := newStateKey(address[:])
 
-	balance, err := getBalance(ctx, mutable, addressBytes)
+	balance, err := getBalance(ctx, mutable, addressStateKey)
 	if err != nil {
 		return false, err
-	}
-
-	if balance.Pending.Cmp(balance.Max) != -1 {
-		return false, nil
 	}
 
 	fee := big.NewInt(int64(tx.Size()))
 	fee.Mul(fee, feeRate)
 
-	balance.Pending.Sub(balance.Pending, fee)
-	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
+	if balance.Pending.Add(balance.Pending, fee).Cmp(balance.Max) != -1 {
+		return false, nil
+	}
+
+	balance.Pending.Add(balance.Pending, fee)
+	balance.PendingBytes = balance.Pending.Bytes()
+	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
 		return false, err
 	}
 
-	if err := mutable.Insert(ctx, tx.id[:], fee.Bytes()); err != nil {
+	if err := mutable.Insert(ctx, newStateKey(tx.id[:]), fee.Bytes()); err != nil {
 		return false, fmt.Errorf("failed to write tx fee: %w", err)
 	}
 
@@ -88,9 +93,9 @@ func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction, 
 
 func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction) error {
 	address := tx.GetSponsor()
-	addressBytes := address[:]
+	addressStateKey := newStateKey(address[:])
 
-	balance, err := getBalance(ctx, mutable, addressBytes)
+	balance, err := getBalance(ctx, mutable, addressStateKey)
 	if err != nil {
 		return err
 	}
@@ -99,7 +104,8 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 		return ErrMissingBond
 	}
 
-	feeBytes, err := mutable.GetValue(ctx, tx.id[:])
+	txStateKey := newStateKey(tx.id[:])
+	feeBytes, err := mutable.GetValue(ctx, txStateKey)
 	if err != nil {
 		return fmt.Errorf("failed to get tx fee: %w", err)
 	}
@@ -107,12 +113,13 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 	fee := big.NewInt(0)
 	fee.SetBytes(feeBytes)
 
-	balance.Pending.Add(balance.Pending, fee)
-	if err := putBalance(ctx, mutable, addressBytes, balance); err != nil {
+	balance.Pending.Sub(balance.Pending, fee)
+	balance.PendingBytes = balance.Pending.Bytes()
+	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
 		return err
 	}
 
-	if err := mutable.Remove(ctx, tx.id[:]); err != nil {
+	if err := mutable.Remove(ctx, txStateKey); err != nil {
 		return fmt.Errorf("failed to delete tx fee: %w", err)
 	}
 
@@ -126,13 +133,10 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (Bon
 	}
 
 	if currentBytes == nil {
-		currentBytes = make([]byte, 0)
+		currentBytes = make([]byte, allocSize)
 	}
 
-	balance := BondBalance{
-		//PendingBytes: []byte{},
-		//MaxBytes:     []byte{},
-	}
+	balance := BondBalance{}
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: currentBytes},
 		&balance,
@@ -146,7 +150,7 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (Bon
 }
 
 func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance BondBalance) error {
-	p := &wrappers.Packer{Bytes: make([]byte, 0)}
+	p := &wrappers.Packer{Bytes: make([]byte, allocSize)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)
 	}
@@ -156,4 +160,8 @@ func putBalance(ctx context.Context, mutable state.Mutable, address []byte, bala
 	}
 
 	return nil
+}
+
+func newStateKey(b []byte) []byte {
+	return keys.EncodeChunks(b, 1)
 }
