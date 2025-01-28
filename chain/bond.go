@@ -74,11 +74,12 @@ func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *Transaction, 
 	fee := big.NewInt(int64(tx.Size()))
 	fee.Mul(fee, feeRate)
 
-	if balance.Pending.Add(balance.Pending, fee).Cmp(balance.Max) != -1 {
+	updated := big.NewInt(0).Add(balance.Pending, fee)
+	if updated.Cmp(balance.Max) != -1 && fee.Cmp(big.NewInt(0)) != 0 {
 		return false, nil
 	}
 
-	balance.Pending.Add(balance.Pending, fee)
+	balance.Pending.Set(updated)
 	balance.PendingBytes = balance.Pending.Bytes()
 	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
 		return false, err
@@ -100,12 +101,11 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 		return err
 	}
 
-	if balance.Pending.Cmp(big.NewInt(0)) == 0 {
-		return ErrMissingBond
-	}
-
 	txStateKey := newStateKey(tx.id[:])
 	feeBytes, err := mutable.GetValue(ctx, txStateKey)
+	if errors.Is(err, database.ErrNotFound) {
+		return ErrMissingBond
+	}
 	if err != nil {
 		return fmt.Errorf("failed to get tx fee: %w", err)
 	}
