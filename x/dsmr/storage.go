@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
 
 const (
@@ -26,15 +26,14 @@ const (
 
 	minSlotByte byte = 0x00
 
-	chunkKeySize = 1 + consts.Uint64Len + ids.IDLen
+	chunkKeySize                         = 1 + consts.Uint64Len + ids.IDLen
+	validityWindowTimestampDivisor int64 = 1 // TODO: make this divisor configurable
 )
 
 var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 
 var (
 	ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
-	ErrChunkTooOld               = errors.New("chunk is too old")
-	ErrChunkTooFarAhead          = errors.New("chunk is too far ahead")
 	ErrInvalidChunkCertificate   = errors.New("invalid chunk certificate")
 )
 
@@ -47,23 +46,23 @@ type Verifier[T Tx] interface {
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
 type ChunkVerifier[T Tx] struct {
-	networkID              uint32
-	chainID                ids.ID
-	chainState             pChain
-	min                    int64
-	quorumNum              uint64
-	quorumDen              uint64
-	validityWindowDuration time.Duration
+	networkID   uint32
+	chainID     ids.ID
+	chainState  pChain
+	min         int64
+	quorumNum   uint64
+	quorumDen   uint64
+	ruleFactory RuleFactory
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64, ruleFactory RuleFactory) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
-		networkID:              networkID,
-		chainID:                chainID,
-		chainState:             chainState,
-		quorumNum:              quorumNum,
-		quorumDen:              quorumDen,
-		validityWindowDuration: validityWindowDuration,
+		networkID:   networkID,
+		chainID:     chainID,
+		chainState:  chainState,
+		quorumNum:   quorumNum,
+		quorumDen:   quorumDen,
+		ruleFactory: ruleFactory,
 	}
 	return verifier
 }
@@ -74,11 +73,10 @@ func (c *ChunkVerifier[T]) SetMin(min int64) {
 
 func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	// check if the expiry of this chunk isn't in the past or too far into the future.
-	if chunk.Expiry < c.min {
-		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooOld, chunk.Expiry, c.min)
-	}
-	if chunk.Expiry >= c.min+int64(c.validityWindowDuration) {
-		return fmt.Errorf("%w: chunk expiry %d, minimum expiry %d", ErrChunkTooFarAhead, chunk.Expiry, c.min)
+	rules := c.ruleFactory.GetRules(c.min)
+	validityWindowDuration := rules.GetValidityWindow()
+	if err := validitywindow.VerifyTimestamp(chunk.Expiry, c.min, validityWindowTimestampDivisor, validityWindowDuration); err != nil {
+		return err
 	}
 
 	// check if the producer was expected to produce this chunk.

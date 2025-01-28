@@ -13,7 +13,11 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
 
-const BaseSize = consts.Uint64Len*2 + ids.IDLen
+const (
+	BaseSize = consts.Uint64Len*2 + ids.IDLen
+	// TODO: make this divisor configurable
+	validityWindowTimestampDivisor = consts.MillisecondsPerSecond
+)
 
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
@@ -34,7 +38,7 @@ func (b *Base) Execute(r Rules, timestamp int64) error {
 	if b.ChainID != r.GetChainID() {
 		return fmt.Errorf("%w: chainID=%s, expected=%s", ErrInvalidChainID, b.ChainID, r.GetChainID())
 	}
-	return validitywindow.VerifyTimestamp(b.Timestamp, timestamp, r.GetValidityWindow())
+	return validitywindow.VerifyTimestamp(b.Timestamp, timestamp, validityWindowTimestampDivisor, r.GetValidityWindow())
 }
 
 func (*Base) Size() int {
