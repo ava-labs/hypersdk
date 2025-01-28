@@ -25,7 +25,7 @@ var (
 	_ fdsmr.Bonder[*Transaction] = (*Bonder)(nil)
 )
 
-type bondBalance struct {
+type BondBalance struct {
 	Pending *big.Int
 	Max     *big.Int
 
@@ -119,22 +119,25 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *Transaction
 	return nil
 }
 
-func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (bondBalance, error) {
+func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (BondBalance, error) {
 	currentBytes, err := mutable.GetValue(ctx, address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return bondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
+		return BondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
 	}
 
 	if currentBytes == nil {
 		currentBytes = make([]byte, 0)
 	}
 
-	balance := bondBalance{}
+	balance := BondBalance{
+		//PendingBytes: []byte{},
+		//MaxBytes:     []byte{},
+	}
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: currentBytes},
 		&balance,
 	); err != nil {
-		return bondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
+		return BondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
 	}
 
 	balance.Pending = big.NewInt(0).SetBytes(balance.PendingBytes)
@@ -142,7 +145,7 @@ func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (bon
 	return balance, nil
 }
 
-func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance bondBalance) error {
+func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance BondBalance) error {
 	p := &wrappers.Packer{Bytes: make([]byte, 0)}
 	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
 		return fmt.Errorf("failed to marshal bond balance: %w", err)

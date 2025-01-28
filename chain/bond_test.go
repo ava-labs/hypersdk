@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -86,11 +87,12 @@ func TestSetMaxBalance(t *testing.T) {
 				merkledb.Config{BranchFactor: 2},
 			)
 			r.NoError(err)
-			mutable := state.NewSimpleMutable(db)
+			ts := tstate.New(0)
+			view := ts.NewView(state.CompletePermissions, db, 0)
 
-			r.NoError(b.SetMaxBalance(context.Background(), mutable, codec.EmptyAddress, tt.maxBalance))
+			r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, tt.maxBalance))
 
-			ok, err := b.Bond(context.Background(), mutable, tt.tx, tt.feeRate)
+			ok, err := b.Bond(context.Background(), view, tt.tx, tt.feeRate)
 			r.NoError(err)
 			r.Equal(tt.wantOk, ok)
 		})
