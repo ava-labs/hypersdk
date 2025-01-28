@@ -209,7 +209,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
 		{
-			name: "failed VerifyExpiryReplayProtection",
+			name: "fails replay protection",
 			state: map[string][]byte{
 				heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 				timestampKey: binary.BigEndian.AppendUint64(nil, 0),
