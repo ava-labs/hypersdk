@@ -68,10 +68,10 @@ func TestProcessorExecute(t *testing.T) {
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
+		workers        workers.Workers
 		isNormalOp     bool
 		createBlock    createBlock
 		state          map[string][]byte
-		workers        workers.Workers
 		expectedErr    error
 	}{
 		{
