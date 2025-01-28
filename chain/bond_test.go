@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetMaxBalance(t *testing.T) {
+func TestBond(t *testing.T) {
 	tests := []struct {
 		name       string
 		maxBalance *big.Int
@@ -26,6 +26,21 @@ func TestSetMaxBalance(t *testing.T) {
 		feeRate    *big.Int
 		wantOk     bool
 	}{
+		{
+			name: "no balance",
+			tx: func() *Transaction {
+				txData := NewTxData(
+					&Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					nil,
+				)
+
+				tx, err := txData.Sign(&NoAuthFactory{})
+				require.NoError(t, err)
+
+				return tx
+			}(),
+			feeRate: big.NewInt(1),
+		},
 		{
 			name:       "zero balance",
 			maxBalance: big.NewInt(0),
@@ -59,7 +74,7 @@ func TestSetMaxBalance(t *testing.T) {
 			feeRate: big.NewInt(1),
 		},
 		{
-			name:       "balance greater than fee",
+			name:       "balance greater than or equal to fee",
 			maxBalance: big.NewInt(1_000_000),
 			tx: func() *Transaction {
 				txData := NewTxData(
@@ -91,7 +106,9 @@ func TestSetMaxBalance(t *testing.T) {
 			ts := tstate.New(0)
 			view := ts.NewView(state.CompletePermissions, db, 0)
 
-			r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, tt.maxBalance))
+			if tt.maxBalance != nil {
+				r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, tt.maxBalance))
+			}
 
 			ok, err := b.Bond(context.Background(), view, tt.tx, tt.feeRate)
 			r.NoError(err)
@@ -100,7 +117,7 @@ func TestSetMaxBalance(t *testing.T) {
 	}
 }
 
-//func TestBond(t *testing.T) {
+//func TestUnbond(t *testing.T) {
 //	tests := []struct {
 //		name       string
 //		wantBond   []bool
