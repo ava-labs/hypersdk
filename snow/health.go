@@ -5,12 +5,15 @@ package snow
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/event"
-	"sync"
 )
 
 const (
@@ -67,17 +70,13 @@ func NewVMReadiness(isReady func() bool) *VMReadiness {
 func (v *VMReadiness) HealthCheck(_ context.Context) (interface{}, error) {
 	ready := v.isReady()
 	if !ready {
-		return nil, fmt.Errorf("vm is not ready")
+		return nil, errors.New("vm is not ready")
 	}
 
 	details := map[string]interface{}{
 		"ready": ready,
 	}
 	return details, nil
-}
-
-func (v *VMReadiness) Name() string {
-	return "snowVMReadiness"
 }
 
 // UnresolvedBlocksCheck
@@ -100,7 +99,7 @@ func NewUnresolvedBlocksCheck[I Block]() *UnresolvedBlocksCheck[I] {
 
 func (u *UnresolvedBlocksCheck[I]) Resolve() event.SubscriptionFunc[I] {
 	return event.SubscriptionFunc[I]{
-		NotifyF: func(ctx context.Context, input I) error {
+		NotifyF: func(_ context.Context, input I) error {
 			u.lock.Lock()
 			defer u.lock.Unlock()
 

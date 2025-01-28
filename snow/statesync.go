@@ -5,6 +5,7 @@ package snow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -98,7 +99,7 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 
 	unresolvedBlkHealthChecker, typeConvOK := healthChecker.(*UnresolvedBlocksCheck[I])
 	if !typeConvOK {
-		return fmt.Errorf("type conversion for health check unresolved blocks failed")
+		return errors.New("type conversion for health check unresolved blocks failed")
 	}
 
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.

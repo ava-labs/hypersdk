@@ -872,7 +872,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	// Check health - should be unhealthy during state sync
 	_, err := ce.vm.HealthCheck(ctx)
-	ce.require.Error(err)
+	ce.require.Error(err) //nolint:forbidigo
 
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
@@ -893,7 +893,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	// Check health - should be unhealthy due to unresolved blocks
 	_, err = ce.vm.HealthCheck(ctx)
-	ce.require.Error(err)
+	ce.require.Error(err) //nolint:forbidigo
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
