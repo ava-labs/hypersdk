@@ -26,7 +26,7 @@ func (mti *TestItem) GetID() ids.ID {
 	return mti.id
 }
 
-func (mti *TestItem) Sponsor() codec.Address {
+func (mti *TestItem) GetSponsor() codec.Address {
 	return mti.sponsor
 }
 

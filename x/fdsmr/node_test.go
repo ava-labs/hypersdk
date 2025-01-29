@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/dsmr"
 	"github.com/ava-labs/hypersdk/x/dsmr/dsmrtest"
 )
@@ -250,9 +251,11 @@ func TestNode_BuildChunk(t *testing.T) {
 			)
 			r.ErrorIs(n.BuildChunk(
 				context.Background(),
+				nil,
 				tt.txs,
 				wantExpiry,
 				wantBeneficiary,
+				1,
 			), tt.wantErr)
 		})
 	}
@@ -318,9 +321,11 @@ func TestUnbondOnAccept(t *testing.T) {
 
 			r.NoError(n.BuildChunk(
 				context.Background(),
+				nil,
 				txs,
 				expiry,
 				codec.EmptyAddress,
+				1,
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
@@ -386,19 +391,23 @@ func TestUnbondOnExpiry(t *testing.T) {
 			n := New[testDSMR, dsmrtest.Tx](testDSMR{}, b)
 			r.NoError(n.BuildChunk(
 				context.Background(),
+				nil,
 				txs,
 				0,
 				codec.EmptyAddress,
+				1,
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
-			_, err := n.Accept(context.Background(), dsmr.Block{
-				BlockHeader: dsmr.BlockHeader{
-					ParentID:  ids.ID{},
-					Height:    0,
-					Timestamp: tt.blkTime,
-				},
-			})
+			_, err := n.Accept(
+				context.Background(),
+				dsmr.Block{
+					BlockHeader: dsmr.BlockHeader{
+						ParentID:  ids.ID{},
+						Height:    0,
+						Timestamp: tt.blkTime,
+					},
+				})
 			r.NoError(err)
 			r.Equal(tt.wantLimit, b.limit[codec.EmptyAddress])
 		})
@@ -444,7 +453,7 @@ type testBonder struct {
 	limit     map[codec.Address]int
 }
 
-func (b testBonder) Bond(tx dsmrtest.Tx) (bool, error) {
+func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx, _ uint64) (bool, error) {
 	if b.bondErr != nil {
 		return false, b.bondErr
 	}
