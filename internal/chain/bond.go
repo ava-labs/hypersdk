@@ -112,17 +112,18 @@ func (b Bonder) Unbond(tx *chain.Transaction) error {
 		return fmt.Errorf("failed to get tx fee: %w", err)
 	}
 
+	batch := b.db.NewBatch()
 	fee := binary.BigEndian.Uint64(feeBytes)
 	pendingBalance -= fee
-	if err := b.putPendingBalance(addressBytes, pendingBalance); err != nil {
+	if err := putPendingBalance(batch, addressBytes, pendingBalance); err != nil {
 		return err
 	}
 
-	if err := b.db.Delete(txIDBytes); err != nil {
+	if err := batch.Delete(txIDBytes); err != nil {
 		return fmt.Errorf("failed to delete tx fee: %w", err)
 	}
 
-	return nil
+	return batch.Write()
 }
 
 func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
@@ -138,8 +139,8 @@ func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
 	return binary.BigEndian.Uint64(pendingBalanceBytes), nil
 }
 
-func (b Bonder) putPendingBalance(address []byte, balance uint64) error {
-	if err := b.db.Put(address, binary.BigEndian.AppendUint64(nil, balance)); err != nil {
+func putPendingBalance(batch database.Batch, address []byte, balance uint64) error {
+	if err := batch.Put(address, binary.BigEndian.AppendUint64(nil, balance)); err != nil {
 		return fmt.Errorf("failed to update pending bond balance: %w", err)
 	}
 
