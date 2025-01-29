@@ -751,58 +751,92 @@ func TestConflictingChains(t *testing.T) {
 	ce.require.Empty(ce.verified)
 }
 
-func TestBlockContext(t *testing.T) {
-	ctx := context.Background()
+func TestBuildBlockWithContext(t *testing.T) {
+	tests := []struct {
+		name          string
+		buildContext  *block.Context
+		verifyContext *block.Context
+		expectedErr   error
+	}{
+		{
+			name: "build = nil, verify = nil",
+		},
+		{
+			name:          "build = 1, verify = nil",
+			verifyContext: &block.Context{PChainHeight: 1},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:          "build = 1, verify = 2",
+			buildContext:  &block.Context{PChainHeight: 1},
+			verifyContext: &block.Context{PChainHeight: 2},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:          "build = 1, verify = 1",
+			buildContext:  &block.Context{PChainHeight: 1},
+			verifyContext: &block.Context{PChainHeight: 1},
+		},
+	}
 
-	// Create consensus engine to build and test local blocks
-	ce1 := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 
-	blkContext := &block.Context{PChainHeight: 1}
-	incorrectBlkContext := &block.Context{PChainHeight: 2}
-	blkWithContext, err := ce1.vm.VM.BuildBlockWithContext(ctx, blkContext)
-	ce1.require.NoError(err)
-	ce1.require.Equal(blkContext, blkWithContext.Input.GetContext())
+			ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
-	blkWithoutContext, err := ce1.vm.VM.BuildBlock(ctx)
-	ce1.require.NoError(err)
-	ce1.require.Nil(blkWithoutContext.Input.GetContext())
+			blk, err := ce.vm.VM.BuildBlockWithContext(ctx, test.buildContext)
+			ce.require.NoError(err)
+			ce.require.Equal(test.buildContext, blk.Input.GetContext())
 
-	shouldVerifyWithCtx, err := blkWithContext.ShouldVerifyWithContext(ctx)
-	ce1.require.NoError(err)
-	ce1.require.True(shouldVerifyWithCtx)
+			ce.require.ErrorIs(blk.VerifyWithContext(ctx, test.verifyContext), test.expectedErr)
+		})
+	}
+}
 
-	// Verify blkWithContext only passes with the matching context
-	ce1.require.ErrorIs(blkWithContext.VerifyWithContext(ctx, incorrectBlkContext), errMismatchedPChainContext)
-	ce1.require.ErrorIs(blkWithContext.Verify(ctx), errMismatchedPChainContext)
-	ce1.require.NoError(blkWithContext.VerifyWithContext(ctx, blkContext))
+func TestVerifyBlockWithContext(t *testing.T) {
+	tests := []struct {
+		name            string
+		suppliedContext *block.Context
+		verifyContext   *block.Context
+		expectedErr     error
+	}{
+		{
+			name: "build = nil, verify = nil",
+		},
+		{
+			name:          "build = 1, verify = nil",
+			verifyContext: &block.Context{PChainHeight: 1},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:            "build = 1, verify = 2",
+			suppliedContext: &block.Context{PChainHeight: 1},
+			verifyContext:   &block.Context{PChainHeight: 2},
+			expectedErr:     errMismatchedPChainContext,
+		},
+		{
+			name:            "build = 1, verify = 1",
+			suppliedContext: &block.Context{PChainHeight: 1},
+			verifyContext:   &block.Context{PChainHeight: 1},
+		},
+	}
 
-	// Verify blkWithoutContext only passes with empty context
-	ce1.require.ErrorIs(blkWithoutContext.VerifyWithContext(ctx, blkContext), errMismatchedPChainContext)
-	ce1.require.NoError(blkWithoutContext.Verify(ctx))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 
-	// Create separate engine to parse and verify remote blocks
-	ce2 := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
+			ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
 
-	// Verify blkWithContext only passes with the matching context
-	parsedBlkWithContext, err := ce2.vm.VM.ParseBlock(ctx, blkWithContext.Bytes())
-	ce2.require.NoError(err)
-	shouldVerifyWithCtx, err = parsedBlkWithContext.ShouldVerifyWithContext(ctx)
-	ce2.require.NoError(err)
-	ce2.require.True(shouldVerifyWithCtx)
+			testBlk := NewTestBlockFromParentWithContext(ce.lastAccepted.Input, test.suppliedContext)
 
-	ce1.require.ErrorIs(parsedBlkWithContext.VerifyWithContext(ctx, incorrectBlkContext), errMismatchedPChainContext)
-	ce1.require.ErrorIs(parsedBlkWithContext.Verify(ctx), errMismatchedPChainContext)
-	ce1.require.NoError(parsedBlkWithContext.VerifyWithContext(ctx, blkContext))
+			blk, err := ce.vm.VM.ParseBlock(ctx, testBlk.GetBytes())
+			ce.require.NoError(err)
+			ce.require.Equal(test.suppliedContext, blk.Input.GetContext())
 
-	// Verify blkWithoutContext only passes with empty context
-	parsedBlkWithoutContext, err := ce2.vm.VM.ParseBlock(ctx, blkWithoutContext.Bytes())
-	ce2.require.NoError(err)
-	shouldVerifyWithCtx, err = parsedBlkWithoutContext.ShouldVerifyWithContext(ctx)
-	ce2.require.NoError(err)
-	ce2.require.True(shouldVerifyWithCtx)
-
-	ce2.require.ErrorIs(parsedBlkWithoutContext.VerifyWithContext(ctx, blkContext), errMismatchedPChainContext)
-	ce2.require.NoError(parsedBlkWithoutContext.Verify(ctx))
+			ce.require.ErrorIs(blk.VerifyWithContext(ctx, test.verifyContext), test.expectedErr)
+		})
+	}
 }
 
 func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
