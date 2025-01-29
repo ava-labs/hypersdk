@@ -128,7 +128,11 @@ func (b Bonder) Unbond(tx *chain.Transaction) error {
 		return fmt.Errorf("failed to delete tx fee: %w", err)
 	}
 
-	return batch.Write()
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("failed to commit batch: %w", err)
+	}
+
+	return nil
 }
 
 func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
