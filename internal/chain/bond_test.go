@@ -137,8 +137,6 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	r := require.New(t)
 
 	b := NewBonder(memdb.New())
-	ts := tstate.New(0)
-	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
 	tx, err := chain.NewTxData(
 		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -146,7 +144,7 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
 
-	r.ErrorIs(b.Unbond(context.Background(), view, tx), ErrMissingBond)
+	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
 }
 
 func TestUnbond_DuplicateUnbond(t *testing.T) {
@@ -166,8 +164,8 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	r.True(ok)
 	r.NoError(err)
 
-	r.NoError(b.Unbond(context.Background(), view, tx))
-	r.ErrorIs(b.Unbond(context.Background(), view, tx), ErrMissingBond)
+	r.NoError(b.Unbond(tx))
+	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
 }
 
 func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
@@ -187,7 +185,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	r.False(ok)
 	r.NoError(err)
 
-	r.ErrorIs(b.Unbond(context.Background(), view, tx), ErrMissingBond)
+	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
 }
 
 func TestSetMaxBalanceDuringBond(t *testing.T) {
@@ -226,8 +224,8 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 	r.NoError(err)
 	r.False(ok)
 
-	r.NoError(b.Unbond(context.Background(), view, tx1))
-	r.NoError(b.Unbond(context.Background(), view, tx2))
+	r.NoError(b.Unbond(tx1))
+	r.NoError(b.Unbond(tx2))
 }
 
 func newDB(t *testing.T) merkledb.MerkleDB {

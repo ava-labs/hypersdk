@@ -66,7 +66,10 @@ func (b Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 		return false, fmt.Errorf("failed to get max bond balance: %w", err)
 	}
 
-	maxBalance := binary.BigEndian.Uint64(maxBalanceBytes)
+	maxBalance := uint64(0)
+	if len(maxBalanceBytes) > 0 {
+		maxBalance = binary.BigEndian.Uint64(maxBalanceBytes)
+	}
 
 	fee, err := safemath.Mul(uint64(tx.Size()), feeRate)
 	if err != nil {
@@ -87,14 +90,14 @@ func (b Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 	}
 
 	txID := tx.GetID()
-	if err := mutable.Insert(ctx, newStateKey(txID[:]), binary.BigEndian.AppendUint64(nil, fee)); err != nil {
+	if err := b.db.Put(txID[:], binary.BigEndian.AppendUint64(nil, fee)); err != nil {
 		return false, fmt.Errorf("failed to write tx fee: %w", err)
 	}
 
 	return true, nil
 }
 
-func (b Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
+func (b Bonder) Unbond(tx *chain.Transaction) error {
 	address := tx.GetSponsor()
 	addressBytes := address[:]
 
@@ -104,8 +107,8 @@ func (b Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Tra
 	}
 
 	txID := tx.GetID()
-	txStateKey := newStateKey(txID[:])
-	feeBytes, err := mutable.GetValue(ctx, txStateKey)
+	txIDBytes := txID[:]
+	feeBytes, err := b.db.Get(txIDBytes)
 	if errors.Is(err, database.ErrNotFound) {
 		return ErrMissingBond
 	}
@@ -119,7 +122,7 @@ func (b Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Tra
 		return err
 	}
 
-	if err := b.db.Delete(txStateKey); err != nil {
+	if err := b.db.Delete(txIDBytes); err != nil {
 		return fmt.Errorf("failed to delete tx fee: %w", err)
 	}
 
@@ -130,6 +133,10 @@ func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
 	pendingBalanceBytes, err := b.db.Get(address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return 0, fmt.Errorf("failed to get pending bond balance: %w", err)
+	}
+
+	if len(pendingBalanceBytes) == 0 {
+		return 0, nil
 	}
 
 	return binary.BigEndian.Uint64(pendingBalanceBytes), nil

@@ -329,7 +329,7 @@ func TestUnbondOnAccept(t *testing.T) {
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
-			_, err := n.Accept(context.Background(), nil, dsmr.Block{})
+			_, err := n.Accept(context.Background(), dsmr.Block{})
 			r.ErrorIs(err, tt.wantErr)
 
 			wantLimit := 1
@@ -401,7 +401,6 @@ func TestUnbondOnExpiry(t *testing.T) {
 
 			_, err := n.Accept(
 				context.Background(),
-				nil,
 				dsmr.Block{
 					BlockHeader: dsmr.BlockHeader{
 						ParentID:  ids.ID{},
@@ -467,7 +466,7 @@ func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx, _ u
 	return true, nil
 }
 
-func (b testBonder) Unbond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx) error {
+func (b testBonder) Unbond(tx dsmrtest.Tx) error {
 	if b.unbondErr != nil {
 		return b.unbondErr
 	}

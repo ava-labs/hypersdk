@@ -24,7 +24,7 @@ type Bonder[T dsmr.Tx] interface {
 	// Unbond is called when a tx from an account either expires or is accepted.
 	// If Unbond is called, Bond is guaranteed to have been called previously on
 	// tx.
-	Unbond(ctx context.Context, mutable state.Mutable, tx T) error
+	Unbond(tx T) error
 }
 
 // New returns a fortified instance of DSMR
@@ -61,7 +61,7 @@ func (n *Node[T, U]) BuildChunk(ctx context.Context, mutable state.Mutable, txs 
 	return n.DSMR.BuildChunk(ctx, bonded, expiry, beneficiary)
 }
 
-func (n *Node[T, U]) Accept(ctx context.Context, mutable state.Mutable, block dsmr.Block) (dsmr.ExecutedBlock[U], error) {
+func (n *Node[T, U]) Accept(ctx context.Context, block dsmr.Block) (dsmr.ExecutedBlock[U], error) {
 	executedBlock, err := n.DSMR.Accept(ctx, block)
 	if err != nil {
 		return dsmr.ExecutedBlock[U]{}, err
@@ -70,7 +70,7 @@ func (n *Node[T, U]) Accept(ctx context.Context, mutable state.Mutable, block ds
 	// Un-bond any txs that expired at this block
 	expired := n.pending.SetMin(block.Timestamp)
 	for _, tx := range expired {
-		if err := n.bonder.Unbond(ctx, mutable, tx); err != nil {
+		if err := n.bonder.Unbond(tx); err != nil {
 			return dsmr.ExecutedBlock[U]{}, err
 		}
 	}
@@ -82,7 +82,7 @@ func (n *Node[T, U]) Accept(ctx context.Context, mutable state.Mutable, block ds
 				continue
 			}
 
-			if err := n.bonder.Unbond(ctx, mutable, tx); err != nil {
+			if err := n.bonder.Unbond(tx); err != nil {
 				return dsmr.ExecutedBlock[U]{}, err
 			}
 		}
