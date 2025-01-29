@@ -144,7 +144,7 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
 
-	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
+	r.NoError(b.Unbond(tx))
 }
 
 func TestUnbond_DuplicateUnbond(t *testing.T) {
@@ -165,7 +165,7 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	r.NoError(err)
 
 	r.NoError(b.Unbond(tx))
-	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
+	r.NoError(b.Unbond(tx))
 }
 
 func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
@@ -185,7 +185,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	r.False(ok)
 	r.NoError(err)
 
-	r.ErrorIs(b.Unbond(tx), ErrMissingBond)
+	r.NoError(b.Unbond(tx))
 }
 
 func TestSetMaxBalanceDuringBond(t *testing.T) {

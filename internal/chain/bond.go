@@ -20,13 +20,7 @@ import (
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var (
-	// ErrMissingBond is fatal and is returned if Unbond is called on a
-	// transaction that was not previously bonded
-	ErrMissingBond = errors.New("missing bond")
-
-	_ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
-)
+var _ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
 
 func NewBonder(db database.Database) Bonder {
 	return Bonder{
@@ -110,7 +104,9 @@ func (b Bonder) Unbond(tx *chain.Transaction) error {
 	txIDBytes := txID[:]
 	feeBytes, err := b.db.Get(txIDBytes)
 	if errors.Is(err, database.ErrNotFound) {
-		return ErrMissingBond
+		// Make this operation idempotent if the tx was already un-bonded
+		// previously
+		return nil //nolint:nilerr
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get tx fee: %w", err)
