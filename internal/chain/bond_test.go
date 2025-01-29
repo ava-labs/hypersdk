@@ -6,7 +6,6 @@ package chain
 import (
 	"context"
 	"math"
-	"math/big"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -23,9 +22,9 @@ import (
 func TestBond(t *testing.T) {
 	tests := []struct {
 		name       string
-		maxBalance *big.Int
+		maxBalance *uint64
 		tx         *chain.Transaction
-		feeRate    *big.Int
+		feeRate    uint64
 		wantOk     bool
 	}{
 		{
@@ -39,11 +38,11 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(1),
+			feeRate: 1,
 		},
 		{
 			name:       "zero balance",
-			maxBalance: big.NewInt(0),
+			maxBalance: newBalance(0),
 			tx: func() *chain.Transaction {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -53,11 +52,11 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(1),
+			feeRate: 1,
 		},
 		{
 			name:       "balance less than fee",
-			maxBalance: big.NewInt(1),
+			maxBalance: newBalance(1),
 			tx: func() *chain.Transaction {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -67,11 +66,11 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(1),
+			feeRate: 1,
 		},
 		{
 			name:       "balance greater than or equal to fee",
-			maxBalance: big.NewInt(1_000_000),
+			maxBalance: newBalance(1_000_000),
 			tx: func() *chain.Transaction {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -81,12 +80,12 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(1),
+			feeRate: 1,
 			wantOk:  true,
 		},
 		{
 			name:       "balance greater than or equal to fee - zero fee and zero balance",
-			maxBalance: big.NewInt(0),
+			maxBalance: newBalance(0),
 			tx: func() *chain.Transaction {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -96,12 +95,12 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(0),
+			feeRate: 0,
 			wantOk:  true,
 		},
 		{
 			name:       "balance greater than or equal to fee - zero fee",
-			maxBalance: big.NewInt(123),
+			maxBalance: newBalance(123),
 			tx: func() *chain.Transaction {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
@@ -111,8 +110,7 @@ func TestBond(t *testing.T) {
 
 				return tx
 			}(),
-			feeRate: big.NewInt(0),
-			wantOk:  true,
+			wantOk: true,
 		},
 	}
 
@@ -125,7 +123,7 @@ func TestBond(t *testing.T) {
 			view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
 			if tt.maxBalance != nil {
-				r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, tt.maxBalance))
+				r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, *tt.maxBalance))
 			}
 
 			ok, err := b.Bond(context.Background(), view, tt.tx, tt.feeRate)
@@ -164,7 +162,7 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
 
-	ok, err := b.Bond(context.Background(), view, tx, big.NewInt(0))
+	ok, err := b.Bond(context.Background(), view, tx, 0)
 	r.True(ok)
 	r.NoError(err)
 
@@ -185,7 +183,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	).Sign(&NoAuthFactory{})
 	r.NoError(err)
 
-	ok, err := b.Bond(context.Background(), view, tx, big.NewInt(1))
+	ok, err := b.Bond(context.Background(), view, tx, 1)
 	r.False(ok)
 	r.NoError(err)
 
@@ -211,21 +209,20 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 		context.Background(),
 		view,
 		codec.EmptyAddress,
-		big.NewInt(int64(tx1.Size()+tx2.Size()+tx3.Size())),
+		uint64(tx1.Size()+tx2.Size()+tx3.Size()),
 	))
 
-	feeRate := big.NewInt(1)
-	ok, err := b.Bond(context.Background(), view, tx1, feeRate)
+	ok, err := b.Bond(context.Background(), view, tx1, 1)
 	r.NoError(err)
 	r.True(ok)
 
-	ok, err = b.Bond(context.Background(), view, tx2, feeRate)
+	ok, err = b.Bond(context.Background(), view, tx2, 1)
 	r.NoError(err)
 	r.True(ok)
 
-	r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, big.NewInt(0)))
+	r.NoError(b.SetMaxBalance(context.Background(), view, codec.EmptyAddress, 0))
 
-	ok, err = b.Bond(context.Background(), view, tx3, feeRate)
+	ok, err = b.Bond(context.Background(), view, tx3, 1)
 	r.NoError(err)
 	r.False(ok)
 
@@ -285,4 +282,11 @@ func (NoAuth) Actor() codec.Address {
 
 func (NoAuth) Sponsor() codec.Address {
 	return codec.EmptyAddress
+}
+
+func newBalance(balance uint64) *uint64 {
+	i := new(uint64)
+	*i = balance
+
+	return i
 }

@@ -5,21 +5,20 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/chain"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/fdsmr"
-)
 
-const allocSize = 16
+	safemath "github.com/ava-labs/avalanchego/utils/math"
+)
 
 var (
 	// ErrMissingBond is fatal and is returned if Unbond is called on a
@@ -29,76 +28,77 @@ var (
 	_ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
 )
 
-type bondBalance struct {
-	Pending *big.Int
-	Max     *big.Int
-
-	PendingBytes []byte `serialize:"true"`
-	MaxBytes     []byte `serialize:"true"`
+func NewBonder(db database.Database) Bonder {
+	return Bonder{
+		db: db,
+	}
 }
 
 // Bonder maintains state of account bond balances to limit the amount of
 // pending transactions per account
-type Bonder struct{}
+type Bonder struct{ db database.Database }
 
-func (Bonder) SetMaxBalance(
+func (b Bonder) SetMaxBalance(
 	ctx context.Context,
 	mutable state.Mutable,
 	address codec.Address,
-	maxBalance *big.Int,
+	maxBalance uint64,
 ) error {
 	addressStateKey := newStateKey(address[:])
-	balance, err := getBalance(ctx, mutable, addressStateKey)
-	if err != nil {
-		return err
-	}
-
-	balance.Max = maxBalance
-	balance.MaxBytes = balance.Max.Bytes()
-
-	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
-		return err
+	if err := mutable.Insert(ctx, addressStateKey, binary.BigEndian.AppendUint64(nil, maxBalance)); err != nil {
+		return fmt.Errorf("failed to update max bond balance: %w")
 	}
 
 	return nil
 }
 
-func (Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction, feeRate *big.Int) (bool, error) {
+func (b Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction, feeRate uint64) (bool, error) {
 	address := tx.GetSponsor()
-	addressStateKey := newStateKey(address[:])
+	addressBytes := address[:]
 
-	balance, err := getBalance(ctx, mutable, addressStateKey)
+	pendingBalance, err := b.getPendingBondBalance(addressBytes)
 	if err != nil {
 		return false, err
 	}
 
-	fee := big.NewInt(int64(tx.Size()))
-	fee.Mul(fee, feeRate)
+	maxBalanceBytes, err := mutable.GetValue(ctx, newStateKey(addressBytes))
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return false, fmt.Errorf("failed to get max bond balance: %w", err)
+	}
 
-	updated := big.NewInt(0).Add(balance.Pending, fee)
-	if updated.Cmp(balance.Max) != -1 && fee.Cmp(big.NewInt(0)) != 0 {
+	maxBalance := binary.BigEndian.Uint64(maxBalanceBytes)
+
+	fee, err := safemath.Mul(uint64(tx.Size()), feeRate)
+	if err != nil {
 		return false, nil
 	}
 
-	balance.Pending.Set(updated)
-	balance.PendingBytes = balance.Pending.Bytes()
-	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
+	updatedBalance, err := safemath.Add(pendingBalance, fee)
+	if err != nil {
+		return false, nil
+	}
+
+	if updatedBalance > maxBalance {
+		return false, nil
+	}
+
+	if err := b.putPendingBalance(addressBytes, updatedBalance); err != nil {
 		return false, err
 	}
 
 	txID := tx.GetID()
-	if err := mutable.Insert(ctx, newStateKey(txID[:]), fee.Bytes()); err != nil {
+	if err := mutable.Insert(ctx, newStateKey(txID[:]), binary.BigEndian.AppendUint64(nil, fee)); err != nil {
 		return false, fmt.Errorf("failed to write tx fee: %w", err)
 	}
 
 	return true, nil
 }
 
-func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
+func (b Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Transaction) error {
 	address := tx.GetSponsor()
-	addressStateKey := newStateKey(address[:])
+	addressBytes := address[:]
 
-	balance, err := getBalance(ctx, mutable, addressStateKey)
+	pendingBalance, err := b.getPendingBondBalance(addressBytes)
 	if err != nil {
 		return err
 	}
@@ -113,53 +113,31 @@ func (Bonder) Unbond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 		return fmt.Errorf("failed to get tx fee: %w", err)
 	}
 
-	fee := big.NewInt(0)
-	fee.SetBytes(feeBytes)
-
-	balance.Pending.Sub(balance.Pending, fee)
-	balance.PendingBytes = balance.Pending.Bytes()
-	if err := putBalance(ctx, mutable, addressStateKey, balance); err != nil {
+	fee := binary.BigEndian.Uint64(feeBytes)
+	pendingBalance -= fee
+	if err := b.putPendingBalance(addressBytes, pendingBalance); err != nil {
 		return err
 	}
 
-	if err := mutable.Remove(ctx, txStateKey); err != nil {
+	if err := b.db.Delete(txStateKey); err != nil {
 		return fmt.Errorf("failed to delete tx fee: %w", err)
 	}
 
 	return nil
 }
 
-func getBalance(ctx context.Context, mutable state.Mutable, address []byte) (bondBalance, error) {
-	currentBytes, err := mutable.GetValue(ctx, address)
+func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
+	pendingBalanceBytes, err := b.db.Get(address)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return bondBalance{}, fmt.Errorf("failed to get bond balance: %w", err)
+		return 0, fmt.Errorf("failed to get pending bond balance: %w", err)
 	}
 
-	if currentBytes == nil {
-		currentBytes = make([]byte, allocSize)
-	}
-
-	balance := bondBalance{}
-	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: currentBytes},
-		&balance,
-	); err != nil {
-		return bondBalance{}, fmt.Errorf("failed to unmarshal bond balance: %w", err)
-	}
-
-	balance.Pending = big.NewInt(0).SetBytes(balance.PendingBytes)
-	balance.Max = big.NewInt(0).SetBytes(balance.MaxBytes)
-	return balance, nil
+	return binary.BigEndian.Uint64(pendingBalanceBytes), nil
 }
 
-func putBalance(ctx context.Context, mutable state.Mutable, address []byte, balance bondBalance) error {
-	p := &wrappers.Packer{Bytes: make([]byte, allocSize)}
-	if err := codec.LinearCodec.MarshalInto(balance, p); err != nil {
-		return fmt.Errorf("failed to marshal bond balance: %w", err)
-	}
-
-	if err := mutable.Insert(ctx, address, p.Bytes); err != nil {
-		return fmt.Errorf("failed to update bond balance: %w", err)
+func (b Bonder) putPendingBalance(address []byte, balance uint64) error {
+	if err := b.db.Put(address, binary.BigEndian.AppendUint64(nil, balance)); err != nil {
+		return fmt.Errorf("failed to update pending bond balance: %w")
 	}
 
 	return nil

@@ -5,7 +5,6 @@ package fdsmr
 
 import (
 	"context"
-	"math/big"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/internal/eheap"
@@ -21,7 +20,7 @@ type DSMR[T dsmr.Tx] interface {
 type Bonder[T dsmr.Tx] interface {
 	// Bond returns if a transaction can be built into a chunk by this node.
 	// If this returns true, Unbond is guaranteed to be called.
-	Bond(ctx context.Context, mutable state.Mutable, tx T, fee *big.Int) (bool, error)
+	Bond(ctx context.Context, mutable state.Mutable, tx T, fee uint64) (bool, error)
 	// Unbond is called when a tx from an account either expires or is accepted.
 	// If Unbond is called, Bond is guaranteed to have been called previously on
 	// tx.
@@ -44,7 +43,7 @@ type Node[T DSMR[U], U dsmr.Tx] struct {
 	pending *eheap.ExpiryHeap[U]
 }
 
-func (n *Node[T, U]) BuildChunk(ctx context.Context, mutable state.Mutable, txs []U, expiry int64, beneficiary codec.Address, fee *big.Int) error {
+func (n *Node[T, U]) BuildChunk(ctx context.Context, mutable state.Mutable, txs []U, expiry int64, beneficiary codec.Address, fee uint64) error {
 	bonded := make([]U, 0, len(txs))
 	for _, tx := range txs {
 		ok, err := n.bonder.Bond(ctx, mutable, tx, fee)
