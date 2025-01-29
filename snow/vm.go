@@ -88,7 +88,6 @@ type namedCloser struct {
 
 type VM[I Block, O Block, A Block] struct {
 	handlers        map[string]http.Handler
-	healthChecker   health.Checker
 	network         *p2p.Network
 	stateSyncableVM block.StateSyncableVM
 	closers         []namedCloser
@@ -101,7 +100,9 @@ type VM[I Block, O Block, A Block] struct {
 	rejectedSubs         []event.Subscription[O]
 	acceptedSubs         []event.Subscription[A]
 	preReadyAcceptedSubs []event.Subscription[I]
-	version              string
+	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
+	preRejectedSubs []event.Subscription[I]
+	version         string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
 	// To complete dynamic state sync, we must:
@@ -143,16 +144,15 @@ type VM[I Block, O Block, A Block] struct {
 	tracer  trace.Tracer
 
 	shutdownChan chan struct{}
+
+	healthCheckers sync.Map
 }
 
 func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
 		handlers: make(map[string]http.Handler),
-		healthChecker: health.CheckerFunc(func(_ context.Context) (interface{}, error) {
-			return nil, nil
-		}),
-		version: version,
-		chain:   chain,
+		version:  version,
+		chain:    chain,
 	}
 }
 
@@ -264,6 +264,12 @@ func (v *VM[I, O, A]) Initialize(
 	if err := v.lastAcceptedBlock.notifyAccepted(ctx); err != nil {
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
+
+	healthCheckersErr := v.initHealthCheckers()
+	if healthCheckersErr != nil {
+		return healthCheckersErr
+	}
+
 	return nil
 }
 
@@ -438,7 +444,34 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 }
 
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	return v.healthChecker.HealthCheck(ctx)
+	var (
+		detailsMu sync.Mutex
+		details   = make(map[string]interface{})
+		errsMu    sync.Mutex
+		errs      []error
+	)
+
+	v.healthCheckers.Range(func(k, v interface{}) bool {
+		name := k.(string)
+		checker := v.(health.Checker)
+		checkerDetails, err := checker.HealthCheck(ctx)
+
+		if checkerDetails != nil {
+			detailsMu.Lock()
+			details[name] = checkerDetails
+			detailsMu.Unlock()
+		}
+
+		if err != nil {
+			errsMu.Lock()
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
+			errsMu.Unlock()
+		}
+
+		return true
+	})
+
+	return details, errors.Join(errs...)
 }
 
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
@@ -491,12 +524,14 @@ func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	v.preReadyAcceptedSubs = append(v.preReadyAcceptedSubs, sub...)
 }
 
-func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
-	v.handlers[name] = handler
+// AddPreRejectedSub adds subscriptions tracking rejected blocks that were
+// vacuously verified during state sync before the VM had the state to verify them
+func (v *VM[I, O, A]) AddPreRejectedSub(sub ...event.Subscription[I]) {
+	v.preRejectedSubs = append(v.preRejectedSubs, sub...)
 }
 
-func (v *VM[I, O, A]) AddHealthCheck(healthChecker health.Checker) {
-	v.healthChecker = healthChecker
+func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
+	v.handlers[name] = handler
 }
 
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
