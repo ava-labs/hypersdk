@@ -65,7 +65,7 @@ type Chain[I Block, O Block, A Block] interface {
 	SetConsensusIndex(consensusIndex *ConsensusIndex[I, O, A])
 	// BuildBlock returns a new input and output block built on top of the provided parent.
 	// The provided parent will be the current preference of the consensus engine.
-	BuildBlock(ctx context.Context, parent O) (I, O, error)
+	BuildBlock(ctx context.Context, blockContext *block.Context, parent O) (I, O, error)
 	// ParseBlock parses the provided bytes into an input block.
 	ParseBlock(ctx context.Context, bytes []byte) (I, error)
 	// VerifyBlock verifies the provided block is valid given its already verified parent
@@ -353,7 +353,15 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBl
 	return blk, nil
 }
 
+func (v *VM[I, O, A]) BuildBlockWithContext(ctx context.Context, blockCtx *block.Context) (*StatefulBlock[I, O, A], error) {
+	return v.buildBlock(ctx, blockCtx)
+}
+
 func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
+	return v.buildBlock(ctx, nil)
+}
+
+func (v *VM[I, O, A]) buildBlock(ctx context.Context, blockCtx *block.Context) (*StatefulBlock[I, O, A], error) {
 	v.chainLock.Lock()
 	defer v.chainLock.Unlock()
 
@@ -369,7 +377,7 @@ func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get preferred block %s to build: %w", v.preferredBlkID, err)
 	}
-	inputBlock, outputBlock, err := v.chain.BuildBlock(ctx, preferredBlk.Output)
+	inputBlock, outputBlock, err := v.chain.BuildBlock(ctx, blockCtx, preferredBlk.Output)
 	if err != nil {
 		return nil, err
 	}

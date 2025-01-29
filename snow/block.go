@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -22,6 +23,7 @@ var (
 	_ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
 
 	errParentFailedVerification = errors.New("parent failed verification")
+	errMismatchedPChainContext  = errors.New("mismatched P-Chain context")
 )
 
 type Block interface {
@@ -31,6 +33,12 @@ type Block interface {
 	GetTimestamp() int64
 	GetBytes() []byte
 	GetHeight() uint64
+	// GetContext returns the P-Chain context of the block.
+	// May return nil if there is no P-Chain context, which
+	// should only occur prior to ProposerVM activation.
+	// This will be verified from the snow package, so that the
+	// inner chain can simply use its embedded context.
+	GetContext() *block.Context
 }
 
 // StatefulBlock implements snowman.Block and abstracts away the caching
@@ -127,8 +135,19 @@ func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) e
 	return nil
 }
 
-// implements "snowman.Block"
+func (b *StatefulBlock[I, O, A]) ShouldVerifyWithContext(ctx context.Context) (bool, error) {
+	return true, nil
+}
+
+func (b *StatefulBlock[I, O, A]) VerifyWithContext(ctx context.Context, pChainCtx *block.Context) error {
+	return b.verifyWithContext(ctx, pChainCtx)
+}
+
 func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
+	return b.verifyWithContext(ctx, nil)
+}
+
+func (b *StatefulBlock[I, O, A]) verifyWithContext(ctx context.Context, pChainCtx *block.Context) error {
 	b.vm.chainLock.Lock()
 	defer b.vm.chainLock.Unlock()
 
@@ -184,7 +203,11 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 			b.vm.log.Info("parent was already verified")
 		}
 
-		// Verify the block against the parent
+		// Verify the inner and wrapper block contexts match
+		innerCtx := b.Input.GetContext()
+		if err := verifyPChainCtx(pChainCtx, innerCtx); err != nil {
+			return err
+		}
 		if err := b.verify(ctx, parent.Output); err != nil {
 			return err
 		}
@@ -210,6 +233,21 @@ func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 		)
 	}
 	return nil
+}
+
+func verifyPChainCtx(providedCtx, innerCtx *block.Context) error {
+	switch {
+	case providedCtx == nil && innerCtx == nil:
+		return nil
+	case providedCtx == nil && innerCtx != nil:
+		return fmt.Errorf("%w: missing provided context != inner P-Chain height %d", errMismatchedPChainContext, innerCtx.PChainHeight)
+	case providedCtx != nil && innerCtx == nil:
+		return fmt.Errorf("%w: provided P-Chain height (%d) != missing inner context", errMismatchedPChainContext, providedCtx.PChainHeight)
+	case providedCtx.PChainHeight != innerCtx.PChainHeight:
+		return fmt.Errorf("%w: provided P-Chain height (%d) != inner P-Chain height %d", errMismatchedPChainContext, providedCtx.PChainHeight, innerCtx.PChainHeight)
+	default:
+		return nil
+	}
 }
 
 // markAccepted marks the block and updates the required VM state.

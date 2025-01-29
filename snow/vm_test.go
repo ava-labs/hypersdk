@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -51,6 +52,8 @@ type TestBlock struct {
 	// Invalid marks a block that should return an error during execution.
 	// This should make it easy to construct a block that should fail execution.
 	Invalid bool `json:"invalid"`
+
+	BlockContext *block.Context `json:"pChainHeight"`
 
 	outputPopulated   bool
 	acceptedPopulated bool
@@ -87,6 +90,10 @@ func (t *TestBlock) GetBytes() []byte {
 
 func (t *TestBlock) GetHeight() uint64 {
 	return t.Hght
+}
+
+func (t *TestBlock) GetContext() *block.Context {
+	return t.BlockContext
 }
 
 func (t *TestBlock) String() string {
@@ -136,7 +143,7 @@ func (t *TestChain) Initialize(
 
 func (*TestChain) SetConsensusIndex(_ *ConsensusIndex[*TestBlock, *TestBlock, *TestBlock]) {}
 
-func (t *TestChain) BuildBlock(_ context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
+func (t *TestChain) BuildBlock(_ context.Context, _ *block.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
 	t.require.True(parent.outputPopulated)
 	builtBlock := NewTestBlockFromParent(parent)
 	builtBlock.outputPopulated = true
