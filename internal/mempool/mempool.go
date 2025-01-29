@@ -41,7 +41,7 @@ type Mempool[T Item] struct {
 	eh    *eheap.ExpiryHeap[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
-	// sponsor
+	// [Sponsor]
 	owned map[codec.Address]int
 
 	// streamedItems have been removed from the mempool during streaming
