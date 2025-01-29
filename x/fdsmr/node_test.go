@@ -6,7 +6,6 @@ package fdsmr
 import (
 	"context"
 	"errors"
-	"math/big"
 	"testing"
 	"time"
 
@@ -256,7 +255,7 @@ func TestNode_BuildChunk(t *testing.T) {
 				tt.txs,
 				wantExpiry,
 				wantBeneficiary,
-				big.NewInt(1),
+				1,
 			), tt.wantErr)
 		})
 	}
@@ -326,7 +325,7 @@ func TestUnbondOnAccept(t *testing.T) {
 				txs,
 				expiry,
 				codec.EmptyAddress,
-				big.NewInt(1),
+				1,
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
@@ -396,7 +395,7 @@ func TestUnbondOnExpiry(t *testing.T) {
 				txs,
 				0,
 				codec.EmptyAddress,
-				big.NewInt(1),
+				1,
 			))
 			r.Equal(0, b.limit[codec.EmptyAddress])
 
@@ -455,7 +454,7 @@ type testBonder struct {
 	limit     map[codec.Address]int
 }
 
-func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx, _ *big.Int) (bool, error) {
+func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx, _ uint64) (bool, error) {
 	if b.bondErr != nil {
 		return false, b.bondErr
 	}

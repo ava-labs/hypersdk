@@ -38,7 +38,7 @@ func NewBonder(db database.Database) Bonder {
 // pending transactions per account
 type Bonder struct{ db database.Database }
 
-func (b Bonder) SetMaxBalance(
+func (Bonder) SetMaxBalance(
 	ctx context.Context,
 	mutable state.Mutable,
 	address codec.Address,
@@ -70,12 +70,12 @@ func (b Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 
 	fee, err := safemath.Mul(uint64(tx.Size()), feeRate)
 	if err != nil {
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 
 	updatedBalance, err := safemath.Add(pendingBalance, fee)
 	if err != nil {
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 
 	if updatedBalance > maxBalance {
