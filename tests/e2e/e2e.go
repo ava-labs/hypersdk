@@ -159,7 +159,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Restart the node", func() {
-			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
+			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), tc.Log(), bootstrapNode))
 		})
 		ginkgo.By("Generate > StateSyncMinBlocks=128", func() {
 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 128)
@@ -182,7 +182,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		})
 		ginkgo.By("Pause the node", func() {
 			// TODO: remove the need to call SaveAPIPort from the test
-			require.NoError(syncNode.SaveAPIPort())
+			// Tsachi : The following line was commented out, as it's no longer supported by avalanchego.
+			// require.NoError(syncNode.SaveAPIPort())
 			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
@@ -197,7 +198,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 32)
 		})
 		ginkgo.By("Resume the node", func() {
-			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
+			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), tc.Log(), syncNode))
 			utils.Outf("Waiting for sync node to restart")
 			require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
 

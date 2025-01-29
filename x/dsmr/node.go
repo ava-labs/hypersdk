@@ -35,7 +35,6 @@ const (
 )
 
 var (
-	_ snowValidators.State                      = (*pChain)(nil)
 	_ TimeValidityWindow[*emapChunkCertificate] = (validitywindow.Interface[*emapChunkCertificate])(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
@@ -52,7 +51,8 @@ var (
 
 type ChainState interface {
 	GetNetworkParams() (networdID uint32, subnetID, chainID ids.ID)
-	GetSignatureParams(ctx context.Context) (canonicalValidators []*warp.Validator, quorumNum uint64, quorumDen uint64, err error)
+	GetSignatureParams(ctx context.Context) (validators warp.CanonicalValidatorSet, quorumNum uint64, quorumDen uint64, err error)
+	GetValidatorSet(ctx context.Context) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error)
 }
 
 type Validator struct {
@@ -215,7 +215,7 @@ func (n *Node[T]) BuildChunk(
 		ctx,
 		msg,
 		chunk.bytes,
-		canonicalValidators,
+		canonicalValidators.Validators,
 		quorumNum,
 		quorumDen,
 	)

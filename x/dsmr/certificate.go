@@ -73,13 +73,6 @@ func (c *ChunkCertificate) Bytes() []byte {
 func (c *ChunkCertificate) Verify(
 	ctx context.Context,
 	chainState ChainState,
-	/*
-		networkID uint32,
-		chainID ids.ID,
-		pChainState validators.State,
-		pChainHeight uint64,
-		quorumNum uint64,
-		quorumDen uint64,*/
 ) error {
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(c.ChunkReference, &packer); err != nil {
@@ -90,13 +83,14 @@ func (c *ChunkCertificate) Verify(
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
-
+	validators, quorumNum, quorumDen, err := chainState.GetSignatureParams(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve signature params: %w", err)
+	}
 	if err := c.Signature.Verify(
-		ctx,
 		msg,
 		networkID,
-		pChainState,
-		pChainHeight,
+		validators,
 		quorumNum,
 		quorumDen,
 	); err != nil {

@@ -49,14 +49,14 @@ var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 type ChunkVerifier[T Tx] struct {
 	networkID              uint32
 	chainID                ids.ID
-	chainState             pChain
+	chainState             ChainState
 	min                    int64
 	quorumNum              uint64
 	quorumDen              uint64
 	validityWindowDuration time.Duration
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState ChainState, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
 		networkID:              networkID,
 		chainID:                chainID,
@@ -82,14 +82,9 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	}
 
 	// check if the producer was expected to produce this chunk.
-	subnetID, err := c.chainState.GetSubnetID(context.TODO(), c.chainID)
+	validatorSet, err := c.chainState.GetValidatorSet(context.TODO())
 	if err != nil {
-		return fmt.Errorf("%w: failed to retrieve subnet-id for chain-id while verifying chunk", err)
-	}
-
-	validatorSet, err := c.chainState.GetValidatorSet(context.TODO(), 0, subnetID)
-	if err != nil {
-		return err
+		return fmt.Errorf("%w: failed to retrieve validator set while verifying chunk", err)
 	}
 	if _, ok := validatorSet[chunk.UnsignedChunk.Producer]; !ok {
 		// the producer of this chunk isn't in the validator set.
@@ -104,12 +99,7 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 func (c ChunkVerifier[T]) VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error {
 	err := chunkCert.Verify(
 		ctx,
-		c.networkID,
-		c.chainID,
 		c.chainState,
-		0,
-		c.quorumNum,
-		c.quorumDen,
 	)
 	if err != nil {
 		return fmt.Errorf("unable to verify chunk certificate: %w", err)
