@@ -44,7 +44,7 @@ func TestProcessorExecute(t *testing.T) {
 	validBlockF := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
 			ids.Empty,
-			time.UnixMilli(genesis.NewDefaultRules().GetMinEmptyBlockGap()).UnixMilli(),
+			genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 			1,
 			nil,
 			root,
