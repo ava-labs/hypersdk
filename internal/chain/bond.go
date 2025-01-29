@@ -104,7 +104,7 @@ func (b Bonder) Unbond(tx *chain.Transaction) error {
 	txIDBytes := txID[:]
 	feeBytes, err := b.db.Get(txIDBytes)
 	if errors.Is(err, database.ErrNotFound) {
-		// Make this operation idempotent if the tx was already un-bonded
+		// Make this operation idempotent if the tx was already unbonded
 		// previously
 		return nil //nolint:nilerr
 	}
