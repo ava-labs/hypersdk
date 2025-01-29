@@ -23,9 +23,7 @@ import (
 var _ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
 
 func NewBonder(db database.Database) Bonder {
-	return Bonder{
-		db: db,
-	}
+	return Bonder{db: db}
 }
 
 // Bonder maintains state of account bond balances to limit the amount of
