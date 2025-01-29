@@ -79,13 +79,18 @@ func (b Bonder) Bond(ctx context.Context, mutable state.Mutable, tx *chain.Trans
 		return false, nil
 	}
 
-	if err := b.putPendingBalance(addressBytes, updatedBalance); err != nil {
+	batch := b.db.NewBatch()
+	if err := putPendingBalance(batch, addressBytes, updatedBalance); err != nil {
 		return false, err
 	}
 
 	txID := tx.GetID()
-	if err := b.db.Put(txID[:], binary.BigEndian.AppendUint64(nil, fee)); err != nil {
+	if err := batch.Put(txID[:], binary.BigEndian.AppendUint64(nil, fee)); err != nil {
 		return false, fmt.Errorf("failed to write tx fee: %w", err)
+	}
+
+	if err := batch.Write(); err != nil {
+		return false, fmt.Errorf("failed to commit batch: %w", err)
 	}
 
 	return true, nil
