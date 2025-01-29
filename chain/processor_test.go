@@ -41,30 +41,6 @@ var (
 )
 
 func TestProcessorExecute(t *testing.T) {
-	validBlockF := func(root ids.ID) *chain.StatelessBlock {
-		block, err := chain.NewStatelessBlock(
-			ids.Empty,
-			genesis.NewDefaultRules().GetMinEmptyBlockGap(),
-			1,
-			nil,
-			root,
-		)
-		require.NoError(t, err)
-		return block
-	}
-	dbF := func() merkledb.MerkleDB {
-		db, err := merkledb.New(
-			context.Background(),
-			memdb.New(),
-			merkledb.Config{
-				BranchFactor: merkledb.BranchFactor16,
-				Tracer:       trace.Noop,
-			},
-		)
-		require.NoError(t, err)
-		return db
-	}
-
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
@@ -79,13 +55,31 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			newBlockF: validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 		},
 		{
 			name:           "block timestamp too late",
@@ -102,7 +96,18 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, err)
 				return block
 			},
-			db:          dbF(),
+			db: func() merkledb.MerkleDB {
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
@@ -113,28 +118,88 @@ func TestProcessorExecute(t *testing.T) {
 				w.Stop()
 				return w
 			}(),
-			db:          dbF(),
-			newBlockF:   validBlockF,
+			db: func() merkledb.MerkleDB {
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: workers.ErrShutdown,
 		},
 		{
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db:             dbF(),
-			newBlockF:      validBlockF,
-			expectedErr:    chain.ErrFailedToFetchParentHeight,
+			db: func() merkledb.MerkleDB {
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
+			expectedErr: chain.ErrFailedToFetchParentHeight,
 		},
 		{
 			name:           "failed to parse parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), []byte{}))
 				return db
 			}(),
-			newBlockF:   validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: chain.ErrFailedToParseParentHeight,
 		},
 		{
@@ -142,7 +207,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
@@ -164,11 +237,29 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			newBlockF:   validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
 		},
 		{
@@ -176,12 +267,30 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), []byte{}))
 				return db
 			}(),
-			newBlockF:   validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
 		{
@@ -189,7 +298,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
@@ -224,7 +341,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
@@ -247,12 +372,30 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				return db
 			}(),
-			newBlockF:   validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: chain.ErrFailedToFetchParentFee,
 		},
 		{
@@ -265,13 +408,31 @@ func TestProcessorExecute(t *testing.T) {
 			workers:    workers.NewSerial(),
 			isNormalOp: true,
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
 				return db
 			}(),
-			newBlockF:   validBlockF,
+			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+				block, err := chain.NewStatelessBlock(
+					ids.Empty,
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					1,
+					nil,
+					root,
+				)
+				require.NoError(t, err)
+				return block
+			},
 			expectedErr: errMockVerifyExpiryReplayProtection,
 		},
 		{
@@ -279,7 +440,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
@@ -321,7 +490,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
@@ -345,7 +522,15 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			db: func() merkledb.MerkleDB {
-				db := dbF()
+				db, err := merkledb.New(
+					context.Background(),
+					memdb.New(),
+					merkledb.Config{
+						BranchFactor: merkledb.BranchFactor16,
+						Tracer:       trace.Noop,
+					},
+				)
+				require.NoError(t, err)
 				require.NoError(t, db.Put([]byte(heightKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(timestampKey), binary.BigEndian.AppendUint64(nil, 0)))
 				require.NoError(t, db.Put([]byte(feeKey), []byte{}))
