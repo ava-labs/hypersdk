@@ -74,7 +74,7 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	}
 
 	// check if the producer was expected to produce this chunk.
-	validatorSet, err := c.chainState.GetValidatorSet(context.TODO())
+	validatorSet, err := c.chainState.GetLatestValidatorSet(context.TODO())
 	if err != nil {
 		return fmt.Errorf("%w: failed to retrieve validator set while verifying chunk", err)
 	}

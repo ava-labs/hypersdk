@@ -52,7 +52,7 @@ var (
 type ChainState interface {
 	GetNetworkParams() (networdID uint32, subnetID, chainID ids.ID)
 	GetSignatureParams(ctx context.Context) (validators warp.CanonicalValidatorSet, quorumNum uint64, quorumDen uint64, err error)
-	GetValidatorSet(ctx context.Context) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error)
+	GetLatestValidatorSet(ctx context.Context) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error)
 }
 
 type Validator struct {

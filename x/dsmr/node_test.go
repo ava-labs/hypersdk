@@ -1559,6 +1559,6 @@ func (t *testChainState) GetSignatureParams(ctx context.Context) (warp.Canonical
 	return canonicalValidators, t.quorumNum, t.quorumDen, err
 }
 
-func (t *testChainState) GetValidatorSet(context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+func (t *testChainState) GetLatestValidatorSet(context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
 	return t.getValidatorSet(), nil
 }
