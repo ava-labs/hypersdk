@@ -46,7 +46,7 @@ func (b Bonder) SetMaxBalance(
 ) error {
 	addressStateKey := newStateKey(address[:])
 	if err := mutable.Insert(ctx, addressStateKey, binary.BigEndian.AppendUint64(nil, maxBalance)); err != nil {
-		return fmt.Errorf("failed to update max bond balance: %w")
+		return fmt.Errorf("failed to update max bond balance: %w", err)
 	}
 
 	return nil
@@ -137,7 +137,7 @@ func (b Bonder) getPendingBondBalance(address []byte) (uint64, error) {
 
 func (b Bonder) putPendingBalance(address []byte, balance uint64) error {
 	if err := b.db.Put(address, binary.BigEndian.AppendUint64(nil, balance)); err != nil {
-		return fmt.Errorf("failed to update pending bond balance: %w")
+		return fmt.Errorf("failed to update pending bond balance: %w", err)
 	}
 
 	return nil
