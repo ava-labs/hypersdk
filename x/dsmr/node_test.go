@@ -666,26 +666,6 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					quorumNum: 1,
 					quorumDen: 1,
 				}
-				/*pChain := &validatorstest.State{
-					T: t,
-					GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
-						return ids.Empty, nil
-					},
-					GetValidatorSetF: func(
-						context.Context,
-						uint64,
-						ids.ID,
-					) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
-						return map[ids.NodeID]*snowValidators.GetValidatorOutput{
-							node.ID: {
-								NodeID:    node.ID,
-								PublicKey: node.PublicKey,
-								Weight:    1,
-							},
-						}, nil
-					},
-				}
-				*/
 				signature := warp.BitSetSignature{
 					Signers:   getSignerBitSet(t, chainState, node.ID).Bytes(),
 					Signature: [bls.SignatureLen]byte{},
