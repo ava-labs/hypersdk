@@ -1537,7 +1537,7 @@ type testChainState struct {
 	quorumDen  uint64
 }
 
-func (t *testChainState) GetNetworkParams() (uint32, ids.ID, ids.ID) {
+func (*testChainState) GetNetworkParams() (uint32, ids.ID, ids.ID) {
 	return networkID /*subnetID*/, ids.Empty, chainID
 }
 
@@ -1579,6 +1579,6 @@ func (t *testChainState) GetSignatureParams(ctx context.Context) (warp.Canonical
 	return canonicalValidators, t.quorumNum, t.quorumDen, err
 }
 
-func (t *testChainState) GetValidatorSet(ctx context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+func (t *testChainState) GetValidatorSet(context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
 	return t.getValidatorSet(), nil
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/utils/crypto/bls/signer/localsigner"
+
 	blst "github.com/supranational/blst/bindings/go"
 )
 
