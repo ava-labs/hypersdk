@@ -135,7 +135,7 @@ func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) e
 	return nil
 }
 
-func (b *StatefulBlock[I, O, A]) ShouldVerifyWithContext(ctx context.Context) (bool, error) {
+func (*StatefulBlock[I, O, A]) ShouldVerifyWithContext(context.Context) (bool, error) {
 	return true, nil
 }
 
