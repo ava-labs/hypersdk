@@ -177,9 +177,17 @@ func (b *StatefulBlock[I, O, A]) verifyWithContext(ctx context.Context, pChainCt
 			zap.Stringer("blkID", b.Input.GetID()),
 		)
 	case b.verified:
+		// Defensive: verify the inner and wrapper block contexts match to ensure
+		// we don't build a block with a mismatched P-Chain context that will be
+		// invalid to peers.
+		innerCtx := b.Input.GetContext()
+		if err := verifyPChainCtx(pChainCtx, innerCtx); err != nil {
+			return err
+		}
+
 		// If we built the block, the state will already be populated and we don't
 		// need to compute it (we assume that we built a correct block and it isn't
-		// necessary to re-verify anything).
+		// necessary to re-verify).
 		b.vm.log.Info(
 			"skipping verification of locally built block",
 			zap.Uint64("height", b.Input.GetHeight()),
