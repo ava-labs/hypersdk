@@ -65,8 +65,6 @@ func New[T Tx](
 	log logging.Logger,
 	nodeID ids.NodeID,
 	chainState ChainState,
-	networkID uint32,
-	chainID ids.ID,
 	pk *bls.PublicKey,
 	signer warp.Signer,
 	chunkStorage *ChunkStorage[T],
@@ -76,10 +74,7 @@ func New[T Tx](
 	getChunkClient *p2p.Client,
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
-	validators []Validator, // TODO remove hard-coded validator set
 	lastAccepted Block,
-	quorumNum uint64,
-	quorumDen uint64,
 	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
 	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
@@ -87,15 +82,10 @@ func New[T Tx](
 		ID:                            nodeID,
 		chainState:                    chainState,
 		LastAccepted:                  lastAccepted,
-		networkID:                     networkID,
-		chainID:                       chainID,
 		PublicKey:                     pk,
 		Signer:                        signer,
 		getChunkClient:                NewGetChunkClient[T](getChunkClient),
 		chunkCertificateGossipClient:  NewChunkCertificateGossipClient(chunkCertificateGossipClient),
-		validators:                    validators,
-		quorumNum:                     quorumNum,
-		quorumDen:                     quorumDen,
 		chunkSignatureAggregator:      acp118.NewSignatureAggregator(log, getChunkSignatureClient),
 		GetChunkHandler:               getChunkHandler,
 		GetChunkSignatureHandler:      getChunkSignatureHandler,
@@ -126,13 +116,8 @@ type Node[T Tx] struct {
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
 	LastAccepted                 Block
-	networkID                    uint32
-	chainID                      ids.ID
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
-	validators                   []Validator
-	quorumNum                    uint64
-	quorumDen                    uint64
 	chainState                   ChainState
 	chunkSignatureAggregator     *acp118.SignatureAggregator
 
@@ -157,6 +142,7 @@ func (n *Node[T]) BuildChunk(
 		return ErrEmptyChunk
 	}
 
+	networkID, _, chainID := n.chainState.GetNetworkParams()
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.ID,
@@ -164,8 +150,8 @@ func (n *Node[T]) BuildChunk(
 			Expiry:      expiry,
 			Txs:         txs,
 		},
-		n.networkID,
-		n.chainID,
+		networkID,
+		chainID,
 		n.PublicKey,
 		n.Signer,
 	)
@@ -192,7 +178,7 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
-	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
+	unsignedMsg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
@@ -370,7 +356,11 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 				}
 
 				// TODO better request strategy
-				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID //nolint:gosec
+				validators, _, _, err := n.chainState.GetSignatureParams(ctx)
+				if err != nil {
+					return ExecutedBlock[T]{}, fmt.Errorf("failed to retrieve validators list: %w", err)
+				}
+				nodeID := validators.Validators[rand.Intn(len(validators.Validators))].NodeIDs[0] //nolint:gosec
 				if err := n.getChunkClient.AppRequest(
 					ctx,
 					nodeID,
@@ -413,33 +403,4 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 		ID:     block.GetID(),
 		Chunks: chunks,
 	}, nil
-}
-
-type pChain struct {
-	validators []Validator
-}
-
-func (pChain) GetMinimumHeight(context.Context) (uint64, error) {
-	return 0, nil
-}
-
-func (pChain) GetCurrentHeight(context.Context) (uint64, error) {
-	return 0, nil
-}
-
-func (pChain) GetSubnetID(context.Context, ids.ID) (ids.ID, error) {
-	return ids.Empty, nil
-}
-
-func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
-	result := make(map[ids.NodeID]*snowValidators.GetValidatorOutput, len(p.validators))
-	for _, v := range p.validators {
-		result[v.NodeID] = &snowValidators.GetValidatorOutput{
-			NodeID:    v.NodeID,
-			PublicKey: v.PublicKey,
-			Weight:    v.Weight,
-		}
-	}
-
-	return result, nil
 }

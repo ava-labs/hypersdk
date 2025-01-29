@@ -47,22 +47,14 @@ type Verifier[T Tx] interface {
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
 type ChunkVerifier[T Tx] struct {
-	networkID              uint32
-	chainID                ids.ID
 	chainState             ChainState
 	min                    int64
-	quorumNum              uint64
-	quorumDen              uint64
 	validityWindowDuration time.Duration
 }
 
-func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState ChainState, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](chainState ChainState, validityWindowDuration time.Duration) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
-		networkID:              networkID,
-		chainID:                chainID,
 		chainState:             chainState,
-		quorumNum:              quorumNum,
-		quorumDen:              quorumDen,
 		validityWindowDuration: validityWindowDuration,
 	}
 	return verifier
@@ -93,7 +85,8 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 
 	// TODO:
 	// add rate limiting for a given producer.
-	return chunk.Verify(c.networkID, c.chainID)
+	networkID, _, chainID := c.chainState.GetNetworkParams()
+	return chunk.Verify(networkID, chainID)
 }
 
 func (c ChunkVerifier[T]) VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error {
