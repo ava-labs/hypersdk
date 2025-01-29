@@ -41,11 +41,10 @@ var (
 )
 
 func TestProcessorExecute(t *testing.T) {
-	currentTime := time.UnixMilli(genesis.NewDefaultRules().GetMinEmptyBlockGap())
 	validBlockF := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
 			ids.Empty,
-			currentTime.UnixMilli(),
+			time.UnixMilli(genesis.NewDefaultRules().GetMinEmptyBlockGap()).UnixMilli(),
 			1,
 			nil,
 			root,
@@ -95,7 +94,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
+					time.Now().Add(2*chain.FutureBound).UnixMilli(),
 					0,
 					nil,
 					root,
@@ -150,7 +149,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					currentTime.UnixMilli(),
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 					2,
 					nil,
 					parentRoot,
@@ -289,7 +288,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					currentTime.UnixMilli(),
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -331,7 +330,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					currentTime.UnixMilli(),
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 					1,
 					nil,
 					ids.GenerateTestID(),
@@ -355,7 +354,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					currentTime.UnixMilli(),
+					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -366,7 +365,7 @@ func TestProcessorExecute(t *testing.T) {
 							tx, err := chain.NewTransaction(
 								&chain.Base{
 									Timestamp: utils.UnixRMilli(
-										currentTime.UnixMilli(),
+										genesis.NewDefaultRules().GetMinEmptyBlockGap(),
 										testRules.GetValidityWindow(),
 									),
 								},
