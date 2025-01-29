@@ -5,12 +5,14 @@ package snow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/event"
 	"go.uber.org/zap"
 )
 
@@ -92,19 +94,11 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 			return 1
 		}
 	})
-	healthChecker, err := v.HealthChecker(UnresolvedBlocksHealthChecker)
-	if err != nil {
-		return err
-	}
-
-	unresolvedBlkHealthChecker, typeConvOK := healthChecker.(*UnresolvedBlocksCheck[I])
-	if !typeConvOK {
-		return errors.New("type conversion for health check unresolved blocks failed")
-	}
 
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
 	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
 	// and we can safely drop the error here.
+	invalidBlkIDs := set.NewSet[ids.ID](0)
 	for _, blk := range processingBlocks {
 		parent, err := v.GetBlock(ctx, blk.Parent())
 		if err != nil {
@@ -117,13 +111,24 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 				zap.Stringer("parent", parent),
 				zap.Stringer("block", blk),
 			)
-			unresolvedBlkHealthChecker.MarkUnresolved(blk.ID())
+			invalidBlkIDs.Add(blk.ID())
 			continue
 		}
 		if err := blk.verify(ctx, parent.Output); err != nil {
-			unresolvedBlkHealthChecker.MarkUnresolved(blk.ID())
+			invalidBlkIDs.Add(blk.ID())
 			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
 		}
+	}
+
+	unresolvedBlkCheck := newUnresolvedBlocksHealthCheck[I](invalidBlkIDs)
+	v.AddPreRejectedSub(event.SubscriptionFunc[I]{
+		NotifyF: func(_ context.Context, input I) error {
+			unresolvedBlkCheck.Resolve(input.GetID())
+			return nil
+		},
+	})
+	if err := v.RegisterHealthChecker(unresolvedBlocksHealthChecker, unresolvedBlkCheck); err != nil {
+		return err
 	}
 
 	return nil

@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -265,9 +264,8 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to notify last accepted on startup: %w", err)
 	}
 
-	healthCheckersErr := v.initHealthCheckers()
-	if healthCheckersErr != nil {
-		return healthCheckersErr
+	if err := v.initHealthCheckers(); err != nil {
+		return err
 	}
 
 	return nil
@@ -441,37 +439,6 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	default:
 		return snow.ErrUnknownState
 	}
-}
-
-func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
-	var (
-		detailsMu sync.Mutex
-		details   = make(map[string]interface{})
-		errsMu    sync.Mutex
-		errs      []error
-	)
-
-	v.healthCheckers.Range(func(k, v interface{}) bool {
-		name := k.(string)
-		checker := v.(health.Checker)
-		checkerDetails, err := checker.HealthCheck(ctx)
-
-		if checkerDetails != nil {
-			detailsMu.Lock()
-			details[name] = checkerDetails
-			detailsMu.Unlock()
-		}
-
-		if err != nil {
-			errsMu.Lock()
-			errs = append(errs, fmt.Errorf("%s: %w", name, err))
-			errsMu.Unlock()
-		}
-
-		return true
-	})
-
-	return details, errors.Join(errs...)
 }
 
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
