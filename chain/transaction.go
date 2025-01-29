@@ -373,7 +373,7 @@ func (t *Transaction) Execute(
 }
 
 // Sponsor is the [codec.Address] that pays fees for this transaction.
-func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
+func (t *Transaction) GetSponsor() codec.Address { return t.Auth.Sponsor() }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
