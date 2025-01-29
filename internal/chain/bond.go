@@ -109,7 +109,7 @@ func (b Bonder) Unbond(tx *chain.Transaction) error {
 	if errors.Is(err, database.ErrNotFound) {
 		// Make this operation idempotent if the tx was already unbonded
 		// previously
-		return nil //nolint:nilerr
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get tx fee: %w", err)
