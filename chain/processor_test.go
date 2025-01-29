@@ -41,7 +41,7 @@ var (
 )
 
 func TestProcessorExecute(t *testing.T) {
-	currentTime := time.Now()
+	currentTime := time.UnixMilli(genesis.NewDefaultRules().GetMinEmptyBlockGap())
 	validBlockF := func(root ids.ID) *chain.StatelessBlock {
 		block, err := chain.NewStatelessBlock(
 			ids.Empty,
@@ -95,7 +95,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					currentTime.Add(chain.FutureBound).UnixMilli()+int64(time.Second),
+					time.Now().Add(chain.FutureBound).UnixMilli()+int64(time.Second),
 					0,
 					nil,
 					root,
