@@ -298,7 +298,67 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	}
 }
 
-func TestValidityWindowBoundary(t *testing.T) {
+func TestVerifyTimestamp(t *testing.T) {
+	tests := []struct {
+		name               string
+		containerTimestamp int64
+		executionTimestamp int64
+		divisor            int64
+		validityWindow     int64
+		expectedErr        error
+	}{
+		{
+			name:               "container ts = execution ts",
+			containerTimestamp: 10,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+		},
+		{
+			name:               "container expired",
+			containerTimestamp: 9,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+			expectedErr:        ErrTimestampExpired,
+		},
+		{
+			name:               "container ts inside validity window",
+			containerTimestamp: 11,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+		},
+		{
+			name:               "container ts past validity window",
+			containerTimestamp: 21,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+			expectedErr:        ErrFutureTimestamp,
+		},
+		{
+			name:               "container ts is not multiple of divisor",
+			containerTimestamp: 11,
+			executionTimestamp: 10,
+			divisor:            2,
+			validityWindow:     10,
+			expectedErr:        ErrMisalignedTime,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := require.New(t)
+			err := VerifyTimestamp(test.containerTimestamp, test.executionTimestamp, test.divisor, test.validityWindow)
+			r.ErrorIs(err, test.expectedErr)
+		})
+	}
+}
+
+// TestValidityWindowBoundaryLifespan tests that a container included at the validity window boundary transitions
+// seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
+func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
 
 	chainIndex := &testChainIndex{}
