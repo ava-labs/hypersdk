@@ -71,7 +71,7 @@ func newVMReadinessHealthCheck(isReady func() bool) *vmReadinessHealthCheck {
 func (v *vmReadinessHealthCheck) HealthCheck(_ context.Context) (interface{}, error) {
 	ready := v.isReady()
 	if !ready {
-		return nil, errVMNotReady
+		return ready, errVMNotReady
 	}
 	return ready, nil
 }

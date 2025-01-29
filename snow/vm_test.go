@@ -871,8 +871,11 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.StartStateSync(ctx, ce.lastAccepted.Input)
 
 	// Check health - should be unhealthy during state sync
-	_, err := ce.vm.HealthCheck(ctx)
+	details, err := ce.vm.HealthCheck(ctx)
 	ce.require.ErrorIs(err, errVMNotReady)
+	ce.require.Equal(map[string]interface{}{
+		vmReadinessHealthChecker: false,
+	}, details)
 
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
@@ -892,8 +895,12 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.FinishStateSync(ctx, ce.lastAccepted)
 
 	// Check health - should be unhealthy due to unresolved blocks
-	_, err = ce.vm.HealthCheck(ctx)
+	details, err = ce.vm.HealthCheck(ctx)
 	ce.require.ErrorIs(err, errUnresolvedBlocks)
+	ce.require.Equal(map[string]interface{}{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 2,
+	}, details)
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
@@ -923,8 +930,12 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.require.True(ok)
 	ce.require.Equal(acceptedTip.ID(), validBlk1.ID())
 
-	_, err = ce.vm.HealthCheck(ctx)
+	details, err = ce.vm.HealthCheck(ctx)
 	ce.require.NoError(err)
+	ce.require.Equal(map[string]interface{}{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 0,
+	}, details)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
