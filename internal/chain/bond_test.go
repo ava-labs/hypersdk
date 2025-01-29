@@ -118,7 +118,7 @@ func TestBond(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
 
-			b := Bonder{}
+			b := NewBonder(memdb.New())
 			ts := tstate.New(0)
 			view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
@@ -136,7 +136,7 @@ func TestBond(t *testing.T) {
 func TestUnbond_NoBondCalled(t *testing.T) {
 	r := require.New(t)
 
-	b := Bonder{}
+	b := NewBonder(memdb.New())
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
@@ -152,7 +152,7 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 func TestUnbond_DuplicateUnbond(t *testing.T) {
 	r := require.New(t)
 
-	b := Bonder{}
+	b := NewBonder(memdb.New())
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
@@ -173,7 +173,7 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	r := require.New(t)
 
-	b := Bonder{}
+	b := NewBonder(memdb.New())
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
@@ -192,7 +192,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 
 func TestSetMaxBalanceDuringBond(t *testing.T) {
 	r := require.New(t)
-	b := Bonder{}
+	b := NewBonder(memdb.New())
 
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
