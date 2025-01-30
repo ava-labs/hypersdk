@@ -47,7 +47,7 @@ func TestProcessorExecute(t *testing.T) {
 		validityWindow chain.ValidityWindow
 		workers        workers.Workers
 		isNormalOp     bool
-		db             merkledb.MerkleDB
+		view           merkledb.View
 		newBlockF      func(ids.ID) *chain.StatelessBlock
 		expectedErr    error
 	}{
@@ -55,7 +55,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "valid test case",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -97,7 +97,7 @@ func TestProcessorExecute(t *testing.T) {
 				require.NoError(t, err)
 				return block
 			},
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -119,7 +119,7 @@ func TestProcessorExecute(t *testing.T) {
 				w.Stop()
 				return w
 			}(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -148,7 +148,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -177,7 +177,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to parse parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -207,7 +207,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "block height is not one more than parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -237,7 +237,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -267,7 +267,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to parse timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -298,7 +298,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "non-empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -341,7 +341,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -372,7 +372,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get fee",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -408,7 +408,7 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			workers:    workers.NewSerial(),
 			isNormalOp: true,
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -440,7 +440,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to execute txs",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -490,7 +490,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "state root mismatch",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -522,7 +522,7 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to verify signatures",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
-			db: func() merkledb.MerkleDB {
+			view: func() merkledb.View {
 				db, err := merkledb.New(
 					context.Background(),
 					memdb.New(),
@@ -594,12 +594,12 @@ func TestProcessorExecute(t *testing.T) {
 				chain.NewDefaultConfig(),
 			)
 
-			root, err := tt.db.GetMerkleRoot(ctx)
+			root, err := tt.view.GetMerkleRoot(ctx)
 			r.NoError(err)
 
 			_, err = processor.Execute(
 				ctx,
-				tt.db,
+				tt.view,
 				chain.NewExecutionBlock(tt.newBlockF(root)),
 				tt.isNormalOp,
 			)
