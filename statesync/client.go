@@ -231,14 +231,3 @@ func (c *Client[T]) PutDiskIsSyncing(v bool) error {
 	}
 	return c.db.Put(isSyncing, []byte{0x0})
 }
-
-func (c *Client[T]) HealthCheck(_ context.Context) (interface{}, error) {
-	select {
-	case <-c.done:
-		c.log.Info("Invoking state sync health check", zap.Error(c.err))
-		return nil, c.err
-	default:
-		c.log.Info("Invoking state sync health check", zap.Error(errStateSyncIncomplete))
-		return nil, errStateSyncIncomplete
-	}
-}
