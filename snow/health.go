@@ -12,14 +12,36 @@ import (
 	"github.com/ava-labs/avalanchego/api/health"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-
-	"github.com/ava-labs/hypersdk/event"
 )
 
 const (
-	VMReadinessHealthChecker      = "snowVMReadiness"
-	UnresolvedBlocksHealthChecker = "snowUnresolvedBlocks"
+	vmReadinessHealthChecker      = "snowVMReady"
+	unresolvedBlocksHealthChecker = "snowUnresolvedBlocks"
 )
+
+var (
+	errUnresolvedBlocks = errors.New("unresolved invalid blocks in processing")
+	errVMNotReady       = errors.New("vm not ready")
+)
+
+func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
+	var (
+		details = make(map[string]interface{})
+		errs    []error
+	)
+
+	v.healthCheckers.Range(func(k, v interface{}) bool {
+		name := k.(string)
+		checker := v.(health.Checker)
+		checkerDetails, err := checker.HealthCheck(ctx)
+
+		details[name] = checkerDetails
+		errs = append(errs, err)
+		return true
+	})
+
+	return details, errors.Join(errs...)
+}
 
 func (v *VM[I, O, A]) RegisterHealthChecker(name string, healthChecker health.Checker) error {
 	if _, loaded := v.healthCheckers.LoadOrStore(name, healthChecker); loaded {
@@ -29,102 +51,62 @@ func (v *VM[I, O, A]) RegisterHealthChecker(name string, healthChecker health.Ch
 	return nil
 }
 
-func (v *VM[I, O, A]) HealthChecker(name string) (interface{}, error) {
-	value, ok := v.healthCheckers.Load(name)
-	if !ok {
-		return nil, fmt.Errorf("health checker %s not found", name)
-	}
-
-	return value, nil
-}
-
 func (v *VM[I, O, A]) initHealthCheckers() error {
-	vmReadiness := NewVMReadiness(func() bool {
+	vmReadiness := newVMReadinessHealthCheck(func() bool {
 		return v.ready
 	})
-	if err := v.RegisterHealthChecker(VMReadinessHealthChecker, vmReadiness); err != nil {
-		return err
-	}
-
-	unresolvedBlockHealthChecker := NewUnresolvedBlocksCheck[I]()
-	if err := v.RegisterHealthChecker(UnresolvedBlocksHealthChecker, unresolvedBlockHealthChecker); err != nil {
-		return err
-	}
-
-	// Subscribe to Reject event removing vacuously verified (unresolved) blocks
-	v.AddPreRejectedSub(unresolvedBlockHealthChecker.Resolve())
-
-	return nil
+	return v.RegisterHealthChecker(vmReadinessHealthChecker, vmReadiness)
 }
 
-// VMReadiness is concrete health check that should mark itself ready if isReady function returns true
-type VMReadiness struct {
+// vmReadinessHealthCheck marks itself as ready iff the VM is in normal operation.
+// ie. has the full state required to process new blocks from tip.
+type vmReadinessHealthCheck struct {
 	isReady func() bool
 }
 
-func NewVMReadiness(isReady func() bool) *VMReadiness {
-	return &VMReadiness{isReady: isReady}
+func newVMReadinessHealthCheck(isReady func() bool) *vmReadinessHealthCheck {
+	return &vmReadinessHealthCheck{isReady: isReady}
 }
 
-func (v *VMReadiness) HealthCheck(_ context.Context) (interface{}, error) {
+func (v *vmReadinessHealthCheck) HealthCheck(_ context.Context) (interface{}, error) {
 	ready := v.isReady()
 	if !ready {
-		return nil, errors.New("vm is not ready")
+		return ready, errVMNotReady
 	}
-
-	details := map[string]interface{}{
-		"ready": ready,
-	}
-	return details, nil
+	return ready, nil
 }
 
-// UnresolvedBlocksCheck
-// During state sync, blocks are vacuously marked as verified because the VM is missing the current state.
-// Consensus will eventually reject any invalid blocks, but this check ensures the VM waits to report healthy until it has cleared all invalid blocks from the processing set.
-// The health checker monitors blocks that were vacuously verified during state sync and reports unhealthy status if any remain unresolved
-//
-// Safety guarantee: We rely on consensus and correct validator set that any invalid blocks
-// accepted during state sync will eventually be rejected in favor of valid blocks.
-type UnresolvedBlocksCheck[I Block] struct {
-	unresolvedBlocks set.Set[ids.ID]
+// unresolvedBlockHealthCheck
+// During state sync, blocks are vacuously marked as verified because the VM lacks the state required
+// to properly verify them.
+// Assuming a correct validator set and consensus, any invalid blocks will eventually be rejected by
+// the network and this node.
+// This check reports unhealthy until any such blocks have been cleared from the processing set.
+type unresolvedBlockHealthCheck[I Block] struct {
 	lock             sync.RWMutex
+	unresolvedBlocks set.Set[ids.ID]
 }
 
-func NewUnresolvedBlocksCheck[I Block]() *UnresolvedBlocksCheck[I] {
-	return &UnresolvedBlocksCheck[I]{
-		unresolvedBlocks: set.Set[ids.ID]{},
+func newUnresolvedBlocksHealthCheck[I Block](unresolvedBlkIDs set.Set[ids.ID]) *unresolvedBlockHealthCheck[I] {
+	return &unresolvedBlockHealthCheck[I]{
+		unresolvedBlocks: unresolvedBlkIDs,
 	}
 }
 
-func (u *UnresolvedBlocksCheck[I]) Resolve() event.SubscriptionFunc[I] {
-	return event.SubscriptionFunc[I]{
-		NotifyF: func(_ context.Context, input I) error {
-			u.lock.Lock()
-			defer u.lock.Unlock()
-
-			u.unresolvedBlocks.Remove(input.GetID())
-			return nil
-		},
-	}
-}
-
-func (u *UnresolvedBlocksCheck[I]) MarkUnresolved(unresolvedBlkID ids.ID) {
+func (u *unresolvedBlockHealthCheck[I]) Resolve(blkID ids.ID) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 
-	u.unresolvedBlocks.Add(unresolvedBlkID)
+	u.unresolvedBlocks.Remove(blkID)
 }
 
-func (u *UnresolvedBlocksCheck[I]) HealthCheck(_ context.Context) (interface{}, error) {
+func (u *unresolvedBlockHealthCheck[I]) HealthCheck(_ context.Context) (interface{}, error) {
 	u.lock.RLock()
 	unresolvedBlocks := u.unresolvedBlocks.Len()
 	u.lock.RUnlock()
 
-	details := map[string]interface{}{
-		"unresolvedBlocks": unresolvedBlocks,
-	}
 	if unresolvedBlocks > 0 {
-		return details, fmt.Errorf("blocks remain unresolved after verification and must be explicitly rejected: %d blocks", unresolvedBlocks)
+		return unresolvedBlocks, fmt.Errorf("%w: %d", errUnresolvedBlocks, unresolvedBlocks)
 	}
-	return details, nil
+	return unresolvedBlocks, nil
 }
