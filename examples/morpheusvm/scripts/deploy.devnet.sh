@@ -18,7 +18,7 @@ PROJECT_CLI_NAME="morpheus-cli"
 PROJECT_VM_COMMIT="c3c9cafd5726aeb4b608e3315922910aeb0baeeb"
 
 # Set AvalancheGo Build (should have canPop disabled)
-AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
+AVALANCHEGO_COMMIT=aa4ea8ebd0218521f0af2ef76a81edb8e196d7cd
 
 # Install avalanche-cli
 LOCAL_CLI_COMMIT=18e5259b499bb9b487bb5e1e620d3107e68f2171
