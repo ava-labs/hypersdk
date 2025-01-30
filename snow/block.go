@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	_ snowman.Block = (*StatefulBlock[Block, Block, Block])(nil)
+	_ snowman.Block           = (*StatefulBlock[Block, Block, Block])(nil)
+	_ block.WithVerifyContext = (*StatefulBlock[Block, Block, Block])(nil)
 
 	errParentFailedVerification = errors.New("parent failed verification")
 	errMismatchedPChainContext  = errors.New("mismatched P-Chain context")
