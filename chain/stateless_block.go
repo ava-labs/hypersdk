@@ -21,7 +21,7 @@ type StatelessBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	BlockContext *block.Context `json:"pChainHeight"`
+	BlockContext *block.Context `json:"blockContext"`
 
 	Txs []*Transaction `json:"txs"`
 
