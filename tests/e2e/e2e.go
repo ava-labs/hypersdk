@@ -5,10 +5,13 @@ package e2e
 
 import (
 	"fmt"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/info"
+	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -184,6 +187,13 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			// TODO: remove the need to call SaveAPIPort from the test
 			// Tsachi : The following line was commented out, as it's no longer supported by avalanchego.
 			// require.NoError(syncNode.SaveAPIPort())
+			hostPort := strings.TrimPrefix(syncNode.URI, "http://")
+			if len(hostPort) != 0 {
+				_, port, err := net.SplitHostPort(hostPort)
+				require.NoError(err)
+				syncNode.Flags[config.HTTPPortKey] = port
+			}
+
 			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
