@@ -1575,7 +1575,7 @@ func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.Can
 	return canonicalValidators, err
 }
 
-func (t *testChainState) IsNodeValidator(_ context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error) {
+func (t *testChainState) IsNodeValidator(_ context.Context, nodeID ids.NodeID, _ uint64) (bool, error) {
 	for _, v := range t.validators {
 		if v.NodeID.Compare(nodeID) == 0 {
 			return true, nil
