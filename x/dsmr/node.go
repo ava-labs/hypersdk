@@ -452,9 +452,9 @@ func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID
 	return result, nil
 }
 
-func (p pChain) GetCurrentValidatorSet(
-	ctx context.Context,
-	_ ids.ID,
+func (pChain) GetCurrentValidatorSet(
+	context.Context,
+	ids.ID,
 ) (map[ids.ID]*snowValidators.GetCurrentValidatorOutput, uint64, error) {
 	return nil, 0, nil
 }
