@@ -496,7 +496,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		},
 		{
 			name: "invalid chunk ( chunk timestamp too into the future )",
-			verifier: NewChunkVerifier[dsmrtest.Tx](
+			verifier: NewChunkVerifier[*dsmrtest.Tx](
 				networkID,
 				chainID,
 				pChain{
@@ -518,7 +518,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		{
 			name:         "valid chunk",
 			producerNode: nodeID,
-			verifier: NewChunkVerifier[dsmrtest.Tx](
+			verifier: NewChunkVerifier[*dsmrtest.Tx](
 				networkID,
 				chainID,
 				pChain{
@@ -960,7 +960,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1_000,
@@ -985,7 +985,7 @@ func TestNode_BuildBlock_IncludesChunks(t *testing.T) {
 			chunks: func(parent Block) []chunk {
 				return []chunk{
 					{
-						txs: []dsmrtest.Tx{
+						txs: []*dsmrtest.Tx{
 							{
 								ID:     ids.GenerateTestID(),
 								Expiry: parent.Timestamp + 1_000,
@@ -1359,7 +1359,7 @@ type failVerifier struct{}
 
 func (failVerifier) SetMin(int64) {}
 
-func (failVerifier) Verify(Chunk[dsmrtest.Tx]) error {
+func (failVerifier) Verify(Chunk[*dsmrtest.Tx]) error {
 	return errors.New("fail")
 }
 

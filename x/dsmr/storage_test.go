@@ -47,22 +47,22 @@ func (t testVerifier[T]) VerifyCertificate(_ context.Context, cert *ChunkCertifi
 }
 
 func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int64) (
-	*ChunkStorage[dsmrtest.Tx],
-	[]Chunk[dsmrtest.Tx],
-	[]Chunk[dsmrtest.Tx],
-	func() *ChunkStorage[dsmrtest.Tx],
-	testVerifier[dsmrtest.Tx],
+	*ChunkStorage[*dsmrtest.Tx],
+	[]Chunk[*dsmrtest.Tx],
+	[]Chunk[*dsmrtest.Tx],
+	func() *ChunkStorage[*dsmrtest.Tx],
+	testVerifier[*dsmrtest.Tx],
 ) {
 	require := require.New(t)
 
-	validChunks := make([]Chunk[dsmrtest.Tx], 0, len(validChunkExpiry))
+	validChunks := make([]Chunk[*dsmrtest.Tx], 0, len(validChunkExpiry))
 	for _, expiry := range validChunkExpiry {
-		chunk, err := newChunk(
-			UnsignedChunk[dsmrtest.Tx]{
+		chunk := newChunk(
+			UnsignedChunk[*dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},
 				Expiry:      expiry,
-				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				Txs:         []*dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
 			},
 			[48]byte{},
 			[96]byte{},
@@ -72,7 +72,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 
 	invalidChunks := make([]Chunk[*dsmrtest.Tx], 0, len(invalidChunkExpiry))
 	for _, expiry := range invalidChunkExpiry {
-		chunk, err := newChunk(
+		chunk := newChunk(
 			UnsignedChunk[*dsmrtest.Tx]{
 				Producer:    ids.EmptyNodeID,
 				Beneficiary: codec.Address{},

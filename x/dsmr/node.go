@@ -18,13 +18,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
@@ -182,11 +177,7 @@ func (n *Node[T]) BuildChunk(
 		return ErrDuplicateChunk
 	}
 
-	packer := wrappers.Packer{MaxSize: MaxMessageSize}
-	if err := codec.LinearCodec.MarshalInto(chunkRef, &packer); err != nil {
-		return fmt.Errorf("failed to marshal chunk reference: %w", err)
-	}
-	chunkReferenceBytes := chunkReference.MarshalCanoto()
+	chunkReferenceBytes := chunkRef.MarshalCanoto()
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, chunkReferenceBytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
@@ -233,8 +224,11 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	chunkCert := ChunkCertificate{
-		ChunkReference: chunkReference,
-		Signature:      bitSetSignature,
+		ChunkReference: chunkRef,
+		Signature: Signature{
+			Signers:   bitSetSignature.Signers,
+			Signature: bitSetSignature.Signature,
+		},
 	}
 	if err := n.chunkCertificateGossipClient.AppGossip(
 		ctx,

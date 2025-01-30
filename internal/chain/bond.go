@@ -15,12 +15,11 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/fdsmr"
 
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var _ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
+// var _ fdsmr.Bonder[*chain.Transaction] = (*Bonder)(nil)
 
 func NewBonder(db database.Database) Bonder {
 	return Bonder{db: db}

@@ -448,7 +448,7 @@ type testBonder struct {
 	limit     map[codec.Address]int
 }
 
-func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx dsmrtest.Tx, _ uint64) (bool, error) {
+func (b testBonder) Bond(_ context.Context, _ state.Mutable, tx *dsmrtest.Tx, _ uint64) (bool, error) {
 	if b.bondErr != nil {
 		return false, b.bondErr
 	}

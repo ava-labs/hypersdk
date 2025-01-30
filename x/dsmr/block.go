@@ -9,10 +9,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/StephenButtolph/canoto"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -92,13 +93,8 @@ func (c *Chunk[T]) Verify(networkID uint32, chainID ids.ID) error {
 		return err
 	}
 
-	// Construct the unsigned message from the UnsignedChunk (stripping the signature fields)
-	packer := wrappers.Packer{Bytes: make([]byte, 0, InitialChunkSize), MaxSize: consts.NetworkSizeLimit}
-	if err := codec.LinearCodec.MarshalInto(c.UnsignedChunk, &packer); err != nil {
-		return err
-	}
-
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	unsignedChunkBytes := c.UnsignedChunk.MarshalCanoto()
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, unsignedChunkBytes)
 	if err != nil {
 		return fmt.Errorf("failed to create unsigned warp message from chunk: %w", err)
 	}
