@@ -99,7 +99,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
-			name:           "verify signatures fails",
+			name:           "failed to start signature verification",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers: func() workers.Workers {
 				w := workers.NewParallel(0, 0)
