@@ -1552,7 +1552,7 @@ func (t *testChainState) getValidatorSet() map[ids.NodeID]*validators.GetValidat
 func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.CanonicalValidatorSet, error) {
 	pChain := &validatorstest.State{
 		GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
-			return ids.Empty, nil
+			return t.GetSubnetID(), nil
 		},
 		GetValidatorSetF: func(
 			context.Context,
@@ -1567,7 +1567,7 @@ func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.Can
 		ctx,
 		pChain,
 		0,
-		ids.Empty, /*subnetID*/
+		ids.Empty,
 	)
 	if err != nil {
 		return warp.CanonicalValidatorSet{}, err
