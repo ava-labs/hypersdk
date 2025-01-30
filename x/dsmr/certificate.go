@@ -78,12 +78,12 @@ func (c *ChunkCertificate) Verify(
 	if err := codec.LinearCodec.MarshalInto(c.ChunkReference, &packer); err != nil {
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
-	networkID, _, chainID := chainState.GetNetworkParams()
-	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	networkID := chainState.GetNetworkID()
+	msg, err := warp.NewUnsignedMessage(networkID, chainState.GetChainID(), packer.Bytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
-	validators, quorumNum, quorumDen, err := chainState.GetSignatureParams(ctx)
+	validators, err := chainState.GetCanonicalValidatorSet(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve signature params: %w", err)
 	}
@@ -91,8 +91,8 @@ func (c *ChunkCertificate) Verify(
 		msg,
 		networkID,
 		validators,
-		quorumNum,
-		quorumDen,
+		chainState.GetQuorumNum(),
+		chainState.GetQuorumDen(),
 	); err != nil {
 		return fmt.Errorf("failed verification: %w", err)
 	}

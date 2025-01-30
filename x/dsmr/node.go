@@ -26,8 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
-
-	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
 const (
@@ -50,9 +48,13 @@ var (
 )
 
 type ChainState interface {
-	GetNetworkParams() (networdID uint32, subnetID, chainID ids.ID)
-	GetSignatureParams(ctx context.Context) (validators warp.CanonicalValidatorSet, quorumNum uint64, quorumDen uint64, err error)
-	GetLatestValidatorSet(ctx context.Context) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error)
+	GetNetworkID() uint32
+	GetSubnetID() ids.ID
+	GetChainID() ids.ID
+	GetCanonicalValidatorSet(ctx context.Context) (validators warp.CanonicalValidatorSet, err error)
+	IsNodeValidator(ctx context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error)
+	GetQuorumNum() uint64
+	GetQuorumDen() uint64
 }
 
 type Validator struct {
@@ -142,7 +144,7 @@ func (n *Node[T]) BuildChunk(
 		return ErrEmptyChunk
 	}
 
-	networkID, _, chainID := n.chainState.GetNetworkParams()
+	networkID, chainID := n.chainState.GetNetworkID(), n.chainState.GetChainID()
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.ID,
@@ -192,7 +194,7 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
-	canonicalValidators, quorumNum, quorumDen, err := n.chainState.GetSignatureParams(ctx)
+	canonicalValidators, err := n.chainState.GetCanonicalValidatorSet(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get signature parameters: %w", err)
 	}
@@ -202,8 +204,8 @@ func (n *Node[T]) BuildChunk(
 		msg,
 		chunk.bytes,
 		canonicalValidators.Validators,
-		quorumNum,
-		quorumDen,
+		n.chainState.GetQuorumNum(),
+		n.chainState.GetQuorumDen(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate signatures: %w", err)
@@ -356,7 +358,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 				}
 
 				// TODO better request strategy
-				validators, _, _, err := n.chainState.GetSignatureParams(ctx)
+				validators, err := n.chainState.GetCanonicalValidatorSet(ctx)
 				if err != nil {
 					return ExecutedBlock[T]{}, fmt.Errorf("failed to retrieve validators list: %w", err)
 				}

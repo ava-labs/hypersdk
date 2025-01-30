@@ -673,14 +673,14 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 				copy(signature.Signature[:], response.Signature)
 
-				validators, quorumNum, quorumDen, err := chainState.GetSignatureParams(context.Background())
+				validators, err := chainState.GetCanonicalValidatorSet(context.Background())
 				r.NoError(err)
 				r.NoError(signature.Verify(
 					msg,
 					networkID,
 					validators,
-					quorumNum,
-					quorumDen,
+					chainState.GetQuorumNum(),
+					chainState.GetQuorumDen(),
 				))
 			}
 
@@ -1107,7 +1107,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 }
 
 func getSignerBitSet(t *testing.T, chainState ChainState, nodeIDs ...ids.NodeID) set.Bits {
-	validators, _, _, err := chainState.GetSignatureParams(context.Background())
+	validators, err := chainState.GetCanonicalValidatorSet(context.Background())
 	require.NoError(t, err)
 
 	signers := set.Of(nodeIDs...)
@@ -1517,8 +1517,24 @@ type testChainState struct {
 	quorumDen  uint64
 }
 
-func (*testChainState) GetNetworkParams() (uint32, ids.ID, ids.ID) {
-	return networkID /*subnetID*/, ids.Empty, chainID
+func (*testChainState) GetNetworkID() uint32 {
+	return networkID
+}
+
+func (*testChainState) GetSubnetID() ids.ID {
+	return ids.Empty
+}
+
+func (*testChainState) GetChainID() ids.ID {
+	return chainID
+}
+
+func (t *testChainState) GetQuorumNum() uint64 {
+	return t.quorumNum
+}
+
+func (t *testChainState) GetQuorumDen() uint64 {
+	return t.quorumDen
 }
 
 func (t *testChainState) getValidatorSet() map[ids.NodeID]*validators.GetValidatorOutput {
@@ -1533,7 +1549,7 @@ func (t *testChainState) getValidatorSet() map[ids.NodeID]*validators.GetValidat
 	return result
 }
 
-func (t *testChainState) GetSignatureParams(ctx context.Context) (warp.CanonicalValidatorSet, uint64, uint64, error) {
+func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.CanonicalValidatorSet, error) {
 	pChain := &validatorstest.State{
 		GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
 			return ids.Empty, nil
@@ -1554,11 +1570,16 @@ func (t *testChainState) GetSignatureParams(ctx context.Context) (warp.Canonical
 		ids.Empty, /*subnetID*/
 	)
 	if err != nil {
-		return warp.CanonicalValidatorSet{}, 0, 0, err
+		return warp.CanonicalValidatorSet{}, err
 	}
-	return canonicalValidators, t.quorumNum, t.quorumDen, err
+	return canonicalValidators, err
 }
 
-func (t *testChainState) GetLatestValidatorSet(context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
-	return t.getValidatorSet(), nil
+func (t *testChainState) IsNodeValidator(_ context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error) {
+	for _, v := range t.validators {
+		if v.NodeID.Compare(nodeID) == 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -74,19 +74,18 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	}
 
 	// check if the producer was expected to produce this chunk.
-	validatorSet, err := c.chainState.GetLatestValidatorSet(context.TODO())
+	isValidator, err := c.chainState.IsNodeValidator(context.TODO(), chunk.UnsignedChunk.Producer, 0)
 	if err != nil {
-		return fmt.Errorf("%w: failed to retrieve validator set while verifying chunk", err)
+		return fmt.Errorf("%w: failed to test whether a node belongs to the validator set during chunk verification", err)
 	}
-	if _, ok := validatorSet[chunk.UnsignedChunk.Producer]; !ok {
+	if !isValidator {
 		// the producer of this chunk isn't in the validator set.
 		return fmt.Errorf("%w: producer node id %v", ErrChunkProducerNotValidator, chunk.UnsignedChunk.Producer)
 	}
 
 	// TODO:
 	// add rate limiting for a given producer.
-	networkID, _, chainID := c.chainState.GetNetworkParams()
-	return chunk.Verify(networkID, chainID)
+	return chunk.Verify(c.chainState.GetNetworkID(), c.chainState.GetChainID())
 }
 
 func (c ChunkVerifier[T]) VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error {
