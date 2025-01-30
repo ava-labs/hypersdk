@@ -45,7 +45,6 @@ func TestProcessorExecute(t *testing.T) {
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
-		workers        workers.Workers
 		isNormalOp     bool
 		view           merkledb.View
 		newBlockF      func(ids.ID) *chain.StatelessBlock
@@ -54,7 +53,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "valid test case",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -79,7 +77,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "block timestamp too late",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -99,35 +96,8 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
-			name:           "failed to start signature verification",
-			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers: func() workers.Workers {
-				w := workers.NewParallel(0, 0)
-				w.Stop()
-				return w
-			}(),
-			view: func() merkledb.View {
-				v, err := createTestView(map[string][]byte{})
-				require.NoError(t, err)
-				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
-				block, err := chain.NewStatelessBlock(
-					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
-					1,
-					nil,
-					root,
-				)
-				require.NoError(t, err)
-				return block
-			},
-			expectedErr: workers.ErrShutdown,
-		},
-		{
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{})
 				require.NoError(t, err)
@@ -149,7 +119,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to parse parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey: {},
@@ -173,7 +142,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "block height is not one more than parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -197,7 +165,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to get timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey: binary.BigEndian.AppendUint64(nil, 0),
@@ -221,7 +188,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to parse timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -246,7 +212,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "non-empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -283,7 +248,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -308,7 +272,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to get fee",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -337,7 +300,6 @@ func TestProcessorExecute(t *testing.T) {
 					return errMockVerifyExpiryReplayProtection
 				},
 			},
-			workers:    workers.NewSerial(),
 			isNormalOp: true,
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
@@ -364,7 +326,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to execute txs",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -408,7 +369,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "state root mismatch",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -434,7 +394,6 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "invalid transaction signature",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
@@ -492,7 +451,7 @@ func TestProcessorExecute(t *testing.T) {
 				trace.Noop,
 				&logging.NoLog{},
 				&genesis.ImmutableRuleFactory{Rules: testRules},
-				tt.workers,
+				workers.NewSerial(),
 				&mockAuthVM{},
 				metadata.NewDefaultManager(),
 				&mockBalanceHandler{},
