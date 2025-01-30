@@ -41,6 +41,7 @@ var (
 )
 
 func TestProcessorExecute(t *testing.T) {
+	testRules := genesis.NewDefaultRules()
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
@@ -72,7 +73,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -133,7 +134,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -162,7 +163,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -192,7 +193,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -222,7 +223,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					2,
 					nil,
 					parentRoot,
@@ -252,7 +253,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -283,7 +284,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -388,7 +389,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -425,7 +426,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					root,
@@ -457,7 +458,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -507,7 +508,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					nil,
 					ids.GenerateTestID(),
@@ -539,18 +540,18 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+					testRules.GetMinEmptyBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
 							p, err := ed25519.GeneratePrivateKey()
 							require.NoError(t, err)
 
-							testRules := genesis.NewDefaultRules()
+							testRules := testRules
 							tx, err := chain.NewTransaction(
 								&chain.Base{
 									Timestamp: utils.UnixRMilli(
-										genesis.NewDefaultRules().GetMinEmptyBlockGap(),
+										testRules.GetMinEmptyBlockGap(),
 										testRules.GetValidityWindow(),
 									),
 								},
@@ -583,7 +584,7 @@ func TestProcessorExecute(t *testing.T) {
 			processor := chain.NewProcessor(
 				trace.Noop,
 				&logging.NoLog{},
-				&genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+				&genesis.ImmutableRuleFactory{Rules: testRules},
 				tt.workers,
 				&mockAuthVM{},
 				metadata.NewDefaultManager(),
