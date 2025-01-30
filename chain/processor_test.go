@@ -432,7 +432,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrStateRootMismatch,
 		},
 		{
-			name:           "failed to verify signatures",
+			name:           "invalid transaction signature",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			workers:        workers.NewSerial(),
 			view: func() merkledb.View {
