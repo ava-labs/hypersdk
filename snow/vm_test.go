@@ -870,6 +870,13 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	ce.StartStateSync(ctx, ce.lastAccepted.Input)
 
+	// Check health - should be unhealthy during state sync
+	details, err := ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, errVMNotReady)
+	ce.require.Equal(map[string]interface{}{
+		vmReadinessHealthChecker: false,
+	}, details)
+
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock1.Invalid = true
@@ -886,6 +893,14 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.verifyValidBlock(ctx, parsedBlk2)
 
 	ce.FinishStateSync(ctx, ce.lastAccepted)
+
+	// Check health - should be unhealthy due to unresolved blocks
+	details, err = ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, errUnresolvedBlocks)
+	ce.require.Equal(map[string]any{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 2,
+	}, details)
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
@@ -904,6 +919,23 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)
 	ce.require.ErrorIs(invalidatedChildBlk2, errParentFailedVerification)
+
+	// Accept a new block to reject the invalid chain
+	// Note: consensus only rejects blocks after accepting a conflict, so we
+	// mimic this behavior here.
+	validBlk1 := ce.ParseAndVerifyNewBlock(ctx, ce.lastAccepted)
+	ce.SetPreference(ctx, validBlk1.ID())
+
+	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
+	ce.require.True(ok)
+	ce.require.Equal(acceptedTip.ID(), validBlk1.ID())
+
+	details, err = ce.vm.HealthCheck(ctx)
+	ce.require.NoError(err)
+	ce.require.Equal(map[string]any{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 0,
+	}, details)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {
