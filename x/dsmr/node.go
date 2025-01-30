@@ -26,6 +26,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
+
+	snowValidators "github.com/ava-labs/avalanchego/snow/validators"
 )
 
 const (
@@ -33,6 +35,7 @@ const (
 )
 
 var (
+	_ snowValidators.State                      = (*pChain)(nil)
 	_ TimeValidityWindow[*emapChunkCertificate] = (validitywindow.Interface[*emapChunkCertificate])(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
@@ -47,16 +50,6 @@ var (
 	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
 
-type ChainState interface {
-	GetNetworkID() uint32
-	GetSubnetID() ids.ID
-	GetChainID() ids.ID
-	GetCanonicalValidatorSet(ctx context.Context) (validators warp.CanonicalValidatorSet, err error)
-	IsNodeValidator(ctx context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error)
-	GetQuorumNum() uint64
-	GetQuorumDen() uint64
-}
-
 type Validator struct {
 	NodeID    ids.NodeID
 	Weight    uint64
@@ -66,7 +59,8 @@ type Validator struct {
 func New[T Tx](
 	log logging.Logger,
 	nodeID ids.NodeID,
-	chainState ChainState,
+	networkID uint32,
+	chainID ids.ID,
 	pk *bls.PublicKey,
 	signer warp.Signer,
 	chunkStorage *ChunkStorage[T],
@@ -76,18 +70,25 @@ func New[T Tx](
 	getChunkClient *p2p.Client,
 	getChunkSignatureClient *p2p.Client,
 	chunkCertificateGossipClient *p2p.Client,
+	validators []Validator, // TODO remove hard-coded validator set
 	lastAccepted Block,
+	quorumNum uint64,
+	quorumDen uint64,
 	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
 	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
-		chainState:                    chainState,
 		LastAccepted:                  lastAccepted,
+		networkID:                     networkID,
+		chainID:                       chainID,
 		PublicKey:                     pk,
 		Signer:                        signer,
 		getChunkClient:                NewGetChunkClient[T](getChunkClient),
 		chunkCertificateGossipClient:  NewChunkCertificateGossipClient(chunkCertificateGossipClient),
+		validators:                    validators,
+		quorumNum:                     quorumNum,
+		quorumDen:                     quorumDen,
 		chunkSignatureAggregator:      acp118.NewSignatureAggregator(log, getChunkSignatureClient),
 		GetChunkHandler:               getChunkHandler,
 		GetChunkSignatureHandler:      getChunkSignatureHandler,
@@ -118,9 +119,13 @@ type Node[T Tx] struct {
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
 	LastAccepted                 Block
+	networkID                    uint32
+	chainID                      ids.ID
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
-	chainState                   ChainState
+	validators                   []Validator
+	quorumNum                    uint64
+	quorumDen                    uint64
 	chunkSignatureAggregator     *acp118.SignatureAggregator
 
 	GetChunkHandler               p2p.Handler
@@ -144,7 +149,6 @@ func (n *Node[T]) BuildChunk(
 		return ErrEmptyChunk
 	}
 
-	networkID, chainID := n.chainState.GetNetworkID(), n.chainState.GetChainID()
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.ID,
@@ -152,8 +156,8 @@ func (n *Node[T]) BuildChunk(
 			Expiry:      expiry,
 			Txs:         txs,
 		},
-		networkID,
-		chainID,
+		n.networkID,
+		n.chainID,
 		n.PublicKey,
 		n.Signer,
 	)
@@ -180,7 +184,7 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 
-	unsignedMsg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
+	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, packer.Bytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
@@ -194,9 +198,14 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
-	canonicalValidators, err := n.chainState.GetCanonicalValidatorSet(ctx)
+	canonicalValidators, err := warp.GetCanonicalValidatorSetFromSubnetID(
+		ctx,
+		pChain{validators: n.validators},
+		0,
+		ids.Empty,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to get signature parameters: %w", err)
+		return fmt.Errorf("failed to get canonical validator set: %w", err)
 	}
 
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
@@ -204,8 +213,8 @@ func (n *Node[T]) BuildChunk(
 		msg,
 		chunk.bytes,
 		canonicalValidators.Validators,
-		n.chainState.GetQuorumNum(),
-		n.chainState.GetQuorumDen(),
+		n.quorumNum,
+		n.quorumDen,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate signatures: %w", err)
@@ -319,10 +328,21 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 		return err
 	}
 
+	/*validators, _ := warp.GetCanonicalValidatorSetFromSubnetID(
+	ctx,
+	pChain{validators: n.validators},
+	0,
+	ids.Empty)*/
+
 	for _, chunkCert := range block.ChunkCerts {
 		if err := chunkCert.Verify(
 			ctx,
-			n.chainState,
+			n.networkID,
+			n.chainID,
+			pChain{validators: n.validators},
+			0,
+			n.quorumNum,
+			n.quorumDen,
 		); err != nil {
 			return fmt.Errorf("%w %s: %w", ErrInvalidWarpSignature, chunkCert.ChunkID, err)
 		}
@@ -358,11 +378,7 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 				}
 
 				// TODO better request strategy
-				validators, err := n.chainState.GetCanonicalValidatorSet(ctx)
-				if err != nil {
-					return ExecutedBlock[T]{}, fmt.Errorf("failed to retrieve validators list: %w", err)
-				}
-				nodeID := validators.Validators[rand.Intn(len(validators.Validators))].NodeIDs[0] //nolint:gosec
+				nodeID := n.validators[rand.Intn(len(n.validators))].NodeID //nolint:gosec
 				if err := n.getChunkClient.AppRequest(
 					ctx,
 					nodeID,
@@ -405,4 +421,40 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 		ID:     block.GetID(),
 		Chunks: chunks,
 	}, nil
+}
+
+type pChain struct {
+	validators []Validator
+}
+
+func (pChain) GetMinimumHeight(context.Context) (uint64, error) {
+	return 0, nil
+}
+
+func (pChain) GetCurrentHeight(context.Context) (uint64, error) {
+	return 0, nil
+}
+
+func (pChain) GetSubnetID(context.Context, ids.ID) (ids.ID, error) {
+	return ids.Empty, nil
+}
+
+func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID]*snowValidators.GetValidatorOutput, error) {
+	result := make(map[ids.NodeID]*snowValidators.GetValidatorOutput, len(p.validators))
+	for _, v := range p.validators {
+		result[v.NodeID] = &snowValidators.GetValidatorOutput{
+			NodeID:    v.NodeID,
+			PublicKey: v.PublicKey,
+			Weight:    v.Weight,
+		}
+	}
+
+	return result, nil
+}
+
+func (p pChain) GetCurrentValidatorSet(
+	ctx context.Context,
+	_ ids.ID,
+) (map[ids.ID]*snowValidators.GetCurrentValidatorOutput, uint64, error) {
+	return nil, 0, nil
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -72,27 +73,29 @@ func (c *ChunkCertificate) Bytes() []byte {
 
 func (c *ChunkCertificate) Verify(
 	ctx context.Context,
-	chainState ChainState,
+	networkID uint32,
+	chainID ids.ID,
+	pChainState validators.State,
+	pChainHeight uint64,
+	quorumNum uint64,
+	quorumDen uint64,
 ) error {
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(c.ChunkReference, &packer); err != nil {
 		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
-	networkID := chainState.GetNetworkID()
-	msg, err := warp.NewUnsignedMessage(networkID, chainState.GetChainID(), packer.Bytes)
+
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, packer.Bytes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
-	validators, err := chainState.GetCanonicalValidatorSet(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve signature params: %w", err)
-	}
+	vs, _ := warp.GetCanonicalValidatorSetFromChainID(ctx, pChainState, pChainHeight, msg.SourceChainID)
 	if err := c.Signature.Verify(
 		msg,
 		networkID,
-		validators,
-		chainState.GetQuorumNum(),
-		chainState.GetQuorumDen(),
+		vs,
+		quorumNum,
+		quorumDen,
 	); err != nil {
 		return fmt.Errorf("failed verification: %w", err)
 	}

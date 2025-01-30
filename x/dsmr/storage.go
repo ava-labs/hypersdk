@@ -47,14 +47,22 @@ type Verifier[T Tx] interface {
 var _ Verifier[Tx] = (*ChunkVerifier[Tx])(nil)
 
 type ChunkVerifier[T Tx] struct {
-	chainState             ChainState
+	networkID              uint32
+	chainID                ids.ID
+	chainState             pChain
 	min                    int64
+	quorumNum              uint64
+	quorumDen              uint64
 	validityWindowDuration time.Duration
 }
 
-func NewChunkVerifier[T Tx](chainState ChainState, validityWindowDuration time.Duration) *ChunkVerifier[T] {
+func NewChunkVerifier[T Tx](networkID uint32, chainID ids.ID, chainState pChain, quorumNum, quorumDen uint64, validityWindowDuration time.Duration) *ChunkVerifier[T] {
 	verifier := &ChunkVerifier[T]{
+		networkID:              networkID,
+		chainID:                chainID,
 		chainState:             chainState,
+		quorumNum:              quorumNum,
+		quorumDen:              quorumDen,
 		validityWindowDuration: validityWindowDuration,
 	}
 	return verifier
@@ -74,24 +82,34 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 	}
 
 	// check if the producer was expected to produce this chunk.
-	isValidator, err := c.chainState.IsNodeValidator(context.TODO(), chunk.UnsignedChunk.Producer, 0)
+	subnetID, err := c.chainState.GetSubnetID(context.TODO(), c.chainID)
 	if err != nil {
-		return fmt.Errorf("%w: failed to test whether a node belongs to the validator set during chunk verification", err)
+		return fmt.Errorf("%w: failed to retrieve subnet-id for chain-id while verifying chunk", err)
 	}
-	if !isValidator {
+
+	validatorSet, err := c.chainState.GetValidatorSet(context.TODO(), 0, subnetID)
+	if err != nil {
+		return err
+	}
+	if _, ok := validatorSet[chunk.UnsignedChunk.Producer]; !ok {
 		// the producer of this chunk isn't in the validator set.
 		return fmt.Errorf("%w: producer node id %v", ErrChunkProducerNotValidator, chunk.UnsignedChunk.Producer)
 	}
 
 	// TODO:
 	// add rate limiting for a given producer.
-	return chunk.Verify(c.chainState.GetNetworkID(), c.chainState.GetChainID())
+	return chunk.Verify(c.networkID, c.chainID)
 }
 
 func (c ChunkVerifier[T]) VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error {
 	err := chunkCert.Verify(
 		ctx,
+		c.networkID,
+		c.chainID,
 		c.chainState,
+		0,
+		c.quorumNum,
+		c.quorumDen,
 	)
 	if err != nil {
 		return fmt.Errorf("unable to verify chunk certificate: %w", err)
