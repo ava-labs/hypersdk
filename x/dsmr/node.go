@@ -19,6 +19,14 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -30,7 +38,8 @@ const (
 )
 
 var (
-	_ snowValidators.State = (*pChain)(nil)
+	_ snowValidators.State                      = (*pChain)(nil)
+	_ TimeValidityWindow[*emapChunkCertificate] = (validitywindow.Interface[*emapChunkCertificate])(nil)
 
 	ErrEmptyChunk                          = errors.New("empty chunk")
 	ErrNoAvailableChunkCerts               = errors.New("no available chunk certs")
@@ -68,6 +77,8 @@ func New[T Tx[T]](
 	lastAccepted Block,
 	quorumNum uint64,
 	quorumDen uint64,
+	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
+	validityWindowDuration time.Duration,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
@@ -86,7 +97,24 @@ func New[T Tx[T]](
 		GetChunkSignatureHandler:      getChunkSignatureHandler,
 		ChunkCertificateGossipHandler: chunkCertificateGossipHandler,
 		storage:                       chunkStorage,
+		log:                           log,
+		validityWindow:                timeValidityWindow,
+		validityWindowDuration:        validityWindowDuration,
 	}, nil
+}
+
+type TimeValidityWindow[T emap.Item] interface {
+	Accept(blk validitywindow.ExecutionBlock[T])
+	VerifyExpiryReplayProtection(
+		ctx context.Context,
+		blk validitywindow.ExecutionBlock[T],
+	) error
+	IsRepeat(
+		ctx context.Context,
+		parentBlk validitywindow.ExecutionBlock[T],
+		currentTimestamp int64,
+		txs []T,
+	) (set.Bits, error)
 }
 
 type Node[T Tx[T]] struct {
@@ -107,6 +135,9 @@ type Node[T Tx[T]] struct {
 	GetChunkSignatureHandler      p2p.Handler
 	ChunkCertificateGossipHandler p2p.Handler
 	storage                       *ChunkStorage[T]
+	log                           logging.Logger
+	validityWindowDuration        time.Duration
+	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
 
 // BuildChunk builds transactions into a Chunk
@@ -137,10 +168,23 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to sign chunk: %w", err)
 	}
 
-	chunkReference := ChunkReference{
+	chunkRef := ChunkReference{
 		ChunkID:  chunk.id,
 		Producer: chunk.Producer,
 		Expiry:   chunk.Expiry,
+	}
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(n.LastAccepted), n.LastAccepted.Timestamp, []*emapChunkCertificate{{ChunkCertificate{ChunkReference: chunkRef}}})
+	if err != nil {
+		return fmt.Errorf("failed to varify repeated chunk certificates : %w", err)
+	}
+	if duplicates.Len() > 0 {
+		// we have duplicates
+		return ErrDuplicateChunk
+	}
+
+	packer := wrappers.Packer{MaxSize: MaxMessageSize}
+	if err := codec.LinearCodec.MarshalInto(chunkRef, &packer); err != nil {
+		return fmt.Errorf("failed to marshal chunk reference: %w", err)
 	}
 	chunkReferenceBytes := chunkReference.MarshalCanoto()
 	unsignedMsg, err := warp.NewUnsignedMessage(n.networkID, n.chainID, chunkReferenceBytes)
@@ -189,15 +233,8 @@ func (n *Node[T]) BuildChunk(
 	}
 
 	chunkCert := ChunkCertificate{
-		ChunkReference: ChunkReference{
-			ChunkID:  chunk.id,
-			Producer: chunk.Producer,
-			Expiry:   chunk.Expiry,
-		},
-		Signature: Signature{
-			Signers:   bitSetSignature.Signers,
-			Signature: bitSetSignature.Signature,
-		},
+		ChunkReference: chunkReference,
+		Signature:      bitSetSignature,
 	}
 	if err := n.chunkCertificateGossipClient.AppGossip(
 		ctx,
@@ -211,19 +248,27 @@ func (n *Node[T]) BuildChunk(
 	return n.storage.AddLocalChunkWithCert(chunk, &chunkCert)
 }
 
-func (n *Node[T]) BuildBlock(parent Block, timestamp int64) (Block, error) {
+func (n *Node[T]) BuildBlock(ctx context.Context, parent Block, timestamp int64) (Block, error) {
 	if timestamp <= parent.Timestamp {
 		return Block{}, ErrTimestampNotMonotonicallyIncreasing
 	}
 
-	chunkCerts := n.storage.GatherChunkCerts()
+	gatheredChunkCerts := n.storage.GatherChunkCerts()
+	emapChunkCerts := make([]*emapChunkCertificate, len(gatheredChunkCerts))
+	for i := range emapChunkCerts {
+		emapChunkCerts[i] = &emapChunkCertificate{*gatheredChunkCerts[i]}
+	}
+	duplicates, err := n.validityWindow.IsRepeat(ctx, NewValidityWindowBlock(parent), timestamp, emapChunkCerts)
+	if err != nil {
+		return Block{}, err
+	}
+
 	availableChunkCerts := make([]*ChunkCertificate, 0)
-	for _, chunkCert := range chunkCerts {
-		// avoid building blocks with expired chunk certs
-		if chunkCert.Expiry < timestamp {
+	for i, chunkCert := range gatheredChunkCerts {
+		// avoid building blocks with duplicate or expired chunk certs
+		if chunkCert.Expiry < timestamp || duplicates.Contains(i) {
 			continue
 		}
-
 		availableChunkCerts = append(availableChunkCerts, chunkCert)
 	}
 	if len(availableChunkCerts) == 0 {
@@ -271,6 +316,11 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 		return fmt.Errorf("%w: %s", ErrEmptyBlock, block.GetID())
 	}
 
+	// Find repeats
+	if err := n.validityWindow.VerifyExpiryReplayProtection(ctx, NewValidityWindowBlock(block)); err != nil {
+		return err
+	}
+
 	for _, chunkCert := range block.ChunkCerts {
 		if err := chunkCert.Verify(
 			ctx,
@@ -289,13 +339,13 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 }
 
 func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], error) {
-	chunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
+	acceptedChunkIDs := make([]ids.ID, 0, len(block.ChunkCerts))
 	chunks := make([]Chunk[T], 0, len(block.ChunkCerts))
 
 	for _, chunkCert := range block.ChunkCerts {
-		chunkIDs = append(chunkIDs, chunkCert.ChunkID)
+		acceptedChunkIDs = append(acceptedChunkIDs, chunkCert.ChunkID)
 
-		chunkBytes, _, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
+		chunkBytes, err := n.storage.GetChunkBytes(chunkCert.Expiry, chunkCert.ChunkID)
 		if errors.Is(err, database.ErrNotFound) {
 			for {
 				result := make(chan error)
@@ -341,8 +391,10 @@ func (n *Node[T]) Accept(ctx context.Context, block Block) (ExecutedBlock[T], er
 
 		chunks = append(chunks, chunk)
 	}
+	// update the validity window with the accepted block.
+	n.validityWindow.Accept(NewValidityWindowBlock(block))
 
-	if err := n.storage.SetMin(block.Timestamp, chunkIDs); err != nil {
+	if err := n.storage.SetMin(block.Timestamp, acceptedChunkIDs); err != nil {
 		return ExecutedBlock[T]{}, fmt.Errorf("failed to prune chunks: %w", err)
 	}
 

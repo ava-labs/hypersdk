@@ -19,8 +19,7 @@ func testRollup(t *testing.T, uint64s []uint64, roll int) {
 	for i := 0; i < numUint64s; i++ {
 		binary.BigEndian.PutUint64(slice[8*i:], uint64s[i])
 	}
-	newSlice, err := Roll(slice, int64(roll))
-	require.NoError(err)
+	newSlice := Roll(slice, uint64(roll))
 
 	// numCopies is the number of uint64s that should have been copied over from the previous
 	// slice as opposed to being left empty.
@@ -81,6 +80,39 @@ func TestRollupWindow(t *testing.T) {
 
 	for _, test := range tests {
 		testRollup(t, test.uint64s, test.roll)
+	}
+}
+
+func TestWindowRollOverflow(t *testing.T) {
+	tests := []struct {
+		name string
+		roll uint64
+	}{
+		{
+			name: "roll = WindowSize",
+			roll: WindowSize,
+		},
+		{
+			name: "roll > WindowSize",
+			roll: WindowSize + 1,
+		},
+		{
+			name: "multiplication overflow",
+			roll: (consts.MaxUint64 / consts.Uint64Len) + 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			window := Window{}
+			for i := 0; i < WindowSliceSize; i++ {
+				window[i] = consts.MaxUint8
+			}
+
+			r.Equal(Window{}, Roll(window, tt.roll))
+		})
 	}
 }
 

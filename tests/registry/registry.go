@@ -4,12 +4,12 @@
 package registry
 
 import (
-	"github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
-type TestFunc func(t ginkgo.FullGinkgoTInterface, tn workload.TestNetwork)
+type TestFunc func(t require.TestingT, tn workload.TestNetwork)
 
 type namedTest struct {
 	Fnc  TestFunc
@@ -33,14 +33,14 @@ func (r *Registry) List() []namedTest {
 // we need to pre-register all the test registries that are created externally in order to comply with the ginko execution order.
 // i.e. the global `var _ = ginkgo.Describe` used in the integration/e2e tests need to have this field populated before the iteration
 // over the top level nodes.
-var testRegistries = map[*Registry]bool{}
+var testRegistries = map[*Registry]struct{}{}
 
 func Register(registry *Registry, name string, f TestFunc) bool {
 	registry.Add(name, f)
-	testRegistries[registry] = true
+	testRegistries[registry] = struct{}{}
 	return true
 }
 
-func GetTestsRegistries() map[*Registry]bool {
+func GetTestsRegistries() map[*Registry]struct{} {
 	return testRegistries
 }

@@ -32,6 +32,14 @@ type Signature struct {
 	canotoData canotoData_Signature
 }
 
+type emapChunkCertificate struct {
+	ChunkCertificate
+}
+
+func (e emapChunkCertificate) GetID() ids.ID { return e.ChunkID }
+
+func (e emapChunkCertificate) GetExpiry() int64 { return e.Expiry }
+
 type ChunkCertificate struct {
 	ChunkReference `canoto:"value,1"`
 	Signature      Signature `canoto:"value,2"`

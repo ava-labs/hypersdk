@@ -6,6 +6,7 @@ package chain_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,35 +18,55 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	safemath "github.com/ava-labs/avalanchego/utils/math"
+	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
 var (
-	_ chain.Action = (*mockTransferAction)(nil)
-	_ chain.Action = (*action2)(nil)
+	_ chain.Action         = (*mockAction)(nil)
+	_ chain.Action         = (*mockTransferAction)(nil)
+	_ chain.Action         = (*action2)(nil)
+	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	_ chain.Auth           = (*mockAuth)(nil)
 )
 
-type abstractMockAction struct{}
+var errMockInsufficientBalance = errors.New("mock insufficient balance error")
 
-func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
+type mockAction struct {
+	start        int64
+	end          int64
+	computeUnits uint64
+	typeID       uint8
+	stateKeys    state.Keys
+}
+
+func (m *mockAction) ComputeUnits(chain.Rules) uint64 {
+	return m.computeUnits
+}
+
+func (*mockAction) Execute(context.Context, chain.Rules, state.Mutable, int64, codec.Address, ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
-	panic("unimplemented")
+func (m *mockAction) GetTypeID() uint8 {
+	return m.typeID
 }
 
-func (*abstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	panic("unimplemented")
+func (m *mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
+	return m.stateKeys
 }
 
-func (*abstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
-	panic("unimplemented")
+func (m *mockAction) ValidRange(chain.Rules) (int64, int64) {
+	return m.start, m.end
 }
 
 type mockTransferAction struct {
-	abstractMockAction
+	mockAction
 	To    codec.Address `serialize:"true" json:"to"`
 	Value uint64        `serialize:"true" json:"value"`
 	Memo  []byte        `serialize:"true" json:"memo"`
@@ -56,7 +77,7 @@ func (*mockTransferAction) GetTypeID() uint8 {
 }
 
 type action2 struct {
-	abstractMockAction
+	mockAction
 	A uint64 `serialize:"true" json:"a"`
 	B uint64 `serialize:"true" json:"b"`
 }
@@ -75,6 +96,71 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 	var action action2
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
 	return &action, err
+}
+
+type mockBalanceHandler struct {
+	canDeductError error
+}
+
+func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+	return m.canDeductError
+}
+
+func (*mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
+	panic("unimplemented")
+}
+
+func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
+	return state.Keys{}
+}
+
+type mockAuth struct {
+	start        int64
+	end          int64
+	computeUnits uint64
+	actor        codec.Address
+	sponsor      codec.Address
+	verifyError  error
+}
+
+func (m *mockAuth) Actor() codec.Address {
+	return m.actor
+}
+
+func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
+	return m.computeUnits
+}
+
+func (*mockAuth) GetTypeID() uint8 {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Marshal(*codec.Packer) {
+	panic("unimplemented")
+}
+
+func (*mockAuth) Size() int {
+	panic("unimplemented")
+}
+
+func (m *mockAuth) Sponsor() codec.Address {
+	return m.sponsor
+}
+
+func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
+	return m.start, m.end
+}
+
+func (m *mockAuth) Verify(context.Context, []byte) error {
+	return m.verifyError
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -251,4 +337,218 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, factory)
 	require.NoError(err)
 	require.Equal(signedTx.Bytes(), rawSignedTxBytes)
+}
+
+func TestPreExecute(t *testing.T) {
+	testRules := genesis.NewDefaultRules()
+	differentChainID := ids.ID{1}
+
+	tests := []struct {
+		name      string
+		tx        *chain.Transaction
+		timestamp int64
+		err       error
+		fm        *fees.Manager
+		bh        chain.BalanceHandler
+	}{
+		{
+			name: "valid test case",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &mockAuth{},
+			},
+			bh: &mockBalanceHandler{},
+		},
+		{
+			name: "base transaction timestamp misaligned",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: consts.MillisecondsPerSecond + 1,
+					},
+				},
+			},
+			err: chain.ErrMisalignedTime,
+		},
+		{
+			name: "base transaction timestamp too early (61ms > 60ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: testRules.GetValidityWindow() + consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			err: chain.ErrTimestampTooEarly,
+		},
+		{
+			name: "base transaction timestamp too late (1ms < 2ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrTimestampTooLate,
+		},
+		{
+			name: "base transaction invalid chain id",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						ChainID:   differentChainID,
+						Timestamp: consts.MillisecondsPerSecond,
+					},
+				},
+			},
+			timestamp: consts.MillisecondsPerSecond,
+			err:       chain.ErrInvalidChainID,
+		},
+		{
+			name: "transaction has too many actions (17 > 16)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: func() []chain.Action {
+						actions := make([]chain.Action, testRules.MaxActionsPerTx+1)
+						for i := 0; i < int(testRules.MaxActionsPerTx)+1; i++ {
+							actions = append(actions, &mockTransferAction{})
+						}
+						return actions
+					}(),
+				},
+			},
+			err: chain.ErrTooManyActions,
+		},
+		{
+			name: "action timestamp too early (0ms < 1ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&mockAction{
+							start: consts.MillisecondsPerSecond,
+						},
+					},
+				},
+			},
+			err: chain.ErrActionNotActivated,
+		},
+		{
+			name: "action timestamp too late (2ms > 1ms)",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: 2 * consts.MillisecondsPerSecond,
+					},
+					Actions: []chain.Action{
+						&mockAction{
+							start: consts.MillisecondsPerSecond,
+							end:   consts.MillisecondsPerSecond,
+						},
+					},
+				},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrActionNotActivated,
+		},
+		{
+			name: "auth timestamp too early",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+				},
+				Auth: &mockAuth{
+					start: 1 * consts.MillisecondsPerSecond,
+				},
+			},
+			err: chain.ErrAuthNotActivated,
+		},
+		{
+			name: "auth timestamp too late",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{
+						Timestamp: 2 * consts.MillisecondsPerSecond,
+					},
+				},
+				Auth: &mockAuth{
+					end: 1 * consts.MillisecondsPerSecond,
+				},
+			},
+			timestamp: 2 * consts.MillisecondsPerSecond,
+			err:       chain.ErrAuthNotActivated,
+		},
+		{
+			name: "fee overflow",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&mockAction{
+							computeUnits: 1,
+						},
+					},
+				},
+				Auth: &mockAuth{},
+			},
+			fm: func() *fees.Manager {
+				fm := fees.NewManager([]byte{})
+				for i := 0; i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(externalfees.Dimension(i), consts.MaxUint64)
+				}
+				return fm
+			}(),
+			bh:  &mockBalanceHandler{},
+			err: safemath.ErrOverflow,
+		},
+		{
+			name: "insufficient balance",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					Base: &chain.Base{},
+					Actions: []chain.Action{
+						&mockAction{
+							computeUnits: 1,
+						},
+					},
+				},
+				Auth: &mockAuth{},
+			},
+			bh: &mockBalanceHandler{
+				canDeductError: errMockInsufficientBalance,
+			},
+			err: errMockInsufficientBalance,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+
+			if tt.fm == nil {
+				tt.fm = fees.NewManager([]byte{})
+			}
+			if tt.bh == nil {
+				tt.bh = &mockBalanceHandler{}
+			}
+
+			r.ErrorIs(
+				tt.tx.PreExecute(
+					ctx,
+					tt.fm,
+					tt.bh,
+					testRules,
+					nil,
+					tt.timestamp,
+				),
+				tt.err,
+			)
+		})
+	}
 }

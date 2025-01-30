@@ -79,7 +79,7 @@ func (t *TransactionData) Sign(
 		return nil, err
 	}
 
-	return newTransaction(t.Base, t.Actions, auth)
+	return NewTransaction(t.Base, t.Actions, auth)
 }
 
 func SignRawActionBytesTx(
@@ -154,8 +154,8 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
-// newTransaction creates a Transaction and initializes the private fields.
-func newTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
+// NewTransaction creates a Transaction and initializes the private fields.
+func NewTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
 	tx := Transaction{
 		TransactionData: TransactionData{
 			Base:    base,
@@ -373,7 +373,7 @@ func (t *Transaction) Execute(
 }
 
 // Sponsor is the [codec.Address] that pays fees for this transaction.
-func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
+func (t *Transaction) GetSponsor() codec.Address { return t.Auth.Sponsor() }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
@@ -438,7 +438,7 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 		return fmt.Errorf("%w: auth packer", err)
 	}
 
-	newTx, err := newTransaction(tx.Base, actions, auth)
+	newTx, err := NewTransaction(tx.Base, actions, auth)
 	if err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 
-	tx, err := newTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
+	tx, err := NewTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
 	if err != nil {
 		return nil, err
 	}
