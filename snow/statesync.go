@@ -12,8 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/event"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/event"
 )
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
