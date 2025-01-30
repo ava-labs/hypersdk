@@ -24,13 +24,13 @@ var (
 	errVMNotReady       = errors.New("vm not ready")
 )
 
-func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
+func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (any, error) {
 	var (
-		details = make(map[string]interface{})
+		details = make(map[string]any)
 		errs    []error
 	)
 
-	v.healthCheckers.Range(func(k, v interface{}) bool {
+	v.healthCheckers.Range(func(k, v any) bool {
 		name := k.(string)
 		checker := v.(health.Checker)
 		checkerDetails, err := checker.HealthCheck(ctx)
@@ -44,7 +44,7 @@ func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (interface{}, error) {
 }
 
 func (v *VM[I, O, A]) RegisterHealthChecker(name string, healthChecker health.Checker) error {
-	if _, loaded := v.healthCheckers.LoadOrStore(name, healthChecker); loaded {
+	if _, ok := v.healthCheckers.LoadOrStore(name, healthChecker); ok {
 		return fmt.Errorf("duplicate health checker for %s", name)
 	}
 
@@ -68,7 +68,7 @@ func newVMReadinessHealthCheck(isReady func() bool) *vmReadinessHealthCheck {
 	return &vmReadinessHealthCheck{isReady: isReady}
 }
 
-func (v *vmReadinessHealthCheck) HealthCheck(_ context.Context) (interface{}, error) {
+func (v *vmReadinessHealthCheck) HealthCheck(_ context.Context) (any, error) {
 	ready := v.isReady()
 	if !ready {
 		return ready, errVMNotReady
@@ -100,7 +100,7 @@ func (u *unresolvedBlockHealthCheck[I]) Resolve(blkID ids.ID) {
 	u.unresolvedBlocks.Remove(blkID)
 }
 
-func (u *unresolvedBlockHealthCheck[I]) HealthCheck(_ context.Context) (interface{}, error) {
+func (u *unresolvedBlockHealthCheck[I]) HealthCheck(_ context.Context) (any, error) {
 	u.lock.RLock()
 	unresolvedBlocks := u.unresolvedBlocks.Len()
 	u.lock.RUnlock()

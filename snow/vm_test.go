@@ -897,7 +897,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	// Check health - should be unhealthy due to unresolved blocks
 	details, err = ce.vm.HealthCheck(ctx)
 	ce.require.ErrorIs(err, errUnresolvedBlocks)
-	ce.require.Equal(map[string]interface{}{
+	ce.require.Equal(map[string]any{
 		vmReadinessHealthChecker:      true,
 		unresolvedBlocksHealthChecker: 2,
 	}, details)
@@ -932,7 +932,7 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	details, err = ce.vm.HealthCheck(ctx)
 	ce.require.NoError(err)
-	ce.require.Equal(map[string]interface{}{
+	ce.require.Equal(map[string]any{
 		vmReadinessHealthChecker:      true,
 		unresolvedBlocksHealthChecker: 0,
 	}, details)
