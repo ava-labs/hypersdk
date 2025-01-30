@@ -17,8 +17,6 @@ import (
 
 var isSyncing = []byte("is_syncing")
 
-var errStateSyncIncomplete = errors.New("state syncing")
-
 type ChainClient[T StateSummaryBlock] interface {
 	LastAcceptedBlock(ctx context.Context) T
 	ParseBlock(ctx context.Context, bytes []byte) (T, error)
