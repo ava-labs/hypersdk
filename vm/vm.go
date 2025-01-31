@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -654,10 +655,10 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBl
 	return vm.chain.ParseBlock(ctx, source)
 }
 
-func (vm *VM) BuildBlock(ctx context.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
+func (vm *VM) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
 	defer vm.checkActivity(ctx)
 
-	return vm.chain.BuildBlock(ctx, parent)
+	return vm.chain.BuildBlock(ctx, pChainCtx, parent)
 }
 
 func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {

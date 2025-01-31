@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -19,6 +20,8 @@ type StatelessBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
+
+	BlockContext *block.Context `json:"blockContext"`
 
 	Txs []*Transaction `json:"txs"`
 
@@ -42,13 +45,15 @@ func NewStatelessBlock(
 	height uint64,
 	txs []*Transaction,
 	stateRoot ids.ID,
+	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	block := &StatelessBlock{
-		Prnt:      parentID,
-		Tmstmp:    timestamp,
-		Hght:      height,
-		Txs:       txs,
-		StateRoot: stateRoot,
+		Prnt:         parentID,
+		Tmstmp:       timestamp,
+		Hght:         height,
+		Txs:          txs,
+		StateRoot:    stateRoot,
+		BlockContext: blockContext,
 	}
 	blkBytes, err := block.Marshal()
 	if err != nil {
@@ -66,6 +71,9 @@ func (b *StatelessBlock) GetStateRoot() ids.ID { return b.StateRoot }
 func (b *StatelessBlock) GetHeight() uint64    { return b.Hght }
 func (b *StatelessBlock) GetTimestamp() int64  { return b.Tmstmp }
 func (b *StatelessBlock) GetParent() ids.ID    { return b.Prnt }
+func (b *StatelessBlock) GetContext() *block.Context {
+	return b.BlockContext
+}
 
 func (b *StatelessBlock) String() string {
 	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Hght, b.Prnt, len(b.Txs), len(b.bytes))
@@ -82,6 +90,12 @@ func (b *StatelessBlock) Marshal() ([]byte, error) {
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
+	if b.BlockContext == nil {
+		p.PackBool(false)
+	} else {
+		p.PackBool(true)
+		p.PackUint64(b.BlockContext.PChainHeight)
+	}
 
 	p.PackInt(uint32(len(b.Txs)))
 	for _, tx := range b.Txs {
@@ -107,6 +121,10 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
+	blockCtxExists := p.UnpackBool()
+	if blockCtxExists {
+		b.BlockContext = &block.Context{PChainHeight: p.UnpackUint64(false)}
+	}
 
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
@@ -146,6 +164,7 @@ func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
 		0,
 		nil,
 		root, // StateRoot should include all allocates made when loading the genesis file
+		nil,
 	)
 	if err != nil {
 		return nil, err

@@ -359,6 +359,7 @@ func (n *TestNetwork) ConfirmInvalidTx(ctx context.Context, invalidTx *chain.Tra
 		parentBlk.Hght+1,
 		[]*chain.Transaction{invalidTx},
 		parentRoot,
+		nil,
 	)
 	n.require.NoError(err)
 
