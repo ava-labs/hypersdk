@@ -32,6 +32,7 @@ import (
 	"github.com/ava-labs/hypersdk/extension/externalsubscriber"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
@@ -209,7 +210,7 @@ func TestSubmitTx(t *testing.T) {
 			targetErr: nil,
 		},
 		{
-			name: chain.ErrMisalignedTime.Error(),
+			name: validitywindow.ErrMisalignedTime.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
 					&chain.Base{
@@ -223,10 +224,10 @@ func TestSubmitTx(t *testing.T) {
 				r.NoError(err)
 				return tx
 			},
-			targetErr: chain.ErrMisalignedTime,
+			targetErr: validitywindow.ErrMisalignedTime,
 		},
 		{
-			name: chain.ErrTimestampTooLate.Error(),
+			name: validitywindow.ErrTimestampExpired.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
 					&chain.Base{
@@ -240,10 +241,10 @@ func TestSubmitTx(t *testing.T) {
 				r.NoError(err)
 				return tx
 			},
-			targetErr: chain.ErrTimestampTooLate,
+			targetErr: validitywindow.ErrTimestampExpired,
 		},
 		{
-			name: chain.ErrTimestampTooEarly.Error(),
+			name: validitywindow.ErrFutureTimestamp.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
 					&chain.Base{
@@ -257,7 +258,7 @@ func TestSubmitTx(t *testing.T) {
 				r.NoError(err)
 				return tx
 			},
-			targetErr: chain.ErrTimestampTooEarly,
+			targetErr: validitywindow.ErrFutureTimestamp,
 		},
 		{
 			name: "invalid auth",
