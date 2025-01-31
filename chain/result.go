@@ -90,7 +90,7 @@ func (r *Result) marshalInto(p *codec.Packer) error {
 	}
 	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
-	return nil
+	return p.Err()
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {

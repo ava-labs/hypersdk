@@ -14,7 +14,7 @@ func CreateBatchMessage(msgs [][]byte) []byte {
 	return batchMessage.MarshalCanoto()
 }
 
-func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
+func ParseBatchMessage(msg []byte) ([][]byte, error) {
 	batchMessage := BatchMessage{}
 	if err := batchMessage.UnmarshalCanoto(msg); err != nil {
 		return nil, err

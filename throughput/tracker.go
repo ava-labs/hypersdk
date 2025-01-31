@@ -31,8 +31,10 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	t.l.Lock()
 	defer t.l.Unlock()
 
+	t.totalTxs++
 	if result == nil {
 		utils.Outf("{{orange}}transaction %s expired\n", txID)
+		return
 	}
 
 	if result.Success {
@@ -40,7 +42,6 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	} else {
 		utils.Outf("{{orange}}on-chain tx failure %s:{{/}} %s %t\n", txID, string(result.Error), result.Success)
 	}
-	t.totalTxs++
 }
 
 func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {

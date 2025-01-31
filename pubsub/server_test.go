@@ -91,7 +91,7 @@ func TestServerPublish(t *testing.T) {
 	// Receive the message from the publish
 	_, batchMsg, err := webCon.ReadMessage()
 	require.NoError(err, "Error receiveing message.")
-	msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+	msgs, err := ParseBatchMessage(batchMsg)
 	require.NoError(err, "Error parsing message.")
 	require.Len(msgs, 1)
 	// Verify that the received message is the expected dummy message
@@ -287,7 +287,7 @@ func TestServerPublishSpecific(t *testing.T) {
 		// Receive the message from the publish
 		_, batchMsg, err := webCon1.ReadMessage()
 		require.NoError(err, "Error reading to connection.")
-		msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+		msgs, err := ParseBatchMessage(batchMsg)
 		require.NoError(err, "Error parsing message.")
 		require.Len(msgs, 1)
 		// Verify that the received message is the expected dummy message
