@@ -298,6 +298,103 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	}
 }
 
+func TestVerifyTimestamp(t *testing.T) {
+	tests := []struct {
+		name               string
+		containerTimestamp int64
+		executionTimestamp int64
+		divisor            int64
+		validityWindow     int64
+		expectedErr        error
+	}{
+		{
+			name:               "container ts = execution ts",
+			containerTimestamp: 10,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+		},
+		{
+			name:               "container expired",
+			containerTimestamp: 9,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+			expectedErr:        ErrTimestampExpired,
+		},
+		{
+			name:               "container ts inside validity window",
+			containerTimestamp: 11,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+		},
+		{
+			name:               "container ts past validity window",
+			containerTimestamp: 21,
+			executionTimestamp: 10,
+			divisor:            1,
+			validityWindow:     10,
+			expectedErr:        ErrFutureTimestamp,
+		},
+		{
+			name:               "container ts is not multiple of divisor",
+			containerTimestamp: 11,
+			executionTimestamp: 10,
+			divisor:            2,
+			validityWindow:     10,
+			expectedErr:        ErrMisalignedTime,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := require.New(t)
+			err := VerifyTimestamp(test.containerTimestamp, test.executionTimestamp, test.divisor, test.validityWindow)
+			r.ErrorIs(err, test.expectedErr)
+		})
+	}
+}
+
+// TestValidityWindowBoundaryLifespan tests that a container included at the validity window boundary transitions
+// seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
+func TestValidityWindowBoundaryLifespan(t *testing.T) {
+	r := require.New(t)
+
+	chainIndex := &testChainIndex{}
+	validityWindowDuration := int64(10)
+	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+		return validityWindowDuration
+	})
+
+	// Create accepted genesis block
+	genesisBlk := newExecutionBlock(0, 0, []int64{1})
+	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+	validityWindow.Accept(genesisBlk)
+
+	blk1 := newExecutionBlock(1, 0, []int64{validityWindowDuration})
+	blk2 := newExecutionBlock(2, validityWindowDuration, []int64{validityWindowDuration})
+
+	// Verify a timestamp at the validity window boundary
+	r.NoError(VerifyTimestamp(validityWindowDuration, 0, 1, validityWindowDuration))
+
+	// Including the first block should pass
+	r.NoError(validityWindow.VerifyExpiryReplayProtection(context.Background(), blk1))
+	chainIndex.set(blk1.GetID(), blk1)
+
+	// Verify a timestamp at the validity window boundary fails for both a processing
+	// and accepted parent.
+	// Processing:
+	r.ErrorIs(validityWindow.VerifyExpiryReplayProtection(context.Background(), blk2), ErrDuplicateContainer)
+
+	// Accepted:
+	validityWindow.Accept(blk1)
+	r.ErrorIs(validityWindow.VerifyExpiryReplayProtection(context.Background(), blk2), ErrDuplicateContainer)
+
+	// Verify that after passing the validity window, the timestamp is no longer valid
+	r.ErrorIs(VerifyTimestamp(validityWindowDuration, validityWindowDuration+1, 1, validityWindowDuration), ErrTimestampExpired)
+}
+
 type testChainIndex struct {
 	blocks map[ids.ID]ExecutionBlock[container]
 }

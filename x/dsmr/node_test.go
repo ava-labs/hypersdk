@@ -41,7 +41,12 @@ var (
 	_ Tx                    = (*dsmrtest.Tx)(nil)
 	_ Verifier[dsmrtest.Tx] = (*failVerifier)(nil)
 
-	chainID = ids.Empty
+	chainID         = ids.Empty
+	testRuleFactory = ruleFactory{
+		rules: rules{
+			validityWindow: int64(testingDefaultValidityWindowDuration),
+		},
+	}
 
 	errTestingInvalidValidityWindow = errors.New("time validity window testing error")
 )
@@ -469,7 +474,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				testingDefaultValidityWindowDuration,
+				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              ids.GenerateTestNodeID(),
@@ -490,7 +495,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				testingDefaultValidityWindowDuration,
+				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
@@ -511,12 +516,12 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				testingDefaultValidityWindowDuration,
+				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
 			producerNode:              nodeID,
 			nodeLastAcceptedTimestamp: 1,
-			chunkExpiry:               1 + int64(testingDefaultValidityWindowDuration),
+			chunkExpiry:               2 + int64(testingDefaultValidityWindowDuration),
 		},
 		{
 			name:         "valid chunk",
@@ -533,7 +538,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 				1,
 				1,
-				testingDefaultValidityWindowDuration,
+				testRuleFactory,
 			),
 			nodeLastAcceptedTimestamp: 1,
 			chunkExpiry:               123,
@@ -603,7 +608,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				1,
 				1,
 				&validitywindowtest.MockTimeValidityWindow[*emapChunkCertificate]{},
-				testingDefaultValidityWindowDuration,
+				testRuleFactory,
 			)
 			r.NoError(err)
 
@@ -1406,7 +1411,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			pChain{validators: validators},
 			1,
 			1,
-			testingDefaultValidityWindowDuration,
+			testRuleFactory,
 		)
 		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
 		require.NoError(t, err)
@@ -1483,7 +1488,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			1,
 			1,
 			&validitywindowtest.MockTimeValidityWindow[*emapChunkCertificate]{},
-			testingDefaultValidityWindowDuration,
+			testRuleFactory,
 		)
 		require.NoError(t, err)
 
@@ -1520,3 +1525,15 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 
 	return result
 }
+
+type ruleFactory struct {
+	rules rules
+}
+
+func (r ruleFactory) GetRules(int64) Rules { return r.rules }
+
+type rules struct {
+	validityWindow int64
+}
+
+func (r rules) GetValidityWindow() int64 { return r.validityWindow }

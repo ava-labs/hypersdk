@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/fees"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -370,10 +371,10 @@ func TestPreExecute(t *testing.T) {
 					},
 				},
 			},
-			err: chain.ErrMisalignedTime,
+			err: validitywindow.ErrMisalignedTime,
 		},
 		{
-			name: "base transaction timestamp too early (61ms > 60ms)",
+			name: "base transaction timestamp too far in future (61ms > 60ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{
@@ -381,10 +382,10 @@ func TestPreExecute(t *testing.T) {
 					},
 				},
 			},
-			err: chain.ErrTimestampTooEarly,
+			err: validitywindow.ErrFutureTimestamp,
 		},
 		{
-			name: "base transaction timestamp too late (1ms < 2ms)",
+			name: "base transaction timestamp expired (1ms < 2ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{
@@ -393,7 +394,7 @@ func TestPreExecute(t *testing.T) {
 				},
 			},
 			timestamp: 2 * consts.MillisecondsPerSecond,
-			err:       chain.ErrTimestampTooLate,
+			err:       validitywindow.ErrTimestampExpired,
 		},
 		{
 			name: "base transaction invalid chain id",
