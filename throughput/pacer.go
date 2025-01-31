@@ -25,13 +25,13 @@ func (p *pacer) Run(ctx context.Context, max int) {
 
 	// Start a goroutine to process transaction results
 	for range p.inflight {
-		_, wsErr, result, err := p.ws.ListenTx(ctx)
+		txID, result, err := p.ws.ListenTx(ctx)
 		if err != nil {
-			p.done <- fmt.Errorf("error listening to tx: %w", err)
+			p.done <- fmt.Errorf("error listening to tx %s: %w", txID, err)
 			return
 		}
-		if wsErr != nil {
-			p.done <- fmt.Errorf("websocket error: %w", wsErr)
+		if result == nil {
+			p.done <- fmt.Errorf("tx %s expired", txID)
 			return
 		}
 		if !result.Success {
