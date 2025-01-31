@@ -142,7 +142,7 @@ func TestPreExecutor(t *testing.T) {
 				Auth: &mockAuth{},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			err:            chain.ErrTimestampTooLate,
+			err:            validitywindow.ErrTimestampExpired,
 		},
 	}
 

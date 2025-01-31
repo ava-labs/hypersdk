@@ -63,6 +63,14 @@ type Validator struct {
 	PublicKey *bls.PublicKey
 }
 
+type Rules interface {
+	GetValidityWindow() int64
+}
+
+type RuleFactory interface {
+	GetRules(t int64) Rules
+}
+
 func New[T Tx](
 	log logging.Logger,
 	nodeID ids.NodeID,
@@ -78,7 +86,7 @@ func New[T Tx](
 	chunkCertificateGossipClient *p2p.Client,
 	lastAccepted Block,
 	timeValidityWindow TimeValidityWindow[*emapChunkCertificate],
-	validityWindowDuration time.Duration,
+	ruleFactory RuleFactory,
 ) (*Node[T], error) {
 	return &Node[T]{
 		ID:                            nodeID,
@@ -95,7 +103,7 @@ func New[T Tx](
 		storage:                       chunkStorage,
 		log:                           log,
 		validityWindow:                timeValidityWindow,
-		validityWindowDuration:        validityWindowDuration,
+		ruleFactory:                   ruleFactory,
 	}, nil
 }
 
@@ -118,6 +126,7 @@ type Node[T Tx] struct {
 	PublicKey                    *bls.PublicKey
 	Signer                       warp.Signer
 	LastAccepted                 Block
+	ruleFactory                  RuleFactory
 	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
 	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
 	chainState                   ChainState
@@ -128,7 +137,6 @@ type Node[T Tx] struct {
 	ChunkCertificateGossipHandler p2p.Handler
 	storage                       *ChunkStorage[T]
 	log                           logging.Logger
-	validityWindowDuration        time.Duration
 	validityWindow                TimeValidityWindow[*emapChunkCertificate]
 }
 
