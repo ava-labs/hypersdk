@@ -17,8 +17,6 @@ import (
 
 var isSyncing = []byte("is_syncing")
 
-var errStateSyncIncomplete = errors.New("state syncing")
-
 type ChainClient[T StateSummaryBlock] interface {
 	LastAcceptedBlock(ctx context.Context) T
 	ParseBlock(ctx context.Context, bytes []byte) (T, error)
@@ -230,15 +228,4 @@ func (c *Client[T]) PutDiskIsSyncing(v bool) error {
 		return c.db.Put(isSyncing, []byte{0x1})
 	}
 	return c.db.Put(isSyncing, []byte{0x0})
-}
-
-func (c *Client[T]) HealthCheck(_ context.Context) (interface{}, error) {
-	select {
-	case <-c.done:
-		c.log.Info("Invoking state sync health check", zap.Error(c.err))
-		return nil, c.err
-	default:
-		c.log.Info("Invoking state sync health check", zap.Error(errStateSyncIncomplete))
-		return nil, errStateSyncIncomplete
-	}
 }
