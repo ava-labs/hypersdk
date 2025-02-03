@@ -6,25 +6,27 @@ package bls
 import (
 	"errors"
 
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls/signer/localsigner"
+
+	blst "github.com/supranational/blst/bindings/go"
 )
 
-const PrivateKeyLen = bls.SecretKeyLen
+const PrivateKeyLen = blst.BLST_SCALAR_BYTES
 
 var errFailedPrivateKeyDeserialize = errors.New("couldn't deserialize secret key")
 
-type PrivateKey = bls.SecretKey
+type PrivateKey = localsigner.LocalSigner
 
 func GeneratePrivateKey() (*PrivateKey, error) {
-	return bls.NewSecretKey()
+	return localsigner.New()
 }
 
 func PrivateKeyToBytes(pk *PrivateKey) []byte {
-	return bls.SecretKeyToBytes(pk)
+	return pk.ToBytes()
 }
 
 func PrivateKeyFromBytes(pkBytes []byte) (*PrivateKey, error) {
-	pk, err := bls.SecretKeyFromBytes(pkBytes)
+	pk, err := localsigner.FromBytes(pkBytes)
 	if err != nil {
 		return nil, errFailedPrivateKeyDeserialize
 	}
@@ -32,9 +34,9 @@ func PrivateKeyFromBytes(pkBytes []byte) (*PrivateKey, error) {
 }
 
 func PublicFromPrivateKey(pk *PrivateKey) *PublicKey {
-	return bls.PublicFromSecretKey(pk)
+	return pk.PublicKey()
 }
 
 func Sign(msg []byte, pk *PrivateKey) *Signature {
-	return bls.Sign(pk, msg)
+	return pk.Sign(msg)
 }

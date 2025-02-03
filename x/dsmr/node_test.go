@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/proto/pb/sdk"
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls/signer/localsigner"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -441,9 +442,9 @@ func TestNode_AcceptedChunksAvailableOverGetChunk(t *testing.T) {
 // Node should be willing to sign valid chunks
 func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 	nodeID := ids.GenerateTestNodeID()
-	sk, err := bls.NewSecretKey()
+	sk, err := localsigner.New()
 	require.NoError(t, err)
-	pk := bls.PublicFromSecretKey(sk)
+	pk := sk.PublicKey()
 	tests := []struct {
 		name                      string
 		verifier                  Verifier[dsmrtest.Tx]
@@ -684,12 +685,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 				copy(signature.Signature[:], response.Signature)
 
-				r.NoError(signature.Verify(
+				vs, err := warp.GetCanonicalValidatorSetFromChainID(
 					context.Background(),
-					msg,
-					networkID,
 					pChain,
 					0,
+					msg.SourceChainID,
+				)
+				r.NoError(err)
+				r.NoError(signature.Verify(
+					msg,
+					networkID,
+					vs,
 					1,
 					1,
 				))
@@ -1118,7 +1124,7 @@ func TestAccept_RequestReferencedChunks(t *testing.T) {
 }
 
 func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.NodeID) set.Bits {
-	validators, _, err := warp.GetCanonicalValidatorSet(
+	validators, err := warp.GetCanonicalValidatorSetFromSubnetID(
 		context.Background(),
 		pChain,
 		0,
@@ -1128,7 +1134,7 @@ func getSignerBitSet(t *testing.T, pChain snowValidators.State, nodeIDs ...ids.N
 
 	signers := set.Of(nodeIDs...)
 	signerBitSet := set.NewBits()
-	for i, v := range validators {
+	for i, v := range validators.Validators {
 		for _, nodeID := range v.NodeIDs {
 			if signers.Contains(nodeID) {
 				signerBitSet.Add(i)
@@ -1380,7 +1386,7 @@ type testNode struct {
 	GetChunkHandler               p2p.Handler
 	ChunkSignatureRequestHandler  p2p.Handler
 	ChunkCertificateGossipHandler p2p.Handler
-	Sk                            *bls.SecretKey
+	Sk                            *localsigner.LocalSigner
 }
 
 func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
@@ -1390,12 +1396,12 @@ func newTestNode(t *testing.T) *Node[dsmrtest.Tx] {
 func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	nodes := make([]testNode, 0, n)
 	validators := make([]Validator, n)
-	secretKeys := make([]*bls.SecretKey, n)
+	secretKeys := make([]*localsigner.LocalSigner, n)
 	var err error
 	for i := 0; i < n; i++ {
-		secretKeys[i], err = bls.NewSecretKey()
+		secretKeys[i], err = localsigner.New()
 		require.NoError(t, err)
-		pk := bls.PublicFromSecretKey(secretKeys[i])
+		pk := secretKeys[i].PublicKey()
 		validators[i] = Validator{
 			NodeID:    ids.GenerateTestNodeID(),
 			Weight:    1,

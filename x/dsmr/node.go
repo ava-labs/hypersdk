@@ -206,7 +206,7 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to initialize warp message: %w", err)
 	}
 
-	canonicalValidators, _, err := warp.GetCanonicalValidatorSet(
+	canonicalValidators, err := warp.GetCanonicalValidatorSetFromSubnetID(
 		ctx,
 		pChain{validators: n.validators},
 		0,
@@ -220,7 +220,7 @@ func (n *Node[T]) BuildChunk(
 		ctx,
 		msg,
 		chunk.bytes,
-		canonicalValidators,
+		canonicalValidators.Validators,
 		n.quorumNum,
 		n.quorumDen,
 	)
@@ -452,4 +452,11 @@ func (p pChain) GetValidatorSet(context.Context, uint64, ids.ID) (map[ids.NodeID
 	}
 
 	return result, nil
+}
+
+func (pChain) GetCurrentValidatorSet(
+	context.Context,
+	ids.ID,
+) (map[ids.ID]*snowValidators.GetCurrentValidatorOutput, uint64, error) {
+	return nil, 0, errors.New("not implemented")
 }
