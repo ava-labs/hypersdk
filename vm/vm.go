@@ -60,6 +60,7 @@ const (
 	changeProofHandlerID = 0x0
 	rangeProofHandlerID  = 0x1
 	txGossipHandlerID    = 0x2
+	blockFetchHandleID   = 0x3
 )
 
 var ErrNotAdded = errors.New("not added")
