@@ -38,6 +38,13 @@ type TypedClient[T any, U any, V any] struct {
 	marshaler Marshaler[T, U, V]
 }
 
+func NewTypedClient[T any, U any, V any](client *p2p.Client, marshaler Marshaler[T, U, V]) *TypedClient[T, U, V] {
+	return &TypedClient[T, U, V]{
+		client:    client,
+		marshaler: marshaler,
+	}
+}
+
 func (t *TypedClient[T, U, _]) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
