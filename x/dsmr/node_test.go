@@ -1511,7 +1511,7 @@ type testChainState struct {
 	quorumDen  uint64
 }
 
-func newTestChainState(validatorsSlice []Validator, quorumNum, quorumDen uint64) *testChainState {
+func newTestChainState(validatorsSlice []Validator, quorumNum, quorumDen uint64) *testChainState { //nolint:unparam
 	chainState := &testChainState{
 		validators: validatorsSlice,
 		quorumNum:  quorumNum,
