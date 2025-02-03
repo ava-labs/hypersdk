@@ -152,7 +152,8 @@ func (n *Node[T]) BuildChunk(
 		return ErrEmptyChunk
 	}
 
-	networkID, chainID := n.chainState.GetNetworkID(), n.chainState.GetChainID()
+	networkID := n.chainState.GetNetworkID()
+	chainID := n.chainState.GetChainID()
 	chunk, err := signChunk[T](
 		UnsignedChunk[T]{
 			Producer:    n.ID,

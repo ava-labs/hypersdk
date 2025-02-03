@@ -1563,16 +1563,12 @@ func (t *testChainState) getValidatorSet() map[ids.NodeID]*validators.GetValidat
 }
 
 func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.CanonicalValidatorSet, error) {
-	canonicalValidators, err := warp.GetCanonicalValidatorSetFromSubnetID(
+	return warp.GetCanonicalValidatorSetFromSubnetID(
 		ctx,
 		t,
 		0,
 		ids.Empty,
 	)
-	if err != nil {
-		return warp.CanonicalValidatorSet{}, err
-	}
-	return canonicalValidators, err
 }
 
 func (t *testChainState) IsNodeValidator(_ context.Context, nodeID ids.NodeID, _ uint64) (bool, error) {
