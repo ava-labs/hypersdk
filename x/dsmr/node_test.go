@@ -678,12 +678,12 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 
 				copy(signature.Signature[:], response.Signature)
 
-				validators, err := chainState.GetCanonicalValidatorSet(context.Background())
+				canonicalValidatorSet, err := chainState.GetCanonicalValidatorSet(context.Background())
 				r.NoError(err)
 				r.NoError(signature.Verify(
 					msg,
 					networkID,
-					validators,
+					canonicalValidatorSet,
 					chainState.GetQuorumNum(),
 					chainState.GetQuorumDen(),
 				))

@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk
 go 1.22.8
 
 require (
-	github.com/ava-labs/avalanchego v1.12.3-warp-verify5.0.20250129181352-a1aff06d0fef
+	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250203152522-13c08681c17d
 	github.com/bytecodealliance/wasmtime-go/v25 v25.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.14.2-verify-interface5 // indirect
+	github.com/ava-labs/coreth v0.14.2-verify-interface6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect

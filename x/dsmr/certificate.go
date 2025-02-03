@@ -83,14 +83,14 @@ func (c *ChunkCertificate) Verify(
 	if err != nil {
 		return fmt.Errorf("failed to initialize unsigned warp message: %w", err)
 	}
-	validators, err := chainState.GetCanonicalValidatorSet(ctx)
+	canonicalValidatorSet, err := chainState.GetCanonicalValidatorSet(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve signature params: %w", err)
+		return fmt.Errorf("failed to retrieve validators set: %w", err)
 	}
 	if err := c.Signature.Verify(
 		msg,
 		networkID,
-		validators,
+		canonicalValidatorSet,
 		chainState.GetQuorumNum(),
 		chainState.GetQuorumDen(),
 	); err != nil {
