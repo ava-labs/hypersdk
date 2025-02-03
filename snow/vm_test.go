@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -52,6 +53,8 @@ type TestBlock struct {
 	// This should make it easy to construct a block that should fail execution.
 	Invalid bool `json:"invalid"`
 
+	BlockContext *block.Context `json:"pChainHeight"`
+
 	outputPopulated   bool
 	acceptedPopulated bool
 }
@@ -63,6 +66,12 @@ func NewTestBlockFromParent(parent *TestBlock) *TestBlock {
 		Hght:       parent.GetHeight() + 1,
 		RandomData: utils.RandomBytes(32),
 	}
+}
+
+func NewTestBlockFromParentWithContext(parent *TestBlock, ctx *block.Context) *TestBlock {
+	blk := NewTestBlockFromParent(parent)
+	blk.BlockContext = ctx
+	return blk
 }
 
 func (t *TestBlock) GetID() ids.ID {
@@ -87,6 +96,10 @@ func (t *TestBlock) GetBytes() []byte {
 
 func (t *TestBlock) GetHeight() uint64 {
 	return t.Hght
+}
+
+func (t *TestBlock) GetContext() *block.Context {
+	return t.BlockContext
 }
 
 func (t *TestBlock) String() string {
@@ -136,9 +149,9 @@ func (t *TestChain) Initialize(
 
 func (*TestChain) SetConsensusIndex(_ *ConsensusIndex[*TestBlock, *TestBlock, *TestBlock]) {}
 
-func (t *TestChain) BuildBlock(_ context.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
+func (t *TestChain) BuildBlock(_ context.Context, blkContext *block.Context, parent *TestBlock) (*TestBlock, *TestBlock, error) {
 	t.require.True(parent.outputPopulated)
-	builtBlock := NewTestBlockFromParent(parent)
+	builtBlock := NewTestBlockFromParentWithContext(parent, blkContext)
 	builtBlock.outputPopulated = true
 	return builtBlock, builtBlock, nil
 }
@@ -738,6 +751,94 @@ func TestConflictingChains(t *testing.T) {
 	ce.require.Empty(ce.verified)
 }
 
+func TestBuildBlockWithContext(t *testing.T) {
+	tests := []struct {
+		name          string
+		buildContext  *block.Context
+		verifyContext *block.Context
+		expectedErr   error
+	}{
+		{
+			name: "build = nil, verify = nil",
+		},
+		{
+			name:          "build = 1, verify = nil",
+			verifyContext: &block.Context{PChainHeight: 1},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:          "build = 1, verify = 2",
+			buildContext:  &block.Context{PChainHeight: 1},
+			verifyContext: &block.Context{PChainHeight: 2},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:          "build = 1, verify = 1",
+			buildContext:  &block.Context{PChainHeight: 1},
+			verifyContext: &block.Context{PChainHeight: 1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
+
+			blk, err := ce.vm.VM.BuildBlockWithContext(ctx, test.buildContext)
+			ce.require.NoError(err)
+			ce.require.Equal(test.buildContext, blk.Input.GetContext())
+
+			ce.require.ErrorIs(blk.VerifyWithContext(ctx, test.verifyContext), test.expectedErr)
+		})
+	}
+}
+
+func TestVerifyBlockWithContext(t *testing.T) {
+	tests := []struct {
+		name            string
+		suppliedContext *block.Context
+		verifyContext   *block.Context
+		expectedErr     error
+	}{
+		{
+			name: "build = nil, verify = nil",
+		},
+		{
+			name:          "build = 1, verify = nil",
+			verifyContext: &block.Context{PChainHeight: 1},
+			expectedErr:   errMismatchedPChainContext,
+		},
+		{
+			name:            "build = 1, verify = 2",
+			suppliedContext: &block.Context{PChainHeight: 1},
+			verifyContext:   &block.Context{PChainHeight: 2},
+			expectedErr:     errMismatchedPChainContext,
+		},
+		{
+			name:            "build = 1, verify = 1",
+			suppliedContext: &block.Context{PChainHeight: 1},
+			verifyContext:   &block.Context{PChainHeight: 1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			ce := NewTestConsensusEngine(t, &TestBlock{outputPopulated: true, acceptedPopulated: true})
+
+			testBlk := NewTestBlockFromParentWithContext(ce.lastAccepted.Input, test.suppliedContext)
+
+			blk, err := ce.vm.VM.ParseBlock(ctx, testBlk.GetBytes())
+			ce.require.NoError(err)
+			ce.require.Equal(test.suppliedContext, blk.Input.GetContext())
+
+			ce.require.ErrorIs(blk.VerifyWithContext(ctx, test.verifyContext), test.expectedErr)
+		})
+	}
+}
+
 func TestDynamicStateSyncTransition_NoPending(t *testing.T) {
 	ctx := context.Background()
 
@@ -870,6 +971,13 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce := NewTestConsensusEngine(t, &TestBlock{})
 	ce.StartStateSync(ctx, ce.lastAccepted.Input)
 
+	// Check health - should be unhealthy during state sync
+	details, err := ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, errVMNotReady)
+	ce.require.Equal(map[string]interface{}{
+		vmReadinessHealthChecker: false,
+	}, details)
+
 	parent := ce.lastAccepted
 	invalidTestBlock1 := NewTestBlockFromParent(parent.Input)
 	invalidTestBlock1.Invalid = true
@@ -886,6 +994,14 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 	ce.verifyValidBlock(ctx, parsedBlk2)
 
 	ce.FinishStateSync(ctx, ce.lastAccepted)
+
+	// Check health - should be unhealthy due to unresolved blocks
+	details, err = ce.vm.HealthCheck(ctx)
+	ce.require.ErrorIs(err, errUnresolvedBlocks)
+	ce.require.Equal(map[string]any{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 2,
+	}, details)
 
 	// Construct a new child of the invalid block at depth 1 marked as processing
 	invalidatedChildTestBlock1 := NewTestBlockFromParent(invalidTestBlock1)
@@ -904,6 +1020,23 @@ func TestDynamicStateSyncTransition_PendingTree_VerifyBlockWithInvalidAncestor(t
 
 	invalidatedChildBlk2 := invalidatedChildBlock2.Verify(ctx)
 	ce.require.ErrorIs(invalidatedChildBlk2, errParentFailedVerification)
+
+	// Accept a new block to reject the invalid chain
+	// Note: consensus only rejects blocks after accepting a conflict, so we
+	// mimic this behavior here.
+	validBlk1 := ce.ParseAndVerifyNewBlock(ctx, ce.lastAccepted)
+	ce.SetPreference(ctx, validBlk1.ID())
+
+	acceptedTip, ok := ce.AcceptPreferredChain(ctx)
+	ce.require.True(ok)
+	ce.require.Equal(acceptedTip.ID(), validBlk1.ID())
+
+	details, err = ce.vm.HealthCheck(ctx)
+	ce.require.NoError(err)
+	ce.require.Equal(map[string]any{
+		vmReadinessHealthChecker:      true,
+		unresolvedBlocksHealthChecker: 0,
+	}, details)
 }
 
 func TestDynamicStateSync_FinishOnAcceptedAncestor(t *testing.T) {

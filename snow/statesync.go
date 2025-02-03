@@ -9,8 +9,12 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/event"
 )
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
@@ -95,22 +99,39 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 	// Verify each block in order. An error here is not fatal because we may have vacuously verified blocks.
 	// Therefore, if a block's parent has not already been verified, it invalidates all subsequent children
 	// and we can safely drop the error here.
+	invalidBlkIDs := set.NewSet[ids.ID](0)
 	for _, blk := range processingBlocks {
 		parent, err := v.GetBlock(ctx, blk.Parent())
 		if err != nil {
 			return fmt.Errorf("failed to fetch parent block %s while verifying processing block %s after state sync: %w", blk.Parent(), blk, err)
 		}
+		// the parent failed verification and this block is transitively invalid,
+		// we are marking this block as unresolved
 		if !parent.verified {
 			v.log.Warn("Parent block not verified, skipping verification of processing block",
 				zap.Stringer("parent", parent),
 				zap.Stringer("block", blk),
 			)
+			invalidBlkIDs.Add(blk.ID())
 			continue
 		}
 		if err := blk.verify(ctx, parent.Output); err != nil {
+			invalidBlkIDs.Add(blk.ID())
 			v.log.Warn("Failed to verify processing block after state sync", zap.Stringer("block", blk), zap.Error(err))
 		}
 	}
+
+	unresolvedBlkCheck := newUnresolvedBlocksHealthCheck[I](invalidBlkIDs)
+	v.AddPreRejectedSub(event.SubscriptionFunc[I]{
+		NotifyF: func(_ context.Context, input I) error {
+			unresolvedBlkCheck.Resolve(input.GetID())
+			return nil
+		},
+	})
+	if err := v.RegisterHealthChecker(unresolvedBlocksHealthChecker, unresolvedBlkCheck); err != nil {
+		return err
+	}
+
 	return nil
 }
 

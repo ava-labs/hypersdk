@@ -137,7 +137,7 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	}
 	c.metrics.deletedBlocks.Inc()
 
-	if expiryHeight%c.compactionOffset == 0 {
+	if expiryHeight%c.config.BlockCompactionFrequency == c.compactionOffset {
 		go func() {
 			start := time.Now()
 			if err := c.db.Compact([]byte{blockPrefix}, prefixBlockKey(expiryHeight)); err != nil {
