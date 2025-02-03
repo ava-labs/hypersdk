@@ -155,8 +155,6 @@ jobs:
         run: scripts/run.sh
         env:
           MODE: 'test'
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
       - name: Upload tmpnet network dir
         uses: ava-labs/avalanchego/.github/actions/upload-tmpnet-artifact@v1-actions
         if: always()

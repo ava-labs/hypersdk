@@ -328,12 +328,6 @@ func (n *Node[T]) Verify(ctx context.Context, parent Block, block Block) error {
 		return err
 	}
 
-	/*validators, _ := warp.GetCanonicalValidatorSetFromSubnetID(
-	ctx,
-	pChain{validators: n.validators},
-	0,
-	ids.Empty)*/
-
 	for _, chunkCert := range block.ChunkCerts {
 		if err := chunkCert.Verify(
 			ctx,
