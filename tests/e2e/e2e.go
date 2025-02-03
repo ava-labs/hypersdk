@@ -207,6 +207,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
 			require.NoError(err)
+
+			uris[len(uris)-1] = syncNodeURI
 		})
 
 		ginkgo.By("Accept a transaction after resuming", func() {
