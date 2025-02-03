@@ -33,7 +33,7 @@ type BlockFetcherClient[T Block] struct {
 	client      *dsmr.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
 	blockParser BlockParser[T]
 	nodeSampler p2p.NodeSampler
-	errChan     chan error // Channel to receive async errors from response handler
+	errChan     chan error
 	parentID    ids.ID
 }
 
