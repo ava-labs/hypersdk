@@ -81,7 +81,7 @@ type mockNodeSampler struct {
 }
 
 func (m *mockNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 	r.Shuffle(len(m.nodes), func(i, j int) {
 		m.nodes[i], m.nodes[j] = m.nodes[j], m.nodes[i]
 	})
@@ -154,7 +154,7 @@ func TestBlockFetcherClient_Success(t *testing.T) {
 	}
 
 	// The handler returns the “serialized” blocks.
-	var responseData [][]byte
+	responseData := make([][]byte, len(blockChain))
 	for _, blk := range blockChain {
 		responseData = append(responseData, blk.GetBytes())
 	}
@@ -211,7 +211,7 @@ func TestBlockFetcherClient_ParentVerificationFail(t *testing.T) {
 		},
 	}
 
-	var responseData [][]byte
+	responseData := make([][]byte, len(blockChain))
 	for _, blk := range blockChain {
 		responseData = append(responseData, blk.GetBytes())
 	}

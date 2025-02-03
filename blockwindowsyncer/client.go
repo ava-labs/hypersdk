@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
@@ -177,7 +178,7 @@ func (b *BlockFetcherClient[T]) sampleNodeID(ctx context.Context) (ids.NodeID, e
 			return ids.EmptyNodeID, ctx.Err()
 		default:
 			if nodes := b.nodeSampler.Sample(ctx, 1); len(nodes) > 0 {
-				randIndex := rand.Intn(len(nodes))
+				randIndex := rand.Intn(len(nodes)) //nolint:gosec
 				node := nodes[randIndex]
 				if node.String() == ids.EmptyNodeID.String() {
 					continue
