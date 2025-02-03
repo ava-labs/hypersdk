@@ -5,13 +5,10 @@ package e2e
 
 import (
 	"fmt"
-	"net"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/info"
-	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -163,6 +160,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 
 		ginkgo.By("Restart the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), tc.Log(), bootstrapNode))
+			bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
+			uris[len(uris)-1] = bootstrapNodeURI
 		})
 		ginkgo.By("Generate > StateSyncMinBlocks=128", func() {
 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, 128)
@@ -184,16 +183,6 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			txWorkload.GenerateTxs(tc.ContextWithTimeout(20*time.Second), require, 1, syncNodeURI, uris)
 		})
 		ginkgo.By("Pause the node", func() {
-			// TODO: remove the need to call SaveAPIPort from the test
-			// Tsachi : The following line was commented out, as it's no longer supported by avalanchego.
-			// require.NoError(syncNode.SaveAPIPort())
-			hostPort := strings.TrimPrefix(syncNode.URI, "http://")
-			if len(hostPort) != 0 {
-				_, port, err := net.SplitHostPort(hostPort)
-				require.NoError(err)
-				syncNode.Flags[config.HTTPPortKey] = port
-			}
-
 			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
 			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
@@ -212,6 +201,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			utils.Outf("Waiting for sync node to restart")
 			require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
 
+			syncNodeURI = formatURI(syncNode.URI, blockchainID)
 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
 
 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
