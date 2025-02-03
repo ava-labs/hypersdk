@@ -204,7 +204,7 @@ func (n *Node[T]) BuildChunk(
 
 	canonicalValidators, err := n.chainState.GetCanonicalValidatorSet(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get signature parameters: %w", err)
+		return fmt.Errorf("failed to get canonical validator set: %w", err)
 	}
 
 	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(

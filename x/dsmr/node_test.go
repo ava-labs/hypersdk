@@ -464,17 +464,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		{
 			name: "invalid chunk ( bad producer id )",
 			verifier: NewChunkVerifier[dsmrtest.Tx](
-				&testChainState{
-					validators: []Validator{
+				newTestChainState(
+					[]Validator{
 						{
 							NodeID:    nodeID,
 							Weight:    1,
 							PublicKey: pk,
 						},
 					},
-					quorumNum: 1,
-					quorumDen: 1,
-				},
+					1,
+					1,
+				),
 				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
@@ -485,17 +485,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		{
 			name: "invalid chunk ( chunk timestamp too old )",
 			verifier: NewChunkVerifier[dsmrtest.Tx](
-				&testChainState{
-					validators: []Validator{
+				newTestChainState(
+					[]Validator{
 						{
 							NodeID:    nodeID,
 							Weight:    1,
 							PublicKey: pk,
 						},
 					},
-					quorumNum: 1,
-					quorumDen: 1,
-				},
+					1,
+					1,
+				),
 				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
@@ -506,17 +506,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 		{
 			name: "invalid chunk ( chunk timestamp too into the future )",
 			verifier: NewChunkVerifier[dsmrtest.Tx](
-				&testChainState{
-					validators: []Validator{
+				newTestChainState(
+					[]Validator{
 						{
 							NodeID:    nodeID,
 							Weight:    1,
 							PublicKey: pk,
 						},
 					},
-					quorumNum: 1,
-					quorumDen: 1,
-				},
+					1,
+					1,
+				),
 				testRuleFactory,
 			),
 			wantErr:                   ErrInvalidChunk,
@@ -528,17 +528,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			name:         "valid chunk",
 			producerNode: nodeID,
 			verifier: NewChunkVerifier[dsmrtest.Tx](
-				&testChainState{
-					validators: []Validator{
+				newTestChainState(
+					[]Validator{
 						{
 							NodeID:    nodeID,
 							Weight:    1,
 							PublicKey: pk,
 						},
 					},
-					quorumNum: 1,
-					quorumDen: 1,
-				},
+					1,
+					1,
+				),
 				testRuleFactory,
 			),
 			nodeLastAcceptedTimestamp: 1,
@@ -562,11 +562,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 			chunkStorage, err := NewChunkStorage[dsmrtest.Tx](tt.verifier, memdb.New())
 			r.NoError(err)
 
-			chainState := &testChainState{
-				validators,
-				1,
-				1,
-			}
+			chainState := newTestChainState(validators, 1, 1)
 
 			node, err := New[dsmrtest.Tx](
 				logging.NoLog{},
@@ -660,17 +656,17 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 					return
 				}
 
-				chainState := &testChainState{
-					validators: []Validator{
+				chainState := newTestChainState(
+					[]Validator{
 						{
 							NodeID:    node.ID,
 							Weight:    1,
 							PublicKey: node.PublicKey,
 						},
 					},
-					quorumNum: 1,
-					quorumDen: 1,
-				}
+					1,
+					1,
+				)
 				signature := warp.BitSetSignature{
 					Signers:   getSignerBitSet(t, chainState, node.ID).Bytes(),
 					Signature: [bls.SignatureLen]byte{},
@@ -1393,11 +1389,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 	}
 
 	for i := 0; i < n; i++ {
-		chainState := &testChainState{
-			validators,
-			1,
-			1,
-		}
+		chainState := newTestChainState(validators, 1, 1)
 		signer := warp.NewSigner(secretKeys[i], networkID, chainID)
 		verifier := NewChunkVerifier[dsmrtest.Tx](
 			chainState,
@@ -1440,11 +1432,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			chunkSignaturePeers[validators[j].NodeID] = nodes[j].ChunkSignatureRequestHandler
 			chunkCertGossipPeers[validators[j].NodeID] = nodes[j].ChunkCertificateGossipHandler
 		}
-		chainState := &testChainState{
-			validators,
-			1,
-			1,
-		}
+		chainState := newTestChainState(validators, 1, 1)
 		node, err := New[dsmrtest.Tx](
 			logging.NoLog{},
 			validators[i].NodeID,
@@ -1517,9 +1505,29 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 }
 
 type testChainState struct {
+	validatorstest.State
 	validators []Validator
 	quorumNum  uint64
 	quorumDen  uint64
+}
+
+func newTestChainState(validatorsSlice []Validator, quorumNum, quorumDen uint64) *testChainState {
+	chainState := &testChainState{
+		validators: validatorsSlice,
+		quorumNum:  quorumNum,
+		quorumDen:  quorumDen,
+	}
+	chainState.GetSubnetIDF = func(context.Context, ids.ID) (ids.ID, error) {
+		return chainState.GetSubnetID(), nil
+	}
+	chainState.GetValidatorSetF = func(
+		context.Context,
+		uint64,
+		ids.ID,
+	) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+		return chainState.getValidatorSet(), nil
+	}
+	return chainState
 }
 
 func (*testChainState) GetNetworkID() uint32 {
@@ -1555,22 +1563,9 @@ func (t *testChainState) getValidatorSet() map[ids.NodeID]*validators.GetValidat
 }
 
 func (t *testChainState) GetCanonicalValidatorSet(ctx context.Context) (warp.CanonicalValidatorSet, error) {
-	pChain := &validatorstest.State{
-		GetSubnetIDF: func(context.Context, ids.ID) (ids.ID, error) {
-			return t.GetSubnetID(), nil
-		},
-		GetValidatorSetF: func(
-			context.Context,
-			uint64,
-			ids.ID,
-		) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
-			return t.getValidatorSet(), nil
-		},
-	}
-
 	canonicalValidators, err := warp.GetCanonicalValidatorSetFromSubnetID(
 		ctx,
-		pChain,
+		t,
 		0,
 		ids.Empty,
 	)
