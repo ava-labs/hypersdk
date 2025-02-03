@@ -458,5 +458,5 @@ func (pChain) GetCurrentValidatorSet(
 	context.Context,
 	ids.ID,
 ) (map[ids.ID]*snowValidators.GetCurrentValidatorOutput, uint64, error) {
-	return nil, 0, nil
+	return nil, 0, errors.New("not implemented")
 }
