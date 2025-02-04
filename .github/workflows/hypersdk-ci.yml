@@ -26,6 +26,19 @@ jobs:
       - shell: bash
         run: scripts/tests.clean.sh
 
+  build_image:
+    name: Image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install qemu (required for cross-platform builds)
+        run: |
+          sudo apt update
+          sudo apt -y install qemu-system qemu-user-static
+      - name: Build MorpheusVM Docker Image
+        shell: bash
+        run: bash -x scripts/build_docker_image.sh
+
   hypersdk-lint:
     runs-on: ubuntu-latest
     steps:

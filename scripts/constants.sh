@@ -7,6 +7,9 @@
 set -euo pipefail
 
 AVALANCHE_VERSION=${AVALANCHE_VERSION:-'13c08681c17d0790a94ed8c8ef8a3c88f8bb196d'}
+# Optionally specify a separate version of AvalancheGo for building docker images
+# Added to support the case there's no such docker image for the specified commit of AvalancheGo
+AVALANCHE_DOCKER_VERSION=${AVALANCHE_DOCKER_VERSION:-'v1.12.2'}
 
 # Set the PATHS
 GOPATH="$(go env GOPATH)"
@@ -39,14 +42,6 @@ fi
 DOCKERHUB_TAG=${VM_COMMIT::8}
 
 echo "Using branch: ${CURRENT_BRANCH}"
-
-# Static compilation
-STATIC_LD_FLAGS=''
-if [ "${STATIC_COMPILATION:-}" = 1 ]; then
-    export CC=musl-gcc
-    command -v $CC || (echo $CC must be available for static compilation && exit 1)
-    STATIC_LD_FLAGS=' -extldflags "-static" -linkmode external '
-fi
 
 # Set the CGO flags to use the portable version of BLST
 #
