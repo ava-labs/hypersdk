@@ -84,7 +84,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			msgs, err := pubsub.ParseBatchMessage(msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
@@ -177,17 +177,21 @@ func (c *WebSocketClient) RegisterRawTx(txBytes []byte) error {
 
 // ListenTx listens for responses from the streamingServer.
 //
+// Returns the txID and result of the transaction. A nil result
+// indicates the transaction was marked as expired after accepting
+// a block past the expiry time of the tx.
+//
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
+func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, *chain.Result, error) {
 	select {
 	case msg := <-c.pendingTxs:
-		return UnpackTxMessage(msg)
+		return unpackTxMessage(msg)
 	case <-c.readStopped:
-		return ids.Empty, nil, nil, c.err
+		return ids.Empty, nil, c.err
 	case <-ctx.Done():
-		return ids.Empty, nil, nil, ctx.Err()
+		return ids.Empty, nil, ctx.Err()
 	}
 }
 

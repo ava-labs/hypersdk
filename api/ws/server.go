@@ -5,7 +5,6 @@ package ws
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,11 +27,7 @@ const (
 	Namespace = "websocket"
 )
 
-var (
-	_ api.HandlerFactory[api.VM] = (*WebSocketServerFactory)(nil)
-
-	ErrExpired = errors.New("expired")
-)
+var _ api.HandlerFactory[api.VM] = (*WebSocketServerFactory)(nil)
 
 type Config struct {
 	Enabled            bool `json:"enabled"`
@@ -153,12 +148,13 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
-func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
+func (w *WebSocketServer) expireTx(txID ids.ID) error {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return nil
 	}
-	bytes, err := PackRemovedTxMessage(txID, err)
+	// nil result indicates the transaction expired
+	bytes, err := packTxMessage(txID, nil)
 	if err != nil {
 		return err
 	}
@@ -171,7 +167,7 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 func (w *WebSocketServer) setMinTx(t int64) error {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		if err := w.removeTx(id, ErrExpired); err != nil {
+		if err := w.expireTx(id); err != nil {
 			return err
 		}
 	}
@@ -203,7 +199,7 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 			continue
 		}
 		// Publish to tx listener
-		bytes, err := PackAcceptedTxMessage(txID, results[i])
+		bytes, err := packTxMessage(txID, results[i])
 		if err != nil {
 			return err
 		}

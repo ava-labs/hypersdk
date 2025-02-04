@@ -4,13 +4,9 @@
 package ws
 
 import (
-	"errors"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 const (
@@ -18,47 +14,52 @@ const (
 	TxMode    byte = 1
 )
 
-// Could be a better place for these methods
-// Packs an accepted block message
-func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	size := ids.IDLen + consts.BoolLen + result.Size()
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(false)
-	if err := result.Marshal(p); err != nil {
-		return nil, err
-	}
-	return p.Bytes(), p.Err()
+type txMessage struct {
+	TxID        ids.ID `canoto:"fixed bytes,1"`
+	ResultBytes []byte `canoto:"bytes,2"`
+
+	canotoData canotoData_txMessage
 }
 
-// Packs a removed block message
-func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
-	errString := err.Error()
-	size := ids.IDLen + consts.BoolLen + codec.StringLen(errString)
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(true)
-	p.PackString(errString)
-	return p.Bytes(), p.Err()
+// packTxMessage packs a txID and result. A nil result indicates the tx was
+// marked as expired.
+// Expiry is the only failure condition that triggers a notification sent to
+// the client.
+func packTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
+	var (
+		resultBytes []byte
+		err         error
+	)
+	if result != nil {
+		resultBytes, err = result.Marshal()
+		if err != nil {
+			return nil, err
+		}
+	}
+	txMessage := txMessage{
+		TxID:        txID,
+		ResultBytes: resultBytes,
+	}
+	txMessageBytes := txMessage.MarshalCanoto()
+	return txMessageBytes, nil
 }
 
-// Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
-// of the tx, the result of the tx, and an error if there was a
-// problem unpacking the message.
-func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
-	var txID ids.ID
-	p.UnpackID(true, &txID)
-	if p.UnpackBool() {
-		err := p.UnpackString(true)
-		return ids.Empty, errors.New(err), nil, p.Err()
+// unpackTxMessage unpacks a txID and result. A nil result indicates the
+// tx was marked as expired (only failure condition that triggers a notification).
+func unpackTxMessage(txMsgBytes []byte) (ids.ID, *chain.Result, error) {
+	txMessage := txMessage{}
+	if err := txMessage.UnmarshalCanoto(txMsgBytes); err != nil {
+		return ids.Empty, nil, err
 	}
-	result, err := chain.UnmarshalResult(p)
-	if err != nil {
-		return ids.Empty, nil, nil, err
+	var (
+		result *chain.Result
+		err    error
+	)
+	if len(txMessage.ResultBytes) > 0 {
+		result, err = chain.UnmarshalResult(txMessage.ResultBytes)
+		if err != nil {
+			return ids.Empty, nil, err
+		}
 	}
-	if !p.Empty() {
-		return ids.Empty, nil, nil, chain.ErrInvalidObject
-	}
-	return txID, nil, result, p.Err()
+	return txMessage.TxID, result, nil
 }

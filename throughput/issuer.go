@@ -38,7 +38,7 @@ func (i *issuer) Start(ctx context.Context) {
 	i.tracker.issuerWg.Add(1)
 	go func() {
 		for {
-			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
+			txID, result, err := i.ws.ListenTx(context.TODO())
 			if err != nil {
 				return
 			}
@@ -46,7 +46,7 @@ func (i *issuer) Start(ctx context.Context) {
 			i.outstandingTxs--
 			i.l.Unlock()
 			i.tracker.inflight.Add(-1)
-			i.tracker.logResult(result, wsErr)
+			i.tracker.logResult(txID, result)
 		}
 	}()
 	go func() {
