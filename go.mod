@@ -4,13 +4,11 @@ go 1.22.8
 
 require (
 	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250203152522-13c08681c17d
-	github.com/bytecodealliance/wasmtime-go/v25 v25.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hdevalence/ed25519consensus v0.2.0
 	github.com/manifoldco/promptui v0.9.0
-	github.com/near/borsh-go v0.3.1
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/oasisprotocol/curve25519-voi v0.0.0-20230110094441-db37f07504ce
 	github.com/onsi/ginkgo/v2 v2.13.1
