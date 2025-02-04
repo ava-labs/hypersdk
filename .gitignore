@@ -66,7 +66,6 @@ target/
 Cargo.lock
 **/*.rs.bk
 
-x/contracts/runtime/target
 compose-dev.yaml
 
 # Do not ignore specific .txt files for license check
