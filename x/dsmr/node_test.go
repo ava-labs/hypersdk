@@ -33,8 +33,10 @@ import (
 )
 
 const (
-	networkID                            = uint32(123)
-	testingDefaultValidityWindowDuration = 5 * time.Second
+	networkID                                        = uint32(123)
+	testingDefaultValidityWindowDuration             = 5 * time.Second
+	testingDefaultChunkRateLimitingWindow            = 10 * time.Second
+	testingDefaultAccumulatedChunksWeightWindowLimit = 1024 * 1024
 )
 
 var (
@@ -45,7 +47,9 @@ var (
 	chainID         = ids.Empty
 	testRuleFactory = ruleFactory{
 		rules: rules{
-			validityWindow: int64(testingDefaultValidityWindowDuration),
+			validityWindow:                     int64(testingDefaultValidityWindowDuration),
+			chunkRateLimitingWindow:            int64(testingDefaultChunkRateLimitingWindow),
+			accumulatedChunksWeightWindowLimit: testingDefaultAccumulatedChunksWeightWindowLimit,
 		},
 	}
 
@@ -559,7 +563,7 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				},
 			}
 
-			chunkStorage, err := NewChunkStorage[dsmrtest.Tx](tt.verifier, memdb.New())
+			chunkStorage, err := NewChunkStorage[dsmrtest.Tx](tt.verifier, memdb.New(), testRuleFactory)
 			r.NoError(err)
 
 			chainState := newTestChainState(validators, 1, 1)
@@ -1395,7 +1399,7 @@ func newTestNodes(t *testing.T, n int) []*Node[dsmrtest.Tx] {
 			chainState,
 			testRuleFactory,
 		)
-		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New())
+		chunkStorage, err := NewChunkStorage[dsmrtest.Tx](verifier, memdb.New(), testRuleFactory)
 		require.NoError(t, err)
 
 		getChunkHandler := &GetChunkHandler[dsmrtest.Tx]{
@@ -1587,7 +1591,13 @@ type ruleFactory struct {
 func (r ruleFactory) GetRules(int64) Rules { return r.rules }
 
 type rules struct {
-	validityWindow int64
+	validityWindow                     int64
+	chunkRateLimitingWindow            int64
+	accumulatedChunksWeightWindowLimit uint64
 }
 
-func (r rules) GetValidityWindow() int64 { return r.validityWindow }
+func (r rules) GetValidityWindow() int64          { return r.validityWindow }
+func (r rules) GetChunkRateLimitingWindow() int64 { return r.chunkRateLimitingWindow }
+func (r rules) GetAccumulatedChunkWeightWindowLimit() uint64 {
+	return r.accumulatedChunksWeightWindowLimit
+}

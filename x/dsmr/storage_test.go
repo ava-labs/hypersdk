@@ -101,6 +101,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 	storage, err := NewChunkStorage[dsmrtest.Tx](
 		testVerifier,
 		db,
+		testRuleFactory,
 	)
 	require.NoError(err)
 
@@ -112,6 +113,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 		storage, err := NewChunkStorage[dsmrtest.Tx](
 			testVerifier,
 			db,
+			testRuleFactory,
 		)
 		require.NoError(err)
 		return storage

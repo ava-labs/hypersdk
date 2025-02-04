@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
+	"sort"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -123,12 +125,17 @@ type ChunkStorage[T Tx] struct {
 
 	// TODO do we need caching
 	// Chunk + signature + cert
-	chunkMap map[ids.ID]*StoredChunkSignature[T]
+	pendingChunkMap map[ids.ID]*StoredChunkSignature[T]
+
+	pendingChunksProducers map[ids.NodeID][]*StoredChunkSignature[T]
+
+	ruleFactory RuleFactory
 }
 
 func NewChunkStorage[T Tx](
 	verifier Verifier[T],
 	db database.Database,
+	ruleFactory RuleFactory,
 ) (*ChunkStorage[T], error) {
 	minSlot := int64(0)
 	minSlotBytes, err := db.Get(minSlotKey)
@@ -145,11 +152,13 @@ func NewChunkStorage[T Tx](
 	}
 
 	storage := &ChunkStorage[T]{
-		minimumExpiry: minSlot,
-		chunkEMap:     emap.NewEMap[emapChunk[T]](),
-		chunkMap:      make(map[ids.ID]*StoredChunkSignature[T]),
-		chunkDB:       db,
-		verifier:      verifier,
+		minimumExpiry:          minSlot,
+		chunkEMap:              emap.NewEMap[emapChunk[T]](),
+		pendingChunkMap:        make(map[ids.ID]*StoredChunkSignature[T]),
+		pendingChunksProducers: make(map[ids.NodeID][]*StoredChunkSignature[T]),
+		chunkDB:                db,
+		verifier:               verifier,
+		ruleFactory:            ruleFactory,
 	}
 	return storage, storage.init()
 }
@@ -168,7 +177,18 @@ func (s *ChunkStorage[T]) init() error {
 			return fmt.Errorf("failed to parse chunk %s at slot %d", chunkID, slot)
 		}
 		s.chunkEMap.Add([]emapChunk[T]{{chunk: chunk}})
-		s.chunkMap[chunk.id] = &StoredChunkSignature[T]{Chunk: chunk}
+		storedChunkSig := &StoredChunkSignature[T]{Chunk: chunk}
+		s.pendingChunkMap[chunk.id] = storedChunkSig
+		s.pendingChunksProducers[chunk.Producer] = append(s.pendingChunksProducers[chunk.Producer], storedChunkSig)
+	}
+
+	// sort all the producer's chunks.
+	// no need to write back to the pendingChunksProducers since all the slice
+	// changes are in-place.
+	for _, chunks := range s.pendingChunksProducers {
+		sort.Slice(chunks, func(i, j int) bool {
+			return chunks[i].Chunk.Expiry < chunks[j].Chunk.Expiry
+		})
 	}
 
 	if err := iter.Error(); err != nil {
@@ -192,7 +212,7 @@ func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	storedChunk, ok := s.chunkMap[chunkID]
+	storedChunk, ok := s.pendingChunkMap[chunkID]
 	if !ok {
 		return fmt.Errorf("failed to store cert for non-existent chunk: %s", chunkID)
 	}
@@ -215,7 +235,7 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	chunkCertInfo, ok := s.chunkMap[c.id]
+	chunkCertInfo, ok := s.pendingChunkMap[c.id]
 	if ok {
 		return chunkCertInfo.Cert.Signature, nil
 	}
@@ -234,14 +254,26 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	}
 	s.chunkEMap.Add([]emapChunk[T]{{chunk: c}})
 
-	if chunkCert, ok := s.chunkMap[c.id]; ok {
+	if chunkCert, ok := s.pendingChunkMap[c.id]; ok {
 		if cert != nil {
 			chunkCert.Cert = cert
 		}
 		return nil
 	}
 	chunkCert := &StoredChunkSignature[T]{Chunk: c, Cert: cert}
-	s.chunkMap[c.id] = chunkCert
+	s.pendingChunkMap[c.id] = chunkCert
+
+	producerChunks := s.pendingChunksProducers[c.Producer]
+	idx := sort.Search(len(producerChunks), func(i int) bool {
+		return producerChunks[i].Chunk.Expiry > c.Expiry
+	})
+	if idx == -1 {
+		producerChunks = append(producerChunks, chunkCert)
+	} else {
+		producerChunks = slices.Insert(producerChunks, idx, chunkCert)
+	}
+	s.pendingChunksProducers[c.Producer] = producerChunks
+
 	return nil
 }
 
@@ -260,22 +292,22 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 		return fmt.Errorf("failed to update persistent min slot: %w", err)
 	}
 	for _, saveChunkID := range saveChunks {
-		chunk, ok := s.chunkMap[saveChunkID]
+		chunk, ok := s.pendingChunkMap[saveChunkID]
 		if !ok {
 			return fmt.Errorf("failed to save chunk %s", saveChunkID)
 		}
 		if err := batch.Put(acceptedChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id), chunk.Chunk.bytes); err != nil {
 			return fmt.Errorf("failed to save chunk %s: %w", saveChunkID, err)
 		}
-		delete(s.chunkMap, saveChunkID)
+		s.discardPendingChunk(saveChunkID)
 	}
 	expiredChunks := s.chunkEMap.SetMin(updatedMin)
 	for _, chunkID := range expiredChunks {
-		chunk, ok := s.chunkMap[chunkID]
+		chunk, ok := s.pendingChunkMap[chunkID]
 		if !ok {
 			continue
 		}
-		delete(s.chunkMap, chunkID)
+		s.discardPendingChunk(chunkID)
 		// TODO: switch to using DeleteRange(nil, pendingChunkKey(updatedMin, ids.Empty)) after
 		// merging main
 		if err := batch.Delete(pendingChunkKey(chunk.Chunk.Expiry, chunk.Chunk.id)); err != nil {
@@ -290,6 +322,24 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	return nil
 }
 
+func (s *ChunkStorage[T]) discardPendingChunk(chunkID ids.ID) {
+	chunk, ok := s.pendingChunkMap[chunkID]
+	if !ok {
+		return
+	}
+	delete(s.pendingChunkMap, chunkID)
+	chunks := s.pendingChunksProducers[chunk.Chunk.Producer]
+	if len(chunks) <= 1 {
+		delete(s.pendingChunksProducers, chunk.Chunk.Producer)
+		return
+	}
+	idx := sort.Search(len(chunks), func(i int) bool {
+		return chunks[i].Chunk.Expiry >= chunk.Cert.Expiry
+	})
+	chunks = append(chunks[:idx], chunks[:idx+1]...)
+	s.pendingChunksProducers[chunk.Chunk.Producer] = chunks
+}
+
 // GatherChunkCerts provides a slice of chunk certificates to build
 // a chunk based block.
 // TODO: switch from returning random chunk certs to ordered by expiry
@@ -297,8 +347,8 @@ func (s *ChunkStorage[T]) GatherChunkCerts() []*ChunkCertificate {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	chunkCerts := make([]*ChunkCertificate, 0, len(s.chunkMap))
-	for _, chunk := range s.chunkMap {
+	chunkCerts := make([]*ChunkCertificate, 0, len(s.pendingChunkMap))
+	for _, chunk := range s.pendingChunkMap {
 		if chunk.Cert == nil {
 			continue
 		}
@@ -314,7 +364,7 @@ func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, e
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	chunk, ok := s.chunkMap[chunkID]
+	chunk, ok := s.pendingChunkMap[chunkID]
 	if ok {
 		return chunk.Chunk.bytes, nil
 	}
