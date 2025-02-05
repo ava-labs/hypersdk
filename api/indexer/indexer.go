@@ -17,8 +17,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/cache"
@@ -195,26 +193,17 @@ func (*Indexer) storeTransaction(
 	outputs [][]byte,
 	errorStr string,
 ) error {
-	outputLength := consts.ByteLen // Single byte containing number of outputs
-	for _, output := range outputs {
-		outputLength += consts.Uint32Len + len(output)
+	storageTx := storageTx{
+		Timestamp: timestamp,
+		Success:   success,
+		Units:     units.Bytes(),
+		Fee:       fee,
+		Outputs:   outputs,
+		Error:     errorStr,
 	}
-	txResultLength := consts.Uint64Len + consts.BoolLen + fees.DimensionsLen + consts.Uint64Len + outputLength
+	storageTxBytes := storageTx.MarshalCanoto()
 
-	writer := codec.NewWriter(txResultLength, consts.NetworkSizeLimit)
-	writer.PackUint64(uint64(timestamp))
-	writer.PackBool(success)
-	writer.PackFixedBytes(units.Bytes())
-	writer.PackUint64(fee)
-	writer.PackByte(byte(len(outputs)))
-	for _, output := range outputs {
-		writer.PackBytes(output)
-	}
-	writer.PackString(errorStr)
-	if err := writer.Err(); err != nil {
-		return err
-	}
-	return batch.Put(txID[:], writer.Bytes())
+	return batch.Put(txID[:], storageTxBytes)
 }
 
 func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {
@@ -225,26 +214,17 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 	if err != nil {
 		return false, 0, false, fees.Dimensions{}, 0, nil, "", err
 	}
-	reader := codec.NewReader(v, consts.NetworkSizeLimit)
-	timestamp := reader.UnpackUint64(true)
-	success := reader.UnpackBool()
-	dimensionsBytes := make([]byte, fees.DimensionsLen)
-	reader.UnpackFixedBytes(fees.DimensionsLen, &dimensionsBytes)
-	fee := reader.UnpackUint64(true)
-	numOutputs := int(reader.UnpackByte())
-	outputs := make([][]byte, numOutputs)
-	for i := range outputs {
-		outputs[i] = reader.UnpackLimitedBytes(consts.NetworkSizeLimit)
+
+	storageTx := storageTx{}
+	if err := storageTx.UnmarshalCanoto(v); err != nil {
+		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
 	}
-	errorStr := reader.UnpackString(false)
-	if err := reader.Err(); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", err
-	}
-	dimensions, err := fees.UnpackDimensions(dimensionsBytes)
+
+	unpackedUnits, err := fees.UnpackDimensions(storageTx.Units)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", err
+		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
 	}
-	return true, int64(timestamp), success, dimensions, fee, outputs, errorStr, nil
+	return true, storageTx.Timestamp, storageTx.Success, unpackedUnits, storageTx.Fee, storageTx.Outputs, storageTx.Error, nil
 }
 
 func (i *Indexer) Close() error {

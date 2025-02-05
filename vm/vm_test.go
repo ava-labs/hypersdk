@@ -615,9 +615,8 @@ func TestWebsocketAPI(t *testing.T) {
 	wsBlk, wsResults, wsUnitPrices, err := client.ListenBlock(ctx, network.VMs[0].VM)
 	r.NoError(err)
 
-	txID, txErr, res, unpackErr := client.ListenTx(ctx)
+	txID, res, unpackErr := client.ListenTx(ctx)
 	r.NoError(unpackErr)
-	r.NoError(txErr)
 	r.Equal(tx.GetID(), txID)
 	r.True(res.Success)
 

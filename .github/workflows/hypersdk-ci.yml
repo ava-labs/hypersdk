@@ -69,7 +69,6 @@ jobs:
 
   # MorpheusVM
   morpheusvm-lint:
-    needs: [hypersdk-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -91,7 +90,6 @@ jobs:
         run: scripts/build.sh
 
   morpheusvm-unit-tests:
-    needs: [hypersdk-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:

@@ -5,13 +5,13 @@ package throughput
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -27,25 +27,22 @@ type tracker struct {
 	sent atomic.Int64
 }
 
-func (t *tracker) logResult(
-	result *chain.Result,
-	wsErr error,
-) {
+// logResult logs the result of a transaction received over the websocket connection
+func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	t.l.Lock()
-	if result != nil {
-		if result.Success {
-			t.confirmedTxs++
-		} else {
-			utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
-		}
-	} else {
-		// We can't error match here because we receive it over the wire.
-		if !strings.Contains(wsErr.Error(), ws.ErrExpired.Error()) {
-			utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
-		}
-	}
+	defer t.l.Unlock()
+
 	t.totalTxs++
-	t.l.Unlock()
+	if result == nil {
+		utils.Outf("{{orange}}transaction %s expired\n", txID)
+		return
+	}
+
+	if result.Success {
+		t.confirmedTxs++
+	} else {
+		utils.Outf("{{orange}}on-chain tx failure %s:{{/}} %s %t\n", txID, string(result.Error), result.Success)
+	}
 }
 
 func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
