@@ -331,7 +331,7 @@ func (j *JSONRPCServer) SimulateActions(
 		if err != nil {
 			return err
 		}
-		maps.Copy(actionResult.StateKeys, scope.StateKeys())
+		actionResult.StateKeys = maps.Clone(scope.StateKeys())
 		reply.ActionResults = append(reply.ActionResults, actionResult)
 		// Reset state keys for the next action
 		clear(scope)
