@@ -185,6 +185,9 @@ func (n *Node[T]) BuildChunk(
 		// we have duplicates
 		return ErrDuplicateChunk
 	}
+	if err := n.storage.CheckRateLimit(chunk); err != nil {
+		return fmt.Errorf("failed to meet chunk rate limits threshold : %w", err)
+	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
 	if err := codec.LinearCodec.MarshalInto(chunkRef, &packer); err != nil {

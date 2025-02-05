@@ -371,3 +371,89 @@ func TestRestartSavedChunks(t *testing.T) {
 	storage = restart()
 	confirmChunkStorage(storage)
 }
+
+func TestChunkProducersOrdering(t *testing.T) {
+	require := require.New(t)
+	storage, _, _, _, _ := createTestStorage(t, []int64{}, []int64{})
+	chunks := []Chunk[dsmrtest.Tx]{}
+
+	chunkProducersNodes := []ids.NodeID{
+		ids.GenerateTestNodeID(),
+		ids.GenerateTestNodeID(),
+		ids.GenerateTestNodeID(),
+	}
+	chunkProducers := []struct {
+		Producer ids.NodeID
+		Expiry   int64
+	}{
+		{
+			chunkProducersNodes[0],
+			0,
+		},
+		{
+			chunkProducersNodes[1],
+			1,
+		},
+		{
+			chunkProducersNodes[1],
+			2,
+		},
+		{
+			chunkProducersNodes[1],
+			3,
+		},
+		{
+			chunkProducersNodes[2],
+			7,
+		},
+		{
+			chunkProducersNodes[2],
+			6,
+		},
+		{
+			chunkProducersNodes[2],
+			5,
+		},
+	}
+
+	for _, cp := range chunkProducers {
+		chunk, err := newChunk(
+			UnsignedChunk[dsmrtest.Tx]{
+				Producer:    cp.Producer,
+				Beneficiary: codec.Address{},
+				Expiry:      cp.Expiry,
+				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+			},
+			[48]byte{},
+			[96]byte{},
+		)
+		require.NoError(err)
+		chunks = append(chunks, chunk)
+	}
+
+	for _, chunk := range chunks {
+		require.NoError(storage.AddLocalChunkWithCert(chunk, nil))
+	}
+	require.Len(storage.pendingChunksProducers, 3)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[0]], 1)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[1]], 3)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[2]], 3)
+	require.Equal(int64(0), storage.pendingChunksProducers[chunkProducersNodes[0]][0].Chunk.Expiry)
+	require.Equal(int64(1), storage.pendingChunksProducers[chunkProducersNodes[1]][0].Chunk.Expiry)
+	require.Equal(int64(2), storage.pendingChunksProducers[chunkProducersNodes[1]][1].Chunk.Expiry)
+	require.Equal(int64(3), storage.pendingChunksProducers[chunkProducersNodes[1]][2].Chunk.Expiry)
+	require.Equal(int64(5), storage.pendingChunksProducers[chunkProducersNodes[2]][0].Chunk.Expiry)
+	require.Equal(int64(6), storage.pendingChunksProducers[chunkProducersNodes[2]][1].Chunk.Expiry)
+	require.Equal(int64(7), storage.pendingChunksProducers[chunkProducersNodes[2]][2].Chunk.Expiry)
+
+	// check the deletion logic.
+	require.NoError(storage.SetMin(4, []ids.ID{}))
+	require.Len(storage.pendingChunksProducers, 2)
+	require.NotContains(storage.pendingChunksProducers, chunkProducersNodes[1])
+
+	// delete some of the chunks for a specific producer.
+	require.NoError(storage.SetMin(6, []ids.ID{}))
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[2]], 2)
+	require.Equal(int64(6), storage.pendingChunksProducers[chunkProducersNodes[2]][0].Chunk.Expiry)
+	require.Equal(int64(7), storage.pendingChunksProducers[chunkProducersNodes[2]][1].Chunk.Expiry)
+}

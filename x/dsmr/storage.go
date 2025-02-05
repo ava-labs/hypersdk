@@ -37,6 +37,7 @@ var minSlotKey []byte = []byte{metadataByte, minSlotByte}
 var (
 	ErrChunkProducerNotValidator = errors.New("chunk producer is not in the validator set")
 	ErrInvalidChunkCertificate   = errors.New("invalid chunk certificate")
+	ErrChunkRateLimitSurpassed   = errors.New("chunk rate limit surpassed")
 )
 
 type Verifier[T Tx] interface {
@@ -226,9 +227,10 @@ func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert
 
 // VerifyRemoteChunk will:
 // 1. Check the cache
-// 2. Verify the chunk
-// 3. Generate a local signature share and store it in memory
-// 4. Return the local signature share
+// 2. Ensure the new chunk won't surpass the rate limits.
+// 3. Verify the chunk
+// 4. Generate a local signature share and store it in memory
+// 5. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
 // Assumes caller has already verified this does not add a duplicate chunk
 func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
@@ -239,6 +241,9 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	if ok {
 		return chunkCertInfo.Cert.Signature, nil
 	}
+	if err := s.CheckRateLimit(c); err != nil {
+		return nil, err
+	}
 	if err := s.verifier.Verify(c); err != nil {
 		return nil, err
 	}
@@ -248,6 +253,8 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	return nil, nil
 }
 
+// putVerifiedChunk assumes that the given chunk is gurenteed not to surpass the producer's rate limit.
+// The rate limit is being checked via a call to CheckRateLimit from BuildChunk as well as by VerifyRemoteChunk.
 func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
@@ -322,6 +329,8 @@ func (s *ChunkStorage[T]) SetMin(updatedMin int64, saveChunks []ids.ID) error {
 	return nil
 }
 
+// discardPendingChunk removes the given chunkID from the
+// pending chunk map as well as from the pending chunks producers map.
 func (s *ChunkStorage[T]) discardPendingChunk(chunkID ids.ID) {
 	chunk, ok := s.pendingChunkMap[chunkID]
 	if !ok {
@@ -334,9 +343,9 @@ func (s *ChunkStorage[T]) discardPendingChunk(chunkID ids.ID) {
 		return
 	}
 	idx := sort.Search(len(chunks), func(i int) bool {
-		return chunks[i].Chunk.Expiry >= chunk.Cert.Expiry
+		return chunks[i].Chunk.Expiry >= chunk.Chunk.Expiry
 	})
-	chunks = append(chunks[:idx], chunks[:idx+1]...)
+	chunks = append(chunks[:idx], chunks[idx+1:]...)
 	s.pendingChunksProducers[chunk.Chunk.Producer] = chunks
 }
 
@@ -374,6 +383,46 @@ func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, e
 		return nil, fmt.Errorf("failed to fetch accepted chunk bytes for %s: %w", chunkID, err)
 	}
 	return chunkBytes, nil
+}
+
+func (s *ChunkStorage[T]) CheckRateLimit(chunk Chunk[T]) error {
+	producer := chunk.Producer
+	expiry := chunk.Expiry
+	weight := uint64(len(chunk.bytes))
+	producerChunks := s.pendingChunksProducers[producer]
+	if len(producerChunks) == 0 {
+		return nil
+	}
+	window := s.ruleFactory.GetRules(expiry).GetChunkRateLimitingWindow()
+	weightLimit := s.ruleFactory.GetRules(expiry).GetAccumulatedChunkWeightWindowLimit()
+
+	// remove all the producer chunks prior then [expiry - window]
+	priorChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
+		return producerChunks[i].Chunk.Expiry > expiry-window
+	})
+	if priorChunksIdx != -1 {
+		producerChunks = producerChunks[priorChunksIdx:]
+	}
+
+	// remove all the producer chunks after [expiry + window]
+	postChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
+		return producerChunks[i].Chunk.Expiry < expiry+window
+	})
+	if postChunksIdx != -1 {
+		producerChunks = producerChunks[:postChunksIdx]
+	}
+
+	// we're left only with the chunks that are in the range of [expiry-window,expiry+window]
+	for i := 0; i < len(producerChunks); i++ {
+		accumulatedWeight := len(producerChunks[i].Chunk.bytes)
+		for j := i + 1; j < len(producerChunks)-1 && producerChunks[i].Chunk.Expiry+window > producerChunks[j].Chunk.Expiry; j++ {
+			accumulatedWeight += len(producerChunks[j].Chunk.bytes)
+		}
+		if uint64(accumulatedWeight)+weight > weightLimit {
+			return ErrChunkRateLimitSurpassed
+		}
+	}
+	return nil
 }
 
 func createChunkKey(prefix byte, slot int64, chunkID ids.ID) []byte {
