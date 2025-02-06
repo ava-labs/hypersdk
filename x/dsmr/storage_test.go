@@ -26,6 +26,8 @@ var errInvalidTestItem = errors.New("invalid test item")
 
 var _ Verifier[Tx] = testVerifier[Tx]{}
 
+var testDefaultProducer = ids.GenerateTestNodeID()
+
 type testVerifier[T Tx] struct {
 	correctIDs   set.Set[ids.ID]
 	correctCerts set.Set[*ChunkCertificate]
@@ -47,7 +49,7 @@ func (t testVerifier[T]) VerifyCertificate(_ context.Context, cert *ChunkCertifi
 	return fmt.Errorf("%w: %s", errInvalidTestItem, cert.ChunkID)
 }
 
-func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int64) (
+func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int64, ruleFactory RuleFactory) (
 	*ChunkStorage[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
 	[]Chunk[dsmrtest.Tx],
@@ -60,7 +62,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 	for _, expiry := range validChunkExpiry {
 		chunk, err := newChunk(
 			UnsignedChunk[dsmrtest.Tx]{
-				Producer:    ids.EmptyNodeID,
+				Producer:    testDefaultProducer,
 				Beneficiary: codec.Address{},
 				Expiry:      expiry,
 				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
@@ -76,7 +78,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 	for _, expiry := range invalidChunkExpiry {
 		chunk, err := newChunk(
 			UnsignedChunk[dsmrtest.Tx]{
-				Producer:    ids.EmptyNodeID,
+				Producer:    testDefaultProducer,
 				Beneficiary: codec.Address{},
 				Expiry:      expiry,
 				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
@@ -101,6 +103,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 	storage, err := NewChunkStorage[dsmrtest.Tx](
 		testVerifier,
 		db,
+		ruleFactory,
 	)
 	require.NoError(err)
 
@@ -112,6 +115,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 		storage, err := NewChunkStorage[dsmrtest.Tx](
 			testVerifier,
 			db,
+			ruleFactory,
 		)
 		require.NoError(err)
 		return storage
@@ -122,7 +126,7 @@ func createTestStorage(t *testing.T, validChunkExpiry, invalidChunkExpiry []int6
 func TestStoreAndSaveValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{}, testRuleFactory)
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -164,7 +168,7 @@ func TestStoreAndSaveValidChunk(t *testing.T) {
 func TestStoreAndExpireValidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, verifier := createTestStorage(t, []int64{time.Now().Unix()}, []int64{}, testRuleFactory)
 	chunk := validChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -202,7 +206,7 @@ func TestStoreAndExpireValidChunk(t *testing.T) {
 func TestStoreInvalidChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, _, invalidChunks, _, _ := createTestStorage(t, []int64{}, []int64{time.Now().Unix()})
+	storage, _, invalidChunks, _, _ := createTestStorage(t, []int64{}, []int64{time.Now().Unix()}, testRuleFactory)
 	chunk := invalidChunks[0]
 
 	_, err := storage.VerifyRemoteChunk(chunk)
@@ -218,7 +222,7 @@ func TestStoreInvalidChunk(t *testing.T) {
 func TestStoreAndSaveLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{}, testRuleFactory)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -251,7 +255,7 @@ func TestStoreAndSaveLocalChunk(t *testing.T) {
 func TestStoreAndExpireLocalChunk(t *testing.T) {
 	require := require.New(t)
 
-	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{})
+	storage, validChunks, _, _, _ := createTestStorage(t, []int64{time.Now().Unix()}, []int64{}, testRuleFactory)
 	chunk := validChunks[0]
 	chunkCert := &ChunkCertificate{
 		ChunkReference: ChunkReference{
@@ -291,7 +295,7 @@ func TestRestartSavedChunks(t *testing.T) {
 	// 5. Pending local chunk
 	// 6. Pending remote chunk
 	numChunks := 6
-	storage, validChunks, _, restart, verifier := createTestStorage(t, []int64{2, 2, 1, 1, 2, 2}, []int64{})
+	storage, validChunks, _, restart, verifier := createTestStorage(t, []int64{2, 2, 1, 1, 2, 2}, []int64{}, testRuleFactory)
 	chunkCerts := make([]*ChunkCertificate, 0, numChunks)
 	for _, chunk := range validChunks {
 		chunkCert := &ChunkCertificate{
@@ -368,4 +372,193 @@ func TestRestartSavedChunks(t *testing.T) {
 	confirmChunkStorage(storage)
 	storage = restart()
 	confirmChunkStorage(storage)
+}
+
+func TestChunkProducersOrdering(t *testing.T) {
+	require := require.New(t)
+	storage, _, _, _, _ := createTestStorage(t, []int64{}, []int64{}, testRuleFactory)
+	chunks := []Chunk[dsmrtest.Tx]{}
+
+	chunkProducersNodes := []ids.NodeID{
+		ids.GenerateTestNodeID(),
+		ids.GenerateTestNodeID(),
+		ids.GenerateTestNodeID(),
+	}
+	chunkProducers := []struct {
+		Producer ids.NodeID
+		Expiry   int64
+	}{
+		{
+			chunkProducersNodes[0],
+			0,
+		},
+		{
+			chunkProducersNodes[1],
+			1,
+		},
+		{
+			chunkProducersNodes[1],
+			2,
+		},
+		{
+			chunkProducersNodes[1],
+			3,
+		},
+		{
+			chunkProducersNodes[2],
+			7,
+		},
+		{
+			chunkProducersNodes[2],
+			6,
+		},
+		{
+			chunkProducersNodes[2],
+			5,
+		},
+	}
+
+	for _, cp := range chunkProducers {
+		chunk, err := newChunk(
+			UnsignedChunk[dsmrtest.Tx]{
+				Producer:    cp.Producer,
+				Beneficiary: codec.Address{},
+				Expiry:      cp.Expiry,
+				Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+			},
+			[48]byte{},
+			[96]byte{},
+		)
+		require.NoError(err)
+		chunks = append(chunks, chunk)
+	}
+
+	for _, chunk := range chunks {
+		require.NoError(storage.AddLocalChunkWithCert(chunk, nil))
+	}
+	require.Len(storage.pendingChunksProducers, 3)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[0]], 1)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[1]], 3)
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[2]], 3)
+	require.Equal(int64(0), storage.pendingChunksProducers[chunkProducersNodes[0]][0].Chunk.Expiry)
+	require.Equal(int64(1), storage.pendingChunksProducers[chunkProducersNodes[1]][0].Chunk.Expiry)
+	require.Equal(int64(2), storage.pendingChunksProducers[chunkProducersNodes[1]][1].Chunk.Expiry)
+	require.Equal(int64(3), storage.pendingChunksProducers[chunkProducersNodes[1]][2].Chunk.Expiry)
+	require.Equal(int64(5), storage.pendingChunksProducers[chunkProducersNodes[2]][0].Chunk.Expiry)
+	require.Equal(int64(6), storage.pendingChunksProducers[chunkProducersNodes[2]][1].Chunk.Expiry)
+	require.Equal(int64(7), storage.pendingChunksProducers[chunkProducersNodes[2]][2].Chunk.Expiry)
+
+	// check the deletion logic.
+	require.NoError(storage.SetMin(4, []ids.ID{}))
+	require.Len(storage.pendingChunksProducers, 2)
+	require.NotContains(storage.pendingChunksProducers, chunkProducersNodes[1])
+
+	// delete some of the chunks for a specific producer.
+	require.NoError(storage.SetMin(6, []ids.ID{}))
+	require.Len(storage.pendingChunksProducers[chunkProducersNodes[2]], 2)
+	require.Equal(int64(6), storage.pendingChunksProducers[chunkProducersNodes[2]][0].Chunk.Expiry)
+	require.Equal(int64(7), storage.pendingChunksProducers[chunkProducersNodes[2]][1].Chunk.Expiry)
+}
+
+func TestChunkProducerRateLimiting(t *testing.T) {
+	chunk, err := newChunk(
+		UnsignedChunk[dsmrtest.Tx]{
+			Producer:    testDefaultProducer,
+			Beneficiary: codec.Address{},
+			Expiry:      1,
+			Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+		},
+		[48]byte{},
+		[96]byte{},
+	)
+	require.NoError(t, err)
+	chunkSize := uint64(len(chunk.bytes))
+
+	testCases := []struct {
+		name           string
+		expiryTimes    []int64
+		newChunkExpiry int64
+		window         int64
+		weightLimit    uint64
+		expectedErr    error
+	}{
+		{
+			name:           "success - first",
+			expiryTimes:    []int64{},
+			newChunkExpiry: 50,
+			window:         50,
+			weightLimit:    chunkSize * 5,
+			expectedErr:    nil,
+		},
+		{
+			name:           "success - after",
+			expiryTimes:    []int64{1},
+			newChunkExpiry: 50,
+			window:         50,
+			weightLimit:    chunkSize * 5,
+			expectedErr:    nil,
+		},
+		{
+			name:           "success - before",
+			expiryTimes:    []int64{50},
+			newChunkExpiry: 1,
+			window:         50,
+			weightLimit:    chunkSize * 5,
+			expectedErr:    nil,
+		},
+		{
+			name:           "fail - localized saturated range",
+			expiryTimes:    []int64{0, 50, 99, 150, 500},
+			newChunkExpiry: 75,
+			window:         50,
+			weightLimit:    chunkSize * 2,
+			expectedErr:    ErrChunkRateLimitSurpassed,
+		},
+		{
+			name:           "success - outside of localized saturated range",
+			expiryTimes:    []int64{0, 50, 99, 150, 500},
+			newChunkExpiry: 250,
+			window:         50,
+			weightLimit:    chunkSize * 2,
+			expectedErr:    nil,
+		},
+		{
+			name:           "fail - localized saturated range with multiple elements",
+			expiryTimes:    []int64{0, 100, 120, 150, 200},
+			newChunkExpiry: 130,
+			window:         100,
+			weightLimit:    chunkSize * 3,
+			expectedErr:    ErrChunkRateLimitSurpassed,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require := require.New(t)
+			rules := &ruleFactory{
+				rules: rules{
+					chunkRateLimitingWindow:            testCase.window,
+					accumulatedChunksWeightWindowLimit: testCase.weightLimit,
+				},
+			}
+			storage, chunks, _, _, _ := createTestStorage(t, testCase.expiryTimes, []int64{}, rules)
+
+			for _, chunk := range chunks {
+				require.NoError(storage.AddLocalChunkWithCert(chunk, nil))
+			}
+
+			chunk, err := newChunk(
+				UnsignedChunk[dsmrtest.Tx]{
+					Producer:    testDefaultProducer,
+					Beneficiary: codec.Address{},
+					Expiry:      testCase.newChunkExpiry,
+					Txs:         []dsmrtest.Tx{{ID: ids.GenerateTestID(), Expiry: 1_000_000}},
+				},
+				[48]byte{},
+				[96]byte{},
+			)
+			require.NoError(err)
+
+			require.ErrorIs(storage.CheckRateLimit(chunk), testCase.expectedErr)
+		})
+	}
 }
