@@ -12,23 +12,15 @@ FROM --platform=$BUILDPLATFORM golang:1.22.8-bullseye AS builder
 
 WORKDIR /build
 
-# Copy avalanche dependencies first (intermediate docker image caching)
-# Copy avalanchego directory if present (for manual CI case, which uses local dependency)
-COPY go.mod go.sum avalanchego* ./
-
-# Download avalanche dependencies using go mod
-RUN go mod download && go mod tidy
-
 # Copy the code into the container
 COPY . .
-
-
-# Ensure pre-existing builds are not available for inclusion in the final image
-RUN [ -d ./build ] && rm -rf ./build/* || true
 
 ARG VM_NAME
 
 WORKDIR /build/examples/$VM_NAME/
+
+# Ensure pre-existing builds are not available for inclusion in the final image
+RUN [ -d ./build ] && rm -rf ./build/* || true
 
 RUN export VM_COMMIT=$VM_COMMIT && export CURRENT_BRANCH=$CURRENT_BRANCH && ./scripts/build.sh /build/build/vm
 
