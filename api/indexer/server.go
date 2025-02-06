@@ -19,7 +19,9 @@ import (
 const Endpoint = "/indexer"
 
 var (
-	ErrTxNotFound = errors.New("tx not found")
+	ErrTxNotFound               = errors.New("tx not found")
+	ErrInvalidEncodingParameter = errors.New("invalid encoding parameter")
+	ErrUnsupportedEncoding      = errors.New("unsupported encoding")
 
 	_ api.HandlerFactory[api.VM] = (*apiFactory)(nil)
 )
@@ -46,25 +48,36 @@ func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
 }
 
 type GetBlockRequest struct {
-	BlockID ids.ID `json:"blockID"`
+	BlockID  ids.ID   `json:"blockID"`
+	Encoding Encoding `json:"encoding"`
 }
 
 type GetBlockByHeightRequest struct {
-	Height uint64 `json:"height"`
+	Height   uint64   `json:"height"`
+	Encoding Encoding `json:"encoding"`
+}
+
+type GetLatestBlockRequest struct {
+	Encoding Encoding `json:"encoding"`
 }
 
 type GetBlockResponse struct {
-	Block      *chain.ExecutedBlock `json:"block"`
-	BlockBytes codec.Bytes          `json:"blockBytes"`
+	Block any `json:"block"`
 }
 
-func (g *GetBlockResponse) setResponse(block *chain.ExecutedBlock) error {
-	g.Block = block
-	blockBytes, err := block.Marshal()
-	if err != nil {
-		return err
+func (g *GetBlockResponse) setResponse(block *chain.ExecutedBlock, encoding Encoding) error {
+	switch encoding {
+	case JSON:
+		g.Block = block
+	case Hex:
+		blockBytes, err := block.Marshal()
+		if err != nil {
+			return err
+		}
+		g.Block = codec.Bytes(blockBytes)
+	default:
+		return ErrUnsupportedEncoding
 	}
-	g.BlockBytes = blockBytes
 	return nil
 }
 
@@ -72,33 +85,46 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlock")
 	defer span.End()
 
+	if err := args.Encoding.Validate(); err != nil {
+		return err
+	}
+
 	block, err := s.indexer.GetBlock(args.BlockID)
 	if err != nil {
 		return err
 	}
-	return reply.setResponse(block)
+
+	return reply.setResponse(block, args.Encoding)
 }
 
 func (s *Server) GetBlockByHeight(req *http.Request, args *GetBlockByHeightRequest, reply *GetBlockResponse) error {
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlockByHeight")
 	defer span.End()
 
+	if err := args.Encoding.Validate(); err != nil {
+		return err
+	}
+
 	block, err := s.indexer.GetBlockByHeight(args.Height)
 	if err != nil {
 		return err
 	}
-	return reply.setResponse(block)
+	return reply.setResponse(block, args.Encoding)
 }
 
-func (s *Server) GetLatestBlock(req *http.Request, _ *struct{}, reply *GetBlockResponse) error {
+func (s *Server) GetLatestBlock(req *http.Request, args *GetLatestBlockRequest, reply *GetBlockResponse) error {
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetLatestBlock")
 	defer span.End()
+
+	if err := args.Encoding.Validate(); err != nil {
+		return err
+	}
 
 	block, err := s.indexer.GetLatestBlock()
 	if err != nil {
 		return err
 	}
-	return reply.setResponse(block)
+	return reply.setResponse(block, args.Encoding)
 }
 
 type GetTxRequest struct {
@@ -116,7 +142,7 @@ type GetTxResponse struct {
 
 type Server struct {
 	tracer  trace.Tracer
-	indexer *Indexer
+	indexer AbstractIndexer
 }
 
 func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
@@ -142,4 +168,28 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	reply.Outputs = wrappedOutputs
 	reply.ErrorStr = errorStr
 	return nil
+}
+
+type Encoding string
+
+var (
+	JSON Encoding = "json"
+	Hex  Encoding = "hex"
+)
+
+func (e *Encoding) Validate() error {
+	if *e == "" {
+		*e = JSON
+	}
+	if *e != JSON && *e != Hex {
+		return ErrInvalidEncodingParameter
+	}
+	return nil
+}
+
+type AbstractIndexer interface {
+	GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error)
+	GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error)
+	GetLatestBlock() (*chain.ExecutedBlock, error)
+	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error)
 }
