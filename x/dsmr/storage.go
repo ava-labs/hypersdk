@@ -271,11 +271,7 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	idx := sort.Search(len(producerChunks), func(i int) bool {
 		return producerChunks[i].Chunk.Expiry > c.Expiry
 	})
-	if idx == -1 {
-		producerChunks = append(producerChunks, chunkCert)
-	} else {
-		producerChunks = slices.Insert(producerChunks, idx, chunkCert)
-	}
+	producerChunks = slices.Insert(producerChunks, idx, chunkCert)
 	s.pendingChunksProducers[c.Producer] = producerChunks
 
 	return nil
