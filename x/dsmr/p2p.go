@@ -135,6 +135,12 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 			Message: err.Error(),
 		}
 	}
+	if err := c.storage.CheckRateLimit(chunk); err != nil {
+		return &common.AppError{
+			Code:    p2p.ErrUnexpected.Code,
+			Message: err.Error(),
+		}
+	}
 
 	if _, err := c.storage.VerifyRemoteChunk(chunk); err != nil {
 		return &common.AppError{

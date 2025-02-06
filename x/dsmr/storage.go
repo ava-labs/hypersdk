@@ -227,12 +227,12 @@ func (s *ChunkStorage[T]) SetChunkCert(ctx context.Context, chunkID ids.ID, cert
 
 // VerifyRemoteChunk will:
 // 1. Check the cache
-// 2. Ensure the new chunk won't surpass the rate limits.
-// 3. Verify the chunk
-// 4. Generate a local signature share and store it in memory
-// 5. Return the local signature share
+// 2. Verify the chunk
+// 3. Generate a local signature share and store it in memory
+// 4. Return the local signature share
 // TODO refactor and merge with AddLocalChunkWithCert
 // Assumes caller has already verified this does not add a duplicate chunk
+// Assumes that if the given chunk is a pending chunk, it would not surpass the producer's rate limit.
 func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -240,9 +240,6 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 	chunkCertInfo, ok := s.pendingChunkMap[c.id]
 	if ok {
 		return chunkCertInfo.Cert.Signature, nil
-	}
-	if err := s.CheckRateLimit(c); err != nil {
-		return nil, err
 	}
 	if err := s.verifier.Verify(c); err != nil {
 		return nil, err
