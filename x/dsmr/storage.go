@@ -400,22 +400,22 @@ func (s *ChunkStorage[T]) CheckRateLimit(chunk Chunk[T]) error {
 	priorChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
 		return producerChunks[i].Chunk.Expiry > expiry-window
 	})
-	if priorChunksIdx != -1 {
+	if priorChunksIdx != len(producerChunks) {
 		producerChunks = producerChunks[priorChunksIdx:]
 	}
 
 	// remove all the producer chunks after [expiry + window]
 	postChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
-		return producerChunks[i].Chunk.Expiry < expiry+window
+		return producerChunks[i].Chunk.Expiry > expiry+window
 	})
-	if postChunksIdx != -1 {
+	if postChunksIdx != len(producerChunks) {
 		producerChunks = producerChunks[:postChunksIdx]
 	}
 
 	// we're left only with the chunks that are in the range of [expiry-window,expiry+window]
 	for i := 0; i < len(producerChunks); i++ {
 		accumulatedWeight := len(producerChunks[i].Chunk.bytes)
-		for j := i + 1; j < len(producerChunks)-1 && producerChunks[i].Chunk.Expiry+window > producerChunks[j].Chunk.Expiry; j++ {
+		for j := i + 1; j < len(producerChunks) && producerChunks[i].Chunk.Expiry+window > producerChunks[j].Chunk.Expiry; j++ {
 			accumulatedWeight += len(producerChunks[j].Chunk.bytes)
 		}
 		if uint64(accumulatedWeight)+weight > weightLimit {
