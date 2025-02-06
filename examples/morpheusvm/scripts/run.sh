@@ -17,25 +17,22 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-VERSION=13c08681c17d0790a94ed8c8ef8a3c88f8bb196d
-
-############################
 # build avalanchego
 # https://github.com/ava-labs/avalanchego/releases
 HYPERSDK_DIR=$HOME/.hypersdk
 
 echo "working directory: $HYPERSDK_DIR"
 
-AVALANCHEGO_PATH=${HYPERSDK_DIR}/avalanchego-${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${HYPERSDK_DIR}/avalanchego-${VERSION}/plugins
+AVALANCHEGO_PATH=${HYPERSDK_DIR}/avalanchego-${AVALANCHE_VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${HYPERSDK_DIR}/avalanchego-${AVALANCHE_VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
-  mkdir -p "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
+  rm -rf "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
+  mkdir -p "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
   rm -rf "${HYPERSDK_DIR}"/avalanchego-src
   mkdir -p "${HYPERSDK_DIR}"/avalanchego-src
 
@@ -43,11 +40,11 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   cd "${HYPERSDK_DIR}"/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout "${VERSION}"
+  git checkout "${AVALANCHE_VERSION}"
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
+  mv build/avalanchego "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
 
   cd "${CWD}"
 
@@ -62,11 +59,11 @@ fi
 echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
 ./cmd/morpheusvm
 
 ############################
