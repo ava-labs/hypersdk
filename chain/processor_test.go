@@ -243,23 +243,23 @@ func TestProcessorExecute(t *testing.T) {
 				return v
 			}(),
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+				tx, err := chain.NewTransaction(
+					&chain.Base{
+						Timestamp: utils.UnixRMilli(
+							testRules.GetMinEmptyBlockGap(),
+							testRules.GetValidityWindow(),
+						),
+					},
+					[]chain.Action{},
+					&mockAuth{typeID: 1},
+				)
+				require.NoError(t, err)
+
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
 					1,
-					[]*chain.Transaction{
-						func() *chain.Transaction {
-							tx, err := chain.NewTransaction(
-								&chain.Base{},
-								[]chain.Action{},
-								&mockAuth{
-									typeID: 1,
-								},
-							)
-							require.NoError(t, err)
-							return tx
-						}(),
-					},
+					[]*chain.Transaction{tx},
 					parentRoot,
 					&block.Context{},
 				)
@@ -363,29 +363,29 @@ func TestProcessorExecute(t *testing.T) {
 				return v
 			}(),
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+				tx, err := chain.NewTransaction(
+					&chain.Base{
+						Timestamp: utils.UnixRMilli(
+							testRules.GetMinEmptyBlockGap(),
+							testRules.GetValidityWindow(),
+						),
+					},
+					[]chain.Action{
+						&mockAction{
+							stateKeys: state.Keys{
+								"": state.None,
+							},
+						},
+					},
+					&mockAuth{typeID: 1},
+				)
+				require.NoError(t, err)
+
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinBlockGap(),
 					1,
-					[]*chain.Transaction{
-						func() *chain.Transaction {
-							tx, err := chain.NewTransaction(
-								&chain.Base{},
-								[]chain.Action{
-									&mockAction{
-										stateKeys: state.Keys{
-											"": state.None,
-										},
-									},
-								},
-								&mockAuth{
-									typeID: 1,
-								},
-							)
-							require.NoError(t, err)
-							return tx
-						}(),
-					},
+					[]*chain.Transaction{tx},
 					parentRoot,
 					&block.Context{},
 				)
@@ -433,32 +433,28 @@ func TestProcessorExecute(t *testing.T) {
 				return v
 			}(),
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+				p, err := ed25519.GeneratePrivateKey()
+				require.NoError(t, err)
+
+				tx, err := chain.NewTransaction(
+					&chain.Base{
+						Timestamp: utils.UnixRMilli(
+							testRules.GetMinEmptyBlockGap(),
+							testRules.GetValidityWindow(),
+						),
+					},
+					[]chain.Action{},
+					&auth.ED25519{
+						Signer: p.PublicKey(),
+					},
+				)
+				require.NoError(t, err)
+
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinBlockGap(),
 					1,
-					[]*chain.Transaction{
-						func() *chain.Transaction {
-							p, err := ed25519.GeneratePrivateKey()
-							require.NoError(t, err)
-
-							testRules := testRules
-							tx, err := chain.NewTransaction(
-								&chain.Base{
-									Timestamp: utils.UnixRMilli(
-										testRules.GetMinEmptyBlockGap(),
-										testRules.GetValidityWindow(),
-									),
-								},
-								[]chain.Action{},
-								&auth.ED25519{
-									Signer: p.PublicKey(),
-								},
-							)
-							require.NoError(t, err)
-							return tx
-						}(),
-					},
+					[]*chain.Transaction{tx},
 					parentRoot,
 					&block.Context{},
 				)
