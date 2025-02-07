@@ -7,17 +7,14 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
+	t2 "github.com/ava-labs/hypersdk/chainindex/chainindextest"
+	"github.com/ava-labs/hypersdk/consts"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 type testBlock struct {
@@ -38,43 +35,11 @@ func (*parser) ParseBlock(_ context.Context, b []byte) (*testBlock, error) {
 	return &testBlock{height: height}, nil
 }
 
-func newTestChainIndex(config Config, db database.Database) (*ChainIndex[*testBlock], error) {
-	return New(logging.NoLog{}, prometheus.NewRegistry(), config, &parser{}, db)
-}
-
-func confirmBlockIndexed(r *require.Assertions, ctx context.Context, chainIndex *ChainIndex[*testBlock], expectedBlk *testBlock, expectedErr error) {
-	blkByHeight, err := chainIndex.GetBlockByHeight(ctx, expectedBlk.height)
-	r.ErrorIs(err, expectedErr)
-
-	blkIDAtHeight, err := chainIndex.GetBlockIDAtHeight(ctx, expectedBlk.height)
-	r.ErrorIs(err, expectedErr)
-
-	blockIDHeight, err := chainIndex.GetBlockIDHeight(ctx, expectedBlk.GetID())
-	r.ErrorIs(err, expectedErr)
-
-	blk, err := chainIndex.GetBlock(ctx, expectedBlk.GetID())
-	r.ErrorIs(err, expectedErr)
-
-	if expectedErr != nil {
-		return
-	}
-
-	r.Equal(blkByHeight.GetID(), expectedBlk.GetID())
-	r.Equal(blkIDAtHeight, expectedBlk.GetID())
-	r.Equal(blockIDHeight, expectedBlk.GetHeight())
-	r.Equal(blk.GetID(), expectedBlk.GetID())
-}
-
-func confirmLastAcceptedHeight(r *require.Assertions, ctx context.Context, chainIndex *ChainIndex[*testBlock], expectedHeight uint64) {
-	lastAcceptedHeight, err := chainIndex.GetLastAcceptedHeight(ctx)
-	r.NoError(err)
-	r.Equal(expectedHeight, lastAcceptedHeight)
-}
-
 func TestChainIndex(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := newTestChainIndex(NewDefaultConfig(), memdb.New())
+
+	chainIndex, err := t2.NewChainIndexTestFactory[*testBlock](&parser{}).Build()
 	r.NoError(err)
 
 	genesisBlk := &testBlock{height: 0}
@@ -93,14 +58,21 @@ func TestChainIndex(t *testing.T) {
 }
 
 func TestChainIndexInvalidCompactionFrequency(t *testing.T) {
-	_, err := newTestChainIndex(Config{BlockCompactionFrequency: 0}, memdb.New())
+	_, err := t2.NewChainIndexTestFactory(&parser{}).
+		WithConfig(Config{BlockCompactionFrequency: 0}).
+		Build()
 	require.ErrorIs(t, err, errBlockCompactionFrequencyZero)
 }
 
 func TestChainIndexExpiry(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := newTestChainIndex(Config{AcceptedBlockWindow: 1, BlockCompactionFrequency: 64}, memdb.New())
+	chainIndex, err := t2.NewChainIndexTestFactory[*testBlock](&parser{}).
+		WithConfig(Config{
+			AcceptedBlockWindow:      1,
+			BlockCompactionFrequency: 64,
+		}).
+		Build()
 	r.NoError(err)
 
 	genesisBlk := &testBlock{height: 0}
@@ -110,21 +82,50 @@ func TestChainIndexExpiry(t *testing.T) {
 
 	blk1 := &testBlock{height: 1}
 	r.NoError(chainIndex.UpdateLastAccepted(ctx, blk1))
-	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil) // Confirm genesis is not un-indexed, nild
+	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil)
 	confirmBlockIndexed(r, ctx, chainIndex, blk1, nil)
 	confirmLastAcceptedHeight(r, ctx, chainIndex, blk1.GetHeight())
 
 	blk2 := &testBlock{height: 2}
 	r.NoError(chainIndex.UpdateLastAccepted(ctx, blk2))
-	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil) // Confirm genesis is not un-indexed, nild
+	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil)
 	confirmBlockIndexed(r, ctx, chainIndex, blk2, nil)
 	confirmBlockIndexed(r, ctx, chainIndex, blk1, database.ErrNotFound)
 	confirmLastAcceptedHeight(r, ctx, chainIndex, blk2.GetHeight())
 
 	blk3 := &testBlock{height: 3}
 	r.NoError(chainIndex.UpdateLastAccepted(ctx, blk3))
-	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil) // Confirm genesis is not un-indexed, nild
+	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil)
 	confirmBlockIndexed(r, ctx, chainIndex, blk3, nil)
 	confirmBlockIndexed(r, ctx, chainIndex, blk2, database.ErrNotFound)
 	confirmLastAcceptedHeight(r, ctx, chainIndex, blk3.GetHeight())
+}
+
+func confirmBlockIndexed[T Block](r *require.Assertions, ctx context.Context, chainIndex *ChainIndex[T], expectedBlk T, expectedErr error) {
+	blkByHeight, err := chainIndex.GetBlockByHeight(ctx, expectedBlk.GetHeight())
+	r.ErrorIs(err, expectedErr)
+
+	blkIDAtHeight, err := chainIndex.GetBlockIDAtHeight(ctx, expectedBlk.GetHeight())
+	r.ErrorIs(err, expectedErr)
+
+	blockIDHeight, err := chainIndex.GetBlockIDHeight(ctx, expectedBlk.GetID())
+	r.ErrorIs(err, expectedErr)
+
+	blk, err := chainIndex.GetBlock(ctx, expectedBlk.GetID())
+	r.ErrorIs(err, expectedErr)
+
+	if expectedErr != nil {
+		return
+	}
+
+	r.Equal(blkByHeight.GetID(), expectedBlk.GetID())
+	r.Equal(blkIDAtHeight, expectedBlk.GetID())
+	r.Equal(blockIDHeight, expectedBlk.GetHeight())
+	r.Equal(blk.GetID(), expectedBlk.GetID())
+}
+
+func confirmLastAcceptedHeight[T Block](r *require.Assertions, ctx context.Context, chainIndex *ChainIndex[T], expectedHeight uint64) {
+	lastAcceptedHeight, err := chainIndex.GetLastAcceptedHeight(ctx)
+	r.NoError(err)
+	r.Equal(expectedHeight, lastAcceptedHeight)
 }

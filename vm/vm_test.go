@@ -715,8 +715,8 @@ func TestStateSync(t *testing.T) {
 		return []*chain.Transaction{tx}
 	})
 
-	config := map[string]interface{}{
-		vm.StateSyncNamespace: map[string]interface{}{
+	config := map[string]any{
+		vm.StateSyncNamespace: map[string]any{
 			"minBlocks": uint64(numBlocks - 1),
 		},
 	}
