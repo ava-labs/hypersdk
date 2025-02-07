@@ -92,7 +92,11 @@ func TestProcessorExecute(t *testing.T) {
 				return block
 			},
 			view: func() merkledb.View {
-				v, err := createTestView(map[string][]byte{})
+				v, err := createTestView(map[string][]byte{
+					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
+					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
+				})
 				require.NoError(t, err)
 				return v
 			}(),
@@ -102,7 +106,10 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			view: func() merkledb.View {
-				v, err := createTestView(map[string][]byte{})
+				v, err := createTestView(map[string][]byte{
+					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
+				})
 				require.NoError(t, err)
 				return v
 			}(),
@@ -125,7 +132,9 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
-					heightKey: {},
+					heightKey:    {},
+					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
 				})
 				require.NoError(t, err)
 				return v
@@ -149,7 +158,9 @@ func TestProcessorExecute(t *testing.T) {
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
-					heightKey: binary.BigEndian.AppendUint64(nil, 0),
+					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
+					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
 				})
 				require.NoError(t, err)
 				return v
@@ -174,6 +185,7 @@ func TestProcessorExecute(t *testing.T) {
 			view: func() merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:    {},
 				})
 				require.NoError(t, err)
 				return v
@@ -199,6 +211,7 @@ func TestProcessorExecute(t *testing.T) {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: {},
+					feeKey:       {},
 				})
 				require.NoError(t, err)
 				return v
@@ -224,6 +237,7 @@ func TestProcessorExecute(t *testing.T) {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
 				})
 				require.NoError(t, err)
 				return v
@@ -261,6 +275,7 @@ func TestProcessorExecute(t *testing.T) {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
+					feeKey:       {},
 				})
 				require.NoError(t, err)
 				return v
@@ -350,7 +365,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
+					testRules.GetMinBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
@@ -420,7 +435,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					testRules.GetMinEmptyBlockGap(),
+					testRules.GetMinBlockGap(),
 					1,
 					[]*chain.Transaction{
 						func() *chain.Transaction {
