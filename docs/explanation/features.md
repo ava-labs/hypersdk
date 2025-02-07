@@ -46,17 +46,6 @@ _The number of blocks that the `hypersdk` stores on-disk, the `AcceptedBlockWind
 to an arbitrary depth (or set to `MaxInt` to keep all blocks). To limit disk IO used to serve blocks over
 the P2P network, `hypervms` can configure `AcceptedBlockWindowCache` to store recent blocks in memory._
 
-## WASM-Based Smart Contracts
-In the `hypersdk`, smart contracts are referred to simply as `contracts`. `Contracts`
-are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
-execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
-alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
-`hypervm's` code.
-
-Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
-be compiled to WASM can be used to write `contracts`. You can view a collection of
-Rust-based `contracts` [here](../../x/contracts/).
-
 ## Account Abstraction
 The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.
 Each `hypersdk` transaction includes an `Auth` object that implements an
@@ -71,10 +60,7 @@ a `program` (i.e. a custom deployed multi-sig). To allow for easy interaction be
 `hypersdk` employs a standard, 33-byte addressing scheme: `<typeID><ids.ID>`. Transaction
 verification ensures that any `Actor` and `Sponsor` returned by an `Auth` module
 must have the same `<typeID>` as the module generating an address. The 32-byte hash (`<ids.ID>`)
-is used to uniquely identify accounts within an `Auth` scheme. For `programs`, this
-will likely be the `txID` when the `program` was deployed and will be the hash
-of the public key for pure cryptographic primitives (the indirect benefit of this
-is that account public keys are obfuscated until used).
+is used to uniquely identify accounts within an `Auth` scheme.
 
 _Because transaction IDs are used to prevent replay, it is critical that any signatures used
 in `Auth` are [not malleable](https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki).

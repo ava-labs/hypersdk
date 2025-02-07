@@ -48,7 +48,6 @@ var (
 	ErrActionNotActivated   = errors.New("action not activated")
 	ErrAuthNotActivated     = errors.New("auth not activated")
 	ErrAuthFailed           = errors.New("auth failed")
-	ErrMisalignedTime       = errors.New("misaligned time")
 	ErrInvalidActor         = errors.New("invalid actor")
 	ErrInvalidSponsor       = errors.New("invalid sponsor")
 	ErrTooManyActions       = errors.New("too many actions")

@@ -16,8 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 const dummyAddr = "localhost:8080"
@@ -93,7 +91,7 @@ func TestServerPublish(t *testing.T) {
 	// Receive the message from the publish
 	_, batchMsg, err := webCon.ReadMessage()
 	require.NoError(err, "Error receiveing message.")
-	msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+	msgs, err := ParseBatchMessage(batchMsg)
 	require.NoError(err, "Error parsing message.")
 	require.Len(msgs, 1)
 	// Verify that the received message is the expected dummy message
@@ -160,8 +158,7 @@ func TestServerRead(t *testing.T) {
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
 	id := ids.GenerateTestID()
-	batchMsg, err := CreateBatchMessage(consts.NetworkSizeLimit, [][]byte{id[:]})
-	require.NoError(err)
+	batchMsg := CreateBatchMessage([][]byte{id[:]})
 	err = webCon.WriteMessage(websocket.TextMessage, batchMsg)
 	require.NoError(err, "Error writing message to server.")
 	// Wait for callback to be called
@@ -290,7 +287,7 @@ func TestServerPublishSpecific(t *testing.T) {
 		// Receive the message from the publish
 		_, batchMsg, err := webCon1.ReadMessage()
 		require.NoError(err, "Error reading to connection.")
-		msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+		msgs, err := ParseBatchMessage(batchMsg)
 		require.NoError(err, "Error parsing message.")
 		require.Len(msgs, 1)
 		// Verify that the received message is the expected dummy message

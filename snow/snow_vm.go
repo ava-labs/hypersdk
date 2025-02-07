@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	_ block.ChainVM         = (*SnowVM[Block, Block, Block])(nil)
-	_ block.StateSyncableVM = (*SnowVM[Block, Block, Block])(nil)
+	_ block.ChainVM                      = (*SnowVM[Block, Block, Block])(nil)
+	_ block.StateSyncableVM              = (*SnowVM[Block, Block, Block])(nil)
+	_ block.BuildBlockWithContextChainVM = (*SnowVM[Block, Block, Block])(nil)
 )
 
 // SnowVM wraps the VM and completes the implementation of block.ChainVM by providing
@@ -37,4 +38,8 @@ func (v *SnowVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (snowman
 
 func (v *SnowVM[I, O, A]) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return v.VM.BuildBlock(ctx)
+}
+
+func (v *SnowVM[I, O, A]) BuildBlockWithContext(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
+	return v.VM.BuildBlockWithContext(ctx, blockContext)
 }

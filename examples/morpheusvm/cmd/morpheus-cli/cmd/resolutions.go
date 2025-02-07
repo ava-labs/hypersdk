@@ -37,16 +37,16 @@ func sendAndWait(
 	}
 	var result *chain.Result
 	for {
-		txID, txErr, txResult, err := ws.ListenTx(ctx)
+		txID, txResult, err := ws.ListenTx(ctx)
 		if err != nil {
 			return false, ids.Empty, err
-		}
-		if txErr != nil {
-			return false, ids.Empty, txErr
 		}
 		if txID == tx.GetID() {
 			result = txResult
 			break
+		}
+		if result == nil {
+			return false, ids.Empty, fmt.Errorf("tx %s expired", txID)
 		}
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.GetID())
 	}

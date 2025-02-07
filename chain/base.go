@@ -10,9 +10,14 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
 
-const BaseSize = consts.Uint64Len*2 + ids.IDLen
+const (
+	BaseSize = consts.Uint64Len*2 + ids.IDLen
+	// TODO: make this divisor configurable
+	validityWindowTimestampDivisor = consts.MillisecondsPerSecond
+)
 
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
@@ -30,19 +35,10 @@ type Base struct {
 }
 
 func (b *Base) Execute(r Rules, timestamp int64) error {
-	switch {
-	case b.Timestamp%consts.MillisecondsPerSecond != 0:
-		// TODO: make this modulus configurable
-		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, b.Timestamp)
-	case b.Timestamp < timestamp: // tx: 100 block: 110
-		return fmt.Errorf("%w: tx timestamp (%d) < block timestamp (%d)", ErrTimestampTooLate, b.Timestamp, timestamp)
-	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
-		return fmt.Errorf("%w: tx timestamp (%d) > block timestamp (%d) + validity window (%d)", ErrTimestampTooEarly, b.Timestamp, timestamp, r.GetValidityWindow())
-	case b.ChainID != r.GetChainID():
-		return ErrInvalidChainID
-	default:
-		return nil
+	if b.ChainID != r.GetChainID() {
+		return fmt.Errorf("%w: chainID=%s, expected=%s", ErrInvalidChainID, b.ChainID, r.GetChainID())
 	}
+	return validitywindow.VerifyTimestamp(b.Timestamp, timestamp, validityWindowTimestampDivisor, r.GetValidityWindow())
 }
 
 func (*Base) Size() int {
@@ -62,7 +58,7 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	base.Timestamp = p.UnpackInt64(true)
 	if base.Timestamp%consts.MillisecondsPerSecond != 0 {
 		// TODO: make this modulus configurable
-		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, base.Timestamp)
+		return nil, fmt.Errorf("%w: timestamp=%d", validitywindow.ErrMisalignedTime, base.Timestamp)
 	}
 	p.UnpackID(true, &base.ChainID)
 	base.MaxFee = p.UnpackUint64(true)
