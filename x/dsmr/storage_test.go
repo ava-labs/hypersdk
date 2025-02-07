@@ -475,12 +475,14 @@ func TestChunkProducerRateLimiting(t *testing.T) {
 	chunkSize := uint64(len(chunk.bytes))
 
 	testCases := []struct {
-		name           string
-		expiryTimes    []int64
-		newChunkExpiry int64
-		window         int64
-		weightLimit    uint64
-		expectedErr    error
+		name                 string
+		expiryTimes          []int64
+		newChunkExpiry       int64
+		window               int64
+		weightLimit          uint64
+		minTime              int64
+		acceptedChunksExpiry []int64
+		expectedErr          error
 	}{
 		{
 			name:           "success - first",
@@ -530,6 +532,26 @@ func TestChunkProducerRateLimiting(t *testing.T) {
 			weightLimit:    chunkSize * 3,
 			expectedErr:    ErrChunkRateLimitSurpassed,
 		},
+		{
+			name:                 "success - previously localized saturated range with multiple elements which was accepted",
+			expiryTimes:          []int64{0, 100, 199},
+			newChunkExpiry:       150,
+			window:               100,
+			weightLimit:          chunkSize * 2,
+			expectedErr:          nil,
+			minTime:              10,
+			acceptedChunksExpiry: []int64{100},
+		},
+		{
+			name:                 "success - previously localized saturated range with multiple elements which was accepted by timestamp",
+			expiryTimes:          []int64{0, 100, 199},
+			newChunkExpiry:       150,
+			window:               100,
+			weightLimit:          chunkSize * 2,
+			expectedErr:          nil,
+			minTime:              101,
+			acceptedChunksExpiry: []int64{},
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -544,6 +566,24 @@ func TestChunkProducerRateLimiting(t *testing.T) {
 
 			for _, chunk := range chunks {
 				require.NoError(storage.AddLocalChunkWithCert(chunk, nil))
+			}
+
+			if testCase.minTime != 0 {
+				acceptedChunks := []ids.ID{}
+				for _, chunkExpiry := range testCase.acceptedChunksExpiry {
+					// find the chunk that corresponds to this expiry in the chunks slice.
+					chunkIndex := -1
+					for i, chunk := range chunks {
+						if chunk.Expiry == chunkExpiry {
+							// found.
+							chunkIndex = i
+							break
+						}
+					}
+					require.NotEqual(-1, chunkIndex, "acceptedChunksExpiry contains an expiry time missing from expiryTimes")
+					acceptedChunks = append(acceptedChunks, chunks[chunkIndex].id)
+				}
+				require.NoError(storage.SetMin(testCase.minTime, acceptedChunks))
 			}
 
 			chunk, err := newChunk(
