@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -76,8 +77,8 @@ func NewChain(
 	}, nil
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
-	return c.builder.BuildBlock(ctx, parentOutputBlock)
+func (c *Chain) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+	return c.builder.BuildBlock(ctx, pChainCtx, parentOutputBlock)
 }
 
 func (c *Chain) Execute(

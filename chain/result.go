@@ -73,7 +73,15 @@ func (r *Result) Size() int {
 	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
 
-func (r *Result) Marshal(p *codec.Packer) error {
+func (r *Result) Marshal() ([]byte, error) {
+	p := codec.NewWriter(r.Size(), consts.MaxInt)
+	if err := r.marshalInto(p); err != nil {
+		return nil, err
+	}
+	return p.Bytes(), p.Err()
+}
+
+func (r *Result) marshalInto(p *codec.Packer) error {
 	p.PackBool(r.Success)
 	p.PackBytes(r.Error)
 	p.PackByte(uint8(len(r.Outputs)))
@@ -82,7 +90,7 @@ func (r *Result) Marshal(p *codec.Packer) error {
 	}
 	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
-	return nil
+	return p.Err()
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
@@ -90,14 +98,26 @@ func MarshalResults(src []*Result) ([]byte, error) {
 	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	p.PackInt(uint32(len(src)))
 	for _, result := range src {
-		if err := result.Marshal(p); err != nil {
+		if err := result.marshalInto(p); err != nil {
 			return nil, err
 		}
 	}
 	return p.Bytes(), p.Err()
 }
 
-func UnmarshalResult(p *codec.Packer) (*Result, error) {
+func UnmarshalResult(src []byte) (*Result, error) {
+	p := codec.NewReader(src, consts.MaxInt)
+	result, err := unmarshalResultFrom(p)
+	if err != nil {
+		return nil, err
+	}
+	if !p.Empty() {
+		return nil, ErrInvalidObject
+	}
+	return result, nil
+}
+
+func unmarshalResultFrom(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
@@ -127,7 +147,7 @@ func UnmarshalResults(src []byte) ([]*Result, error) {
 	items := p.UnpackInt(false)
 	results := make([]*Result, items)
 	for i := uint32(0); i < items; i++ {
-		result, err := UnmarshalResult(p)
+		result, err := unmarshalResultFrom(p)
 		if err != nil {
 			return nil, err
 		}

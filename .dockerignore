@@ -1,0 +1,13 @@
+.ci
+.github
+.gitignore
+.golangci.yml
+
+.idea
+.vscode
+
+LICENSE
+*.md
+
+# Ignore all dockerfiles not just the main one
+Dockerfile*

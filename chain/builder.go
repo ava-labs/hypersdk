@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.opentelemetry.io/otel/attribute"
@@ -72,7 +73,7 @@ func NewBuilder(
 	}
 }
 
-func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
 	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
 
@@ -426,6 +427,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentOutputBlock *OutputBlock
 		height,
 		blockTransactions,
 		parentStateRoot,
+		pChainCtx,
 	)
 	if err != nil {
 		return nil, nil, err
