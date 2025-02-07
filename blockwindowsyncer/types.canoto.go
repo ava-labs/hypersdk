@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"unicode/utf8"
 
-	"github.com/StephenButtolph/canoto"
+	"github.com/ava-labs/hypersdk/internal/canoto"
 )
 
 // Ensure that unused imports do not error
@@ -130,12 +130,12 @@ func (c *BlockFetchRequest) CalculateCanotoCache() {
 	if c == nil {
 		return
 	}
-	c.canotoData_BlockFetchRequest.size = 0
+	c.canotoData.size = 0
 	if !canoto.IsZero(c.BlockHeight) {
-		c.canotoData_BlockFetchRequest.size += len(canoto__BlockFetchRequest__BlockHeight__tag) + canoto.SizeInt(c.BlockHeight)
+		c.canotoData.size += len(canoto__BlockFetchRequest__BlockHeight__tag) + canoto.SizeInt(c.BlockHeight)
 	}
 	if !canoto.IsZero(c.MinTimestamp) {
-		c.canotoData_BlockFetchRequest.size += len(canoto__BlockFetchRequest__MinTimestamp__tag) + canoto.SizeInt(c.MinTimestamp)
+		c.canotoData.size += len(canoto__BlockFetchRequest__MinTimestamp__tag) + canoto.SizeInt(c.MinTimestamp)
 	}
 }
 
@@ -150,7 +150,7 @@ func (c *BlockFetchRequest) CachedCanotoSize() int {
 	if c == nil {
 		return 0
 	}
-	return c.canotoData_BlockFetchRequest.size
+	return c.canotoData.size
 }
 
 // MarshalCanoto returns the Canoto representation of this struct.
@@ -307,9 +307,9 @@ func (c *BlockFetchResponse) CalculateCanotoCache() {
 	if c == nil {
 		return
 	}
-	c.canotoData_BlockFetchResponse.size = 0
+	c.canotoData.size = 0
 	for _, v := range c.Blocks {
-		c.canotoData_BlockFetchResponse.size += len(canoto__BlockFetchResponse__Blocks__tag) + canoto.SizeBytes(v)
+		c.canotoData.size += len(canoto__BlockFetchResponse__Blocks__tag) + canoto.SizeBytes(v)
 	}
 }
 
@@ -324,7 +324,7 @@ func (c *BlockFetchResponse) CachedCanotoSize() int {
 	if c == nil {
 		return 0
 	}
-	return c.canotoData_BlockFetchResponse.size
+	return c.canotoData.size
 }
 
 // MarshalCanoto returns the Canoto representation of this struct.

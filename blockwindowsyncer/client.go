@@ -1,193 +1,267 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
 package blockwindowsyncer
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/utils/set"
-
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
 const (
-	maxRetries        = 5               // Maximum number of different peers to try
-	requestTimeout    = 2 * time.Second // Fixed timeout for each request attempt
-	maxSampleAttempts = 3               // Maximum attempts to sample valid nodes
+	requestTimeout = 2 * time.Second // Timeout for each request
+	numSampleNodes = 10              // Number of nodes to sample
 )
 
 var (
-	errMaxRetriesExceeded = errors.New("max retries exceeded")
-	errNoValidNodeFound   = errors.New("no valid node found")
+	errEmptyResponse = errors.New("empty response")
+	errInvalidBlock  = errors.New("invalid block")
+	errMaliciousNode = errors.New("malicious node")
 )
 
-// BlockFetcherClient implements fetching blocks from the network with automatic retries
-// on different peers
+// buffer is thread safe data structure for buffering
+// pending blocks to be written (saved)
+
+// todo: explain why buffer, what does it solve
+type buffer[T Block] struct {
+	mu      sync.Mutex
+	pending map[ids.ID]T
+}
+
+func newBuffer[T Block]() *buffer[T] {
+	return &buffer[T]{
+		pending: make(map[ids.ID]T),
+	}
+}
+
+func (b *buffer[T]) add(block T) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.pending[block.GetID()] = block
+}
+
+func (b *buffer[T]) clear() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.pending = make(map[ids.ID]T)
+}
+
+func (b *buffer[T]) getAll() []T {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	blocks := make([]T, 0, len(b.pending))
+	for _, blk := range b.pending {
+		blocks = append(blocks, blk)
+	}
+	return blocks
+}
+
+type checkpoint struct {
+	blockID   ids.ID
+	height    uint64
+	timestamp int64
+}
+
 type BlockFetcherClient[T Block] struct {
-	client      *dsmr.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
-	blockParser BlockParser[T]
-	nodeSampler p2p.NodeSampler
-	errChan     chan error
-	parentID    ids.ID
+	client  *dsmr.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
+	parser  BlockParser[T]
+	sampler p2p.NodeSampler
+
+	buf       *buffer[T]
+	writeChan chan struct{} // signals the writer goroutine to write buffered blocks
+	errChan   chan error    // receives async errors (parsing/writing)
+
+	checkpointL sync.RWMutex
+	checkpoint  checkpoint
+
+	// Stop/cleanup
+	stopCh chan struct{}
+	stopWG sync.WaitGroup
 }
 
 func NewBlockFetcherClient[T Block](
-	client *p2p.Client,
-	blockParser BlockParser[T],
-	nodeSampler p2p.NodeSampler,
+	baseClient *p2p.Client,
+	parser BlockParser[T],
+	sampler p2p.NodeSampler,
 ) *BlockFetcherClient[T] {
-	return &BlockFetcherClient[T]{
-		client:      dsmr.NewTypedClient(client, &blockFetcherMarshaler{}),
-		blockParser: blockParser,
-		nodeSampler: nodeSampler,
-		errChan:     make(chan error, 1),
+	c := &BlockFetcherClient[T]{
+		client:  dsmr.NewTypedClient(baseClient, &blockFetcherMarshaler{}),
+		parser:  parser,
+		sampler: sampler,
+
+		buf:       newBuffer[T](),
+		writeChan: make(chan struct{}, 1),
+		errChan:   make(chan error, 1),
+		stopCh:    make(chan struct{}),
 	}
+
+	c.stopWG.Add(1)
+	go func() {
+		defer c.stopWG.Done()
+		for {
+			select {
+			case <-c.stopCh:
+				return
+			case <-c.writeChan:
+				c.writePendingBlocks(context.Background())
+			}
+		}
+	}()
+
+	return c
 }
 
-// FetchBlock attempts to fetch a block from the network by trying different peers
-// without waiting between attempts
-func (b *BlockFetcherClient[T]) FetchBlock(ctx context.Context, block T) error {
-	b.parentID = block.GetParent()
-	usedNodes := set.NewSet[ids.NodeID](maxRetries)
-	var errs []error
+// Close stops the background goroutine. Call when shutting down.
+func (c *BlockFetcherClient[T]) Close() error {
+	close(c.stopCh)
+	c.stopWG.Wait()
+	return nil
+}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context cancelled during attempt %d: %w", attempt, ctx.Err())
-		default:
-			nodeID, err := b.sampleNodeID(ctx)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("attempt %d: failed to sample node: %w", attempt, err))
-				continue
-			}
+func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, startBlock T, minTS int64) error {
+	c.setCheckpoint(startBlock.GetID(), startBlock.GetHeight(), startBlock.GetTimestamp())
+	req := &BlockFetchRequest{MinTimestamp: minTS}
 
-			if usedNodes.Contains(nodeID) {
-				continue
-			}
-			usedNodes.Add(nodeID)
+	for {
+		lastWritten := c.getCheckpoint()
+		height := lastWritten.height
+		lastWrittenBlockTS := lastWritten.timestamp
 
-			// Use fixed timeout for each attempt to prevent slow nodes from blocking progress
-			fetchCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-			err = b.fetchBlockAttempt(fetchCtx, nodeID, block)
+		if lastWrittenBlockTS <= minTS {
+			break
+		}
+
+		nodeID := c.sampleNodeID(ctx)
+		if nodeID.Compare(ids.EmptyNodeID) == 0 {
+			// No node available
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+		req.BlockHeight = height
+
+		//fmt.Printf("sending request to %s blkHeight %d\n", nodeID, req)
+		if err := c.client.AppRequest(reqCtx, nodeID, req, c.handleResponse); err != nil {
 			cancel()
-
-			if err == nil {
-				return nil
-			}
-
-			// Return immediately on parent context cancellation
-			if errors.Is(err, context.Canceled) {
-				return fmt.Errorf("parent context cancelled during attempt with node %s: %w", nodeID, err)
-			}
-
-			// On timeout or other errors, continue to next node immediately
-			errs = append(errs, fmt.Errorf("node %s: %w", nodeID, err))
+			// We'll retry with another node, so just continue
+			continue
 		}
-	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%w: all attempts failed after trying %d nodes: %w", errMaxRetriesExceeded, usedNodes.Len(), errors.Join(errs...))
-	}
+		// Wait for parse/write error or context done
+		select {
+		case err := <-c.errChan:
+			cancel()
+			if errors.Is(err, context.Canceled) || errors.Is(err, errMaliciousNode) {
+				return err
+			}
+		case <-ctx.Done():
+			cancel()
+			return ctx.Err()
+		case <-reqCtx.Done():
+			cancel()
+		}
 
-	return fmt.Errorf("no successful attempts after trying %d nodes: %w", usedNodes.Len(), errMaxRetriesExceeded)
+		// todo: update with backoff lib
+		time.Sleep(200 * time.Millisecond)
+	}
+	return nil
 }
 
-// fetchBlockAttempt makes a single attempt to fetch a block from a specific node.
-// It handles both the request sending and response processing through errChan.
-func (b *BlockFetcherClient[T]) fetchBlockAttempt(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	block T,
-) error {
-	request := &BlockFetchRequest{
-		BlockHeight:  block.GetHeight(),
-		MinTimestamp: block.GetTimestamp(),
+func (c *BlockFetcherClient[T]) handleResponse(ctx context.Context, _ ids.NodeID, resp *BlockFetchResponse, reqErr error) {
+	if reqErr != nil {
+		c.errChan <- reqErr
+		return
 	}
-	if err := b.client.AppRequest(ctx, nodeID, request, b.handleResponse); err != nil {
-		return fmt.Errorf("failed to send request to node %s: %w", nodeID, err)
-	}
-
-	select {
-	case err := <-b.errChan:
-		if err != nil {
-			return fmt.Errorf("error processing response from node %s: %w", nodeID, err)
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// handleResponse processes the response from a node asynchronously.
-// It parses received blocks in reverse order and writes them to storage.
-// Any errors during processing are sent through errChan.
-func (b *BlockFetcherClient[T]) handleResponse(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	response *BlockFetchResponse,
-	err error,
-) {
-	if err != nil {
-		b.errChan <- fmt.Errorf("received error response from node %s: %w", nodeID, err)
+	if len(resp.Blocks) == 0 {
+		c.errChan <- errEmptyResponse
 		return
 	}
 
-	expectedParentID := b.parentID
+	c.checkpointL.RLock()
+	lastWritten := c.checkpoint
+	c.checkpointL.RUnlock()
 
-	// Process blocks in reverse order
-	lastIndex := len(response.Blocks) - 1
-	for i := lastIndex; i >= 0; i-- {
-		block, blkParseErr := b.blockParser.ParseBlock(ctx, response.Blocks[i])
-		if blkParseErr != nil {
-			b.errChan <- blkParseErr
+	expectedBlockID := lastWritten.blockID
+	for _, raw := range resp.Blocks {
+		blk, err := c.parser.ParseBlock(ctx, raw)
+		if err != nil {
+			c.errChan <- fmt.Errorf("%w: %v", errInvalidBlock, err)
 			return
 		}
 
-		// Verify this block's parent ID matches what we expect
-		if expectedParentID != block.GetID() {
-			b.errChan <- fmt.Errorf("block verification failed: expected block ID %s but got %s from node %s", expectedParentID, block.GetID(), nodeID)
-			// Question: Should we try another client?
-			return
+		if expectedBlockID != blk.GetID() {
+			c.errChan <- errMaliciousNode
+			goto write
 		}
-		expectedParentID = block.GetParent()
-
-		if blkWrtErr := b.blockParser.WriteBlock(ctx, block); blkWrtErr != nil {
-			b.errChan <- blkWrtErr
-			return
-		}
+		expectedBlockID = blk.GetParent()
+		c.buf.add(blk)
 	}
 
-	b.errChan <- nil
+write: // Trigger the background writer goroutine
+	select {
+	case c.writeChan <- struct{}{}:
+	default:
+	}
 }
 
-// sampleNodeID attempts to sample a valid nodeID from the nodeSampler.
-// It retries up to maxSampleAttempts times to handle temporary sampling failures
-// or empty node cases.
-func (b *BlockFetcherClient[T]) sampleNodeID(ctx context.Context) (ids.NodeID, error) {
-	for attempt := 0; attempt < maxSampleAttempts; attempt++ {
-		select {
-		case <-ctx.Done():
-			return ids.EmptyNodeID, ctx.Err()
-		default:
-			if nodes := b.nodeSampler.Sample(ctx, 1); len(nodes) > 0 {
-				randIndex := rand.Intn(len(nodes)) //nolint:gosec
-				node := nodes[randIndex]
-				if node.String() == ids.EmptyNodeID.String() {
-					continue
-				}
-				return node, nil
-			}
-		}
+func (c *BlockFetcherClient[T]) writePendingBlocks(ctx context.Context) {
+	blocks := c.buf.getAll()
+	if len(blocks) == 0 {
+		return
 	}
 
-	return ids.EmptyNodeID, fmt.Errorf("failed to sample valid nodeID after %d attempts: %w",
-		maxSampleAttempts, errNoValidNodeFound)
+	// Sort in descending order
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].GetHeight() > blocks[j].GetHeight()
+	})
+
+	var lastBlock T
+	for _, blk := range blocks {
+		if err := c.parser.WriteBlock(ctx, blk); err != nil {
+			c.errChan <- fmt.Errorf("failed to write block %s: %w", blk.GetID(), err)
+			c.buf.clear()
+			return
+		}
+		lastBlock = blk
+	}
+
+	if lastBlock.GetID().Compare(ids.Empty) != 0 {
+		// Since we have the last block saved and sequence matters (N, N-1, N-2, ... N-K), next block height to fetch is one below it
+		c.setCheckpoint(lastBlock.GetParent(), lastBlock.GetHeight()-1, lastBlock.GetTimestamp())
+	}
+
+	// Blocks have been written successfully
+	c.buf.clear()
+}
+
+// sampleNodeID picks a random node from the node sampler.
+func (c *BlockFetcherClient[T]) sampleNodeID(ctx context.Context) ids.NodeID {
+	nodes := c.sampler.Sample(ctx, numSampleNodes)
+	for _, nodeID := range nodes {
+		if nodeID != ids.EmptyNodeID {
+			return nodeID
+		}
+	}
+	return ids.EmptyNodeID
+}
+
+func (c *BlockFetcherClient[T]) setCheckpoint(blockID ids.ID, height uint64, ts int64) {
+	c.checkpointL.Lock()
+	defer c.checkpointL.Unlock()
+	c.checkpoint.blockID = blockID
+	c.checkpoint.height = height
+	c.checkpoint.timestamp = ts
+}
+
+func (c *BlockFetcherClient[T]) getCheckpoint() checkpoint {
+	c.checkpointL.RLock()
+	defer c.checkpointL.RUnlock()
+	return c.checkpoint
 }

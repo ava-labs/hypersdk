@@ -105,7 +105,9 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			blockFetcherP2PClient,
 			&blockParserAdapter{vm: vm},
 			&samplerAdapter{peers: vm.network.Peers},
-		))
+		), func(timestamp int64) int64 {
+			return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
+		})
 
 	merkleSyncer, err := statesync.NewMerkleSyncer[*chain.ExecutionBlock](
 		vm.snowCtx.Log,

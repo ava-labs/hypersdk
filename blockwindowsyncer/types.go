@@ -6,7 +6,6 @@ package blockwindowsyncer
 import (
 	"context"
 	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/x/dsmr"
@@ -33,8 +32,8 @@ type BlockParser[T Block] interface {
 }
 
 type BlockFetcher[T Block] interface {
-	// FetchBlock fetches block from the peer
-	FetchBlock(ctx context.Context, block T) error
+	// FetchBlocks sends fetch request to peers starting from block until it fills time validity window
+	FetchBlocks(ctx context.Context, block T, minTimestamp int64) error
 }
 
 // BlockRetriever defines operations needed by a node serving blocks to peers
@@ -46,13 +45,13 @@ type BlockFetchRequest struct {
 	BlockHeight  uint64 `canoto:"int,1"`
 	MinTimestamp int64  `canoto:"int,2"`
 
-	canotoData_BlockFetchRequest
+	canotoData canotoData_BlockFetchRequest
 }
 
 type BlockFetchResponse struct {
 	Blocks [][]byte `canoto:"repeated bytes,1"`
 
-	canotoData_BlockFetchResponse
+	canotoData canotoData_BlockFetchResponse
 }
 
 type blockFetcherMarshaler struct{}

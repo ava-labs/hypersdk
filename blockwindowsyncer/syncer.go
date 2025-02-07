@@ -6,6 +6,7 @@ package blockwindowsyncer
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"sync"
 
 	"github.com/ava-labs/hypersdk/statesync"
@@ -36,21 +37,24 @@ type BlockSyncer[T Block] interface {
 // minimizes the delay in establishing a complete validity window, thereby allowing the node to transition
 // to normal operation more quickly.
 type BlockWindowSyncer[T Block] struct {
-	forwardBlockSyncer   BlockSyncer[T]
-	backwardBlockFetcher BlockFetcher[T]
-
-	doneOnce    sync.Once
-	done        chan struct{}
-	errChan     chan error
-	fetchCancel context.CancelFunc // cancel function for block fetcher context
+	forwardBlockSyncer     BlockSyncer[T]
+	backwardBlockFetcher   BlockFetcher[T]
+	doneOnce               sync.Once
+	done                   chan struct{}
+	errChan                chan error
+	fetchCancel            context.CancelFunc // cancel function for block fetcher context
+	getTimeValidityWindowF validitywindow.GetTimeValidityWindowFunc
+	lock                   sync.RWMutex
+	lastAcceptedBlock      T
 }
 
-func NewBlockWindowSyncer[T Block](syncer BlockSyncer[T], fetcher BlockFetcher[T]) *BlockWindowSyncer[T] {
+func NewBlockWindowSyncer[T Block](syncer BlockSyncer[T], fetcher BlockFetcher[T], getTimeValidityWindowF validitywindow.GetTimeValidityWindowFunc) *BlockWindowSyncer[T] {
 	return &BlockWindowSyncer[T]{
-		forwardBlockSyncer:   syncer,
-		backwardBlockFetcher: fetcher,
-		done:                 make(chan struct{}),
-		errChan:              make(chan error, 1),
+		forwardBlockSyncer:     syncer,
+		backwardBlockFetcher:   fetcher,
+		done:                   make(chan struct{}),
+		errChan:                make(chan error, 1),
+		getTimeValidityWindowF: getTimeValidityWindowF,
 	}
 }
 
@@ -59,7 +63,8 @@ func (b *BlockWindowSyncer[T]) Start(ctx context.Context, target T) error {
 	fetchCtx, cancel := context.WithCancel(ctx)
 	b.fetchCancel = cancel
 
-	go b.startBackwardBlockFetching(fetchCtx, target)
+	var wg sync.WaitGroup
+	go b.startBackwardBlockFetching(fetchCtx, target, &wg)
 
 	// In the main goroutine, process forward blocks
 	done, err := b.forwardBlockSyncer.Accept(ctx, target)
@@ -73,6 +78,8 @@ func (b *BlockWindowSyncer[T]) Start(ctx context.Context, target T) error {
 		// If we've filled our forward validity window, cancel the backward fetching.
 		cancel()
 		b.signalDone()
+	} else {
+		wg.Wait()
 	}
 
 	return nil
@@ -93,9 +100,7 @@ func (b *BlockWindowSyncer[T]) Wait(ctx context.Context) error {
 
 // Close cancels the block fetcher if it's still running.
 func (b *BlockWindowSyncer[T]) Close() error {
-	if b.fetchCancel != nil {
-		b.fetchCancel()
-	}
+	b.cancelFetcher()
 	return nil
 }
 
@@ -103,9 +108,23 @@ func (b *BlockWindowSyncer[T]) Close() error {
 // and if Accept returns done==true, it cancels the block fetcher and signals that we’re done.
 func (b *BlockWindowSyncer[T]) UpdateSyncTarget(ctx context.Context, target T) error {
 	done, err := b.forwardBlockSyncer.Accept(ctx, target)
+
+	// timestamp of this block
+	// should be taken as start block
+
 	if err != nil {
 		return err
 	}
+
+	// ovo se izgleda zove vise puta iz gorutine tokom state synca
+
+	// pitaj Aarona - da li se oni bore ko ce napuniti validity window?
+	// jer ako mi stalno prihvatamo nove blokove to znaci da cemo stalno da updejt
+
+	b.lock.Lock()
+	b.lastAcceptedBlock = target
+	b.lock.Unlock()
+
 	if done {
 		b.cancelFetcher()
 		b.signalDone()
@@ -113,8 +132,24 @@ func (b *BlockWindowSyncer[T]) UpdateSyncTarget(ctx context.Context, target T) e
 	return nil
 }
 
-func (b *BlockWindowSyncer[T]) startBackwardBlockFetching(ctx context.Context, target T) {
-	if err := b.backwardBlockFetcher.FetchBlock(ctx, target); err != nil {
+func (b *BlockWindowSyncer[T]) startBackwardBlockFetching(ctx context.Context, target T, wg *sync.WaitGroup) {
+	wg.Add(1)
+
+	defer func() {
+		wg.Done()
+		if err := b.Close(); err != nil {
+			select {
+			case b.errChan <- err:
+			default:
+			}
+		}
+	}()
+
+	b.lock.RLock()
+	timestamp := target.GetTimestamp() - b.lastAcceptedBlock.GetTimestamp()
+	b.lock.RUnlock()
+
+	if err := b.backwardBlockFetcher.FetchBlocks(ctx, target, b.getTimeValidityWindowF(timestamp)); err != nil {
 		select {
 		case b.errChan <- fmt.Errorf("block fetcher error: %w", err):
 		default:
