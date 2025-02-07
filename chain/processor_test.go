@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -69,6 +70,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -84,6 +86,7 @@ func TestProcessorExecute(t *testing.T) {
 					0,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -110,6 +113,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -133,6 +137,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -156,6 +161,7 @@ func TestProcessorExecute(t *testing.T) {
 					2,
 					nil,
 					parentRoot,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -179,6 +185,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -203,6 +210,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -239,6 +247,7 @@ func TestProcessorExecute(t *testing.T) {
 						}(),
 					},
 					parentRoot,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -263,6 +272,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					parentRoot,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -287,6 +297,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -317,6 +328,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					root,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -360,6 +372,7 @@ func TestProcessorExecute(t *testing.T) {
 						}(),
 					},
 					parentRoot,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -385,6 +398,7 @@ func TestProcessorExecute(t *testing.T) {
 					1,
 					nil,
 					ids.GenerateTestID(),
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
@@ -431,6 +445,7 @@ func TestProcessorExecute(t *testing.T) {
 						}(),
 					},
 					parentRoot,
+					&block.Context{},
 				)
 				require.NoError(t, err)
 				return block
