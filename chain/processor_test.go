@@ -47,23 +47,23 @@ func TestProcessorExecute(t *testing.T) {
 		name           string
 		validityWindow chain.ValidityWindow
 		isNormalOp     bool
-		view           merkledb.View
-		newBlockF      func(ids.ID) *chain.StatelessBlock
+		newViewF       func(*require.Assertions) merkledb.View
+		newBlockF      func(*require.Assertions, ids.ID) *chain.StatelessBlock
 		expectedErr    error
 	}{
 		{
 			name:           "valid test case",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -72,14 +72,14 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 		},
 		{
 			name:           "block timestamp too late",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					time.Now().Add(2*chain.FutureBound).UnixMilli(),
@@ -88,32 +88,32 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
+			},
 			expectedErr: chain.ErrTimestampTooLate,
 		},
 		{
 			name:           "failed to get parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -122,7 +122,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrFailedToFetchParentHeight,
@@ -130,16 +130,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to parse parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    {},
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -148,7 +148,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrFailedToParseParentHeight,
@@ -156,16 +156,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "block height is not one more than parent height",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -174,7 +174,7 @@ func TestProcessorExecute(t *testing.T) {
 					parentRoot,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrInvalidBlockHeight,
@@ -182,15 +182,15 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to get timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:    {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -199,7 +199,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrFailedToFetchParentTimestamp,
@@ -207,16 +207,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to parse timestamp",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: {},
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -225,7 +225,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
@@ -233,16 +233,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "non-empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
 					&chain.Base{
 						Timestamp: utils.UnixRMilli(
@@ -253,7 +253,7 @@ func TestProcessorExecute(t *testing.T) {
 					[]chain.Action{},
 					&mockAuth{typeID: 1},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -263,7 +263,7 @@ func TestProcessorExecute(t *testing.T) {
 					parentRoot,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
@@ -271,16 +271,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "empty block timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					0,
@@ -289,7 +289,7 @@ func TestProcessorExecute(t *testing.T) {
 					parentRoot,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrTimestampTooEarly,
@@ -297,15 +297,15 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to get fee",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -314,7 +314,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrFailedToFetchParentFee,
@@ -327,16 +327,16 @@ func TestProcessorExecute(t *testing.T) {
 				},
 			},
 			isNormalOp: true,
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(root ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, root ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -345,7 +345,7 @@ func TestProcessorExecute(t *testing.T) {
 					root,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: errMockVerifyExpiryReplayProtection,
@@ -353,16 +353,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "failed to execute txs",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
 					&chain.Base{
 						Timestamp: utils.UnixRMilli(
@@ -379,7 +379,7 @@ func TestProcessorExecute(t *testing.T) {
 					},
 					&mockAuth{typeID: 1},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -389,7 +389,7 @@ func TestProcessorExecute(t *testing.T) {
 					parentRoot,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrInvalidKeyValue,
@@ -397,16 +397,16 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "state root mismatch",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, _ ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
 					testRules.GetMinEmptyBlockGap(),
@@ -415,7 +415,7 @@ func TestProcessorExecute(t *testing.T) {
 					ids.GenerateTestID(),
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: chain.ErrStateRootMismatch,
@@ -423,18 +423,18 @@ func TestProcessorExecute(t *testing.T) {
 		{
 			name:           "invalid transaction signature",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			view: func() merkledb.View {
+			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
 				})
-				require.NoError(t, err)
+				r.NoError(err)
 				return v
-			}(),
-			newBlockF: func(parentRoot ids.ID) *chain.StatelessBlock {
+			},
+			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				p, err := ed25519.GeneratePrivateKey()
-				require.NoError(t, err)
+				r.NoError(err)
 
 				tx, err := chain.NewTransaction(
 					&chain.Base{
@@ -448,7 +448,7 @@ func TestProcessorExecute(t *testing.T) {
 						Signer: p.PublicKey(),
 					},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
@@ -458,7 +458,7 @@ func TestProcessorExecute(t *testing.T) {
 					parentRoot,
 					&block.Context{},
 				)
-				require.NoError(t, err)
+				r.NoError(err)
 				return block
 			},
 			expectedErr: crypto.ErrInvalidSignature,
@@ -486,13 +486,16 @@ func TestProcessorExecute(t *testing.T) {
 				chain.NewDefaultConfig(),
 			)
 
-			root, err := tt.view.GetMerkleRoot(ctx)
+			view := tt.newViewF(r)
+			root, err := view.GetMerkleRoot(ctx)
 			r.NoError(err)
+
+			block := tt.newBlockF(r, root)
 
 			_, err = processor.Execute(
 				ctx,
-				tt.view,
-				chain.NewExecutionBlock(tt.newBlockF(root)),
+				view,
+				chain.NewExecutionBlock(block),
 				tt.isNormalOp,
 			)
 			r.ErrorIs(err, tt.expectedErr)
