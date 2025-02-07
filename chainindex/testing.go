@@ -1,31 +1,34 @@
-package chainindextest
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package chainindex
 
 import (
 	"context"
 	"errors"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // TestFactory provides easy ways to create test chain indexes
-type TestFactory[T chainindex.Block] struct {
-	Config chainindex.Config
+type TestFactory[T Block] struct {
+	Config Config
 	DB     database.Database
-	Parser chainindex.Parser[T]
+	Parser Parser[T]
 }
 
-func NewChainIndexTestFactory[T chainindex.Block](parser chainindex.Parser[T]) *TestFactory[T] {
+func NewChainIndexTestFactory[T Block](parser Parser[T]) *TestFactory[T] {
 	return &TestFactory[T]{
-		Config: chainindex.NewDefaultConfig(),
+		Config: NewDefaultConfig(),
 		DB:     memdb.New(),
 		Parser: parser,
 	}
 }
 
-func (f *TestFactory[T]) WithConfig(config chainindex.Config) *TestFactory[T] {
+func (f *TestFactory[T]) WithConfig(config Config) *TestFactory[T] {
 	f.Config = config
 	return f
 }
@@ -35,7 +38,7 @@ func (f *TestFactory[T]) WithDB(db database.Database) *TestFactory[T] {
 	return f
 }
 
-func (f *TestFactory[T]) BuildWithBlocks(ctx context.Context, blocks []T) (*chainindex.ChainIndex[T], error) {
+func (f *TestFactory[T]) BuildWithBlocks(ctx context.Context, blocks []T) (*ChainIndex[T], error) {
 	ci, err := f.Build()
 	if err != nil {
 		return nil, err
@@ -50,10 +53,10 @@ func (f *TestFactory[T]) BuildWithBlocks(ctx context.Context, blocks []T) (*chai
 	return ci, nil
 }
 
-func (f *TestFactory[T]) Build() (*chainindex.ChainIndex[T], error) {
+func (f *TestFactory[T]) Build() (*ChainIndex[T], error) {
 	if f.DB == nil {
 		return nil, errors.New("db not initialized")
 	}
 
-	return chainindex.New[T](logging.NoLog{}, prometheus.NewRegistry(), f.Config, f.Parser, f.DB)
+	return New[T](logging.NoLog{}, prometheus.NewRegistry(), f.Config, f.Parser, f.DB)
 }

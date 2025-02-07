@@ -7,14 +7,14 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
-	t2 "github.com/ava-labs/hypersdk/chainindex/chainindextest"
-	"github.com/ava-labs/hypersdk/consts"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type testBlock struct {
@@ -39,7 +39,7 @@ func TestChainIndex(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	chainIndex, err := t2.NewChainIndexTestFactory[*testBlock](&parser{}).Build()
+	chainIndex, err := NewChainIndexTestFactory[*testBlock](&parser{}).Build()
 	r.NoError(err)
 
 	genesisBlk := &testBlock{height: 0}
@@ -58,7 +58,7 @@ func TestChainIndex(t *testing.T) {
 }
 
 func TestChainIndexInvalidCompactionFrequency(t *testing.T) {
-	_, err := t2.NewChainIndexTestFactory(&parser{}).
+	_, err := NewChainIndexTestFactory(&parser{}).
 		WithConfig(Config{BlockCompactionFrequency: 0}).
 		Build()
 	require.ErrorIs(t, err, errBlockCompactionFrequencyZero)
@@ -67,7 +67,7 @@ func TestChainIndexInvalidCompactionFrequency(t *testing.T) {
 func TestChainIndexExpiry(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := t2.NewChainIndexTestFactory[*testBlock](&parser{}).
+	chainIndex, err := NewChainIndexTestFactory[*testBlock](&parser{}).
 		WithConfig(Config{
 			AcceptedBlockWindow:      1,
 			BlockCompactionFrequency: 64,
