@@ -33,10 +33,9 @@ import (
 )
 
 const (
-	networkID                                        = uint32(123)
-	testingDefaultValidityWindowDuration             = 5 * time.Second
-	testingDefaultChunkRateLimitingWindow            = 10 * time.Second
-	testingDefaultAccumulatedChunksWeightWindowLimit = 1024 * 1024
+	networkID                            = uint32(123)
+	testingDefaultValidityWindowDuration = 5 * time.Second
+	testingDefaultMaxProducerChunkWeight = 1024 * 1024
 )
 
 var (
@@ -47,9 +46,8 @@ var (
 	chainID         = ids.Empty
 	testRuleFactory = ruleFactory{
 		rules: rules{
-			validityWindow:                     int64(testingDefaultValidityWindowDuration),
-			chunkRateLimitingWindow:            int64(testingDefaultChunkRateLimitingWindow),
-			accumulatedChunksWeightWindowLimit: testingDefaultAccumulatedChunksWeightWindowLimit,
+			validityWindow:         int64(testingDefaultValidityWindowDuration),
+			maxProducerChunkWeight: testingDefaultMaxProducerChunkWeight,
 		},
 	}
 
@@ -1591,13 +1589,9 @@ type ruleFactory struct {
 func (r ruleFactory) GetRules(int64) Rules { return r.rules }
 
 type rules struct {
-	validityWindow                     int64
-	chunkRateLimitingWindow            int64
-	accumulatedChunksWeightWindowLimit uint64
+	validityWindow         int64
+	maxProducerChunkWeight uint64
 }
 
-func (r rules) GetValidityWindow() int64          { return r.validityWindow }
-func (r rules) GetChunkRateLimitingWindow() int64 { return r.chunkRateLimitingWindow }
-func (r rules) GetAccumulatedChunkWeightWindowLimit() uint64 {
-	return r.accumulatedChunksWeightWindowLimit
-}
+func (r rules) GetValidityWindow() int64                     { return r.validityWindow }
+func (r rules) GetMaxAccumulatedProducerChunkWeight() uint64 { return r.maxProducerChunkWeight }

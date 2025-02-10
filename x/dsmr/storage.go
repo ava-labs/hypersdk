@@ -8,8 +8,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"slices"
-	"sort"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -128,7 +126,8 @@ type ChunkStorage[T Tx] struct {
 	// Chunk + signature + cert
 	pendingChunkMap map[ids.ID]*StoredChunkSignature[T]
 
-	pendingChunksProducers map[ids.NodeID][]*StoredChunkSignature[T]
+	// pendingChunksSizes map a chunk producer to the total size of storage being used for it's pending chunks.
+	pendingChunksSizes map[ids.NodeID]uint64
 
 	ruleFactory RuleFactory
 }
@@ -153,13 +152,13 @@ func NewChunkStorage[T Tx](
 	}
 
 	storage := &ChunkStorage[T]{
-		minimumExpiry:          minSlot,
-		chunkEMap:              emap.NewEMap[emapChunk[T]](),
-		pendingChunkMap:        make(map[ids.ID]*StoredChunkSignature[T]),
-		pendingChunksProducers: make(map[ids.NodeID][]*StoredChunkSignature[T]),
-		chunkDB:                db,
-		verifier:               verifier,
-		ruleFactory:            ruleFactory,
+		minimumExpiry:      minSlot,
+		chunkEMap:          emap.NewEMap[emapChunk[T]](),
+		pendingChunkMap:    make(map[ids.ID]*StoredChunkSignature[T]),
+		pendingChunksSizes: make(map[ids.NodeID]uint64),
+		chunkDB:            db,
+		verifier:           verifier,
+		ruleFactory:        ruleFactory,
 	}
 	return storage, storage.init()
 }
@@ -180,16 +179,7 @@ func (s *ChunkStorage[T]) init() error {
 		s.chunkEMap.Add([]emapChunk[T]{{chunk: chunk}})
 		storedChunkSig := &StoredChunkSignature[T]{Chunk: chunk}
 		s.pendingChunkMap[chunk.id] = storedChunkSig
-		s.pendingChunksProducers[chunk.Producer] = append(s.pendingChunksProducers[chunk.Producer], storedChunkSig)
-	}
-
-	// sort all the producer's chunks.
-	// no need to write back to the pendingChunksProducers since all the slice
-	// changes are in-place.
-	for _, chunks := range s.pendingChunksProducers {
-		sort.Slice(chunks, func(i, j int) bool {
-			return chunks[i].Chunk.Expiry < chunks[j].Chunk.Expiry
-		})
+		s.pendingChunksSizes[chunk.Producer] += uint64(len(chunk.bytes))
 	}
 
 	if err := iter.Error(); err != nil {
@@ -266,13 +256,7 @@ func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) e
 	}
 	chunkCert := &StoredChunkSignature[T]{Chunk: c, Cert: cert}
 	s.pendingChunkMap[c.id] = chunkCert
-
-	producerChunks := s.pendingChunksProducers[c.Producer]
-	idx := sort.Search(len(producerChunks), func(i int) bool {
-		return producerChunks[i].Chunk.Expiry > c.Expiry
-	})
-	producerChunks = slices.Insert(producerChunks, idx, chunkCert)
-	s.pendingChunksProducers[c.Producer] = producerChunks
+	s.pendingChunksSizes[c.Producer] += uint64(len(c.bytes))
 
 	return nil
 }
@@ -330,16 +314,10 @@ func (s *ChunkStorage[T]) discardPendingChunk(chunkID ids.ID) {
 		return
 	}
 	delete(s.pendingChunkMap, chunkID)
-	chunks := s.pendingChunksProducers[chunk.Chunk.Producer]
-	if len(chunks) <= 1 {
-		delete(s.pendingChunksProducers, chunk.Chunk.Producer)
-		return
+	s.pendingChunksSizes[chunk.Chunk.Producer] -= uint64(len(chunk.Chunk.bytes))
+	if s.pendingChunksSizes[chunk.Chunk.Producer] == 0 {
+		delete(s.pendingChunksSizes, chunk.Chunk.Producer)
 	}
-	idx := sort.Search(len(chunks), func(i int) bool {
-		return chunks[i].Chunk.Expiry >= chunk.Chunk.Expiry
-	})
-	chunks = append(chunks[:idx], chunks[idx+1:]...)
-	s.pendingChunksProducers[chunk.Chunk.Producer] = chunks
 }
 
 // GatherChunkCerts provides a slice of chunk certificates to build
@@ -379,41 +357,10 @@ func (s *ChunkStorage[T]) GetChunkBytes(expiry int64, chunkID ids.ID) ([]byte, e
 }
 
 func (s *ChunkStorage[T]) CheckRateLimit(chunk Chunk[T]) error {
-	producer := chunk.Producer
-	expiry := chunk.Expiry
-	weight := uint64(len(chunk.bytes))
-	producerChunks := s.pendingChunksProducers[producer]
-	if len(producerChunks) == 0 {
-		return nil
-	}
-	window := s.ruleFactory.GetRules(expiry).GetChunkRateLimitingWindow()
-	weightLimit := s.ruleFactory.GetRules(expiry).GetAccumulatedChunkWeightWindowLimit()
+	weightLimit := s.ruleFactory.GetRules(chunk.Expiry).GetMaxAccumulatedProducerChunkWeight()
 
-	// remove all the producer chunks prior then [expiry - window]
-	priorChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
-		return producerChunks[i].Chunk.Expiry > expiry-window
-	})
-	if priorChunksIdx != len(producerChunks) {
-		producerChunks = producerChunks[priorChunksIdx:]
-	}
-
-	// remove all the producer chunks after [expiry + window]
-	postChunksIdx := sort.Search(len(producerChunks), func(i int) bool {
-		return producerChunks[i].Chunk.Expiry > expiry+window
-	})
-	if postChunksIdx != len(producerChunks) {
-		producerChunks = producerChunks[:postChunksIdx]
-	}
-
-	// we're left only with the chunks that are in the range of [expiry-window,expiry+window]
-	for i := 0; i < len(producerChunks); i++ {
-		accumulatedWeight := len(producerChunks[i].Chunk.bytes)
-		for j := i + 1; j < len(producerChunks) && producerChunks[i].Chunk.Expiry+window > producerChunks[j].Chunk.Expiry; j++ {
-			accumulatedWeight += len(producerChunks[j].Chunk.bytes)
-		}
-		if uint64(accumulatedWeight)+weight > weightLimit {
-			return ErrChunkRateLimitSurpassed
-		}
+	if uint64(len(chunk.bytes))+s.pendingChunksSizes[chunk.Producer] > weightLimit {
+		return ErrChunkRateLimitSurpassed
 	}
 	return nil
 }

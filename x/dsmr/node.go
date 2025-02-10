@@ -65,8 +65,7 @@ type Validator struct {
 
 type Rules interface {
 	GetValidityWindow() int64
-	GetChunkRateLimitingWindow() int64
-	GetAccumulatedChunkWeightWindowLimit() uint64
+	GetMaxAccumulatedProducerChunkWeight() uint64
 }
 
 type RuleFactory interface {
