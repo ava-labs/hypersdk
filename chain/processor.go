@@ -29,17 +29,14 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-type ExecutionBlock struct {
-	*StatelessBlock
+type ExecutionBlock[T Action[T], A Auth[A]] struct {
+	*Block[T, A]
 
-	// authCounts can be used by batch signature verification
-	// to preallocate memory
-	authCounts map[uint8]int
-	txsSet     set.Set[ids.ID]
+	txsSet set.Set[ids.ID]
 }
 
-type OutputBlock struct {
-	*ExecutionBlock
+type OutputBlock[T Action[T], A Auth[A]] struct {
+	*ExecutionBlock[T, A]
 
 	View             merkledb.View
 	ExecutionResults ExecutionResults
@@ -51,30 +48,27 @@ type blockContext struct {
 	feeManager *fees.Manager
 }
 
-func NewExecutionBlock(block *StatelessBlock) *ExecutionBlock {
-	authCounts := make(map[uint8]int)
+func NewExecutionBlock[T Action[T], A Auth[A]](block *Block[T, A]) *ExecutionBlock[T, A] {
 	txsSet := set.NewSet[ids.ID](len(block.Txs))
 	for _, tx := range block.Txs {
 		txsSet.Add(tx.GetID())
-		authCounts[tx.Auth.GetTypeID()]++
 	}
 
-	return &ExecutionBlock{
-		authCounts:     authCounts,
-		txsSet:         txsSet,
-		StatelessBlock: block,
+	return &ExecutionBlock[T, A]{
+		txsSet: txsSet,
+		Block:  block,
 	}
 }
 
-func (b *ExecutionBlock) Contains(id ids.ID) bool {
+func (b *ExecutionBlock[T, A]) Contains(id ids.ID) bool {
 	return b.txsSet.Contains(id)
 }
 
-func (b *ExecutionBlock) GetContainers() []*Transaction {
-	return b.StatelessBlock.Txs
+func (b *ExecutionBlock[T, A]) GetContainers() []*Transaction[T, A] {
+	return b.Block.Txs
 }
 
-type Processor struct {
+type Processor[T Action[T], A Auth[A]] struct {
 	tracer                  trace.Tracer
 	log                     logging.Logger
 	ruleFactory             RuleFactory
@@ -87,7 +81,7 @@ type Processor struct {
 	config                  Config
 }
 
-func NewProcessor(
+func NewProcessor[T Action[T], A Auth[A]](
 	tracer trace.Tracer,
 	log logging.Logger,
 	ruleFactory RuleFactory,
@@ -98,8 +92,8 @@ func NewProcessor(
 	validityWindow ValidityWindow,
 	metrics *chainMetrics,
 	config Config,
-) *Processor {
-	return &Processor{
+) *Processor[T, A] {
+	return &Processor[T, A]{
 		tracer:                  tracer,
 		log:                     log,
 		ruleFactory:             ruleFactory,
@@ -113,12 +107,12 @@ func NewProcessor(
 	}
 }
 
-func (p *Processor) Execute(
+func (p *Processor[T, A]) Execute(
 	ctx context.Context,
 	parentView merkledb.View,
-	b *ExecutionBlock,
+	b *ExecutionBlock[T, A],
 	isNormalOp bool,
-) (*OutputBlock, error) {
+) (*OutputBlock[T, A], error) {
 	ctx, span := p.tracer.Start(ctx, "Chain.Execute")
 	defer span.End()
 
@@ -225,7 +219,7 @@ type fetchData struct {
 	chunks uint16
 }
 
-func (p *Processor) executeTxs(
+func (p *Processor[T, A]) executeTxs(
 	ctx context.Context,
 	b *ExecutionBlock,
 	im state.Immutable,
@@ -323,7 +317,7 @@ func (p *Processor) executeTxs(
 
 // verifySignatures creates and kicks off signature verification job for the provided block
 // Assumes that the executionBlock's authCounts field has been populated correctly during construction
-func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock) (workers.Job, error) {
+func (p *Processor[T, A]) verifySignatures(ctx context.Context, block *ExecutionBlock) (workers.Job, error) {
 	sigJob, err := p.authVerificationWorkers.NewJob(len(block.StatelessBlock.Txs))
 	if err != nil {
 		return nil, err
@@ -350,7 +344,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	return sigJob, nil
 }
 
-func (p *Processor) waitSignatures(ctx context.Context, sigJob workers.Job) error {
+func (p *Processor[T, A]) waitSignatures(ctx context.Context, sigJob workers.Job) error {
 	_, span := p.tracer.Start(ctx, "Chain.Execute.waitSignatures")
 	defer span.End()
 
@@ -366,7 +360,7 @@ func (p *Processor) waitSignatures(ctx context.Context, sigJob workers.Job) erro
 
 // createBlockContext extracts and verifies the block context from the parent view
 // and provided block
-func (p *Processor) createBlockContext(
+func (p *Processor[T, A]) createBlockContext(
 	ctx context.Context,
 	im state.Immutable,
 	block *ExecutionBlock,
@@ -428,7 +422,7 @@ func (p *Processor) createBlockContext(
 	}, nil
 }
 
-func (p *Processor) writeBlockContext(
+func (p *Processor[T, A]) writeBlockContext(
 	ctx context.Context,
 	mu state.Mutable,
 	blockCtx blockContext,
@@ -450,7 +444,7 @@ func (p *Processor) writeBlockContext(
 	return nil
 }
 
-func (p *Processor) verifyParentRoot(
+func (p *Processor[T, A]) verifyParentRoot(
 	ctx context.Context,
 	parentView merkledb.View,
 	stateRoot ids.ID,

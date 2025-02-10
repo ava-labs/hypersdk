@@ -83,9 +83,9 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
 	r := c.ruleFactory.GetRules(nextTime)
-	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
+	if nextTime < parent.Timestamp+r.GetMinBlockGap() {
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
-		return nil, nil, fmt.Errorf("%w: proposed build block time (%d) < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, nextTime, parent.Tmstmp, r.GetMinBlockGap())
+		return nil, nil, fmt.Errorf("%w: proposed build block time (%d) < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, nextTime, parent.Timestamp, r.GetMinBlockGap())
 	}
 	var (
 		parentID          = parent.GetID()
@@ -370,8 +370,8 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(blockTransactions) == 0 {
-		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
+		if nextTime < parent.Timestamp+r.GetMinEmptyBlockGap() {
+			return nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Timestamp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
 		c.metrics.emptyBlockBuilt.Inc()
 	}
@@ -391,7 +391,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		keys,
 		state.ImmutableStorage(map[string][]byte{
 			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
-			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Timestamp)),
 			feeKeyStr:       parentFeeManager.Bytes(),
 		}),
 		len(keys),
@@ -458,7 +458,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		zap.Int("added", len(blockTransactions)),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
-		zap.Int64("parent (t)", parent.Tmstmp),
+		zap.Int64("parent (t)", parent.Timestamp),
 		zap.Int64("block (t)", timestamp),
 	)
 	execBlock := NewExecutionBlock(blk)

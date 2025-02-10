@@ -35,7 +35,7 @@ type GetBlockClientResponse struct {
 	BlockBytes codec.Bytes `json:"blockBytes"`
 }
 
-func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser) (*chain.ExecutedBlock, error) {
+func (c *Client) GetBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -46,7 +46,7 @@ func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes)
 }
 
 func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser chain.Parser) (*chain.ExecutedBlock, error) {

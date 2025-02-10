@@ -5,17 +5,16 @@ package chain
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/internal/math"
-	"github.com/ava-labs/hypersdk/internal/mempool"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -24,169 +23,212 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-var (
-	_ emap.Item    = (*Transaction)(nil)
-	_ mempool.Item = (*Transaction)(nil)
-)
+type Action[T any] interface {
+	canoto.FieldMaker[T]
 
-type TransactionData struct {
-	Base *Base `json:"base"`
+	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
+	// whether the [Action] can be included in a given block and to compute the required fee to execute.
+	ComputeUnits() uint64
 
-	Actions Actions `json:"actions"`
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// If any key is removed and then re-created, this will count as a creation
+	// instead of a modification.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
+	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
-	unsignedBytes []byte
+	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
+	// be done here.
+	//
+	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
+	// will revert and the max fee will be charged.
+	//
+	// If [Execute] returns an error, execution will halt and any state changes
+	// will revert.
+	//
+	// [actionID] is a unique, but nonrandom identifier for each [Action].
+	Execute(
+		ctx context.Context,
+		mu state.Mutable,
+		timestamp int64,
+		actor codec.Address,
+		actionID ids.ID,
+	) (codec.Typed, error)
 }
 
-func NewTxData(base *Base, actions Actions) *TransactionData {
-	return &TransactionData{
-		Base:    base,
+type Auth[T any] interface {
+	canoto.FieldMaker[T]
+
+	// ComputeUnits is the amount of compute required to call [Verify]. This is
+	// used to determine whether [Auth] can be included in a given block and to compute
+	// the required fee to execute.
+	ComputeUnits() uint64
+
+	// Verify is run concurrently during transaction verification. It may not be run by the time
+	// a transaction is executed but will be checked before a [Transaction] is considered successful.
+	// Verify is typically used to perform cryptographic operations.
+	Verify(ctx context.Context, msg []byte) error
+
+	// Actor is the subject of the [Action] signed.
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
+	// by the [TypeID].
+	Actor() codec.Address
+
+	// Sponsor is the fee payer of the [Action] signed.
+	//
+	// If the [Actor] is not the same as [Sponsor], it is likely that the [Actor] signature
+	// is wrapped by the [Sponsor] signature. It is important that the [Actor], in this case,
+	// signs the [Sponsor] address or else their transaction could be replayed.
+	//
+	// TODO: add a standard sponsor wrapper auth (but this does not need to be handled natively)
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
+	// by the [TypeID].
+	Sponsor() codec.Address
+}
+
+type AuthFactory[A Auth[A]] interface {
+	// Sign is used by helpers, auth object should store internally to be ready for marshaling
+	Sign(msg []byte) (A, error)
+	MaxUnits() (bandwidth uint64, compute uint64)
+	Address() codec.Address
+}
+
+type TransactionData[T Action[T]] struct {
+	// Expiry is the Unix time (in milliseconds) that this transaction expires.
+	// Once a block with a timestamp past [Expiry] is accepted, this transaction has either
+	// been included or expired, which means that it can be re-issued without fear of replay.
+	Expiry int64 `canoto:"sint,1" json:"expiry"`
+	// ChainID provides replay protection for transactions that may otherwise be identical
+	// on multiple chains.
+	ChainID ids.ID `canoto:"fixed bytes,2" json:"chainID"`
+	// MaxFee specifies the maximum fee that the transaction is willing to pay. The chain
+	// will charge up to this amount if the transaction is included in a block.
+	// If this fee is too low to cover all fees, the transaction may be dropped from the mempool.
+	MaxFee uint64 `canoto:"fint64,3" json:"maxFee"`
+	// Actions are the operations that this transaction will perform if included and executed
+	// onchain. If any action fails, all actions will be reverted.
+	Actions []T `canoto:"repeated field,4" json:"actions"`
+
+	unsignedBytes []byte
+
+	canotoData canotoData_TransactionData
+}
+
+func NewTransactionData[T Action[T]](
+	expiry int64,
+	chainID ids.ID,
+	maxFee uint64,
+	actions []T,
+) *TransactionData[T] {
+	return &TransactionData[T]{
+		Expiry:  expiry,
+		ChainID: chainID,
+		MaxFee:  maxFee,
 		Actions: actions,
 	}
 }
 
-// UnsignedBytes returns the byte slice representation of the tx
-func (t *TransactionData) UnsignedBytes() ([]byte, error) {
-	if len(t.unsignedBytes) > 0 {
-		return t.unsignedBytes, nil
+func (t *TransactionData[T]) init() {
+	if len(t.unsignedBytes) != 0 {
+		return
 	}
-	size := t.Base.Size() + consts.Uint8Len
 
-	actionsSize, err := t.Actions.Size()
+	t.unsignedBytes = t.MarshalCanoto()
+}
+
+func (t *TransactionData[T]) UnsignedBytes() []byte {
+	t.init()
+	return t.unsignedBytes
+}
+
+func (t *TransactionData[T]) GetExpiry() int64 { return t.Expiry }
+
+func SignTx[T Action[T], A Auth[A]](txData *TransactionData[T], authFactory AuthFactory[A]) (*Transaction[T, A], error) {
+	auth, err := authFactory.Sign(txData.UnsignedBytes())
 	if err != nil {
 		return nil, err
 	}
-	size += actionsSize
+	return NewTransaction(txData, auth), nil
+}
 
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := t.marshal(p); err != nil {
+type Transaction[T Action[T], A Auth[A]] struct {
+	*TransactionData[T] `canoto:"field,1" json:"unsignedTx"`
+
+	Auth A `canoto:"field,2" json:"signature"`
+
+	bytes      []byte
+	txID       ids.ID
+	stateKeys  state.Keys
+	canotoData canotoData_Transaction
+}
+
+func NewTransaction[T Action[T], A Auth[A]](
+	transactionData *TransactionData[T],
+	auth A,
+) *Transaction[T, A] {
+	tx := &Transaction[T, A]{
+		TransactionData: transactionData,
+		Auth:            auth,
+	}
+	tx.init()
+	return tx
+}
+
+func (t *Transaction[T, A]) init() {
+	if len(t.bytes) != 0 {
+		return
+	}
+
+	t.bytes = t.MarshalCanoto()
+	t.txID = utils.ToID(t.bytes)
+}
+
+func (t *Transaction[T, A]) GetID() ids.ID {
+	t.init()
+	return t.txID
+}
+
+func (t *Transaction[T, A]) GetBytes() []byte {
+	t.init()
+	return t.bytes
+}
+
+func (t *Transaction[T, A]) GetSize() int {
+	t.init()
+	return len(t.bytes)
+}
+
+func ParseTransaction[T Action[T], A Auth[A]](bytes []byte) (*Transaction[T, A], error) {
+	tx := &Transaction[T, A]{}
+	if err := tx.UnmarshalCanoto(bytes); err != nil {
 		return nil, err
 	}
-	t.unsignedBytes = p.Bytes()
-	return t.unsignedBytes, p.Err()
+	tx.bytes = bytes
+	tx.txID = utils.ToID(bytes)
+	return tx, nil
 }
 
-// Sign returns a new signed transaction with the unsigned tx copied from
-// the original and a signature provided by the authFactory
-func (t *TransactionData) Sign(
-	factory AuthFactory,
-) (*Transaction, error) {
-	msg, err := t.UnsignedBytes()
-	if err != nil {
-		return nil, err
-	}
-	auth, err := factory.Sign(msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewTransaction(t.Base, t.Actions, auth)
+func (t *Transaction[T, A]) GetSponsor() codec.Address {
+	return t.Auth.Sponsor()
 }
 
-func SignRawActionBytesTx(
-	base *Base,
-	rawActionsBytes []byte,
-	authFactory AuthFactory,
-) ([]byte, error) {
-	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
-	base.Marshal(p)
-	p.PackFixedBytes(rawActionsBytes)
-
-	auth, err := authFactory.Sign(p.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	p.PackByte(auth.GetTypeID())
-	auth.Marshal(p)
-	return p.Bytes(), p.Err()
+func (t *Transaction[T, A]) VerifyAuth(ctx context.Context) error {
+	return t.Auth.Verify(ctx, t.UnsignedBytes())
 }
 
-func (t *TransactionData) GetExpiry() int64 { return t.Base.Timestamp }
-
-func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
-
-func (t *TransactionData) Marshal(p *codec.Packer) error {
-	if len(t.unsignedBytes) > 0 {
-		p.PackFixedBytes(t.unsignedBytes)
-		return p.Err()
-	}
-	return t.marshal(p)
+func (t *Transaction[T, A]) GetChainID() ids.ID {
+	return t.ChainID
 }
 
-func (t *TransactionData) marshal(p *codec.Packer) error {
-	t.Base.Marshal(p)
-	return t.Actions.MarshalInto(p)
-}
-
-type Actions []Action
-
-func (a Actions) Size() (int, error) {
-	var size int
-	for _, action := range a {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return 0, err
-		}
-		size += consts.ByteLen + actionSize
-	}
-	return size, nil
-}
-
-func (a Actions) MarshalInto(p *codec.Packer) error {
-	p.PackByte(uint8(len(a)))
-	for _, action := range a {
-		p.PackByte(action.GetTypeID())
-		err := marshalInto(action, p)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-type Transaction struct {
-	TransactionData
-
-	Auth Auth `json:"auth"`
-
-	bytes     []byte
-	size      int
-	id        ids.ID
-	stateKeys state.Keys
-}
-
-// NewTransaction creates a Transaction and initializes the private fields.
-func NewTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
-	tx := Transaction{
-		TransactionData: TransactionData{
-			Base:    base,
-			Actions: actions,
-		},
-		Auth: auth,
-	}
-	unsignedBytes, err := tx.UnsignedBytes()
-	if err != nil {
-		return nil, err
-	}
-	p := codec.NewWriter(len(unsignedBytes)+consts.ByteLen+auth.Size(), consts.NetworkSizeLimit)
-	if err := tx.Marshal(p); err != nil {
-		return nil, err
-	}
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	tx.bytes = p.Bytes()
-	tx.size = len(p.Bytes())
-	tx.id = utils.ToID(p.Bytes())
-	return &tx, nil
-}
-
-func (t *Transaction) Bytes() []byte { return t.bytes }
-
-func (t *Transaction) Size() int { return t.size }
-
-func (t *Transaction) GetID() ids.ID { return t.id }
-
-func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
+func (t *Transaction[T, A]) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -212,13 +254,13 @@ func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(bh BalanceHandler, r Rules) (fees.Dimensions, error) {
+func (t *Transaction[T, A]) Units(bh BalanceHandler, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
-		computeOp.Add(action.ComputeUnits(r))
+		computeOp.Add(action.ComputeUnits())
 	}
-	computeOp.Add(t.Auth.ComputeUnits(r))
+	computeOp.Add(t.Auth.ComputeUnits())
 	maxComputeUnits, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -259,10 +301,17 @@ func (t *Transaction) Units(bh BalanceHandler, r Rules) (fees.Dimensions, error)
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{uint64(t.GetSize()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
-func (t *Transaction) PreExecute(
+func (t *Transaction[T, A]) VerifyMetadata(r Rules, timestamp int64) error {
+	if t.ChainID != r.GetChainID() {
+		return fmt.Errorf("%w: chainID=%s, expected=%s", ErrInvalidChainID, t.ChainID, r.GetChainID())
+	}
+	return validitywindow.VerifyTimestamp(t.Expiry, timestamp, validityWindowTimestampDivisor, r.GetValidityWindow())
+}
+
+func (t *Transaction[T, A]) PreExecute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
@@ -270,27 +319,11 @@ func (t *Transaction) PreExecute(
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r, timestamp); err != nil {
+	if err := t.VerifyMetadata(r, timestamp); err != nil {
 		return err
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
 		return ErrTooManyActions
-	}
-	for i, action := range t.Actions {
-		start, end := action.ValidRange(r)
-		if start >= 0 && timestamp < start {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
-		}
-		if end >= 0 && timestamp > end {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
-		}
-	}
-	start, end := t.Auth.ValidRange(r)
-	if start >= 0 && timestamp < start {
-		return ErrAuthNotActivated
-	}
-	if end >= 0 && timestamp > end {
-		return ErrAuthNotActivated
 	}
 	units, err := t.Units(bh, r)
 	if err != nil {
@@ -307,7 +340,7 @@ func (t *Transaction) PreExecute(
 // to charge the fee in as many cases as possible.
 //
 // Invariant: [PreExecute] is called just before [Execute]
-func (t *Transaction) Execute(
+func (t *Transaction[T, A]) Execute(
 	ctx context.Context,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
@@ -370,179 +403,6 @@ func (t *Transaction) Execute(
 		Units: units,
 		Fee:   fee,
 	}, nil
-}
-
-// Sponsor is the [codec.Address] that pays fees for this transaction.
-func (t *Transaction) GetSponsor() codec.Address { return t.Auth.Sponsor() }
-
-func (t *Transaction) Marshal(p *codec.Packer) error {
-	if len(t.bytes) > 0 {
-		p.PackFixedBytes(t.bytes)
-		return p.Err()
-	}
-	return t.marshal(p)
-}
-
-type txJSON struct {
-	ID      ids.ID      `json:"id"`
-	Actions codec.Bytes `json:"actions"`
-	Auth    codec.Bytes `json:"auth"`
-	Base    *Base       `json:"base"`
-}
-
-func (t *Transaction) MarshalJSON() ([]byte, error) {
-	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := t.Actions.MarshalInto(actionsPacker)
-	if err != nil {
-		return nil, err
-	}
-	if err := actionsPacker.Err(); err != nil {
-		return nil, err
-	}
-	authPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	authPacker.PackByte(t.Auth.GetTypeID())
-	t.Auth.Marshal(authPacker)
-	if err := authPacker.Err(); err != nil {
-		return nil, err
-	}
-
-	return json.Marshal(txJSON{
-		ID:      t.GetID(),
-		Actions: actionsPacker.Bytes(),
-		Auth:    authPacker.Bytes(),
-		Base:    t.Base,
-	})
-}
-
-func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
-	var tx txJSON
-	err := json.Unmarshal(data, &tx)
-	if err != nil {
-		return err
-	}
-
-	actionsReader := codec.NewReader(tx.Actions, consts.NetworkSizeLimit)
-	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
-	if err != nil {
-		return err
-	}
-	if err := actionsReader.Err(); err != nil {
-		return fmt.Errorf("%w: actions packer", err)
-	}
-	authReader := codec.NewReader(tx.Auth, consts.NetworkSizeLimit)
-	auth, err := parser.AuthCodec().Unmarshal(authReader)
-	if err != nil {
-		return fmt.Errorf("%w: cannot unmarshal auth", err)
-	}
-	if err := authReader.Err(); err != nil {
-		return fmt.Errorf("%w: auth packer", err)
-	}
-
-	newTx, err := NewTransaction(tx.Base, actions, auth)
-	if err != nil {
-		return err
-	}
-	*t = *newTx
-	return nil
-}
-
-func (t *Transaction) marshal(p *codec.Packer) error {
-	if err := t.TransactionData.marshal(p); err != nil {
-		return err
-	}
-
-	authID := t.Auth.GetTypeID()
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
-
-	return p.Err()
-}
-
-// VerifyAuth verifies that the transaction was signed correctly.
-func (t *Transaction) VerifyAuth(ctx context.Context) error {
-	msg, err := t.UnsignedBytes()
-	if err != nil {
-		// Should never occur because populated during unmarshal
-		return err
-	}
-	return t.Auth.Verify(ctx, msg)
-}
-
-func UnmarshalTxData(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-) (*TransactionData, error) {
-	start := p.Offset()
-	base, err := UnmarshalBase(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal base", err)
-	}
-	actions, err := UnmarshalActions(p, actionRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
-	}
-
-	var tx TransactionData
-	tx.Base = base
-	tx.Actions = actions
-	if err := p.Err(); err != nil {
-		return nil, p.Err()
-	}
-	codecBytes := p.Bytes()
-	tx.unsignedBytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	return &tx, nil
-}
-
-func UnmarshalActions(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-) (Actions, error) {
-	actionCount := p.UnpackByte()
-	if actionCount == 0 {
-		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
-	}
-	actions := Actions{}
-	for i := uint8(0); i < actionCount; i++ {
-		action, err := actionRegistry.Unmarshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal action", err)
-		}
-		actions = append(actions, action)
-	}
-	return actions, nil
-}
-
-func UnmarshalTx(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
-) (*Transaction, error) {
-	unsignedTransaction, err := UnmarshalTxData(p, actionRegistry)
-	if err != nil {
-		return nil, err
-	}
-	auth, err := authRegistry.Unmarshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
-	}
-	authType := auth.GetTypeID()
-
-	if actorType := auth.Actor()[0]; actorType != authType {
-		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
-	}
-	if sponsorType := auth.Sponsor()[0]; sponsorType != authType {
-		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
-	}
-
-	if err := p.Err(); err != nil {
-		return nil, p.Err()
-	}
-
-	tx, err := NewTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
 }
 
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost
