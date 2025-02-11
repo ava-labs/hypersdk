@@ -6,9 +6,12 @@ package chain
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -27,6 +30,9 @@ import (
 var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
+	_ canoto.Field = (*Transaction)(nil)
+
+	errInvalidCanotoContext = errors.New("invalid canoto context to unmarshal transaction")
 )
 
 type TransactionData struct {
@@ -430,18 +436,18 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	actionsReader := codec.NewReader(tx.Actions, consts.NetworkSizeLimit)
 	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal JSON actions: %w", err)
 	}
 	if err := actionsReader.Err(); err != nil {
-		return fmt.Errorf("%w: actions packer", err)
+		return fmt.Errorf("failed to unmarshal JSON actions in reader: %w", err)
 	}
 	authReader := codec.NewReader(tx.Auth, consts.NetworkSizeLimit)
 	auth, err := parser.AuthCodec().Unmarshal(authReader)
 	if err != nil {
-		return fmt.Errorf("%w: cannot unmarshal auth", err)
+		return fmt.Errorf("failed to unmarshal JSON auth: %w", err)
 	}
 	if err := authReader.Err(); err != nil {
-		return fmt.Errorf("%w: auth packer", err)
+		return fmt.Errorf("failed to unmarshal JSON auth in reader: %w", err)
 	}
 
 	newTx, err := NewTransaction(tx.Base, actions, auth)
@@ -620,4 +626,43 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 		return fees.Dimensions{}, err
 	}
 	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
+}
+
+// Implement [canoto.Field]
+// Transaction does not implement [canoto.Message] because it parsing a Transaction
+// with Canoto requires a custom injection of a TxParser into the [canoto.Reader]
+// context.
+func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
+	canoto.Append(&w, t.bytes)
+	return w
+}
+
+func (t *Transaction) CalculateCanotoCache() {}
+func (t *Transaction) CachedCanotoSize() int { return t.size }
+func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
+	parser, ok := r.Context.(TxParser)
+	if !ok {
+		return fmt.Errorf("%w: expected *TxParser", errInvalidCanotoContext)
+	}
+
+	packer := &codec.Packer{
+		Packer: &wrappers.Packer{
+			MaxSize: len(r.B),
+			Bytes:   r.B,
+			Offset:  0,
+		},
+	}
+	tx, err := UnmarshalTx(packer, parser.ActionCodec(), parser.AuthCodec())
+	if err != nil {
+		return err
+	}
+	*t = *tx
+	r.B = r.B[len(tx.bytes):]
+	return nil
+}
+
+func (t *Transaction) ValidCanoto() bool {
+	// Transactions are treated as immutable. If this transaction was unmarshalled correctly,
+	// it should always be valid.
+	return len(t.bytes) > 0
 }

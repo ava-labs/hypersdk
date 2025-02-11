@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
@@ -18,12 +17,9 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var (
-	_ chain.Action  = (*TestAction)(nil)
-	_ state.Mutable = (*InMemoryStore)(nil)
-)
+var _ chain.Action = (*TestAction)(nil)
 
-var errTestActionExecute = errors.New("test action execute error")
+var ErrTestActionExecute = errors.New("test action execute error")
 
 type TestAction struct {
 	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
@@ -33,6 +29,8 @@ type TestAction struct {
 	WriteValues        [][]byte   `serialize:"true" json:"writeValues"`
 	ExecuteErr         bool       `serialize:"true" json:"executeErr"`
 	Nonce              uint64     `serialize:"true" json:"nonce"`
+	Start              int64      `serialize:"true" json:"start"`
+	End                int64      `serialize:"true" json:"end"`
 }
 
 func (*TestAction) GetTypeID() uint8 {
@@ -49,7 +47,7 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 
 func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	if t.ExecuteErr {
-		return nil, errTestActionExecute
+		return nil, ErrTestActionExecute
 	}
 	for _, key := range t.ReadKeys {
 		if _, err := state.GetValue(ctx, key); err != nil {
@@ -67,43 +65,24 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 	return &TestOutput{}, nil
 }
 
-func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
-	return -1, -1
+// ValidRange returns the start/end fields of the action unless 0 is specified.
+// If 0 is specified, return -1 for always valid, which is a more useful default value.
+func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
+	start := t.Start
+	end := t.End
+	if start == 0 {
+		start = -1
+	}
+	if end == 0 {
+		end = -1
+	}
+	return start, end
 }
 
 type TestOutput struct{}
 
 func (*TestOutput) GetTypeID() uint8 {
 	return 0
-}
-
-// InMemoryStore is an in-memory implementation of `state.Mutable`
-type InMemoryStore struct {
-	Storage map[string][]byte
-}
-
-func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{
-		Storage: make(map[string][]byte),
-	}
-}
-
-func (i *InMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
-	val, ok := i.Storage[string(key)]
-	if !ok {
-		return nil, database.ErrNotFound
-	}
-	return val, nil
-}
-
-func (i *InMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
-	i.Storage[string(key)] = value
-	return nil
-}
-
-func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
-	delete(i.Storage, string(key))
-	return nil
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters

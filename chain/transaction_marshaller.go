@@ -12,10 +12,15 @@ import (
 // unmarshaling a batch of txs.
 const initialCapacity = 1000
 
+var _ TxParser = (*TxSerializer)(nil)
+
 type TxSerializer struct {
 	ActionRegistry *codec.TypeParser[Action]
 	AuthRegistry   *codec.TypeParser[Auth]
 }
+
+func (t *TxSerializer) ActionCodec() *codec.TypeParser[Action] { return t.ActionRegistry }
+func (t *TxSerializer) AuthCodec() *codec.TypeParser[Auth]     { return t.AuthRegistry }
 
 func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
 	p := codec.NewReader(data, consts.NetworkSizeLimit)

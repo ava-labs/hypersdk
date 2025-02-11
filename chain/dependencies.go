@@ -15,11 +15,15 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
+type TxParser interface {
+	ActionCodec() *codec.TypeParser[Action]
+	AuthCodec() *codec.TypeParser[Auth]
+}
+
 type Parser interface {
 	Rules(int64) Rules
-	ActionCodec() *codec.TypeParser[Action]
+	TxParser
 	OutputCodec() *codec.TypeParser[codec.Typed]
-	AuthCodec() *codec.TypeParser[Auth]
 }
 
 type Mempool interface {

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -42,10 +43,7 @@ func TestPreExecutor(t *testing.T) {
 				),
 			},
 		},
-		Auth: &mockAuth{
-			start: -1,
-			end:   -1,
-		},
+		Auth: &chaintest.TestAuth{},
 	}
 
 	tests := []struct {
@@ -102,14 +100,14 @@ func TestPreExecutor(t *testing.T) {
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Actions: []chain.Action{
-						&mockAction{
-							stateKeys: state.Keys{
+						&chaintest.TestAction{
+							SpecifiedStateKeys: state.Keys{
 								"": state.None,
 							},
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &chaintest.TestAuth{},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            chain.ErrInvalidKeyValue,
@@ -123,8 +121,8 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{
-					verifyError: errMockAuth,
+				Auth: &chaintest.TestAuth{
+					ShouldErr: true,
 				},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
@@ -139,7 +137,7 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{},
+				Auth: &chaintest.TestAuth{},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            validitywindow.ErrTimestampExpired,

@@ -6,14 +6,15 @@ package chain
 import (
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
 type ExecutedBlock struct {
-	Block            *StatelessBlock   `json:"block"`
-	ExecutionResults *ExecutionResults `json:"results"`
+	Block            *StatelessBlock   `canoto:"pointer,1" json:"block"`
+	ExecutionResults *ExecutionResults `canoto:"pointer,2" json:"results"`
+
+	canotoData canotoData_ExecutedBlock
 }
 
 func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPrices fees.Dimensions, unitsConsumed fees.Dimensions) *ExecutedBlock {
@@ -28,47 +29,23 @@ func NewExecutedBlock(statelessBlock *StatelessBlock, results []*Result, unitPri
 }
 
 func (e *ExecutedBlock) Marshal() ([]byte, error) {
-	blockBytes, err := e.Block.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
-	executionResultsBytes := e.ExecutionResults.Marshal()
-	size := codec.BytesLen(blockBytes) + codec.BytesLen(executionResultsBytes)
-	writer := codec.NewWriter(size, consts.MaxInt)
-
-	writer.PackBytes(blockBytes)
-	writer.PackBytes(executionResultsBytes)
-
-	return writer.Bytes(), writer.Err()
+	return e.MarshalCanoto(), nil
 }
 
 func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
-	reader := codec.NewReader(bytes, consts.NetworkSizeLimit)
-
-	var blkMsg []byte
-	reader.UnpackBytes(-1, true, &blkMsg)
-	blk, err := UnmarshalBlock(blkMsg, parser)
-	if err != nil {
+	r := canoto.Reader{
+		B: bytes,
+		Context: &TxSerializer{
+			ActionRegistry: parser.ActionCodec(),
+			AuthRegistry:   parser.AuthCodec(),
+		},
+	}
+	b := new(ExecutedBlock)
+	if err := b.UnmarshalCanotoFrom(r); err != nil {
 		return nil, err
 	}
-	var executionResultsBytes []byte
-	reader.UnpackBytes(-1, true, &executionResultsBytes)
-	results, err := ParseExecutionResults(executionResultsBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	if !reader.Empty() {
-		return nil, ErrInvalidObject
-	}
-	if err := reader.Err(); err != nil {
-		return nil, err
-	}
-	return &ExecutedBlock{
-		Block:            blk,
-		ExecutionResults: results,
-	}, nil
+	b.CalculateCanotoCache()
+	return b, nil
 }
 
 func (e *ExecutedBlock) String() string {
