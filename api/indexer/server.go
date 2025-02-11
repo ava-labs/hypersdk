@@ -79,6 +79,32 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	return reply.setResponse(block)
 }
 
+type BlockRequest struct {
+	BlockID ids.ID
+	BlockNumber uint64
+}
+
+type BlockResponse struct {
+	Block      *chain.ExecutedBlock
+	BlockBytes codec.Bytes         
+}
+
+type TxRequest struct {
+	TxID ids.ID
+}
+
+type TxResponse struct {
+	Tx *chain.Transaction
+	TxBytes codec.Bytes
+	Timestamp int64
+	Result *chain.Result
+}
+
+type Indexer interface {
+	GetBlock(req *http.Request, args *BlockRequest, reply *BlockResponse) error
+	GetTx(req *http.Request, args *TxRequest, reply *TxResponse) error
+}
+
 func (s *Server) GetBlockByHeight(req *http.Request, args *GetBlockByHeightRequest, reply *GetBlockResponse) error {
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlockByHeight")
 	defer span.End()

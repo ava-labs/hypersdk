@@ -22,6 +22,7 @@ type PrivateKey struct {
 	Bytes []byte
 }
 
+
 // GetFactory returns the [chain.AuthFactory] for a given private key.
 //
 // A [chain.AuthFactory] signs transactions and provides a unit estimate

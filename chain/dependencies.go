@@ -15,22 +15,15 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type Parser interface {
-	Rules(int64) Rules
-	ActionCodec() *codec.TypeParser[Action]
-	OutputCodec() *codec.TypeParser[codec.Typed]
-	AuthCodec() *codec.TypeParser[Auth]
-}
-
-type Mempool interface {
+type Mempool[T Action[T], A Auth[A]] interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
-	Add(context.Context, []*Transaction)
+	Add(context.Context, []*Transaction[T, A])
 
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context, int) []*Transaction[T, A]
+	FinishStreaming(context.Context, []*Transaction[T, A]) int
 }
 
 // TODO: add fixed rules as a subset of this interface
@@ -103,21 +96,21 @@ type BalanceHandler interface {
 	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
-type AuthBatchVerifier interface {
-	Add([]byte, Auth) func() error
+type AuthBatchVerifier[A Auth[A]] interface {
+	Add([]byte, A) func() error
 	Done() []func() error
 }
 
-type ValidityWindow interface {
+type ValidityWindow[T Action[T], A Auth[A]] interface {
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
-		blk validitywindow.ExecutionBlock[*Transaction],
+		blk validitywindow.ExecutionBlock[*Transaction[T, A]],
 	) error
-	Accept(blk validitywindow.ExecutionBlock[*Transaction])
+	Accept(blk validitywindow.ExecutionBlock[*Transaction[T, A]])
 	IsRepeat(
 		ctx context.Context,
-		parentBlk validitywindow.ExecutionBlock[*Transaction],
+		parentBlk validitywindow.ExecutionBlock[*Transaction[T, A]],
 		currentTimestamp int64,
-		txs []*Transaction,
+		txs []*Transaction[T, A],
 	) (set.Bits, error)
 }

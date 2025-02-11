@@ -5,52 +5,39 @@ package vm
 
 import (
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
-type Factory struct {
+type Factory[T chain.Action[T], A chain.Auth[A]] struct {
 	genesisFactory  genesis.GenesisAndRuleFactory
 	balanceHandler  chain.BalanceHandler
 	metadataManager chain.MetadataManager
-	actionCodec     *codec.TypeParser[chain.Action]
-	authCodec       *codec.TypeParser[chain.Auth]
-	outputCodec     *codec.TypeParser[codec.Typed]
 	authEngine      map[uint8]AuthEngine
 
 	options []Option
 }
 
-func NewFactory(
+func NewFactory[T chain.Action[T], A chain.Auth[A]](
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
-) *Factory {
-	return &Factory{
+) *Factory[T, A] {
+	return &Factory[T, A]{
 		genesisFactory:  genesisFactory,
 		balanceHandler:  balanceHandler,
 		metadataManager: metadataManager,
-		actionCodec:     actionCodec,
-		authCodec:       authCodec,
-		outputCodec:     outputCodec,
 		authEngine:      authEngine,
 		options:         options,
 	}
 }
 
-func (f *Factory) New(options ...Option) (*VM, error) {
+func (f *Factory[T, A]) New(options ...Option) (*VM, error) {
 	return New(
 		f.genesisFactory,
 		f.balanceHandler,
 		f.metadataManager,
-		f.actionCodec,
-		f.authCodec,
-		f.outputCodec,
 		f.authEngine,
 		append(f.options, options...)...,
 	)

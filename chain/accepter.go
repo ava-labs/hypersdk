@@ -9,29 +9,29 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 )
 
-type Accepter struct {
+type Accepter[T Action[T], A Auth[A]] struct {
 	tracer         trace.Tracer
-	validityWindow ValidityWindow
+	validityWindow ValidityWindow[T, A]
 	metrics        *chainMetrics
 }
 
-func NewAccepter(
+func NewAccepter[T Action[T], A Auth[A]](
 	tracer trace.Tracer,
-	validityWindow ValidityWindow,
+	validityWindow ValidityWindow[T, A],
 	metrics *chainMetrics,
-) *Accepter {
-	return &Accepter{
+) *Accepter[T, A] {
+	return &Accepter[T, A]{
 		tracer:         tracer,
 		validityWindow: validityWindow,
 		metrics:        metrics,
 	}
 }
 
-func (a *Accepter) AcceptBlock(ctx context.Context, blk *OutputBlock) error {
+func (a *Accepter[T, A]) AcceptBlock(ctx context.Context, blk *OutputBlock[T, A]) error {
 	_, span := a.tracer.Start(ctx, "Chain.AcceptBlock")
 	defer span.End()
 
-	a.metrics.txsAccepted.Add(float64(len(blk.StatelessBlock.Txs)))
+	a.metrics.txsAccepted.Add(float64(len(blk.Block.Txs)))
 	a.validityWindow.Accept(blk)
 
 	return blk.View.CommitToDB(ctx)

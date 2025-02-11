@@ -19,35 +19,41 @@ import (
 )
 
 var (
-	_ chain.Action  = (*TestAction)(nil)
-	_ state.Mutable = (*InMemoryStore)(nil)
+	_ chain.Action[*TestAction] = (*TestAction)(nil)
+	_ state.Mutable             = (*InMemoryStore)(nil)
 )
 
 var errTestActionExecute = errors.New("test action execute error")
 
 type TestAction struct {
-	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys state.Keys `serialize:"true" json:"specifiedStateKeys"`
-	ReadKeys           [][]byte   `serialize:"true" json:"reads"`
-	WriteKeys          [][]byte   `serialize:"true" json:"writeKeys"`
-	WriteValues        [][]byte   `serialize:"true" json:"writeValues"`
-	ExecuteErr         bool       `serialize:"true" json:"executeErr"`
-	Nonce              uint64     `serialize:"true" json:"nonce"`
+	NumComputeUnits              uint64              `canoto:"fint64,1" json:"computeUnits"`
+	SpecifiedStateKeys           []string            `canoto:"repeated string,2" json:"specifiedStateKeys"`
+	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated int,3" json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" json:"reads"`
+	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" json:"writeKeys"`
+	WriteValues                  [][]byte            `canoto:"repeated bytes,6" json:"writeValues"`
+	ExecuteErr                   bool                `canoto:"bool,7" json:"executeErr"`
+	Nonce                        uint64              `canoto:"fint64,8" json:"nonce"`
+	Output                       []byte              `canoto:"bytes,9" json:"output"`
+
+	canotoData canotoData_TestAction
 }
 
-func (*TestAction) GetTypeID() uint8 {
-	return 0
-}
-
-func (t *TestAction) ComputeUnits(_ chain.Rules) uint64 {
+func (t *TestAction) ComputeUnits() uint64 {
 	return t.NumComputeUnits
 }
 
 func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	return t.SpecifiedStateKeys
+	keys := make(state.Keys)
+	for i, key := range t.SpecifiedStateKeys {
+		if i < len(t.SpecifiedStateKeyPermissions) {
+			keys[key] = t.SpecifiedStateKeyPermissions[i]
+		}
+	}
+	return keys
 }
 
-func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) ([]byte, error) {
 	if t.ExecuteErr {
 		return nil, errTestActionExecute
 	}
@@ -64,17 +70,7 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 			return nil, err
 		}
 	}
-	return &TestOutput{}, nil
-}
-
-func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
-	return -1, -1
-}
-
-type TestOutput struct{}
-
-func (*TestOutput) GetTypeID() uint8 {
-	return 0
+	return t.Output, nil
 }
 
 // InMemoryStore is an in-memory implementation of `state.Mutable`
@@ -108,10 +104,10 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass.
-type ActionTest struct {
+type ActionTest[T chain.Action[T]] struct {
 	Name string
 
-	Action chain.Action
+	Action chain.Action[T]
 
 	Rules     chain.Rules
 	State     state.Mutable
@@ -126,7 +122,7 @@ type ActionTest struct {
 }
 
 // Run executes the [ActionTest] and make sure all assertions pass.
-func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
+func (test *ActionTest[T]) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		require := require.New(t)
 
@@ -144,9 +140,9 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 // ActionBenchmark is a parameterized benchmark. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass. To avoid using shared state between runs, a new
 // state is created for each iteration using the provided `CreateState` function.
-type ActionBenchmark struct {
+type ActionBenchmark[T chain.Action[T]] struct {
 	Name   string
-	Action chain.Action
+	Action chain.Action[T]
 
 	Rules       chain.Rules
 	CreateState func() state.Mutable
@@ -161,7 +157,7 @@ type ActionBenchmark struct {
 }
 
 // Run executes the [ActionBenchmark] and make sure all the benchmark assertions pass.
-func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
+func (test *ActionBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	require := require.New(b)
 
 	// create a slice of b.N states

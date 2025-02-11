@@ -29,75 +29,12 @@ import (
 )
 
 var (
-	_ chain.Action         = (*mockAction)(nil)
-	_ chain.Action         = (*mockTransferAction)(nil)
-	_ chain.Action         = (*action2)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	_ chain.Auth           = (*mockAuth)(nil)
 )
 
 var errMockInsufficientBalance = errors.New("mock insufficient balance error")
 
-type mockAction struct {
-	start        int64
-	end          int64
-	computeUnits uint64
-	typeID       uint8
-	stateKeys    state.Keys
-}
-
-func (m *mockAction) ComputeUnits(chain.Rules) uint64 {
-	return m.computeUnits
-}
-
-func (*mockAction) Execute(context.Context, chain.Rules, state.Mutable, int64, codec.Address, ids.ID) (codec.Typed, error) {
-	panic("unimplemented")
-}
-
-func (m *mockAction) GetTypeID() uint8 {
-	return m.typeID
-}
-
-func (m *mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
-	return m.stateKeys
-}
-
-func (m *mockAction) ValidRange(chain.Rules) (int64, int64) {
-	return m.start, m.end
-}
-
-type mockTransferAction struct {
-	mockAction
-	To    codec.Address `serialize:"true" json:"to"`
-	Value uint64        `serialize:"true" json:"value"`
-	Memo  []byte        `serialize:"true" json:"memo"`
-}
-
-func (*mockTransferAction) GetTypeID() uint8 {
-	return 111
-}
-
-type action2 struct {
-	mockAction
-	A uint64 `serialize:"true" json:"a"`
-	B uint64 `serialize:"true" json:"b"`
-}
-
-func (*action2) GetTypeID() uint8 {
-	return 222
-}
-
-func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-	var transfer mockTransferAction
-	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
-	return &transfer, err
-}
-
-func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
-	var action action2
-	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
-	return &action, err
-}
 
 type mockBalanceHandler struct {
 	canDeductError error

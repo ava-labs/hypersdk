@@ -21,7 +21,7 @@ func TestResultJSON(t *testing.T) {
 	units := fees.Dimensions{1, 2, 3, 4, 5}
 	unitsJSON, err := json.Marshal(units)
 	require.NoError(err)
-	result := Result{
+	result := &Result{
 		Success: true,
 		Error:   errStrBytes,
 		Outputs: [][]byte{outputBytes},
@@ -35,7 +35,7 @@ func TestResultJSON(t *testing.T) {
 	expectedJSON := fmt.Sprintf(`{"error":%q,"fee":4,"outputs":[%q],"success":true,"units":%s}`, codec.Bytes(errStrBytes), codec.Bytes(outputBytes), string(unitsJSON))
 	require.JSONEq(expectedJSON, string(resultJSON))
 
-	var unmarshalledResult Result
-	require.NoError(json.Unmarshal(resultJSON, &unmarshalledResult))
+	unmarshalledResult := new(Result)
+	require.NoError(json.Unmarshal(resultJSON, unmarshalledResult))
 	require.Equal(result, unmarshalledResult)
 }

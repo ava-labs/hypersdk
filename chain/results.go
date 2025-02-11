@@ -6,7 +6,6 @@ package chain
 import (
 	"encoding/json"
 
-	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 )
@@ -112,29 +111,29 @@ func ParseExecutionResults(bytes []byte) (*ExecutionResults, error) {
 	return results, nil
 }
 
-type ExecutedBlock[T canoto.FieldMaker[T]] struct {
-	Block            *Block[T]         `canoto:"field,1" json:"block"`
+type ExecutedBlock[T Action[T], A Auth[A]] struct {
+	Block            *Block[T, A]      `canoto:"field,1" json:"block"`
 	ExecutionResults *ExecutionResults `canoto:"field,2" json:"executionResults"`
 
 	canotoData canotoData_ExecutedBlock
 }
 
-func NewExecutedBlock[T canoto.FieldMaker[T]](
-	block *Block[T],
+func NewExecutedBlock[T Action[T], A Auth[A]](
+	block *Block[T, A],
 	results *ExecutionResults,
-) *ExecutedBlock[T] {
-	return &ExecutedBlock[T]{
+) *ExecutedBlock[T, A] {
+	return &ExecutedBlock[T, A]{
 		Block:            block,
 		ExecutionResults: results,
 	}
 }
 
-func (e *ExecutedBlock[T]) Marshal() []byte {
+func (e *ExecutedBlock[T, A]) Marshal() []byte {
 	return e.MarshalCanoto()
 }
 
-func UnmarshalExecutedBlock[T canoto.FieldMaker[T]](src []byte) (*ExecutedBlock[T], error) {
-	executedBlock := new(ExecutedBlock[T])
+func UnmarshalExecutedBlock[T Action[T], A Auth[A]](src []byte) (*ExecutedBlock[T, A], error) {
+	executedBlock := new(ExecutedBlock[T, A])
 	if err := executedBlock.UnmarshalCanoto(src); err != nil {
 		return nil, err
 	}

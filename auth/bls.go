@@ -6,6 +6,7 @@ package auth
 import (
 	"context"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -13,37 +14,59 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ chain.Auth = (*BLS)(nil)
+var _ chain.Auth[*BLS] = (*BLS)(nil)
 
 const (
 	BLSComputeUnits = 10
 	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
 )
 
+type blsCanoto struct {
+	PublicKeyBytes [bls.PublicKeyLen]byte `canoto:"fixed bytes,1" json:"signer"`
+	Signaturebytes [bls.SignatureLen]byte `canoto:"fixed bytes,2" json:"signature"`
+
+	canotoData canotoData_blsCanoto
+}
+
 type BLS struct {
-	Signer    *bls.PublicKey `json:"signer,omitempty"`
-	Signature *bls.Signature `json:"signature,omitempty"`
+	// embed blsCanoto so that we inherit all the canoto marshalling functions
+	blsCanoto
+	Signer    *bls.PublicKey
+	Signature *bls.Signature
 
 	addr codec.Address
 }
 
-func (b *BLS) address() codec.Address {
-	if b.addr == codec.EmptyAddress {
-		b.addr = NewBLSAddress(b.Signer)
+func (b *BLS) MakeCanoto() *BLS {
+	return new(BLS)
+}
+
+func (b *BLS) UnmarshalCanoto(bytes []byte) error {
+	r := canoto.Reader{
+		B: bytes,
 	}
-	return b.addr
+	return b.UnmarshalCanotoFrom(r)
 }
 
-func (*BLS) GetTypeID() uint8 {
-	return BLSID
+func (b *BLS) UnmarshalCanotoFrom(r canoto.Reader) error {
+	if err := b.blsCanoto.UnmarshalCanotoFrom(r); err != nil {
+		return err
+	}
+	signer, err := bls.PublicKeyFromBytes(b.PublicKeyBytes[:])
+	if err != nil {
+		return err
+	}
+	signature, err := bls.SignatureFromBytes(b.Signaturebytes[:])
+	if err != nil {
+		return err
+	}
+	b.Signer = signer
+	b.Signature = signature
+	return nil
 }
 
-func (*BLS) ComputeUnits(chain.Rules) uint64 {
+func (*BLS) ComputeUnits() uint64 {
 	return BLSComputeUnits
-}
-
-func (*BLS) ValidRange(chain.Rules) (int64, int64) {
-	return -1, -1
 }
 
 func (b *BLS) Verify(_ context.Context, msg []byte) error {
@@ -51,6 +74,13 @@ func (b *BLS) Verify(_ context.Context, msg []byte) error {
 		return crypto.ErrInvalidSignature
 	}
 	return nil
+}
+
+func (b *BLS) address() codec.Address {
+	if b.addr == codec.EmptyAddress {
+		b.addr = NewBLSAddress(b.Signer)
+	}
+	return b.addr
 }
 
 func (b *BLS) Actor() codec.Address {
@@ -61,50 +91,62 @@ func (b *BLS) Sponsor() codec.Address {
 	return b.address()
 }
 
-func (*BLS) Size() int {
-	return BLSSize
+var _ chain.AuthFactory[*BLS] = (*BLSFactory)(nil)
+
+type blsFactoryCanoto struct {
+	Priv [bls.PrivateKeyLen]byte `canoto:"fixed bytes,1"`
+
+	canotoData canotoData_blsFactoryCanoto
 }
-
-func (b *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.PublicKeyToBytes(b.Signer))
-	p.PackFixedBytes(bls.SignatureToBytes(b.Signature))
-}
-
-func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
-	var b BLS
-
-	signer := make([]byte, bls.PublicKeyLen)
-	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
-	signature := make([]byte, bls.SignatureLen)
-	p.UnpackFixedBytes(bls.SignatureLen, &signature)
-
-	pk, err := bls.PublicKeyFromBytes(signer)
-	if err != nil {
-		return nil, err
-	}
-	b.Signer = pk
-
-	sig, err := bls.SignatureFromBytes(signature)
-	if err != nil {
-		return nil, err
-	}
-
-	b.Signature = sig
-	return &b, p.Err()
-}
-
-var _ chain.AuthFactory = (*BLSFactory)(nil)
 
 type BLSFactory struct {
+	blsFactoryCanoto
 	priv *bls.PrivateKey
 }
 
 func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
-	return &BLSFactory{priv}
+	return &BLSFactory{priv: priv}
 }
 
-func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
-	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
+func (b *BLSFactory) MakeCanoto() *BLSFactory {
+	return new(BLSFactory)
+}
+
+func (b *BLSFactory) UnmarshalCanoto(bytes []byte) error {
+	r := canoto.Reader{
+		B: bytes,
+	}
+	return b.UnmarshalCanotoFrom(r)
+}
+
+func (b *BLSFactory) UnmarshalCanotoFrom(r canoto.Reader) error {
+	if err := b.blsFactoryCanoto.UnmarshalCanotoFrom(r); err != nil {
+		return err
+	}
+	privKey, err := bls.PrivateKeyFromBytes(b.Priv[:])
+	if err != nil {
+		return err
+	}
+	b.priv = privKey
+	return nil
+}
+
+func (b *BLSFactory) Sign(msg []byte) (*BLS, error) {
+	blsAuth := &BLS{
+		Signer:    bls.PublicFromPrivateKey(b.priv),
+		Signature: bls.Sign(msg, b.priv),
+	}
+	signer, err := bls.PublicKeyFromBytes(blsAuth.PublicKeyBytes[:])
+	if err != nil {
+		return nil, err
+	}
+	signature, err := bls.SignatureFromBytes(blsAuth.Signaturebytes[:])
+	if err != nil {
+		return nil, err
+	}
+	blsAuth.Signer = signer
+	blsAuth.Signature = signature
+	return blsAuth, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64) {

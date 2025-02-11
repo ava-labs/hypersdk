@@ -117,12 +117,12 @@ func (p *Processor[T, A]) Execute(
 	defer span.End()
 
 	var (
-		r   = p.ruleFactory.GetRules(b.Tmstmp)
+		r   = p.ruleFactory.GetRules(b.Timestamp)
 		log = p.log
 	)
 
 	// Perform basic correctness checks before doing any expensive work
-	if b.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+	if b.Timestamp > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, ErrTimestampTooLate
 	}
 	// create and start signature verification job async
@@ -193,15 +193,15 @@ func (p *Processor[T, A]) Execute(
 			return
 		}
 		log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.id),
+			zap.Uint64("height", b.Height),
+			zap.Stringer("blkID", b.Block.GetID()),
 			zap.Stringer("root", root),
 		)
 		p.metrics.rootCalculatedCount.Inc()
 		p.metrics.rootCalculatedSum.Add(float64(time.Since(start)))
 	}()
 
-	return &OutputBlock{
+	return &OutputBlock[T, A]{
 		ExecutionBlock: b,
 		View:           view,
 		ExecutionResults: ExecutionResults{
@@ -221,7 +221,7 @@ type fetchData struct {
 
 func (p *Processor[T, A]) executeTxs(
 	ctx context.Context,
-	b *ExecutionBlock,
+	b *ExecutionBlock[T, A],
 	im state.Immutable,
 	feeManager *fees.Manager,
 	r Rules,
@@ -230,8 +230,8 @@ func (p *Processor[T, A]) executeTxs(
 	defer span.End()
 
 	var (
-		numTxs = len(b.StatelessBlock.Txs)
-		t      = b.Tmstmp
+		numTxs = len(b.Block.Txs)
+		t      = b.Timestamp
 
 		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
 		e       = executor.New(numTxs, p.config.TransactionExecutionCores, MaxKeyDependencies, p.metrics.executorVerifyRecorder)
@@ -240,7 +240,7 @@ func (p *Processor[T, A]) executeTxs(
 	)
 
 	// Fetch required keys and execute transactions
-	for li, ltx := range b.StatelessBlock.Txs {
+	for li, ltx := range b.Block.Txs {
 		i := li
 		tx := ltx
 
@@ -317,8 +317,8 @@ func (p *Processor[T, A]) executeTxs(
 
 // verifySignatures creates and kicks off signature verification job for the provided block
 // Assumes that the executionBlock's authCounts field has been populated correctly during construction
-func (p *Processor[T, A]) verifySignatures(ctx context.Context, block *ExecutionBlock) (workers.Job, error) {
-	sigJob, err := p.authVerificationWorkers.NewJob(len(block.StatelessBlock.Txs))
+func (p *Processor[T, A]) verifySignatures(ctx context.Context, block *ExecutionBlock[T, A]) (workers.Job, error) {
+	sigJob, err := p.authVerificationWorkers.NewJob(len(block.Block.Txs))
 	if err != nil {
 		return nil, err
 	}
@@ -334,11 +334,8 @@ func (p *Processor[T, A]) verifySignatures(ctx context.Context, block *Execution
 		go batchVerifier.Done(func() { sigVerifySpan.End() })
 	}()
 
-	for _, tx := range block.StatelessBlock.Txs {
-		unsignedTxBytes, err := tx.UnsignedBytes()
-		if err != nil {
-			return nil, err //nolint:spancheck
-		}
+	for _, tx := range block.Block.Txs {
+		unsignedTxBytes := tx.UnsignedBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return sigJob, nil
@@ -363,7 +360,7 @@ func (p *Processor[T, A]) waitSignatures(ctx context.Context, sigJob workers.Job
 func (p *Processor[T, A]) createBlockContext(
 	ctx context.Context,
 	im state.Immutable,
-	block *ExecutionBlock,
+	block *ExecutionBlock[T, A],
 	r Rules,
 ) (blockContext, error) {
 	_, span := p.tracer.Start(ctx, "Chain.Execute.createBlockContext")
@@ -379,8 +376,8 @@ func (p *Processor[T, A]) createBlockContext(
 	if err != nil {
 		return blockContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
 	}
-	if block.Hght != parentHeight+1 {
-		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
+	if block.Height != parentHeight+1 {
+		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Height, parentHeight)
 	}
 
 	// Get parent timestamp
@@ -399,11 +396,11 @@ func (p *Processor[T, A]) createBlockContext(
 	// Parent may not be available (if we preformed state sync), so we
 	// can't rely on being able to fetch it during verification.
 	parentTimestamp := int64(parsedParentTimestamp)
-	if minBlockGap := r.GetMinBlockGap(); block.Tmstmp < parentTimestamp+minBlockGap {
-		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
+	if minBlockGap := r.GetMinBlockGap(); block.Timestamp < parentTimestamp+minBlockGap {
+		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Timestamp, parentTimestamp, minBlockGap)
 	}
-	if len(block.StatelessBlock.Txs) == 0 && block.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
+	if len(block.Block.Txs) == 0 && block.Timestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
+		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Timestamp, parentTimestamp, r.GetMinEmptyBlockGap())
 	}
 
 	// Calculate fee manager for this block
@@ -413,11 +410,11 @@ func (p *Processor[T, A]) createBlockContext(
 		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
 	}
 	parentFeeManager := fees.NewManager(parentFeeRaw)
-	blockFeeManager := parentFeeManager.ComputeNext(block.Tmstmp, r)
+	blockFeeManager := parentFeeManager.ComputeNext(block.Timestamp, r)
 
 	return blockContext{
-		height:     block.Hght,
-		timestamp:  block.Tmstmp,
+		height:     block.Height,
+		timestamp:  block.Timestamp,
 		feeManager: blockFeeManager,
 	}, nil
 }

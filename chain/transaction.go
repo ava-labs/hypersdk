@@ -23,9 +23,7 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-type Action[T any] interface {
-	canoto.FieldMaker[T]
-
+type ExecutableAction interface {
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
 	ComputeUnits() uint64
@@ -55,16 +53,20 @@ type Action[T any] interface {
 	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
+		r Rules,
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (codec.Typed, error)
+	) ([]byte, error)
 }
 
-type Auth[T any] interface {
+type Action[T any] interface {
 	canoto.FieldMaker[T]
+	ExecutableAction
+}
 
+type ExecutableAuth interface {
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute
 	// the required fee to execute.
@@ -92,6 +94,11 @@ type Auth[T any] interface {
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
 	Sponsor() codec.Address
+}
+
+type Auth[T any] interface {
+	canoto.FieldMaker[T]
+	ExecutableAuth
 }
 
 type AuthFactory[A Auth[A]] interface {
@@ -377,22 +384,22 @@ func (t *Transaction[T, A]) Execute(
 		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
+			return &Result{
+				Success: false,
+				Error:   utils.ErrBytes(err),
+				Outputs: actionOutputs,
+				Units:   units,
+				Fee:     fee,
+			}, nil
 		}
 
-		var encodedOutput []byte
+		// Ensure output standardization (match form we will
+		// unmarshal)
 		if actionOutput == nil {
-			// Ensure output standardization (match form we will
-			// unmarshal)
-			encodedOutput = []byte{}
-		} else {
-			encodedOutput, err = MarshalTyped(actionOutput)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
-			}
+			actionOutput = []byte{}
 		}
 
-		actionOutputs = append(actionOutputs, encodedOutput)
+		actionOutputs = append(actionOutputs, actionOutput)
 	}
 	return &Result{
 		Success: true,
@@ -409,7 +416,7 @@ func (t *Transaction[T, A]) Execute(
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits[T Action[T], A Auth[A]](r Rules, actions []T, authFactory AuthFactory[A]) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -422,10 +429,8 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for i, action := range actions {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return fees.Dimensions{}, err
-		}
+		action.CalculateCanotoCache()
+		actionSize := action.CachedCanotoSize()
 
 		actor := authFactory.Address()
 		stateKeys := action.StateKeys(actor, CreateActionID(ids.Empty, uint8(i)))
@@ -435,7 +440,7 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 		}
 		bandwidth += consts.ByteLen + uint64(actionSize)
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
-		computeOp.Add(action.ComputeUnits(r))
+		computeOp.Add(action.ComputeUnits())
 	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
 	bandwidth += consts.ByteLen + authBandwidth

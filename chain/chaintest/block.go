@@ -8,35 +8,31 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
-func GenerateEmptyExecutedBlocks(
+func GenerateEmptyExecutedBlocks[T chain.Action[T], A chain.Auth[A]](
 	require *require.Assertions,
 	parentID ids.ID,
 	parentHeight uint64,
 	parentTimestamp int64,
 	timestampOffset int64,
 	numBlocks int,
-) []*chain.ExecutedBlock {
-	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
+) []*chain.ExecutedBlock[T, A] {
+	executedBlocks := make([]*chain.ExecutedBlock[T, A], numBlocks)
 	for i := range executedBlocks {
-		statelessBlock, err := chain.NewStatelessBlock(
+		block := chain.NewBlock[T, A](
 			parentID,
 			parentTimestamp+timestampOffset*int64(i),
 			parentHeight+1+uint64(i),
-			[]*chain.Transaction{},
+			[]*chain.Transaction[T, A]{},
 			ids.Empty,
 			nil,
 		)
-		require.NoError(err)
-		parentID = statelessBlock.GetID()
+		parentID = block.GetID()
 
 		blk := chain.NewExecutedBlock(
-			statelessBlock,
-			[]*chain.Result{},
-			fees.Dimensions{},
-			fees.Dimensions{},
+			block,
+			&chain.ExecutionResults{},
 		)
 		executedBlocks[i] = blk
 	}

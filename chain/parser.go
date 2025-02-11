@@ -9,26 +9,23 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 )
 
-type BlockParser struct {
+type BlockParser[T Action[T], A Auth[A]] struct {
 	tracer trace.Tracer
-	parser Parser
 }
 
-func NewBlockParser(
+func NewBlockParser[T Action[T], A Auth[A]](
 	tracer trace.Tracer,
-	parser Parser,
-) *BlockParser {
-	return &BlockParser{
+) *BlockParser[T, A] {
+	return &BlockParser[T, A]{
 		tracer: tracer,
-		parser: parser,
 	}
 }
 
-func (b *BlockParser) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
+func (b *BlockParser[T, A]) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock[T, A], error) {
 	_, span := b.tracer.Start(ctx, "Chain.ParseBlock")
 	defer span.End()
 
-	blk, err := UnmarshalBlock(bytes, b.parser)
+	blk, err := ParseBlock[T, A](bytes)
 	if err != nil {
 		return nil, err
 	}

@@ -65,17 +65,17 @@ const (
 
 var ErrNotAdded = errors.New("not added")
 
-var (
-	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
-	_ hsnow.Block = (*chain.OutputBlock)(nil)
+// var (
+// 	_ hsnow.Block = (*chain.ExecutionBlock[T, A])(nil)
+// 	_ hsnow.Block = (*chain.OutputBlock)(nil)
 
-	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] = (*VM)(nil)
-	_ hsnow.ChainIndex[*chain.ExecutionBlock]                                    = (*chainindex.ChainIndex[*chain.ExecutionBlock])(nil)
-)
+// 	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] = (*VM)(nil)
+// 	_ hsnow.ChainIndex[*chain.ExecutionBlock]                                    = (*chainindex.ChainIndex[*chain.ExecutionBlock])(nil)
+// )
 
-type VM struct {
+type VM[T chain.Action[T], A chain.Auth[A]] struct {
 	snowInput hsnow.ChainInput
-	snowApp   *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	snowApp   *hsnow.VM[*chain.ExecutionBlock[T, A], *chain.OutputBlock[T, A], *chain.OutputBlock[T, A]]
 
 	proposerMonitor *validators.ProposerMonitor
 
@@ -87,10 +87,10 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
-	chain                   *chain.Chain
-	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
-	syncer                  *validitywindow.Syncer[*chain.Transaction]
-	SyncClient              *statesync.Client[*chain.ExecutionBlock]
+	chain                   *chain.Chain[T, A]
+	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction[T, A]]
+	syncer                  *validitywindow.Syncer[*chain.Transaction[T, A]]
+	SyncClient              *statesync.Client[*chain.ExecutionBlock[T, A]]
 
 	consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
 	chainStore     *chainindex.ChainIndex[*chain.ExecutionBlock]
@@ -123,16 +123,13 @@ type VM struct {
 	tracer  avatrace.Tracer
 }
 
-func New(
+func New[T chain.Action[T], A chain.Auth[A]](
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
 	authEngine map[uint8]AuthEngine,
 	options ...Option,
-) (*VM, error) {
+) (*VM[T, A], error) {
 	allocatedNamespaces := set.NewSet[string](len(options))
 	for _, option := range options {
 		if allocatedNamespaces.Contains(option.Namespace) {
@@ -144,9 +141,6 @@ func New(
 	return &VM{
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
-		actionCodec:           actionCodec,
-		authCodec:             authCodec,
-		outputCodec:           outputCodec,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
@@ -154,7 +148,7 @@ func New(
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Initialize(
+func (vm *VM[T, A]) Initialize(
 	ctx context.Context,
 	chainInput hsnow.ChainInput,
 	snowApp *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
@@ -354,11 +348,11 @@ func (vm *VM) Initialize(
 	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
 }
 
-func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]) {
+func (vm *VM[T, A]) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]) {
 	vm.consensusIndex = consensusIndex
 }
 
-func (vm *VM) initChainStore() error {
+func (vm *VM[T, A]) initChainStore() error {
 	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
@@ -373,14 +367,14 @@ func (vm *VM) initChainStore() error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
-	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
+	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock[T, A]](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain index: %w", err)
 	}
 	return nil
 }
 
-func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
+func (vm *VM[T, A]) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
@@ -405,7 +399,7 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 	return vm.extractLatestOutputBlock(ctx)
 }
 
-func (vm *VM) extractStateHeight() (uint64, error) {
+func (vm *VM[T, A]) extractStateHeight() (uint64, error) {
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get state height: %w", err)
@@ -417,7 +411,7 @@ func (vm *VM) extractStateHeight() (uint64, error) {
 	return stateHeight, nil
 }
 
-func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
+func (vm *VM[T, A]) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
 	stateHeight, err := vm.extractStateHeight()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
@@ -477,7 +471,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 	return outputBlock, nil
 }
 
-func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
+func (vm *VM[T, A]) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	ts := tstate.New(0)
 	tsv := ts.NewView(state.CompletePermissions, vm.stateDB, 0)
 	if err := vm.genesis.InitializeState(ctx, vm.tracer, tsv, vm.balanceHandler); err != nil {
@@ -535,7 +529,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	}, nil
 }
 
-func (vm *VM) startNormalOp(ctx context.Context) error {
+func (vm *VM[T, A]) startNormalOp(ctx context.Context) error {
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
 		vm.builder.Done()
@@ -563,7 +557,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) error {
+func (vm *VM[T, A]) applyOptions(o *Options) error {
 	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(o.blockSubscriptionFactories))
 	for i, factory := range o.blockSubscriptionFactories {
 		sub, err := factory.New()
@@ -646,26 +640,26 @@ func (vm *VM) applyOptions(o *Options) error {
 	return nil
 }
 
-func (vm *VM) checkActivity(ctx context.Context) {
+func (vm *VM[T, A]) checkActivity(ctx context.Context) {
 	vm.gossiper.Queue(ctx)
 	vm.builder.Queue(ctx)
 }
 
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBlock, error) {
+func (vm *VM[T, A]) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBlock[T, A], error) {
 	return vm.chain.ParseBlock(ctx, source)
 }
 
-func (vm *VM) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
+func (vm *VM[T, A]) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock[T, A], *chain.OutputBlock, error) {
 	defer vm.checkActivity(ctx)
 
 	return vm.chain.BuildBlock(ctx, pChainCtx, parent)
 }
 
-func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {
+func (vm *VM[T, A]) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock[T, A]) (*chain.OutputBlock, error) {
 	return vm.chain.Execute(ctx, parent.View, block, vm.normalOp.Load())
 }
 
-func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
+func (vm *VM[T, A]) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
 	resultBytes, err := block.ExecutionResults.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
@@ -681,7 +675,7 @@ func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chai
 	return block, nil
 }
 
-func (vm *VM) Submit(
+func (vm *VM[T, A]) Submit(
 	ctx context.Context,
 	txs []*chain.Transaction,
 ) (errs []error) {

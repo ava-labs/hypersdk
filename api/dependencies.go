@@ -12,13 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type VM interface {
+type VM[T chain.Action[T], A chain.Auth[A]] interface {
 	GetDataDir() string
 	GetGenesisBytes() []byte
 	Genesis() genesis.Genesis
@@ -27,15 +26,12 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	ActionCodec() *codec.TypeParser[chain.Action]
-	OutputCodec() *codec.TypeParser[codec.Typed]
-	AuthCodec() *codec.TypeParser[chain.Auth]
 	Rules(t int64) chain.Rules
 	Submit(
 		ctx context.Context,
-		txs []*chain.Transaction,
+		txs []*chain.Transaction[T, A],
 	) (errs []error)
-	LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error)
+	LastAcceptedBlock(ctx context.Context) (*chain.Block[T, A], error)
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(
 		context.Context,

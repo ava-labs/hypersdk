@@ -13,20 +13,20 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-type PreExecutor struct {
+type PreExecutor[T Action[T], A Auth[A]] struct {
 	ruleFactory     RuleFactory
-	validityWindow  ValidityWindow
+	validityWindow  ValidityWindow[T, A]
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
 }
 
-func NewPreExecutor(
+func NewPreExecutor[T Action[T], A Auth[A]](
 	ruleFactory RuleFactory,
-	validityWindow ValidityWindow,
+	validityWindow ValidityWindow[T, A],
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
-) *PreExecutor {
-	return &PreExecutor{
+) *PreExecutor[T, A] {
+	return &PreExecutor[T, A]{
 		ruleFactory:     ruleFactory,
 		validityWindow:  validityWindow,
 		metadataManager: metadataManager,
@@ -34,11 +34,11 @@ func NewPreExecutor(
 	}
 }
 
-func (p *PreExecutor) PreExecute(
+func (p *PreExecutor[T, A]) PreExecute(
 	ctx context.Context,
-	parentBlk *ExecutionBlock,
+	parentBlk *ExecutionBlock[T, A],
 	im state.Immutable,
-	tx *Transaction,
+	tx *Transaction[T, A],
 ) error {
 	feeRaw, err := im.GetValue(ctx, FeeKey(p.metadataManager.FeePrefix()))
 	if err != nil {
@@ -50,7 +50,7 @@ func (p *PreExecutor) PreExecute(
 	nextFeeManager := feeManager.ComputeNext(now, r)
 
 	// Find repeats
-	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction{tx})
+	repeatErrs, err := p.validityWindow.IsRepeat(ctx, parentBlk, now, []*Transaction[T, A]{tx})
 	if err != nil {
 		return err
 	}

@@ -3,49 +3,26 @@
 
 package chain
 
-import (
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-)
+type TxSerializer[T Action[T], A Auth[A]] struct{}
 
-// initialCapacity is the initial size of a txs array we allocate when
-// unmarshaling a batch of txs.
-const initialCapacity = 1000
+type Transactions[T Action[T], A Auth[A]] struct {
+	Txs []*Transaction[T, A] `canoto:"repeated field,1"`
 
-type TxSerializer struct {
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
+	canotoData canotoData_Transactions
 }
 
-func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
-	p := codec.NewReader(data, consts.NetworkSizeLimit)
-	txCount := p.UnpackInt(true)
-	txs := make([]*Transaction, 0, min(txCount, initialCapacity)) // DoS to set size to txCount
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, s.ActionRegistry, s.AuthRegistry)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
+func (*TxSerializer[T, A]) Unmarshal(data []byte) ([]*Transaction[T, A], error) {
+	txMsg := &Transactions[T, A]{}
+	if err := txMsg.UnmarshalCanoto(data); err != nil {
+		return nil, err
 	}
-	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
-	}
-	return txs, p.Err()
+	return txMsg.Txs, nil
 }
 
-func (*TxSerializer) Marshal(txs []*Transaction) ([]byte, error) {
+func (*TxSerializer[T, A]) Marshal(txs []*Transaction[T, A]) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	size := consts.IntLen + codec.CummSize(txs)
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(uint32(len(txs)))
-	for _, tx := range txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-	}
-	return p.Bytes(), p.Err()
+	txMsg := &Transactions[T, A]{Txs: txs}
+	return txMsg.MarshalCanoto(), nil
 }

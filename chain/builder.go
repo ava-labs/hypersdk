@@ -37,30 +37,30 @@ const (
 
 var errBlockFull = errors.New("block full")
 
-type Builder struct {
+type Builder[T Action[T], A Auth[A]] struct {
 	tracer          trace.Tracer
 	ruleFactory     RuleFactory
 	log             logging.Logger
 	metadataManager MetadataManager
 	balanceHandler  BalanceHandler
-	mempool         Mempool
-	validityWindow  ValidityWindow
+	mempool         Mempool[T, A]
+	validityWindow  ValidityWindow[T, A]
 	metrics         *chainMetrics
 	config          Config
 }
 
-func NewBuilder(
+func NewBuilder[T Action[T], A Auth[A]](
 	tracer trace.Tracer,
 	ruleFactory RuleFactory,
 	log logging.Logger,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
-	mempool Mempool,
-	validityWindow ValidityWindow,
+	mempool Mempool[T, A],
+	validityWindow ValidityWindow[T, A],
 	metrics *chainMetrics,
 	config Config,
-) *Builder {
-	return &Builder{
+) *Builder[T, A] {
+	return &Builder[T, A]{
 		tracer:          tracer,
 		ruleFactory:     ruleFactory,
 		log:             log,
@@ -73,7 +73,7 @@ func NewBuilder(
 	}
 }
 
-func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+func (c *Builder[T, A]) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock[T, A]) (*ExecutionBlock[T, A], *OutputBlock[T, A], error) {
 	ctx, span := c.tracer.Start(ctx, "Chain.BuildBlock")
 	defer span.End()
 
@@ -90,8 +90,8 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	var (
 		parentID          = parent.GetID()
 		timestamp         = nextTime
-		height            = parent.Hght + 1
-		blockTransactions = []*Transaction{}
+		height            = parent.Height + 1
+		blockTransactions = []*Transaction[T, A]{}
 	)
 
 	// Compute next unit prices to use
@@ -114,7 +114,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
-		restorable     = []*Transaction{}
+		restorable     = []*Transaction[T, A]{}
 
 		// cache contains keys already fetched from state that can be
 		// used during prefetching.
@@ -156,14 +156,14 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		}
 
 		e := executor.New(streamBatch, c.config.TransactionExecutionCores, MaxKeyDependencies, c.metrics.executorBuildRecorder)
-		pending := make(map[ids.ID]*Transaction, streamBatch)
+		pending := make(map[ids.ID]*Transaction[T, A], streamBatch)
 		var pendingLock sync.Mutex
 		totalTxsSize := 0
 		for li, ltx := range txs {
 			txsAttempted++
-			totalTxsSize += ltx.Size()
+			totalTxsSize += ltx.GetSize()
 			if totalTxsSize > c.config.TargetTxsSize {
-				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.Size()))
+				c.log.Debug("Transactions in block exceeded allotted limit ", zap.Int("size", ltx.GetSize()))
 				restorable = append(restorable, txs[li:]...)
 				break
 			}
@@ -390,7 +390,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	tsv := ts.NewView(
 		keys,
 		state.ImmutableStorage(map[string][]byte{
-			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+			heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Height),
 			timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Timestamp)),
 			feeKeyStr:       parentFeeManager.Bytes(),
 		}),
@@ -421,7 +421,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	}
 
 	// Initialize finalized metadata fields
-	blk, err := NewStatelessBlock(
+	blk := NewBlock(
 		parentID,
 		timestamp,
 		height,
@@ -429,9 +429,6 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		parentStateRoot,
 		pChainCtx,
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 
 	// Kickoff root generation
 	go func() {
@@ -442,7 +439,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 			return
 		}
 		c.log.Info("merkle root generated",
-			zap.Uint64("height", blk.Hght),
+			zap.Uint64("height", blk.Height),
 			zap.Stringer("blkID", blk.GetID()),
 			zap.Stringer("root", root),
 		)
@@ -462,7 +459,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		zap.Int64("block (t)", timestamp),
 	)
 	execBlock := NewExecutionBlock(blk)
-	return execBlock, &OutputBlock{
+	return execBlock, &OutputBlock[T, A]{
 		ExecutionBlock: execBlock,
 		View:           view,
 		ExecutionResults: ExecutionResults{

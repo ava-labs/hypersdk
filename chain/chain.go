@@ -16,34 +16,33 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type Chain struct {
-	builder     *Builder
-	processor   *Processor
-	preExecutor *PreExecutor
-	blockParser *BlockParser
-	accepter    *Accepter
+type Chain[T Action[T], A Auth[A]] struct {
+	builder     *Builder[T, A]
+	processor   *Processor[T, A]
+	preExecutor *PreExecutor[T, A]
+	blockParser *BlockParser[T, A]
+	accepter    *Accepter[T, A]
 }
 
-func NewChain(
+func NewChain[T Action[T], A Auth[A]](
 	tracer trace.Tracer,
 	registerer *prometheus.Registry,
-	parser Parser,
-	mempool Mempool,
+	mempool Mempool[T, A],
 	logger logging.Logger,
 	ruleFactory RuleFactory,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authVM AuthVM,
-	validityWindow ValidityWindow,
+	validityWindow ValidityWindow[T, A],
 	config Config,
-) (*Chain, error) {
+) (*Chain[T, A], error) {
 	metrics, err := newMetrics(registerer)
 	if err != nil {
 		return nil, err
 	}
-	return &Chain{
-		builder: NewBuilder(
+	return &Chain[T, A]{
+		builder: NewBuilder[T, A](
 			tracer,
 			ruleFactory,
 			logger,
@@ -54,7 +53,7 @@ func NewChain(
 			metrics,
 			config,
 		),
-		processor: NewProcessor(
+		processor: NewProcessor[T, A](
 			tracer,
 			logger,
 			ruleFactory,
@@ -66,43 +65,43 @@ func NewChain(
 			metrics,
 			config,
 		),
-		preExecutor: NewPreExecutor(
+		preExecutor: NewPreExecutor[T, A](
 			ruleFactory,
 			validityWindow,
 			metadataManager,
 			balanceHandler,
 		),
-		blockParser: NewBlockParser(tracer, parser),
-		accepter:    NewAccepter(tracer, validityWindow, metrics),
+		blockParser: NewBlockParser[T, A](tracer),
+		accepter:    NewAccepter[T, A](tracer, validityWindow, metrics),
 	}, nil
 }
 
-func (c *Chain) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
+func (c *Chain[T, A]) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock[T, A]) (*ExecutionBlock[T, A], *OutputBlock[T, A], error) {
 	return c.builder.BuildBlock(ctx, pChainCtx, parentOutputBlock)
 }
 
-func (c *Chain) Execute(
+func (c *Chain[T, A]) Execute(
 	ctx context.Context,
 	parentView merkledb.View,
-	b *ExecutionBlock,
+	b *ExecutionBlock[T, A],
 	isNormalOp bool,
-) (*OutputBlock, error) {
+) (*OutputBlock[T, A], error) {
 	return c.processor.Execute(ctx, parentView, b, isNormalOp)
 }
 
-func (c *Chain) PreExecute(
+func (c *Chain[T, A]) PreExecute(
 	ctx context.Context,
-	parentBlk *ExecutionBlock,
+	parentBlk *ExecutionBlock[T, A],
 	im state.Immutable,
-	tx *Transaction,
+	tx *Transaction[T, A],
 ) error {
 	return c.preExecutor.PreExecute(ctx, parentBlk, im, tx)
 }
 
-func (c *Chain) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error) {
+func (c *Chain[T, A]) ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock[T, A], error) {
 	return c.blockParser.ParseBlock(ctx, bytes)
 }
 
-func (c *Chain) AcceptBlock(ctx context.Context, block *OutputBlock) error {
+func (c *Chain[T, A]) AcceptBlock(ctx context.Context, block *OutputBlock[T, A]) error {
 	return c.accepter.AcceptBlock(ctx, block)
 }

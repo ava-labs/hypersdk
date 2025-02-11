@@ -109,7 +109,7 @@ func (b *Block[T, A]) String() string {
 	return fmt.Sprintf("(BlockID=%s, Height=%d, Timestamp=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Height, b.Timestamp, b.ParentID, len(b.Txs), len(b.bytes))
 }
 
-func NewGenesisBlock[T Action[T], A Auth[A]](root ids.ID) (*ExecutionBlock, error) {
+func NewGenesisBlock[T Action[T], A Auth[A]](root ids.ID) (*ExecutionBlock[T, A], error) {
 	// We set the genesis block timestamp to be after the ProposerVM fork activation.
 	//
 	// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
