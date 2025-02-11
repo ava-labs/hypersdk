@@ -45,11 +45,11 @@ type blockParserAdapter struct {
 	vm *VM
 }
 
-func (k *blockParserAdapter) ParseBlock(ctx context.Context, blockBytes []byte) (*chain.ExecutionBlock, error) {
+func (k blockParserAdapter) ParseBlock(ctx context.Context, blockBytes []byte) (*chain.ExecutionBlock, error) {
 	return k.vm.ParseBlock(ctx, blockBytes)
 }
 
-func (k *blockParserAdapter) WriteBlock(ctx context.Context, blk *chain.ExecutionBlock) error {
+func (k blockParserAdapter) WriteBlock(ctx context.Context, blk *chain.ExecutionBlock) error {
 	return k.vm.chainStore.UpdateLastAccepted(ctx, blk)
 }
 

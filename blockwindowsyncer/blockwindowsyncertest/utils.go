@@ -1,13 +1,17 @@
+// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package blockwindowsyncertest
 
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"math/rand"
-	"time"
 )
 
 var (
@@ -20,17 +24,13 @@ type testBlockRetriever interface {
 }
 
 type TestBlockFetcherHandler struct {
-	retriever testBlockRetriever
-
-	blockHeight  uint64
-	minTimestamp int64
+	testBlockRetriever
 }
 
-func (t TestBlockFetcherHandler) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) {}
+func (TestBlockFetcherHandler) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) {}
 
-func (t TestBlockFetcherHandler) AppRequest(ctx context.Context, _ ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, *common.AppError) {
-	//TODO implement me
-	panic("implement me")
+func (TestBlockFetcherHandler) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, *common.AppError) {
+	return requestBytes, nil
 }
 
 type TestBlockRetriever struct {
@@ -74,7 +74,6 @@ func (r *TestBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uin
 	}
 
 	block, ok := r.Blocks[blockHeight]
-	//fmt.Printf("GetBlockByHeight: node=%s height=%d exists=%v\n", r.NodeID, blockHeight, ok)
 
 	if !ok && err != nil {
 		r.ErrChan <- err

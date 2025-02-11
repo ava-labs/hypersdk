@@ -1,20 +1,24 @@
+// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package blockwindowsyncer
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+
 	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
 const (
-	requestTimeout = 2 * time.Second // Timeout for each request
+	requestTimeout = 1 * time.Second // Timeout for each request
 	numSampleNodes = 10              // Number of nodes to sample
 )
 
@@ -24,10 +28,6 @@ var (
 	errMaliciousNode = errors.New("malicious node")
 )
 
-// buffer is thread safe data structure for buffering
-// pending blocks to be written (saved)
-
-// todo: explain why buffer, what does it solve
 type buffer[T Block] struct {
 	mu      sync.Mutex
 	pending map[ids.ID]T
@@ -62,12 +62,16 @@ func (b *buffer[T]) getAll() []T {
 	return blocks
 }
 
+// checkpoint tracks our current position, it's useful data structure to keep track of the
+// last valid written block
 type checkpoint struct {
 	blockID   ids.ID
 	height    uint64
 	timestamp int64
 }
 
+// BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
+// blocks, it ensures we have at least min validity window of blocks so we can transition from state sync to normal operation faster
 type BlockFetcherClient[T Block] struct {
 	client  *dsmr.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
 	parser  BlockParser[T]
@@ -117,37 +121,39 @@ func NewBlockFetcherClient[T Block](
 	return c
 }
 
-// Close stops the background goroutine. Call when shutting down.
 func (c *BlockFetcherClient[T]) Close() error {
 	close(c.stopCh)
 	c.stopWG.Wait()
 	return nil
 }
 
-func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, startBlock T, minTS int64) error {
-	c.setCheckpoint(startBlock.GetID(), startBlock.GetHeight(), startBlock.GetTimestamp())
-	req := &BlockFetchRequest{MinTimestamp: minTS}
+// FetchBlocks fetches blocks from peers **backward** (height N → minTS).
+//   - It stops when `minTS` is met (this can update dynamically, e.g., via `UpdateSyncTarget`).
+//   - Each request is limited by the node’s max execution time (currently ~50ms),
+//     meaning multiple requests may be needed to retrieve all required blocks.
+//   - If a peer is unresponsive or sends bad data, we retry with another
+func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, target T, minTS *atomic.Int64) error {
+	c.setCheckpoint(target.GetID(), target.GetHeight(), target.GetTimestamp())
+	req := &BlockFetchRequest{MinTimestamp: minTS.Load()}
 
 	for {
-		lastWritten := c.getCheckpoint()
-		height := lastWritten.height
-		lastWrittenBlockTS := lastWritten.timestamp
+		lastCheckpoint := c.getCheckpoint()
+		height := lastCheckpoint.height
+		lastWrittenBlockTS := lastCheckpoint.timestamp
 
-		if lastWrittenBlockTS <= minTS {
+		if lastWrittenBlockTS <= minTS.Load() {
 			break
 		}
 
 		nodeID := c.sampleNodeID(ctx)
 		if nodeID.Compare(ids.EmptyNodeID) == 0 {
 			// No node available
-			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 		req.BlockHeight = height
 
-		//fmt.Printf("sending request to %s blkHeight %d\n", nodeID, req)
 		if err := c.client.AppRequest(reqCtx, nodeID, req, c.handleResponse); err != nil {
 			cancel()
 			// We'll retry with another node, so just continue
@@ -158,7 +164,7 @@ func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, startBlock T, m
 		select {
 		case err := <-c.errChan:
 			cancel()
-			if errors.Is(err, context.Canceled) || errors.Is(err, errMaliciousNode) {
+			if errors.Is(err, context.Canceled) {
 				return err
 			}
 		case <-ctx.Done():
@@ -167,13 +173,11 @@ func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, startBlock T, m
 		case <-reqCtx.Done():
 			cancel()
 		}
-
-		// todo: update with backoff lib
-		time.Sleep(200 * time.Millisecond)
 	}
 	return nil
 }
 
+// handleResponse processes a peer's response
 func (c *BlockFetcherClient[T]) handleResponse(ctx context.Context, _ ids.NodeID, resp *BlockFetchResponse, reqErr error) {
 	if reqErr != nil {
 		c.errChan <- reqErr
@@ -192,10 +196,18 @@ func (c *BlockFetcherClient[T]) handleResponse(ctx context.Context, _ ids.NodeID
 	for _, raw := range resp.Blocks {
 		blk, err := c.parser.ParseBlock(ctx, raw)
 		if err != nil {
-			c.errChan <- fmt.Errorf("%w: %v", errInvalidBlock, err)
+			c.errChan <- errInvalidBlock
 			return
 		}
 
+		// Blocks are fetched in backward order (N -> N-1 -> N-2 -> N-K)
+		// each new block must have an ID that matches the expected previous block
+		// if the sequence is broken, the node is sending incorrect data
+		// Valid Sequence: 	 Blk(N) -> Blk(N-1) -> Blk(N-2) -> Blk(N-3)
+		// Invalid Sequence: Blk(N) -> Blk(N-1) -> Blk(X) -> Blk(X-K)
+		// Blk(X) does not match the expected parent and the following blocks after Blk(X) are considered invalid
+		// but, since Blk(N) and Blk(N-1) are valid, we want to write valid ones
+		// and discard the rest to maximize useful data retention (goto write)
 		if expectedBlockID != blk.GetID() {
 			c.errChan <- errMaliciousNode
 			goto write
@@ -211,41 +223,36 @@ write: // Trigger the background writer goroutine
 	}
 }
 
+// writePendingBlocks is centralized logic for flushing the buffer and updating the checkpoint
 func (c *BlockFetcherClient[T]) writePendingBlocks(ctx context.Context) {
 	blocks := c.buf.getAll()
 	if len(blocks) == 0 {
 		return
 	}
 
-	// Sort in descending order
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].GetHeight() > blocks[j].GetHeight()
-	})
-
-	var lastBlock T
+	var lastWrittenBlock T
 	for _, blk := range blocks {
 		if err := c.parser.WriteBlock(ctx, blk); err != nil {
 			c.errChan <- fmt.Errorf("failed to write block %s: %w", blk.GetID(), err)
 			c.buf.clear()
 			return
 		}
-		lastBlock = blk
+		lastWrittenBlock = blk
 	}
 
-	if lastBlock.GetID().Compare(ids.Empty) != 0 {
+	if lastWrittenBlock.GetID().Compare(ids.Empty) != 0 {
 		// Since we have the last block saved and sequence matters (N, N-1, N-2, ... N-K), next block height to fetch is one below it
-		c.setCheckpoint(lastBlock.GetParent(), lastBlock.GetHeight()-1, lastBlock.GetTimestamp())
+		c.setCheckpoint(lastWrittenBlock.GetParent(), lastWrittenBlock.GetHeight()-1, lastWrittenBlock.GetTimestamp())
 	}
 
 	// Blocks have been written successfully
 	c.buf.clear()
 }
 
-// sampleNodeID picks a random node from the node sampler.
 func (c *BlockFetcherClient[T]) sampleNodeID(ctx context.Context) ids.NodeID {
 	nodes := c.sampler.Sample(ctx, numSampleNodes)
 	for _, nodeID := range nodes {
-		if nodeID != ids.EmptyNodeID {
+		if nodeID.Compare(ids.EmptyNodeID) != 0 {
 			return nodeID
 		}
 	}
@@ -255,6 +262,7 @@ func (c *BlockFetcherClient[T]) sampleNodeID(ctx context.Context) ids.NodeID {
 func (c *BlockFetcherClient[T]) setCheckpoint(blockID ids.ID, height uint64, ts int64) {
 	c.checkpointL.Lock()
 	defer c.checkpointL.Unlock()
+
 	c.checkpoint.blockID = blockID
 	c.checkpoint.height = height
 	c.checkpoint.timestamp = ts
@@ -263,5 +271,6 @@ func (c *BlockFetcherClient[T]) setCheckpoint(blockID ids.ID, height uint64, ts 
 func (c *BlockFetcherClient[T]) getCheckpoint() checkpoint {
 	c.checkpointL.RLock()
 	defer c.checkpointL.RUnlock()
+
 	return c.checkpoint
 }

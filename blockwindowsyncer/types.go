@@ -6,6 +6,8 @@ package blockwindowsyncer
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/x/dsmr"
@@ -32,8 +34,7 @@ type BlockParser[T Block] interface {
 }
 
 type BlockFetcher[T Block] interface {
-	// FetchBlocks sends fetch request to peers starting from block until it fills time validity window
-	FetchBlocks(ctx context.Context, block T, minTimestamp int64) error
+	FetchBlocks(ctx context.Context, block T, minTimestamp *atomic.Int64) error
 }
 
 // BlockRetriever defines operations needed by a node serving blocks to peers

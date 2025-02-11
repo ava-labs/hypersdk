@@ -1,12 +1,17 @@
+// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package blockwindowsyncer
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/blockwindowsyncer/blockwindowsyncertest"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/blockwindowsyncer/blockwindowsyncertest"
 )
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
@@ -25,7 +30,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				return generateBlocks(10)
 			},
 			blockHeight:  9, // The tip of the chain
-			minTimestamp: 3, // Should get blocks with timestamp >= 3
+			minTimestamp: 3, // Should get blocks with minTimestamp >= 3
 			wantBlocks:   7,
 		},
 		{
@@ -50,7 +55,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			wantBlocks:   0,
 		},
 		{
-			name: "future timestamp",
+			name: "future minTimestamp",
 			setupBlocks: func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
 				return generateBlocks(10)
 			},
@@ -190,7 +195,7 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	ctx := context.Background()
 	req := require.New(t)
 
-	blocks, _ := generateBlocks(10)
+	blocks, _ := generateBlocks(20)
 	retriever := blockwindowsyncertest.NewTestBlockRetriever().
 		WithBlocks(blocks).
 		WithDelay(maxProcessingDuration + 10*time.Millisecond)
@@ -223,10 +228,10 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 		req.ErrorIs(r.err, context.DeadlineExceeded)
 		// We should get some blocks before timeout
 		req.NotEmpty(r.blocks)
-		// But not all; 7 = (Block of height 10, fetch until timestamp of block 3)
-		req.NotEqual(len(r.blocks), 7)
+		// But not all; 7 = (Block of height 10, fetch until minTimestamp of block 3)
+		req.NotEqual(7, len(r.blocks))
 	case <-time.After(2 * maxProcessingDuration):
-		t.Fatal("Test took too long to complete")
+		req.Fail("Test took too long to complete")
 	}
 }
 

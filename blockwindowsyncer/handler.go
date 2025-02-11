@@ -6,9 +6,10 @@ package blockwindowsyncer
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"time"
 )
 
 // maxProcessingDuration of the request
@@ -72,7 +73,7 @@ func (*BlockFetcherHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, _ []by
 // |    minTimestamp=X)                | - Get block 100
 // |                                   | - Get block 99
 // |                                   | - Get block 98
-// |                                   | - Until timestamp < X
+// |                                   | - Until minTimestamp < X
 // |<-- [Block100,Block99,Block98] --- |
 func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *BlockFetchRequest) ([][]byte, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, maxProcessingDuration)
