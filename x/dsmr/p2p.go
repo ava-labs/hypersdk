@@ -127,14 +127,6 @@ func (c ChunkSignatureRequestVerifier[T]) Verify(
 		return ErrInvalidChunk
 	}
 
-	// check to see if this chunk was already accepted.
-	_, err = c.storage.GetChunkBytes(chunk.Expiry, chunk.id)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return &common.AppError{
-			Code:    p2p.ErrUnexpected.Code,
-			Message: err.Error(),
-		}
-	}
 	if err := c.storage.CheckRateLimit(chunk); err != nil {
 		return &common.AppError{
 			Code:    p2p.ErrUnexpected.Code,

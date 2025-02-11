@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -465,23 +466,16 @@ func TestChunkProducerRateLimiting(t *testing.T) {
 				require.NoError(storage.AddLocalChunkWithCert(chunk, nil))
 			}
 
-			if testCase.minTime != 0 {
-				acceptedChunks := []ids.ID{}
-				for _, chunkExpiry := range testCase.acceptedChunksExpiry {
-					// find the chunk that corresponds to this expiry in the chunks slice.
-					chunkIndex := -1
-					for i, chunk := range chunks {
-						if chunk.Expiry == chunkExpiry {
-							// found.
-							chunkIndex = i
-							break
-						}
-					}
-					require.NotEqual(-1, chunkIndex, "acceptedChunksExpiry contains an expiry time missing from expiryTimes")
-					acceptedChunks = append(acceptedChunks, chunks[chunkIndex].id)
-				}
-				require.NoError(storage.SetMin(testCase.minTime, acceptedChunks))
+			var acceptedChunks []ids.ID
+			for _, chunkExpiry := range testCase.acceptedChunksExpiry {
+				// find the chunk that corresponds to this expiry in the chunks slice.
+				chunkIndex := slices.IndexFunc(chunks, func(chunk Chunk[dsmrtest.Tx]) bool {
+					return chunk.Expiry == chunkExpiry
+				})
+				require.NotEqual(-1, chunkIndex, "acceptedChunksExpiry contains an expiry time missing from expiryTimes")
+				acceptedChunks = append(acceptedChunks, chunks[chunkIndex].id)
 			}
+			require.NoError(storage.SetMin(testCase.minTime, acceptedChunks))
 
 			chunk, err := newChunk(
 				UnsignedChunk[dsmrtest.Tx]{

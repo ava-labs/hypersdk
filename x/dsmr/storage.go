@@ -82,8 +82,6 @@ func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {
 		return fmt.Errorf("%w: producer node id %v", ErrChunkProducerNotValidator, chunk.UnsignedChunk.Producer)
 	}
 
-	// TODO:
-	// add rate limiting for a given producer.
 	return chunk.Verify(c.chainState.GetNetworkID(), c.chainState.GetChainID())
 }
 
