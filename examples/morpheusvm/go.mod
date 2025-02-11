@@ -1,21 +1,24 @@
 module github.com/ava-labs/hypersdk/examples/morpheusvm
 
-go 1.22.8
+go 1.22.9
+
+toolchain go1.23.6
 
 require (
-	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250203152522-13c08681c17d
+	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250209190418-217ef3979ea7
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
-	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.9.0
-	golang.org/x/exp v0.0.0-20231127185646-65229373498e
+	github.com/spf13/cobra v1.8.1
+	github.com/stretchr/testify v1.10.0
+	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
 )
 
 require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
+	github.com/StephenButtolph/canoto v0.10.2-0.20250210180110-33bcad847890 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/ava-labs/coreth v0.14.2-verify-interface6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -136,12 +139,12 @@ require (
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
+	golang.org/x/tools v0.28.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240604185151-ef581f913117 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed // indirect
 	google.golang.org/grpc v1.66.0 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
+	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect

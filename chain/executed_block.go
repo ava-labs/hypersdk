@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/StephenButtolph/canoto"
+
 	"github.com/ava-labs/hypersdk/fees"
 )
 

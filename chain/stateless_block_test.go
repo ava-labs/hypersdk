@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSerializeBlock(t *testing.T) {
