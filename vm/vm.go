@@ -396,7 +396,7 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 		return &chain.OutputBlock{
 			ExecutionBlock:   blk,
 			View:             vm.stateDB,
-			ExecutionResults: chain.ExecutionResults{},
+			ExecutionResults: &chain.ExecutionResults{},
 		}, nil
 	}
 
@@ -450,14 +450,14 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 		if err != nil {
 			return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
 		}
-		executionResults, err := chain.UnmarshalExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
+		executionResults, err := chain.ParseExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal execution results for last accepted block: %w", err)
 		}
 		return &chain.OutputBlock{
 			ExecutionBlock:   blk,
 			View:             vm.stateDB,
-			ExecutionResults: *executionResults,
+			ExecutionResults: executionResults,
 		}, nil
 	}
 
@@ -531,7 +531,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	return &chain.OutputBlock{
 		ExecutionBlock:   genesisExecutionBlk,
 		View:             vm.stateDB,
-		ExecutionResults: chain.ExecutionResults{},
+		ExecutionResults: &chain.ExecutionResults{},
 	}, nil
 }
 
@@ -666,10 +666,7 @@ func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block 
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
-	resultBytes, err := block.ExecutionResults.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
-	}
+	resultBytes := block.ExecutionResults.Marshal()
 	resultBytes = binary.BigEndian.AppendUint64(resultBytes, block.Hght)
 	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
 		return nil, fmt.Errorf("failed to write execution results: %w", err)

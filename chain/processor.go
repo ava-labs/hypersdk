@@ -42,7 +42,7 @@ type OutputBlock struct {
 	*ExecutionBlock
 
 	View             merkledb.View
-	ExecutionResults ExecutionResults
+	ExecutionResults *ExecutionResults
 }
 
 type blockContext struct {
@@ -210,7 +210,7 @@ func (p *Processor) Execute(
 	return &OutputBlock{
 		ExecutionBlock: b,
 		View:           view,
-		ExecutionResults: ExecutionResults{
+		ExecutionResults: &ExecutionResults{
 			Results:       results,
 			UnitPrices:    blockContext.feeManager.UnitPrices(),
 			UnitsConsumed: blockContext.feeManager.UnitsConsumed(),

@@ -344,7 +344,13 @@ func (t *Transaction) Execute(
 		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil
+			return &Result{
+				Success: false,
+				Error:   utils.ErrBytes(err),
+				Outputs: actionOutputs,
+				Units:   units,
+				Fee:     fee,
+			}, nil
 		}
 
 		var encodedOutput []byte
