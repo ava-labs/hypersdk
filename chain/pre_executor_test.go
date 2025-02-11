@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/auth/authtest"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
@@ -42,9 +43,9 @@ func TestPreExecutor(t *testing.T) {
 				),
 			},
 		},
-		Auth: &mockAuth{
-			start: -1,
-			end:   -1,
+		Auth: &authtest.MockAuth{
+			Start: -1,
+			End:   -1,
 		},
 	}
 
@@ -109,7 +110,7 @@ func TestPreExecutor(t *testing.T) {
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &authtest.MockAuth{},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            chain.ErrInvalidKeyValue,
@@ -123,8 +124,8 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{
-					verifyError: errMockAuth,
+				Auth: &authtest.MockAuth{
+					VerifyError: errMockAuth,
 				},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
@@ -139,7 +140,7 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{},
+				Auth: &authtest.MockAuth{},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            validitywindow.ErrTimestampExpired,
