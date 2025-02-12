@@ -5,6 +5,7 @@ package indexer
 
 import (
 	"errors"
+	"math"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -46,11 +47,8 @@ func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
 }
 
 type GetBlockRequest struct {
-	BlockID ids.ID `json:"blockID"`
-}
-
-type GetBlockByHeightRequest struct {
-	Height uint64 `json:"height"`
+	BlockID     ids.ID `json:"blockID"`
+	BlockNumber uint64 `json:"blockNumber"`
 }
 
 type GetBlockResponse struct {
@@ -72,33 +70,21 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlock")
 	defer span.End()
 
-	block, err := s.indexer.GetBlock(args.BlockID)
+	var executedBlk *chain.ExecutedBlock
+	var err error
+	if args.BlockID != ids.Empty {
+		executedBlk, err = s.indexer.GetBlock(args.BlockID)
+	} else if args.BlockNumber != math.MaxUint64 {
+		// use the block number.
+		executedBlk, err = s.indexer.GetBlockByHeight(args.BlockNumber)
+	} else {
+		// get the latest block.
+		executedBlk, err = s.indexer.GetLatestBlock()
+	}
 	if err != nil {
 		return err
 	}
-	return reply.setResponse(block)
-}
-
-func (s *Server) GetBlockByHeight(req *http.Request, args *GetBlockByHeightRequest, reply *GetBlockResponse) error {
-	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlockByHeight")
-	defer span.End()
-
-	block, err := s.indexer.GetBlockByHeight(args.Height)
-	if err != nil {
-		return err
-	}
-	return reply.setResponse(block)
-}
-
-func (s *Server) GetLatestBlock(req *http.Request, _ *struct{}, reply *GetBlockResponse) error {
-	_, span := s.tracer.Start(req.Context(), "Indexer.GetLatestBlock")
-	defer span.End()
-
-	block, err := s.indexer.GetLatestBlock()
-	if err != nil {
-		return err
-	}
-	return reply.setResponse(block)
+	return reply.setResponse(executedBlk)
 }
 
 type GetTxRequest struct {

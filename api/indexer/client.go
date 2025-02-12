@@ -5,6 +5,7 @@ package indexer
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
@@ -53,8 +54,8 @@ func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser cha
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
-		"getBlockByHeight",
-		&GetBlockByHeightRequest{Height: height},
+		"getBlock",
+		&GetBlockRequest{BlockNumber: height},
 		&resp,
 	)
 	if err != nil {
@@ -67,8 +68,8 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
-		"getLatestBlock",
-		nil,
+		"geBlock",
+		&GetBlockRequest{BlockNumber: math.MaxUint64},
 		&resp,
 	)
 	if err != nil {
