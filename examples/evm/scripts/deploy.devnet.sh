@@ -14,8 +14,8 @@ PROJECT_NAME="evm"
 # Name of the cli binary for the project
 PROJECT_CLI_NAME="evm-cli"
 
-# Commit of the MorpheusVM repository to build and install
-PROJECT_VM_COMMIT="397710b81452eca7565b7fb7c8a3247087da6a10"
+# Commit of the HyperEVM repository to build and install
+PROJECT_VM_COMMIT="689c207994ca1887504b4c9b09904cd023f97671"
 
 # Set AvalancheGo Build (should have canPop disabled)
 AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
