@@ -45,7 +45,7 @@ type OutputBlock struct {
 	ExecutionResults ExecutionResults
 }
 
-type blockContext struct {
+type blockExecContext struct {
 	height     uint64
 	timestamp  int64
 	feeManager *fees.Manager
@@ -236,8 +236,8 @@ func (p *Processor) executeTxs(
 	defer span.End()
 
 	var (
-		numTxs = len(b.StatelessBlock.Txs)
-		t      = b.Tmstmp
+		numTxs   = len(b.StatelessBlock.Txs)
+		blockCtx = NewBlockContext(b.Hght, b.GetTimestamp())
 
 		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
 		e       = executor.New(numTxs, p.config.TransactionExecutionCores, MaxKeyDependencies, p.metrics.executorVerifyRecorder)
@@ -293,11 +293,11 @@ func (p *Processor) executeTxs(
 			)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, p.balanceHandler, r, tsv, b.GetTimestamp()); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
+			result, err := tx.Execute(ctx, blockCtx, feeManager, p.balanceHandler, r, tsv)
 			if err != nil {
 				return err
 			}
@@ -371,7 +371,7 @@ func (p *Processor) createBlockContext(
 	im state.Immutable,
 	block *ExecutionBlock,
 	r Rules,
-) (blockContext, error) {
+) (blockExecContext, error) {
 	_, span := p.tracer.Start(ctx, "Chain.Execute.createBlockContext")
 	defer span.End()
 
@@ -379,25 +379,25 @@ func (p *Processor) createBlockContext(
 	heightKey := HeightKey(p.metadataManager.HeightPrefix())
 	parentHeightRaw, err := im.GetValue(ctx, heightKey)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
+		return blockExecContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
 	}
 	if block.Hght != parentHeight+1 {
-		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
+		return blockExecContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
 	}
 
 	// Get parent timestamp
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
 	}
 	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
+		return blockExecContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
 	}
 
 	// Confirm block timestamp is valid
@@ -406,22 +406,22 @@ func (p *Processor) createBlockContext(
 	// can't rely on being able to fetch it during verification.
 	parentTimestamp := int64(parsedParentTimestamp)
 	if minBlockGap := r.GetMinBlockGap(); block.Tmstmp < parentTimestamp+minBlockGap {
-		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
+		return blockExecContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
 	}
 	if len(block.StatelessBlock.Txs) == 0 && block.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
+		return blockExecContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
 	}
 
 	// Calculate fee manager for this block
 	feeKey := FeeKey(p.metadataManager.FeePrefix())
 	parentFeeRaw, err := im.GetValue(ctx, feeKey)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
 	}
 	parentFeeManager := fees.NewManager(parentFeeRaw)
 	blockFeeManager := parentFeeManager.ComputeNext(block.Tmstmp, r)
 
-	return blockContext{
+	return blockExecContext{
 		height:     block.Hght,
 		timestamp:  block.Tmstmp,
 		feeManager: blockFeeManager,
@@ -431,7 +431,7 @@ func (p *Processor) createBlockContext(
 func (p *Processor) writeBlockContext(
 	ctx context.Context,
 	mu state.Mutable,
-	blockCtx blockContext,
+	blockCtx blockExecContext,
 ) error {
 	var (
 		heightKey    = HeightKey(p.metadataManager.HeightPrefix())

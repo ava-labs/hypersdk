@@ -109,7 +109,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	actions := sh.GetTransfer(s.authFactory.Address(), 0, []byte{})
+	actions := sh.GetTransfer(s.authFactory.Address(), 0, []byte{}, s.authFactory)
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func (s Spammer) broadcast(
 				g.Go(func() error {
 					factory := factories[senderIndex]
 					// Send transaction
-					actions := sh.GetActions()
+					actions := sh.GetActions(factory)
 					s.tracker.IncrementSent()
 					// assumes the sender has the funds to pay for the transaction
 					return issuer.Send(ctx, actions, factory, feePerTx)
@@ -305,7 +305,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
 
-	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
+	distAmount := (s.balance - withholding) / (uint64(s.numAccounts) * 100) // lowering the amount to avoid insufficient funds errors
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
@@ -335,7 +335,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		factories[i] = f
 
 		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
+		actions := sh.GetTransfer(pk.Address, distAmount, []byte{}, s.authFactory)
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
@@ -392,7 +392,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
+		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{}, s.authFactory)
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err

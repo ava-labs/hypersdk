@@ -140,6 +140,10 @@ func (vm *VM) ParseAndVerifyInvalidBlk(ctx context.Context, blkBytes []byte, exp
 	vm.require.ErrorIs(blk.Verify(ctx), expectedErr)
 }
 
+func (vm *VM) Server() *httptest.Server {
+	return vm.server
+}
+
 type TestNetwork struct {
 	t       *testing.T
 	require *require.Assertions

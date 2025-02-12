@@ -6,6 +6,7 @@ package jsonrpc
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"time"
 
@@ -198,6 +199,7 @@ func (j *JSONRPCServer) ExecuteActions(
 	}
 
 	now := time.Now().UnixMilli()
+	blockCtx := chain.NewBlockContext(0, now)
 
 	storage := make(map[string][]byte)
 	ts := tstate.New(1)
@@ -233,9 +235,9 @@ func (j *JSONRPCServer) ExecuteActions(
 
 		output, err := action.Execute(
 			ctx,
+			blockCtx,
 			j.vm.Rules(now),
 			tsv,
-			now,
 			args.Actor,
 			chain.CreateActionID(ids.Empty, uint8(actionIndex)),
 		)
@@ -308,12 +310,13 @@ func (j *JSONRPCServer) SimulateActions(
 	)
 
 	currentTime := time.Now().UnixMilli()
+	blockCtx := chain.NewBlockContext(0, currentTime)
 	for _, action := range actions {
 		actionOutput, err := action.Execute(
 			ctx,
+			blockCtx,
 			j.vm.Rules(currentTime),
 			tsv,
-			currentTime,
 			args.Actor,
 			ids.Empty,
 		)
@@ -330,7 +333,7 @@ func (j *JSONRPCServer) SimulateActions(
 		if err != nil {
 			return err
 		}
-		actionResult.StateKeys = scope.StateKeys()
+		actionResult.StateKeys = maps.Clone(scope.StateKeys())
 		reply.ActionResults = append(reply.ActionResults, actionResult)
 		// Reset state keys for the next action
 		clear(scope)

@@ -127,5 +127,5 @@ func (h *Handler) Spam(ctx context.Context, sh throughput.SpamHelper, spamKey st
 		return err
 	}
 
-	return spammer.Spam(ctx, sh, false, h.c.Symbol())
+	return spammer.Spam(ctx, sh, true, h.c.Symbol())
 }

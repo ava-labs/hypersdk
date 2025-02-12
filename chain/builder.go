@@ -81,7 +81,8 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	parentView := parentOutputBlock.View
 
 	// Select next timestamp
-	nextTime := time.Now().UnixMilli()
+	startTime := time.Now()
+	nextTime := startTime.UnixMilli()
 	r := c.ruleFactory.GetRules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
 		c.log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
@@ -92,6 +93,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		timestamp         = nextTime
 		height            = parent.Hght + 1
 		blockTransactions = []*Transaction{}
+		blockCtx          = NewBlockContext(height, timestamp)
 	)
 
 	// Compute next unit prices to use
@@ -280,11 +282,11 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 				}
 				result, err := tx.Execute(
 					ctx,
+					blockCtx,
 					feeManager,
 					c.balanceHandler,
 					r,
 					tsv,
-					nextTime,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
@@ -460,6 +462,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
 		zap.Int64("block (t)", timestamp),
+		zap.Int64("build time", time.Now().UnixMilli()-startTime.UnixMilli()),
 	)
 	execBlock := NewExecutionBlock(blk)
 	return execBlock, &OutputBlock{

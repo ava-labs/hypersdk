@@ -47,7 +47,7 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return t.SpecifiedStateKeys
 }
 
-func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (t *TestAction) Execute(ctx context.Context, _ chain.BlockContext, _ chain.Rules, state state.Mutable, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	if t.ExecuteErr {
 		return nil, errTestActionExecute
 	}
@@ -113,11 +113,11 @@ type ActionTest struct {
 
 	Action chain.Action
 
-	Rules     chain.Rules
-	State     state.Mutable
-	Timestamp int64
-	Actor     codec.Address
-	ActionID  ids.ID
+	Rules    chain.Rules
+	BlockCtx chain.BlockContext
+	State    state.Mutable
+	Actor    codec.Address
+	ActionID ids.ID
 
 	ExpectedOutputs codec.Typed
 	ExpectedErr     error
@@ -130,7 +130,7 @@ func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
 	t.Run(test.Name, func(t *testing.T) {
 		require := require.New(t)
 
-		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+		output, err := test.Action.Execute(ctx, test.BlockCtx, test.Rules, test.State, test.Actor, test.ActionID)
 
 		require.ErrorIs(err, test.ExpectedErr)
 		require.Equal(test.ExpectedOutputs, output)
@@ -149,6 +149,7 @@ type ActionBenchmark struct {
 	Action chain.Action
 
 	Rules       chain.Rules
+	BlockCtx    chain.BlockContext
 	CreateState func() state.Mutable
 	Timestamp   int64
 	Actor       codec.Address
@@ -172,7 +173,7 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		output, err := test.Action.Execute(ctx, test.Rules, states[i], test.Timestamp, test.Actor, test.ActionID)
+		output, err := test.Action.Execute(ctx, test.BlockCtx, test.Rules, states[i], test.Actor, test.ActionID)
 		require.NoError(err)
 		require.Equal(test.ExpectedOutput, output)
 	}

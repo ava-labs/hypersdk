@@ -309,11 +309,11 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
+	blockCtx BlockContext,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
 	r Rules,
 	ts *tstate.TStateView,
-	timestamp int64,
 ) (*Result, error) {
 	// Always charge fee first
 	units, err := t.Units(bh, r)
@@ -341,7 +341,7 @@ func (t *Transaction) Execute(
 		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, blockCtx, r, ts, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), actionOutputs, units, fee}, nil

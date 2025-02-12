@@ -74,6 +74,11 @@ type RuleFactory interface {
 	GetRules(t int64) Rules
 }
 
+type BlockContext interface {
+	Height() uint64
+	Timestamp() int64
+}
+
 type MetadataManager interface {
 	HeightPrefix() []byte
 	TimestampPrefix() []byte
@@ -154,9 +159,9 @@ type Action interface {
 	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
+		blockCtx BlockContext,
 		r Rules,
 		mu state.Mutable,
-		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
 	) (codec.Typed, error)
