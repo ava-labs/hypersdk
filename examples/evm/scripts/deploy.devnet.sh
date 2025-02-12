@@ -15,7 +15,7 @@ PROJECT_NAME="evm"
 PROJECT_CLI_NAME="evm-cli"
 
 # Commit of the HyperEVM repository to build and install
-PROJECT_VM_COMMIT="689c207994ca1887504b4c9b09904cd023f97671"
+PROJECT_VM_COMMIT="6d00ca0bac51dec57773bb88428edafdacab6fb9"
 
 # Set AvalancheGo Build (should have canPop disabled)
 AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
