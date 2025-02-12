@@ -17,6 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/cache"
@@ -166,6 +168,10 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 
 	for j, tx := range blk.Block.Txs {
 		result := blk.Results[j]
+		txBytes, err := tx.MarshalJSON()
+		if err != nil {
+			return err
+		}
 		if err := i.storeTransaction(
 			batch,
 			tx.GetID(),
@@ -175,6 +181,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 			result.Fee,
 			result.Outputs,
 			string(result.Error),
+			txBytes,
 		); err != nil {
 			return err
 		}
@@ -192,6 +199,7 @@ func (*Indexer) storeTransaction(
 	fee uint64,
 	outputs [][]byte,
 	errorStr string,
+	txBytes []byte,
 ) error {
 	storageTx := storageTx{
 		Timestamp: timestamp,
@@ -200,31 +208,45 @@ func (*Indexer) storeTransaction(
 		Fee:       fee,
 		Outputs:   outputs,
 		Error:     errorStr,
+		TxBytes:   txBytes,
 	}
 	storageTxBytes := storageTx.MarshalCanoto()
 
 	return batch.Put(txID[:], storageTxBytes)
 }
 
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {
+func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, []byte, int64, *chain.Result, error) {
 	v, err := i.txDB.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", nil
+		return false, nil, nil, 0, nil, nil
 	}
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", err
+		return false, nil, nil, 0, nil, err
 	}
 
 	storageTx := storageTx{}
 	if err := storageTx.UnmarshalCanoto(v); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
 	}
 
 	unpackedUnits, err := fees.UnpackDimensions(storageTx.Units)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
 	}
-	return true, storageTx.Timestamp, storageTx.Success, unpackedUnits, storageTx.Fee, storageTx.Outputs, storageTx.Error, nil
+
+	p := codec.NewReader(storageTx.TxBytes, consts.NetworkSizeLimit)
+	tx, err := chain.UnmarshalTx(p, i.parser.ActionCodec(), i.parser.AuthCodec())
+	if err != nil {
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
+	}
+	result := &chain.Result{
+		Success: storageTx.Success,
+		Error:   []byte(storageTx.Error),
+		Outputs: storageTx.Outputs,
+		Units:   unpackedUnits,
+		Fee:     storageTx.Fee,
+	}
+	return true, tx, storageTx.TxBytes, storageTx.Timestamp, result, nil
 }
 
 func (i *Indexer) Close() error {

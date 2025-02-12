@@ -576,7 +576,7 @@ func TestIndexerAPI(t *testing.T) {
 	txRes, success, err := client.GetTx(ctx, tx.GetID())
 	r.NoError(err)
 	r.True(success)
-	r.True(txRes.Success)
+	r.True(txRes.Result.Success)
 }
 
 func TestWebsocketAPI(t *testing.T) {

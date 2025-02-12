@@ -28,6 +28,7 @@ const (
 	canoto__storageTx__Fee__tag       = "\x20" // canoto.Tag(4, canoto.Varint)
 	canoto__storageTx__Outputs__tag   = "\x2a" // canoto.Tag(5, canoto.Len)
 	canoto__storageTx__Error__tag     = "\x32" // canoto.Tag(6, canoto.Len)
+	canoto__storageTx__TxBytes__tag   = "\x3a" // canoto.Tag(7, canoto.Len)
 )
 
 type canotoData_storageTx struct {
@@ -166,6 +167,17 @@ func (c *storageTx) UnmarshalCanotoFrom(r canoto.Reader) error {
 			if len(c.Error) == 0 {
 				return canoto.ErrZeroValue
 			}
+		case 7:
+			if wireType != canoto.Len {
+				return canoto.ErrUnexpectedWireType
+			}
+
+			if err := canoto.ReadBytes(&r, &c.TxBytes); err != nil {
+				return err
+			}
+			if len(c.TxBytes) == 0 {
+				return canoto.ErrZeroValue
+			}
 		default:
 			return canoto.ErrUnknownField
 		}
@@ -218,6 +230,9 @@ func (c *storageTx) CalculateCanotoCache() {
 	}
 	if len(c.Error) != 0 {
 		c.canotoData.size += len(canoto__storageTx__Error__tag) + canoto.SizeBytes(c.Error)
+	}
+	if len(c.TxBytes) != 0 {
+		c.canotoData.size += len(canoto__storageTx__TxBytes__tag) + canoto.SizeBytes(c.TxBytes)
 	}
 }
 
@@ -285,6 +300,10 @@ func (c *storageTx) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if len(c.Error) != 0 {
 		canoto.Append(&w, canoto__storageTx__Error__tag)
 		canoto.AppendBytes(&w, c.Error)
+	}
+	if len(c.TxBytes) != 0 {
+		canoto.Append(&w, canoto__storageTx__TxBytes__tag)
+		canoto.AppendBytes(&w, c.TxBytes)
 	}
 	return w
 }
