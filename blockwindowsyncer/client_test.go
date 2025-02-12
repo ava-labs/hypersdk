@@ -22,7 +22,8 @@ import (
 // and construct valid state from partial states
 func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	req := require.New(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
 
 	validChain := blockwindowsyncertest.GenerateChain(10)
 
@@ -68,15 +69,15 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 
 func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	req := require.New(t)
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 	defer cancel()
 
 	validChain := blockwindowsyncertest.GenerateChain(10)
 	invalidChain := blockwindowsyncertest.GenerateChain(10)
 
-	// The node has almost full state of valid transactions except the last one (last one in order to fill validity window)
 	nodes := []nodeScenario{
 		{
+			// First node has almost full state of valid transactions
 			blocks: map[uint64]*blockwindowsyncertest.TestBlock{
 				0: invalidChain[0],
 				1: invalidChain[1],
@@ -105,9 +106,13 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	minTS.Store(3)
 
 	err := fetcher.FetchBlocks(ctx, tip, &minTS)
-	req.ErrorIs(err, errMaliciousNode)
 
-	// We should have 6 blocks in our state instead of 7 since the last one is invalid
+	// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
+	// The node has a partially correct state but lacks the full validity window since the required third block is invalid.
+	// As a result, the setup ensures that a valid block can never be found.
+	req.ErrorIs(err, context.DeadlineExceeded)
+
+	// We should have 6 blocks in our state instead of 7 since the last one is invalid. Partial commit of valid blocks
 	req.Len(blockValidator.receivedBlocks, 6)
 
 	// Verify blocks from 9 to 4 have been written

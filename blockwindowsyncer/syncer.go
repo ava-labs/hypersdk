@@ -74,9 +74,6 @@ func (b *BlockWindowSyncer[T]) Start(ctx context.Context, target T) error {
 		}
 	}()
 
-	// aaron predlaze da forward i backward sinkere stavimo u svoj package
-	// i da koristimo lock, a zapravo ono sto treba da se desi
-	// jeste da backward syncer prekin egzekuciju ukoliko je skupio vise ili jednako blokova
 	done, err := b.forwardBlockSyncer.Accept(fetchCtx, target)
 	if err != nil {
 		b.fetchCancel()
