@@ -168,10 +168,6 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 
 	for j, tx := range blk.Block.Txs {
 		result := blk.Results[j]
-		txBytes, err := tx.MarshalJSON()
-		if err != nil {
-			return err
-		}
 		if err := i.storeTransaction(
 			batch,
 			tx.GetID(),
@@ -181,7 +177,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 			result.Fee,
 			result.Outputs,
 			string(result.Error),
-			txBytes,
+			tx.Bytes(),
 		); err != nil {
 			return err
 		}
