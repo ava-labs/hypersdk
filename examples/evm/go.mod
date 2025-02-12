@@ -181,5 +181,3 @@ require (
 )
 
 replace github.com/ava-labs/hypersdk => ../../
-
-replace github.com/ava-labs/subnet-evm => ../../../subnet-evm/
