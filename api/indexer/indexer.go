@@ -171,13 +171,13 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 		if err := i.storeTransaction(
 			batch,
 			tx.GetID(),
+			tx.Bytes(),
 			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
 			result.Fee,
 			result.Outputs,
 			string(result.Error),
-			tx.Bytes(),
 		); err != nil {
 			return err
 		}
@@ -189,13 +189,13 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 func (*Indexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
+	txBytes []byte,
 	timestamp int64,
 	success bool,
 	units fees.Dimensions,
 	fee uint64,
 	outputs [][]byte,
 	errorStr string,
-	txBytes []byte,
 ) error {
 	storageTx := storageTx{
 		Timestamp: timestamp,

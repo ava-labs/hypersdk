@@ -92,10 +92,9 @@ type GetTxRequest struct {
 }
 
 type GetTxResponse struct {
-	Tx        *chain.Transaction `json:"transaction"`
-	TxBytes   codec.Bytes        `json:"transactionbytes"`
-	Timestamp int64              `json:"timestamp"`
-	Result    *chain.Result      `json:"result"`
+	TxBytes   codec.Bytes   `json:"transactionBytes"`
+	Timestamp int64         `json:"timestamp"`
+	Result    *chain.Result `json:"result"`
 }
 
 type Server struct {
@@ -107,7 +106,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, tx, txbytes, t, result, err := s.indexer.GetTransaction(args.TxID)
+	found, _, txbytes, t, result, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -116,7 +115,6 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 		return ErrTxNotFound
 	}
 	reply.Timestamp = t
-	reply.Tx = tx
 	reply.TxBytes = txbytes
 	reply.Result = result
 	return nil

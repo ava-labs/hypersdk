@@ -110,7 +110,7 @@ var txCmd = &cobra.Command{
 				return fmt.Errorf("context expired while waiting for tx: %w", err)
 			}
 
-			getTxResponse, found, err = indexerClient.GetTx(ctx, expectedTxID)
+			getTxResponse, _, found, err = indexerClient.GetTx(ctx, expectedTxID, nil)
 			if err != nil {
 				return fmt.Errorf("failed to get tx: %w", err)
 			}
