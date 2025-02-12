@@ -38,22 +38,20 @@ func TestSerialization(t *testing.T) {
 
 	t.Log("testing serialization - non-empty To")
 	evmCall = &EvmCall{
-		To:             common.Address{1},
-		NotNullAddress: true,
-		Value:          1,
-		GasLimit:       1000000,
-		Data:           []byte{},
+		To:       common.Address{1},
+		Value:    1,
+		GasLimit: 1000000,
+		Data:     []byte{},
 	}
 	msg = evmCall.toMessage(sender)
 	require.NotNil(msg.To)
 
 	t.Log("testing serialization - value")
 	evmCall = &EvmCall{
-		To:             common.Address{1},
-		NotNullAddress: true,
-		Value:          10,
-		GasLimit:       1000000,
-		Data:           []byte{},
+		To:       common.Address{1},
+		Value:    10,
+		GasLimit: 1000000,
+		Data:     []byte{},
 	}
 	msg = evmCall.toMessage(sender)
 	require.IsType(msg.Value, &big.Int{})
@@ -161,11 +159,10 @@ func TestDeployment(t *testing.T) {
 	deployFromFactoryTest := &chaintest.ActionTest{
 		Name: "deploy contract from a contract",
 		Action: &EvmCall{
-			To:             factoryAddr,
-			NotNullAddress: true,
-			Value:          0,
-			GasLimit:       testCtx.SufficientGas,
-			Data:           deployData,
+			To:       factoryAddr,
+			Value:    0,
+			GasLimit: testCtx.SufficientGas,
+			Data:     deployData,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -223,10 +220,9 @@ func TestEVMTransfers(t *testing.T) {
 	directTransfer := &chaintest.ActionTest{
 		Name: "direct EOA to EOA transfer",
 		Action: &EvmCall{
-			To:             to,
-			NotNullAddress: true,
-			Value:          1,
-			GasLimit:       testCtx.SufficientGas,
+			To:       to,
+			Value:    1,
+			GasLimit: testCtx.SufficientGas,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -256,11 +252,10 @@ func TestEVMTransfers(t *testing.T) {
 	transferToAddress := &chaintest.ActionTest{
 		Name: "transfer through transferToAddress",
 		Action: &EvmCall{
-			To:             contractAddr,
-			NotNullAddress: true,
-			Value:          1,
-			GasLimit:       testCtx.SufficientGas,
-			Data:           transferData,
+			To:       contractAddr,
+			Value:    1,
+			GasLimit: testCtx.SufficientGas,
+			Data:     transferData,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -290,11 +285,10 @@ func TestEVMTransfers(t *testing.T) {
 	transferThroughContract := &chaintest.ActionTest{
 		Name: "transfer through transferThroughContract",
 		Action: &EvmCall{
-			To:             contractAddr,
-			NotNullAddress: true,
-			Value:          1,
-			GasLimit:       testCtx.SufficientGas,
-			Data:           transferThroughData,
+			To:       contractAddr,
+			Value:    1,
+			GasLimit: testCtx.SufficientGas,
+			Data:     transferThroughData,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -364,12 +358,11 @@ func TestEVMTstate(t *testing.T) {
 	setValueData = append(setValueData, common.LeftPadBytes(value.Bytes(), 32)...)
 
 	call := &EvmCall{
-		To:             contractAddr,
-		NotNullAddress: true,
-		Value:          0,
-		GasLimit:       testCtx.SufficientGas,
-		Data:           setValueData,
-		Keys:           state.Keys{},
+		To:       contractAddr,
+		Value:    0,
+		GasLimit: testCtx.SufficientGas,
+		Data:     setValueData,
+		Keys:     state.Keys{},
 	}
 
 	tstateTest := &chaintest.ActionTest{

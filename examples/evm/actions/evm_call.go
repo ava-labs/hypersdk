@@ -28,13 +28,13 @@ import (
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To             common.Address `serialize:"true" json:"to"` // Address of the contract to call (nil means contract creation)
-	NotNullAddress bool           `serialize:"true" json:"notNullAddress"`
-	Value          uint64         `serialize:"true" json:"value"`     // Amount of native tokens to send
-	GasLimit       uint64         `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
-	Data           []byte         `serialize:"true" json:"data"`      // Input data for the transaction
-	Keys           state.Keys     `serialize:"true" json:"stateKeys"` // State keys accessed by this call
-	From           common.Address `serialize:"true" json:"from"`      // Address of the sender
+	To            common.Address `serialize:"true" json:"to"` // Address of the contract to call (nil means contract creation)
+	IsNullAddress bool           `serialize:"true" json:"isNullAddress"`
+	Value         uint64         `serialize:"true" json:"value"`     // Amount of native tokens to send
+	GasLimit      uint64         `serialize:"true" json:"gasLimit"`  // Maximum gas units to consume
+	Data          []byte         `serialize:"true" json:"data"`      // Input data for the transaction
+	Keys          state.Keys     `serialize:"true" json:"stateKeys"` // State keys accessed by this call
+	From          common.Address `serialize:"true" json:"from"`      // Address of the sender
 }
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
@@ -53,7 +53,7 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		GasTipCap:         big.NewInt(0),
 		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
-	if e.To == (common.Address{}) && !e.NotNullAddress {
+	if e.To == (common.Address{}) && !e.IsNullAddress {
 		coreMessage.To = nil
 	}
 	return coreMessage

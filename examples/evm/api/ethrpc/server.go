@@ -674,11 +674,11 @@ func convertTxToAction(tx *types.Transaction, height uint64, timestamp int64) (*
 	// Convert TX to action before doing expensive work
 	to := tx.To()
 	var (
-		notNullAddress bool
-		toAddr         common.Address
+		isNullAddress bool = true
+		toAddr        common.Address
 	)
 	if to != nil {
-		notNullAddress = true
+		isNullAddress = false
 		toAddr = *to
 	}
 	chainConfig := params.SubnetEVMDefaultChainConfig
@@ -689,12 +689,12 @@ func convertTxToAction(tx *types.Transaction, height uint64, timestamp int64) (*
 		return nil, fmt.Errorf("failed to get sender: %w", err)
 	}
 	action := &actions.EvmCall{
-		To:             toAddr,
-		NotNullAddress: notNullAddress,
-		Value:          tx.Value().Uint64(),
-		GasLimit:       tx.Gas(),
-		Data:           tx.Data(),
-		From:           from,
+		To:            toAddr,
+		IsNullAddress: isNullAddress,
+		Value:         tx.Value().Uint64(),
+		GasLimit:      tx.Gas(),
+		Data:          tx.Data(),
+		From:          from,
 	}
 
 	return action, nil
@@ -711,21 +711,21 @@ func convertRPCTxToAction(tx *RPCTransaction) (*actions.EvmCall, error) {
 	}
 
 	var (
-		toAddress      common.Address
-		notNullAddress bool
+		toAddress     common.Address
+		isNullAddress bool = true
 	)
 	if tx.To != nil {
 		toAddress = *tx.To
-		notNullAddress = true
+		isNullAddress = false
 	}
 
 	return &actions.EvmCall{
-		To:             toAddress,
-		NotNullAddress: notNullAddress,
-		Value:          value.Uint64(),
-		GasLimit:       uint64(tx.Gas),
-		Data:           tx.Input,
-		From:           tx.From,
+		To:            toAddress,
+		IsNullAddress: isNullAddress,
+		Value:         value.Uint64(),
+		GasLimit:      uint64(tx.Gas),
+		Data:          tx.Input,
+		From:          tx.From,
 	}, nil
 }
 
