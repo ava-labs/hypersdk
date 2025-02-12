@@ -72,12 +72,13 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 
 	var executedBlk *chain.ExecutedBlock
 	var err error
-	if args.BlockID != ids.Empty {
+	switch {
+	case args.BlockID != ids.Empty:
 		executedBlk, err = s.indexer.GetBlock(args.BlockID)
-	} else if args.BlockNumber != math.MaxUint64 {
+	case args.BlockNumber != math.MaxUint64:
 		// use the block number.
 		executedBlk, err = s.indexer.GetBlockByHeight(args.BlockNumber)
-	} else {
+	default:
 		// get the latest block.
 		executedBlk, err = s.indexer.GetLatestBlock()
 	}

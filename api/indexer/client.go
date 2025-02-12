@@ -68,7 +68,7 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
-		"geBlock",
+		"getBlock",
 		&GetBlockRequest{BlockNumber: math.MaxUint64},
 		&resp,
 	)
