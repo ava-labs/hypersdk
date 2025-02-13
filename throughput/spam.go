@@ -305,7 +305,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
 
-	distAmount := (s.balance - withholding) / (uint64(s.numAccounts) * 100) // lowering the amount to avoid insufficient funds errors
+	distAmount := (s.balance - withholding) / (uint64(s.numAccounts) * 1_000) // lowering the amount to avoid insufficient funds errors
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
