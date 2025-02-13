@@ -38,7 +38,7 @@ type EvmCall struct {
 }
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
-	return e.GasLimit
+	return 1
 }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
