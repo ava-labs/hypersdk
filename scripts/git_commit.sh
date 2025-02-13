@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 # Ignore warnings about variables appearing unused since this file is not the consumer of the variables it defines.
 # shellcheck disable=SC2034
