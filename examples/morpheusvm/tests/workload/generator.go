@@ -78,12 +78,12 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, err := indexerCli.GetTx(ctx, txID)
+	txRes, _, _, err := indexerCli.GetTx(ctx, txID, nil)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
-	require.NotZero(txRes.Fee)
-	require.Len(txRes.Outputs, 1)
-	transferOutputBytes := []byte(txRes.Outputs[0])
+	require.NotZero(txRes.Result.Fee)
+	require.Len(txRes.Result.Outputs, 1)
+	transferOutputBytes := txRes.Result.Outputs[0]
 	require.Equal(consts.TransferID, transferOutputBytes[0])
 	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
