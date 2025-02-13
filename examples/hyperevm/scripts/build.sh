@@ -30,4 +30,4 @@ fi
 
 cd "$HYPEREVM_PATH"
 mkdir -p "$(dirname "$BINARY_PATH")"
-go build -o "$BINARY_PATH" ./cmd/evm
+go build -o "$BINARY_PATH" ./cmd/hyperevm
