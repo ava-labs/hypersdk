@@ -239,7 +239,8 @@ func (s *ChunkStorage[T]) VerifyRemoteChunk(c Chunk[T]) (*warp.BitSetSignature, 
 }
 
 // putVerifiedChunk assumes that the given chunk is guaranteed not to surpass the producer's rate limit.
-// The rate limit is being checked via a call to CheckRateLimit from BuildChunk as well as by VerifyRemoteChunk.
+// The rate limit is being checked via a call to CheckRateLimit from BuildChunk ( for local generate chunks )
+// as well as by ChunkSignatureRequestVerifier.Verify for incoming chunk signature requests.
 func (s *ChunkStorage[T]) putVerifiedChunk(c Chunk[T], cert *ChunkCertificate) error {
 	if err := s.chunkDB.Put(pendingChunkKey(c.Expiry, c.id), c.bytes); err != nil {
 		return err
