@@ -28,76 +28,9 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-var (
-	_ chain.Action         = (*mockAction)(nil)
-	_ chain.Action         = (*mockTransferAction)(nil)
-	_ chain.Action         = (*action2)(nil)
-	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
-	_ chain.Auth           = (*mockAuth)(nil)
-)
+var _ chain.BalanceHandler = (*mockBalanceHandler)(nil)
 
 var errMockInsufficientBalance = errors.New("mock insufficient balance error")
-
-type mockAction struct {
-	start        int64
-	end          int64
-	computeUnits uint64
-	typeID       uint8
-	stateKeys    state.Keys
-}
-
-func (m *mockAction) ComputeUnits(chain.Rules) uint64 {
-	return m.computeUnits
-}
-
-func (*mockAction) Execute(context.Context, chain.Rules, state.Mutable, int64, codec.Address, ids.ID) (codec.Typed, error) {
-	panic("unimplemented")
-}
-
-func (m *mockAction) GetTypeID() uint8 {
-	return m.typeID
-}
-
-func (m *mockAction) StateKeys(codec.Address, ids.ID) state.Keys {
-	return m.stateKeys
-}
-
-func (m *mockAction) ValidRange(chain.Rules) (int64, int64) {
-	return m.start, m.end
-}
-
-type mockTransferAction struct {
-	mockAction
-	To    codec.Address `serialize:"true" json:"to"`
-	Value uint64        `serialize:"true" json:"value"`
-	Memo  []byte        `serialize:"true" json:"memo"`
-}
-
-func (*mockTransferAction) GetTypeID() uint8 {
-	return 111
-}
-
-type action2 struct {
-	mockAction
-	A uint64 `serialize:"true" json:"a"`
-	B uint64 `serialize:"true" json:"b"`
-}
-
-func (*action2) GetTypeID() uint8 {
-	return 222
-}
-
-func unmarshalTransfer(p *codec.Packer) (chain.Action, error) {
-	var transfer mockTransferAction
-	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &transfer)
-	return &transfer, err
-}
-
-func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
-	var action action2
-	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &action)
-	return &action, err
-}
 
 type mockBalanceHandler struct {
 	canDeductError error
@@ -123,47 +56,6 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 	return state.Keys{}
 }
 
-type mockAuth struct {
-	start        int64
-	end          int64
-	computeUnits uint64
-	actor        codec.Address
-	sponsor      codec.Address
-	verifyError  error
-}
-
-func (m *mockAuth) Actor() codec.Address {
-	return m.actor
-}
-
-func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
-	return m.computeUnits
-}
-
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Marshal(*codec.Packer) {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Size() int {
-	panic("unimplemented")
-}
-
-func (m *mockAuth) Sponsor() codec.Address {
-	return m.sponsor
-}
-
-func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
-	return m.start, m.end
-}
-
-func (m *mockAuth) Verify(context.Context, []byte) error {
-	return m.verifyError
-}
-
 func TestJSONMarshalUnmarshal(t *testing.T) {
 	require := require.New(t)
 
@@ -174,19 +66,9 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		Actions: []chain.Action{
-			&mockTransferAction{
-				To:    codec.Address{1, 2, 3, 4},
-				Value: 4,
-				Memo:  []byte("hello"),
-			},
-			&mockTransferAction{
-				To:    codec.Address{4, 5, 6, 7},
-				Value: 123,
-				Memo:  []byte("world"),
-			},
-			&action2{
-				A: 2,
-				B: 4,
+			&chaintest.TestAction{
+				NumComputeUnits: 1,
+				ReadKeys:        [][]byte{{1, 2, 3, 4}},
 			},
 		},
 	}
@@ -197,12 +79,12 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	actionCodec := codec.NewTypeParser[chain.Action]()
 	authCodec := codec.NewTypeParser[chain.Auth]()
 
-	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
+	err = actionCodec.Register(&chaintest.TestAction{}, nil)
 	require.NoError(err)
-	err = actionCodec.Register(&action2{}, unmarshalAction2)
 	require.NoError(err)
 	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
+	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
 
 	signedTx, err := txData.Sign(factory)
 	require.NoError(err)
@@ -210,11 +92,9 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	b, err := json.Marshal(signedTx)
 	require.NoError(err)
 
-	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
-
-	var txFromJSON chain.Transaction
+	txFromJSON := new(chain.Transaction)
 	err = txFromJSON.UnmarshalJSON(b, parser)
-	require.NoError(err)
+	require.NoError(err, string(b))
 	require.Equal(signedTx.Bytes(), txFromJSON.Bytes())
 }
 
@@ -229,19 +109,14 @@ func TestMarshalUnmarshal(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		Actions: []chain.Action{
-			&mockTransferAction{
-				To:    codec.Address{1, 2, 3, 4},
-				Value: 4,
-				Memo:  []byte("hello"),
+			&chaintest.TestAction{
+				NumComputeUnits: 2,
+				ReadKeys:        [][]byte{{1, 2, 3, 4}},
+				WriteKeys:       [][]byte{{5, 6, 7, 8}},
+				WriteValues:     [][]byte{{9, 10, 11, 12}},
 			},
-			&mockTransferAction{
-				To:    codec.Address{4, 5, 6, 7},
-				Value: 123,
-				Memo:  []byte("world"),
-			},
-			&action2{
-				A: 2,
-				B: 4,
+			&chaintest.TestAction{
+				NumComputeUnits: 1,
 			},
 		},
 	}
@@ -249,16 +124,6 @@ func TestMarshalUnmarshal(t *testing.T) {
 	priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
-
-	actionCodec := codec.NewTypeParser[chain.Action]()
-	authCodec := codec.NewTypeParser[chain.Auth]()
-
-	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
-	require.NoError(err)
-	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
-	require.NoError(err)
-	err = actionCodec.Register(&action2{}, unmarshalAction2)
-	require.NoError(err)
 
 	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
 	txBeforeSignBytes, err := tx.UnsignedBytes()
@@ -286,7 +151,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 
 	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
-	require.Len(unsignedTxBytes, 168)
+	require.Len(unsignedTxBytes, 173)
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
@@ -298,19 +163,14 @@ func TestSignRawActionBytesTx(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		Actions: []chain.Action{
-			&mockTransferAction{
-				To:    codec.Address{1, 2, 3, 4},
-				Value: 4,
-				Memo:  []byte("hello"),
+			&chaintest.TestAction{
+				NumComputeUnits: 2,
+				ReadKeys:        [][]byte{{1, 2, 3, 4}},
+				WriteKeys:       [][]byte{{5, 6, 7, 8}},
+				WriteValues:     [][]byte{{9, 10, 11, 12}},
 			},
-			&mockTransferAction{
-				To:    codec.Address{4, 5, 6, 7},
-				Value: 123,
-				Memo:  []byte("world"),
-			},
-			&action2{
-				A: 2,
-				B: 4,
+			&chaintest.TestAction{
+				NumComputeUnits: 1,
 			},
 		},
 	}
@@ -318,16 +178,6 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	priv, err := ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
-
-	actionCodec := codec.NewTypeParser[chain.Action]()
-	authCodec := codec.NewTypeParser[chain.Auth]()
-
-	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
-	require.NoError(err)
-	err = actionCodec.Register(&mockTransferAction{}, unmarshalTransfer)
-	require.NoError(err)
-	err = actionCodec.Register(&action2{}, unmarshalAction2)
-	require.NoError(err)
 
 	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
@@ -358,7 +208,7 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{},
+				Auth: &chaintest.TestAuth{},
 			},
 			bh: &mockBalanceHandler{},
 		},
@@ -417,7 +267,7 @@ func TestPreExecute(t *testing.T) {
 					Actions: func() []chain.Action {
 						actions := make([]chain.Action, testRules.MaxActionsPerTx+1)
 						for i := 0; i < int(testRules.MaxActionsPerTx)+1; i++ {
-							actions = append(actions, &mockTransferAction{})
+							actions = append(actions, &chaintest.TestAction{})
 						}
 						return actions
 					}(),
@@ -431,8 +281,8 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&mockAction{
-							start: consts.MillisecondsPerSecond,
+						&chaintest.TestAction{
+							Start: consts.MillisecondsPerSecond,
 						},
 					},
 				},
@@ -447,9 +297,9 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 					Actions: []chain.Action{
-						&mockAction{
-							start: consts.MillisecondsPerSecond,
-							end:   consts.MillisecondsPerSecond,
+						&chaintest.TestAction{
+							Start: consts.MillisecondsPerSecond,
+							End:   consts.MillisecondsPerSecond,
 						},
 					},
 				},
@@ -463,8 +313,8 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{
-					start: 1 * consts.MillisecondsPerSecond,
+				Auth: &chaintest.TestAuth{
+					Start: 1 * consts.MillisecondsPerSecond,
 				},
 			},
 			err: chain.ErrAuthNotActivated,
@@ -477,8 +327,8 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 				},
-				Auth: &mockAuth{
-					end: 1 * consts.MillisecondsPerSecond,
+				Auth: &chaintest.TestAuth{
+					End: 1 * consts.MillisecondsPerSecond,
 				},
 			},
 			timestamp: 2 * consts.MillisecondsPerSecond,
@@ -490,12 +340,12 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&mockAction{
-							computeUnits: 1,
+						&chaintest.TestAction{
+							NumComputeUnits: 1,
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &chaintest.TestAuth{},
 			},
 			fm: func() *fees.Manager {
 				fm := fees.NewManager([]byte{})
@@ -513,12 +363,12 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 					Actions: []chain.Action{
-						&mockAction{
-							computeUnits: 1,
+						&chaintest.TestAction{
+							NumComputeUnits: 1,
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &chaintest.TestAuth{},
 			},
 			bh: &mockBalanceHandler{
 				canDeductError: errMockInsufficientBalance,

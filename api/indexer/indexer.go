@@ -165,7 +165,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 	defer batch.Reset()
 
 	for j, tx := range blk.Block.Txs {
-		result := blk.Results[j]
+		result := blk.ExecutionResults.Results[j]
 		if err := i.storeTransaction(
 			batch,
 			tx.GetID(),

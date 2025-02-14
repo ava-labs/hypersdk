@@ -4,6 +4,8 @@
 package chaintest
 
 import (
+	"errors"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -17,26 +19,39 @@ type Parser struct {
 }
 
 func NewParser(
-	ruleFactory chain.RuleFactory,
+	rules chain.RuleFactory,
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
 ) *Parser {
 	return &Parser{
-		rules:       ruleFactory,
+		rules:       rules,
 		actionCodec: actionCodec,
 		authCodec:   authCodec,
 		outputCodec: outputCodec,
 	}
 }
 
-func NewEmptyParser() *Parser {
-	return &Parser{
-		rules:       &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		actionCodec: codec.NewTypeParser[chain.Action](),
-		authCodec:   codec.NewTypeParser[chain.Auth](),
-		outputCodec: codec.NewTypeParser[codec.Typed](),
+func NewTestParser() *Parser {
+	actionCodec := codec.NewTypeParser[chain.Action]()
+	authCodec := codec.NewTypeParser[chain.Auth]()
+	outputCodec := codec.NewTypeParser[codec.Typed]()
+
+	err := errors.Join(
+		actionCodec.Register(&TestAction{}, nil),
+		authCodec.Register(&TestAuth{}, UnmarshalAuth),
+		outputCodec.Register(&TestOutput{}, nil),
+	)
+	if err != nil {
+		panic(err)
 	}
+
+	return NewParser(
+		&genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+		actionCodec,
+		authCodec,
+		outputCodec,
+	)
 }
 
 func (p *Parser) Rules(t int64) chain.Rules {

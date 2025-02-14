@@ -7,23 +7,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/window"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-type StatelessBlock struct {
-	Prnt   ids.ID `json:"parent"`
-	Tmstmp int64  `json:"timestamp"`
-	Hght   uint64 `json:"height"`
+type Block struct {
+	Prnt   ids.ID `canoto:"fixed bytes,1" json:"parent"`
+	Tmstmp int64  `canoto:"sint,2" json:"timestamp"`
+	Hght   uint64 `canoto:"fint64,3" json:"height"`
 
-	BlockContext *block.Context `json:"blockContext"`
+	BlockContext *block.Context `canoto:"pointer,4" json:"blockContext"`
 
-	Txs []*Transaction `json:"txs"`
+	Txs []*Transaction `canoto:"repeated pointer,5" json:"txs"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -33,7 +31,13 @@ type StatelessBlock struct {
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	StateRoot ids.ID `json:"stateRoot"`
+	StateRoot ids.ID `canoto:"fixed bytes,6" json:"stateRoot"`
+
+	canotoData canotoData_Block
+}
+
+type StatelessBlock struct {
+	Block
 
 	bytes []byte
 	id    ids.ID
@@ -48,20 +52,35 @@ func NewStatelessBlock(
 	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	block := &StatelessBlock{
-		Prnt:         parentID,
-		Tmstmp:       timestamp,
-		Hght:         height,
-		Txs:          txs,
-		StateRoot:    stateRoot,
-		BlockContext: blockContext,
+		Block: Block{
+			Prnt:         parentID,
+			Tmstmp:       timestamp,
+			Hght:         height,
+			Txs:          txs,
+			StateRoot:    stateRoot,
+			BlockContext: blockContext,
+		},
 	}
-	blkBytes, err := block.Marshal()
-	if err != nil {
-		return nil, err
-	}
+	blkBytes := block.MarshalCanoto()
 	block.bytes = blkBytes
 	block.id = utils.ToID(blkBytes)
 	return block, nil
+}
+
+func (b *StatelessBlock) UnmarshalCanoto(bytes []byte) error {
+	r := canoto.Reader{B: bytes}
+	return b.UnmarshalCanotoFrom(r)
+}
+
+// UnmarshalCanotoFrom overrides the embedded Block definition of the same function
+// so that we can set the block bytes and ID fields.
+func (b *StatelessBlock) UnmarshalCanotoFrom(r canoto.Reader) error {
+	if err := b.Block.UnmarshalCanotoFrom(r); err != nil {
+		return err
+	}
+	b.bytes = r.B
+	b.id = utils.ToID(b.bytes)
+	return nil
 }
 
 func (b *StatelessBlock) GetID() ids.ID        { return b.id }
@@ -79,74 +98,17 @@ func (b *StatelessBlock) String() string {
 	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Hght, b.Prnt, len(b.Txs), len(b.bytes))
 }
 
-func (b *StatelessBlock) Marshal() ([]byte, error) {
-	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
-		consts.Uint64Len + window.WindowSliceSize +
-		consts.IntLen + codec.CummSize(b.Txs) +
-		ids.IDLen + consts.Uint64Len + consts.Uint64Len
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackID(b.Prnt)
-	p.PackInt64(b.Tmstmp)
-	p.PackUint64(b.Hght)
-	if b.BlockContext == nil {
-		p.PackBool(false)
-	} else {
-		p.PackBool(true)
-		p.PackUint64(b.BlockContext.PChainHeight)
+func UnmarshalBlock(raw []byte, parser TxParser) (*StatelessBlock, error) {
+	r := canoto.Reader{
+		B:       raw,
+		Context: parser,
 	}
-
-	p.PackInt(uint32(len(b.Txs)))
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-	}
-
-	p.PackID(b.StateRoot)
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
+	b := new(StatelessBlock)
+	if err := b.UnmarshalCanotoFrom(r); err != nil {
 		return nil, err
 	}
-	return bytes, nil
-}
-
-func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
-	var (
-		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatelessBlock
-	)
-
-	p.UnpackID(false, &b.Prnt)
-	b.Tmstmp = p.UnpackInt64(false)
-	b.Hght = p.UnpackUint64(false)
-	blockCtxExists := p.UnpackBool()
-	if blockCtxExists {
-		b.BlockContext = &block.Context{PChainHeight: p.UnpackUint64(false)}
-	}
-
-	// Parse transactions
-	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionCodec, authCodec := parser.ActionCodec(), parser.AuthCodec()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionCodec, authCodec)
-		if err != nil {
-			return nil, err
-		}
-		b.Txs = append(b.Txs, tx)
-	}
-
-	p.UnpackID(false, &b.StateRoot)
-
-	// Ensure no leftover bytes
-	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
-	}
-	b.bytes = raw
-	b.id = utils.ToID(raw)
-	return &b, p.Err()
+	b.CalculateCanotoCache()
+	return b, nil
 }
 
 func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {

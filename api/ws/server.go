@@ -191,7 +191,7 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	results := b.Results
+	results := b.ExecutionResults.Results
 	for i, tx := range b.Block.Txs {
 		txID := tx.GetID()
 		listeners, ok := w.txListeners[txID]

@@ -465,7 +465,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	return execBlock, &OutputBlock{
 		ExecutionBlock: execBlock,
 		View:           view,
-		ExecutionResults: ExecutionResults{
+		ExecutionResults: &ExecutionResults{
 			Results:       results,
 			UnitPrices:    feeManager.UnitPrices(),
 			UnitsConsumed: feeManager.UnitsConsumed(),
