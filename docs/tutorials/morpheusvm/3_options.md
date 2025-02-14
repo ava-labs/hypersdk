@@ -108,7 +108,7 @@ Each JSON-RPC method generally consists of the following:
 - A reply struct
 - The method itself
 
-For exmaple, consider the `Balance()` method. We define `BalanceArgs` which
+For example, consider the `Balance()` method. We define `BalanceArgs` which
 takes in an argument of the address being queried (`Address`). Then, we have
 `BalanceReply` which holds the balance of the account. Finally, `Balance()`
 itself produces the expected results. In this case, it first converts `Address`
