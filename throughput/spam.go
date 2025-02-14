@@ -300,7 +300,7 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 }
 
 func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
-	withholding := feePerTx * uint64(s.numAccounts)
+	withholding := (feePerTx * uint64(s.numAccounts) * 100)
 	if s.balance < withholding {
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}

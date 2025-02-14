@@ -48,9 +48,7 @@ func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config
 		minTxsPerSecond:  2000,
 		txsPerSecondStep: 1000,
 		numClients:       10,
-		// numAccounts: 10000000,
-		// numAccounts: 100000,
-		numAccounts: 10000,
+		numAccounts:      1_000,
 	}, nil
 }
 
