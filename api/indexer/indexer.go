@@ -91,7 +91,14 @@ func (i *Indexer) initBlocks() error {
 		}
 
 		i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+		if _, removedBlk := i.blockHeightToBlock.Put(blk.Block.Hght, blk); removedBlk != nil {
+			// the following should not happen, as we maintain only blockWindow entries; however,
+			// if it does, the following would correct that.
+			err = i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, *removedBlk))
+			if err != nil {
+				return err
+			}
+		}
 		lastHeight = blk.Block.Hght
 	}
 	if err := iter.Error(); err != nil {
@@ -100,15 +107,6 @@ func (i *Indexer) initBlocks() error {
 	iter.Release()
 
 	i.lastHeight = lastHeight
-
-	if lastHeight > i.blockWindow {
-		lastRetainedHeight := lastHeight - i.blockWindow
-		lastRetainedHeightBytes := binary.BigEndian.AppendUint64(nil, lastRetainedHeight)
-		if err := i.blockDB.DeleteRange(nil, lastRetainedHeightBytes); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
