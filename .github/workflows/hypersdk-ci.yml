@@ -26,7 +26,7 @@ jobs:
       - shell: bash
         run: scripts/tests.clean.sh
 
-  build_image:
+  test_build_docker_image:
     name: Image build
     runs-on: ubuntu-latest
     steps:
@@ -35,9 +35,9 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install qemu-system qemu-user-static
-      - name: Build MorpheusVM Docker Image
+      - name: Check image build
         shell: bash
-        run: bash -x scripts/build_docker_image.sh
+        run: bash -x scripts/tests.build_docker_image.sh
 
   hypersdk-lint:
     runs-on: ubuntu-latest
@@ -143,4 +143,3 @@ jobs:
         if: always()
         with:
           name: morpheusvm-e2e-tmpnet-data
-
