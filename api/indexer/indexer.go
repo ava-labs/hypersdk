@@ -137,8 +137,14 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 
 	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
 	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-	i.lastHeight.Store(blk.Block.Hght)
 
+	// ensure that lastHeight always contains the highest height we've seen.
+	currentLastHeight := i.lastHeight.Load()
+	for currentLastHeight < blk.Block.Hght {
+		if !i.lastHeight.CompareAndSwap(currentLastHeight, blk.Block.Hght) {
+			currentLastHeight = i.lastHeight.Load()
+		}
+	}
 	return nil
 }
 
