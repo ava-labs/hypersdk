@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,6 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/cache"
@@ -34,11 +36,13 @@ type Indexer struct {
 	blockIDToHeight    *cache.FIFO[ids.ID, uint64]
 	blockHeightToBlock *cache.FIFO[uint64, *chain.ExecutedBlock]
 	blockWindow        uint64 // Maximum window of blocks to retain
-	lastHeight         atomic.Uint64
+	lastHeight         uint64
 	parser             chain.Parser
 
 	// ID -> timestamp, success, units, fee, outputs
 	txDB *pebble.Database
+	// synchronization mutex between r/w
+	mu sync.RWMutex
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
@@ -87,7 +91,14 @@ func (i *Indexer) initBlocks() error {
 		}
 
 		i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-		i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+		if _, removedBlk := i.blockHeightToBlock.Put(blk.Block.Hght, blk); removedBlk != nil {
+			// the following should not happen, as we maintain only blockWindow entries; however,
+			// if it does, the following would correct that.
+			err = i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, *removedBlk))
+			if err != nil {
+				return err
+			}
+		}
 		lastHeight = blk.Block.Hght
 	}
 	if err := iter.Error(); err != nil {
@@ -95,20 +106,13 @@ func (i *Indexer) initBlocks() error {
 	}
 	iter.Release()
 
-	i.lastHeight.Store(lastHeight)
-
-	if lastHeight > i.blockWindow {
-		lastRetainedHeight := lastHeight - i.blockWindow
-		lastRetainedHeightBytes := binary.BigEndian.AppendUint64(nil, lastRetainedHeight)
-		if err := i.blockDB.DeleteRange(nil, lastRetainedHeightBytes); err != nil {
-			return err
-		}
-	}
-
+	i.lastHeight = lastHeight
 	return nil
 }
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	if err := i.storeTransactions(blk); err != nil {
 		return err
 	}
@@ -125,26 +129,41 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
+	_, removedBlkHeight := i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+
+	blkBatch := i.blockDB.NewBatch()
+	defer blkBatch.Reset()
+
+	if err := blkBatch.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
-	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
-		return err
+
+	if removedBlkHeight != nil {
+		if err := blkBatch.Delete(binary.BigEndian.AppendUint64(nil, *removedBlkHeight)); err != nil {
+			return err
+		}
 	}
 
 	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-	i.lastHeight.Store(blk.Block.Hght)
 
-	return nil
+	// ensure that lastHeight always contains the highest height we've seen.
+	i.lastHeight = max(i.lastHeight, blk.Block.Hght)
+	return blkBatch.Write()
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
-	return i.GetBlockByHeight(i.lastHeight.Load())
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.GetBlockByHeight(i.lastHeight)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.getBlockByHeight(height)
+}
+
+func (i *Indexer) getBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
 	blk, ok := i.blockHeightToBlock.Get(height)
 	if !ok {
 		return nil, fmt.Errorf("%w: height=%d", errBlockNotFound, height)
@@ -153,11 +172,13 @@ func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) 
 }
 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
 	height, ok := i.blockIDToHeight.Get(blkID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)
 	}
-	return i.GetBlockByHeight(height)
+	return i.getBlockByHeight(height)
 }
 
 func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
@@ -169,6 +190,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 		if err := i.storeTransaction(
 			batch,
 			tx.GetID(),
+			tx.Bytes(),
 			blk.Block.Tmstmp,
 			result.Success,
 			result.Units,
@@ -186,6 +208,7 @@ func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
 func (*Indexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
+	txBytes []byte,
 	timestamp int64,
 	success bool,
 	units fees.Dimensions,
@@ -200,31 +223,45 @@ func (*Indexer) storeTransaction(
 		Fee:       fee,
 		Outputs:   outputs,
 		Error:     errorStr,
+		TxBytes:   txBytes,
 	}
 	storageTxBytes := storageTx.MarshalCanoto()
 
 	return batch.Put(txID[:], storageTxBytes)
 }
 
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, [][]byte, string, error) {
+func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, []byte, int64, *chain.Result, error) {
 	v, err := i.txDB.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", nil
+		return false, nil, nil, 0, nil, nil
 	}
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", err
+		return false, nil, nil, 0, nil, err
 	}
 
 	storageTx := storageTx{}
 	if err := storageTx.UnmarshalCanoto(v); err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
 	}
 
 	unpackedUnits, err := fees.UnpackDimensions(storageTx.Units)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
 	}
-	return true, storageTx.Timestamp, storageTx.Success, unpackedUnits, storageTx.Fee, storageTx.Outputs, storageTx.Error, nil
+
+	p := codec.NewReader(storageTx.TxBytes, consts.NetworkSizeLimit)
+	tx, err := chain.UnmarshalTx(p, i.parser.ActionCodec(), i.parser.AuthCodec())
+	if err != nil {
+		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
+	}
+	result := &chain.Result{
+		Success: storageTx.Success,
+		Error:   []byte(storageTx.Error),
+		Outputs: storageTx.Outputs,
+		Units:   unpackedUnits,
+		Fee:     storageTx.Fee,
+	}
+	return true, tx, storageTx.TxBytes, storageTx.Timestamp, result, nil
 }
 
 func (i *Indexer) Close() error {

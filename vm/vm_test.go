@@ -573,10 +573,10 @@ func TestIndexerAPI(t *testing.T) {
 	r.Equal(lastAccepted.GetID(), blk1.Block.GetID())
 	r.Equal(uint64(1), blk1.Block.GetHeight())
 
-	txRes, success, err := client.GetTx(ctx, tx.GetID())
+	txRes, _, success, err := client.GetTx(ctx, tx.GetID(), nil)
 	r.NoError(err)
 	r.True(success)
-	r.True(txRes.Success)
+	r.True(txRes.Result.Success)
 }
 
 func TestWebsocketAPI(t *testing.T) {

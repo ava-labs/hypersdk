@@ -10,6 +10,7 @@ type storageTx struct {
 	Fee       uint64   `canoto:"int,4"`
 	Outputs   [][]byte `canoto:"repeated bytes,5"`
 	Error     string   `canoto:"string,6"`
+	TxBytes   []byte   `canoto:"bytes,7"`
 
 	canotoData canotoData_storageTx
 }

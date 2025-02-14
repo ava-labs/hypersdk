@@ -184,7 +184,7 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			for _, opIntf := range tt.ops {
 				switch op := opIntf.(type) {
 				case put:
-					exists := cache.Put(op.kv, op.kv)
+					exists, _ := cache.Put(op.kv, op.kv)
 					require.Equal(op.exists, exists)
 				case get:
 					val, ok := cache.Get(op.k)
