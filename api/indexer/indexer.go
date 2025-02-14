@@ -41,7 +41,7 @@ type Indexer struct {
 
 	// ID -> timestamp, success, units, fee, outputs
 	txDB *pebble.Database
-	// syncronization mutex between r/w
+	// synchronization mutex between r/w
 	mu sync.RWMutex
 }
 
