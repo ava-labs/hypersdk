@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -36,11 +36,13 @@ type Indexer struct {
 	blockIDToHeight    *cache.FIFO[ids.ID, uint64]
 	blockHeightToBlock *cache.FIFO[uint64, *chain.ExecutedBlock]
 	blockWindow        uint64 // Maximum window of blocks to retain
-	lastHeight         atomic.Uint64
+	lastHeight         uint64
 	parser             chain.Parser
 
 	// ID -> timestamp, success, units, fee, outputs
 	txDB *pebble.Database
+	// syncronization mutex between r/w
+	mu sync.RWMutex
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
@@ -97,7 +99,7 @@ func (i *Indexer) initBlocks() error {
 	}
 	iter.Release()
 
-	i.lastHeight.Store(lastHeight)
+	i.lastHeight = lastHeight
 
 	if lastHeight > i.blockWindow {
 		lastRetainedHeight := lastHeight - i.blockWindow
@@ -111,6 +113,8 @@ func (i *Indexer) initBlocks() error {
 }
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	if err := i.storeTransactions(blk); err != nil {
 		return err
 	}
@@ -127,32 +131,41 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
+	_, removedBlkHeight := i.blockHeightToBlock.Put(blk.Block.Hght, blk)
+
+	blkBatch := i.blockDB.NewBatch()
+	defer blkBatch.Reset()
+
+	if err := blkBatch.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
-	// Ignore overflows in key calculation which will simply delete a non-existent key
-	if err := i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, blk.Block.Hght-i.blockWindow)); err != nil {
-		return err
+
+	if removedBlkHeight != nil {
+		if err := blkBatch.Delete(binary.BigEndian.AppendUint64(nil, *removedBlkHeight)); err != nil {
+			return err
+		}
 	}
 
 	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-	i.blockHeightToBlock.Put(blk.Block.Hght, blk)
 
 	// ensure that lastHeight always contains the highest height we've seen.
-	currentLastHeight := i.lastHeight.Load()
-	for currentLastHeight < blk.Block.Hght {
-		if !i.lastHeight.CompareAndSwap(currentLastHeight, blk.Block.Hght) {
-			currentLastHeight = i.lastHeight.Load()
-		}
-	}
-	return nil
+	i.lastHeight = max(i.lastHeight, blk.Block.Hght)
+	return blkBatch.Write()
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
-	return i.GetBlockByHeight(i.lastHeight.Load())
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.GetBlockByHeight(i.lastHeight)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.getBlockByHeight(height)
+}
+
+func (i *Indexer) getBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
 	blk, ok := i.blockHeightToBlock.Get(height)
 	if !ok {
 		return nil, fmt.Errorf("%w: height=%d", errBlockNotFound, height)
@@ -161,11 +174,13 @@ func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) 
 }
 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
 	height, ok := i.blockIDToHeight.Get(blkID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)
 	}
-	return i.GetBlockByHeight(height)
+	return i.getBlockByHeight(height)
 }
 
 func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
