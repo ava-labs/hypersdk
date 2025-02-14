@@ -42,40 +42,40 @@ func GenerateTestItem(sponsor string, t int64) *TestItem {
 func TestExpiryHeapNew(t *testing.T) {
 	// Creates empty min and max heaps
 	require := require.New(t)
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	require.Zero(eheap.minHeap.Len(), "MinHeap not initialized correctly")
 }
 
 func TestExpiryHeapAdd(t *testing.T) {
 	// Adds to the mempool.
 	require := require.New(t)
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	item := GenerateTestItem("sponsor", 1)
 	eheap.Add(item)
-	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
-	require.True(eheap.minHeap.Has(item.GetID()), "MinHeap does not have ID")
+	require.Equal(1, eheap.Len(), "MinHeap not pushed correctly")
+	require.True(eheap.Has(item.GetID()), "MinHeap does not have ID")
 }
 
 func TestExpiryHeapRemove(t *testing.T) {
 	// Removes from the mempool.
 	require := require.New(t)
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	item := GenerateTestItem("sponsor", 1)
 	// Add first
 	eheap.Add(item)
 	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
-	require.True(eheap.minHeap.Has(item.GetID()), "MinHeap does not have ID")
+	require.True(eheap.Has(item.GetID()), "MinHeap does not have ID")
 	// Remove
 	eheap.Remove(item.GetID())
 	require.Zero(eheap.minHeap.Len(), "MinHeap not removed")
-	require.False(eheap.minHeap.Has(item.GetID()), "MinHeap still has ID")
+	require.False(eheap.Has(item.GetID()), "MinHeap still has ID")
 }
 
 func TestExpiryHeapRemoveEmpty(t *testing.T) {
 	// Try to remove a non existing entry.
 	// Removes from the mempool.
 	require := require.New(t)
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	item := GenerateTestItem("sponsor", 1)
 	// Require this returns
 	eheap.Remove(item.GetID())
@@ -85,7 +85,7 @@ func TestExpiryHeapRemoveEmpty(t *testing.T) {
 func TestSetMin(t *testing.T) {
 	require := require.New(t)
 	sponsor := "sponsor"
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	for i := int64(0); i <= 9; i++ {
 		item := GenerateTestItem(sponsor, i)
 		eheap.Add(item)
@@ -109,7 +109,7 @@ func TestSetMin(t *testing.T) {
 func TestSetMinRemovesAll(t *testing.T) {
 	require := require.New(t)
 	sponsor := "sponsor"
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	var items []*TestItem
 	for i := int64(0); i <= 4; i++ {
 		item := GenerateTestItem(sponsor, i)
@@ -126,7 +126,7 @@ func TestSetMinRemovesAll(t *testing.T) {
 
 func TestPeekMin(t *testing.T) {
 	require := require.New(t)
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 
 	itemMin := GenerateTestItem(testSponsor, 1)
 	itemMed := GenerateTestItem(testSponsor, 2)
@@ -157,7 +157,7 @@ func TestPeekMin(t *testing.T) {
 func TestPopMin(t *testing.T) {
 	require := require.New(t)
 
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 
 	itemMin := GenerateTestItem(testSponsor, 1)
 	itemMed := GenerateTestItem(testSponsor, 2)
@@ -183,7 +183,7 @@ func TestPopMin(t *testing.T) {
 func TestHas(t *testing.T) {
 	require := require.New(t)
 
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	item := GenerateTestItem(testSponsor, 1)
 	require.False(eheap.Has(item.GetID()), "Found an item that was not added.")
 	eheap.Add(item)
@@ -193,7 +193,7 @@ func TestHas(t *testing.T) {
 func TestLen(t *testing.T) {
 	require := require.New(t)
 
-	eheap := New[*TestItem](0)
+	eheap := New[*TestItem]()
 	for i := int64(0); i <= 4; i++ {
 		item := GenerateTestItem(testSponsor, i)
 		eheap.Add(item)

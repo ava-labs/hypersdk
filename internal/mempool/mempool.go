@@ -66,7 +66,7 @@ func New[T Item](
 		maxSponsorSize: maxSponsorSize,
 
 		queue: &list.List[T]{},
-		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
+		eh:    eheap.New[*list.Element[T]](),
 
 		owned: map[codec.Address]int{},
 	}
