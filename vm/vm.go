@@ -373,8 +373,7 @@ func (vm *VM) initChainStore() error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
-	d := pebble.WithExtendedDatabase(chainStoreDB)
-	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, d)
+	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain index: %w", err)
 	}
