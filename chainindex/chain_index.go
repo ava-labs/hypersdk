@@ -83,18 +83,13 @@ func New[T Block](
 		return nil, errBlockCompactionFrequencyZero
 	}
 
-	extendedDB, err := pebble.AsExtendedDatabase(db)
-	if err != nil {
-		return nil, err
-	}
-
 	ci := &ChainIndex[T]{
 		config: config,
 		// Offset by random number to ensure the network does not compact simultaneously
 		compactionOffset: rand.Uint64() % config.BlockCompactionFrequency, //nolint:gosec
 		metrics:          metrics,
 		log:              log,
-		db:               extendedDB,
+		db:               pebble.WithExtendedDatabase(db),
 		parser:           parser,
 	}
 
