@@ -1,7 +1,7 @@
 // Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package blockwindowsyncer
+package validitywindow
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/hypersdk/internal/typedclient"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-
-	"github.com/ava-labs/hypersdk/x/dsmr"
 )
 
 const (
@@ -62,7 +62,7 @@ func (b *buffer[T]) getAll() []T {
 	return blocks
 }
 
-// checkpoint tracks our current position, it's useful data structure to keep track of the
+// checkpoint tracks our current position, it's keeping track of the
 // last valid written block
 type checkpoint struct {
 	blockID   ids.ID
@@ -70,12 +70,17 @@ type checkpoint struct {
 	timestamp int64
 }
 
+type BlockProcessor[T Block] interface {
+	ParseBlock(ctx context.Context, blockBytes []byte) (T, error)
+	WriteBlock(ctx context.Context, block Block) error
+}
+
 // BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
 // blocks, it ensures we have at least min validity window of blocks so we can transition from state sync to normal operation faster
 type BlockFetcherClient[T Block] struct {
-	client  *dsmr.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
-	parser  BlockParser[T]
-	sampler p2p.NodeSampler
+	client       *typedclient.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
+	blkProcessor BlockProcessor[T]
+	sampler      p2p.NodeSampler
 
 	buf       *buffer[T]
 	writeChan chan struct{} // signals the writer goroutine to write buffered blocks
@@ -91,13 +96,13 @@ type BlockFetcherClient[T Block] struct {
 
 func NewBlockFetcherClient[T Block](
 	baseClient *p2p.Client,
-	parser BlockParser[T],
+	blkProcessor BlockProcessor[T],
 	sampler p2p.NodeSampler,
 ) *BlockFetcherClient[T] {
 	c := &BlockFetcherClient[T]{
-		client:  dsmr.NewTypedClient(baseClient, &blockFetcherMarshaler{}),
-		parser:  parser,
-		sampler: sampler,
+		client:       typedclient.NewTypedClient(baseClient, &blockFetcherMarshaler{}),
+		blkProcessor: blkProcessor,
+		sampler:      sampler,
 
 		buf:       newBuffer[T](),
 		writeChan: make(chan struct{}, 1),
@@ -132,13 +137,13 @@ func (c *BlockFetcherClient[T]) Close() error {
 //   - Each request is limited by the node’s max execution time (currently ~50ms),
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
-func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, target T, minTS *atomic.Int64) error {
-	c.setCheckpoint(target.GetID(), target.GetHeight(), target.GetTimestamp())
+func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, startID ids.ID, startHeight uint64, startTimestamp int64, minTS *atomic.Int64) error {
+	c.setCheckpoint(startID, startHeight, startTimestamp)
 	req := &BlockFetchRequest{MinTimestamp: minTS.Load()}
 
 	for {
 		lastCheckpoint := c.getCheckpoint()
-		height := lastCheckpoint.height
+		lastHeight := lastCheckpoint.height
 		lastWrittenBlockTS := lastCheckpoint.timestamp
 
 		if lastWrittenBlockTS <= minTS.Load() {
@@ -152,7 +157,7 @@ func (c *BlockFetcherClient[T]) FetchBlocks(ctx context.Context, target T, minTS
 		}
 
 		reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-		req.BlockHeight = height
+		req.BlockHeight = lastHeight
 
 		if err := c.client.AppRequest(reqCtx, nodeID, req, c.handleResponse); err != nil {
 			cancel()
@@ -194,7 +199,7 @@ func (c *BlockFetcherClient[T]) handleResponse(ctx context.Context, _ ids.NodeID
 
 	expectedBlockID := lastWritten.blockID
 	for _, raw := range resp.Blocks {
-		blk, err := c.parser.ParseBlock(ctx, raw)
+		blk, err := c.blkProcessor.ParseBlock(ctx, raw)
 		if err != nil {
 			c.errChan <- errInvalidBlock
 			return
@@ -204,8 +209,8 @@ func (c *BlockFetcherClient[T]) handleResponse(ctx context.Context, _ ids.NodeID
 		// each new block must have an ID that matches the expected previous block
 		// if the sequence is broken, the node is sending incorrect data
 		// Valid Sequence: 	 Blk(N) -> Blk(N-1) -> Blk(N-2) -> Blk(N-3)
-		// Invalid Sequence: Blk(N) -> Blk(N-1) -> Blk(X) -> Blk(X-K)
-		// Blk(X) does not match the expected parent and the following blocks after Blk(X) are considered invalid
+		// Invalid Sequence: Blk(N) -> Blk(N-1) -> Blk(N-3) -> Blk(N-2)
+		// Invalid sequence does not match the expected parent and the following blocks after are considered invalid
 		// but, since Blk(N) and Blk(N-1) are valid, we want to write valid ones
 		// and discard the rest to maximize useful data retention (goto write)
 		if expectedBlockID != blk.GetID() {
@@ -232,7 +237,7 @@ func (c *BlockFetcherClient[T]) writePendingBlocks(ctx context.Context) {
 
 	var lastWrittenBlock T
 	for _, blk := range blocks {
-		if err := c.parser.WriteBlock(ctx, blk); err != nil {
+		if err := c.blkProcessor.WriteBlock(ctx, blk); err != nil {
 			c.errChan <- fmt.Errorf("failed to write block %s: %w", blk.GetID(), err)
 			c.buf.clear()
 			return

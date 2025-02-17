@@ -6,13 +6,11 @@ package vm
 import (
 	"context"
 	"fmt"
-
-	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 
-	"github.com/ava-labs/hypersdk/blockwindowsyncer"
+	"github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/pebble"
@@ -25,32 +23,12 @@ import (
 
 const StateSyncNamespace = "statesync"
 
-type validityWindowAdapter struct {
-	*validitywindow.Syncer[*chain.Transaction]
-}
-
-func (v validityWindowAdapter) Accept(ctx context.Context, blk *chain.ExecutionBlock) (bool, error) {
-	return v.Syncer.Accept(ctx, blk)
-}
-
 type samplerAdapter struct {
 	peers *p2p.Peers
 }
 
 func (s *samplerAdapter) Sample(_ context.Context, limit int) []ids.NodeID {
 	return s.peers.Sample(limit)
-}
-
-type blockParserAdapter struct {
-	vm *VM
-}
-
-func (k blockParserAdapter) ParseBlock(ctx context.Context, blockBytes []byte) (*chain.ExecutionBlock, error) {
-	return k.vm.ParseBlock(ctx, blockBytes)
-}
-
-func (k blockParserAdapter) WriteBlock(ctx context.Context, blk *chain.ExecutionBlock) error {
-	return k.vm.chainStore.UpdateLastAccepted(ctx, blk)
 }
 
 type StateSyncConfig struct {
@@ -88,26 +66,21 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		return err
 	}
 
-	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
-		return vm.ruleFactory.GetRules(time).GetValidityWindow()
-	})
-
 	if blkFetcherErr := vm.network.AddHandler(
 		blockFetchHandleID,
-		blockwindowsyncer.NewBlockFetcherHandler[*chain.ExecutionBlock](vm.chainStore)); blkFetcherErr != nil {
+		validitywindow.NewBlockFetcherHandler[*chain.ExecutionBlock](vm.chainStore)); blkFetcherErr != nil {
 		return blkFetcherErr
 	}
 
 	blockFetcherP2PClient := vm.network.NewClient(blockFetchHandleID)
-	blockWindowSyncer := blockwindowsyncer.NewBlockWindowSyncer[*chain.ExecutionBlock](
-		validityWindowAdapter{vm.syncer},
-		blockwindowsyncer.NewBlockFetcherClient[*chain.ExecutionBlock](
-			blockFetcherP2PClient,
-			&blockParserAdapter{vm: vm},
-			&samplerAdapter{peers: vm.network.Peers},
-		), func(timestamp int64) int64 {
-			return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
-		})
+	blockFetcherClient := validitywindow.NewBlockFetcherClient[*chain.ExecutionBlock](
+		blockFetcherP2PClient,
+		vm,
+		&samplerAdapter{peers: vm.network.Peers},
+	)
+	syncer := validitywindow.NewSyncer[*chain.Transaction, *chain.ExecutionBlock](vm, vm.chainTimeValidityWindow, blockFetcherClient, func(time int64) int64 {
+		return vm.ruleFactory.GetRules(time).GetValidityWindow()
+	})
 
 	merkleSyncer, err := statesync.NewMerkleSyncer[*chain.ExecutionBlock](
 		vm.snowCtx.Log,
@@ -140,7 +113,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		inputCovariantVM,
 		syncerDB,
 		[]statesync.Syncer[*chain.ExecutionBlock]{
-			blockWindowSyncer,
+			syncer,
 			merkleSyncer,
 		},
 		vm.snowApp.StartStateSync,

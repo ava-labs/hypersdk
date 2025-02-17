@@ -439,6 +439,7 @@ type executionBlock struct {
 	Hght   uint64
 	Ctrs   []container
 	ID     ids.ID
+	Bytes  []byte
 }
 
 func (e executionBlock) GetID() ids.ID {
@@ -470,12 +471,17 @@ func (e executionBlock) Contains(id ids.ID) bool {
 	return false
 }
 
+func (e executionBlock) GetBytes() []byte {
+	return e.Bytes
+}
+
 func newExecutionBlock(height uint64, timestamp int64, containers []int64) executionBlock {
 	e := executionBlock{
 		Prnt:   uint64ToID(height - 1), // Allow underflow for genesis
 		Tmstmp: timestamp,
 		Hght:   height,
 		ID:     uint64ToID(height),
+		Bytes:  []byte{},
 	}
 	for _, c := range containers {
 		e.Ctrs = append(e.Ctrs, newContainer(c))

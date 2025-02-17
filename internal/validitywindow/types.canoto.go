@@ -3,7 +3,7 @@
 // 	canoto v0.10.0
 // source: blockwindowsyncer/types.go
 
-package blockwindowsyncer
+package validitywindow
 
 import (
 	"io"

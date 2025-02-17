@@ -1,11 +1,12 @@
 // Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package blockwindowsyncer
+package validitywindow
 
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,8 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/blockwindowsyncer/blockwindowsyncertest"
 )
 
 // The nodes have partial state, we're testing client's functionality to query different nodes
@@ -25,11 +24,11 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
 	defer cancel()
 
-	validChain := blockwindowsyncertest.GenerateChain(10)
+	validChain := generateChain(10)
 
 	nodes := []nodeScenario{
 		{
-			blocks: map[uint64]*blockwindowsyncertest.TestBlock{
+			blocks: map[uint64]*testBlock{
 				0: validChain[0],
 				1: validChain[1],
 				2: validChain[2],
@@ -39,7 +38,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 			},
 		},
 		{
-			blocks: map[uint64]*blockwindowsyncertest.TestBlock{
+			blocks: map[uint64]*testBlock{
 				6: validChain[6],
 				7: validChain[7],
 				8: validChain[8],
@@ -49,13 +48,13 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	}
 
 	network := setupTestNetwork(t, ctx, nodes)
-	blockValidator := setupBlockValidator(validChain)
-	fetcher := NewBlockFetcherClient[*blockwindowsyncertest.TestBlock](network.client, blockValidator, network.sampler)
+	blockValidator := setupBlockProcessor(validChain)
+	fetcher := NewBlockFetcherClient[*testBlock](network.client, blockValidator, network.sampler)
 
 	tip := validChain[len(validChain)-1]
 	var minTS atomic.Int64
 	minTS.Store(3)
-	err := fetcher.FetchBlocks(ctx, tip, &minTS)
+	err := fetcher.FetchBlocks(ctx, tip.GetID(), tip.GetHeight(), tip.GetTimestamp(), &minTS)
 	req.NoError(err)
 	req.Len(blockValidator.receivedBlocks, 7) // block height from 9 to 3 should be written
 
@@ -72,13 +71,13 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 	defer cancel()
 
-	validChain := blockwindowsyncertest.GenerateChain(10)
-	invalidChain := blockwindowsyncertest.GenerateChain(10)
+	validChain := generateChain(10)
+	invalidChain := generateChain(10)
 
 	nodes := []nodeScenario{
 		{
 			// First node has almost full state of valid transactions
-			blocks: map[uint64]*blockwindowsyncertest.TestBlock{
+			blocks: map[uint64]*testBlock{
 				0: invalidChain[0],
 				1: invalidChain[1],
 				2: invalidChain[2],
@@ -96,16 +95,16 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	network := setupTestNetwork(t, ctx, nodes)
 
 	// We're backfilling mockBlockValidator's knownBlocks in order to pass ParseBlock
-	all := make([]*blockwindowsyncertest.TestBlock, len(validChain)+len(invalidChain))
+	all := make([]*testBlock, len(validChain)+len(invalidChain))
 	copy(all, append(validChain, invalidChain...))
-	blockValidator := setupBlockValidator(all)
+	blockValidator := setupBlockProcessor(all)
 
-	fetcher := NewBlockFetcherClient[*blockwindowsyncertest.TestBlock](network.client, blockValidator, network.sampler)
+	fetcher := NewBlockFetcherClient[*testBlock](network.client, blockValidator, network.sampler)
 	tip := validChain[len(validChain)-1]
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	err := fetcher.FetchBlocks(ctx, tip, &minTS)
+	err := fetcher.FetchBlocks(ctx, tip.GetID(), tip.GetHeight(), tip.GetTimestamp(), &minTS)
 
 	// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
 	// The node has a partially correct state but lacks the full validity window since the required third block is invalid.
@@ -153,10 +152,10 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	defer cancel()
 
 	delay := 50 * time.Millisecond
-	validChain := blockwindowsyncertest.GenerateChain(10)
+	validChain := generateChain(10)
 	nodes := []nodeScenario{
 		{
-			blocks: map[uint64]*blockwindowsyncertest.TestBlock{
+			blocks: map[uint64]*testBlock{
 				0: validChain[0],
 				1: validChain[1],
 				2: validChain[2],
@@ -173,8 +172,8 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}
 
 	network := setupTestNetwork(t, ctx, nodes)
-	blockValidator := setupBlockValidator(validChain)
-	fetcher := NewBlockFetcherClient[*blockwindowsyncertest.TestBlock](network.client, blockValidator, network.sampler)
+	blockValidator := setupBlockProcessor(validChain)
+	fetcher := NewBlockFetcherClient[*testBlock](network.client, blockValidator, network.sampler)
 
 	tip := validChain[len(validChain)-1]
 
@@ -185,7 +184,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		minTimestamp.Store(5)
 	}()
 
-	err := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
+	err := fetcher.FetchBlocks(ctx, tip.GetID(), tip.GetHeight(), tip.GetTimestamp(), &minTimestamp)
 	req.NoError(err)
 	req.Len(blockValidator.receivedBlocks, 5)
 
@@ -200,14 +199,59 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}
 }
 
+type testBlock struct {
+	height    uint64
+	id        ids.ID
+	parentID  ids.ID
+	timestamp int64
+	bytes     []byte
+}
+
+func newTestBlock(id ids.ID, parentID ids.ID, height uint64, timestamp int64) *testBlock {
+	return &testBlock{
+		id:        id,
+		parentID:  parentID,
+		height:    height,
+		timestamp: timestamp,
+		bytes:     id[:],
+	}
+}
+
+func (m *testBlock) GetID() ids.ID       { return m.id }
+func (m *testBlock) GetParent() ids.ID   { return m.parentID }
+func (m *testBlock) GetHeight() uint64   { return m.height }
+func (m *testBlock) GetTimestamp() int64 { return m.timestamp }
+func (m *testBlock) GetBytes() []byte    { return m.bytes }
+
+func generateChain(numBlocks int) []*testBlock {
+	if numBlocks <= 0 {
+		return nil
+	}
+
+	chain := make([]*testBlock, numBlocks)
+
+	genesisID := ids.GenerateTestID()
+	chain[0] = newTestBlock(genesisID, ids.Empty, 0, 0)
+
+	for i := 1; i < numBlocks; i++ {
+		blockID := ids.GenerateTestID()
+		parentID := chain[i-1].GetID()
+		timestamp := chain[i-1].GetTimestamp()
+		chain[i] = newTestBlock(blockID, parentID, uint64(i), timestamp+1)
+	}
+
+	return chain
+}
+
+// === Test Helpers ===
 type nodeScenario struct {
-	blocks        map[uint64]*blockwindowsyncertest.TestBlock // in-memory blocks a node might have
+	blocks        map[uint64]*testBlock // in-memory blocks a node might have
 	responseDelay time.Duration
 }
 
 type testNetwork struct {
 	client  *p2p.Client
-	sampler *blockwindowsyncertest.TestNodeSampler
+	sampler *testNodeSampler
 	nodes   []ids.NodeID
 }
 
@@ -220,9 +264,9 @@ func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeSce
 		nodeID := ids.GenerateTestNodeID()
 		nodes = append(nodes, nodeID)
 
-		blkRetriever := blockwindowsyncertest.NewTestBlockRetriever().WithBlocks(scenario.blocks).WithNodeID(nodeID)
+		blkRetriever := newTestBlockRetriever().withBlocks(scenario.blocks).withNodeID(nodeID)
 		if scenario.responseDelay > 0 {
-			blkRetriever.WithDelay(scenario.responseDelay)
+			blkRetriever.withDelay(scenario.responseDelay)
 		}
 
 		handlers[nodeID] = NewBlockFetcherHandler(blkRetriever)
@@ -230,21 +274,28 @@ func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeSce
 
 	return &testNetwork{
 		client:  p2ptest.NewClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
-		sampler: &blockwindowsyncertest.TestNodeSampler{Nodes: nodes},
+		sampler: &testNodeSampler{nodes: nodes},
 		nodes:   nodes,
 	}
 }
 
-// mockBlockValidator implements BlockParser
-type mockBlockValidator struct {
+// === Setups ===
+var (
+	_ BlockProcessor[*testBlock] = (*mockBlockProcessor)(nil)
+	_ p2p.NodeSampler            = (*testNodeSampler)(nil)
+)
+
+// === BlockProcessor ===
+// mockBlockProcessor implements BlockProcessor
+type mockBlockProcessor struct {
 	parseErr error
 	writeErr error
 
-	knownBlocks    map[ids.ID]*blockwindowsyncertest.TestBlock
-	receivedBlocks map[ids.ID]*blockwindowsyncertest.TestBlock
+	knownBlocks    map[ids.ID]*testBlock
+	receivedBlocks map[ids.ID]*testBlock
 }
 
-func (m *mockBlockValidator) ParseBlock(_ context.Context, data []byte) (*blockwindowsyncertest.TestBlock, error) {
+func (m *mockBlockProcessor) ParseBlock(_ context.Context, data []byte) (*testBlock, error) {
 	if m.parseErr != nil {
 		return nil, m.parseErr
 	}
@@ -259,19 +310,24 @@ func (m *mockBlockValidator) ParseBlock(_ context.Context, data []byte) (*blockw
 	return block, nil
 }
 
-func (m *mockBlockValidator) WriteBlock(_ context.Context, blk *blockwindowsyncertest.TestBlock) error {
+func (m *mockBlockProcessor) WriteBlock(_ context.Context, block Block) error {
 	if m.writeErr != nil {
 		return m.writeErr
 	}
 
-	m.receivedBlocks[blk.GetID()] = blk
+	testBlock, ok := block.(*testBlock)
+	if !ok {
+		return fmt.Errorf("expected *TestBlock, got %T", block)
+	}
+
+	m.receivedBlocks[testBlock.GetID()] = testBlock
 	return nil
 }
 
-func setupBlockValidator(chain []*blockwindowsyncertest.TestBlock) *mockBlockValidator {
-	validator := &mockBlockValidator{
-		knownBlocks:    make(map[ids.ID]*blockwindowsyncertest.TestBlock),
-		receivedBlocks: make(map[ids.ID]*blockwindowsyncertest.TestBlock),
+func setupBlockProcessor(chain []*testBlock) *mockBlockProcessor {
+	validator := &mockBlockProcessor{
+		knownBlocks:    make(map[ids.ID]*testBlock),
+		receivedBlocks: make(map[ids.ID]*testBlock),
 	}
 
 	for _, block := range chain {
@@ -279,4 +335,20 @@ func setupBlockValidator(chain []*blockwindowsyncertest.TestBlock) *mockBlockVal
 	}
 
 	return validator
+}
+
+// === NODE SAMPLER ===
+type testNodeSampler struct {
+	nodes []ids.NodeID
+}
+
+func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
+	r.Shuffle(len(t.nodes), func(i, j int) {
+		t.nodes[i], t.nodes[j] = t.nodes[j], t.nodes[i]
+	})
+	if len(t.nodes) < num {
+		return t.nodes
+	}
+	return t.nodes[:num]
 }

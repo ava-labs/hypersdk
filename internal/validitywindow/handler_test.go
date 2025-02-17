@@ -1,23 +1,22 @@
 // Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package blockwindowsyncer
+package validitywindow
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/blockwindowsyncer/blockwindowsyncertest"
 )
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
 		name         string
-		setupBlocks  func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock)
+		setupBlocks  func() (map[uint64]*testBlock, []*testBlock)
 		blockHeight  uint64
 		minTimestamp int64
 		delay        time.Duration
@@ -26,7 +25,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	}{
 		{
 			name: "happy path - fetch all blocks",
-			setupBlocks: func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
+			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
 				return generateBlocks(10)
 			},
 			blockHeight:  9, // The tip of the chain
@@ -35,7 +34,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		},
 		{
 			name: "partial blocks with missing height",
-			setupBlocks: func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
+			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
 				blocks, chain := generateBlocks(10)
 				delete(blocks, uint64(7))
 				return blocks, chain
@@ -47,7 +46,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		},
 		{
 			name: "zero height request",
-			setupBlocks: func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
+			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
 				return generateBlocks(10)
 			},
 			blockHeight:  0,
@@ -56,7 +55,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		},
 		{
 			name: "future minTimestamp",
-			setupBlocks: func() (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
+			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
 				return generateBlocks(10)
 			},
 			blockHeight:  9,
@@ -71,14 +70,14 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			req := require.New(t)
 
 			blocks, _ := tt.setupBlocks()
-			retriever := blockwindowsyncertest.NewTestBlockRetriever().
-				WithBlocks(blocks)
+			retriever := newTestBlockRetriever().
+				withBlocks(blocks)
 
 			if tt.delay > 0 {
-				retriever.WithDelay(tt.delay)
+				retriever.withDelay(tt.delay)
 			}
 
-			handler := NewBlockFetcherHandler[*blockwindowsyncertest.TestBlock](retriever)
+			handler := NewBlockFetcherHandler[*testBlock](retriever)
 			fetchedBlocks, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
 				BlockHeight:  tt.blockHeight,
 				MinTimestamp: tt.minTimestamp,
@@ -122,10 +121,10 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 			req := require.New(t)
 
 			blocks, _ := generateBlocks(10)
-			retriever := blockwindowsyncertest.NewTestBlockRetriever().
-				WithBlocks(blocks)
+			retriever := newTestBlockRetriever().
+				withBlocks(blocks)
 
-			handler := NewBlockFetcherHandler[*blockwindowsyncertest.TestBlock](retriever)
+			handler := NewBlockFetcherHandler[*testBlock](retriever)
 
 			response, appErr := handler.AppRequest(
 				ctx,
@@ -156,11 +155,11 @@ func TestBlockFetcherHandler_Context(t *testing.T) {
 	req := require.New(t)
 
 	blocks, _ := generateBlocks(10)
-	retriever := blockwindowsyncertest.NewTestBlockRetriever().
-		WithBlocks(blocks).
-		WithDelay(10 * time.Millisecond) // Add some delay to ensure cancellation works
+	retriever := newTestBlockRetriever().
+		withBlocks(blocks).
+		withDelay(10 * time.Millisecond) // Add some delay to ensure cancellation works
 
-	handler := NewBlockFetcherHandler[*blockwindowsyncertest.TestBlock](retriever)
+	handler := NewBlockFetcherHandler[*testBlock](retriever)
 
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -196,11 +195,11 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	req := require.New(t)
 
 	blocks, _ := generateBlocks(20)
-	retriever := blockwindowsyncertest.NewTestBlockRetriever().
-		WithBlocks(blocks).
-		WithDelay(maxProcessingDuration + 10*time.Millisecond)
+	retriever := newTestBlockRetriever().
+		withBlocks(blocks).
+		withDelay(maxProcessingDuration + 10*time.Millisecond)
 
-	handler := NewBlockFetcherHandler[*blockwindowsyncertest.TestBlock](retriever)
+	handler := NewBlockFetcherHandler[*testBlock](retriever)
 
 	type result struct {
 		blocks   [][]byte
@@ -235,12 +234,63 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	}
 }
 
-func generateBlocks(num int) (map[uint64]*blockwindowsyncertest.TestBlock, []*blockwindowsyncertest.TestBlock) {
-	blocks := make(map[uint64]*blockwindowsyncertest.TestBlock, num)
-	chain := blockwindowsyncertest.GenerateChain(num)
+func generateBlocks(num int) (map[uint64]*testBlock, []*testBlock) {
+	blocks := make(map[uint64]*testBlock, num)
+	chain := generateChain(num)
 	for _, block := range chain {
 		blocks[block.GetHeight()] = block
 	}
 
 	return blocks, chain
+}
+
+var _ BlockRetriever[*testBlock] = (*testBlockRetriever)(nil)
+
+type testBlockRetriever struct {
+	delay   time.Duration
+	nodeID  ids.NodeID
+	errChan chan error
+	blocks  map[uint64]*testBlock
+}
+
+func newTestBlockRetriever() *testBlockRetriever {
+	return &testBlockRetriever{
+		errChan: make(chan error, 1),
+	}
+}
+
+func (r *testBlockRetriever) withBlocks(blocks map[uint64]*testBlock) *testBlockRetriever {
+	r.blocks = blocks
+	return r
+}
+
+func (r *testBlockRetriever) withDelay(delay time.Duration) *testBlockRetriever {
+	r.delay = delay
+	return r
+}
+
+func (r *testBlockRetriever) withNodeID(nodeID ids.NodeID) *testBlockRetriever {
+	r.nodeID = nodeID
+	return r
+}
+
+func (r *testBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uint64) (*testBlock, error) {
+	if r.delay.Nanoseconds() > 0 {
+		time.Sleep(r.delay)
+	}
+
+	var err error
+	if r.nodeID.Compare(ids.EmptyNodeID) == 0 {
+		err = fmt.Errorf("block height %d not found", blockHeight)
+	} else {
+		err = fmt.Errorf("%s: block height %d not found", r.nodeID, blockHeight)
+	}
+
+	block, ok := r.blocks[blockHeight]
+
+	if !ok && err != nil {
+		r.errChan <- err
+		return nil, err
+	}
+	return block, nil
 }

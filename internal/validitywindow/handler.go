@@ -1,7 +1,7 @@
 // Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package blockwindowsyncer
+package validitywindow
 
 import (
 	"context"
@@ -25,15 +25,27 @@ var errUnmarshalRequest = &common.AppError{
 	Message: "failed to unmarshal request",
 }
 
+// HandlerBlock is block returned by the handler
+type HandlerBlock interface {
+	GetTimestamp() int64
+	GetBytes() []byte
+}
+
+// BlockRetriever defines operations needed by a node serving blocks to peers
+// Generic T must at least implement HandlerBlock
+type BlockRetriever[T HandlerBlock] interface {
+	GetBlockByHeight(ctx context.Context, blockHeight uint64) (T, error)
+}
+
 // BlockFetcherHandler handles incoming block fetch requests with a time limit
 // Each request returns blocks in descending height order until:
 // - maxProcessingDuration is reached
 // - minTimestamp is reached
-type BlockFetcherHandler[T Block] struct {
+type BlockFetcherHandler[T HandlerBlock] struct {
 	retriever BlockRetriever[T]
 }
 
-func NewBlockFetcherHandler[T Block](retriever BlockRetriever[T]) *BlockFetcherHandler[T] {
+func NewBlockFetcherHandler[T HandlerBlock](retriever BlockRetriever[T]) *BlockFetcherHandler[T] {
 	return &BlockFetcherHandler[T]{retriever: retriever}
 }
 
