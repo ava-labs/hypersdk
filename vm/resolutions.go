@@ -91,6 +91,13 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	return blk, nil
 }
 
+func (vm *VM) WriteBlock(ctx context.Context, block validitywindow.Block) error {
+	_, span := vm.tracer.Start(ctx, "VM.WriteBlock")
+	defer span.End()
+
+	return vm.chainStore.WriteBlock(block)
+}
+
 func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error) {
 	outputBlk, err := vm.consensusIndex.GetLastAccepted(ctx)
 	if err != nil {
