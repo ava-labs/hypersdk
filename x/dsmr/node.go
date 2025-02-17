@@ -66,6 +66,7 @@ type Validator struct {
 
 type Rules interface {
 	GetValidityWindow() int64
+	GetMaxAccumulatedProducerChunkWeight() uint64
 }
 
 type RuleFactory interface {
@@ -183,6 +184,9 @@ func (n *Node[T]) BuildChunk(
 	if duplicates.Len() > 0 {
 		// we have duplicates
 		return ErrDuplicateChunk
+	}
+	if err := n.storage.CheckRateLimit(chunk); err != nil {
+		return fmt.Errorf("failed to meet chunk rate limits threshold : %w", err)
 	}
 
 	packer := wrappers.Packer{MaxSize: MaxMessageSize}
