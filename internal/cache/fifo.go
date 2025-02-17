@@ -38,10 +38,10 @@ func (f *FIFO[K, V]) Put(key K, val V) (bool, *K) {
 	f.l.Lock()
 	defer f.l.Unlock()
 
-	f.removedKey = nil
 	var removedKey *K
 	_, exists := f.m[key]
 	if !exists {
+		f.removedKey = nil
 		f.buffer.Push(key) // Push removes the oldest [K] if we are at the [limit]
 		removedKey = f.removedKey
 		f.removedKey = nil
