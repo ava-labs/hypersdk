@@ -8,15 +8,23 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/exp/rand"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/throughput"
 )
 
@@ -67,14 +75,24 @@ func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []b
 		Data:     []byte{},
 	}
 
-	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, fromFactory.Address())
-	if err != nil {
-		fmt.Println("simulate actions error", err)
-		return []chain.Action{} // TODO: handle this better, return err
+	recorder := tstate.NewRecorder(immutableDB{memdb.New()})
+	bh := &storage.BalanceHandler{}
+	if err := bh.AddBalance(context.Background(), fromFactory.Address(), recorder, (amount * 10)); err != nil {
+		fmt.Println("failed to add balance: %w", err)
+		return nil
 	}
-	actionResult := simRes[0]
-	call.Keys = actionResult.StateKeys
 
+	currentTime := time.Now().UnixMilli()
+	blockCtx := chain.NewBlockCtx(0, currentTime)
+	r := genesis.NewDefaultRules()
+	r.MaxBlockUnits = fees.Dimensions{1800000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+	_, err := call.Execute(context.Background(), blockCtx, r, recorder, fromFactory.Address(), ids.Empty)
+	if err != nil {
+		fmt.Println("failed to simulate action:", err)
+		return nil
+	}
+
+	call.Keys = recorder.GetStateKeys()
 	return []chain.Action{call}
 }
 
@@ -89,4 +107,14 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 
 func (sh *SpamHelper) uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1)))
+}
+
+var _ state.Immutable = (*immutableDB)(nil)
+
+type immutableDB struct {
+	*memdb.Database
+}
+
+func (db immutableDB) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return db.Get(key)
 }
