@@ -6,16 +6,16 @@ package vm
 import (
 	"errors"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
-	"github.com/ava-labs/hypersdk/examples/hyperevm/api"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/auth"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/vm/defaultvm"
 
 	hauth "github.com/ava-labs/hypersdk/auth"
 )
@@ -61,8 +61,8 @@ func New(options ...vm.Option) (*vm.VM, error) {
 }
 
 func NewFactory() *vm.Factory {
-	options := append(defaultvm.NewDefaultOptions(), api.With(), With())
-	// options := []vm.Option{jsonrpc.With(), With(), ws.With()}
+	// options := append(defaultvm.NewDefaultOptions(), api.With(), With())
+	options := []vm.Option{jsonrpc.With(), With(), ws.With()}
 	return vm.NewFactory(
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
