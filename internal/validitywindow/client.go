@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/hypersdk/internal/typedclient"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+
+	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
 
 const (

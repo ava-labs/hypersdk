@@ -264,6 +264,9 @@ func BenchmarkFallbackDeleteRange_Sequential(b *testing.B) {
 		}
 	}
 
+	_, ok := memDB.(*fallbackRangeDB)
+	r.True(ok)
+
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		if err := memDB.DeleteRange(startKey, endKey); err != nil {

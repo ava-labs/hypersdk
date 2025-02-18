@@ -6,10 +6,12 @@ package validitywindow
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"sync"
 	"sync/atomic"
+
+	"github.com/ava-labs/avalanchego/ids"
+
+	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 type BlockFetcher interface {
