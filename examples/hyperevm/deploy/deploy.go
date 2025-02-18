@@ -22,6 +22,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/hyperevm/genesis"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/tests/fixture"
+
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 const nodeCount = 5
@@ -52,7 +54,7 @@ func main() {
 	nodes := tmpnet.NewNodesOrPanic(nodeCount)
 	nodes[0].Flags[config.HTTPPortKey] = config.DefaultHTTPPort
 
-	genesis, err := genesis.New((100 * time.Millisecond))
+	genesis, err := genesis.New(hconsts.MillisecondsPerSecond)
 	if err != nil {
 		panic(err)
 	}

@@ -6,7 +6,6 @@ package genesis
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -38,7 +37,7 @@ var (
 	}
 )
 
-func New(minBlockGap time.Duration) (*hgenesis.DefaultGenesis, error) {
+func New(minBlockGap int64) (*hgenesis.DefaultGenesis, error) {
 	authFactories, err := newDefaultAuthFactories()
 	if err != nil {
 		return nil, err
@@ -77,7 +76,7 @@ func New(minBlockGap time.Duration) (*hgenesis.DefaultGenesis, error) {
 	// Set all limits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
 	// a block that exceeds the maximum size allowed by AvalancheGo.
 	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	genesis.Rules.MinBlockGap = minBlockGap.Milliseconds()
+	genesis.Rules.MinBlockGap = minBlockGap
 
 	genesis.Rules.NetworkID = uint32(1)
 	genesis.Rules.ChainID = ids.GenerateTestID()

@@ -15,16 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
+	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/tests/registry"
 
+	"github.com/ava-labs/hypersdk/tests/registry"
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
 )
 
 var TestsRegistry = &registry.Registry{}
 
 func TransferTest(t require.TestingT, tn tworkload.TestNetwork) {
-	fmt.Println("Running TransferTest")
 	r := require.New(t)
 
 	other, err := ed25519.GeneratePrivateKey()
@@ -32,17 +32,33 @@ func TransferTest(t require.TestingT, tn tworkload.TestNetwork) {
 	toAddress := auth.NewED25519Address(other.PublicKey())
 
 	authFactory := tn.Configuration().AuthFactories()[0]
-
-	tx, err := tn.GenerateTx(context.Background(), []chain.Action{&actions.EvmCall{
+	action := &actions.EvmCall{
 		To:       storage.ToEVMAddress(toAddress),
 		Value:    1,
 		GasLimit: 21_000,
 		Keys:     state.Keys{},
 		From:     storage.ToEVMAddress(authFactory.Address()),
-	}},
+	}
+
+	lcli := vm.NewJSONRPCClient(tn.URIs()[0])
+	results, err := lcli.SimulateActions(
+		context.Background(),
+		[]chain.Action{action},
+		authFactory.Address(),
+	)
+	r.NoError(err)
+	action.Keys = results[0].StateKeys
+
+	tx, err := tn.GenerateTx(
+		context.Background(),
+		[]chain.Action{action},
 		authFactory,
 	)
 	r.NoError(err)
+
+	units, err := tx.Units(&storage.BalanceHandler{}, tn.Configuration().Parser().Rules(time.Now().UnixMilli()))
+	r.NoError(err)
+	fmt.Println("Units:", units)
 
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()

@@ -55,9 +55,9 @@ func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
-func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, factory chain.AuthFactory) []chain.Action {
+func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, fromFactory chain.AuthFactory) []chain.Action {
 	to := storage.ToEVMAddress(address)
-	from := storage.ToEVMAddress(factory.Address())
+	from := storage.ToEVMAddress(fromFactory.Address())
 
 	call := &actions.EvmCall{
 		To:       to,
@@ -67,7 +67,7 @@ func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []b
 		Data:     []byte{},
 	}
 
-	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, factory.Address())
+	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, fromFactory.Address())
 	if err != nil {
 		fmt.Println("simulate actions error", err)
 		return []chain.Action{} // TODO: handle this better, return err
