@@ -301,8 +301,9 @@ func (p *Processor) executeTxs(
 	defer span.End()
 
 	var (
-		numTxs = len(b.StatelessBlock.Txs)
-		t      = b.Tmstmp
+		numTxs   = len(b.StatelessBlock.Txs)
+		t        = b.Tmstmp
+		blockCtx = NewBlockCtx(b.Hght, t)
 
 		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
 		e       = executor.New(numTxs, p.config.TransactionExecutionCores, MaxKeyDependencies, p.metrics.executorVerifyRecorder)
@@ -358,7 +359,7 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, p.balanceHandler, r, tsv, t)
+			result, err := tx.Execute(ctx, blockCtx, feeManager, p.balanceHandler, r, tsv)
 			if err != nil {
 				return err
 			}

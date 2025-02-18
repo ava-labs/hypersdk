@@ -32,7 +32,7 @@ func (*abstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("unimplemented")
 }
 
-func (*abstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (*abstractMockAction) Execute(_ context.Context, _ chain.BlockContext, _ chain.Rules, _ state.Mutable, _ codec.Address, _ ids.ID) (codec.Typed, error) {
 	panic("unimplemented")
 }
 

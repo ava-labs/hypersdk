@@ -195,6 +195,7 @@ func (j *JSONRPCServer) ExecuteActions(
 	}
 
 	now := time.Now().UnixMilli()
+	blockCtx := chain.NewBlockCtx(0, now)
 
 	storage := make(map[string][]byte)
 	ts := tstate.New(1)
@@ -226,9 +227,9 @@ func (j *JSONRPCServer) ExecuteActions(
 
 		output, err := action.Execute(
 			ctx,
+			blockCtx,
 			j.vm.Rules(now),
 			tsv,
-			now,
 			args.Actor,
 			chain.CreateActionID(ids.Empty, uint8(actionIndex)),
 		)
@@ -293,9 +294,10 @@ func (j *JSONRPCServer) SimulateActions(
 	}
 
 	currentTime := time.Now().UnixMilli()
+	blockCtx := chain.NewBlockCtx(0, currentTime)
 	for _, action := range actions {
 		recorder := tstate.NewRecorder(currentState)
-		actionOutput, err := action.Execute(ctx, j.vm.Rules(currentTime), recorder, currentTime, args.Actor, ids.Empty)
+		actionOutput, err := action.Execute(ctx, blockCtx, j.vm.Rules(currentTime), recorder, args.Actor, ids.Empty)
 
 		var actionResult SimulateActionResult
 		if actionOutput == nil {

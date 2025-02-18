@@ -112,6 +112,7 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 		timestamp         = nextTime
 		height            = parent.Hght + 1
 		blockTransactions = []*Transaction{}
+		blockCtx          = NewBlockCtx(height, timestamp)
 	)
 
 	// Compute next unit prices to use
@@ -301,11 +302,11 @@ func (c *Builder) BuildBlock(ctx context.Context, parentView state.View, parent 
 				}
 				result, err := tx.Execute(
 					ctx,
+					blockCtx,
 					feeManager,
 					c.balanceHandler,
 					r,
 					tsv,
-					nextTime,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,

@@ -120,6 +120,11 @@ type Marshaler interface {
 	Size() int
 }
 
+type BlockContext interface {
+	Height() uint64
+	Timestamp() int64
+}
+
 type Action interface {
 	Object
 
@@ -152,9 +157,9 @@ type Action interface {
 	// [actionID] is a unique, but nonrandom identifier for each [Action].
 	Execute(
 		ctx context.Context,
+		bctx BlockContext,
 		r Rules,
 		mu state.Mutable,
-		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
 	) (codec.Typed, error)
