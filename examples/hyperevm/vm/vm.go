@@ -5,6 +5,8 @@ package vm
 
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
@@ -14,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/vm/defaultvm"
 
 	hauth "github.com/ava-labs/hypersdk/auth"
 )
@@ -57,8 +58,8 @@ func init() {
 }
 
 func New(options ...vm.Option) (*vm.VM, error) {
-	options = append(options, With())
-	return defaultvm.New(
+	options = append(options, jsonrpc.With(), ws.With(), With())
+	return vm.New(
 		consts.Version,
 		genesis.DefaultGenesisFactory{},
 		&storage.BalanceHandler{},
