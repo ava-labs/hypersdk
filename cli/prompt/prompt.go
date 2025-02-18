@@ -78,7 +78,7 @@ func String(label string, min int, max int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(text), err
+	return strings.TrimSpace(text), nil
 }
 
 func Asset(label string, symbol string, allowNative bool) (ids.ID, error) {
