@@ -11,12 +11,13 @@ import (
 	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 type FetchResult[B Block] struct {
-	Block B
+	Block maybe.Maybe[B]
 	Err   error
 }
 
@@ -105,7 +106,9 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 				return
 			}
 
-			s.timeValidityWindow.Accept(result.Block)
+			if result.Block.HasValue() {
+				s.timeValidityWindow.Accept(result.Block.Value())
+			}
 		}
 
 		s.signalDone()

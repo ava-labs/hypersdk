@@ -7,11 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 
 	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
@@ -42,10 +44,12 @@ type BlockParser[T Block] interface {
 // BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
 // blocks, it ensures we have at least min validity window of blocks so we can transition from state sync to normal operation faster
 type BlockFetcherClient[B Block] struct {
-	client     *typedclient.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
-	parser     BlockParser[B]
-	sampler    p2p.NodeSampler
-	checkpoint checkpoint
+	client  *typedclient.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
+	parser  BlockParser[B]
+	sampler p2p.NodeSampler
+
+	checkpointLock sync.RWMutex
+	checkpoint     checkpoint
 }
 
 func NewBlockFetcherClient[B Block](
@@ -70,13 +74,13 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 
 	// Start fetching in a separate goroutine
 	go func() {
-		defer close(resultChan)
-
+		c.checkpointLock.Lock()
 		c.checkpoint = checkpoint{
 			parentID:   id,
 			nextHeight: height,
 			timestamp:  timestamp,
 		}
+		c.checkpointLock.Unlock()
 		req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load()}
 
 		for {
@@ -90,8 +94,12 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			default:
 			}
 
+			c.checkpointLock.RLock()
 			lastCheckpoint := c.checkpoint
+			c.checkpointLock.RUnlock()
+
 			if lastCheckpoint.timestamp <= minTimestamp.Load() {
+				close(resultChan)
 				cancel()
 				return
 			}
@@ -116,10 +124,10 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 					return
 				}
 
-				currentCheckpoint := c.checkpoint
-				newCheckpoint := checkpoint{}
+				c.checkpointLock.RLock()
+				expectedParentID := c.checkpoint.parentID
+				c.checkpointLock.RUnlock()
 
-				expectedParentID := currentCheckpoint.parentID
 				for _, raw := range respBlocks {
 					block, parseErr := c.parser.ParseBlock(ctx, raw)
 					if parseErr != nil {
@@ -135,13 +143,13 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 
 					select {
 					// try to write
-					case resultChan <- FetchResult[B]{Block: block}:
+					case resultChan <- FetchResult[B]{Block: maybe.Some(block)}:
 						// Update checkpoint
-						newCheckpoint.parentID = block.GetParent()
-						newCheckpoint.timestamp = block.GetTimestamp()
-						newCheckpoint.nextHeight = block.GetHeight() - 1
-
-						c.checkpoint = newCheckpoint
+						c.checkpointLock.Lock()
+						c.checkpoint.parentID = block.GetParent()
+						c.checkpoint.timestamp = block.GetTimestamp()
+						c.checkpoint.nextHeight = block.GetHeight() - 1
+						c.checkpointLock.Unlock()
 					case <-ctx.Done():
 						resultChan <- FetchResult[B]{Err: ctx.Err()}
 						return

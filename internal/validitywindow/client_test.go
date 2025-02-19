@@ -73,7 +73,9 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 			}
 			continue
 		}
-		block := result.Block
+		req.True(result.Block.HasValue())
+
+		block := result.Block.Value()
 		receivedBlocks[block.GetHeight()] = block
 	}
 
@@ -129,8 +131,8 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 		if errors.Is(result.Err, errInvalidBlock) {
 			continue
 		}
-		if result.Block != nil {
-			block := result.Block
+		if result.Block.HasValue() {
+			block := result.Block.Value()
 			receivedBlocks[block.GetHeight()] = block
 		} else {
 			// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
@@ -224,7 +226,9 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for result := range blockChan {
 		req.NoError(result.Err)
-		block := result.Block
+		req.True(result.Block.HasValue())
+
+		block := result.Block.Value()
 		receivedBlocks[block.GetHeight()] = block
 	}
 
