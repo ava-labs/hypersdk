@@ -134,13 +134,13 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 		if result.Block.HasValue() {
 			block := result.Block.Value()
 			receivedBlocks[block.GetHeight()] = block
-		} else {
-			// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
-			// The node has a partially correct state. We lack the full validity window since the required third block is invalid.
-			// As a result, the setup ensures that a valid block can never be found.
-			req.ErrorIs(result.Err, context.DeadlineExceeded)
-			break
+			continue
 		}
+		// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
+		// The node has a partially correct state. We lack the full validity window since the required third block is invalid.
+		// As a result, the setup ensures that a valid block can never be found.
+		req.ErrorIs(result.Err, context.DeadlineExceeded)
+		break
 	}
 
 	// We should have 6 blocks in our state instead of 7 since the last one is invalid. Partial commit of valid blocks
