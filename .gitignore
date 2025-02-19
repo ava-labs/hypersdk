@@ -54,9 +54,8 @@ genesis.json
 dist/
 *.pk
 tmp-storage-testing
-.token-cli*
 deploys/
-.morpheus-cli*
+.*-cli
 *.coverage.html
 data/
 osxcross/
