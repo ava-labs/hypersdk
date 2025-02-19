@@ -146,7 +146,7 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 
 	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
 
-	if i.lastHeight >= blk.Block.Hght {
+	if i.lastHeight >= blk.Block.Hght && i.lastHeight != 0 {
 		panic(errors.New("block height was not monolotically growing"))
 	}
 	// ensure that lastHeight always contains the highest height we've seen.
