@@ -139,6 +139,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 			// The node has a partially correct state. We lack the full validity window since the required third block is invalid.
 			// As a result, the setup ensures that a valid block can never be found.
 			req.ErrorIs(result.Err, context.DeadlineExceeded)
+			break
 		}
 	}
 
