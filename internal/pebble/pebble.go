@@ -18,16 +18,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type RangeDeleterDB interface {
-	database.Database
-	DeleteRange(start, end []byte) error
-}
-
 var (
 	_ database.Database = (*Database)(nil)
 	_ database.Batch    = (*batch)(nil)
 	_ database.Iterator = (*iter)(nil)
-	_ RangeDeleterDB    = (*Database)(nil)
 
 	ErrInvalidOperation = errors.New("invalid operation")
 )
