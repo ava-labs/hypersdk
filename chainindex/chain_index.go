@@ -7,9 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -20,13 +18,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
 const (
 	blockPrefix         byte = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
-	blockHeightIDPrefix byte = 0x1 // Height -> ID (don't always need full block from disk)
-	lastAcceptedByte    byte = 0x2 // lastAcceptedByte -> lastAcceptedHeight
+	blockIDHeightPrefix byte = 0x1 // ID -> Height
+	blockHeightIDPrefix byte = 0x2 // Height -> ID (don't always need full block from disk)
+	lastAcceptedByte    byte = 0x3 // lastAcceptedByte -> lastAcceptedHeight
 )
 
 var (
@@ -52,10 +50,8 @@ type ChainIndex[T Block] struct {
 	compactionOffset uint64
 	metrics          *metrics
 	log              logging.Logger
-	db               pebble.ExtendedDatabase
+	db               database.Database
 	parser           Parser[T]
-	idToHeight       map[ids.ID]uint64
-	idToHeightLock   sync.RWMutex
 }
 
 type Block interface {
@@ -83,21 +79,15 @@ func New[T Block](
 		return nil, errBlockCompactionFrequencyZero
 	}
 
-	ci := &ChainIndex[T]{
+	return &ChainIndex[T]{
 		config: config,
 		// Offset by random number to ensure the network does not compact simultaneously
 		compactionOffset: rand.Uint64() % config.BlockCompactionFrequency, //nolint:gosec
 		metrics:          metrics,
 		log:              log,
-		db:               pebble.WithExtendedDatabase(db),
+		db:               db,
 		parser:           parser,
-	}
-
-	if err := ci.rebuildBlkIDMapping(); err != nil {
-		return nil, fmt.Errorf("failed to rebuild ID mapping: %w", err)
-	}
-
-	return ci, nil
+	}, nil
 }
 
 func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error) {
@@ -108,7 +98,7 @@ func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error)
 	return database.ParseUInt64(lastAcceptedHeightBytes)
 }
 
-func (c *ChainIndex[T]) UpdateLastAccepted(_ context.Context, blk T) error {
+func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	batch := c.db.NewBatch()
 
 	var (
@@ -119,6 +109,7 @@ func (c *ChainIndex[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 	heightBytes := binary.BigEndian.AppendUint64(nil, height)
 	err := errors.Join(
 		batch.Put(lastAcceptedKey, heightBytes),
+		batch.Put(prefixBlockIDHeightKey(blkID), heightBytes),
 		batch.Put(prefixBlockHeightIDKey(height), blkID[:]),
 		batch.Put(prefixBlockKey(height), blkBytes),
 	)
@@ -126,29 +117,25 @@ func (c *ChainIndex[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 		return err
 	}
 
-	if err := c.write(batch, blkID, height); err != nil {
+	expiryHeight := height - c.config.AcceptedBlockWindow
+	if c.config.AcceptedBlockWindow == 0 || expiryHeight == 0 || expiryHeight >= height { // ensure we don't free genesis
+		return batch.Write()
+	}
+
+	if err := batch.Delete(prefixBlockKey(expiryHeight)); err != nil {
 		return err
 	}
-
-	expiryHeight := height - c.config.AcceptedBlockWindow
-	if c.config.AcceptedBlockWindow == 0 || expiryHeight == 0 || expiryHeight >= height {
-		return nil
+	deleteBlkID, err := c.GetBlockIDAtHeight(ctx, expiryHeight)
+	if err != nil {
+		return err
 	}
-
-	c.idToHeightLock.RLock()
-	pruningStartHeight, removeIDs := c.pruningRange(height)
-	c.idToHeightLock.RUnlock()
-
-	if delErr := c.deleteRange(pruningStartHeight, expiryHeight); delErr != nil {
-		return delErr
+	if err := batch.Delete(prefixBlockIDHeightKey(deleteBlkID)); err != nil {
+		return err
 	}
-
-	c.idToHeightLock.Lock()
-	for _, id := range removeIDs {
-		delete(c.idToHeight, id)
-		c.metrics.deletedBlocks.Inc()
+	if err := batch.Delete(prefixBlockHeightIDKey(expiryHeight)); err != nil {
+		return err
 	}
-	c.idToHeightLock.Unlock()
+	c.metrics.deletedBlocks.Inc()
 
 	if expiryHeight%c.config.BlockCompactionFrequency == c.compactionOffset {
 		go func() {
@@ -161,30 +148,7 @@ func (c *ChainIndex[T]) UpdateLastAccepted(_ context.Context, blk T) error {
 		}()
 	}
 
-	return nil
-}
-
-// WriteBlock stores a block in the database without enforcing any pruning
-// It is intended only for initial state sync.
-// It relies on UpdateLastAccepted to handle cleanup based on the final accepted height
-// DO NOT use this method during normal operation - use UpdateLastAccepted instead
-func (c *ChainIndex[T]) WriteBlock(blk Block) error {
-	batch := c.db.NewBatch()
-
-	var (
-		blkID    = blk.GetID()
-		height   = blk.GetHeight()
-		blkBytes = blk.GetBytes()
-	)
-	err := errors.Join(
-		batch.Put(prefixBlockHeightIDKey(height), blkID[:]),
-		batch.Put(prefixBlockKey(height), blkBytes),
-	)
-	if err != nil {
-		return err
-	}
-
-	return c.write(batch, blkID, height)
+	return batch.Write()
 }
 
 func (c *ChainIndex[T]) GetBlock(ctx context.Context, blkID ids.ID) (T, error) {
@@ -204,14 +168,11 @@ func (c *ChainIndex[T]) GetBlockIDAtHeight(_ context.Context, blkHeight uint64) 
 }
 
 func (c *ChainIndex[T]) GetBlockIDHeight(_ context.Context, blkID ids.ID) (uint64, error) {
-	c.idToHeightLock.RLock()
-	defer c.idToHeightLock.RUnlock()
-	height, ok := c.idToHeight[blkID]
-
-	if ok {
-		return height, nil
+	blkHeightBytes, err := c.db.Get(prefixBlockIDHeightKey(blkID))
+	if err != nil {
+		return 0, err
 	}
-	return 0, database.ErrNotFound
+	return database.ParseUInt64(blkHeightBytes)
 }
 
 func (c *ChainIndex[T]) GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error) {
@@ -222,26 +183,6 @@ func (c *ChainIndex[T]) GetBlockByHeight(ctx context.Context, blkHeight uint64) 
 	return c.parser.ParseBlock(ctx, blkBytes)
 }
 
-func (c *ChainIndex[T]) rebuildBlkIDMapping() error {
-	c.idToHeightLock.Lock()
-	defer c.idToHeightLock.Unlock()
-
-	c.idToHeight = make(map[ids.ID]uint64)
-	it := c.db.NewIteratorWithPrefix([]byte{blockHeightIDPrefix})
-	defer it.Release()
-
-	for it.Next() {
-		key := it.Key()
-		value := it.Value()
-		height := binary.BigEndian.Uint64(key[1:])
-		var id ids.ID
-		copy(id[:], value)
-		c.idToHeight[id] = height
-	}
-
-	return it.Error()
-}
-
 func prefixBlockKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = blockPrefix
@@ -249,14 +190,10 @@ func prefixBlockKey(height uint64) []byte {
 	return k
 }
 
-// prefixBlockKeyEnd creates an exclusive upper bound for range operations by incrementing
-// the height. For example, to delete blocks 1-5, we need a range of [prefixBlockKey(1), prefixBlockKeyEnd(5)].
-// Without this adjustment, the range [prefixBlockKey(1), prefixBlockKeyEnd(5)] would miss block 5 since range
-// operations are end-exclusive
-func prefixBlockKeyEnd(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = blockPrefix
-	binary.BigEndian.PutUint64(k[1:], height+1)
+func prefixBlockIDHeightKey(id ids.ID) []byte {
+	k := make([]byte, 1+ids.IDLen)
+	k[0] = blockIDHeightPrefix
+	copy(k[1:], id[:])
 	return k
 }
 
@@ -265,69 +202,4 @@ func prefixBlockHeightIDKey(height uint64) []byte {
 	k[0] = blockHeightIDPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
-}
-
-// prefixBlockHeightIDKeyEnd follows the same pattern as prefixBlockKeyEnd
-func prefixBlockHeightIDKeyEnd(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = blockHeightIDPrefix
-	binary.BigEndian.PutUint64(k[1:], height+1)
-	return k
-}
-
-func (c *ChainIndex[T]) write(batch database.Batch, blkID ids.ID, height uint64) error {
-	err := batch.Write()
-	if err != nil {
-		return err
-	}
-
-	c.idToHeightLock.Lock()
-	c.idToHeight[blkID] = height
-	c.idToHeightLock.Unlock()
-	return nil
-}
-
-func (c *ChainIndex[T]) deleteRange(startHeight, endHeight uint64) error {
-	var (
-		startKey         = prefixBlockKey(startHeight)
-		endKey           = prefixBlockKeyEnd(endHeight)
-		startHeightIDKey = prefixBlockHeightIDKey(startHeight)
-		endHeightIDKey   = prefixBlockHeightIDKeyEnd(endHeight)
-	)
-	if err := c.db.DeleteRange(startKey, endKey); err != nil {
-		return fmt.Errorf("failed to delete expired blocks in range [%d, %d): %w",
-			startHeight, endHeight, err)
-	}
-	if err := c.db.DeleteRange(startHeightIDKey, endHeightIDKey); err != nil {
-		return fmt.Errorf("failed to delete expired block height mappings in range [%d, %d): %w",
-			startHeight, endHeight, err)
-	}
-
-	return nil
-}
-
-// pruningRange returns the range of associated block IDs that should be pruned. This is used to determine the
-// starting point for our block deletion window
-func (c *ChainIndex[T]) pruningRange(currentHeight uint64) (uint64, []ids.ID) {
-	// Find minimum height (excluding genesis at 0) and collect IDs to remove
-	minHeight := currentHeight
-	pruneEndHeight := currentHeight - c.config.AcceptedBlockWindow
-	removeIDs := make([]ids.ID, 0)
-
-	for id, height := range c.idToHeight {
-		// Skip genesis and current block
-		if height == 0 || height == currentHeight {
-			continue
-		}
-
-		if height < minHeight {
-			minHeight = height
-		}
-
-		if height <= pruneEndHeight {
-			removeIDs = append(removeIDs, id)
-		}
-	}
-
-	return minHeight, removeIDs
 }
