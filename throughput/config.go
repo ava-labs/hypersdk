@@ -38,7 +38,7 @@ func NewFastConfig(
 }
 
 // Config used for load testing script
-func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config, error) {
+func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) *Config {
 	return &Config{
 		uris:             uris,
 		authFactory:      authFactory,
@@ -51,7 +51,7 @@ func NewLongRunningConfig(uris []string, authFactory chain.AuthFactory) (*Config
 		// numAccounts: 10000000,
 		// numAccounts: 100000,
 		numAccounts: 10000,
-	}, nil
+	}
 }
 
 func NewConfig(
