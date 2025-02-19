@@ -66,7 +66,7 @@ jobs:
         uses: ./.github/actions/install-go
       - name: Run unit tests
         shell: bash
-        run: scripts/tests.unit.sh
+        run: scripts/tests.clean.sh && scripts/tests.unit.sh
 
   hypersdk-benchmark-tests:
     runs-on: ubuntu-20.04-32
