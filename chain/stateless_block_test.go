@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/state"
 )
 
 func TestSerializeBlock(t *testing.T) {
@@ -48,11 +47,10 @@ func TestSerializeBlock(t *testing.T) {
 					},
 					[]chain.Action{
 						&chaintest.TestAction{
-							NumComputeUnits:    1,
-							SpecifiedStateKeys: make(state.Keys),
-							ReadKeys:           [][]byte{{1, 2, 3}},
-							WriteKeys:          [][]byte{{4, 5, 6}},
-							WriteValues:        [][]byte{{7, 8, 9}},
+							NumComputeUnits: 1,
+							ReadKeys:        [][]byte{{1, 2, 3}},
+							WriteKeys:       [][]byte{{4, 5, 6}},
+							WriteValues:     [][]byte{{7, 8, 9}},
 						},
 					},
 					&chaintest.TestAuth{},

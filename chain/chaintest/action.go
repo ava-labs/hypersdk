@@ -22,19 +22,26 @@ var _ chain.Action = (*TestAction)(nil)
 var ErrTestActionExecute = errors.New("test action execute error")
 
 type TestAction struct {
-	NumComputeUnits    uint64     `serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys state.Keys `serialize:"true" json:"specifiedStateKeys"`
-	ReadKeys           [][]byte   `serialize:"true" json:"reads"`
-	WriteKeys          [][]byte   `serialize:"true" json:"writeKeys"`
-	WriteValues        [][]byte   `serialize:"true" json:"writeValues"`
-	ExecuteErr         bool       `serialize:"true" json:"executeErr"`
-	Nonce              uint64     `serialize:"true" json:"nonce"`
-	Start              int64      `serialize:"true" json:"start"`
-	End                int64      `serialize:"true" json:"end"`
+	NumComputeUnits              uint64              `canoto:"fint64,1" serialize:"true" json:"computeUnits"`
+	SpecifiedStateKeys           []string            `canoto:"repeated string,2" serialize:"true" json:"specifiedStateKeys"`
+	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated int,3" serialize:"true" json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" serialize:"true" json:"reads"`
+	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" serialize:"true" json:"writeKeys"`
+	WriteValues                  [][]byte            `canoto:"repeated bytes,6" serialize:"true" json:"writeValues"`
+	ExecuteErr                   bool                `canoto:"bool,7" serialize:"true" json:"executeErr"`
+	Nonce                        uint64              `canoto:"fint64,8" serialize:"true" json:"nonce"`
+	Start                        int64               `canoto:"sint,9" serialize:"true" json:"start"`
+	End                          int64               `canoto:"sint,10" serialize:"true" json:"end"`
+
+	canotoData canotoData_TestAction
 }
 
 func (*TestAction) GetTypeID() uint8 {
 	return 0
+}
+
+func (t *TestAction) Bytes() []byte {
+	return t.MarshalCanoto()
 }
 
 func (t *TestAction) ComputeUnits(_ chain.Rules) uint64 {
@@ -42,7 +49,18 @@ func (t *TestAction) ComputeUnits(_ chain.Rules) uint64 {
 }
 
 func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	return t.SpecifiedStateKeys
+	stateKeys := make(state.Keys)
+	for i, key := range t.SpecifiedStateKeys {
+		// Avoid a panic on invalid state key permissions and return the state keys
+		// gathered thus far.
+		// Possible alternative behavior would be to populate remaining keys with state.None
+		// as the permission.
+		if i >= len(t.SpecifiedStateKeyPermissions) {
+			break
+		}
+		stateKeys[key] = t.SpecifiedStateKeyPermissions[i]
+	}
+	return stateKeys
 }
 
 func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {

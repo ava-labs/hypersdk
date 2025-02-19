@@ -244,6 +244,10 @@ func (NoAuthFactory) Sign([]byte) (chain.Auth, error) {
 	return NoAuth{}, nil
 }
 
+func (NoAuth) Bytes() []byte {
+	return []byte{}
+}
+
 func (NoAuthFactory) MaxUnits() (uint64, uint64) {
 	return 0, 0
 }

@@ -70,6 +70,12 @@ func (b *BLS) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(bls.SignatureToBytes(b.Signature))
 }
 
+func (b *BLS) Bytes() []byte {
+	packer := codec.NewWriter(BLSSize, BLSSize)
+	b.Marshal(packer)
+	return packer.Bytes()
+}
+
 func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	var b BLS
 

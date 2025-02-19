@@ -602,7 +602,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			vm.snowCtx.Log,
 			gossipRegistry,
 			vm.mempool,
-			&chain.TxSerializer{
+			&chain.TxTypeParser{
 				ActionRegistry: vm.actionCodec,
 				AuthRegistry:   vm.authCodec,
 			},
@@ -618,7 +618,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			vm.snowCtx.Log,
 			gossipRegistry,
 			vm.mempool,
-			&chain.TxSerializer{
+			&chain.TxTypeParser{
 				ActionRegistry: vm.actionCodec,
 				AuthRegistry:   vm.authCodec,
 			},

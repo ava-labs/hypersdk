@@ -84,7 +84,7 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	require.NoError(err)
 	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
 	require.NoError(err)
-	parser := chaintest.NewParser(nil, actionCodec, authCodec, nil)
+	parser := chain.NewTxTypeParser(actionCodec, authCodec)
 
 	signedTx, err := txData.Sign(factory)
 	require.NoError(err)
@@ -126,29 +126,24 @@ func TestMarshalUnmarshal(t *testing.T) {
 	factory := auth.NewED25519Factory(priv)
 
 	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
-	txBeforeSignBytes, err := tx.UnsignedBytes()
-	require.NoError(err)
+	txBeforeSignBytes := tx.UnsignedBytes()
 
 	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
-	unsignedTxAfterSignBytes, err := signedTx.TransactionData.UnsignedBytes()
-	require.NoError(err)
+	unsignedTxAfterSignBytes := signedTx.TransactionData.UnsignedBytes()
 	require.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes)
 	require.NotNil(signedTx.Auth)
 	require.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
 		require.Equal(tx.Actions[i], action)
 	}
-	writerPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err = signedTx.Marshal(writerPacker)
-	require.NoError(err)
-	require.Equal(signedTx.GetID(), utils.ToID(writerPacker.Bytes()))
-	require.Equal(signedTx.Bytes(), writerPacker.Bytes())
 
-	unsignedTxBytes, err := signedTx.UnsignedBytes()
-	require.NoError(err)
-	originalUnsignedTxBytes, err := tx.UnsignedBytes()
-	require.NoError(err)
+	signedTxBytes := signedTx.Bytes()
+	require.Equal(signedTx.GetID(), utils.ToID(signedTxBytes))
+	require.Equal(signedTx.Bytes(), signedTxBytes)
+
+	unsignedTxBytes := signedTx.UnsignedBytes()
+	originalUnsignedTxBytes := tx.UnsignedBytes()
 
 	require.Equal(unsignedTxBytes, originalUnsignedTxBytes)
 	require.Len(unsignedTxBytes, 173)
@@ -182,9 +177,10 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	signedTx, err := tx.Sign(factory)
 	require.NoError(err)
 
-	p := codec.NewWriter(0, consts.NetworkSizeLimit)
-	require.NoError(signedTx.Actions.MarshalInto(p))
-	actionsBytes := p.Bytes()
+	actionsBytes := make([][]byte, 0, len(signedTx.Actions))
+	for _, action := range signedTx.Actions {
+		actionsBytes = append(actionsBytes, action.Bytes())
+	}
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, factory)
 	require.NoError(err)
 	require.Equal(signedTx.Bytes(), rawSignedTxBytes)

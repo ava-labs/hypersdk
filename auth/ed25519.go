@@ -70,6 +70,12 @@ func (d *ED25519) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(d.Signature[:])
 }
 
+func (d *ED25519) Bytes() []byte {
+	packer := codec.NewWriter(ED25519Size, ED25519Size)
+	d.Marshal(packer)
+	return packer.Bytes()
+}
+
 func UnmarshalED25519(p *codec.Packer) (chain.Auth, error) {
 	var d ED25519
 	signer := d.Signer[:] // avoid allocating additional memory

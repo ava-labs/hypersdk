@@ -101,9 +101,8 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Actions: []chain.Action{
 						&chaintest.TestAction{
-							SpecifiedStateKeys: state.Keys{
-								"": state.None,
-							},
+							SpecifiedStateKeys:           []string{""},
+							SpecifiedStateKeyPermissions: []state.Permissions{state.None},
 						},
 					},
 				},

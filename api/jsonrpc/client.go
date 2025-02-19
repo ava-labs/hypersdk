@@ -121,6 +121,7 @@ type Modifier interface {
 
 func (cli *JSONRPCClient) GenerateTransaction(
 	ctx context.Context,
+	ruleFactory chain.RuleFactory,
 	parser chain.Parser,
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
@@ -132,7 +133,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	units, err := chain.EstimateUnits(ruleFactory.GetRules(time.Now().UnixMilli()), actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -140,7 +141,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, modifiers...)
+	f, tx, err := cli.GenerateTransactionManual(ruleFactory, parser, actions, authFactory, maxFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -148,6 +149,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 }
 
 func (cli *JSONRPCClient) GenerateTransactionManual(
+	ruleFactory chain.RuleFactory,
 	parser chain.Parser,
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
@@ -156,7 +158,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 ) (func(context.Context) error, *chain.Transaction, error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
-	rules := parser.Rules(now)
+	rules := ruleFactory.GetRules(now)
 	base := &chain.Base{
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   rules.GetChainID(),
@@ -230,7 +232,7 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) ([]SimulateActionResult, error) {
 	args := &SimulatActionsArgs{
 		Actor: actor,
 	}

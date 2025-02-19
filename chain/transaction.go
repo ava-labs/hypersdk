@@ -6,12 +6,10 @@ package chain
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -30,45 +28,73 @@ import (
 var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
+	_ canoto.Field = (*TransactionData)(nil)
 	_ canoto.Field = (*Transaction)(nil)
-
-	errInvalidCanotoContext = errors.New("invalid canoto context to unmarshal transaction")
 )
 
 type TransactionData struct {
-	Base *Base `json:"base"`
+	Base *Base
 
-	Actions Actions `json:"actions"`
+	Actions []Action
 
 	unsignedBytes []byte
 }
 
-func NewTxData(base *Base, actions Actions) *TransactionData {
-	return &TransactionData{
+func NewTxData(base *Base, actions []Action) TransactionData {
+	txData := TransactionData{
 		Base:    base,
 		Actions: actions,
 	}
+	actionBytes := make([]codec.Bytes, len(actions))
+	for i, action := range actions {
+		actionBytes[i] = action.Bytes()
+	}
+	serializeTxData := &SerializeTxData{
+		Base:    base,
+		Actions: actionBytes,
+	}
+	txData.unsignedBytes = serializeTxData.MarshalCanoto()
+	return txData
 }
 
+func (t *TransactionData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
+	canoto.Append(&w, t.unsignedBytes)
+	return w
+}
+
+func (t *TransactionData) CalculateCanotoCache() {}
+
+func (t *TransactionData) CachedCanotoSize() int { return len(t.unsignedBytes) }
+
+func (t *TransactionData) UnmarshalCanotoFrom(r canoto.Reader) error {
+	serializeTxData := &SerializeTxData{}
+	if err := serializeTxData.UnmarshalCanotoFrom(r); err != nil {
+		return err
+	}
+
+	parser, ok := r.Context.(Parser)
+	if !ok {
+		return fmt.Errorf("failed to extract Parser from canoto context of type: %T", r.Context)
+	}
+	actions := make([]Action, len(serializeTxData.Actions))
+	for i, actionBytes := range serializeTxData.Actions {
+		action, err := parser.ParseAction(actionBytes)
+		if err != nil {
+			return err
+		}
+		actions[i] = action
+	}
+	t.unsignedBytes = r.B
+	t.Base = serializeTxData.Base
+	t.Actions = actions
+	return nil
+}
+
+func (t *TransactionData) ValidCanoto() bool { return true }
+
 // UnsignedBytes returns the byte slice representation of the tx
-func (t *TransactionData) UnsignedBytes() ([]byte, error) {
-	if len(t.unsignedBytes) > 0 {
-		return t.unsignedBytes, nil
-	}
-	size := t.Base.Size() + consts.Uint8Len
-
-	actionsSize, err := t.Actions.Size()
-	if err != nil {
-		return nil, err
-	}
-	size += actionsSize
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := t.marshal(p); err != nil {
-		return nil, err
-	}
-	t.unsignedBytes = p.Bytes()
-	return t.unsignedBytes, p.Err()
+func (t *TransactionData) UnsignedBytes() []byte {
+	return t.unsignedBytes
 }
 
 // Sign returns a new signed transaction with the unsigned tx copied from
@@ -76,78 +102,41 @@ func (t *TransactionData) UnsignedBytes() ([]byte, error) {
 func (t *TransactionData) Sign(
 	factory AuthFactory,
 ) (*Transaction, error) {
-	msg, err := t.UnsignedBytes()
+	auth, err := factory.Sign(t.UnsignedBytes())
 	if err != nil {
 		return nil, err
 	}
-	auth, err := factory.Sign(msg)
-	if err != nil {
-		return nil, err
-	}
-
 	return NewTransaction(t.Base, t.Actions, auth)
 }
 
 func SignRawActionBytesTx(
 	base *Base,
-	rawActionsBytes []byte,
+	rawActionsBytes [][]byte,
 	authFactory AuthFactory,
 ) ([]byte, error) {
-	p := codec.NewWriter(base.Size(), consts.NetworkSizeLimit)
-	base.Marshal(p)
-	p.PackFixedBytes(rawActionsBytes)
-
-	auth, err := authFactory.Sign(p.Bytes())
+	codecBytes := make([]codec.Bytes, len(rawActionsBytes))
+	for i, actionBytes := range rawActionsBytes {
+		codecBytes[i] = actionBytes
+	}
+	txData := SerializeTxData{
+		Base:    base,
+		Actions: codecBytes,
+	}
+	unsignedTxBytes := txData.MarshalCanoto()
+	auth, err := authFactory.Sign(unsignedTxBytes)
 	if err != nil {
 		return nil, err
 	}
-	p.PackByte(auth.GetTypeID())
-	auth.Marshal(p)
-	return p.Bytes(), p.Err()
+	tx := &SerializeRawTx{
+		TransactionData: unsignedTxBytes,
+		Auth:            auth.Bytes(),
+	}
+	return tx.MarshalCanoto(), nil
 }
 
 func (t *TransactionData) GetExpiry() int64 { return t.Base.Timestamp }
 
 func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
-
-func (t *TransactionData) Marshal(p *codec.Packer) error {
-	if len(t.unsignedBytes) > 0 {
-		p.PackFixedBytes(t.unsignedBytes)
-		return p.Err()
-	}
-	return t.marshal(p)
-}
-
-func (t *TransactionData) marshal(p *codec.Packer) error {
-	t.Base.Marshal(p)
-	return t.Actions.MarshalInto(p)
-}
-
-type Actions []Action
-
-func (a Actions) Size() (int, error) {
-	var size int
-	for _, action := range a {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return 0, err
-		}
-		size += consts.ByteLen + actionSize
-	}
-	return size, nil
-}
-
-func (a Actions) MarshalInto(p *codec.Packer) error {
-	p.PackByte(uint8(len(a)))
-	for _, action := range a {
-		p.PackByte(action.GetTypeID())
-		err := marshalInto(action, p)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 type Transaction struct {
 	TransactionData
@@ -161,29 +150,20 @@ type Transaction struct {
 }
 
 // NewTransaction creates a Transaction and initializes the private fields.
-func NewTransaction(base *Base, actions Actions, auth Auth) (*Transaction, error) {
-	tx := Transaction{
-		TransactionData: TransactionData{
-			Base:    base,
-			Actions: actions,
-		},
-		Auth: auth,
+func NewTransaction(base *Base, actions []Action, auth Auth) (*Transaction, error) {
+	txData := NewTxData(base, actions)
+	t := &Transaction{
+		TransactionData: txData,
+		Auth:            auth,
 	}
-	unsignedBytes, err := tx.UnsignedBytes()
-	if err != nil {
-		return nil, err
+	serializeTx := &SerializeTx{
+		TransactionData: txData,
+		Auth:            auth.Bytes(),
 	}
-	p := codec.NewWriter(len(unsignedBytes)+consts.ByteLen+auth.Size(), consts.NetworkSizeLimit)
-	if err := tx.Marshal(p); err != nil {
-		return nil, err
-	}
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	tx.bytes = p.Bytes()
-	tx.size = len(p.Bytes())
-	tx.id = utils.ToID(p.Bytes())
-	return &tx, nil
+	t.bytes = serializeTx.MarshalCanoto()
+	t.size = len(t.bytes)
+	t.id = utils.ToID(t.bytes)
+	return t, nil
 }
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
@@ -192,6 +172,8 @@ func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) GetID() ids.ID { return t.id }
 
+// StateKeys calculates the set of state keys pre-declared by the transaction.
+// This function caches the state keys internally, which makes it unsafe to call in parallel.
 func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
@@ -217,7 +199,8 @@ func (t *Transaction) StateKeys(bh BalanceHandler) (state.Keys, error) {
 	return stateKeys, nil
 }
 
-// Units is charged whether or not a transaction is successful.
+// Units returns the multi-dimensional fee units required by the transaction. The corresponding
+// fee will be charged in full regardless of the transaction's execution result.
 func (t *Transaction) Units(bh BalanceHandler, r Rules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
@@ -387,41 +370,22 @@ func (t *Transaction) Execute(
 // Sponsor is the [codec.Address] that pays fees for this transaction.
 func (t *Transaction) GetSponsor() codec.Address { return t.Auth.Sponsor() }
 
-func (t *Transaction) Marshal(p *codec.Packer) error {
-	if len(t.bytes) > 0 {
-		p.PackFixedBytes(t.bytes)
-		return p.Err()
-	}
-	return t.marshal(p)
-}
-
 type txJSON struct {
-	ID      ids.ID      `json:"id"`
-	Actions codec.Bytes `json:"actions"`
-	Auth    codec.Bytes `json:"auth"`
-	Base    *Base       `json:"base"`
+	ID      ids.ID        `json:"id"`
+	Actions []codec.Bytes `json:"actions"`
+	Auth    codec.Bytes   `json:"auth"`
+	Base    *Base         `json:"base"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
-	actionsPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	err := t.Actions.MarshalInto(actionsPacker)
-	if err != nil {
-		return nil, err
+	actionBytes := make([]codec.Bytes, len(t.Actions))
+	for i, action := range t.Actions {
+		actionBytes[i] = action.Bytes()
 	}
-	if err := actionsPacker.Err(); err != nil {
-		return nil, err
-	}
-	authPacker := codec.NewWriter(0, consts.NetworkSizeLimit)
-	authPacker.PackByte(t.Auth.GetTypeID())
-	t.Auth.Marshal(authPacker)
-	if err := authPacker.Err(); err != nil {
-		return nil, err
-	}
-
 	return json.Marshal(txJSON{
 		ID:      t.GetID(),
-		Actions: actionsPacker.Bytes(),
-		Auth:    authPacker.Bytes(),
+		Actions: actionBytes,
+		Auth:    t.Auth.Bytes(),
 		Base:    t.Base,
 	})
 }
@@ -433,125 +397,57 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 		return err
 	}
 
-	actionsReader := codec.NewReader(tx.Actions, consts.NetworkSizeLimit)
-	actions, err := UnmarshalActions(actionsReader, parser.ActionCodec())
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal JSON actions: %w", err)
+	actions := make([]Action, len(tx.Actions))
+	for i, actionBytes := range tx.Actions {
+		action, err := parser.ParseAction(actionBytes)
+		if err != nil {
+			return err
+		}
+		actions[i] = action
 	}
-	if err := actionsReader.Err(); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON actions in reader: %w", err)
-	}
-	authReader := codec.NewReader(tx.Auth, consts.NetworkSizeLimit)
-	auth, err := parser.AuthCodec().Unmarshal(authReader)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal JSON auth: %w", err)
-	}
-	if err := authReader.Err(); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON auth in reader: %w", err)
-	}
-
-	newTx, err := NewTransaction(tx.Base, actions, auth)
+	auth, err := parser.ParseAuth(tx.Auth)
 	if err != nil {
 		return err
 	}
-	*t = *newTx
+	unmarshalledTx, err := NewTransaction(tx.Base, actions, auth)
+	if err != nil {
+		return err
+	}
+	*t = *unmarshalledTx
 	return nil
-}
-
-func (t *Transaction) marshal(p *codec.Packer) error {
-	if err := t.TransactionData.marshal(p); err != nil {
-		return err
-	}
-
-	authID := t.Auth.GetTypeID()
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
-
-	return p.Err()
 }
 
 // VerifyAuth verifies that the transaction was signed correctly.
 func (t *Transaction) VerifyAuth(ctx context.Context) error {
-	msg, err := t.UnsignedBytes()
-	if err != nil {
-		// Should never occur because populated during unmarshal
-		return err
-	}
+	msg := t.UnsignedBytes()
 	return t.Auth.Verify(ctx, msg)
 }
 
 func UnmarshalTxData(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
+	bytes []byte,
+	parser Parser,
 ) (*TransactionData, error) {
-	start := p.Offset()
-	base, err := UnmarshalBase(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal base", err)
+	txData := &TransactionData{}
+	reader := canoto.Reader{
+		B:       bytes,
+		Context: parser,
 	}
-	actions, err := UnmarshalActions(p, actionRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
+	if err := txData.UnmarshalCanotoFrom(reader); err != nil {
+		return nil, err
 	}
-
-	var tx TransactionData
-	tx.Base = base
-	tx.Actions = actions
-	if err := p.Err(); err != nil {
-		return nil, p.Err()
-	}
-	codecBytes := p.Bytes()
-	tx.unsignedBytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	return &tx, nil
-}
-
-func UnmarshalActions(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-) (Actions, error) {
-	actionCount := p.UnpackByte()
-	if actionCount == 0 {
-		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
-	}
-	actions := Actions{}
-	for i := uint8(0); i < actionCount; i++ {
-		action, err := actionRegistry.Unmarshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal action", err)
-		}
-		actions = append(actions, action)
-	}
-	return actions, nil
+	return txData, nil
 }
 
 func UnmarshalTx(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
+	bytes []byte,
+	parser Parser,
 ) (*Transaction, error) {
-	unsignedTransaction, err := UnmarshalTxData(p, actionRegistry)
-	if err != nil {
-		return nil, err
+	reader := canoto.Reader{
+		B:       bytes,
+		Context: parser,
 	}
-	auth, err := authRegistry.Unmarshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
-	}
-	authType := auth.GetTypeID()
-
-	if actorType := auth.Actor()[0]; actorType != authType {
-		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
-	}
-	if sponsorType := auth.Sponsor()[0]; sponsorType != authType {
-		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
-	}
-
-	if err := p.Err(); err != nil {
-		return nil, p.Err()
-	}
-
-	tx, err := NewTransaction(unsignedTransaction.Base, unsignedTransaction.Actions, auth)
-	if err != nil {
+	tx := &Transaction{}
+	if err := tx.UnmarshalCanotoFrom(reader); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -561,7 +457,7 @@ func UnmarshalTx(
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -628,41 +524,39 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
-// Implement [canoto.Field]
-// Transaction does not implement [canoto.Message] because it parsing a Transaction
-// with Canoto requires a custom injection of a TxParser into the [canoto.Reader]
-// context.
 func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	canoto.Append(&w, t.bytes)
 	return w
 }
 
 func (t *Transaction) CalculateCanotoCache() {}
+
 func (t *Transaction) CachedCanotoSize() int { return t.size }
+
 func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
-	parser, ok := r.Context.(TxParser)
-	if !ok {
-		return fmt.Errorf("%w: expected *TxParser", errInvalidCanotoContext)
+	serializeTx := &SerializeTx{}
+	if err := serializeTx.UnmarshalCanotoFrom(r); err != nil {
+		return err
 	}
 
-	packer := &codec.Packer{
-		Packer: &wrappers.Packer{
-			MaxSize: len(r.B),
-			Bytes:   r.B,
-			Offset:  0,
-		},
+	parser, ok := r.Context.(Parser)
+	if !ok {
+		return fmt.Errorf("failed to extract Parser from canoto context of type: %T", r.Context)
 	}
-	tx, err := UnmarshalTx(packer, parser.ActionCodec(), parser.AuthCodec())
+	auth, err := parser.ParseAuth(serializeTx.Auth)
 	if err != nil {
 		return err
 	}
-	*t = *tx
-	r.B = r.B[len(tx.bytes):]
+
+	tx := &Transaction{
+		TransactionData: serializeTx.TransactionData,
+		Auth:            auth,
+	}
+	tx.bytes = r.B
+	tx.size = len(tx.bytes)
+	tx.id = utils.ToID(tx.bytes)
+
 	return nil
 }
 
-func (t *Transaction) ValidCanoto() bool {
-	// Transactions are treated as immutable. If this transaction was unmarshalled correctly,
-	// it should always be valid.
-	return len(t.bytes) > 0
-}
+func (t *Transaction) ValidCanoto() bool { return true }

@@ -21,6 +21,7 @@ type Block struct {
 
 	BlockContext *block.Context `canoto:"pointer,4" json:"blockContext"`
 
+	// XXX: canoto treats nil as a valid transaction.
 	Txs []*Transaction `canoto:"repeated pointer,5" json:"txs"`
 
 	// StateRoot is the root of the post-execution state
@@ -67,6 +68,13 @@ func NewStatelessBlock(
 	return block, nil
 }
 
+// UnmarshalCanoto overrides the embedded Block definition of the same function,
+// so that we can make sure to set the block bytes and ID fields.
+// Calling this function directly does not provide an opportunity to set the canoto
+// reader Context to parse actions/auth contained in transactions, which means calling
+// this function directly (instead of UnmarshalBlock) may fail for valid blocks.
+// We implement it anyways because we prefer this function to fail on valid blocks rather
+// than
 func (b *StatelessBlock) UnmarshalCanoto(bytes []byte) error {
 	r := canoto.Reader{B: bytes}
 	return b.UnmarshalCanotoFrom(r)
@@ -98,7 +106,7 @@ func (b *StatelessBlock) String() string {
 	return fmt.Sprintf("(BlockID=%s, Height=%d, ParentRoot=%s, NumTxs=%d, Size=%d)", b.id, b.Hght, b.Prnt, len(b.Txs), len(b.bytes))
 }
 
-func UnmarshalBlock(raw []byte, parser TxParser) (*StatelessBlock, error) {
+func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	r := canoto.Reader{
 		B:       raw,
 		Context: parser,
@@ -107,6 +115,11 @@ func UnmarshalBlock(raw []byte, parser TxParser) (*StatelessBlock, error) {
 	if err := b.UnmarshalCanotoFrom(r); err != nil {
 		return nil, err
 	}
+	// Call CalculateCanotoCache so that equivalent blocks pass an equals check.
+	// Without calling this function, canoto's required internal field will cause equals
+	// checks to fail on otherwise identical blocks.
+	// TODO: remove after Canoto guarantees this to be set correctly on the read path (unmarshal)
+	// rather than only setting it on the write path.
 	b.CalculateCanotoCache()
 	return b, nil
 }

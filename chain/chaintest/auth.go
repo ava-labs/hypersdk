@@ -18,16 +18,22 @@ var (
 )
 
 type TestAuth struct {
-	NumComputeUnits uint64        `serialize:"true" json:"numComputeUnits"`
-	ActorAddress    codec.Address `serialize:"true" json:"actor"`
-	SponsorAddress  codec.Address `serialize:"true" json:"sponsor"`
-	ShouldErr       bool          `serialize:"true" json:"shouldErr"`
-	Start           int64         `serialize:"true" json:"start"`
-	End             int64         `serialize:"true" json:"end"`
+	NumComputeUnits uint64        `canoto:"fint64,1" serialize:"true" json:"numComputeUnits"`
+	ActorAddress    codec.Address `canoto:"fixed bytes,2" serialize:"true" json:"actor"`
+	SponsorAddress  codec.Address `canoto:"fixed bytes,3" serialize:"true" json:"sponsor"`
+	ShouldErr       bool          `canoto:"bool,4" serialize:"true" json:"shouldErr"`
+	Start           int64         `canoto:"sint,5" serialize:"true" json:"start"`
+	End             int64         `canoto:"sint,6" serialize:"true" json:"end"`
+
+	canotoData canotoData_TestAuth
 }
 
 func (t *TestAuth) GetTypeID() uint8 {
 	return 0
+}
+
+func (t *TestAuth) Bytes() []byte {
+	return t.MarshalCanoto()
 }
 
 // ValidRange returns the start/end fields of the action unless 0 is specified.

@@ -15,15 +15,9 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type TxParser interface {
-	ActionCodec() *codec.TypeParser[Action]
-	AuthCodec() *codec.TypeParser[Auth]
-}
-
 type Parser interface {
-	Rules(int64) Rules
-	TxParser
-	OutputCodec() *codec.TypeParser[codec.Typed]
+	ParseAction([]byte) (Action, error)
+	ParseAuth([]byte) (Auth, error)
 }
 
 type Mempool interface {
@@ -129,6 +123,15 @@ type Marshaler interface {
 type Action interface {
 	Object
 
+	// Bytes returns the byte representation of this action.
+	// The chain parser must be able to parse this representation and return the corresponding action.
+	// This function is not performance critical because actions/auth are always serialized inside of
+	// a transaction and transactions will cache their byte representations after unmarshal, so this
+	// will only be called on the write path.
+	// The write path is not performance critical because this only impacts transaction issuers, not nodes
+	// which will always parse transactions received from the network or API.
+	Bytes() []byte
+
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
 	ComputeUnits(Rules) uint64
@@ -169,6 +172,8 @@ type Action interface {
 type Auth interface {
 	Object
 	Marshaler
+
+	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute

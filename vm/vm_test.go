@@ -526,12 +526,12 @@ func TestDirectStateAPI(t *testing.T) {
 
 	keys := [][]byte{key}
 	values := [][]byte{value}
-	stateKeys := state.Keys{string(key): state.All}
 	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits:    1,
-		SpecifiedStateKeys: stateKeys,
-		WriteKeys:          keys,
-		WriteValues:        values,
+		NumComputeUnits:              1,
+		SpecifiedStateKeys:           []string{string(key)},
+		SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+		WriteKeys:                    keys,
+		WriteValues:                  values,
 	}}, network.AuthFactories()[0])
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
@@ -639,13 +639,12 @@ func TestSkipStateSync(t *testing.T) {
 	numBlocks := 5
 	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
 		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-			NumComputeUnits: 1,
-			Nonce:           uint64(i),
-			SpecifiedStateKeys: state.Keys{
-				string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
-			},
-			WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-			WriteValues: [][]byte{{byte(i)}},
+			NumComputeUnits:              1,
+			Nonce:                        uint64(i),
+			SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+			SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+			WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+			WriteValues:                  [][]byte{{byte(i)}},
 		}}, network.AuthFactories()[0])
 		r.NoError(err)
 		return []*chain.Transaction{tx}
@@ -703,13 +702,12 @@ func TestStateSync(t *testing.T) {
 	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
 		nonce++
 		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-			NumComputeUnits: 1,
-			Nonce:           nonce,
-			SpecifiedStateKeys: state.Keys{
-				string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
-			},
-			WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-			WriteValues: [][]byte{{byte(i)}},
+			NumComputeUnits:              1,
+			Nonce:                        nonce,
+			SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+			SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+			WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+			WriteValues:                  [][]byte{{byte(i)}},
 		}}, network.AuthFactories()[0])
 		r.NoError(err)
 		return []*chain.Transaction{tx}
@@ -750,13 +748,12 @@ func TestStateSync(t *testing.T) {
 			network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
 				nonce++
 				tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-					NumComputeUnits: 1,
-					Nonce:           uint64(nonce),
-					SpecifiedStateKeys: state.Keys{
-						string(keys.EncodeChunks([]byte{byte(i)}, 1)): state.All,
-					},
-					WriteKeys:   [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-					WriteValues: [][]byte{{byte(i)}},
+					NumComputeUnits:              1,
+					Nonce:                        uint64(nonce),
+					SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+					SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+					WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+					WriteValues:                  [][]byte{{byte(i)}},
 				}}, network.AuthFactories()[0])
 				r.NoError(err)
 				return []*chain.Transaction{tx}

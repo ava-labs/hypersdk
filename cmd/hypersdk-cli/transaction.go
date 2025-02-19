@@ -91,8 +91,7 @@ var txCmd = &cobra.Command{
 			Timestamp: time.Now().Unix()*1000 + 60*1000, // TODO: use utils.UnixRMilli(now, rules.GetValidityWindow())
 			MaxFee:    1_000_000,                        // TODO: use chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 		}
-
-		signedBytes, err := chain.SignRawActionBytesTx(base, append([]byte{1}, actionBytes...), auth.NewED25519Factory(key))
+		signedBytes, err := chain.SignRawActionBytesTx(base, [][]byte{actionBytes}, auth.NewED25519Factory(key))
 		if err != nil {
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}

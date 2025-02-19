@@ -14,8 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -50,13 +48,11 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		return vm.NewOpt(), nil
 	}
 
-	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
 		v.Tracer(),
-		actionCodec,
-		authCodec,
+		v.GetTxParser(),
 		config.MaxPendingMessages,
 	)
 
@@ -92,11 +88,10 @@ func (w WebSocketServerFactory) New(api.VM) (api.Handler, error) {
 }
 
 type WebSocketServer struct {
-	vm          api.VM
-	logger      logging.Logger
-	tracer      trace.Tracer
-	actionCodec *codec.TypeParser[chain.Action]
-	authCodec   *codec.TypeParser[chain.Auth]
+	vm     api.VM
+	logger logging.Logger
+	tracer trace.Tracer
+	parser chain.Parser
 
 	s *pubsub.Server
 
@@ -111,16 +106,14 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
+	txParser chain.Parser,
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
 		vm:             vm,
 		logger:         log,
 		tracer:         tracer,
-		actionCodec:    actionCodec,
-		authCodec:      authCodec,
+		parser:         txParser,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
@@ -234,8 +227,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
-			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, w.actionCodec, w.authCodec)
+			tx, err := chain.UnmarshalTx(msgBytes, w.parser)
 			if err != nil {
 				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),

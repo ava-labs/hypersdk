@@ -35,11 +35,8 @@ func (e *ExecutedBlock) Marshal() ([]byte, error) {
 
 func UnmarshalExecutedBlock(bytes []byte, parser Parser) (*ExecutedBlock, error) {
 	r := canoto.Reader{
-		B: bytes,
-		Context: &TxSerializer{
-			ActionRegistry: parser.ActionCodec(),
-			AuthRegistry:   parser.AuthCodec(),
-		},
+		B:       bytes,
+		Context: parser,
 	}
 	b := new(ExecutedBlock)
 	if err := b.UnmarshalCanotoFrom(r); err != nil {

@@ -341,10 +341,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	}()
 
 	for _, tx := range block.StatelessBlock.Txs {
-		unsignedTxBytes, err := tx.UnsignedBytes()
-		if err != nil {
-			return nil, err //nolint:spancheck
-		}
+		unsignedTxBytes := tx.UnsignedBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return sigJob, nil

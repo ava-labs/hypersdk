@@ -70,6 +70,11 @@ func (d *SECP256R1) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(d.Signature[:])
 }
 
+func (d *SECP256R1) Bytes() []byte {
+	packer := codec.NewWriter(SECP256R1Size, SECP256R1Size)
+	return packer.Bytes()
+}
+
 func UnmarshalSECP256R1(p *codec.Packer) (chain.Auth, error) {
 	var d SECP256R1
 	signer := d.Signer[:] // avoid allocating additional memory

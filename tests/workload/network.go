@@ -22,6 +22,7 @@ type TestNetwork interface {
 type TestNetworkConfiguration interface {
 	GenesisBytes() []byte
 	Name() string
+	RuleFactory() chain.RuleFactory
 	Parser() chain.Parser
 	AuthFactories() []chain.AuthFactory
 }
@@ -31,6 +32,7 @@ type TestNetworkConfiguration interface {
 type DefaultTestNetworkConfiguration struct {
 	genesisBytes  []byte
 	name          string
+	ruleFactory   chain.RuleFactory
 	parser        chain.Parser
 	authFactories []chain.AuthFactory
 }
@@ -47,15 +49,20 @@ func (d DefaultTestNetworkConfiguration) Parser() chain.Parser {
 	return d.parser
 }
 
+func (d DefaultTestNetworkConfiguration) RuleFactory() chain.RuleFactory {
+	return d.ruleFactory
+}
+
 func (d DefaultTestNetworkConfiguration) AuthFactories() []chain.AuthFactory {
 	return d.authFactories
 }
 
 // NewDefaultTestNetworkConfiguration creates a new DefaultTestNetworkConfiguration object.
-func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, parser chain.Parser, authFactories []chain.AuthFactory) DefaultTestNetworkConfiguration {
+func NewDefaultTestNetworkConfiguration(genesisBytes []byte, name string, ruleFactory chain.RuleFactory, parser chain.Parser, authFactories []chain.AuthFactory) DefaultTestNetworkConfiguration {
 	return DefaultTestNetworkConfiguration{
 		genesisBytes:  genesisBytes,
 		name:          name,
+		ruleFactory:   ruleFactory,
 		parser:        parser,
 		authFactories: authFactories,
 	}
