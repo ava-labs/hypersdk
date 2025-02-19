@@ -38,7 +38,7 @@ type BlockRetriever[T HandlerBlock] interface {
 }
 
 // BlockFetcherHandler handles incoming block fetch requests with a time limit
-// Each request returns blocks in descending height order until:
+// Each request returns blocks in descending nextHeight order until:
 // - maxProcessingDuration is reached
 // - minTimestamp is reached
 type BlockFetcherHandler[T HandlerBlock] struct {
@@ -81,7 +81,7 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 func (*BlockFetcherHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) {}
 
 // Client                              Server
-// |--- FetchBlocks(height=100, ------>|
+// |--- FetchBlocks(nextHeight=100, ------>|
 // |    minTimestamp=X)                | - Get block 100
 // |                                   | - Get block 99
 // |                                   | - Get block 98

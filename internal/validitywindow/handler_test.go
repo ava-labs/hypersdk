@@ -6,17 +6,19 @@ package validitywindow
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
 		name         string
-		setupBlocks  func() (map[uint64]*testBlock, []*testBlock)
+		setupBlocks  func() map[uint64]ExecutionBlock[container]
 		blockHeight  uint64
 		minTimestamp int64
 		delay        time.Duration
@@ -25,19 +27,19 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	}{
 		{
 			name: "happy path - fetch all blocks",
-			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
-				return generateBlocks(10)
+			setupBlocks: func() map[uint64]ExecutionBlock[container] {
+				return generateBlockChain(10, 3)
 			},
 			blockHeight:  9, // The tip of the chain
 			minTimestamp: 3, // Should get blocks with minTimestamp >= 3
 			wantBlocks:   7,
 		},
 		{
-			name: "partial blocks with missing height",
-			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
-				blocks, chain := generateBlocks(10)
+			name: "partial blocks with missing nextHeight",
+			setupBlocks: func() map[uint64]ExecutionBlock[container] {
+				blocks := generateBlockChain(10, 3)
 				delete(blocks, uint64(7))
-				return blocks, chain
+				return blocks
 			},
 			blockHeight:  9,
 			minTimestamp: 0,
@@ -45,19 +47,15 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			wantBlocks:   2, // Should get block 9 and 8 before failing on 7
 		},
 		{
-			name: "zero height request",
-			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
-				return generateBlocks(10)
-			},
+			name:         "zero nextHeight request",
+			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return generateBlockChain(10, 3) },
 			blockHeight:  0,
 			minTimestamp: 0,
 			wantBlocks:   0,
 		},
 		{
-			name: "future minTimestamp",
-			setupBlocks: func() (map[uint64]*testBlock, []*testBlock) {
-				return generateBlocks(10)
-			},
+			name:         "future minTimestamp",
+			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return generateBlockChain(10, 5) },
 			blockHeight:  9,
 			minTimestamp: time.Now().Unix() + 1000,
 			wantBlocks:   0,
@@ -69,15 +67,15 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			ctx := context.Background()
 			req := require.New(t)
 
-			blocks, _ := tt.setupBlocks()
-			retriever := newTestBlockRetriever().
+			blocks := tt.setupBlocks()
+			retriever := newTestBlockRetriever[ExecutionBlock[container]]().
 				withBlocks(blocks)
 
 			if tt.delay > 0 {
 				retriever.withDelay(tt.delay)
 			}
 
-			handler := NewBlockFetcherHandler[*testBlock](retriever)
+			handler := NewBlockFetcherHandler(retriever)
 			fetchedBlocks, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
 				BlockHeight:  tt.blockHeight,
 				MinTimestamp: tt.minTimestamp,
@@ -120,11 +118,11 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 			ctx := context.Background()
 			req := require.New(t)
 
-			blocks, _ := generateBlocks(10)
-			retriever := newTestBlockRetriever().
+			blocks := generateBlockChain(10, 5)
+			retriever := newTestBlockRetriever[ExecutionBlock[container]]().
 				withBlocks(blocks)
 
-			handler := NewBlockFetcherHandler[*testBlock](retriever)
+			handler := NewBlockFetcherHandler(retriever)
 
 			response, appErr := handler.AppRequest(
 				ctx,
@@ -154,21 +152,19 @@ func TestBlockFetcherHandler_Context(t *testing.T) {
 	ctx := context.Background()
 	req := require.New(t)
 
-	blocks, _ := generateBlocks(10)
-	retriever := newTestBlockRetriever().
+	blocks := generateBlockChain(10, 1)
+	retriever := newTestBlockRetriever[ExecutionBlock[container]]().
 		withBlocks(blocks).
 		withDelay(10 * time.Millisecond) // Add some delay to ensure cancellation works
 
-	handler := NewBlockFetcherHandler[*testBlock](retriever)
+	handler := NewBlockFetcherHandler(retriever)
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Start fetching in a goroutine
 	resultCh := make(chan struct {
 		blocks [][]byte
 		err    error
 	})
-
 	go func() {
 		fetchedBlockBytes, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
 			BlockHeight:  9,
@@ -194,12 +190,12 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	ctx := context.Background()
 	req := require.New(t)
 
-	blocks, _ := generateBlocks(20)
-	retriever := newTestBlockRetriever().
+	blocks := generateBlockChain(20, 1)
+	retriever := newTestBlockRetriever[ExecutionBlock[container]]().
 		withBlocks(blocks).
 		withDelay(maxProcessingDuration + 10*time.Millisecond)
 
-	handler := NewBlockFetcherHandler[*testBlock](retriever)
+	handler := NewBlockFetcherHandler(retriever)
 
 	type result struct {
 		blocks   [][]byte
@@ -227,70 +223,76 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 		req.ErrorIs(r.err, context.DeadlineExceeded)
 		// We should get some blocks before timeout
 		req.NotEmpty(r.blocks)
-		// But not all; 7 = (Block of height 10, fetch until minTimestamp of block 3)
+		// But not all; 7 = (Block of nextHeight 10, fetch until minTimestamp of block 3)
 		req.NotEqual(7, len(r.blocks))
 	case <-time.After(2 * maxProcessingDuration):
 		req.Fail("Test took too long to complete")
 	}
 }
 
-func generateBlocks(num int) (map[uint64]*testBlock, []*testBlock) {
-	blocks := make(map[uint64]*testBlock, num)
-	chain := generateChain(num)
-	for _, block := range chain {
-		blocks[block.GetHeight()] = block
+func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock[container] {
+	genesis := newExecutionBlock(0, 0, []int64{})
+	blks := make(map[uint64]ExecutionBlock[container])
+	blks[0] = genesis
+
+	for i := 1; i < n; i++ {
+		containers := make([]int64, containersPerBlock)
+		for j := 0; j < containersPerBlock; j++ {
+			containers[j] = rand.Int63n(int64(n)) //nolint:gosec
+		}
+		b := newExecutionBlock(uint64(i), int64(i), containers)
+		b.Prnt = blks[uint64(i-1)].GetID()
+		blks[uint64(i)] = newExecutionBlock(uint64(i), int64(i), containers)
 	}
 
-	return blocks, chain
+	return blks
 }
 
-var _ BlockRetriever[*testBlock] = (*testBlockRetriever)(nil)
-
-type testBlockRetriever struct {
+type testBlockRetriever[T Block] struct {
 	delay   time.Duration
 	nodeID  ids.NodeID
 	errChan chan error
-	blocks  map[uint64]*testBlock
+	blocks  map[uint64]T
 }
 
-func newTestBlockRetriever() *testBlockRetriever {
-	return &testBlockRetriever{
+func newTestBlockRetriever[T Block]() *testBlockRetriever[T] {
+	return &testBlockRetriever[T]{
 		errChan: make(chan error, 1),
 	}
 }
 
-func (r *testBlockRetriever) withBlocks(blocks map[uint64]*testBlock) *testBlockRetriever {
+func (r *testBlockRetriever[T]) withBlocks(blocks map[uint64]T) *testBlockRetriever[T] {
 	r.blocks = blocks
 	return r
 }
 
-func (r *testBlockRetriever) withDelay(delay time.Duration) *testBlockRetriever {
+func (r *testBlockRetriever[T]) withDelay(delay time.Duration) *testBlockRetriever[T] {
 	r.delay = delay
 	return r
 }
 
-func (r *testBlockRetriever) withNodeID(nodeID ids.NodeID) *testBlockRetriever {
+func (r *testBlockRetriever[T]) withNodeID(nodeID ids.NodeID) *testBlockRetriever[T] {
 	r.nodeID = nodeID
 	return r
 }
 
-func (r *testBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uint64) (*testBlock, error) {
-	if r.delay.Nanoseconds() > 0 {
+func (r *testBlockRetriever[T]) GetBlockByHeight(_ context.Context, blockHeight uint64) (T, error) {
+	if r.delay.Milliseconds() > 0 {
 		time.Sleep(r.delay)
 	}
 
 	var err error
 	if r.nodeID.Compare(ids.EmptyNodeID) == 0 {
-		err = fmt.Errorf("block height %d not found", blockHeight)
+		err = fmt.Errorf("block nextHeight %d not found", blockHeight)
 	} else {
-		err = fmt.Errorf("%s: block height %d not found", r.nodeID, blockHeight)
+		err = fmt.Errorf("%s: block nextHeight %d not found", r.nodeID, blockHeight)
 	}
 
 	block, ok := r.blocks[blockHeight]
 
 	if !ok && err != nil {
 		r.errChan <- err
-		return nil, err
+		return utils.Zero[T](), err
 	}
 	return block, nil
 }

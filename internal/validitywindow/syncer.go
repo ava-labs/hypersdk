@@ -5,6 +5,7 @@ package validitywindow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -14,8 +15,13 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-type BlockFetcher interface {
-	FetchBlocks(ctx context.Context, startID ids.ID, startHeight uint64, startTimestamp int64, minTimestamp *atomic.Int64) error
+type FetchResult[B Block] struct {
+	Block B
+	Err   error
+}
+
+type BlockFetcher[T Block] interface {
+	FetchBlocks(ctx context.Context, id ids.ID, height uint64, timestamp int64, minTimestamp *atomic.Int64) <-chan FetchResult[T]
 }
 
 // Syncer ensures the node does not transition to normal operation
@@ -42,7 +48,7 @@ type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 	chainIndex         ChainIndex[T]
 	timeValidityWindow *TimeValidityWindow[T]
 	getValidityWindow  GetTimeValidityWindowFunc
-	blockFetcherClient BlockFetcher
+	blockFetcherClient BlockFetcher[B]
 
 	lastAccepted ExecutionBlock[T] // Tracks oldest block we have
 	minTimestamp *atomic.Int64     // Minimum timestamp needed for backward sync
@@ -53,7 +59,7 @@ type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 	cancel   context.CancelFunc // For canceling backward sync
 }
 
-func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeValidityWindow *TimeValidityWindow[T], blockFetcherClient BlockFetcher, getValidityWindow GetTimeValidityWindowFunc) *Syncer[T, B] {
+func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeValidityWindow *TimeValidityWindow[T], blockFetcherClient BlockFetcher[B], getValidityWindow GetTimeValidityWindowFunc) *Syncer[T, B] {
 	return &Syncer[T, B]{
 		chainIndex:         chainIndex,
 		timeValidityWindow: timeValidityWindow,
@@ -70,10 +76,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.minTimestamp.Store(minTS)
 
 	// Try to build partial validity window from existing blocks
-	lastAccepted, seenValidityWindow, err := s.backfillFromExisting(ctx, target)
-	if err != nil {
-		return fmt.Errorf("failed initial backfill: %w", err)
-	}
+	minAccepted, seenValidityWindow := s.backfillFromExisting(ctx, target)
 
 	// If we've filled validity window from cache/disk, we're done
 	if seenValidityWindow {
@@ -81,25 +84,28 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 		return nil
 	}
 
-	// Create cancellable context for backward sync
 	syncCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
+	// Start fetching historical blocks from the peer from starting from minAccepted
 	go func() {
-		startBlk := lastAccepted
+		id := target.GetID()
+		height := target.GetHeight()
+		timestamp := target.GetTimestamp()
 
-		// if lastAccepted is nil it means we don't have anything in our cache/disk,
-		// start fetching from the target
-		if startBlk == nil {
-			startBlk = target
+		if minAccepted != nil {
+			id = minAccepted.GetID()
+			height = minAccepted.GetHeight()
+			timestamp = minAccepted.GetTimestamp()
 		}
 
-		startID := startBlk.GetID()
-		startHeight := startBlk.GetHeight()
-		startTimestamp := startBlk.GetTimestamp()
-		fetchErr := s.blockFetcherClient.FetchBlocks(syncCtx, startID, startHeight, startTimestamp, s.minTimestamp)
-		if fetchErr != nil {
-			s.errChan <- fetchErr
-			return
+		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, id, height, timestamp, s.minTimestamp)
+		for result := range resultChan {
+			if errors.Is(result.Err, errChannelFull) || errors.Is(result.Err, context.Canceled) {
+				s.cancel()
+				return
+			}
+
+			s.timeValidityWindow.Accept(result.Block)
 		}
 
 		s.signalDone()
@@ -149,11 +155,7 @@ func (s *Syncer[T, B]) UpdateSyncTarget(ctx context.Context, target B) error {
 func (s *Syncer[T, B]) accept(ctx context.Context, blk ExecutionBlock[T]) (bool, error) {
 	// If we don't have any blocks yet, try to backfill
 	if s.lastAccepted == nil {
-		var err error
-		s.lastAccepted, _, err = s.backfillFromExisting(ctx, blk)
-		if err != nil {
-			return false, err
-		}
+		s.backfillFromExisting(ctx, blk)
 	}
 
 	// Check if this new block completes our validity window
@@ -172,7 +174,7 @@ func (s *Syncer[T, B]) accept(ctx context.Context, blk ExecutionBlock[T]) (bool,
 func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
-) (ExecutionBlock[T], bool, error) {
+) (ExecutionBlock[T], bool) {
 	var (
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
@@ -185,6 +187,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	// - Fill validity window, or
 	// - Can't find more blocks
 	for {
+		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
 			break // This is expected when we run out of cached and/or on-disk blocks
@@ -199,17 +202,27 @@ func (s *Syncer[T, B]) backfillFromExisting(
 
 	lastIndex := len(parents) - 1
 	if lastIndex < 0 {
-		return nil, seenValidityWindow, nil
+		return nil, seenValidityWindow
 	}
 
+	minAccepted := block.GetHeight()
+	minIndex := -1
 	// Accept all blocks we found, even if partial
 	for i := lastIndex; i >= 0; i-- {
 		blk := parents[i]
 		s.timeValidityWindow.Accept(blk)
 		s.lastAccepted = blk
+
+		if blk.GetHeight() < minAccepted {
+			minAccepted = blk.GetHeight()
+			minIndex = i
+		}
 	}
 
-	return s.lastAccepted, seenValidityWindow, nil
+	if minIndex != -1 {
+		return parents[minIndex], seenValidityWindow
+	}
+	return nil, seenValidityWindow
 }
 
 func (s *Syncer[T, B]) signalDone() {
