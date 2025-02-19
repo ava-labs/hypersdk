@@ -40,6 +40,7 @@ var genGenesisCmd = &cobra.Command{
 			return err
 		}
 		genesis := genesis.NewDefaultGenesis(allocs)
+		genesis.Rules.MaxActionsPerTx = 100
 		if len(minUnitPrice) > 0 {
 			d, err := fees.ParseDimensions(minUnitPrice)
 			if err != nil {

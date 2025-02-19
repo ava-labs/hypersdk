@@ -30,6 +30,7 @@ const (
 	pendingTargetMultiplier        = 10
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
+	distributeFundsBatchSize       = 100
 
 	issuerShutdownTimeout = 60 * time.Second
 )
@@ -309,18 +310,10 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 	utils.Outf("{{yellow}}distributing funds to each account{{/}}\n")
 
+	// Generate accounts, factories, and the required actions to distribute funds
 	accounts := make([]*auth.PrivateKey, s.numAccounts)
 	factories := make([]chain.AuthFactory, s.numAccounts)
-
-	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-	if err != nil {
-		return nil, nil, err
-	}
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
+	distributionActions := make([]chain.Action, 0, s.numAccounts)
 	for i := 0; i < s.numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -334,9 +327,23 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 		}
 		factories[i] = f
 
-		// Send funds
-		actions := sh.GetTransfer(pk.Address, distAmount, []byte{}, s.authFactory)
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
+		actions := sh.GetTransfer(accounts[i].Address, distAmount, []byte{}, s.authFactory)
+		distributionActions = append(distributionActions, actions...)
+	}
+
+	webSocketClient, err := ws.NewWebSocketClient(s.uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	if err != nil {
+		return nil, nil, err
+	}
+	p := &pacer{ws: webSocketClient}
+	go p.Run(ctx, s.minTxsPerSecond)
+	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
+	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
+	time.Sleep(3 * time.Second)
+
+	for i := 0; i < len(distributionActions); i += distributeFundsBatchSize {
+		actions := distributionActions[i:min(i+distributeFundsBatchSize, len(distributionActions))]
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx*distributeFundsBatchSize)
 		if err != nil {
 			return nil, nil, err
 		}
