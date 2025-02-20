@@ -18,3 +18,22 @@ func (i ImmutableStorage) GetValue(_ context.Context, key []byte) (value []byte,
 	}
 	return nil, database.ErrNotFound
 }
+
+type MutableStorage map[string][]byte
+
+func (m MutableStorage) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	if v, has := m[string(key)]; has {
+		return v, nil
+	}
+	return nil, database.ErrNotFound
+}
+
+func (m MutableStorage) Insert(_ context.Context, key []byte, value []byte) error {
+	m[string(key)] = value
+	return nil
+}
+
+func (m MutableStorage) Remove(_ context.Context, key []byte) error {
+	delete(m, string(key))
+	return nil
+}

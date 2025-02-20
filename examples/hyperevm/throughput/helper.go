@@ -8,15 +8,22 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync/atomic"
+	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"golang.org/x/exp/rand"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/throughput"
 )
 
@@ -67,13 +74,10 @@ func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []b
 		Data:     []byte{},
 	}
 
-	simRes, err := sh.cli.SimulateActions(context.TODO(), []chain.Action{call}, fromFactory.Address())
-	if err != nil {
-		fmt.Println("simulate actions error", err)
-		return []chain.Action{} // TODO: handle this better, return err
+	if err := sh.computeStateKeys(call); err != nil {
+		fmt.Println("spamHelper failed to compute state keys", err)
+		return []chain.Action{} // TODO: handle this better
 	}
-	actionResult := simRes[0]
-	call.Keys = actionResult.StateKeys
 
 	return []chain.Action{call}
 }
@@ -89,4 +93,29 @@ func (sh *SpamHelper) LookupBalance(address codec.Address) (uint64, error) {
 
 func (sh *SpamHelper) uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1)))
+}
+
+func (sh *SpamHelper) computeStateKeys(call *actions.EvmCall) error {
+	blockCtx := chain.NewBlockContext(0, time.Now().UnixMilli())
+
+	r := genesis.NewDefaultRules()
+	r.MaxBlockUnits = fees.Dimensions{1800000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+
+	bh := &storage.BalanceHandler{}
+	mp := make(state.MutableStorage)
+
+	if err := bh.AddBalance(context.Background(), storage.FromEVMAddress(call.From), mp, call.Value); err != nil {
+		return err
+	}
+
+	simulatedKeys := state.SimulatedKeys{}
+	ts := tstate.New(0)
+	tsv := ts.NewView(simulatedKeys, mp, 0)
+
+	if _, err := call.Execute(context.Background(), blockCtx, r, tsv, storage.FromEVMAddress(call.From), ids.Empty); err != nil {
+		return err
+	}
+
+	call.Keys = state.Keys(simulatedKeys)
+	return nil
 }
