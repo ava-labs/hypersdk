@@ -105,10 +105,10 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			// until we find and include the first block whose timestamp is strictly less than the minimum
 			// timestamp. This ensures we have a complete and verifiable validity window
 			if tstamp < minTimestamp.Load() {
+				cancel() // Call order is important, cancel writer's before closing
 				c.once.Do(func() {
 					close(resultChan)
 				})
-				cancel()
 				return
 			}
 
@@ -155,8 +155,8 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 						c.checkpointLock.Lock()
 						c.checkpoint.parentID = block.GetParent()
 						c.checkpoint.timestamp = block.GetTimestamp()
-						if nextHeight := block.GetHeight(); nextHeight > 0 {
-							c.checkpoint.nextHeight = nextHeight - 1
+						if nextBlkHeight := block.GetHeight(); nextBlkHeight > 0 {
+							c.checkpoint.nextHeight = nextBlkHeight - 1
 						}
 						c.checkpointLock.Unlock()
 					case <-ctx.Done():
