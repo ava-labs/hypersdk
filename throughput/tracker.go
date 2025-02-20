@@ -51,6 +51,7 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	var psent int64
 	go func() {
 		defer tick.Stop()
+		prevTime := time.Now()
 		for {
 			select {
 			case <-tick.C:
@@ -61,14 +62,17 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					if err != nil {
 						continue
 					}
+					currTime := time.Now()
+					diff := min(currTime.Sub(prevTime).Seconds(), 1)
 					utils.Outf(
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						t.totalTxs,
 						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
 						t.inflight.Load(),
-						current-psent,
+						uint64(float64(current-psent)/diff),
 						unitPrices,
 					)
+					prevTime = currTime
 				}
 				t.l.Unlock()
 				psent = current
