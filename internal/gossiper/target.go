@@ -213,7 +213,7 @@ func (g *Target[T]) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone
 		// else will)
-		if exists := g.cache.Put(tx.GetID(), nil); exists {
+		if g.cache.Put(tx.GetID(), nil) {
 			seen++
 		}
 	}

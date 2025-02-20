@@ -11,17 +11,12 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/buffer"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
@@ -41,40 +36,39 @@ type Indexer struct {
 	cachedBlocks       buffer.Queue[uint64]
 	blockIDToHeight    map[ids.ID]uint64
 	blockHeightToBlock map[uint64]*chain.ExecutedBlock
+	txCache            map[ids.ID]cachedTransaction
 	evictedBlocks      []uint64
 	blockWindow        uint64 // Maximum window of blocks to retain
 	lastHeight         uint64
 	parser             chain.Parser
 
-	// ID -> timestamp, success, units, fee, outputs
-	txDB *pebble.Database
 	// synchronization mutex between r/w
 	mu sync.RWMutex
+}
+
+type cachedTransaction struct {
+	// blk is the block that contains the transaction
+	blk *chain.ExecutedBlock
+	// index is the position where the transaction appear within the block.
+	index int
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
 	if blockWindow > maxBlockWindow {
 		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
 	}
-	txDB, err := pebble.New(filepath.Join(path, "tx"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
-	if err != nil {
-		return nil, err
-	}
 	blockDB, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	if err != nil {
 		return nil, err
 	}
 
-	blockIDCache := make(map[ids.ID]uint64, int(blockWindow))
-	blockHeightCache := make(map[uint64]*chain.ExecutedBlock, int(blockWindow))
-
 	i := &Indexer{
 		blockDB:            blockDB,
-		blockIDToHeight:    blockIDCache,
-		blockHeightToBlock: blockHeightCache,
+		blockIDToHeight:    make(map[ids.ID]uint64, int(blockWindow)),
+		blockHeightToBlock: make(map[uint64]*chain.ExecutedBlock, int(blockWindow)),
+		txCache:            make(map[ids.ID]cachedTransaction),
 		blockWindow:        blockWindow,
 		parser:             parser,
-		txDB:               txDB,
 	}
 
 	i.cachedBlocks, err = buffer.NewBoundedQueue(int(blockWindow), i.evictBlock)
@@ -92,6 +86,11 @@ func (i *Indexer) evictBlock(blockHeight uint64) {
 	// remove the block from the caches
 	delete(i.blockIDToHeight, blk.Block.GetID())
 	delete(i.blockHeightToBlock, blockHeight)
+
+	// remove the transactions from the cache.
+	for _, tx := range blk.Block.Txs {
+		delete(i.txCache, tx.GetID())
+	}
 
 	// add the block height to evictedBlocks so that it would get removed from database
 	i.evictedBlocks = append(i.evictedBlocks, blockHeight)
@@ -130,17 +129,12 @@ func (i *Indexer) initBlocks() error {
 		if err != nil {
 			return err
 		}
-
-		i.cachedBlocks.Push(blk.Block.Hght)
-		i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
-		i.blockHeightToBlock[blk.Block.Hght] = blk
-
+		i.updateCachedBlocks(blk)
 	}
 	if err := iter.Error(); err != nil {
 		return err
 	}
 	iter.Release()
-
 	return nil
 }
 
@@ -148,20 +142,24 @@ func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	if i.blockWindow == 0 {
 		return nil
 	}
-	if err := i.storeTransactions(blk); err != nil {
-		return err
-	}
+	i.mu.Lock()
 	i.updateCachedBlocks(blk)
+	i.mu.Unlock()
+
 	return i.storeBlock(blk)
 }
 
 func (i *Indexer) updateCachedBlocks(blk *chain.ExecutedBlock) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
 	i.cachedBlocks.Push(blk.Block.Hght)
 	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
 	i.blockHeightToBlock[blk.Block.Hght] = blk
+
+	for idx, tx := range blk.Block.Txs {
+		i.txCache[tx.GetID()] = cachedTransaction{
+			blk:   blk,
+			index: idx,
+		}
+	}
 	i.lastHeight = blk.Block.Hght
 }
 
@@ -226,96 +224,21 @@ func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 	return i.getBlockByHeight(height)
 }
 
-func (i *Indexer) storeTransactions(blk *chain.ExecutedBlock) error {
-	batch := i.txDB.NewBatch()
-	defer batch.Reset()
-
-	for j, tx := range blk.Block.Txs {
-		result := blk.Results[j]
-		if err := i.storeTransaction(
-			batch,
-			tx.GetID(),
-			tx.Bytes(),
-			blk.Block.Tmstmp,
-			result.Success,
-			result.Units,
-			result.Fee,
-			result.Outputs,
-			string(result.Error),
-		); err != nil {
-			return err
-		}
-	}
-
-	return batch.Write()
-}
-
-func (*Indexer) storeTransaction(
-	batch database.KeyValueWriter,
-	txID ids.ID,
-	txBytes []byte,
-	timestamp int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-	outputs [][]byte,
-	errorStr string,
-) error {
-	storageTx := storageTx{
-		Timestamp: timestamp,
-		Success:   success,
-		Units:     units.Bytes(),
-		Fee:       fee,
-		Outputs:   outputs,
-		Error:     errorStr,
-		TxBytes:   txBytes,
-	}
-	storageTxBytes := storageTx.MarshalCanoto()
-
-	return batch.Put(txID[:], storageTxBytes)
-}
-
 func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, []byte, int64, *chain.Result, error) {
-	v, err := i.txDB.Get(txID[:])
-	if errors.Is(err, database.ErrNotFound) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	cachedTx, ok := i.txCache[txID]
+	if !ok {
 		return false, nil, nil, 0, nil, nil
 	}
-	if err != nil {
-		return false, nil, nil, 0, nil, err
-	}
-
-	storageTx := storageTx{}
-	if err := storageTx.UnmarshalCanoto(v); err != nil {
-		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal storage tx %s: %w", txID, err)
-	}
-
-	unpackedUnits, err := fees.UnpackDimensions(storageTx.Units)
-	if err != nil {
-		return false, nil, nil, 0, nil, fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
-	}
-
-	p := codec.NewReader(storageTx.TxBytes, consts.NetworkSizeLimit)
-	tx, err := chain.UnmarshalTx(p, i.parser.ActionCodec(), i.parser.AuthCodec())
-	if err != nil {
-		return false, nil, nil, 0, nil, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
-	}
-	result := &chain.Result{
-		Success: storageTx.Success,
-		Error:   []byte(storageTx.Error),
-		Outputs: storageTx.Outputs,
-		Units:   unpackedUnits,
-		Fee:     storageTx.Fee,
-	}
-	return true, tx, storageTx.TxBytes, storageTx.Timestamp, result, nil
+	tx := cachedTx.blk.Block.Txs[cachedTx.index]
+	result := cachedTx.blk.Results[cachedTx.index]
+	return true, tx, tx.Bytes(), cachedTx.blk.Block.Tmstmp, result, nil
 }
 
 func (i *Indexer) Close() error {
-	errs := wrappers.Errs{}
-	errs.Add(
-		i.txDB.Close(),
-		i.blockDB.Close(),
-	)
-	return errs.Err
+	return i.blockDB.Close()
 }
 
 func blockEntryKey(height uint64) []byte {
