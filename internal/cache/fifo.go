@@ -10,10 +10,9 @@ import (
 )
 
 type FIFO[K comparable, V any] struct {
-	l          sync.RWMutex
-	buffer     buffer.Queue[K]
-	m          map[K]V
-	removedKey *K
+	l      sync.RWMutex
+	buffer buffer.Queue[K]
+	m      map[K]V
 }
 
 // NewFIFO creates a new First-In-First-Out cache of size [limit].
@@ -32,23 +31,17 @@ func NewFIFO[K comparable, V any](limit int) (*FIFO[K, V], error) {
 	return c, nil
 }
 
-// Put insert the [key, value] pair into the FIFO. In case an insert require the
-// removal of an existing key due to size limits, the evicted key would get returned.
-func (f *FIFO[K, V]) Put(key K, val V) (bool, *K) {
+func (f *FIFO[K, V]) Put(key K, val V) bool {
 	f.l.Lock()
 	defer f.l.Unlock()
 
-	var removedKey *K
 	_, exists := f.m[key]
 	if !exists {
-		f.removedKey = nil
 		f.buffer.Push(key) // Push removes the oldest [K] if we are at the [limit]
-		removedKey = f.removedKey
-		f.removedKey = nil
 	}
 
 	f.m[key] = val
-	return exists, removedKey
+	return exists
 }
 
 func (f *FIFO[K, V]) Get(key K) (V, bool) {
@@ -63,5 +56,4 @@ func (f *FIFO[K, V]) Get(key K) (V, bool) {
 // [WriteLock] is held when this is accessed.
 func (f *FIFO[K, V]) remove(key K) {
 	delete(f.m, key)
-	f.removedKey = &key
 }

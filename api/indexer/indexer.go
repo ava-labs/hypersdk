@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -21,11 +22,15 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/internal/cache"
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
 const maxBlockWindow uint64 = 1_000_000
+
+var (
+	blockEntryKeyPrefix  = []byte("block")
+	latestBlockHeightKey = []byte("latestblockheight")
+)
 
 var errBlockNotFound = errors.New("block not found")
 
@@ -33,8 +38,10 @@ var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
 	blockDB            *pebble.Database // height -> block bytes
-	blockIDToHeight    *cache.FIFO[ids.ID, uint64]
-	blockHeightToBlock *cache.FIFO[uint64, *chain.ExecutedBlock]
+	cachedBlocks       buffer.Queue[uint64]
+	blockIDToHeight    map[ids.ID]uint64
+	blockHeightToBlock map[uint64]*chain.ExecutedBlock
+	evictedBlocks      []uint64
 	blockWindow        uint64 // Maximum window of blocks to retain
 	lastHeight         uint64
 	parser             chain.Parser
@@ -58,31 +65,65 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		return nil, err
 	}
 
-	blockIDCache, err := cache.NewFIFO[ids.ID, uint64](int(blockWindow))
-	if err != nil {
-		return nil, err
-	}
-	blockCache, err := cache.NewFIFO[uint64, *chain.ExecutedBlock](int(blockWindow))
-	if err != nil {
-		return nil, err
-	}
+	blockIDCache := make(map[ids.ID]uint64, int(blockWindow))
+	blockHeightCache := make(map[uint64]*chain.ExecutedBlock, int(blockWindow))
+
 	i := &Indexer{
 		blockDB:            blockDB,
 		blockIDToHeight:    blockIDCache,
-		blockHeightToBlock: blockCache,
+		blockHeightToBlock: blockHeightCache,
 		blockWindow:        blockWindow,
 		parser:             parser,
 		txDB:               txDB,
 	}
+
+	i.cachedBlocks, err = buffer.NewBoundedQueue(int(blockWindow), i.evictBlock)
+	if err != nil {
+		return nil, err
+	}
+
 	return i, i.initBlocks()
 }
 
+func (i *Indexer) evictBlock(blockHeight uint64) {
+	// find the block in the blocks cache.
+	blk := i.blockHeightToBlock[blockHeight]
+
+	// remove the block from the caches
+	delete(i.blockIDToHeight, blk.Block.GetID())
+	delete(i.blockHeightToBlock, blockHeight)
+
+	// add the block height to evictedBlocks so that it would get removed from database
+	i.evictedBlocks = append(i.evictedBlocks, blockHeight)
+}
+
 func (i *Indexer) initBlocks() error {
+	// is this a new database or an old one ?
+	hasLastHeight, err := i.blockDB.Has(latestBlockHeightKey)
+	if err != nil || !hasLastHeight {
+		return err
+	}
+
+	lastHeight, err := i.blockDB.Get(latestBlockHeightKey)
+	if err != nil {
+		return err
+	}
+
+	i.lastHeight = binary.BigEndian.Uint64(lastHeight)
+
+	if i.lastHeight > i.blockWindow {
+		lastRetainedHeight := i.lastHeight - i.blockWindow
+		lastRetainedHeightKey := blockEntryKey(lastRetainedHeight)
+		firstBlkKey := blockEntryKey(0)
+		if err := i.blockDB.DeleteRange(firstBlkKey, lastRetainedHeightKey); err != nil {
+			return err
+		}
+	}
+
 	// Load blockID <-> height mapping
-	iter := i.blockDB.NewIterator()
+	iter := i.blockDB.NewIteratorWithPrefix(blockEntryKeyPrefix)
 	defer iter.Release()
 
-	var lastHeight uint64
 	for iter.Next() {
 		value := iter.Value()
 		blk, err := chain.UnmarshalExecutedBlock(value, i.parser)
@@ -90,84 +131,85 @@ func (i *Indexer) initBlocks() error {
 			return err
 		}
 
-		i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-		if _, removedBlk := i.blockHeightToBlock.Put(blk.Block.Hght, blk); removedBlk != nil {
-			// the following should not happen, as we maintain only blockWindow entries; however,
-			// if it does, the following would correct that.
-			err = i.blockDB.Delete(binary.BigEndian.AppendUint64(nil, *removedBlk))
-			if err != nil {
-				return err
-			}
-		}
-		lastHeight = blk.Block.Hght
+		i.cachedBlocks.Push(blk.Block.Hght)
+		i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
+		i.blockHeightToBlock[blk.Block.Hght] = blk
+
 	}
 	if err := iter.Error(); err != nil {
 		return err
 	}
 	iter.Release()
 
-	i.lastHeight = lastHeight
 	return nil
 }
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if err := i.storeTransactions(blk); err != nil {
-		return err
-	}
-	return i.storeBlock(blk)
-}
-
-func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	if i.blockWindow == 0 {
 		return nil
 	}
+	if err := i.storeTransactions(blk); err != nil {
+		return err
+	}
+	i.updateCachedBlocks(blk)
+	return i.storeBlock(blk)
+}
 
+func (i *Indexer) updateCachedBlocks(blk *chain.ExecutedBlock) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.cachedBlocks.Push(blk.Block.Hght)
+	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
+	i.blockHeightToBlock[blk.Block.Hght] = blk
+	i.lastHeight = blk.Block.Hght
+}
+
+func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
 		return err
 	}
 
-	_, removedBlkHeight := i.blockHeightToBlock.Put(blk.Block.Hght, blk)
-
 	blkBatch := i.blockDB.NewBatch()
 	defer blkBatch.Reset()
 
-	if err := blkBatch.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
+	if err := blkBatch.Put(blockEntryKey(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
 	}
 
-	if removedBlkHeight != nil {
-		if err := blkBatch.Delete(binary.BigEndian.AppendUint64(nil, *removedBlkHeight)); err != nil {
+	for _, evictedBlockHeight := range i.evictedBlocks {
+		if err := blkBatch.Delete(blockEntryKey(evictedBlockHeight)); err != nil {
 			return err
 		}
 	}
 
-	i.blockIDToHeight.Put(blk.Block.GetID(), blk.Block.Hght)
-
-	if i.lastHeight >= blk.Block.Hght && i.lastHeight != 0 {
-		panic(errors.New("block height was not monolotically growing"))
+	if err := blkBatch.Put(latestBlockHeightKey, binary.BigEndian.AppendUint64(nil, i.lastHeight)); err != nil {
+		return err
 	}
-	// ensure that lastHeight always contains the highest height we've seen.
-	i.lastHeight = max(i.lastHeight, blk.Block.Hght)
+
+	// clear the slice without allocation
+	i.evictedBlocks = i.evictedBlocks[:0]
+
 	return blkBatch.Write()
 }
 
 func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	return i.GetBlockByHeight(i.lastHeight)
+
+	return i.getBlockByHeight(i.lastHeight)
 }
 
 func (i *Indexer) GetBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
+
 	return i.getBlockByHeight(height)
 }
 
 func (i *Indexer) getBlockByHeight(height uint64) (*chain.ExecutedBlock, error) {
-	blk, ok := i.blockHeightToBlock.Get(height)
+	blk, ok := i.blockHeightToBlock[height]
 	if !ok {
 		return nil, fmt.Errorf("%w: height=%d", errBlockNotFound, height)
 	}
@@ -177,7 +219,7 @@ func (i *Indexer) getBlockByHeight(height uint64) (*chain.ExecutedBlock, error) 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	height, ok := i.blockIDToHeight.Get(blkID)
+	height, ok := i.blockIDToHeight[blkID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)
 	}
@@ -274,4 +316,8 @@ func (i *Indexer) Close() error {
 		i.blockDB.Close(),
 	)
 	return errs.Err
+}
+
+func blockEntryKey(height uint64) []byte {
+	return append(blockEntryKeyPrefix, binary.BigEndian.AppendUint64(nil, height)...)
 }
