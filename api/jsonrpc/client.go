@@ -115,16 +115,11 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 	return resp.TxID, err
 }
 
-type Modifier interface {
-	Base(*chain.Base)
-}
-
 func (cli *JSONRPCClient) GenerateTransaction(
 	ctx context.Context,
 	parser chain.Parser,
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
-	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Get latest fee info
 	unitPrices, err := cli.UnitPrices(ctx, true)
@@ -140,7 +135,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, modifiers...)
+	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -152,7 +147,6 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
 	maxFee uint64,
-	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
@@ -161,11 +155,6 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   rules.GetChainID(),
 		MaxFee:    maxFee,
-	}
-
-	// Modify gathered data
-	for _, m := range modifiers {
-		m.Base(base)
 	}
 
 	// Build transaction
