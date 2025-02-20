@@ -106,7 +106,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetTx")
 	defer span.End()
 
-	found, _, txbytes, t, result, err := s.indexer.GetTransaction(args.TxID)
+	found, tx, t, result, err := s.indexer.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 		return ErrTxNotFound
 	}
 	reply.Timestamp = t
-	reply.TxBytes = txbytes
+	reply.TxBytes = tx.Bytes()
 	reply.Result = result
 	return nil
 }

@@ -70,7 +70,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	indexerCli := indexer.NewClient(uri)
+	indexerCli := indexer.NewClient(uri, nil)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
@@ -78,7 +78,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, _, err := indexerCli.GetTx(ctx, txID, nil)
+	txRes, _, _, err := indexerCli.GetTx(ctx, txID)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
 	require.NotZero(txRes.Result.Fee)

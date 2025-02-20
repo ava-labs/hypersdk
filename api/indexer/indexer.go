@@ -8,9 +8,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,8 +39,8 @@ type Indexer struct {
 	blockIDToHeight    map[ids.ID]uint64
 	blockHeightToBlock map[uint64]*chain.ExecutedBlock
 	txCache            map[ids.ID]cachedTransaction
-	evictedBlocks      []uint64
-	blockWindow        uint64 // Maximum window of blocks to retain
+	evictedBlocks      []uint64 // list of blocks that are queued for deletion.
+	blockWindow        uint64   // Maximum window of blocks to retain
 	lastHeight         uint64
 	parser             chain.Parser
 
@@ -69,6 +71,7 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		txCache:            make(map[ids.ID]cachedTransaction),
 		blockWindow:        blockWindow,
 		parser:             parser,
+		lastHeight:         math.MaxUint64,
 	}
 
 	i.cachedBlocks, err = buffer.NewBoundedQueue(int(blockWindow), i.evictBlock)
@@ -196,6 +199,9 @@ func (i *Indexer) GetLatestBlock() (*chain.ExecutedBlock, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
+	if i.lastHeight == math.MaxUint64 {
+		return nil, database.ErrNotFound
+	}
 	return i.getBlockByHeight(i.lastHeight)
 }
 
@@ -224,17 +230,17 @@ func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 	return i.getBlockByHeight(height)
 }
 
-func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, []byte, int64, *chain.Result, error) {
+func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, int64, *chain.Result, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	cachedTx, ok := i.txCache[txID]
 	if !ok {
-		return false, nil, nil, 0, nil, nil
+		return false, nil, 0, nil, nil
 	}
 	tx := cachedTx.blk.Block.Txs[cachedTx.index]
 	result := cachedTx.blk.Results[cachedTx.index]
-	return true, tx, tx.Bytes(), cachedTx.blk.Block.Tmstmp, result, nil
+	return true, tx, cachedTx.blk.Block.Tmstmp, result, nil
 }
 
 func (i *Indexer) Close() error {

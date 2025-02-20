@@ -19,17 +19,19 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 )
 
-func NewClient(uri string) *Client {
+func NewClient(uri string, parser chain.Parser) *Client {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
 
 	return &Client{
 		requester: requester.New(uri, Name),
+		parser:    parser,
 	}
 }
 
 type Client struct {
 	requester *requester.EndpointRequester
+	parser    chain.Parser
 }
 
 // Use a separate type that only decodes the block bytes because we cannot decode block JSON
@@ -38,7 +40,7 @@ type GetBlockClientResponse struct {
 	BlockBytes codec.Bytes `json:"blockBytes"`
 }
 
-func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser) (*chain.ExecutedBlock, error) {
+func (c *Client) GetBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -49,10 +51,10 @@ func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
 }
 
-func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser chain.Parser) (*chain.ExecutedBlock, error) {
+func (c *Client) GetBlockByHeight(ctx context.Context, height uint64) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -63,10 +65,10 @@ func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser cha
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
 }
 
-func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chain.ExecutedBlock, error) {
+func (c *Client) GetLatestBlock(ctx context.Context) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -77,10 +79,10 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
 }
 
-func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (GetTxResponse, *chain.Transaction, bool, error) {
+func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, *chain.Transaction, bool, error) {
 	resp := GetTxResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -98,9 +100,9 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (G
 	}
 
 	var tx *chain.Transaction
-	if parser != nil {
+	if c.parser != nil {
 		p := codec.NewReader(resp.TxBytes, consts.NetworkSizeLimit)
-		tx, err = chain.UnmarshalTx(p, parser.ActionCodec(), parser.AuthCodec())
+		tx, err = chain.UnmarshalTx(p, c.parser.ActionCodec(), c.parser.AuthCodec())
 		if err != nil {
 			return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
 		}
@@ -112,11 +114,11 @@ func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Du
 	var success bool
 	var fee uint64
 	if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
-		response, _, found, err := c.GetTx(ctx, txID, nil)
+		response, _, found, err := c.GetTx(ctx, txID)
 		if err != nil {
 			return false, err
 		}
-		if found && response.Result != nil {
+		if found {
 			success = response.Result.Success
 			fee = response.Result.Fee
 		}
