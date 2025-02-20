@@ -134,7 +134,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 				for _, raw := range respBlocks {
 					block, parseErr := c.parser.ParseBlock(ctx, raw)
 					if parseErr != nil {
-						resultChan <- FetchResult[B]{Err: fmt.Errorf("%w: %v", parseErr, errInvalidBlock)}
+						resultChan <- FetchResult[B]{Err: fmt.Errorf("failed to parse block: %w: %w", parseErr, errInvalidBlock)}
 						return
 					}
 
