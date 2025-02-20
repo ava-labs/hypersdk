@@ -28,7 +28,13 @@ func sendAndWait(
 	if err != nil {
 		return false, ids.Empty, err
 	}
-	_, tx, _, err := cli.GenerateTransaction(ctx, parser, actions, factory)
+
+	unitPrices, err := cli.UnitPrices(ctx, true)
+	if err != nil {
+		return false, ids.Empty, err
+	}
+
+	tx, err := chain.GenerateTransaction(unitPrices, parser, actions, factory)
 	if err != nil {
 		return false, ids.Empty, err
 	}
