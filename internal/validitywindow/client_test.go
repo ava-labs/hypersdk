@@ -68,9 +68,9 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for result := range resultChan {
 		if result.Err != nil {
-			if errors.Is(result.Err, errChannelFull) {
+			if errors.Is(result.Err, errChannelFull) || errors.Is(result.Err, context.DeadlineExceeded) {
 				cancel()
-				req.Fail("channel full")
+				req.Fail(fmt.Sprintf("fatal error: %v", result.Err))
 			}
 			continue
 		}
@@ -150,8 +150,8 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	// Verify blocks from 9 to 4 have been received
 	for i := 4; i <= 9; i++ {
 		expectedBlock := chain[i]
-		height := expectedBlock.GetHeight()
-		receivedBlock, ok := receivedBlocks[height]
+		h := expectedBlock.GetHeight()
+		receivedBlock, ok := receivedBlocks[h]
 		req.True(ok)
 		req.Equal(expectedBlock, receivedBlock)
 	}

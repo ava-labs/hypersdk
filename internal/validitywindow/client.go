@@ -51,6 +51,7 @@ type BlockFetcherClient[B Block] struct {
 
 	checkpointLock sync.RWMutex
 	checkpoint     checkpoint
+	once           sync.Once
 }
 
 func NewBlockFetcherClient[B Block](
@@ -96,14 +97,17 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			}
 
 			c.checkpointLock.RLock()
-			lastCheckpoint := c.checkpoint
+			tstamp := c.checkpoint.timestamp
+			nextHeight := c.checkpoint.nextHeight
 			c.checkpointLock.RUnlock()
 
 			// Multiple blocks can share the same timestamp, so we have not filled the validity window
 			// until we find and include the first block whose timestamp is strictly less than the minimum
 			// timestamp. This ensures we have a complete and verifiable validity window
-			if lastCheckpoint.timestamp < minTimestamp.Load() {
-				close(resultChan)
+			if tstamp < minTimestamp.Load() {
+				c.once.Do(func() {
+					close(resultChan)
+				})
 				cancel()
 				return
 			}
@@ -113,7 +117,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 				continue
 			}
 
-			req.BlockHeight = lastCheckpoint.nextHeight
+			req.BlockHeight = nextHeight
 			err := c.client.AppRequest(reqCtx, nodeID, req, func(ctx context.Context, nodeID ids.NodeID, response *BlockFetchResponse, err error) {
 				// Handle response
 				if err != nil {
@@ -152,7 +156,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 						c.checkpoint.parentID = block.GetParent()
 						c.checkpoint.timestamp = block.GetTimestamp()
 						if nextHeight := block.GetHeight(); nextHeight > 0 {
-							c.checkpoint.nextHeight = height - 1
+							c.checkpoint.nextHeight = nextHeight - 1
 						}
 						c.checkpointLock.Unlock()
 					case <-ctx.Done():
