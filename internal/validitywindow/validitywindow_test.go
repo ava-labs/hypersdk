@@ -14,8 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
@@ -119,7 +117,7 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
 
-			chainIndex := &testChainIndex[container]{}
+			chainIndex := &testChainIndex{}
 			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
 				return test.validityWindow
 			})
@@ -275,7 +273,7 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
 
-			chainIndex := &testChainIndex[container]{}
+			chainIndex := &testChainIndex{}
 			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
 				return test.validityWindow
 			})
@@ -363,7 +361,7 @@ func TestVerifyTimestamp(t *testing.T) {
 func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
 
-	chainIndex := &testChainIndex[container]{}
+	chainIndex := &testChainIndex{}
 	validityWindowDuration := int64(10)
 	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
 		return validityWindowDuration
@@ -397,22 +395,20 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r.ErrorIs(VerifyTimestamp(validityWindowDuration, validityWindowDuration+1, 1, validityWindowDuration), ErrTimestampExpired)
 }
 
-var _ ChainIndex[container] = (*testChainIndex[container])(nil)
-
-type testChainIndex[T emap.Item] struct {
-	blocks map[ids.ID]ExecutionBlock[T]
+type testChainIndex struct {
+	blocks map[ids.ID]ExecutionBlock[container]
 }
 
-func (t *testChainIndex[T]) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[T], error) {
+func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, nil
 	}
 	return nil, database.ErrNotFound
 }
 
-func (t *testChainIndex[T]) set(blkID ids.ID, blk ExecutionBlock[T]) {
+func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[container]) {
 	if t.blocks == nil {
-		t.blocks = make(map[ids.ID]ExecutionBlock[T])
+		t.blocks = make(map[ids.ID]ExecutionBlock[container])
 	}
 	t.blocks[blkID] = blk
 }
@@ -487,7 +483,7 @@ func newExecutionBlock(height uint64, timestamp int64, containers []int64) execu
 		Tmstmp: timestamp,
 		Hght:   height,
 		ID:     id,
-		Bytes:  id[:],
+		Bytes:  binary.BigEndian.AppendUint64(nil, height),
 	}
 	for _, c := range containers {
 		e.Ctrs = append(e.Ctrs, newContainer(c))

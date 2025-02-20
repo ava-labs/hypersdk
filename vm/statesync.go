@@ -67,10 +67,10 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		return err
 	}
 
-	if blkFetcherErr := vm.network.AddHandler(
+	if err := vm.network.AddHandler(
 		blockFetchHandleID,
-		validitywindow.NewBlockFetcherHandler[*chain.ExecutionBlock](vm.chainStore)); blkFetcherErr != nil {
-		return blkFetcherErr
+		validitywindow.NewBlockFetcherHandler[*chain.ExecutionBlock](vm.chainStore)); err != nil {
+		return err
 	}
 
 	blockFetcherP2PClient := vm.network.NewClient(blockFetchHandleID)

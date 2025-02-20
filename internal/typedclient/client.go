@@ -46,7 +46,7 @@ func (t *TypedClient[T, U, _]) AppRequest(
 
 		response, parseErr := t.marshaler.UnmarshalResponse(responseBytes)
 		if parseErr != nil {
-			// TODO how do we handle this?
+			onResponse(ctx, nodeID, utils.Zero[U](), parseErr)
 			return
 		}
 

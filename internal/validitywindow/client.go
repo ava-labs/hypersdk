@@ -1,4 +1,4 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package validitywindow
@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -98,7 +99,10 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			lastCheckpoint := c.checkpoint
 			c.checkpointLock.RUnlock()
 
-			if lastCheckpoint.timestamp <= minTimestamp.Load() {
+			// Multiple blocks can share the same timestamp, so we have not filled the validity window
+			// until we find and include the first block whose timestamp is strictly less than the minimum
+			// timestamp. This ensures we have a complete and verifiable validity window
+			if lastCheckpoint.timestamp < minTimestamp.Load() {
 				close(resultChan)
 				cancel()
 				return
@@ -113,7 +117,6 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			err := c.client.AppRequest(reqCtx, nodeID, req, func(ctx context.Context, nodeID ids.NodeID, response *BlockFetchResponse, err error) {
 				// Handle response
 				if err != nil {
-					fmt.Printf("Handler received error: %v\n", err)
 					resultChan <- FetchResult[B]{Err: err}
 					return
 				}
@@ -131,7 +134,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 				for _, raw := range respBlocks {
 					block, parseErr := c.parser.ParseBlock(ctx, raw)
 					if parseErr != nil {
-						resultChan <- FetchResult[B]{Err: errInvalidBlock}
+						resultChan <- FetchResult[B]{Err: fmt.Errorf("%w: %v", parseErr, errInvalidBlock)}
 						return
 					}
 
@@ -148,7 +151,9 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 						c.checkpointLock.Lock()
 						c.checkpoint.parentID = block.GetParent()
 						c.checkpoint.timestamp = block.GetTimestamp()
-						c.checkpoint.nextHeight = block.GetHeight() - 1
+						if nextHeight := block.GetHeight(); nextHeight > 0 {
+							c.checkpoint.nextHeight = height - 1
+						}
 						c.checkpointLock.Unlock()
 					case <-ctx.Done():
 						resultChan <- FetchResult[B]{Err: ctx.Err()}
@@ -172,10 +177,6 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 
 func (c *BlockFetcherClient[B]) sampleNodeID(ctx context.Context) ids.NodeID {
 	nodes := c.sampler.Sample(ctx, numSampleNodes)
-	for _, nodeID := range nodes {
-		if nodeID.Compare(ids.EmptyNodeID) != 0 {
-			return nodeID
-		}
-	}
-	return ids.EmptyNodeID
+	randIndex := rand.Intn(len(nodes)) //nolint:gosec
+	return nodes[randIndex]
 }

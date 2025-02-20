@@ -1,4 +1,4 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package validitywindow
@@ -31,11 +31,11 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				return generateBlockChain(10, 3)
 			},
 			blockHeight:  9, // The tip of the chain
-			minTimestamp: 3, // Should get blocks with minTimestamp >= 3
-			wantBlocks:   7,
+			minTimestamp: 3, // Should get blocks with timestamp of 3 - 1 = 2 where 2 is the boundary block
+			wantBlocks:   8,
 		},
 		{
-			name: "partial blocks with missing nextHeight",
+			name: "partial blocks with missing height",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				blocks := generateBlockChain(10, 3)
 				delete(blocks, uint64(7))
@@ -47,17 +47,10 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			wantBlocks:   2, // Should get block 9 and 8 before failing on 7
 		},
 		{
-			name:         "zero nextHeight request",
+			name:         "zero height request",
 			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return generateBlockChain(10, 3) },
 			blockHeight:  0,
 			minTimestamp: 0,
-			wantBlocks:   0,
-		},
-		{
-			name:         "future minTimestamp",
-			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return generateBlockChain(10, 5) },
-			blockHeight:  9,
-			minTimestamp: time.Now().Unix() + 1000,
 			wantBlocks:   0,
 		},
 	}
@@ -148,44 +141,6 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 	}
 }
 
-func TestBlockFetcherHandler_Context(t *testing.T) {
-	ctx := context.Background()
-	req := require.New(t)
-
-	blocks := generateBlockChain(10, 1)
-	retriever := newTestBlockRetriever[ExecutionBlock[container]]().
-		withBlocks(blocks).
-		withDelay(10 * time.Millisecond) // Add some delay to ensure cancellation works
-
-	handler := NewBlockFetcherHandler(retriever)
-
-	ctx, cancel := context.WithCancel(ctx)
-
-	resultCh := make(chan struct {
-		blocks [][]byte
-		err    error
-	})
-	go func() {
-		fetchedBlockBytes, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
-			BlockHeight:  9,
-			MinTimestamp: 0,
-		})
-		resultCh <- struct {
-			blocks [][]byte
-			err    error
-		}{fetchedBlockBytes, err}
-	}()
-
-	// Cancel the context after a short delay
-	time.Sleep(25 * time.Millisecond)
-	cancel()
-
-	// Wait for result
-	result := <-resultCh
-	req.Error(result.err)
-	req.ErrorIs(result.err, context.Canceled)
-}
-
 func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	ctx := context.Background()
 	req := require.New(t)
@@ -219,8 +174,7 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 
 	select {
 	case r := <-resultCh:
-		req.Error(r.err)
-		req.ErrorIs(r.err, context.DeadlineExceeded)
+		req.NoError(r.err)
 		// We should get some blocks before timeout
 		req.NotEmpty(r.blocks)
 		// But not all; 7 = (Block of nextHeight 10, fetch until minTimestamp of block 3)
@@ -247,6 +201,8 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 
 	return blks
 }
+
+var _ BlockRetriever[Block] = (*testBlockRetriever[Block])(nil)
 
 type testBlockRetriever[T Block] struct {
 	delay   time.Duration

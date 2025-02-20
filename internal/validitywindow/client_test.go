@@ -1,5 +1,6 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
+
 package validitywindow
 
 import (
@@ -27,7 +28,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	defer cancel()
 
 	validChain := generateTestChain(10)
-	nodes := []nodeScenario[ExecutionBlock[container]]{
+	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: validChain[0],
@@ -48,7 +49,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 		},
 	}
 
-	network := setupTestNetwork[ExecutionBlock[container]](t, ctx, nodes)
+	network := setupTestNetwork(t, ctx, nodes)
 	blkParser := setupParser[ExecutionBlock[container]](validChain)
 	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
@@ -79,8 +80,8 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 		receivedBlocks[block.GetHeight()] = block
 	}
 
-	req.Len(receivedBlocks, 7) // block nextHeight from 9 to 3 should be received
-	for _, block := range validChain[3:] {
+	req.Len(receivedBlocks, 8) // block height from 9 to 2 should be received; 2 being boundary block due to strict verification
+	for _, block := range validChain[2:] {
 		received, ok := receivedBlocks[block.GetHeight()]
 		req.True(ok)
 		req.Equal(block.GetID(), received.GetID())
@@ -94,7 +95,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 
 	chain := generateTestChain(20)
 
-	nodes := []nodeScenario[ExecutionBlock[container]]{
+	nodes := []nodeScenario{
 		{
 			// First node has almost full state of valid transactions
 			blocks: map[uint64]ExecutionBlock[container]{
@@ -112,7 +113,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 		},
 	}
 
-	network := setupTestNetwork[ExecutionBlock[container]](t, ctx, nodes)
+	network := setupTestNetwork(t, ctx, nodes)
 	blockValidator := setupParser(chain)
 	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blockValidator, network.sampler)
 	tip := chain[9]
@@ -167,7 +168,7 @@ Test demonstrates dynamic minTimestamp boundary updates during block fetching.
 
 Initial state:
 
-	Blocks (nextHeight -> minTimestamp):  0->0, 1->1, 2->2, 3->3, 4->4, 5->5, 6->6, 7->7, 8->8, 9->9 -> 10->10 -> 11->11
+	Blocks (height -> minTimestamp):  0->0, 1->1, 2->2, 3->3, 4->4, 5->5, 6->6, 7->7, 8->8, 9->9 -> 10->10 -> 11->11
 	Initial minTS = 3: Should fetch blocks with timestamps > 3 (blocks 4-9)
 
 During execution:
@@ -176,8 +177,8 @@ During execution:
 3. This updates the boundary - now only fetches blocks with timestamps > 5
 
 Expected outcome:
-  - Only blocks 5-9 should be received (5 blocks total)
-  - Blocks 0-4 should not be received as they're below the updated minTS
+  - Only blocks 4 to 9 should be received (6 blocks total, 4th block being boundary block due to stricter adherence)
+  - Blocks 0-3 should not be received as they're below the updated minTS
 */
 func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	req := require.New(t)
@@ -186,7 +187,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 
 	delay := 50 * time.Millisecond
 	validChain := generateTestChain(10)
-	nodes := []nodeScenario[ExecutionBlock[container]]{
+	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: validChain[0],
@@ -204,7 +205,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		},
 	}
 
-	network := setupTestNetwork[ExecutionBlock[container]](t, ctx, nodes)
+	network := setupTestNetwork(t, ctx, nodes)
 	blkParser := setupParser[ExecutionBlock[container]](validChain)
 	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
@@ -233,14 +234,14 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		receivedBlocks[block.GetHeight()] = block
 	}
 
-	req.Len(receivedBlocks, 5)
+	req.Len(receivedBlocks, 6)
 
-	for _, block := range validChain[5:] {
+	for _, block := range validChain[4:] {
 		_, ok := receivedBlocks[block.GetHeight()]
 		req.True(ok)
 	}
 
-	for _, block := range validChain[:5] {
+	for _, block := range validChain[:4] {
 		_, ok := receivedBlocks[block.GetHeight()]
 		req.False(ok)
 	}
@@ -261,8 +262,8 @@ func generateTestChain(n int) []ExecutionBlock[container] {
 }
 
 // === Test Helpers ===
-type nodeScenario[T Block] struct {
-	blocks        map[uint64]T // in-memory blocks a node might have
+type nodeScenario struct {
+	blocks        map[uint64]ExecutionBlock[container] // in-memory blocks a node might have
 	responseDelay time.Duration
 }
 
@@ -272,7 +273,7 @@ type testNetwork struct {
 	nodes   []ids.NodeID
 }
 
-func setupTestNetwork[T Block](t *testing.T, ctx context.Context, nodeScenarios []nodeScenario[T]) *testNetwork {
+func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeScenario) *testNetwork {
 	clientNodeID := ids.GenerateTestNodeID()
 	handlers := make(map[ids.NodeID]p2p.Handler)
 	nodes := make([]ids.NodeID, len(nodeScenarios))
@@ -281,7 +282,7 @@ func setupTestNetwork[T Block](t *testing.T, ctx context.Context, nodeScenarios 
 		nodeID := ids.GenerateTestNodeID()
 		nodes = append(nodes, nodeID)
 
-		blkRetriever := newTestBlockRetriever[T]().withBlocks(scenario.blocks).withNodeID(nodeID)
+		blkRetriever := newTestBlockRetriever[ExecutionBlock[container]]().withBlocks(scenario.blocks).withNodeID(nodeID)
 		if scenario.responseDelay > 0 {
 			blkRetriever.withDelay(scenario.responseDelay)
 		}

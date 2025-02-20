@@ -1,4 +1,4 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package validitywindow
@@ -32,9 +32,11 @@ type BlockFetcher[T Block] interface {
 //  1. Backward Fetching (historical blocks) → A goroutine fetches past blocks (N → N-K).
 //  2. Forward Syncing (new blocks from consensus) → The syncer processes new incoming blocks.
 //
-// These two processes run concurrently and compete:
-// - If the forward syncer completes the window first, it cancels the fetcher.
-// - If the fetcher completes the window first, it stops itself.
+// Forward syncing always continues to maintain an up-to-date validity window,
+// even after backward fetching completes. This ensures the window stays valid
+// while other components (e.g. merkle trie) finish syncing.
+//
+// However, if forward syncing completes the window first, it cancels backward fetching.
 //
 // Example timeline (`K=3` required blocks for validity window):
 //
@@ -44,15 +46,16 @@ type BlockFetcher[T Block] interface {
 //	Forward Syncer: (Processing new blocks from consensus)
 //	  [N] → [N+1] → [N+2] → [N+3] → [N+K]
 //
-// Whoever completes the validity window first cancels the other.
+// The validity window can be marked as complete once either mechanism builds it,
+// but forward syncing continues to maintain the window regardless.
 type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 	chainIndex         ChainIndex[T]
 	timeValidityWindow *TimeValidityWindow[T]
 	getValidityWindow  GetTimeValidityWindowFunc
 	blockFetcherClient BlockFetcher[B]
 
-	lastAccepted ExecutionBlock[T] // Tracks oldest block we have
-	minTimestamp *atomic.Int64     // Minimum timestamp needed for backward sync
+	oldestBlock  ExecutionBlock[T] // Tracks oldest block we have
+	minTimestamp atomic.Int64      // Minimum timestamp needed for backward sync
 
 	doneOnce sync.Once
 	doneChan chan struct{}
@@ -68,7 +71,6 @@ func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeV
 		getValidityWindow:  getValidityWindow,
 		doneChan:           make(chan struct{}),
 		errChan:            make(chan error, 1),
-		minTimestamp:       &atomic.Int64{},
 	}
 }
 
@@ -77,7 +79,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.minTimestamp.Store(minTS)
 
 	// Try to build partial validity window from existing blocks
-	minAccepted, seenValidityWindow := s.backfillFromExisting(ctx, target)
+	lastAccepted, seenValidityWindow := s.backfillFromExisting(ctx, target)
 
 	// If we've filled validity window from cache/disk, we're done
 	if seenValidityWindow {
@@ -87,19 +89,13 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 
 	syncCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
-	// Start fetching historical blocks from the peer from starting from minAccepted
+	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
-		id := target.GetID()
-		height := target.GetHeight()
-		timestamp := target.GetTimestamp()
+		id := lastAccepted.GetID()
+		height := lastAccepted.GetHeight()
+		timestamp := lastAccepted.GetTimestamp()
 
-		if minAccepted != nil {
-			id = minAccepted.GetID()
-			height = minAccepted.GetHeight()
-			timestamp = minAccepted.GetTimestamp()
-		}
-
-		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, id, height, timestamp, s.minTimestamp)
+		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, id, height, timestamp, &s.minTimestamp)
 		for result := range resultChan {
 			if errors.Is(result.Err, errChannelFull) || errors.Is(result.Err, context.Canceled) {
 				s.cancel()
@@ -136,13 +132,9 @@ func (s *Syncer[T, B]) Close() error {
 	return nil
 }
 
-func (s *Syncer[T, B]) UpdateSyncTarget(ctx context.Context, target B) error {
+func (s *Syncer[T, B]) UpdateSyncTarget(_ context.Context, target B) error {
 	// Try to incorporate the new block into our window
-	done, err := s.accept(ctx, target)
-	if err != nil {
-		return err
-	}
-
+	done := s.accept(target)
 	if done {
 		return s.Close()
 	}
@@ -155,25 +147,19 @@ func (s *Syncer[T, B]) UpdateSyncTarget(ctx context.Context, target B) error {
 }
 
 // accept new incoming block from consensus
-func (s *Syncer[T, B]) accept(ctx context.Context, blk ExecutionBlock[T]) (bool, error) {
-	// If we don't have any blocks yet, try to backfill
-	if s.lastAccepted == nil {
-		s.backfillFromExisting(ctx, blk)
-	}
-
+func (s *Syncer[T, B]) accept(blk ExecutionBlock[T]) bool {
 	// Check if this new block completes our validity window
-	seenValidityWindow := blk.GetTimestamp()-s.lastAccepted.GetTimestamp() >
+	seenValidityWindow := blk.GetTimestamp()-s.oldestBlock.GetTimestamp() >
 		s.getValidityWindow(blk.GetTimestamp())
 
 	s.timeValidityWindow.Accept(blk)
-	return seenValidityWindow, nil
+	return seenValidityWindow
 }
 
 // backfillFromExisting attempts to build validity window from existing blocks
 // Returns:
-// - The last block we found (oldest)
+// - The last accepted block (newest)
 // - Whether we saw the full validity window
-// - Any error encountered
 func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
@@ -186,7 +172,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		err                error
 	)
 
-	// Keep fetching parents (historical blocks) until we:
+	// Keep fetching parents until we:
 	// - Fill validity window, or
 	// - Can't find more blocks
 	for {
@@ -203,29 +189,18 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		}
 	}
 
-	lastIndex := len(parents) - 1
-	if lastIndex < 0 {
-		return nil, seenValidityWindow
-	}
-
-	minAccepted := block.GetHeight()
-	minIndex := -1
-	// Accept all blocks we found, even if partial
-	for i := lastIndex; i >= 0; i-- {
-		blk := parents[i]
-		s.timeValidityWindow.Accept(blk)
-		s.lastAccepted = blk
-
-		if blk.GetHeight() < minAccepted {
-			minAccepted = blk.GetHeight()
-			minIndex = i
+	lastAccepted := block
+	for i, bl := range parents {
+		if i == 0 {
+			s.oldestBlock = bl
 		}
+		if bl.GetHeight() > lastAccepted.GetHeight() {
+			lastAccepted = bl
+		}
+		s.timeValidityWindow.Accept(bl)
 	}
 
-	if minIndex != -1 {
-		return parents[minIndex], seenValidityWindow
-	}
-	return nil, seenValidityWindow
+	return lastAccepted, seenValidityWindow
 }
 
 func (s *Syncer[T, B]) signalDone() {

@@ -1,4 +1,4 @@
-// Copyright (C) 2025, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package validitywindow
@@ -18,6 +18,7 @@ const maxProcessingDuration = 50 * time.Millisecond
 const (
 	ErrCodeUnmarshal = iota + 1
 	ErrCodeRetrieval
+	ErrBlocksNotFound
 )
 
 var errUnmarshalRequest = &common.AppError{
@@ -71,22 +72,27 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    ErrCodeRetrieval,
-			Message: fmt.Errorf("failed to fetch blocks: %w", err).Error(),
+			Message: fmt.Sprintf("failed to fetch blocks: %v", err),
 		}
 	}
 
-	return response.MarshalCanoto(), nil
+	return nil, &common.AppError{
+		Code:    ErrBlocksNotFound,
+		Message: fmt.Sprintf("no blocks found starting at height %d", request.BlockHeight),
+	}
 }
 
 func (*BlockFetcherHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) {}
 
-// Client                              Server
-// |--- FetchBlocks(nextHeight=100, ------>|
-// |    minTimestamp=X)                | - Get block 100
-// |                                   | - Get block 99
-// |                                   | - Get block 98
-// |                                   | - Until minTimestamp < X
-// |<-- [Block100,Block99,Block98] --- |
+// Client                                    Server
+// |--- FetchBlocks(height=5,         ------>|
+// |    minTimestamp=3)                | Get block 5 (timestamp=5)
+// |                                   | Get block 4 (timestamp=4)
+// |                                   | Get block 3 (timestamp=3)
+// |                                   | Get block 2 (timestamp=2)
+// |                                   | Stop after including block 2
+// |                                   | since 2 < minTimestamp(3)
+// |<-- [Block5..Block2]           --- |
 func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *BlockFetchRequest) ([][]byte, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, maxProcessingDuration)
 	defer cancel()
@@ -100,16 +106,17 @@ func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *Block
 	for height > 0 {
 		select {
 		case <-timeoutCtx.Done():
-			return blocks, timeoutCtx.Err()
+			return blocks, nil
 		default:
 			block, err := b.retriever.GetBlockByHeight(ctx, height)
 			if err != nil {
 				return blocks, err
 			}
+			blocks = append(blocks, block.GetBytes())
+
 			if block.GetTimestamp() < minTimestamp {
 				return blocks, nil
 			}
-			blocks = append(blocks, block.GetBytes())
 			height--
 		}
 	}
