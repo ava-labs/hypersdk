@@ -11,6 +11,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/gorilla/rpc v1.2.0
 	github.com/holiman/uint256 v1.2.4
+	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.9.0
@@ -107,7 +108,6 @@ require (
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d // indirect
 	github.com/neilotoole/errgroup v0.1.6 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/onsi/ginkgo/v2 v2.13.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/pires/go-proxyproto v0.6.2 // indirect
