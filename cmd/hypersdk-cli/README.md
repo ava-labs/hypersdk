@@ -106,7 +106,7 @@ Simulate a single action transaction.
 hypersdk-cli read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9,value=12,memo=0xdeadc0de
 ```
 
-For interactive input remove --data from the comand line:
+For interactive input remove --data from the command line:
 
 ```bash
 hypersdk-cli read Transfer
