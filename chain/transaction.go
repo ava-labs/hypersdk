@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -614,4 +615,49 @@ func EstimateUnits(r Rules, actions Actions, authFactory AuthFactory) (fees.Dime
 		return fees.Dimensions{}, err
 	}
 	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
+}
+
+func GenerateTransaction(
+	unitPrices fees.Dimensions,
+	parser Parser,
+	actions Actions,
+	authFactory AuthFactory,
+) (*Transaction, error) {
+	units, err := EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	if err != nil {
+		return nil, err
+	}
+	maxFee, err := fees.MulSum(unitPrices, units)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := GenerateTransactionManual(parser, actions, authFactory, maxFee)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func GenerateTransactionManual(
+	parser Parser,
+	actions Actions,
+	authFactory AuthFactory,
+	maxFee uint64,
+) (*Transaction, error) {
+	// Construct transaction
+	now := time.Now().UnixMilli()
+	rules := parser.Rules(now)
+	base := &Base{
+		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
+		ChainID:   rules.GetChainID(),
+		MaxFee:    maxFee,
+	}
+
+	// Build transaction
+	unsignedTx := NewTxData(base, actions)
+	tx, err := unsignedTx.Sign(authFactory)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to sign transaction", err)
+	}
+	return tx, nil
 }

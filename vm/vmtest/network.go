@@ -428,8 +428,11 @@ func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) 
 
 func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, authFactory chain.AuthFactory) (*chain.Transaction, error) {
 	cli := jsonrpc.NewJSONRPCClient(n.VMs[0].server.URL)
-	_, tx, _, err := cli.GenerateTransaction(ctx, n.VMs[0].VM, actions, authFactory)
-	return tx, err
+	unitPrices, err := cli.UnitPrices(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	return chain.GenerateTransaction(unitPrices, n.VMs[0].VM, actions, authFactory)
 }
 
 func (n *TestNetwork) ConfirmBlocks(ctx context.Context, numBlocks int, generateTxs func(i int) []*chain.Transaction) {
