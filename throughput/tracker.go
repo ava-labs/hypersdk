@@ -65,7 +65,12 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					}
 					currSent := t.sent.Load()
 					currTime := time.Now()
-					diff := max(currTime.Sub(prevTime).Seconds(), 0.001)
+					diff := currTime.Sub(prevTime).Seconds()
+					// This should never happen, but golang only guarantees that time is monotonically increasing,
+					// so we add a check to prevent division by zero here.
+					if diff == 0 {
+						continue
+					}
 					utils.Outf(
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						t.totalTxs,
