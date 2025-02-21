@@ -117,7 +117,7 @@ func TestServerPublish(t *testing.T) {
 	}
 	// Gracefully shutdown the server
 	err = server.Shutdown(context.TODO())
-	require.NoError(err, "Error shuting down server")
+	require.NoError(err, "Error shutting down server")
 	// Wait for the server to finish shutting down
 	<-serverDone
 }
@@ -321,7 +321,7 @@ func TestServerPublishSpecific(t *testing.T) {
 
 	// Gracefully shutdown the server
 	err = server.Shutdown(context.TODO())
-	require.NoError(err, "Error shuting down server.")
+	require.NoError(err, "Error shutting down server.")
 
 	// Wait for the server to finish shutting down
 	select {
