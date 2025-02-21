@@ -90,7 +90,7 @@ func TestServerPublish(t *testing.T) {
 	handler.Publish([]byte(dummyMsg), handler.Connections())
 	// Receive the message from the publish
 	_, batchMsg, err := webCon.ReadMessage()
-	require.NoError(err, "Error receiveing message.")
+	require.NoError(err, "Error receiving message.")
 	msgs, err := ParseBatchMessage(batchMsg)
 	require.NoError(err, "Error parsing message.")
 	require.Len(msgs, 1)
