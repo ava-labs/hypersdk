@@ -132,7 +132,7 @@ func (i *Indexer) initBlocks() error {
 		if err != nil {
 			return err
 		}
-		i.updateCachedBlocks(blk)
+		i.insertBlockIntoCache(blk)
 	}
 	if err := iter.Error(); err != nil {
 		return err
@@ -145,14 +145,18 @@ func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	if i.blockWindow == 0 {
 		return nil
 	}
+
 	i.mu.Lock()
-	i.updateCachedBlocks(blk)
+	i.insertBlockIntoCache(blk)
 	i.mu.Unlock()
 
 	return i.storeBlock(blk)
 }
 
-func (i *Indexer) updateCachedBlocks(blk *chain.ExecutedBlock) {
+// insertBlockIntoCache add the given block and it's transaction
+// to the indexer's cache.
+// assume : the write lock was already obtained by the caller.
+func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
 	i.cachedBlocks.Push(blk.Block.Hght)
 	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
 	i.blockHeightToBlock[blk.Block.Hght] = blk
@@ -166,6 +170,8 @@ func (i *Indexer) updateCachedBlocks(blk *chain.ExecutedBlock) {
 	i.lastHeight = blk.Block.Hght
 }
 
+// storeBlock persist the given block to the database, and remove the
+// evicted blocks.
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
@@ -223,6 +229,7 @@ func (i *Indexer) getBlockByHeight(height uint64) (*chain.ExecutedBlock, error) 
 func (i *Indexer) GetBlock(blkID ids.ID) (*chain.ExecutedBlock, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
+
 	height, ok := i.blockIDToHeight[blkID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errBlockNotFound, blkID)

@@ -55,22 +55,14 @@ type GetBlockResponse struct {
 	BlockBytes codec.Bytes          `json:"blockBytes"`
 }
 
-func (g *GetBlockResponse) setResponse(block *chain.ExecutedBlock) error {
-	g.Block = block
-	blockBytes, err := block.Marshal()
-	if err != nil {
-		return err
-	}
-	g.BlockBytes = blockBytes
-	return nil
-}
-
 func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBlockResponse) error {
 	_, span := s.tracer.Start(req.Context(), "Indexer.GetBlock")
 	defer span.End()
 
-	var executedBlk *chain.ExecutedBlock
-	var err error
+	var (
+		executedBlk *chain.ExecutedBlock
+		err         error
+	)
 	switch {
 	case args.BlockID != ids.Empty:
 		executedBlk, err = s.indexer.GetBlock(args.BlockID)
@@ -84,7 +76,13 @@ func (s *Server) GetBlock(req *http.Request, args *GetBlockRequest, reply *GetBl
 	if err != nil {
 		return err
 	}
-	return reply.setResponse(executedBlk)
+	executedBlkBytes, err := executedBlk.Marshal()
+	if err != nil {
+		return err
+	}
+	reply.Block = executedBlk
+	reply.BlockBytes = executedBlkBytes
+	return nil
 }
 
 type GetTxRequest struct {
