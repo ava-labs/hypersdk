@@ -341,6 +341,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feeP
 			return nil, nil, err
 		}
 		if err := p.Add(tx); err != nil {
+			_ = p.Wait()
 			return nil, nil, fmt.Errorf("%w: failed to register tx", err)
 		}
 
@@ -398,6 +399,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 			return err
 		}
 		if err := p.Add(tx); err != nil {
+			_ = p.Wait()
 			return err
 		}
 		returnedBalance += returnAmt
