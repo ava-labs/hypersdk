@@ -48,20 +48,22 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
 	tick := time.NewTicker(1 * time.Second) // ensure no duplicates created
-	var psent int64
+	var (
+		prevSent int64
+		prevTime = time.Now()
+	)
 	go func() {
 		defer tick.Stop()
-		prevTime := time.Now()
 		for {
 			select {
 			case <-tick.C:
-				current := t.sent.Load()
 				t.l.Lock()
 				if t.totalTxs > 0 {
 					unitPrices, err := cli.UnitPrices(ctx, false)
 					if err != nil {
 						continue
 					}
+					currSent := t.sent.Load()
 					currTime := time.Now()
 					diff := min(currTime.Sub(prevTime).Seconds(), 1)
 					utils.Outf(
@@ -69,13 +71,13 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 						t.totalTxs,
 						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
 						t.inflight.Load(),
-						uint64(float64(current-psent)/diff),
+						uint64(float64(currSent-prevSent)/diff),
 						unitPrices,
 					)
 					prevTime = currTime
+					prevSent = currSent
 				}
 				t.l.Unlock()
-				psent = current
 			case <-ctx.Done():
 				return
 			}
