@@ -61,6 +61,7 @@ const (
 	changeProofHandlerID = 0x0
 	rangeProofHandlerID  = 0x1
 	txGossipHandlerID    = 0x2
+	blockFetchHandleID   = 0x3
 )
 
 var ErrNotAdded = errors.New("not added")
@@ -89,7 +90,6 @@ type VM struct {
 
 	chain                   *chain.Chain
 	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
-	syncer                  *validitywindow.Syncer[*chain.Transaction]
 	SyncClient              *statesync.Client[*chain.ExecutionBlock]
 
 	consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
@@ -382,10 +382,10 @@ func (vm *VM) initChainStore() error {
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
-	if err != nil && err != database.ErrNotFound {
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
 	}
-	if err == database.ErrNotFound {
+	if errors.Is(err, database.ErrNotFound) {
 		return vm.initGenesisAsLastAccepted(ctx)
 	}
 	if lastAcceptedHeight == 0 {
