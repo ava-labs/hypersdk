@@ -12,13 +12,13 @@ import (
 type Accepter struct {
 	tracer         trace.Tracer
 	validityWindow ValidityWindow
-	metrics        *chainMetrics
+	metrics        *ChainMetrics
 }
 
 func NewAccepter(
 	tracer trace.Tracer,
 	validityWindow ValidityWindow,
-	metrics *chainMetrics,
+	metrics *ChainMetrics,
 ) *Accepter {
 	return &Accepter{
 		tracer:         tracer,
