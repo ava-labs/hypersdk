@@ -24,6 +24,6 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.docker_username }}
           DOCKER_PASS: ${{ secrets.docker_pass }}
-          DOCKER_IMAGE: ${{ secrets.docker_repo }}
+          DOCKER_IMAGE: avaplatform/hypervm
           BUILD_MULTI_ARCH: 1
         run: scripts/build_docker_image.sh
