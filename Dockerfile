@@ -16,7 +16,7 @@ RUN go mod download
 # Copy the code into the container
 COPY . .
 
-# Set the working directory to the VM's directory
+# Set the working directory to the VM directory
 WORKDIR /build/examples/$VM_NAME/
 
 # Download VM deps
