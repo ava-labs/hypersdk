@@ -76,7 +76,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	indexerCli := indexer.NewClient(uri)
+	indexerCli := indexer.NewClient(uri, nil)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
@@ -84,12 +84,12 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, err := indexerCli.GetTx(ctx, txID)
+	txRes, _, _, err := indexerCli.GetTx(ctx, txID)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
-	require.NotZero(txRes.Fee)
-	require.Len(txRes.Outputs, 1)
-	transferOutputBytes := []byte(txRes.Outputs[0])
+	require.NotZero(txRes.Result.Fee)
+	require.Len(txRes.Result.Outputs, 1)
+	transferOutputBytes := txRes.Result.Outputs[0]
 	require.Equal(consts.TransferID, transferOutputBytes[0])
 	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
