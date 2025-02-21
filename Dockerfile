@@ -35,12 +35,18 @@ ARG BUILDPLATFORM
 # environment state is not otherwise persistent.
 RUN if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
     apt-get update && apt-get install -y gcc-aarch64-linux-gnu && \
-    echo "export CC=aarch64-linux-gnu-gcc" > ./build_env.sh \
+    echo "export CC=aarch64-linux-gnu-gcc" > ./build_env.sh && \
+    echo "export CGO_ENABLED=1" >> ./build_env.sh && \
+    echo "export CGO_CFLAGS='-O2 -D__BLST_PORTABLE__ -DFORCE_PORTABLE=1'" >> ./build_env.sh \
     ; elif [ "$TARGETPLATFORM" = "linux/amd64" ] && [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
     apt-get update && apt-get install -y gcc-x86-64-linux-gnu && \
-    echo "export CC=x86_64-linux-gnu-gcc" > ./build_env.sh \
+    echo "export CC=x86_64-linux-gnu-gcc" > ./build_env.sh && \
+    echo "export CGO_ENABLED=1" >> ./build_env.sh && \
+    echo "export CGO_CFLAGS='-O2 -D__BLST_PORTABLE__'" >> ./build_env.sh \
     ; else \
-    echo "export CC=gcc" > ./build_env.sh \
+    echo "export CC=gcc" > ./build_env.sh && \
+    echo "export CGO_ENABLED=1" >> ./build_env.sh && \
+    echo "export CGO_CFLAGS='-O2 -D__BLST_PORTABLE__'" >> ./build_env.sh \
     ; fi
 
 # Build VM binary. The build environment is configured with build_env.sh from the step
