@@ -20,7 +20,7 @@ jobs:
           sudo systemctl restart docker
       - name: Create multiplatform docker builder
         run: docker buildx create --use
-      - name: Build and publish images to DockerHub
+      - name: Build and publish image to DockerHub
         env:
           DOCKER_USERNAME: ${{ secrets.docker_username }}
           DOCKER_PASS: ${{ secrets.docker_pass }}
