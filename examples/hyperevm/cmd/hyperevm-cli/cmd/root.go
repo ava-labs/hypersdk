@@ -15,7 +15,7 @@ import (
 
 const (
 	fsModeWrite     = 0o600
-	defaultDatabase = ".evm-cli"
+	defaultDatabase = ".hyperevm-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -40,9 +40,9 @@ var (
 	prometheusData        string
 	startPrometheus       bool
 	rootCmd               = &cobra.Command{
-		Use:        "evm-cli",
-		Short:      "evm CLI",
-		SuggestFor: []string{"evm-cli", "evmcli"},
+		Use:        "hyperevm-cli",
+		Short:      "hyperevm CLI",
+		SuggestFor: []string{"hyperevm-cli", "hyperevmcli"},
 	}
 )
 
