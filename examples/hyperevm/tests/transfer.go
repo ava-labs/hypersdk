@@ -17,8 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
 	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/tests/registry"
+
 	tworkload "github.com/ava-labs/hypersdk/tests/workload"
 )
 

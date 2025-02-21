@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package throughput
 
 import (
@@ -7,6 +10,10 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/rand"
+
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -16,9 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/rand"
 )
 
 func TestGetTransfer(t *testing.T) {

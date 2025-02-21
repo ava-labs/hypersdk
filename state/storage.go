@@ -21,7 +21,7 @@ func (i ImmutableStorage) GetValue(_ context.Context, key []byte) (value []byte,
 
 type MutableStorage map[string][]byte
 
-func (m MutableStorage) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (m MutableStorage) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	if v, has := m[string(key)]; has {
 		return v, nil
 	}

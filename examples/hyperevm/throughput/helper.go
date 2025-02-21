@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ava-labs/subnet-evm/core"
+	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/rand"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -20,8 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/throughput"
-	"github.com/ava-labs/subnet-evm/core"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var _ throughput.SpamHelper = &SpamHelper{}
