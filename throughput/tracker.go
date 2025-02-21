@@ -65,7 +65,7 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					}
 					currSent := t.sent.Load()
 					currTime := time.Now()
-					diff := min(currTime.Sub(prevTime).Seconds(), 1)
+					diff := max(currTime.Sub(prevTime).Seconds(), 0.001)
 					utils.Outf(
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						t.totalTxs,
