@@ -195,7 +195,8 @@ func NewTestNetwork(
 	configuration := workload.NewDefaultTestNetworkConfiguration(
 		vms[0].VM.GenesisBytes,
 		"hypervmtests",
-		vms[0].VM,
+		vms[0].VM.GetRuleFactory(),
+		vms[0].VM.GetTxParser(),
 		authFactories,
 	)
 	testNetwork.configuration = configuration
@@ -428,7 +429,13 @@ func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) 
 
 func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, authFactory chain.AuthFactory) (*chain.Transaction, error) {
 	cli := jsonrpc.NewJSONRPCClient(n.VMs[0].server.URL)
-	_, tx, _, err := cli.GenerateTransaction(ctx, n.VMs[0].VM, actions, authFactory)
+	_, tx, _, err := cli.GenerateTransaction(
+		ctx,
+		n.VMs[0].VM.GetRuleFactory(),
+		n.VMs[0].VM.GetTxParser(),
+		actions,
+		authFactory,
+	)
 	return tx, err
 }
 

@@ -4,8 +4,6 @@
 package throughput
 
 import (
-	"context"
-
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -29,7 +27,8 @@ type SpamHelper interface {
 	// TODO: consider making these functions part of the required JSONRPC
 	// interface for the HyperSDK.
 	CreateClient(uri string) error
-	GetParser(ctx context.Context) (chain.Parser, error)
+	GetParser() chain.Parser
+	GetRuleFactory() chain.RuleFactory
 	LookupBalance(address codec.Address) (uint64, error)
 
 	// GetTransfer returns a list of actions that sends [amount] to a given [address].

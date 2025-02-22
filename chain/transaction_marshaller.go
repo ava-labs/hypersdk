@@ -15,19 +15,22 @@ type TxTypeParser struct {
 	AuthRegistry   *codec.TypeParser[Auth]
 }
 
+func NewTxTypeParser(
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
+) *TxTypeParser {
+	return &TxTypeParser{
+		ActionRegistry: actionRegistry,
+		AuthRegistry:   authRegistry,
+	}
+}
+
 func (t *TxTypeParser) ParseAction(bytes []byte) (Action, error) {
 	return t.ActionRegistry.Unmarshal(codec.NewReader(bytes, len(bytes)))
 }
 
 func (t *TxTypeParser) ParseAuth(bytes []byte) (Auth, error) {
 	return t.AuthRegistry.Unmarshal(codec.NewReader(bytes, len(bytes)))
-}
-
-func NewTxTypeParser(actionRegistry *codec.TypeParser[Action], authRegistry *codec.TypeParser[Auth]) *TxTypeParser {
-	return &TxTypeParser{
-		ActionRegistry: actionRegistry,
-		AuthRegistry:   authRegistry,
-	}
 }
 
 type BatchedTransactions struct {

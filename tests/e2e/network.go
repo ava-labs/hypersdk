@@ -36,7 +36,8 @@ type Network struct {
 	// The parser here is the original parser provided by the vm, with the chain ID populated by
 	// the newly created network. On e2e networks, we can't tell in advance what the ChainID would be,
 	// and therefore need to update it from the network.
-	parser *parser
+	parser      chain.Parser
+	ruleFactory chain.RuleFactory
 }
 
 func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
@@ -45,13 +46,8 @@ func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 	testNetwork := &Network{
 		network:      network,
 		blockchainID: blockchainID,
-		parser: &parser{
-			Parser: networkConfig.Parser(),
-			rules: &rules{
-				Rules:   networkConfig.Parser().Rules(0),
-				chainID: blockchainID,
-			},
-		},
+		parser:       networkConfig.Parser(),
+		ruleFactory:  networkConfig.RuleFactory(),
 	}
 	return testNetwork
 }
@@ -112,6 +108,7 @@ func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth c
 	c := jsonrpc.NewJSONRPCClient(uris[0])
 	_, tx, _, err := c.GenerateTransaction(
 		ctx,
+		n.ruleFactory,
 		n.parser,
 		actions,
 		auth,
@@ -121,22 +118,4 @@ func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth c
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
 	return networkConfig
-}
-
-type rules struct {
-	chain.Rules
-	chainID ids.ID
-}
-
-func (r *rules) GetChainID() ids.ID {
-	return r.chainID
-}
-
-type parser struct {
-	chain.Parser
-	rules *rules
-}
-
-func (p *parser) Rules(int64) chain.Rules {
-	return p.rules
 }

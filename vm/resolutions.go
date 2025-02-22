@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
@@ -42,6 +43,14 @@ func (vm *VM) NetworkID() uint32 {
 
 func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
+}
+
+func (vm *VM) GetABI() abi.ABI {
+	return vm.abi
+}
+
+func (vm *VM) GetTxParser() chain.Parser {
+	return vm.txParser
 }
 
 func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
@@ -76,8 +85,8 @@ func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
-func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.ruleFactory.GetRules(t)
+func (vm *VM) GetRuleFactory() chain.RuleFactory {
+	return vm.ruleFactory
 }
 
 func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
