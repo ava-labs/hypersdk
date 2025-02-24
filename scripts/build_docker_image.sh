@@ -94,5 +94,5 @@ ${DOCKER_CMD} -t "${DOCKER_IMAGE}:${IMAGE_TAG}" -t "${DOCKER_IMAGE}:${COMMIT_HAS
 # Only tag the latest image for the main branch when images are pushed to a registry
 if [[ "${DOCKER_IMAGE}" == *"/"* && "${IMAGE_TAG}" == "main" ]]; then
   echo "Tagging current image as ${DOCKER_IMAGE}:latest"
-  docker buildx imagetools create -t "${DOCKER_IMAGE}:latest" "${DOCKER_IMAGE}:${GIT_COMMIT}"
+  docker buildx imagetools create -t "${DOCKER_IMAGE}:latest" "${DOCKER_IMAGE}:${COMMIT_HASH}"
 fi
