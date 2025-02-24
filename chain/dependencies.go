@@ -101,27 +101,12 @@ type BalanceHandler interface {
 	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
-type Object interface {
-	// GetTypeID uniquely identifies each supported [Action]. We use IDs to avoid
-	// reflection.
+type Action interface {
 	GetTypeID() uint8
-
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
 	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
-}
-
-type Marshaler interface {
-	// Marshal encodes a type as bytes.
-	Marshal(p *codec.Packer)
-	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
-	// memory during encoding and to charge bandwidth fees.
-	Size() int
-}
-
-type Action interface {
-	Object
 
 	// Bytes returns the byte representation of this action.
 	// The chain parser must be able to parse this representation and return the corresponding action.
@@ -166,13 +151,24 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (codec.Typed, error)
+	) ([]byte, error)
 }
 
 type Auth interface {
-	Object
-	Marshaler
+	// GetTypeID returns the typeID of this auth instance.
+	GetTypeID() uint8
+	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
+	//
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
 
+	// Bytes returns the byte representation of this auth credential.
+	// The chain parser must be able to parse this representation and return the corresponding Auth.
+	// This function is not performance critical because actions/auth are always serialized inside of
+	// a transaction and transactions will cache their byte representations after unmarshal, so this
+	// will only be called on the write path.
+	// The write path is not performance critical because this only impacts transaction issuers, not nodes
+	// which will always parse transactions received from the network or API.
 	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is

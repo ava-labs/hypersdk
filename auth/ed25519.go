@@ -71,8 +71,12 @@ func (d *ED25519) Marshal(p *codec.Packer) {
 }
 
 func (d *ED25519) Bytes() []byte {
-	packer := codec.NewWriter(ED25519Size, ED25519Size)
+	packer := codec.NewWriter(ED25519Size, ED25519Size+1)
+	packer.PackByte(d.GetTypeID())
 	d.Marshal(packer)
+	if err := packer.Err(); err != nil {
+		panic(err)
+	}
 	return packer.Bytes()
 }
 

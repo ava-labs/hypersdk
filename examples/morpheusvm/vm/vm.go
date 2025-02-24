@@ -23,6 +23,8 @@ var (
 	OutputParser *codec.TypeParser[codec.Typed]
 
 	AuthProvider *auth.AuthProvider
+
+	Parser *chain.TxTypeParser
 )
 
 // Setup types
@@ -39,17 +41,19 @@ func init() {
 	if err := errors.Join(
 		// When registering new actions, ALWAYS make sure to append at the end.
 		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
-		ActionParser.Register(&actions.Transfer{}, nil),
+		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
 		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
-		OutputParser.Register(&actions.TransferResult{}, nil),
+		OutputParser.Register(&actions.TransferResult{}, actions.UnmarshalTransferResult),
 	); err != nil {
 		panic(err)
 	}
+
+	Parser = chain.NewTxTypeParser(ActionParser, AuthParser)
 }
 
 // New returns a VM with the specified options

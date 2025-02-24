@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -18,14 +19,12 @@ var (
 )
 
 type TestAuth struct {
-	NumComputeUnits uint64        `canoto:"fint64,1" serialize:"true" json:"numComputeUnits"`
-	ActorAddress    codec.Address `canoto:"fixed bytes,2" serialize:"true" json:"actor"`
-	SponsorAddress  codec.Address `canoto:"fixed bytes,3" serialize:"true" json:"sponsor"`
-	ShouldErr       bool          `canoto:"bool,4" serialize:"true" json:"shouldErr"`
-	Start           int64         `canoto:"sint,5" serialize:"true" json:"start"`
-	End             int64         `canoto:"sint,6" serialize:"true" json:"end"`
-
-	canotoData canotoData_TestAuth
+	NumComputeUnits uint64        `serialize:"true" json:"numComputeUnits"`
+	ActorAddress    codec.Address `serialize:"true" json:"actor"`
+	SponsorAddress  codec.Address `serialize:"true" json:"sponsor"`
+	ShouldErr       bool          `serialize:"true" json:"shouldErr"`
+	Start           int64         `serialize:"true" json:"start"`
+	End             int64         `serialize:"true" json:"end"`
 }
 
 func (t *TestAuth) GetTypeID() uint8 {
@@ -33,7 +32,26 @@ func (t *TestAuth) GetTypeID() uint8 {
 }
 
 func (t *TestAuth) Bytes() []byte {
-	return t.MarshalCanoto()
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0, 256),
+		MaxSize: 256,
+	}
+	p.PackByte(t.GetTypeID())
+	// TODO: switch to using canoto after dynamic ABI support
+	// so that we don't need to ignore the error here.
+	_ = codec.LinearCodec.MarshalInto(t, p)
+	return p.Bytes
+}
+
+func UnmarshalTestAuth(p *codec.Packer) (codec.Typed, error) {
+	t := &TestAuth{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		p.Packer,
+		t,
+	); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // ValidRange returns the start/end fields of the action unless 0 is specified.
@@ -84,4 +102,20 @@ func (t *TestAuth) Verify(ctx context.Context, msg []byte) error {
 		return ErrTestAuthVerify
 	}
 	return nil
+}
+
+type TestAuthFactory struct {
+	TestAuth *TestAuth
+}
+
+func (t *TestAuthFactory) Sign(msg []byte) (chain.Auth, error) {
+	return t.TestAuth, nil
+}
+
+func (t *TestAuthFactory) MaxUnits() (bandwidth uint64, compute uint64) {
+	panic("not implemented")
+}
+
+func (t *TestAuthFactory) Address() codec.Address {
+	panic("not implemented")
 }

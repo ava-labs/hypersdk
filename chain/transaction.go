@@ -62,7 +62,9 @@ func (t *TransactionData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	return w
 }
 
-func (t *TransactionData) CalculateCanotoCache() {}
+func (t *TransactionData) CalculateCanotoCache() {
+	t.Base.CalculateCanotoCache()
+}
 
 func (t *TransactionData) CachedCanotoSize() int { return len(t.unsignedBytes) }
 
@@ -342,19 +344,13 @@ func (t *Transaction) Execute(
 			}, nil
 		}
 
-		var encodedOutput []byte
+		// Ensure output standardization (match form we will
+		// unmarshal)
 		if actionOutput == nil {
-			// Ensure output standardization (match form we will
-			// unmarshal)
-			encodedOutput = []byte{}
-		} else {
-			encodedOutput, err = MarshalTyped(actionOutput)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal action output %T: %w", actionOutput, err)
-			}
+			actionOutput = []byte{}
 		}
 
-		actionOutputs = append(actionOutputs, encodedOutput)
+		actionOutputs = append(actionOutputs, actionOutput)
 	}
 	return &Result{
 		Success: true,
@@ -401,13 +397,13 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	for i, actionBytes := range tx.Actions {
 		action, err := parser.ParseAction(actionBytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse action at index %d: %w", i, err)
 		}
 		actions[i] = action
 	}
 	auth, err := parser.ParseAuth(tx.Auth)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse auth: %w", err)
 	}
 	unmarshalledTx, err := NewTransaction(tx.Base, actions, auth)
 	if err != nil {
@@ -470,10 +466,8 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
 	for i, action := range actions {
-		actionSize, err := GetSize(action)
-		if err != nil {
-			return fees.Dimensions{}, err
-		}
+		actionBytes := action.Bytes()
+		actionSize := len(actionBytes)
 
 		actor := authFactory.Address()
 		stateKeys := action.StateKeys(actor, CreateActionID(ids.Empty, uint8(i)))
@@ -529,7 +523,9 @@ func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	return w
 }
 
-func (t *Transaction) CalculateCanotoCache() {}
+func (t *Transaction) CalculateCanotoCache() {
+	t.TransactionData.CalculateCanotoCache()
+}
 
 func (t *Transaction) CachedCanotoSize() int { return t.size }
 
@@ -555,6 +551,7 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	tx.bytes = r.B
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
+	*t = *tx
 
 	return nil
 }

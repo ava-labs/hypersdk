@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -20,6 +21,7 @@ import (
 const (
 	TransferComputeUnits = 1
 	MaxMemoSize          = 256
+	MaxTransferSize      = 1024
 )
 
 var (
@@ -50,6 +52,34 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
+func (t *Transfer) Bytes() []byte {
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0, 256),
+		MaxSize: MaxTransferSize,
+	}
+	p.PackByte(mconsts.TransferID)
+	// TODO: switch to using Canoto after it supports
+	// dynamically loading ABI for CLI support.
+	_ = codec.LinearCodec.MarshalInto(t, p)
+	return p.Bytes
+}
+
+func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+	t := &Transfer{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		p.Packer,
+		t,
+	); err != nil {
+		return nil, err
+	}
+	// Ensure that any parsed Transfer instance is valid
+	// and below MaxTransferSize
+	if len(t.Memo) > MaxMemoSize {
+		return nil, ErrOutputMemoTooLarge
+	}
+	return t, nil
+}
+
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -57,7 +87,7 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (codec.Typed, error) {
+) ([]byte, error) {
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
@@ -73,10 +103,11 @@ func (t *Transfer) Execute(
 		return nil, err
 	}
 
-	return &TransferResult{
+	result := &TransferResult{
 		SenderBalance:   senderBalance,
 		ReceiverBalance: receiverBalance,
-	}, nil
+	}
+	return result.Bytes(), nil
 }
 
 func (*Transfer) ComputeUnits(chain.Rules) uint64 {
@@ -97,4 +128,26 @@ type TransferResult struct {
 
 func (*TransferResult) GetTypeID() uint8 {
 	return mconsts.TransferID // Common practice is to use the action ID
+}
+
+func (t *TransferResult) Bytes() []byte {
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0, 256),
+		MaxSize: MaxTransferSize,
+	}
+	// TODO: switch to using canoto after dynamic ABI support
+	// so that we don't need to ignore the error here.
+	_ = codec.LinearCodec.MarshalInto(t, p)
+	return p.Bytes
+}
+
+func UnmarshalTransferResult(p *codec.Packer) (codec.Typed, error) {
+	t := &TransferResult{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		p.Packer,
+		t,
+	); err != nil {
+		return nil, err
+	}
+	return t, nil
 }

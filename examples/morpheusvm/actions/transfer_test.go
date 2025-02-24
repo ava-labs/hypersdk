@@ -78,10 +78,13 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, balance, uint64(1))
 			},
-			ExpectedOutputs: &TransferResult{
-				SenderBalance:   0,
-				ReceiverBalance: 1,
-			},
+			ExpectedOutputs: func() []byte {
+				result := &TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				}
+				return result.Bytes()
+			}(),
 		},
 		{
 			Name:  "OverflowBalance",
@@ -117,10 +120,13 @@ func TestTransferAction(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
-			ExpectedOutputs: &TransferResult{
-				SenderBalance:   0,
-				ReceiverBalance: 1,
-			},
+			ExpectedOutputs: func() []byte {
+				result := &TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				}
+				return result.Bytes()
+			}(),
 		},
 	}
 
@@ -154,10 +160,13 @@ func TestMultiTransfer(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
-			ExpectedOutputs: &TransferResult{
-				SenderBalance:   0,
-				ReceiverBalance: 1,
-			},
+			ExpectedOutputs: func() []byte {
+				result := &TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				}
+				return result.Bytes()
+			}(),
 		},
 		{
 			Name:  "TransferToAlice",
@@ -175,10 +184,13 @@ func TestMultiTransfer(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, senderBalance, uint64(0))
 			},
-			ExpectedOutputs: &TransferResult{
-				SenderBalance:   0,
-				ReceiverBalance: 1,
-			},
+			ExpectedOutputs: func() []byte {
+				result := &TransferResult{
+					SenderBalance:   0,
+					ReceiverBalance: 1,
+				}
+				return result.Bytes()
+			}(),
 		},
 	}
 

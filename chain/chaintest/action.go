@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -22,18 +23,16 @@ var _ chain.Action = (*TestAction)(nil)
 var ErrTestActionExecute = errors.New("test action execute error")
 
 type TestAction struct {
-	NumComputeUnits              uint64              `canoto:"fint64,1" serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys           []string            `canoto:"repeated string,2" serialize:"true" json:"specifiedStateKeys"`
-	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated int,3" serialize:"true" json:"specifiedStateKeyPermissions"`
-	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" serialize:"true" json:"reads"`
-	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" serialize:"true" json:"writeKeys"`
-	WriteValues                  [][]byte            `canoto:"repeated bytes,6" serialize:"true" json:"writeValues"`
-	ExecuteErr                   bool                `canoto:"bool,7" serialize:"true" json:"executeErr"`
-	Nonce                        uint64              `canoto:"fint64,8" serialize:"true" json:"nonce"`
-	Start                        int64               `canoto:"sint,9" serialize:"true" json:"start"`
-	End                          int64               `canoto:"sint,10" serialize:"true" json:"end"`
-
-	canotoData canotoData_TestAction
+	NumComputeUnits              uint64              `serialize:"true" json:"computeUnits"`
+	SpecifiedStateKeys           []string            `serialize:"true" json:"specifiedStateKeys"`
+	SpecifiedStateKeyPermissions []state.Permissions `serialize:"true" json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `serialize:"true" json:"reads"`
+	WriteKeys                    [][]byte            `serialize:"true" json:"writeKeys"`
+	WriteValues                  [][]byte            `serialize:"true" json:"writeValues"`
+	ExecuteErr                   bool                `serialize:"true" json:"executeErr"`
+	Nonce                        uint64              `serialize:"true" json:"nonce"`
+	Start                        int64               `serialize:"true" json:"start"`
+	End                          int64               `serialize:"true" json:"end"`
 }
 
 func (*TestAction) GetTypeID() uint8 {
@@ -41,7 +40,26 @@ func (*TestAction) GetTypeID() uint8 {
 }
 
 func (t *TestAction) Bytes() []byte {
-	return t.MarshalCanoto()
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0, 4096),
+		MaxSize: 4096,
+	}
+	p.PackByte(t.GetTypeID())
+	// TODO: switch to using canoto after dynamic ABI support
+	// so that we don't need to ignore the error here.
+	_ = codec.LinearCodec.MarshalInto(t, p)
+	return p.Bytes
+}
+
+func UnmarshalTestAaction(p *codec.Packer) (chain.Action, error) {
+	t := &TestAction{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		p.Packer,
+		t,
+	); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (t *TestAction) ComputeUnits(_ chain.Rules) uint64 {
@@ -63,7 +81,7 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return stateKeys
 }
 
-func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) ([]byte, error) {
 	if t.ExecuteErr {
 		return nil, ErrTestActionExecute
 	}
@@ -80,7 +98,7 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 			return nil, err
 		}
 	}
-	return &TestOutput{}, nil
+	return []byte{}, nil
 }
 
 // ValidRange returns the start/end fields of the action unless 0 is specified.
@@ -103,6 +121,10 @@ func (*TestOutput) GetTypeID() uint8 {
 	return 0
 }
 
+func UnmarshalTestOutput(p *codec.Packer) (codec.Typed, error) {
+	return &TestOutput{}, nil
+}
+
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass.
 type ActionTest struct {
@@ -116,7 +138,7 @@ type ActionTest struct {
 	Actor     codec.Address
 	ActionID  ids.ID
 
-	ExpectedOutputs codec.Typed
+	ExpectedOutputs []byte
 	ExpectedErr     error
 
 	Assertion func(context.Context, *testing.T, state.Mutable)

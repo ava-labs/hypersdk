@@ -72,15 +72,17 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	genesis := newGenesis(keys, minBlockGap)
-	genesisBytes, err := json.Marshal(genesis)
+	networkGenesis := newGenesis(keys, minBlockGap)
+	genesisBytes, err := json.Marshal(networkGenesis)
 	if err != nil {
 		return workload.DefaultTestNetworkConfiguration{}, err
 	}
+	ruleFactory := &genesis.ImmutableRuleFactory{Rules: networkGenesis.Rules}
 	return workload.NewDefaultTestNetworkConfiguration(
 		genesisBytes,
 		consts.Name,
-		vm.NewParser(genesis),
+		ruleFactory,
+		vm.Parser,
 		keys,
 	), nil
 }

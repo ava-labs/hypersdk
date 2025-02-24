@@ -5,7 +5,6 @@ package codec
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -45,17 +44,7 @@ func (p *TypeParser[T]) Register(instance Typed, f func(*Packer) (T, error)) err
 	if _, ok := p.indexToDecoder[instance.GetTypeID()]; ok {
 		return ErrDuplicateItem
 	}
-	if f == nil {
-		instanceType := reflect.TypeOf(instance).Elem()
-		f = func(p *Packer) (T, error) {
-			t := reflect.New(instanceType).Interface().(T)
-			err := LinearCodec.UnmarshalFrom(p.Packer, t)
-			return t, err
-		}
-	}
-
 	p.indexToDecoder[instance.GetTypeID()] = &decoder[T]{f: f}
-
 	p.registeredTypes = append(p.registeredTypes, instance)
 
 	return nil

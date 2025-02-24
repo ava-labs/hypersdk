@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -22,7 +21,11 @@ const balanceCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
-	g         *genesis.DefaultGenesis
+
+	// genesis and the rule factory rely on data fetched via the client
+	// and are cached on the client
+	g           *genesis.DefaultGenesis
+	ruleFactory chain.RuleFactory
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -30,7 +33,9 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, nil}
+	return &JSONRPCClient{
+		requester: req,
+	}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis, error) {
@@ -87,45 +92,18 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
-	g, err := cli.Genesis(ctx)
+func (cli *JSONRPCClient) GetParser() chain.Parser {
+	return chain.NewTxTypeParser(ActionParser, AuthParser)
+}
+
+func (cli *JSONRPCClient) GetRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
+	if cli.ruleFactory != nil {
+		return cli.ruleFactory, nil
+	}
+	networkGenesis, err := cli.Genesis(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return NewParser(g), nil
-}
-
-var _ chain.Parser = (*Parser)(nil)
-
-type Parser struct {
-	genesis *genesis.DefaultGenesis
-}
-
-func (p *Parser) Rules(_ int64) chain.Rules {
-	return p.genesis.Rules
-}
-
-func (*Parser) ActionCodec() *codec.TypeParser[chain.Action] {
-	return ActionParser
-}
-
-func (*Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
-	return OutputParser
-}
-
-func (*Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
-	return AuthParser
-}
-
-func NewParser(genesis *genesis.DefaultGenesis) chain.Parser {
-	return &Parser{genesis: genesis}
-}
-
-// Used as a lambda function for creating ExternalSubscriberServer parser
-func CreateParser(genesisBytes []byte) (chain.Parser, error) {
-	var genesis genesis.DefaultGenesis
-	if err := json.Unmarshal(genesisBytes, &genesis); err != nil {
-		return nil, err
-	}
-	return NewParser(&genesis), nil
+	cli.ruleFactory = &genesis.ImmutableRuleFactory{Rules: networkGenesis.Rules}
+	return cli.ruleFactory, nil
 }

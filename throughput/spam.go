@@ -105,7 +105,10 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 
 	// Compute max units
 	parser := sh.GetParser()
-	ruleFactory := sh.GetRuleFactory()
+	ruleFactory, err := sh.GetRuleFactory(ctx)
+	if err != nil {
+		return err
+	}
 
 	actions := sh.GetTransfer(s.authFactory.Address(), 0, []byte{})
 	maxUnits, err := chain.EstimateUnits(ruleFactory.GetRules(time.Now().UnixMilli()), actions, s.authFactory)
@@ -303,6 +306,10 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	if s.balance < withholding {
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
 	}
+	ruleFactory, err := sh.GetRuleFactory(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
 
@@ -335,7 +342,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(sh.GetRuleFactory(), sh.GetParser(), actions, s.authFactory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(ruleFactory, sh.GetParser(), actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -374,6 +381,10 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 	if err != nil {
 		return err
 	}
+	ruleFactory, err := sh.GetRuleFactory(ctx)
+	if err != nil {
+		return err
+	}
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
 	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
@@ -392,7 +403,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 		// Send funds
 		returnAmt := balance - feePerTx
 		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(sh.GetRuleFactory(), sh.GetParser(), actions, factories[i], feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(ruleFactory, sh.GetParser(), actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}

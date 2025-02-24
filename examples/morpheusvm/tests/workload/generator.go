@@ -40,20 +40,20 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	// TODO: no need to generate the clients every tx
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	lcli := vm.NewJSONRPCClient(uri)
-
 	to, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	ruleFactory, err := lcli.GetRuleFactory(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	toAddress := auth.NewED25519Address(to.PublicKey())
-	parser, err := lcli.Parser(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
 	_, tx, _, err := cli.GenerateTransaction(
 		ctx,
-		parser,
+		ruleFactory,
+		vm.Parser,
 		[]chain.Action{&actions.Transfer{
 			To:    toAddress,
 			Value: 1,

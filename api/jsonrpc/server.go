@@ -234,15 +234,9 @@ func (j *JSONRPCServer) ExecuteActions(
 			reply.Error = fmt.Sprintf("failed to execute action: %s", err)
 			return nil
 		}
-
 		tsv.Commit()
 
-		encodedOutput, err := chain.MarshalTyped(output)
-		if err != nil {
-			return fmt.Errorf("failed to marshal output: %w", err)
-		}
-
-		reply.Outputs = append(reply.Outputs, encodedOutput)
+		reply.Outputs = append(reply.Outputs, output)
 	}
 	return nil
 }
@@ -307,14 +301,11 @@ func (j *JSONRPCServer) SimulateActions(
 			ids.Empty,
 		)
 
-		var actionResult SimulateActionResult
+		actionResult := SimulateActionResult{
+			Output: actionOutput,
+		}
 		if actionOutput == nil {
 			actionResult.Output = []byte{}
-		} else {
-			actionResult.Output, err = chain.MarshalTyped(actionOutput)
-			if err != nil {
-				return fmt.Errorf("failed to marshal output: %w", err)
-			}
 		}
 		if err != nil {
 			return err

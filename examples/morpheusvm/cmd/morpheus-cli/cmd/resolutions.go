@@ -24,11 +24,18 @@ func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
 	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
-	parser, err := bcli.Parser(ctx)
+	parser := bcli.GetParser()
+	ruleFactory, err := bcli.GetRuleFactory(ctx)
 	if err != nil {
 		return false, ids.Empty, err
 	}
-	_, tx, _, err := cli.GenerateTransaction(ctx, parser, actions, factory)
+	_, tx, _, err := cli.GenerateTransaction(
+		ctx,
+		ruleFactory,
+		parser,
+		actions,
+		factory,
+	)
 	if err != nil {
 		return false, ids.Empty, err
 	}

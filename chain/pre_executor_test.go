@@ -125,7 +125,7 @@ func TestPreExecutor(t *testing.T) {
 				},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			err:            errMockAuth,
+			err:            chaintest.ErrTestAuthVerify,
 		},
 		{
 			name: "tx pre-execute error",

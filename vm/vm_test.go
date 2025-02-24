@@ -89,9 +89,9 @@ func NewTestVMFactory(r *require.Assertions) *vm.Factory {
 		outputParser = codec.NewTypeParser[codec.Typed]()
 	)
 	r.NoError(errors.Join(
-		actionParser.Register(&chaintest.TestAction{}, nil),
+		actionParser.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAaction),
 		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		outputParser.Register(&chaintest.TestOutput{}, nil),
+		outputParser.Register(&chaintest.TestOutput{}, chaintest.UnmarshalTestOutput),
 	))
 	return vm.NewFactory(
 		genesis.DefaultGenesisFactory{},

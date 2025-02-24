@@ -238,11 +238,7 @@ func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.A
 	}
 
 	for _, action := range actions {
-		marshaledAction, err := chain.MarshalTyped(action)
-		if err != nil {
-			return nil, err
-		}
-		args.Actions = append(args.Actions, marshaledAction)
+		args.Actions = append(args.Actions, action.Bytes())
 	}
 
 	resp := new(SimulateActionsReply)
