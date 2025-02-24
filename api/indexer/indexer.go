@@ -29,7 +29,10 @@ var (
 	latestBlockHeightKey = []byte("latestblockheight")
 )
 
-var errBlockNotFound = errors.New("block not found")
+var (
+	errBlockNotFound    = errors.New("block not found")
+	errTxResultNotFound = errors.New("transaction result not found")
+)
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
@@ -82,6 +85,10 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 	return i, i.initBlocks()
 }
 
+// evictBlock is called by the BoundedQueue when an entry need to be evicted.
+// Eviction can happen only as a result of adding entries to the queue, which
+// happens exelusively during insertBlockIntoCache. insertBlockIntoCache gurentee
+// that the lock is already held or doesn't need to be held.
 func (i *Indexer) evictBlock(blockHeight uint64) {
 	// find the block in the blocks cache.
 	blk := i.blockHeightToBlock[blockHeight]
@@ -100,7 +107,7 @@ func (i *Indexer) evictBlock(blockHeight uint64) {
 }
 
 func (i *Indexer) initBlocks() error {
-	// is this a new database or an old one ?
+	// Return immediately if the db is empty
 	hasLastHeight, err := i.blockDB.Has(latestBlockHeightKey)
 	if err != nil || !hasLastHeight {
 		return err
@@ -153,9 +160,9 @@ func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	return i.storeBlock(blk)
 }
 
-// insertBlockIntoCache add the given block and it's transaction
-// to the indexer's cache.
-// assume : the write lock was already obtained by the caller.
+// insertBlockIntoCache add the given block and its transactions to the
+// cache.
+// assumes the write lock is held
 func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
 	i.cachedBlocks.Push(blk.Block.Hght)
 	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
@@ -179,7 +186,6 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	}
 
 	blkBatch := i.blockDB.NewBatch()
-	defer blkBatch.Reset()
 
 	if err := blkBatch.Put(blockEntryKey(blk.Block.Hght), executedBlkBytes); err != nil {
 		return err
@@ -246,6 +252,10 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, int64, 
 		return false, nil, 0, nil, nil
 	}
 	tx := cachedTx.blk.Block.Txs[cachedTx.index]
+
+	if len(cachedTx.blk.Results) <= cachedTx.index {
+		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errTxResultNotFound, cachedTx.blk.Block.Hght, cachedTx.index)
+	}
 	result := cachedTx.blk.Results[cachedTx.index]
 	return true, tx, cachedTx.blk.Block.Tmstmp, result, nil
 }
@@ -255,5 +265,5 @@ func (i *Indexer) Close() error {
 }
 
 func blockEntryKey(height uint64) []byte {
-	return append(blockEntryKeyPrefix, binary.BigEndian.AppendUint64(nil, height)...)
+	return binary.BigEndian.AppendUint64(blockEntryKeyPrefix, height)
 }

@@ -31,10 +31,10 @@ type apiFactory struct {
 }
 
 func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
-	handler, err := api.NewJSONRPCHandler(f.name, &Server{
-		tracer:  vm.Tracer(),
-		indexer: f.indexer,
-	})
+	handler, err := api.NewJSONRPCHandler(f.name, NewServer(
+		vm.Tracer(),
+		f.indexer,
+	))
 	if err != nil {
 		return api.Handler{}, err
 	}
@@ -43,6 +43,18 @@ func (f *apiFactory) New(vm api.VM) (api.Handler, error) {
 		Path:    f.path,
 		Handler: handler,
 	}, nil
+}
+
+func NewServer(tracer trace.Tracer, indexer *Indexer) *Server {
+	return &Server{
+		tracer:  tracer,
+		indexer: indexer,
+	}
+}
+
+type Server struct {
+	tracer  trace.Tracer
+	indexer *Indexer
 }
 
 type GetBlockRequest struct {
@@ -90,14 +102,10 @@ type GetTxRequest struct {
 }
 
 type GetTxResponse struct {
-	TxBytes   codec.Bytes   `json:"transactionBytes"`
-	Timestamp int64         `json:"timestamp"`
-	Result    *chain.Result `json:"result"`
-}
-
-type Server struct {
-	tracer  trace.Tracer
-	indexer *Indexer
+	Transaction *chain.Transaction `json:"transaction"`
+	TxBytes     codec.Bytes        `json:"transactionBytes"`
+	Timestamp   int64              `json:"timestamp"`
+	Result      *chain.Result      `json:"result"`
 }
 
 func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
@@ -113,6 +121,7 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 		return ErrTxNotFound
 	}
 	reply.Timestamp = t
+	reply.Transaction = tx
 	reply.TxBytes = tx.Bytes()
 	reply.Result = result
 	return nil
