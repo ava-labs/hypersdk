@@ -97,7 +97,7 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
 
-		// passing nil here as the parser works, as we don't need the parser in order to perform "GetTx".
+		// TODO : find a way to work around this nil
 		indexerClient := indexer.NewClient(endpoint, nil)
 
 		expectedTxID, err := client.SubmitTx(ctx, signedBytes)
