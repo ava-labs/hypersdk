@@ -100,12 +100,10 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, *chain.
 	}
 
 	var tx *chain.Transaction
-	if c.parser != nil {
-		p := codec.NewReader(resp.TxBytes, consts.NetworkSizeLimit)
-		tx, err = chain.UnmarshalTx(p, c.parser.ActionCodec(), c.parser.AuthCodec())
-		if err != nil {
-			return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
-		}
+	p := codec.NewReader(resp.TxBytes, consts.NetworkSizeLimit)
+	tx, err = chain.UnmarshalTx(p, c.parser.ActionCodec(), c.parser.AuthCodec())
+	if err != nil {
+		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
 	}
 	return resp, tx, true, nil
 }
@@ -114,15 +112,19 @@ func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Du
 	var success bool
 	var fee uint64
 	if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
-		response, _, found, err := c.GetTx(ctx, txID)
+		resp := GetTxResponse{}
+		err := c.requester.SendRequest(
+			ctx,
+			"getTx",
+			&GetTxRequest{TxID: txID},
+			&resp,
+		)
 		if err != nil {
 			return false, err
 		}
-		if found {
-			success = response.Result.Success
-			fee = response.Result.Fee
-		}
-		return found, nil
+		success = resp.Result.Success
+		fee = resp.Result.Fee
+		return true, nil
 	}); err != nil {
 		return false, 0, err
 	}

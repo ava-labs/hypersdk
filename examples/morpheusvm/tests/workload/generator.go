@@ -76,11 +76,13 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
-	indexerCli := indexer.NewClient(uri, nil)
+	lcli := vm.NewJSONRPCClient(uri)
+	parser, err := lcli.Parser(ctx)
+	require.NoError(err)
+	indexerCli := indexer.NewClient(uri, parser)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
-	lcli := vm.NewJSONRPCClient(uri)
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
