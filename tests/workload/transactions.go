@@ -6,6 +6,8 @@ package workload
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,9 @@ type TxWorkload struct {
 }
 
 func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assertions, uris []string, blocks int) {
+	logger := logging.NewLogger("generate-blocks")
 	uri := uris[0]
+	logger.Debug("generator", zap.String("uri", uri))
 	// generate [blocks] num txs
 	client := jsonrpc.NewJSONRPCClient(uri)
 
@@ -50,6 +54,7 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 	}
 
 	for _, uri := range uris {
+		logger.Debug("consumer", zap.String("uri", uri))
 		client := jsonrpc.NewJSONRPCClient(uri)
 		err := jsonrpc.Wait(ctx, reachedAcceptedTipSleepInterval, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
@@ -58,7 +63,7 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 			}
 			return acceptedHeight >= targetHeight, nil
 		})
-		require.NoError(err, fmt.Sprintf("failed to reach accepted tip at height %d", targetHeight))
+		require.NoError(err, fmt.Sprintf("failed to reach target height %d; current height %d; uri %s", targetHeight, height, uri))
 	}
 }
 
