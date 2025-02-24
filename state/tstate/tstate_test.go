@@ -430,20 +430,20 @@ func TestRemoveInsertRollback(t *testing.T) {
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(testVal, v)
-	require.Equal(1, tsv.OpIndex(), "opertions not updated correctly")
+	require.Equal(1, tsv.OpIndex(), "operations not updated correctly")
 
 	// Remove
 	require.NoError(tsv.Remove(ctx, testKey), "unable to remove testKey")
 	_, err = tsv.GetValue(ctx, testKey)
 	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage")
-	require.Equal(2, tsv.OpIndex(), "Opertions not updated correctly")
+	require.Equal(2, tsv.OpIndex(), "Operations not updated correctly")
 
 	// Insert
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err = tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(testVal, v)
-	require.Equal(3, tsv.OpIndex(), "Opertions not updated correctly")
+	require.Equal(3, tsv.OpIndex(), "Operations not updated correctly")
 	require.Equal(1, tsv.PendingChanges())
 
 	// Rollback
