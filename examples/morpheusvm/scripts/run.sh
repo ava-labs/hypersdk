@@ -74,17 +74,20 @@ prepare_ginkgo
 ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 ./tests/e2e/e2e.test --help
 
-additional_args=("$@")
+args=(
+  --ginkgo.v
+  --avalanchego-path="${AVALANCHEGO_PATH}"
+  --plugin-dir="${AVALANCHEGO_PLUGIN_DIR}"
+)
 
 if [[ ${MODE} == "run" ]]; then
   echo "applying ginkgo.focus=Ping and --reuse-network to setup local network"
-  additional_args+=("--ginkgo.focus=Ping")
-  additional_args+=("--reuse-network")
+  args+=("--ginkgo.focus=Ping")
+  args+=("--reuse-network")
 fi
 
+# Append any additional arguments passed by the user
+args+=("$@")
+
 echo "running e2e tests"
-./tests/e2e/e2e.test \
---ginkgo.v \
---avalanchego-path="${AVALANCHEGO_PATH}" \
---plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
-"${additional_args[@]}"
+./tests/e2e/e2e.test "${args[@]}"

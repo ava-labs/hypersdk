@@ -51,8 +51,14 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	if err != nil {
 		return nil, nil, err
 	}
-	_, tx, _, err := cli.GenerateTransaction(
-		ctx,
+
+	unitPrices, err := cli.UnitPrices(ctx, true)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tx, err := chain.GenerateTransaction(
+		unitPrices,
 		parser,
 		[]chain.Action{&actions.Transfer{
 			To:    toAddress,

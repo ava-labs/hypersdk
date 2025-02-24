@@ -125,7 +125,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, factories, err := s.distributeFunds(ctx, cli, parser, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(ctx, parser, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	return issuers, nil
 }
 
-func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
+func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
 	withholding := feePerTx * uint64(s.numAccounts)
 	if s.balance < withholding {
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
@@ -336,7 +336,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
+		tx, err := chain.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -393,7 +393,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 		// Send funds
 		returnAmt := balance - feePerTx
 		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
+		tx, err := chain.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}
