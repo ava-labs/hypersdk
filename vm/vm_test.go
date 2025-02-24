@@ -552,8 +552,8 @@ func TestIndexerAPI(t *testing.T) {
 	defer network.Shutdown(ctx)
 
 	parser := network.VMs[0].VM
-	client := indexer.NewClient(network.URIs()[0], parser)
-	genesisBlock, err := client.GetLatestBlock(ctx)
+	client := indexer.NewClient(network.URIs()[0])
+	genesisBlock, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
 	lastAccepted, err := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.NoError(err)
@@ -566,14 +566,14 @@ func TestIndexerAPI(t *testing.T) {
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
-	blk1, err := client.GetLatestBlock(ctx)
+	blk1, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
 	lastAccepted, err = network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
 	r.NoError(err)
 	r.Equal(lastAccepted.GetID(), blk1.Block.GetID())
 	r.Equal(uint64(1), blk1.Block.GetHeight())
 
-	txRes, _, success, err := client.GetTx(ctx, tx.GetID())
+	txRes, _, success, err := client.GetTx(ctx, tx.GetID(), parser)
 	r.NoError(err)
 	r.True(success)
 	r.True(txRes.Result.Success)

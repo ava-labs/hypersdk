@@ -19,19 +19,18 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 )
 
-func NewClient(uri string, parser chain.Parser) *Client {
+func NewClient(uri string) *Client {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
 
 	return &Client{
 		requester: requester.New(uri, Name),
-		parser:    parser,
 	}
 }
 
 type Client struct {
 	requester *requester.EndpointRequester
-	parser    chain.Parser
+	// parser    chain.Parser
 }
 
 // Use a separate type that only decodes the block bytes because we cannot decode block JSON
@@ -40,7 +39,7 @@ type GetBlockClientResponse struct {
 	BlockBytes codec.Bytes `json:"blockBytes"`
 }
 
-func (c *Client) GetBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutedBlock, error) {
+func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -51,10 +50,10 @@ func (c *Client) GetBlock(ctx context.Context, blkID ids.ID) (*chain.ExecutedBlo
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
 }
 
-func (c *Client) GetBlockByHeight(ctx context.Context, height uint64) (*chain.ExecutedBlock, error) {
+func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser chain.Parser) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -65,10 +64,10 @@ func (c *Client) GetBlockByHeight(ctx context.Context, height uint64) (*chain.Ex
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
 }
 
-func (c *Client) GetLatestBlock(ctx context.Context) (*chain.ExecutedBlock, error) {
+func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chain.ExecutedBlock, error) {
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -79,10 +78,30 @@ func (c *Client) GetLatestBlock(ctx context.Context) (*chain.ExecutedBlock, erro
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalExecutedBlock(resp.BlockBytes, c.parser)
+	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
 }
 
-func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, *chain.Transaction, bool, error) {
+func (c *Client) GetTxResults(ctx context.Context, txID ids.ID) (GetTxResponse, bool, error) {
+	resp := GetTxResponse{}
+	err := c.requester.SendRequest(
+		ctx,
+		"getTx",
+		&GetTxRequest{TxID: txID},
+		&resp,
+	)
+	switch {
+	// We use string parsing here because the JSON-RPC library we use may not
+	// allows us to perform errors.Is.
+	case err != nil && strings.Contains(err.Error(), ErrTxNotFound.Error()):
+		return GetTxResponse{}, false, nil
+	case err != nil:
+		return GetTxResponse{}, false, err
+	}
+
+	return resp, true, nil
+}
+
+func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (GetTxResponse, *chain.Transaction, bool, error) {
 	resp := GetTxResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -101,7 +120,7 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, *chain.
 
 	var tx *chain.Transaction
 	p := codec.NewReader(resp.TxBytes, consts.NetworkSizeLimit)
-	tx, err = chain.UnmarshalTx(p, c.parser.ActionCodec(), c.parser.AuthCodec())
+	tx, err = chain.UnmarshalTx(p, parser.ActionCodec(), parser.AuthCodec())
 	if err != nil {
 		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
 	}

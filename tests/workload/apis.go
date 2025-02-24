@@ -48,13 +48,13 @@ func GetABI(ctx context.Context, require *require.Assertions, uris []string, exp
 
 func GetBlocks(ctx context.Context, require *require.Assertions, parser chain.Parser, uris []string) {
 	for _, uri := range uris {
-		client := indexer.NewClient(uri, parser)
-		latestBlock, err := client.GetLatestBlock(ctx)
+		client := indexer.NewClient(uri)
+		latestBlock, err := client.GetLatestBlock(ctx, parser)
 		require.NoError(err)
-		blockByHeight, err := client.GetBlockByHeight(ctx, latestBlock.Block.Hght)
+		blockByHeight, err := client.GetBlockByHeight(ctx, latestBlock.Block.Hght, parser)
 		require.NoError(err)
 		require.Equal(latestBlock, blockByHeight)
-		blockByID, err := client.GetBlock(ctx, latestBlock.Block.GetID())
+		blockByID, err := client.GetBlock(ctx, latestBlock.Block.GetID(), parser)
 		require.NoError(err)
 		require.Equal(latestBlock, blockByID)
 	}

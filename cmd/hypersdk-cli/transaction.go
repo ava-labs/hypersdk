@@ -98,7 +98,7 @@ var txCmd = &cobra.Command{
 		}
 
 		// TODO : find a way to work around this nil
-		indexerClient := indexer.NewClient(endpoint, nil)
+		indexerClient := indexer.NewClient(endpoint)
 
 		expectedTxID, err := client.SubmitTx(ctx, signedBytes)
 		if err != nil {
@@ -111,7 +111,7 @@ var txCmd = &cobra.Command{
 				return fmt.Errorf("context expired while waiting for tx: %w", err)
 			}
 
-			getTxResponse, _, found, err = indexerClient.GetTx(ctx, expectedTxID)
+			getTxResponse, found, err = indexerClient.GetTxResults(ctx, expectedTxID)
 			if err != nil {
 				return fmt.Errorf("failed to get tx: %w", err)
 			}

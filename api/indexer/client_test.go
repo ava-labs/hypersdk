@@ -33,24 +33,24 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
-	client := NewClient(httpServer.URL, chaintest.NewEmptyParser())
-	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght)
+	client := NewClient(httpServer.URL)
+	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght)
+	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght, chaintest.NewEmptyParser())
 	require.Contains(err.Error(), errBlockNotFound.Error())
 	require.Nil(executedBlock)
 
-	executedBlock, err = client.GetLatestBlock(ctx)
+	executedBlock, err = client.GetLatestBlock(ctx, chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlock(ctx, executedBlocks[numExecutedBlocks-1].Block.GetID())
+	executedBlock, err = client.GetBlock(ctx, executedBlocks[numExecutedBlocks-1].Block.GetID(), chaintest.NewEmptyParser())
 	require.NoError(err)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlock(ctx, ids.Empty)
+	executedBlock, err = client.GetBlock(ctx, ids.Empty, chaintest.NewEmptyParser())
 	require.Contains(err.Error(), errBlockNotFound.Error())
 	require.Nil(executedBlock)
 }

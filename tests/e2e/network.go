@@ -77,7 +77,7 @@ func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) erro
 		txIDs = append(txIDs, txID)
 	}
 
-	indexerCli := indexer.NewClient(uris[0], n.parser)
+	indexerCli := indexer.NewClient(uris[0])
 	for _, txID := range txIDs {
 		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 		if err != nil {
