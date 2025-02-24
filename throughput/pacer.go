@@ -20,7 +20,6 @@ type pacer struct {
 	inflight chan struct{}
 	done     chan struct{}
 
-	l       sync.RWMutex
 	errOnce sync.Once
 	err     error
 }
@@ -59,17 +58,12 @@ func (p *pacer) Run(ctx context.Context, max int) {
 }
 
 func (p *pacer) Add(tx *chain.Transaction) error {
-	p.l.RLock()
 	if p.err != nil {
-		defer p.l.RUnlock()
 		return p.err
 	}
-	p.l.RUnlock()
 
 	if err := p.ws.RegisterTx(tx); err != nil {
 		p.setError(err)
-		p.l.RLock()
-		defer p.l.RUnlock()
 		return p.err
 	}
 	select {
@@ -89,9 +83,7 @@ func (p *pacer) Wait() error {
 
 func (p *pacer) setError(err error) {
 	p.errOnce.Do(func() {
-		p.l.Lock()
 		p.err = err
-		p.l.Unlock()
 		close(p.done)
 	})
 }
