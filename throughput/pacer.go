@@ -15,8 +15,6 @@ import (
 type pacer struct {
 	ws *ws.WebSocketClient
 
-	wg sync.WaitGroup
-
 	inflight chan struct{}
 	done     chan struct{}
 
@@ -28,13 +26,11 @@ func (p *pacer) Run(ctx context.Context, max int) {
 	p.inflight = make(chan struct{}, max)
 	p.done = make(chan struct{}, 1)
 
-	p.wg.Add(1)
-	defer p.wg.Done()
-
 	for {
 		select {
 		case _, ok := <-p.inflight:
 			if !ok {
+				p.setError(nil)
 				return
 			}
 			txID, result, err := p.ws.ListenTx(ctx)
@@ -76,8 +72,8 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 
 func (p *pacer) Wait() error {
 	close(p.inflight)
-	p.wg.Wait()
-	p.setError(nil)
+	// Wait for all inflight transactions to finish
+	<-p.done
 	return p.err
 }
 
