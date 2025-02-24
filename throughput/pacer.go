@@ -17,9 +17,8 @@ type pacer struct {
 
 	wg sync.WaitGroup
 
-	inflight  chan struct{}
-	done      chan struct{}
-	closeOnce sync.Once
+	inflight chan struct{}
+	done     chan struct{}
 
 	l       sync.RWMutex
 	errOnce sync.Once
@@ -82,9 +81,7 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 }
 
 func (p *pacer) Wait() error {
-	p.closeOnce.Do(func() {
-		close(p.inflight)
-	})
+	close(p.inflight)
 	p.wg.Wait()
 	p.setError(nil)
 	return p.err
