@@ -45,8 +45,8 @@ func init() {
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		AuthParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
-		// AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
-		// AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
+		AuthParser.Register(&auth.SECP256R1{}, auth.UnmarshalSECP256R1),
+		AuthParser.Register(&auth.BLS{}, auth.UnmarshalBLS),
 
 		OutputParser.Register(&actions.TransferResult{}, actions.UnmarshalTransferResult),
 	); err != nil {

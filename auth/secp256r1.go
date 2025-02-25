@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -17,7 +18,7 @@ var _ chain.Auth = (*SECP256R1)(nil)
 
 const (
 	SECP256R1ComputeUnits = 10 // can't be batched like ed25519
-	SECP256R1Size         = secp256r1.PublicKeyLen + secp256r1.SignatureLen
+	SECP256R1Size         = 1 + secp256r1.PublicKeyLen + secp256r1.SignatureLen
 )
 
 type SECP256R1 struct {
@@ -65,23 +66,23 @@ func (*SECP256R1) Size() int {
 	return SECP256R1Size
 }
 
-func (d *SECP256R1) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(d.Signer[:])
-	p.PackFixedBytes(d.Signature[:])
-}
-
 func (d *SECP256R1) Bytes() []byte {
-	packer := codec.NewWriter(SECP256R1Size, SECP256R1Size)
-	return packer.Bytes()
+	b := make([]byte, SECP256R1Size)
+	b[0] = SECP256R1ID
+	copy(b[1:], d.Signer[:])
+	copy(b[1+secp256r1.PublicKeyLen:], d.Signature[:])
+	return b
 }
 
-func UnmarshalSECP256R1(p *codec.Packer) (chain.Auth, error) {
+func UnmarshalSECP256R1(bytes []byte) (chain.Auth, error) {
+	if len(bytes) != SECP256R1Size {
+		return nil, fmt.Errorf("invalid secp256r1 auth size %d != %d", len(bytes), ED25519Size)
+	}
 	var d SECP256R1
-	signer := d.Signer[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(secp256r1.PublicKeyLen, &signer)
-	signature := d.Signature[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(secp256r1.SignatureLen, &signature)
-	return &d, p.Err()
+
+	copy(d.Signer[:], bytes[1:])
+	copy(d.Signature[:], bytes[1+secp256r1.PublicKeyLen:])
+	return &d, nil
 }
 
 var _ chain.AuthFactory = (*SECP256R1Factory)(nil)

@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -17,7 +18,7 @@ var _ chain.Auth = (*BLS)(nil)
 
 const (
 	BLSComputeUnits = 10
-	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
+	BLSSize         = 1 + bls.PublicKeyLen + bls.SignatureLen
 )
 
 type BLS struct {
@@ -65,24 +66,27 @@ func (*BLS) Size() int {
 	return BLSSize
 }
 
-func (b *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.PublicKeyToBytes(b.Signer))
-	p.PackFixedBytes(bls.SignatureToBytes(b.Signature))
-}
-
 func (b *BLS) Bytes() []byte {
-	packer := codec.NewWriter(BLSSize, BLSSize)
-	b.Marshal(packer)
-	return packer.Bytes()
+	bytes := make([]byte, BLSSize)
+	bytes[0] = BLSID
+	publicKeyBytes := bls.PublicKeyToBytes(b.Signer)
+	copy(bytes[1:], publicKeyBytes)
+	signatureBytes := bls.SignatureToBytes(b.Signature)
+	copy(bytes[1+bls.PublicKeyLen:], signatureBytes)
+	return bytes
 }
 
-func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
+func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
+	if len(bytes) != BLSSize {
+		return nil, fmt.Errorf("invalid BLS auth size %d != %d", len(bytes), BLSSize)
+	}
+
 	var b BLS
 
 	signer := make([]byte, bls.PublicKeyLen)
-	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
+	copy(signer, bytes[1:])
 	signature := make([]byte, bls.SignatureLen)
-	p.UnpackFixedBytes(bls.SignatureLen, &signature)
+	copy(signature, bytes[1+bls.PublicKeyLen:])
 
 	pk, err := bls.PublicKeyFromBytes(signer)
 	if err != nil {
@@ -94,9 +98,9 @@ func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	b.Signature = sig
-	return &b, p.Err()
+
+	return &b, nil
 }
 
 var _ chain.AuthFactory = (*BLSFactory)(nil)

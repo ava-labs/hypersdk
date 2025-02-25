@@ -18,7 +18,7 @@ var _ chain.Auth = (*ED25519)(nil)
 
 const (
 	ED25519ComputeUnits = 5
-	ED25519Size         = ed25519.PublicKeyLen + ed25519.SignatureLen
+	ED25519Size         = 1 + ed25519.PublicKeyLen + ed25519.SignatureLen
 )
 
 type ED25519 struct {
@@ -67,22 +67,22 @@ func (*ED25519) Size() int {
 }
 
 func (d *ED25519) Bytes() []byte {
-	b := make([]byte, ED25519Size+1)
+	b := make([]byte, ED25519Size)
 	b[0] = d.GetTypeID()
 	copy(b[1:], d.Signer[:])
 	copy(b[1+ed25519.PublicKeyLen:], d.Signature[:])
 	return b
 }
 
-func UnmarshalED25519(b []byte) (chain.Auth, error) {
+func UnmarshalED25519(bytes []byte) (chain.Auth, error) {
 	var d ED25519
-	if len(b) != ED25519Size+1 {
-		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(b), ED25519Size+1)
+	if len(bytes) != ED25519Size {
+		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(bytes), ED25519Size)
 	}
 
 	// Skip the typeID, which we assume is stripped by the type parser
-	copy(d.Signer[:], b[1:])
-	copy(d.Signature[:], b[1+ed25519.PublicKeyLen:])
+	copy(d.Signer[:], bytes[1:])
+	copy(d.Signature[:], bytes[1+ed25519.PublicKeyLen:])
 	return &d, nil
 }
 
