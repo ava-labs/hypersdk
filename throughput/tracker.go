@@ -17,7 +17,7 @@ import (
 )
 
 type tracker struct {
-	inflightTxs atomic.Int64
+	inflight atomic.Int64
 
 	l            sync.Mutex
 	confirmedTxs int
@@ -26,14 +26,13 @@ type tracker struct {
 	sent   atomic.Int64
 	ticker *time.Ticker
 
-	inflight chan struct{}
-	done     chan struct{}
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func NewTracker() *tracker {
 	return &tracker{
-		done:     make(chan struct{}),
-		inflight: make(chan struct{}),
+		done: make(chan struct{}),
 	}
 }
 
@@ -58,6 +57,8 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
 	t.ticker = time.NewTicker(time.Second)
+	cctx, cancel := context.WithCancel(ctx)
+	t.cancel = cancel
 	var (
 		prevSent int64
 		prevTime = time.Now()
@@ -86,7 +87,7 @@ func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						t.totalTxs,
 						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
-						t.inflightTxs.Load(),
+						t.inflight.Load(),
 						uint64(float64(currSent-prevSent)/diff),
 						unitPrices,
 					)
@@ -94,7 +95,7 @@ func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					prevSent = currSent
 				}
 				t.l.Unlock()
-			case <-t.inflight:
+			case <-cctx.Done():
 				return
 			}
 		}
@@ -107,7 +108,7 @@ func (t *tracker) IncrementSent() int64 {
 
 func (t *tracker) Stop() {
 	t.ticker.Stop()
-	close(t.inflight)
+	t.cancel()
 	<-t.done
 	utils.Outf("{{yellow}}stopped tracker{{/}}\n")
 }
