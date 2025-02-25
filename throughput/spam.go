@@ -151,15 +151,15 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	// broadcast transactions
 	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
 	cancel()
-	// Stop logging
-	s.tracker.Stop()
 	if err != nil {
+		s.tracker.Stop()
 		return err
 	}
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
+	s.tracker.Stop()
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {

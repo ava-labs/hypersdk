@@ -71,7 +71,7 @@ func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 			case <-t.ticker.C:
 				t.l.Lock()
 				if t.totalTxs > 0 {
-					unitPrices, err := cli.UnitPrices(ctx, false)
+					unitPrices, err := cli.UnitPrices(cctx, false)
 					if err != nil {
 						continue
 					}
