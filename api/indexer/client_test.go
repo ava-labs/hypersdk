@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -53,4 +54,23 @@ func TestIndexerClient(t *testing.T) {
 	executedBlock, err = client.GetBlock(ctx, ids.Empty, chaintest.NewEmptyParser())
 	require.Contains(err.Error(), errBlockNotFound.Error())
 	require.Nil(executedBlock)
+
+	// test for missing transaction
+	txResponse, found, err := client.GetTxResults(ctx, ids.GenerateTestID())
+	require.False(found)
+	require.Equal(GetTxResponse{}, txResponse)
+	require.Nil(err)
+
+	txResponse, tx, found, err := client.GetTx(ctx, ids.GenerateTestID(), chaintest.NewEmptyParser())
+	require.False(found)
+	require.Equal(GetTxResponse{}, txResponse)
+	require.Nil(tx)
+	require.Nil(err)
+
+	timeoutCtx, ctxCancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer ctxCancel()
+	success, fee, err := client.WaitForTransaction(timeoutCtx, 10*time.Millisecond, ids.GenerateTestID())
+	require.False(success)
+	require.Zero(fee)
+	require.NotNil(err)
 }

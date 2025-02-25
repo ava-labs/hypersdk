@@ -5,12 +5,14 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/gorilla/rpc/v2/json2"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
@@ -30,7 +32,6 @@ func NewClient(uri string) *Client {
 
 type Client struct {
 	requester *requester.EndpointRequester
-	// parser    chain.Parser
 }
 
 // Use a separate type that only decodes the block bytes because we cannot decode block JSON
@@ -138,6 +139,10 @@ func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Du
 			&GetTxRequest{TxID: txID},
 			&resp,
 		)
+		var jsonErr *json2.Error
+		if errors.As(err, &jsonErr) && jsonErr.Message == ErrTxNotFound.Error() {
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
