@@ -106,14 +106,13 @@ func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) erro
 func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth chain.AuthFactory) (*chain.Transaction, error) {
 	uris := n.URIs()
 	c := jsonrpc.NewJSONRPCClient(uris[0])
-	_, tx, _, err := c.GenerateTransaction(
-		ctx,
-		n.ruleFactory,
-		n.parser,
-		actions,
-		auth,
-	)
-	return tx, err
+
+	unitPrices, err := c.UnitPrices(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return chain.GenerateTransaction(n.ruleFactory, n.parser, unitPrices, actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {

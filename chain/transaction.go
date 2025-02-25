@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
@@ -557,3 +558,50 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 }
 
 func (t *Transaction) ValidCanoto() bool { return true }
+
+func GenerateTransaction(
+	ruleFactory RuleFactory,
+	parser Parser,
+	unitPrices fees.Dimensions,
+	actions []Action,
+	authFactory AuthFactory,
+) (*Transaction, error) {
+	rules := ruleFactory.GetRules(time.Now().UnixMilli())
+	units, err := EstimateUnits(rules, actions, authFactory)
+	if err != nil {
+		return nil, err
+	}
+	maxFee, err := fees.MulSum(unitPrices, units)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := GenerateTransactionManual(rules, parser, actions, authFactory, maxFee)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func GenerateTransactionManual(
+	rules Rules,
+	parser Parser,
+	actions []Action,
+	authFactory AuthFactory,
+	maxFee uint64,
+) (*Transaction, error) {
+	// Construct transaction
+	now := time.Now().UnixMilli()
+	base := &Base{
+		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
+		ChainID:   rules.GetChainID(),
+		MaxFee:    maxFee,
+	}
+
+	// Build transaction
+	unsignedTx := NewTxData(base, actions)
+	tx, err := unsignedTx.Sign(authFactory)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to sign transaction", err)
+	}
+	return tx, nil
+}

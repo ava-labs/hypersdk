@@ -126,7 +126,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, factories, err := s.distributeFunds(ctx, cli, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(ctx, parser, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (s *Spammer) createIssuers(parser chain.Parser, ruleFactory chain.RuleFacto
 	return issuers, nil
 }
 
-func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
+func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
 	withholding := feePerTx * uint64(s.numAccounts)
 	if s.balance < withholding {
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)
@@ -310,6 +310,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 	if err != nil {
 		return nil, nil, err
 	}
+	rules := ruleFactory.GetRules(time.Now().UnixMilli())
 
 	distAmount := (s.balance - withholding) / uint64(s.numAccounts)
 
@@ -342,7 +343,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, cli *jsonrpc.JSONRPCClien
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(ruleFactory, sh.GetParser(), actions, s.authFactory, feePerTx)
+		tx, err := chain.GenerateTransactionManual(rules, parser, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -385,6 +386,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 	if err != nil {
 		return err
 	}
+	rules := ruleFactory.GetRules(time.Now().UnixMilli())
 	p := &pacer{ws: webSocketClient}
 	go p.Run(ctx, s.minTxsPerSecond)
 	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
@@ -403,7 +405,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 		// Send funds
 		returnAmt := balance - feePerTx
 		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
-		_, tx, err := cli.GenerateTransactionManual(ruleFactory, sh.GetParser(), actions, factories[i], feePerTx)
+		tx, err := chain.GenerateTransactionManual(rules, sh.GetParser(), actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}
