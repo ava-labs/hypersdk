@@ -72,7 +72,7 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 
 func (p *pacer) Wait() error {
 	close(p.inflight)
-	// Wait for all inflight transactions to finish
+	// Wait for Run to complete
 	<-p.done
 	return p.err
 }
