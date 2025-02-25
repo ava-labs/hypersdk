@@ -32,10 +32,11 @@ type issuer struct {
 
 	// injected from the spammer
 	tracker *tracker
+	wg      *sync.WaitGroup
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	i.tracker.issuerWg.Add(1)
+	i.wg.Add(1)
 	go func() {
 		for {
 			txID, result, err := i.ws.ListenTx(context.TODO())
@@ -45,14 +46,14 @@ func (i *issuer) Start(ctx context.Context) {
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
-			i.tracker.inflight.Add(-1)
+			i.tracker.inflightTxs.Add(-1)
 			i.tracker.logResult(txID, result)
 		}
 	}()
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			i.tracker.issuerWg.Done()
+			i.wg.Done()
 		}()
 
 		<-ctx.Done()
@@ -86,7 +87,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	i.l.Lock()
 	i.outstandingTxs++
 	i.l.Unlock()
-	i.tracker.inflight.Add(1)
+	i.tracker.inflightTxs.Add(1)
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {

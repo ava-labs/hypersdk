@@ -17,14 +17,24 @@ import (
 )
 
 type tracker struct {
-	issuerWg sync.WaitGroup
-	inflight atomic.Int64
+	inflightTxs atomic.Int64
 
 	l            sync.Mutex
 	confirmedTxs int
 	totalTxs     int
 
-	sent atomic.Int64
+	sent   atomic.Int64
+	ticker *time.Ticker
+
+	inflight chan struct{}
+	done     chan struct{}
+}
+
+func NewTracker() *tracker {
+	return &tracker{
+		done:     make(chan struct{}),
+		inflight: make(chan struct{}),
+	}
 }
 
 // logResult logs the result of a transaction received over the websocket connection
@@ -45,18 +55,19 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	}
 }
 
-func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
+func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
-	tick := time.NewTicker(1 * time.Second) // ensure no duplicates created
+	t.ticker = time.NewTicker(time.Second)
 	var (
 		prevSent int64
 		prevTime = time.Now()
 	)
+
 	go func() {
-		defer tick.Stop()
+		defer close(t.done)
 		for {
 			select {
-			case <-tick.C:
+			case <-t.ticker.C:
 				t.l.Lock()
 				if t.totalTxs > 0 {
 					unitPrices, err := cli.UnitPrices(ctx, false)
@@ -75,7 +86,7 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						t.totalTxs,
 						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
-						t.inflight.Load(),
+						t.inflightTxs.Load(),
 						uint64(float64(currSent-prevSent)/diff),
 						unitPrices,
 					)
@@ -83,7 +94,7 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 					prevSent = currSent
 				}
 				t.l.Unlock()
-			case <-ctx.Done():
+			case <-t.inflight:
 				return
 			}
 		}
@@ -92,4 +103,11 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 
 func (t *tracker) IncrementSent() int64 {
 	return t.sent.Add(1)
+}
+
+func (t *tracker) Stop() {
+	t.ticker.Stop()
+	close(t.inflight)
+	<-t.done
+	utils.Outf("{{yellow}}stopped tracker{{/}}\n")
 }

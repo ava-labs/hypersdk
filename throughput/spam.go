@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -59,13 +60,13 @@ type Spammer struct {
 	numAccounts int
 
 	// keep track of variables shared across issuers
-	tracker *tracker
+	tracker  *tracker
+	issuerWg *sync.WaitGroup
 }
 
 func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
-	tracker := &tracker{}
 	balance, err := sh.LookupBalance(sc.authFactory.Address())
 	if err != nil {
 		return nil, err
@@ -85,7 +86,8 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 		numClients:       sc.numClients,
 		numAccounts:      sc.numAccounts,
 
-		tracker: tracker,
+		tracker:  NewTracker(),
+		issuerWg: &sync.WaitGroup{},
 	}, nil
 }
 
@@ -143,19 +145,21 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		issuer.Start(cctx)
 	}
 
-	// set logging
-	s.tracker.logState(cctx, issuers[0].cli)
+	// start logging
+	s.tracker.Start(ctx, cli)
 
 	// broadcast transactions
 	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
 	cancel()
+	// Stop logging
+	s.tracker.Stop()
 	if err != nil {
 		return err
 	}
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	s.tracker.issuerWg.Wait()
+	s.issuerWg.Wait()
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
@@ -196,7 +200,7 @@ func (s Spammer) broadcast(
 			start := time.Now()
 
 			// Check to see if we should wait for pending txs
-			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+			if int64(currentTarget)+s.tracker.inflightTxs.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
@@ -292,6 +296,7 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 				parser:  parser,
 				uri:     s.uris[i],
 				tracker: s.tracker,
+				wg:      s.issuerWg,
 			}
 			issuers = append(issuers, issuer)
 		}
