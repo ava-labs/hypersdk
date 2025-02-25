@@ -44,10 +44,10 @@ func (t *TestAuth) Bytes() []byte {
 	return p.Bytes
 }
 
-func UnmarshalTestAuth(p *codec.Packer) (codec.Typed, error) {
+func UnmarshalTestAuth(bytes []byte) (chain.Auth, error) {
 	t := &TestAuth{}
 	if err := codec.LinearCodec.UnmarshalFrom(
-		p.Packer,
+		&wrappers.Packer{Bytes: bytes[1:]},
 		t,
 	); err != nil {
 		return nil, err
@@ -75,15 +75,6 @@ func (t *TestAuth) Marshal(p *codec.Packer) {
 
 func (t *TestAuth) Size() int {
 	return consts.Uint64Len + 2*codec.AddressLen + consts.BoolLen
-}
-
-func UnmarshalAuth(p *codec.Packer) (chain.Auth, error) {
-	t := new(TestAuth)
-
-	if err := codec.LinearCodec.UnmarshalFrom(p.Packer, t); err != nil {
-		return nil, err
-	}
-	return t, nil
 }
 
 func (t *TestAuth) ComputeUnits(_ chain.Rules) uint64 {

@@ -4,6 +4,7 @@
 package chaintest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -42,19 +44,22 @@ func (*TestAction) GetTypeID() uint8 {
 func (t *TestAction) Bytes() []byte {
 	p := &wrappers.Packer{
 		Bytes:   make([]byte, 0, 4096),
-		MaxSize: 4096,
+		MaxSize: consts.NetworkSizeLimit,
 	}
 	p.PackByte(t.GetTypeID())
 	// TODO: switch to using canoto after dynamic ABI support
 	// so that we don't need to ignore the error here.
-	_ = codec.LinearCodec.MarshalInto(t, p)
+	err := codec.LinearCodec.MarshalInto(t, p)
+	if err != nil {
+		panic(err)
+	}
 	return p.Bytes
 }
 
-func UnmarshalTestAaction(p *codec.Packer) (chain.Action, error) {
+func UnmarshalTestAaction(b []byte) (chain.Action, error) {
 	t := &TestAction{}
 	if err := codec.LinearCodec.UnmarshalFrom(
-		p.Packer,
+		&wrappers.Packer{Bytes: b[1:]},
 		t,
 	); err != nil {
 		return nil, err
@@ -121,7 +126,10 @@ func (*TestOutput) GetTypeID() uint8 {
 	return 0
 }
 
-func UnmarshalTestOutput(p *codec.Packer) (codec.Typed, error) {
+func UnmarshalTestOutput(b []byte) (codec.Typed, error) {
+	if !bytes.Equal([]byte{0}, b) {
+		return nil, fmt.Errorf("expected lone typeID %d for test output, found %x", 0, b)
+	}
 	return &TestOutput{}, nil
 }
 

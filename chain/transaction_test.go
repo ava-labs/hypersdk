@@ -57,7 +57,7 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
-	require := require.New(t)
+	r := require.New(t)
 
 	txData := chain.TransactionData{
 		Base: &chain.Base{
@@ -73,34 +73,34 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 		},
 	}
 	priv, err := ed25519.GeneratePrivateKey()
-	require.NoError(err)
+	r.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
 	actionCodec := codec.NewTypeParser[chain.Action]()
 	authCodec := codec.NewTypeParser[chain.Auth]()
 
 	err = actionCodec.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAaction)
-	require.NoError(err)
-	require.NoError(err)
+	r.NoError(err)
+	r.NoError(err)
 	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
-	require.NoError(err)
+	r.NoError(err)
 	parser := chain.NewTxTypeParser(actionCodec, authCodec)
 
 	signedTx, err := txData.Sign(factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	b, err := json.Marshal(signedTx)
-	require.NoError(err)
+	r.NoError(err)
 
 	txFromJSON := new(chain.Transaction)
 	err = txFromJSON.UnmarshalJSON(b, parser)
-	require.NoError(err, "failed to unmarshal tx JSON: %q", string(b))
-	require.Equal(signedTx.Bytes(), txFromJSON.Bytes())
+	r.NoError(err, "failed to unmarshal tx JSON: %q", string(b))
+	equalTx(r, signedTx, txFromJSON)
 }
 
 // TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
 func TestMarshalUnmarshal(t *testing.T) {
-	require := require.New(t)
+	r := require.New(t)
 
 	tx := chain.NewTxData(
 		&chain.Base{
@@ -134,41 +134,28 @@ func TestMarshalUnmarshal(t *testing.T) {
 	txBeforeSignBytes := tx.UnsignedBytes()
 
 	signedTx, err := tx.Sign(factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	unsignedTxAfterSignBytes := signedTx.TransactionData.UnsignedBytes()
-	require.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes)
-	require.NoError(signedTx.VerifyAuth(context.Background()))
-	require.Equal(len(signedTx.Actions), len(tx.Actions))
+	r.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes)
+	r.NoError(signedTx.VerifyAuth(context.Background()))
+	r.Equal(len(signedTx.Actions), len(tx.Actions))
 	for i, action := range signedTx.Actions {
-		require.Equal(tx.Actions[i], action)
+		r.Equal(tx.Actions[i], action)
 	}
 
 	signedTxBytes := signedTx.Bytes()
-	require.Equal(signedTx.GetID(), utils.ToID(signedTxBytes))
-	require.Equal(signedTx.Bytes(), signedTxBytes)
+	r.Equal(signedTx.GetID(), utils.ToID(signedTxBytes))
+	r.Equal(signedTx.Bytes(), signedTxBytes)
 
 	unsignedTxBytes := signedTx.UnsignedBytes()
 	originalUnsignedTxBytes := tx.UnsignedBytes()
-	require.Equal(originalUnsignedTxBytes, unsignedTxBytes)
+	r.Equal(originalUnsignedTxBytes, unsignedTxBytes)
 
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
-	require.NoError(err)
+	r.NoError(err)
 
-	// We cannot do a simple equals check here because:
-	// 1. AvalancheGo codec does not differentiate nil from empty slice, whereas equals does
-	// 2. UnmarshalCanoto does not populate the canotoData size field
-	// We check each field individually to confirm parsing produced the same result
-	// We can remove this and use a simple equals check after resolving these issues:
-	// 1. Fix equals check on unmarshalled canoto values https://github.com/StephenButtolph/canoto/issues/73
-	// 2. Add dynamic serialization support to canoto https://github.com/StephenButtolph/canoto/issues/75
-	require.Equal(signedTx.Bytes(), parsedTx.Bytes())
-	require.Equal(signedTx.Base.MarshalCanoto(), parsedTx.Base.MarshalCanoto())
-	require.Equal(len(signedTx.Actions), len(parsedTx.Actions))
-	for i, action := range signedTx.Actions {
-		require.Equal(action.Bytes(), parsedTx.Actions[i].Bytes())
-	}
-	require.Equal(signedTx.Auth, parsedTx.Auth)
+	equalTx(r, signedTx, parsedTx)
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
@@ -215,15 +202,7 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
 	require.NoError(err)
 
-	// TODO: fix canoto / AvalancheGo codec so we can perform a simple equals check
-	require.Equal(signedTx.Base.MarshalCanoto(), parseRawSignedTx.Base.MarshalCanoto())
-	require.Equal(len(signedTx.Actions), len(parseRawSignedTx.Actions))
-	for i, action := range signedTx.Actions {
-		require.Equal(action.Bytes(), parseRawSignedTx.Actions[i].Bytes())
-	}
-	require.Equal(signedTx.Auth, parseRawSignedTx.Auth)
-
-	require.Equal(signedTx.Bytes(), rawSignedTxBytes)
+	equalTx(require, signedTx, parseRawSignedTx)
 }
 
 func TestPreExecute(t *testing.T) {
@@ -438,4 +417,25 @@ func TestPreExecute(t *testing.T) {
 			)
 		})
 	}
+}
+
+// equalTx confirms that the expected and actual transactions are equal
+//
+// We cannot do a simple equals check here because:
+// 1. AvalancheGo codec does not differentiate nil from empty slice, whereas equals does
+// 2. UnmarshalCanoto does not populate the canotoData size field
+// We check each field individually to confirm parsing produced the same result
+// We can remove this and use a simple equals check after resolving these issues:
+// 1. Fix equals check on unmarshalled canoto values https://github.com/StephenButtolph/canoto/issues/73
+// 2. Add dynamic serialization support to canoto https://github.com/StephenButtolph/canoto/issues/75
+//
+// TODO: replace this at the call site with a simple equals check after fixing the above issues
+func equalTx(r *require.Assertions, expected *chain.Transaction, actual *chain.Transaction) {
+	r.Equal(expected.Base.MarshalCanoto(), actual.Base.MarshalCanoto())
+	r.Equal(len(expected.Actions), len(actual.Actions))
+	for i, action := range expected.Actions {
+		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), "index %d", i)
+	}
+	r.Equal(expected.Auth, actual.Auth)
+	r.Equal(expected.Bytes(), actual.Bytes())
 }

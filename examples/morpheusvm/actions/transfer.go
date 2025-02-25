@@ -64,10 +64,10 @@ func (t *Transfer) Bytes() []byte {
 	return p.Bytes
 }
 
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+func UnmarshalTransfer(b []byte) (chain.Action, error) {
 	t := &Transfer{}
 	if err := codec.LinearCodec.UnmarshalFrom(
-		p.Packer,
+		&wrappers.Packer{Bytes: b[1:]}, // XXX: first byte is guaranteed to be the typeID by the type parser
 		t,
 	); err != nil {
 		return nil, err
@@ -135,16 +135,17 @@ func (t *TransferResult) Bytes() []byte {
 		Bytes:   make([]byte, 0, 256),
 		MaxSize: MaxTransferSize,
 	}
+	p.PackByte(mconsts.TransferID)
 	// TODO: switch to using canoto after dynamic ABI support
 	// so that we don't need to ignore the error here.
 	_ = codec.LinearCodec.MarshalInto(t, p)
 	return p.Bytes
 }
 
-func UnmarshalTransferResult(p *codec.Packer) (codec.Typed, error) {
+func UnmarshalTransferResult(b []byte) (codec.Typed, error) {
 	t := &TransferResult{}
 	if err := codec.LinearCodec.UnmarshalFrom(
-		p.Packer,
+		&wrappers.Packer{Bytes: b[1:]}, // XXX: first byte is guaranteed to be the typeID by the type parser
 		t,
 	); err != nil {
 		return nil, err

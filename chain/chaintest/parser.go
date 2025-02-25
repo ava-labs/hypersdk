@@ -17,7 +17,7 @@ func NewTestParser() *chain.TxTypeParser {
 
 	err := errors.Join(
 		actionCodec.Register(&TestAction{}, UnmarshalTestAaction),
-		authCodec.Register(&TestAuth{}, UnmarshalAuth),
+		authCodec.Register(&TestAuth{}, UnmarshalTestAuth),
 		outputCodec.Register(&TestOutput{}, UnmarshalTestOutput),
 	)
 	if err != nil {

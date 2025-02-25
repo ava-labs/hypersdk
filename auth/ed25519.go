@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -65,28 +66,24 @@ func (*ED25519) Size() int {
 	return ED25519Size
 }
 
-func (d *ED25519) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(d.Signer[:])
-	p.PackFixedBytes(d.Signature[:])
-}
-
 func (d *ED25519) Bytes() []byte {
-	packer := codec.NewWriter(ED25519Size, ED25519Size+1)
-	packer.PackByte(d.GetTypeID())
-	d.Marshal(packer)
-	if err := packer.Err(); err != nil {
-		panic(err)
-	}
-	return packer.Bytes()
+	b := make([]byte, ED25519Size+1)
+	b[0] = d.GetTypeID()
+	copy(b[1:], d.Signer[:])
+	copy(b[1+ed25519.PublicKeyLen:], d.Signature[:])
+	return b
 }
 
-func UnmarshalED25519(p *codec.Packer) (chain.Auth, error) {
+func UnmarshalED25519(b []byte) (chain.Auth, error) {
 	var d ED25519
-	signer := d.Signer[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(ed25519.PublicKeyLen, &signer)
-	signature := d.Signature[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(ed25519.SignatureLen, &signature)
-	return &d, p.Err()
+	if len(b) != ED25519Size+1 {
+		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(b), ED25519Size+1)
+	}
+
+	// Skip the typeID, which we assume is stripped by the type parser
+	copy(d.Signer[:], b[1:])
+	copy(d.Signature[:], b[1+ed25519.PublicKeyLen:])
+	return &d, nil
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)

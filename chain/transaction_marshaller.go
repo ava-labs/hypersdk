@@ -27,11 +27,11 @@ func NewTxTypeParser(
 }
 
 func (t *TxTypeParser) ParseAction(bytes []byte) (Action, error) {
-	return t.ActionRegistry.Unmarshal(codec.NewReader(bytes, len(bytes)))
+	return t.ActionRegistry.Unmarshal(bytes)
 }
 
 func (t *TxTypeParser) ParseAuth(bytes []byte) (Auth, error) {
-	return t.AuthRegistry.Unmarshal(codec.NewReader(bytes, len(bytes)))
+	return t.AuthRegistry.Unmarshal(bytes)
 }
 
 type BatchedTransactions struct {

@@ -83,7 +83,7 @@ func (t *TransactionData) UnmarshalCanotoFrom(r canoto.Reader) error {
 	for i, actionBytes := range serializeTxData.Actions {
 		action, err := parser.ParseAction(actionBytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse action %x at index %d: %w", actionBytes, i, err)
 		}
 		actions[i] = action
 	}
@@ -398,13 +398,13 @@ func (t *Transaction) UnmarshalJSON(data []byte, parser Parser) error {
 	for i, actionBytes := range tx.Actions {
 		action, err := parser.ParseAction(actionBytes)
 		if err != nil {
-			return fmt.Errorf("failed to parse action at index %d: %w", i, err)
+			return fmt.Errorf("failed to parse action %x at index %d: %w", actionBytes, i, err)
 		}
 		actions[i] = action
 	}
 	auth, err := parser.ParseAuth(tx.Auth)
 	if err != nil {
-		return fmt.Errorf("failed to parse auth: %w", err)
+		return fmt.Errorf("failed to parse auth %x: %w", tx.Auth, err)
 	}
 	unmarshalledTx, err := NewTransaction(tx.Base, actions, auth)
 	if err != nil {
@@ -542,7 +542,7 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	}
 	auth, err := parser.ParseAuth(serializeTx.Auth)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse auth %x: %w", serializeTx.Auth, err)
 	}
 
 	tx := &Transaction{
