@@ -168,20 +168,22 @@ makes sure that it was accepted, and checks that the TX outputs are as expected.
 
 ```golang
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+	lcli := vm.NewJSONRPCClient(uri)
+	parser, err := lcli.Parser(ctx)
+	require.NoError(err)
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
-	lcli := vm.NewJSONRPCClient(uri)
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, err := indexerCli.GetTx(ctx, txID)
+	txRes, _, _, err := indexerCli.GetTx(ctx, txID, parser)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
-	require.NotZero(txRes.Fee)
-	require.Len(txRes.Outputs, 1)
-	transferOutputBytes := []byte(txRes.Outputs[0])
+	require.NotZero(txRes.Result.Fee)
+	require.Len(txRes.Result.Outputs, 1)
+	transferOutputBytes := txRes.Result.Outputs[0]
 	require.Equal(consts.TransferID, transferOutputBytes[0])
 	reader := codec.NewReader(transferOutputBytes, len(transferOutputBytes))
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(reader)
@@ -189,8 +191,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	transferOutput, ok := transferOutputTyped.(*actions.TransferResult)
 	require.True(ok)
 	require.Equal(receiverExpectedBalance, transferOutput.ReceiverBalance)
-}
-```
+}```
 
 In the above, some of the checks that `confirmTx` does are:
 - Checking that the TX was successful

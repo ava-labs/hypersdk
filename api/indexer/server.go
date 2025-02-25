@@ -102,10 +102,9 @@ type GetTxRequest struct {
 }
 
 type GetTxResponse struct {
-	Transaction *chain.Transaction `json:"transaction"`
-	TxBytes     codec.Bytes        `json:"transactionBytes"`
-	Timestamp   int64              `json:"timestamp"`
-	Result      *chain.Result      `json:"result"`
+	TxBytes   codec.Bytes   `json:"transactionBytes"`
+	Timestamp int64         `json:"timestamp"`
+	Result    *chain.Result `json:"result"`
 }
 
 func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxResponse) error {
@@ -121,7 +120,6 @@ func (s *Server) GetTx(req *http.Request, args *GetTxRequest, reply *GetTxRespon
 		return ErrTxNotFound
 	}
 	reply.Timestamp = t
-	reply.Transaction = tx
 	reply.TxBytes = tx.Bytes()
 	reply.Result = result
 	return nil
