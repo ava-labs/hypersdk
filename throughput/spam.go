@@ -200,7 +200,7 @@ func (s Spammer) broadcast(
 			start := time.Now()
 
 			// Check to see if we should wait for pending txs
-			if int64(currentTarget)+s.tracker.inflightTxs.Load() > int64(currentTarget*pendingTargetMultiplier) {
+			if int64(currentTarget)+s.tracker.inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveUnderBacklog = 0
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {

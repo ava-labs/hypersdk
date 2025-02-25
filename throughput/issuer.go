@@ -46,7 +46,7 @@ func (i *issuer) Start(ctx context.Context) {
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
-			i.tracker.inflightTxs.Add(-1)
+			i.tracker.inflight.Add(-1)
 			i.tracker.logResult(txID, result)
 		}
 	}()
@@ -87,7 +87,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 	i.l.Lock()
 	i.outstandingTxs++
 	i.l.Unlock()
-	i.tracker.inflightTxs.Add(1)
+	i.tracker.inflight.Add(1)
 
 	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {
