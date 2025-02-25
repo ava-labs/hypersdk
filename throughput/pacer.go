@@ -45,6 +45,7 @@ func (p *pacer) Run(ctx context.Context, max int) {
 }
 
 func (p *pacer) Add(tx *chain.Transaction) error {
+	// If Run failed, return the first error immediately, otherwise register the next tx
 	select {
 	case <-p.done:
 		return p.err
