@@ -26,27 +26,19 @@ func (p *pacer) Run(ctx context.Context, max int) {
 
 	defer close(p.done)
 
-	for {
-		select {
-		case _, ok := <-p.inflight:
-			if !ok {
-				return
-			}
-			txID, result, err := p.ws.ListenTx(ctx)
-			if err != nil {
-				p.err = fmt.Errorf("error listening to tx %s: %w", txID, err)
-				return
-			}
-			if result == nil {
-				p.err = fmt.Errorf("tx %s expired", txID)
-				return
-			}
-			if !result.Success {
-				// Should never happen
-				p.err = fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
-				return
-			}
-		case <-p.done:
+	for range p.inflight {
+		txID, result, err := p.ws.ListenTx(ctx)
+		if err != nil {
+			p.err = fmt.Errorf("error listening to tx %s: %w", txID, err)
+			return
+		}
+		if result == nil {
+			p.err = fmt.Errorf("tx %s expired", txID)
+			return
+		}
+		if !result.Success {
+			// Should never happen
+			p.err = fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
 			return
 		}
 	}
