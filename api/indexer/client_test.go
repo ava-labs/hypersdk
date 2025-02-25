@@ -59,18 +59,18 @@ func TestIndexerClient(t *testing.T) {
 	txResponse, found, err := client.GetTxResults(ctx, ids.GenerateTestID())
 	require.False(found)
 	require.Equal(GetTxResponse{}, txResponse)
-	require.Nil(err)
+	require.NoError(err)
 
 	txResponse, tx, found, err := client.GetTx(ctx, ids.GenerateTestID(), chaintest.NewEmptyParser())
 	require.False(found)
 	require.Equal(GetTxResponse{}, txResponse)
 	require.Nil(tx)
-	require.Nil(err)
+	require.NoError(err)
 
 	timeoutCtx, ctxCancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer ctxCancel()
-	success, fee, err := client.WaitForTransaction(timeoutCtx, 10*time.Millisecond, ids.GenerateTestID())
+	success, fee, err := client.WaitForTransaction(timeoutCtx, 1*time.Millisecond, ids.GenerateTestID())
 	require.False(success)
 	require.Zero(fee)
-	require.NotNil(err)
+	require.ErrorIs(err, context.DeadlineExceeded)
 }
