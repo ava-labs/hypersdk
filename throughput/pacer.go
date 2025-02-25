@@ -24,7 +24,7 @@ type pacer struct {
 
 func (p *pacer) Run(ctx context.Context, max int) {
 	p.inflight = make(chan struct{}, max)
-	p.done = make(chan struct{}, 1)
+	p.done = make(chan struct{})
 
 	for {
 		select {
