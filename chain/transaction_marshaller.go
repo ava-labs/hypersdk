@@ -5,6 +5,7 @@ package chain
 
 import (
 	"github.com/StephenButtolph/canoto"
+
 	"github.com/ava-labs/hypersdk/codec"
 )
 

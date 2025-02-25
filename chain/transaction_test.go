@@ -193,7 +193,6 @@ func TestSignRawActionBytesTx(t *testing.T) {
 		},
 	)
 
-
 	factory := &chaintest.TestAuthFactory{
 		TestAuth: &chaintest.TestAuth{
 			NumComputeUnits: 1,
