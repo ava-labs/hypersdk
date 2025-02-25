@@ -6,7 +6,6 @@ package throughput
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -18,33 +17,33 @@ type pacer struct {
 	inflight chan struct{}
 	done     chan struct{}
 
-	errOnce sync.Once
-	err     error
+	err error
 }
 
 func (p *pacer) Run(ctx context.Context, max int) {
 	p.inflight = make(chan struct{}, max)
 	p.done = make(chan struct{})
 
+	defer close(p.done)
+
 	for {
 		select {
 		case _, ok := <-p.inflight:
 			if !ok {
-				p.setError(nil)
 				return
 			}
 			txID, result, err := p.ws.ListenTx(ctx)
 			if err != nil {
-				p.setError(fmt.Errorf("error listening to tx %s: %w", txID, err))
+				p.err = fmt.Errorf("error listening to tx %s: %w", txID, err)
 				return
 			}
 			if result == nil {
-				p.setError(fmt.Errorf("tx %s expired", txID))
+				p.err = fmt.Errorf("tx %s expired", txID)
 				return
 			}
 			if !result.Success {
 				// Should never happen
-				p.setError(fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error))
+				p.err = fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
 				return
 			}
 		case <-p.done:
@@ -54,14 +53,15 @@ func (p *pacer) Run(ctx context.Context, max int) {
 }
 
 func (p *pacer) Add(tx *chain.Transaction) error {
-	if p.err != nil {
+	select {
+	case <-p.done:
 		return p.err
+	default:
+		if err := p.ws.RegisterTx(tx); err != nil {
+			return err
+		}
 	}
 
-	if err := p.ws.RegisterTx(tx); err != nil {
-		p.setError(err)
-		return p.err
-	}
 	select {
 	case p.inflight <- struct{}{}:
 		return nil
@@ -75,11 +75,4 @@ func (p *pacer) Wait() error {
 	// Wait for all inflight transactions to finish
 	<-p.done
 	return p.err
-}
-
-func (p *pacer) setError(err error) {
-	p.errOnce.Do(func() {
-		p.err = err
-		close(p.done)
-	})
 }
