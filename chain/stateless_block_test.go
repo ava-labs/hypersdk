@@ -104,7 +104,7 @@ func TestBlockSerialization(t *testing.T) {
 				chainID := ids.Empty.Prefix(1)
 				for i := 0; i < 3; i++ {
 					tx, err := chain.NewTransaction(
-						&chain.Base{
+						chain.Base{
 							Timestamp: 1_000,
 							ChainID:   chainID,
 							MaxFee:    uint64(i),
@@ -235,6 +235,28 @@ func BenchmarkNewStatelessBlock(b *testing.B) {
 	}
 }
 
+func TestBlockWithNilTransaction(t *testing.T) {
+	r := require.New(t)
+
+	blockArgs := createBlockArgs(r, 1)
+	parser := chaintest.NewTestParser()
+
+	block, err := chain.NewStatelessBlock(
+		blockArgs.parentID,
+		blockArgs.timestamp,
+		blockArgs.height,
+		[]*chain.Transaction{blockArgs.txs[0], nil},
+		blockArgs.stateRoot,
+		nil,
+	)
+	r.NoError(err)
+
+	blockBytes := block.GetBytes()
+
+	_, err = chain.UnmarshalBlock(blockBytes, parser)
+	r.ErrorIs(err, chain.ErrNilTxInBlock)
+}
+
 // blockArgs provides the arguments to construct a block with the
 // block context omitted.
 type blockArgs struct {
@@ -259,7 +281,7 @@ func createBlockArgs(r *require.Assertions, numTxs int) *blockArgs {
 		txs = make([]*chain.Transaction, 0, numTxs)
 		for i := 0; i < numTxs; i++ {
 			tx, err := chain.NewTransaction(
-				&chain.Base{
+				chain.Base{
 					Timestamp: 1_000,
 					ChainID:   chainID,
 					MaxFee:    uint64(i),

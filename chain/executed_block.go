@@ -11,6 +11,11 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
+// ExecutedBlock includes the block and its execution results.
+// This type is used internally to the node and never sent/received
+// over the wire, so it is not subject to the network max message size
+// limitations and it is not necessary to check that the fields are
+// non-nil because we will always populate them with non-nil values.
 type ExecutedBlock struct {
 	Block            *StatelessBlock   `canoto:"pointer,1" json:"block"`
 	ExecutionResults *ExecutionResults `canoto:"pointer,2" json:"results"`

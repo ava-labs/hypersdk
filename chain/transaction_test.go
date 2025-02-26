@@ -72,7 +72,7 @@ func TestTransactionJSON(t *testing.T) {
 	r := require.New(t)
 
 	txData := chain.NewTxData(
-		&chain.Base{
+		chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
@@ -109,7 +109,7 @@ func TestSignTransaction(t *testing.T) {
 	r := require.New(t)
 
 	txData := chain.NewTxData(
-		&chain.Base{
+		chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
@@ -160,7 +160,7 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	require := require.New(t)
 
 	txData := chain.NewTxData(
-		&chain.Base{
+		chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
@@ -207,7 +207,7 @@ func TestUnmarshalTx(t *testing.T) {
 	r := require.New(t)
 
 	txData := chain.NewTxData(
-		&chain.Base{
+		chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
@@ -272,7 +272,7 @@ func TestPreExecute(t *testing.T) {
 			name: "valid test case",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
 				Auth: &chaintest.TestAuth{},
 			},
@@ -282,7 +282,7 @@ func TestPreExecute(t *testing.T) {
 			name: "base transaction timestamp misaligned",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						Timestamp: consts.MillisecondsPerSecond + 1,
 					},
 				},
@@ -293,7 +293,7 @@ func TestPreExecute(t *testing.T) {
 			name: "base transaction timestamp too far in future (61ms > 60ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						Timestamp: testRules.GetValidityWindow() + consts.MillisecondsPerSecond,
 					},
 				},
@@ -304,7 +304,7 @@ func TestPreExecute(t *testing.T) {
 			name: "base transaction timestamp expired (1ms < 2ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						Timestamp: consts.MillisecondsPerSecond,
 					},
 				},
@@ -316,7 +316,7 @@ func TestPreExecute(t *testing.T) {
 			name: "base transaction invalid chain id",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						ChainID:   differentChainID,
 						Timestamp: consts.MillisecondsPerSecond,
 					},
@@ -329,7 +329,7 @@ func TestPreExecute(t *testing.T) {
 			name: "transaction has too many actions (17 > 16)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 					Actions: func() []chain.Action {
 						actions := make([]chain.Action, testRules.MaxActionsPerTx+1)
 						for i := 0; i < int(testRules.MaxActionsPerTx)+1; i++ {
@@ -345,7 +345,7 @@ func TestPreExecute(t *testing.T) {
 			name: "action timestamp too early (0ms < 1ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 					Actions: []chain.Action{
 						&chaintest.TestAction{
 							Start: consts.MillisecondsPerSecond,
@@ -359,7 +359,7 @@ func TestPreExecute(t *testing.T) {
 			name: "action timestamp too late (2ms > 1ms)",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 					Actions: []chain.Action{
@@ -377,7 +377,7 @@ func TestPreExecute(t *testing.T) {
 			name: "auth timestamp too early",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
 				Auth: &chaintest.TestAuth{
 					Start: 1 * consts.MillisecondsPerSecond,
@@ -389,7 +389,7 @@ func TestPreExecute(t *testing.T) {
 			name: "auth timestamp too late",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{
+					Base: chain.Base{
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 				},
@@ -404,7 +404,7 @@ func TestPreExecute(t *testing.T) {
 			name: "fee overflow",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 					Actions: []chain.Action{
 						&chaintest.TestAction{
 							NumComputeUnits: 1,
@@ -427,7 +427,7 @@ func TestPreExecute(t *testing.T) {
 			name: "insufficient balance",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 					Actions: []chain.Action{
 						&chaintest.TestAction{
 							NumComputeUnits: 1,

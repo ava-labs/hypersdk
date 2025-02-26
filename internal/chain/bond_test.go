@@ -31,7 +31,7 @@ func TestBond(t *testing.T) {
 			name: "no balance",
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -46,7 +46,7 @@ func TestBond(t *testing.T) {
 			maxBalance: newBalance(0),
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -61,7 +61,7 @@ func TestBond(t *testing.T) {
 			maxBalance: newBalance(1),
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -76,7 +76,7 @@ func TestBond(t *testing.T) {
 			maxBalance: newBalance(1_000_000),
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -92,7 +92,7 @@ func TestBond(t *testing.T) {
 			maxBalance: newBalance(0),
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -108,7 +108,7 @@ func TestBond(t *testing.T) {
 			maxBalance: newBalance(123),
 			tx: func() *chain.Transaction {
 				txData := chain.NewTxData(
-					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+					chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
 				)
 				tx, err := txData.Sign(&NoAuthFactory{})
@@ -145,7 +145,7 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	b := NewBonder(memdb.New())
 
 	txData := chain.NewTxData(
-		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+		chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	)
 	tx, err := txData.Sign(&NoAuthFactory{})
@@ -162,7 +162,7 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
 	txData := chain.NewTxData(
-		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+		chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	)
 	tx, err := txData.Sign(&NoAuthFactory{})
@@ -184,7 +184,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 
 	txData := chain.NewTxData(
-		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
+		chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
 	)
 	tx, err := txData.Sign(&NoAuthFactory{})
@@ -205,13 +205,13 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
 	authFactory := &NoAuthFactory{}
 
-	txData1 := chain.NewTxData(&chain.Base{Timestamp: 0}, nil)
+	txData1 := chain.NewTxData(chain.Base{Timestamp: 0}, nil)
 	tx1, err := txData1.Sign(authFactory)
 	r.NoError(err)
-	txData2 := chain.NewTxData(&chain.Base{Timestamp: 1}, nil)
+	txData2 := chain.NewTxData(chain.Base{Timestamp: 1}, nil)
 	tx2, err := txData2.Sign(authFactory)
 	r.NoError(err)
-	txData3 := chain.NewTxData(&chain.Base{Timestamp: 2}, nil)
+	txData3 := chain.NewTxData(chain.Base{Timestamp: 2}, nil)
 	tx3, err := txData3.Sign(authFactory)
 	r.NoError(err)
 

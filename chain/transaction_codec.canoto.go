@@ -27,10 +27,6 @@ const (
 )
 
 type canotoData_SerializeTxData struct {
-	// Enforce noCopy before atomic usage.
-	// See https://github.com/StephenButtolph/canoto/pull/32
-	_ atomic.Int64
-
 	size int
 }
 
@@ -96,8 +92,7 @@ func (c *SerializeTxData) UnmarshalCanotoFrom(r canoto.Reader) error {
 
 			remainingBytes := r.B
 			r.B = msgBytes
-			c.Base = canoto.MakePointer(c.Base)
-			err = (c.Base).UnmarshalCanotoFrom(r)
+			err = (&c.Base).UnmarshalCanotoFrom(r)
 			r.B = remainingBytes
 			if err != nil {
 				return err
@@ -152,7 +147,7 @@ func (c *SerializeTxData) ValidCanoto() bool {
 	if c == nil {
 		return true
 	}
-	if c.Base != nil && !(c.Base).ValidCanoto() {
+	if !(&c.Base).ValidCanoto() {
 		return false
 	}
 	return true
@@ -167,11 +162,9 @@ func (c *SerializeTxData) CalculateCanotoCache() {
 		return
 	}
 	c.canotoData.size = 0
-	if c.Base != nil {
-		(c.Base).CalculateCanotoCache()
-		if fieldSize := (c.Base).CachedCanotoSize(); fieldSize != 0 {
-			c.canotoData.size += len(canoto__SerializeTxData__Base__tag) + canoto.SizeInt(int64(fieldSize)) + fieldSize
-		}
+	(&c.Base).CalculateCanotoCache()
+	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
+		c.canotoData.size += len(canoto__SerializeTxData__Base__tag) + canoto.SizeInt(int64(fieldSize)) + fieldSize
 	}
 	for _, v := range c.Actions {
 		c.canotoData.size += len(canoto__SerializeTxData__Actions__tag) + canoto.SizeBytes(v)
@@ -219,12 +212,10 @@ func (c *SerializeTxData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if c == nil {
 		return w
 	}
-	if c.Base != nil {
-		if fieldSize := (c.Base).CachedCanotoSize(); fieldSize != 0 {
-			canoto.Append(&w, canoto__SerializeTxData__Base__tag)
-			canoto.AppendInt(&w, int64(fieldSize))
-			w = (c.Base).MarshalCanotoInto(w)
-		}
+	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
+		canoto.Append(&w, canoto__SerializeTxData__Base__tag)
+		canoto.AppendInt(&w, int64(fieldSize))
+		w = (&c.Base).MarshalCanotoInto(w)
 	}
 	for _, v := range c.Actions {
 		canoto.Append(&w, canoto__SerializeTxData__Actions__tag)
@@ -234,21 +225,17 @@ func (c *SerializeTxData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 }
 
 const (
-	canoto__SerializeRawTx__TransactionData__tag = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__SerializeRawTx__Auth__tag            = "\x12" // canoto.Tag(2, canoto.Len)
+	canoto__SerializeRawTxData__TransactionData__tag = "\x0a" // canoto.Tag(1, canoto.Len)
+	canoto__SerializeRawTxData__Auth__tag            = "\x12" // canoto.Tag(2, canoto.Len)
 )
 
-type canotoData_SerializeRawTx struct {
-	// Enforce noCopy before atomic usage.
-	// See https://github.com/StephenButtolph/canoto/pull/32
-	_ atomic.Int64
-
+type canotoData_SerializeRawTxData struct {
 	size int
 }
 
 // MakeCanoto creates a new empty value.
-func (*SerializeRawTx) MakeCanoto() *SerializeRawTx {
-	return new(SerializeRawTx)
+func (*SerializeRawTxData) MakeCanoto() *SerializeRawTxData {
+	return new(SerializeRawTxData)
 }
 
 // UnmarshalCanoto unmarshals a Canoto-encoded byte slice into the struct.
@@ -259,7 +246,7 @@ func (*SerializeRawTx) MakeCanoto() *SerializeRawTx {
 // bytes will retain their previous values. If a OneOf field was previously
 // cached as being set, attempting to unmarshal that OneOf again will return
 // canoto.ErrDuplicateOneOf.
-func (c *SerializeRawTx) UnmarshalCanoto(bytes []byte) error {
+func (c *SerializeRawTxData) UnmarshalCanoto(bytes []byte) error {
 	r := canoto.Reader{
 		B: bytes,
 	}
@@ -277,7 +264,7 @@ func (c *SerializeRawTx) UnmarshalCanoto(bytes []byte) error {
 // canoto.ErrDuplicateOneOf.
 //
 // This function enables configuration of reader options.
-func (c *SerializeRawTx) UnmarshalCanotoFrom(r canoto.Reader) error {
+func (c *SerializeRawTxData) UnmarshalCanotoFrom(r canoto.Reader) error {
 	var minField uint32
 	for canoto.HasNext(&r) {
 		field, wireType, err := canoto.ReadTag(&r)
@@ -327,7 +314,7 @@ func (c *SerializeRawTx) UnmarshalCanotoFrom(r canoto.Reader) error {
 // 1. All OneOfs are specified at most once.
 // 2. All strings are valid utf-8.
 // 3. All custom fields are ValidCanoto.
-func (c *SerializeRawTx) ValidCanoto() bool {
+func (c *SerializeRawTxData) ValidCanoto() bool {
 	if c == nil {
 		return true
 	}
@@ -338,16 +325,16 @@ func (c *SerializeRawTx) ValidCanoto() bool {
 // values in the struct.
 //
 // It is not safe to call this function concurrently.
-func (c *SerializeRawTx) CalculateCanotoCache() {
+func (c *SerializeRawTxData) CalculateCanotoCache() {
 	if c == nil {
 		return
 	}
 	c.canotoData.size = 0
 	if len(c.TransactionData) != 0 {
-		c.canotoData.size += len(canoto__SerializeRawTx__TransactionData__tag) + canoto.SizeBytes(c.TransactionData)
+		c.canotoData.size += len(canoto__SerializeRawTxData__TransactionData__tag) + canoto.SizeBytes(c.TransactionData)
 	}
 	if len(c.Auth) != 0 {
-		c.canotoData.size += len(canoto__SerializeRawTx__Auth__tag) + canoto.SizeBytes(c.Auth)
+		c.canotoData.size += len(canoto__SerializeRawTxData__Auth__tag) + canoto.SizeBytes(c.Auth)
 	}
 }
 
@@ -358,7 +345,7 @@ func (c *SerializeRawTx) CalculateCanotoCache() {
 //
 // If the struct has been modified since the last call to CalculateCanotoCache,
 // the returned size may be incorrect.
-func (c *SerializeRawTx) CachedCanotoSize() int {
+func (c *SerializeRawTxData) CachedCanotoSize() int {
 	if c == nil {
 		return 0
 	}
@@ -370,7 +357,7 @@ func (c *SerializeRawTx) CachedCanotoSize() int {
 // It is assumed that this struct is ValidCanoto.
 //
 // It is not safe to call this function concurrently.
-func (c *SerializeRawTx) MarshalCanoto() []byte {
+func (c *SerializeRawTxData) MarshalCanoto() []byte {
 	c.CalculateCanotoCache()
 	w := canoto.Writer{
 		B: make([]byte, 0, c.CachedCanotoSize()),
@@ -388,16 +375,16 @@ func (c *SerializeRawTx) MarshalCanoto() []byte {
 // It is assumed that this struct is ValidCanoto.
 //
 // It is not safe to call this function concurrently.
-func (c *SerializeRawTx) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
+func (c *SerializeRawTxData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if c == nil {
 		return w
 	}
 	if len(c.TransactionData) != 0 {
-		canoto.Append(&w, canoto__SerializeRawTx__TransactionData__tag)
+		canoto.Append(&w, canoto__SerializeRawTxData__TransactionData__tag)
 		canoto.AppendBytes(&w, c.TransactionData)
 	}
 	if len(c.Auth) != 0 {
-		canoto.Append(&w, canoto__SerializeRawTx__Auth__tag)
+		canoto.Append(&w, canoto__SerializeRawTxData__Auth__tag)
 		canoto.AppendBytes(&w, c.Auth)
 	}
 	return w
@@ -409,10 +396,6 @@ const (
 )
 
 type canotoData_SerializeTx struct {
-	// Enforce noCopy before atomic usage.
-	// See https://github.com/StephenButtolph/canoto/pull/32
-	_ atomic.Int64
-
 	size int
 }
 

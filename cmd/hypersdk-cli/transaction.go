@@ -86,7 +86,7 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to get network info: %w", err)
 		}
 
-		base := &chain.Base{
+		base := chain.Base{
 			ChainID:   chainID,
 			Timestamp: time.Now().Unix()*1000 + 60*1000, // TODO: use utils.UnixRMilli(now, rules.GetValidityWindow())
 			MaxFee:    1_000_000,                        // TODO: use chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)

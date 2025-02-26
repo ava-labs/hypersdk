@@ -196,7 +196,7 @@ func TestSubmitTx(t *testing.T) {
 			name: "valid tx",
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
-					&chain.Base{
+					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 1_000),
 						MaxFee:    1_000,
@@ -213,7 +213,7 @@ func TestSubmitTx(t *testing.T) {
 			name: validitywindow.ErrMisalignedTime.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
-					&chain.Base{
+					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: 1,
 						MaxFee:    1_000,
@@ -230,7 +230,7 @@ func TestSubmitTx(t *testing.T) {
 			name: validitywindow.ErrTimestampExpired.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
-					&chain.Base{
+					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: int64(time.Millisecond),
 						MaxFee:    1_000,
@@ -247,7 +247,7 @@ func TestSubmitTx(t *testing.T) {
 			name: validitywindow.ErrFutureTimestamp.Error(),
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
-					&chain.Base{
+					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), time.Hour.Milliseconds()),
 						MaxFee:    1_000,
@@ -264,7 +264,7 @@ func TestSubmitTx(t *testing.T) {
 			name: "invalid auth",
 			makeTx: func(r *require.Assertions, network *vmtest.TestNetwork) *chain.Transaction {
 				unsignedTx := chain.NewTxData(
-					&chain.Base{
+					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
 						MaxFee:    1_000,

@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,17 +32,19 @@ var (
 	_ mempool.Item = (*Transaction)(nil)
 	_ canoto.Field = (*TransactionData)(nil)
 	_ canoto.Field = (*Transaction)(nil)
+
+	errEmptyBase = errors.New("cannot unmarshal transaction with empty base field")
 )
 
 type TransactionData struct {
-	Base *Base
+	Base Base
 
 	Actions []Action
 
 	unsignedBytes []byte
 }
 
-func NewTxData(base *Base, actions []Action) TransactionData {
+func NewTxData(base Base, actions []Action) TransactionData {
 	txData := TransactionData{
 		Base:    base,
 		Actions: actions,
@@ -113,7 +116,7 @@ func (t *TransactionData) Sign(
 }
 
 func SignRawActionBytesTx(
-	base *Base,
+	base Base,
 	rawActionsBytes [][]byte,
 	authFactory AuthFactory,
 ) ([]byte, error) {
@@ -130,7 +133,7 @@ func SignRawActionBytesTx(
 	if err != nil {
 		return nil, err
 	}
-	tx := &SerializeRawTx{
+	tx := &SerializeRawTxData{
 		TransactionData: unsignedTxBytes,
 		Auth:            auth.Bytes(),
 	}
@@ -153,7 +156,7 @@ type Transaction struct {
 }
 
 // NewTransaction creates a Transaction and initializes the private fields.
-func NewTransaction(base *Base, actions []Action, auth Auth) (*Transaction, error) {
+func NewTransaction(base Base, actions []Action, auth Auth) (*Transaction, error) {
 	txData := NewTxData(base, actions)
 	t := &Transaction{
 		TransactionData: txData,
@@ -371,7 +374,7 @@ type txJSON struct {
 	ID      ids.ID        `json:"id"`
 	Actions []codec.Bytes `json:"actions"`
 	Auth    codec.Bytes   `json:"auth"`
-	Base    *Base         `json:"base"`
+	Base    Base          `json:"base"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -589,16 +592,14 @@ func GenerateTransactionManual(
 	authFactory AuthFactory,
 	maxFee uint64,
 ) (*Transaction, error) {
-	// Construct transaction
-	now := time.Now().UnixMilli()
-	base := &Base{
-		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.GetChainID(),
-		MaxFee:    maxFee,
-	}
-
-	// Build transaction
-	unsignedTx := NewTxData(base, actions)
+	unsignedTx := NewTxData(
+		Base{
+			Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), rules.GetValidityWindow()),
+			ChainID:   rules.GetChainID(),
+			MaxFee:    maxFee,
+		},
+		actions,
+	)
 	tx, err := unsignedTx.Sign(authFactory)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to sign transaction", err)

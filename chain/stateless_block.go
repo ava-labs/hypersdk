@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+var ErrNilTxInBlock = errors.New("block contains nil transaction")
+
 type Block struct {
 	Prnt   ids.ID `canoto:"fixed bytes,1" json:"parent"`
 	Tmstmp int64  `canoto:"sint,2" json:"timestamp"`
@@ -21,7 +24,9 @@ type Block struct {
 
 	BlockContext *block.Context `canoto:"pointer,4" json:"blockContext"`
 
-	// XXX: canoto treats nil as a valid transaction.
+	// Note: canoto treats nil as a valid transaction. We only unmarshal
+	// using the StatelessBlock type, which adds a check during unmarshal
+	// to ensure there are no nil transactions.
 	Txs []*Transaction `canoto:"repeated pointer,5" json:"txs"`
 
 	// StateRoot is the root of the post-execution state
@@ -88,6 +93,11 @@ func (b *StatelessBlock) UnmarshalCanotoFrom(r canoto.Reader) error {
 	}
 	b.bytes = r.B
 	b.id = utils.ToID(b.bytes)
+	for i, tx := range b.Txs {
+		if tx == nil {
+			return fmt.Errorf("%w at index %d", ErrNilTxInBlock, i)
+		}
+	}
 	return nil
 }
 

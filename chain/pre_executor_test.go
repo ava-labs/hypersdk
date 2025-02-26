@@ -36,7 +36,7 @@ func TestPreExecutor(t *testing.T) {
 	}
 	validTx := &chain.Transaction{
 		TransactionData: chain.TransactionData{
-			Base: &chain.Base{
+			Base: chain.Base{
 				Timestamp: utils.UnixRMilli(
 					time.Now().UnixMilli(),
 					testRules.GetValidityWindow(),
@@ -118,7 +118,7 @@ func TestPreExecutor(t *testing.T) {
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
 				Auth: &chaintest.TestAuth{
 					ShouldErr: true,
@@ -134,7 +134,7 @@ func TestPreExecutor(t *testing.T) {
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
 				Auth: &chaintest.TestAuth{},
 			},
