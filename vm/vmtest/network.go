@@ -435,7 +435,6 @@ func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, au
 	}
 	return chain.GenerateTransaction(
 		n.VMs[0].VM.GetRuleFactory(),
-		n.VMs[0].VM.GetTxParser(),
 		unitPrices,
 		actions,
 		authFactory,

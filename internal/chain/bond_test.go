@@ -280,8 +280,6 @@ func (NoAuth) ValidRange(chain.Rules) (start int64, end int64) {
 
 func (NoAuth) Marshal(*codec.Packer) {}
 
-func (NoAuth) Size() int { return 0 }
-
 func (NoAuth) ComputeUnits(chain.Rules) uint64 {
 	return 0
 }

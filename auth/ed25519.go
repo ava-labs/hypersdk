@@ -62,10 +62,6 @@ func (d *ED25519) Sponsor() codec.Address {
 	return d.address()
 }
 
-func (*ED25519) Size() int {
-	return ED25519Size
-}
-
 func (d *ED25519) Bytes() []byte {
 	b := make([]byte, ED25519Size)
 	b[0] = d.GetTypeID()

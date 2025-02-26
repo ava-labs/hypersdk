@@ -62,10 +62,6 @@ func (b *BLS) Sponsor() codec.Address {
 	return b.address()
 }
 
-func (*BLS) Size() int {
-	return BLSSize
-}
-
 func (b *BLS) Bytes() []byte {
 	bytes := make([]byte, BLSSize)
 	bytes[0] = BLSID

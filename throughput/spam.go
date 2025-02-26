@@ -343,7 +343,7 @@ func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feeP
 
 		// Send funds
 		actions := sh.GetTransfer(pk.Address, distAmount, []byte{})
-		tx, err := chain.GenerateTransactionManual(rules, parser, actions, s.authFactory, feePerTx)
+		tx, err := chain.GenerateTransactionManual(rules, actions, s.authFactory, feePerTx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -405,7 +405,7 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 		// Send funds
 		returnAmt := balance - feePerTx
 		actions := sh.GetTransfer(s.authFactory.Address(), returnAmt, []byte{})
-		tx, err := chain.GenerateTransactionManual(rules, sh.GetParser(), actions, factories[i], feePerTx)
+		tx, err := chain.GenerateTransactionManual(rules, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}

@@ -141,28 +141,22 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
-func (w *WebSocketServer) expireTx(txID ids.ID) error {
+func (w *WebSocketServer) expireTx(txID ids.ID) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
-		return nil
+		return
 	}
 	// nil result indicates the transaction expired
-	bytes, err := packTxMessage(txID, nil)
-	if err != nil {
-		return err
-	}
+	bytes := packTxMessage(txID, nil)
 	w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
-	return nil
 }
 
 func (w *WebSocketServer) setMinTx(t int64) error {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		if err := w.expireTx(id); err != nil {
-			return err
-		}
+		w.expireTx(id)
 	}
 	if exp := len(expired); exp > 0 {
 		w.logger.Debug("expired listeners", zap.Int("count", exp))
@@ -192,10 +186,8 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 			continue
 		}
 		// Publish to tx listener
-		bytes, err := packTxMessage(txID, results[i])
-		if err != nil {
-			return err
-		}
+		bytes := packTxMessage(txID, results[i])
+
 		// Skip clearing inactive connections because they'll be deleted
 		// regardless.
 		_ = w.s.Publish(append([]byte{TxMode}, bytes...), listeners)

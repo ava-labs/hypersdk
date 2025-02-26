@@ -4,6 +4,8 @@
 package chain
 
 import (
+	"fmt"
+
 	"github.com/StephenButtolph/canoto"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -44,7 +46,7 @@ type BatchedTransactionSerializer struct {
 	Parser Parser
 }
 
-func (b *BatchedTransactionSerializer) Marshal(txs []*Transaction) []byte {
+func (*BatchedTransactionSerializer) Marshal(txs []*Transaction) []byte {
 	batch := BatchedTransactions{Transactions: txs}
 	return batch.MarshalCanoto()
 }
@@ -57,6 +59,11 @@ func (b *BatchedTransactionSerializer) Unmarshal(bytes []byte) ([]*Transaction, 
 	batch := &BatchedTransactions{}
 	if err := batch.UnmarshalCanotoFrom(reader); err != nil {
 		return nil, err
+	}
+	for i, tx := range batch.Transactions {
+		if tx == nil {
+			return nil, fmt.Errorf("%w: at index %d", errParseUnsignedTxWithNonEmptyAuth, i)
+		}
 	}
 	return batch.Transactions, nil
 }

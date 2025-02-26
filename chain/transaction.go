@@ -519,11 +519,10 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	return nil
 }
 
-func (t *Transaction) ValidCanoto() bool { return true }
+func (*Transaction) ValidCanoto() bool { return true }
 
 func GenerateTransaction(
 	ruleFactory RuleFactory,
-	parser Parser,
 	unitPrices fees.Dimensions,
 	actions []Action,
 	authFactory AuthFactory,
@@ -537,7 +536,7 @@ func GenerateTransaction(
 	if err != nil {
 		return nil, err
 	}
-	tx, err := GenerateTransactionManual(rules, parser, actions, authFactory, maxFee)
+	tx, err := GenerateTransactionManual(rules, actions, authFactory, maxFee)
 	if err != nil {
 		return nil, err
 	}
@@ -546,7 +545,6 @@ func GenerateTransaction(
 
 func GenerateTransactionManual(
 	rules Rules,
-	parser Parser,
 	actions []Action,
 	authFactory AuthFactory,
 	maxFee uint64,

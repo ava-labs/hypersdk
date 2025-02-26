@@ -25,7 +25,6 @@ import (
 var (
 	feeKey = string(chain.FeeKey([]byte{2}))
 
-	errMockAuth           = errors.New("mock auth error")
 	errMockValidityWindow = errors.New("mock validity window error")
 )
 

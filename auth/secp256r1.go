@@ -62,10 +62,6 @@ func (d *SECP256R1) Sponsor() codec.Address {
 	return d.address()
 }
 
-func (*SECP256R1) Size() int {
-	return SECP256R1Size
-}
-
 func (d *SECP256R1) Bytes() []byte {
 	b := make([]byte, SECP256R1Size)
 	b[0] = SECP256R1ID

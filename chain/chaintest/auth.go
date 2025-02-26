@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 const TestAuthTypeID = 0
@@ -47,7 +46,7 @@ func (t *TestAuth) Bytes() []byte {
 	// Panic if we fail to marshal a value here to catch any potential bugs early.
 	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
 	// here.
-	_ = codec.LinearCodec.MarshalInto(t, p)
+	_ = codec.LinearCodec.MarshalInto(t, p) //nolint:errcheck
 	return p.Bytes
 }
 
@@ -81,14 +80,6 @@ func (t *TestAuth) ValidRange(_ chain.Rules) (int64, int64) {
 	return start, end
 }
 
-func (t *TestAuth) Marshal(p *codec.Packer) {
-	codec.LinearCodec.MarshalInto(t, p.Packer)
-}
-
-func (t *TestAuth) Size() int {
-	return consts.Uint64Len + 2*codec.AddressLen + consts.BoolLen
-}
-
 func (t *TestAuth) ComputeUnits(_ chain.Rules) uint64 {
 	return t.NumComputeUnits
 }
@@ -101,7 +92,7 @@ func (t *TestAuth) Sponsor() codec.Address {
 	return t.SponsorAddress
 }
 
-func (t *TestAuth) Verify(ctx context.Context, msg []byte) error {
+func (t *TestAuth) Verify(ctx context.Context, _ []byte) error {
 	if t.ShouldErr {
 		return ErrTestAuthVerify
 	}
@@ -112,14 +103,14 @@ type TestAuthFactory struct {
 	TestAuth *TestAuth
 }
 
-func (t *TestAuthFactory) Sign(msg []byte) (chain.Auth, error) {
+func (t *TestAuthFactory) Sign(_ []byte) (chain.Auth, error) {
 	return t.TestAuth, nil
 }
 
 func (t *TestAuthFactory) MaxUnits() (bandwidth uint64, compute uint64) {
-	panic("not implemented")
+	return uint64(len(t.TestAuth.Bytes())), t.TestAuth.NumComputeUnits
 }
 
-func (t *TestAuthFactory) Address() codec.Address {
+func (*TestAuthFactory) Address() codec.Address {
 	panic("not implemented")
 }
