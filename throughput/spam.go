@@ -126,7 +126,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, factories, err := s.distributeFunds(ctx, parser, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(ctx, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (s *Spammer) createIssuers(parser chain.Parser, ruleFactory chain.RuleFacto
 	return issuers, nil
 }
 
-func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
+func (s *Spammer) distributeFunds(ctx context.Context, feePerTx uint64, sh SpamHelper) ([]*auth.PrivateKey, []chain.AuthFactory, error) {
 	withholding := feePerTx * uint64(s.numAccounts)
 	if s.balance < withholding {
 		return nil, nil, fmt.Errorf("insufficient funds (have=%d need=%d)", s.balance, withholding)

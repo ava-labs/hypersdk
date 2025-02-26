@@ -30,7 +30,7 @@ type TestAuth struct {
 	End             int64         `serialize:"true" json:"end"`
 }
 
-func (t *TestAuth) GetTypeID() uint8 {
+func (*TestAuth) GetTypeID() uint8 {
 	return TestAuthTypeID
 }
 
@@ -46,7 +46,7 @@ func (t *TestAuth) Bytes() []byte {
 	// Panic if we fail to marshal a value here to catch any potential bugs early.
 	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
 	// here.
-	_ = codec.LinearCodec.MarshalInto(t, p) //nolint:errcheck
+	_ = codec.LinearCodec.MarshalInto(t, p)
 	return p.Bytes
 }
 
@@ -92,7 +92,7 @@ func (t *TestAuth) Sponsor() codec.Address {
 	return t.SponsorAddress
 }
 
-func (t *TestAuth) Verify(ctx context.Context, _ []byte) error {
+func (t *TestAuth) Verify(_ context.Context, _ []byte) error {
 	if t.ShouldErr {
 		return ErrTestAuthVerify
 	}

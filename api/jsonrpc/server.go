@@ -28,11 +28,10 @@ const (
 
 var errNoActionsToExecute = errors.New("no actions to execute")
 
-var _ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
-
 var (
-	errSimulateZeroActions   = errors.New("simulateAction expects at least a single action, none found")
-	errTransactionExtraBytes = errors.New("transaction has extra bytes")
+	_ api.HandlerFactory[api.VM] = (*JSONRPCServerFactory)(nil)
+
+	errSimulateZeroActions = errors.New("simulateAction expects at least a single action, none found")
 )
 
 type JSONRPCServerFactory struct{}

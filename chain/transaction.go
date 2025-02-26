@@ -6,7 +6,6 @@ package chain
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -31,9 +30,6 @@ var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
 	_ canoto.Field = (*Transaction)(nil)
-
-	errEmptyBase                       = errors.New("cannot unmarshal transaction with empty base field")
-	errParseUnsignedTxWithNonEmptyAuth = errors.New("cannot parse unsigned transaction data with non-empty auth field")
 )
 
 type TransactionData struct {
@@ -476,7 +472,7 @@ func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 
 // CalculateCanotoCache is a no-op for [Transaction] because it is immutable
 // and already cached in the internal bytes field.
-func (t *Transaction) CalculateCanotoCache() {}
+func (*Transaction) CalculateCanotoCache() {}
 
 func (t *Transaction) CachedCanotoSize() int { return t.size }
 

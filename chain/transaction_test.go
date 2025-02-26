@@ -493,8 +493,8 @@ func equalTxData(r *require.Assertions, expected chain.TransactionData, actual c
 	r.Equal(expected.Base.MarshalCanoto(), actual.Base.MarshalCanoto(), msgAndArgs...)
 	r.Equal(len(expected.Actions), len(actual.Actions), msgAndArgs...)
 	for i, action := range expected.Actions {
-		actionMsgAndArgs := append(msgAndArgs, "index", i)
-		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), actionMsgAndArgs...)
+		msgAndArgs = append(msgAndArgs, "index", i)
+		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), msgAndArgs...)
 	}
 	r.Equal(expected.UnsignedBytes(), actual.UnsignedBytes(), msgAndArgs...)
 }

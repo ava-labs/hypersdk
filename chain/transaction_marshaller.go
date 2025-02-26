@@ -62,7 +62,7 @@ func (b *BatchedTransactionSerializer) Unmarshal(bytes []byte) ([]*Transaction, 
 	}
 	for i, tx := range batch.Transactions {
 		if tx == nil {
-			return nil, fmt.Errorf("%w: at index %d", errParseUnsignedTxWithNonEmptyAuth, i)
+			return nil, fmt.Errorf("%w: at index %d", ErrNilTxInBlock, i)
 		}
 	}
 	return batch.Transactions, nil
