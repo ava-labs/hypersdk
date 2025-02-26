@@ -86,7 +86,7 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 		numClients:       sc.numClients,
 		numAccounts:      sc.numAccounts,
 
-		tracker:  NewTracker(),
+		tracker:  newTracker(),
 		issuerWg: &sync.WaitGroup{},
 	}, nil
 }
@@ -146,20 +146,20 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// start logging
-	s.tracker.Start(ctx, cli)
+	s.tracker.start(ctx, cli)
 
 	// broadcast transactions
 	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
 	cancel()
 	if err != nil {
-		s.tracker.Stop()
+		s.tracker.stop()
 		return err
 	}
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
-	s.tracker.Stop()
+	s.tracker.stop()
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
@@ -227,7 +227,7 @@ func (s Spammer) broadcast(
 					factory := factories[senderIndex]
 					// Send transaction
 					actions := sh.GetActions()
-					s.tracker.IncrementSent()
+					s.tracker.incrementSent()
 					// assumes the sender has the funds to pay for the transaction
 					return issuer.Send(ctx, actions, factory, feePerTx)
 				})

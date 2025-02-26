@@ -30,7 +30,7 @@ type tracker struct {
 	done   chan struct{}
 }
 
-func NewTracker() *tracker {
+func newTracker() *tracker {
 	return &tracker{
 		done: make(chan struct{}),
 	}
@@ -54,7 +54,7 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	}
 }
 
-func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
+func (t *tracker) start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
 	t.ticker = time.NewTicker(time.Second)
 	cctx, cancel := context.WithCancel(ctx)
@@ -102,11 +102,11 @@ func (t *tracker) Start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	}()
 }
 
-func (t *tracker) IncrementSent() int64 {
+func (t *tracker) incrementSent() int64 {
 	return t.sent.Add(1)
 }
 
-func (t *tracker) Stop() {
+func (t *tracker) stop() {
 	t.ticker.Stop()
 	t.cancel()
 	<-t.done
