@@ -5,8 +5,6 @@ package validitywindow
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -22,12 +20,6 @@ import (
 const (
 	requestTimeout = 1 * time.Second // Timeout for each request
 	numSampleNodes = 10              // Number of nodes to sample
-)
-
-var (
-	errEmptyResponse = errors.New("empty response")
-	errInvalidBlock  = errors.New("invalid block")
-	errChannelFull   = errors.New("result channel full")
 )
 
 // checkpoint tracks our current position, it's keeping track of the
@@ -90,7 +82,6 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 
 			select {
 			case <-ctx.Done():
-				resultChan <- FetchResult[B]{Err: ctx.Err()}
 				cancel()
 				return
 			default:
@@ -118,16 +109,14 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 			}
 
 			req.BlockHeight = nextHeight
-			err := c.client.AppRequest(reqCtx, nodeID, req, func(ctx context.Context, nodeID ids.NodeID, response *BlockFetchResponse, err error) {
+			err := c.client.AppRequest(reqCtx, nodeID, req, func(ctx context.Context, _ ids.NodeID, response *BlockFetchResponse, err error) {
 				// Handle response
 				if err != nil {
-					resultChan <- FetchResult[B]{Err: err}
 					return
 				}
 
 				respBlocks := response.Blocks
 				if len(respBlocks) == 0 {
-					resultChan <- FetchResult[B]{Err: fmt.Errorf("node=%s: %w", nodeID, errEmptyResponse)}
 					return
 				}
 
@@ -138,17 +127,17 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 				for _, raw := range respBlocks {
 					block, parseErr := c.parser.ParseBlock(ctx, raw)
 					if parseErr != nil {
-						resultChan <- FetchResult[B]{Err: fmt.Errorf("failed to parse block: %w: %w", parseErr, errInvalidBlock)}
 						return
 					}
 
 					if expectedParentID != block.GetID() {
-						resultChan <- FetchResult[B]{Err: fmt.Errorf("expectedParentID=%s got=%s: %w", expectedParentID, block.GetID(), errInvalidBlock)}
 						return
 					}
 					expectedParentID = block.GetParent()
 
 					select {
+					case <-ctx.Done():
+						return
 					// try to write
 					case resultChan <- FetchResult[B]{Block: maybe.Some(block)}:
 						// Update checkpoint
@@ -159,18 +148,11 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 							c.checkpoint.nextHeight = nextBlkHeight - 1
 						}
 						c.checkpointLock.Unlock()
-					case <-ctx.Done():
-						resultChan <- FetchResult[B]{Err: ctx.Err()}
-						return
-					default:
-						resultChan <- FetchResult[B]{Err: errChannelFull}
-						return
 					}
 				}
 			})
 			if err != nil {
 				cancel()
-				resultChan <- FetchResult[B]{Err: fmt.Errorf("fetch error from node=%s: %w", nodeID, err)}
 			}
 			time.Sleep(500 * time.Millisecond)
 		}

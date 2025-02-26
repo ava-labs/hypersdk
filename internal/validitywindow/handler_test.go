@@ -61,7 +61,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			req := require.New(t)
 
 			blocks := tt.setupBlocks()
-			retriever := newTestBlockRetriever[ExecutionBlock[container]]().
+			retriever := newTestBlockRetriever().
 				withBlocks(blocks)
 
 			if tt.delay > 0 {
@@ -112,7 +112,7 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 			req := require.New(t)
 
 			blocks := generateBlockChain(10, 5)
-			retriever := newTestBlockRetriever[ExecutionBlock[container]]().
+			retriever := newTestBlockRetriever().
 				withBlocks(blocks)
 
 			handler := NewBlockFetcherHandler(retriever)
@@ -146,7 +146,7 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	req := require.New(t)
 
 	blocks := generateBlockChain(20, 1)
-	retriever := newTestBlockRetriever[ExecutionBlock[container]]().
+	retriever := newTestBlockRetriever().
 		withBlocks(blocks).
 		withDelay(maxProcessingDuration + 10*time.Millisecond)
 
@@ -202,37 +202,35 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 	return blks
 }
 
-var _ BlockRetriever[Block] = (*testBlockRetriever[Block])(nil)
-
-type testBlockRetriever[T Block] struct {
+type testBlockRetriever struct {
 	delay   time.Duration
 	nodeID  ids.NodeID
 	errChan chan error
-	blocks  map[uint64]T
+	blocks  map[uint64]ExecutionBlock[container]
 }
 
-func newTestBlockRetriever[T Block]() *testBlockRetriever[T] {
-	return &testBlockRetriever[T]{
+func newTestBlockRetriever() *testBlockRetriever {
+	return &testBlockRetriever{
 		errChan: make(chan error, 1),
 	}
 }
 
-func (r *testBlockRetriever[T]) withBlocks(blocks map[uint64]T) *testBlockRetriever[T] {
+func (r *testBlockRetriever) withBlocks(blocks map[uint64]ExecutionBlock[container]) *testBlockRetriever {
 	r.blocks = blocks
 	return r
 }
 
-func (r *testBlockRetriever[T]) withDelay(delay time.Duration) *testBlockRetriever[T] {
+func (r *testBlockRetriever) withDelay(delay time.Duration) *testBlockRetriever {
 	r.delay = delay
 	return r
 }
 
-func (r *testBlockRetriever[T]) withNodeID(nodeID ids.NodeID) *testBlockRetriever[T] {
+func (r *testBlockRetriever) withNodeID(nodeID ids.NodeID) *testBlockRetriever {
 	r.nodeID = nodeID
 	return r
 }
 
-func (r *testBlockRetriever[T]) GetBlockByHeight(_ context.Context, blockHeight uint64) (T, error) {
+func (r *testBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
 	if r.delay.Milliseconds() > 0 {
 		time.Sleep(r.delay)
 	}
@@ -248,7 +246,7 @@ func (r *testBlockRetriever[T]) GetBlockByHeight(_ context.Context, blockHeight 
 
 	if !ok && err != nil {
 		r.errChan <- err
-		return utils.Zero[T](), err
+		return utils.Zero[ExecutionBlock[container]](), err
 	}
 	return block, nil
 }

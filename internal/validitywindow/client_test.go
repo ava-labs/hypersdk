@@ -5,7 +5,6 @@ package validitywindow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -67,13 +66,6 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	// Collect all blocks from the channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for result := range resultChan {
-		if result.Err != nil {
-			if errors.Is(result.Err, errChannelFull) || errors.Is(result.Err, context.DeadlineExceeded) {
-				cancel()
-				req.Fail(fmt.Sprintf("fatal error: %v", result.Err))
-			}
-			continue
-		}
 		req.True(result.Block.HasValue())
 
 		block := result.Block.Value()
@@ -124,24 +116,24 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	height := tip.GetHeight()
 	ts := tip.GetTimestamp()
 
-	blockChan := fetcher.FetchBlocks(ctx, id, height, ts, &minTS)
-
-	// Collect blocks until we get an error or context deadline
+	resultChan := fetcher.FetchBlocks(ctx, id, height, ts, &minTS)
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	for result := range blockChan {
-		if errors.Is(result.Err, errInvalidBlock) {
-			continue
+
+	// upper bound timeout for receiving block
+	timeout := time.After(time.Second)
+loop:
+	for {
+		select {
+		case result := <-resultChan:
+			if result.Block.HasValue() {
+				block := result.Block.Value()
+				receivedBlocks[block.GetHeight()] = block
+				// reset the timeout for each successful block received
+				timeout = time.After(time.Second)
+			}
+		case <-timeout:
+			break loop
 		}
-		if result.Block.HasValue() {
-			block := result.Block.Value()
-			receivedBlocks[block.GetHeight()] = block
-			continue
-		}
-		// Expecting a context.DeadlineExceeded error because the nodeScenario consists of only one node (we will be sampling only one node each iteration).
-		// The node has a partially correct state. We lack the full validity window since the required third block is invalid.
-		// As a result, the setup ensures that a valid block can never be found.
-		req.ErrorIs(result.Err, context.DeadlineExceeded)
-		break
 	}
 
 	// We should have 6 blocks in our state instead of 7 since the last one is invalid. Partial commit of valid blocks
@@ -227,7 +219,6 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	// Collect blocks from channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for result := range blockChan {
-		req.NoError(result.Err)
 		req.True(result.Block.HasValue())
 
 		block := result.Block.Value()
@@ -282,7 +273,7 @@ func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeSce
 		nodeID := ids.GenerateTestNodeID()
 		nodes = append(nodes, nodeID)
 
-		blkRetriever := newTestBlockRetriever[ExecutionBlock[container]]().withBlocks(scenario.blocks).withNodeID(nodeID)
+		blkRetriever := newTestBlockRetriever().withBlocks(scenario.blocks).withNodeID(nodeID)
 		if scenario.responseDelay > 0 {
 			blkRetriever.withDelay(scenario.responseDelay)
 		}

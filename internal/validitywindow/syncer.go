@@ -5,7 +5,6 @@ package validitywindow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,7 +17,6 @@ import (
 
 type FetchResult[B Block] struct {
 	Block maybe.Maybe[B]
-	Err   error
 }
 
 type BlockFetcher[T Block] interface {
@@ -97,11 +95,6 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 
 		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, id, height, timestamp, &s.minTimestamp)
 		for result := range resultChan {
-			if errors.Is(result.Err, errChannelFull) || errors.Is(result.Err, context.Canceled) {
-				s.cancel()
-				return
-			}
-
 			if result.Block.HasValue() {
 				s.timeValidityWindow.Accept(result.Block.Value())
 			}
