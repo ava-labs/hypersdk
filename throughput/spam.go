@@ -146,7 +146,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// start logging
-	s.tracker.start(ctx, cli)
+	s.tracker.startPeriodicLog(ctx, cli)
 
 	// broadcast transactions
 	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)

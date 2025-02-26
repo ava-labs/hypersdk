@@ -54,7 +54,7 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	}
 }
 
-func (t *tracker) start(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
+func (t *tracker) startPeriodicLog(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
 	t.ticker = time.NewTicker(time.Second)
 	cctx, cancel := context.WithCancel(ctx)
