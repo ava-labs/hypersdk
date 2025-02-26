@@ -82,7 +82,7 @@ func UnmarshalED25519(bytes []byte) (chain.Auth, error) {
 	if bytes[0] != ED25519ID {
 		return nil, fmt.Errorf("unexpected ed25519 typeID: %d != %d", bytes[0], ED25519ID)
 	}
-	
+
 	var d ED25519
 	copy(d.Signer[:], bytes[1:])
 	copy(d.Signature[:], bytes[1+ed25519.PublicKeyLen:])
