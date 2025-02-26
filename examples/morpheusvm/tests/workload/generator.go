@@ -50,7 +50,6 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	}
 
 	toAddress := auth.NewED25519Address(to.PublicKey())
-	parser := lcli.GetParser()
 
 	unitPrices, err := cli.UnitPrices(ctx, true)
 	if err != nil {
@@ -59,7 +58,6 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 
 	tx, err := chain.GenerateTransaction(
 		ruleFactory,
-		parser,
 		unitPrices,
 		[]chain.Action{&actions.Transfer{
 			To:    toAddress,
