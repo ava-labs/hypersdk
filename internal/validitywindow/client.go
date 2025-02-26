@@ -125,8 +125,8 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 				c.checkpointLock.RUnlock()
 
 				for _, raw := range respBlocks {
-					block, parseErr := c.parser.ParseBlock(ctx, raw)
-					if parseErr != nil {
+					block, err := c.parser.ParseBlock(ctx, raw)
+					if err != nil {
 						return
 					}
 
