@@ -22,377 +22,9 @@ var (
 )
 
 const (
-	canoto__SerializeTxData__Base__tag    = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__SerializeTxData__Actions__tag = "\x12" // canoto.Tag(2, canoto.Len)
-)
-
-type canotoData_SerializeTxData struct {
-	size int
-}
-
-// MakeCanoto creates a new empty value.
-func (*SerializeTxData) MakeCanoto() *SerializeTxData {
-	return new(SerializeTxData)
-}
-
-// UnmarshalCanoto unmarshals a Canoto-encoded byte slice into the struct.
-//
-// OneOf fields are cached during the unmarshaling process.
-//
-// The struct is not cleared before unmarshaling, any fields not present in the
-// bytes will retain their previous values. If a OneOf field was previously
-// cached as being set, attempting to unmarshal that OneOf again will return
-// canoto.ErrDuplicateOneOf.
-func (c *SerializeTxData) UnmarshalCanoto(bytes []byte) error {
-	r := canoto.Reader{
-		B: bytes,
-	}
-	return c.UnmarshalCanotoFrom(r)
-}
-
-// UnmarshalCanotoFrom populates the struct from a canoto.Reader. Most users
-// should just use UnmarshalCanoto.
-//
-// OneOf fields are cached during the unmarshaling process.
-//
-// The struct is not cleared before unmarshaling, any fields not present in the
-// bytes will retain their previous values. If a OneOf field was previously
-// cached as being set, attempting to unmarshal that OneOf again will return
-// canoto.ErrDuplicateOneOf.
-//
-// This function enables configuration of reader options.
-func (c *SerializeTxData) UnmarshalCanotoFrom(r canoto.Reader) error {
-	var minField uint32
-	for canoto.HasNext(&r) {
-		field, wireType, err := canoto.ReadTag(&r)
-		if err != nil {
-			return err
-		}
-		if field < minField {
-			return canoto.ErrInvalidFieldOrder
-		}
-
-		switch field {
-		case 1:
-			if wireType != canoto.Len {
-				return canoto.ErrUnexpectedWireType
-			}
-
-			originalUnsafe := r.Unsafe
-			r.Unsafe = true
-			var msgBytes []byte
-			err := canoto.ReadBytes(&r, &msgBytes)
-			r.Unsafe = originalUnsafe
-			if err != nil {
-				return err
-			}
-			if len(msgBytes) == 0 {
-				return canoto.ErrZeroValue
-			}
-
-			remainingBytes := r.B
-			r.B = msgBytes
-			err = (&c.Base).UnmarshalCanotoFrom(r)
-			r.B = remainingBytes
-			if err != nil {
-				return err
-			}
-		case 2:
-			if wireType != canoto.Len {
-				return canoto.ErrUnexpectedWireType
-			}
-
-			remainingBytes := r.B
-			originalUnsafe := r.Unsafe
-			r.Unsafe = true
-			err := canoto.ReadBytes(&r, new([]byte))
-			r.Unsafe = originalUnsafe
-			if err != nil {
-				return err
-			}
-
-			count, err := canoto.CountBytes(r.B, canoto__SerializeTxData__Actions__tag)
-			if err != nil {
-				return err
-			}
-			c.Actions = canoto.MakeSlice(c.Actions, 1+count)
-
-			r.B = remainingBytes
-			if err := canoto.ReadBytes(&r, &c.Actions[0]); err != nil {
-				return err
-			}
-			for i := range count {
-				r.B = r.B[len(canoto__SerializeTxData__Actions__tag):]
-				if err := canoto.ReadBytes(&r, &c.Actions[1+i]); err != nil {
-					return err
-				}
-			}
-		default:
-			return canoto.ErrUnknownField
-		}
-
-		minField = field + 1
-	}
-	return nil
-}
-
-// ValidCanoto validates that the struct can be correctly marshaled into the
-// Canoto format.
-//
-// Specifically, ValidCanoto ensures:
-// 1. All OneOfs are specified at most once.
-// 2. All strings are valid utf-8.
-// 3. All custom fields are ValidCanoto.
-func (c *SerializeTxData) ValidCanoto() bool {
-	if c == nil {
-		return true
-	}
-	if !(&c.Base).ValidCanoto() {
-		return false
-	}
-	return true
-}
-
-// CalculateCanotoCache populates size and OneOf caches based on the current
-// values in the struct.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeTxData) CalculateCanotoCache() {
-	if c == nil {
-		return
-	}
-	c.canotoData.size = 0
-	(&c.Base).CalculateCanotoCache()
-	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
-		c.canotoData.size += len(canoto__SerializeTxData__Base__tag) + canoto.SizeInt(int64(fieldSize)) + fieldSize
-	}
-	for _, v := range c.Actions {
-		c.canotoData.size += len(canoto__SerializeTxData__Actions__tag) + canoto.SizeBytes(v)
-	}
-}
-
-// CachedCanotoSize returns the previously calculated size of the Canoto
-// representation from CalculateCanotoCache.
-//
-// If CalculateCanotoCache has not yet been called, it will return 0.
-//
-// If the struct has been modified since the last call to CalculateCanotoCache,
-// the returned size may be incorrect.
-func (c *SerializeTxData) CachedCanotoSize() int {
-	if c == nil {
-		return 0
-	}
-	return c.canotoData.size
-}
-
-// MarshalCanoto returns the Canoto representation of this struct.
-//
-// It is assumed that this struct is ValidCanoto.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeTxData) MarshalCanoto() []byte {
-	c.CalculateCanotoCache()
-	w := canoto.Writer{
-		B: make([]byte, 0, c.CachedCanotoSize()),
-	}
-	w = c.MarshalCanotoInto(w)
-	return w.B
-}
-
-// MarshalCanotoInto writes the struct into a canoto.Writer and returns the
-// resulting canoto.Writer. Most users should just use MarshalCanoto.
-//
-// It is assumed that CalculateCanotoCache has been called since the last
-// modification to this struct.
-//
-// It is assumed that this struct is ValidCanoto.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeTxData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
-	if c == nil {
-		return w
-	}
-	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
-		canoto.Append(&w, canoto__SerializeTxData__Base__tag)
-		canoto.AppendInt(&w, int64(fieldSize))
-		w = (&c.Base).MarshalCanotoInto(w)
-	}
-	for _, v := range c.Actions {
-		canoto.Append(&w, canoto__SerializeTxData__Actions__tag)
-		canoto.AppendBytes(&w, v)
-	}
-	return w
-}
-
-const (
-	canoto__SerializeRawTxData__TransactionData__tag = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__SerializeRawTxData__Auth__tag            = "\x12" // canoto.Tag(2, canoto.Len)
-)
-
-type canotoData_SerializeRawTxData struct {
-	size int
-}
-
-// MakeCanoto creates a new empty value.
-func (*SerializeRawTxData) MakeCanoto() *SerializeRawTxData {
-	return new(SerializeRawTxData)
-}
-
-// UnmarshalCanoto unmarshals a Canoto-encoded byte slice into the struct.
-//
-// OneOf fields are cached during the unmarshaling process.
-//
-// The struct is not cleared before unmarshaling, any fields not present in the
-// bytes will retain their previous values. If a OneOf field was previously
-// cached as being set, attempting to unmarshal that OneOf again will return
-// canoto.ErrDuplicateOneOf.
-func (c *SerializeRawTxData) UnmarshalCanoto(bytes []byte) error {
-	r := canoto.Reader{
-		B: bytes,
-	}
-	return c.UnmarshalCanotoFrom(r)
-}
-
-// UnmarshalCanotoFrom populates the struct from a canoto.Reader. Most users
-// should just use UnmarshalCanoto.
-//
-// OneOf fields are cached during the unmarshaling process.
-//
-// The struct is not cleared before unmarshaling, any fields not present in the
-// bytes will retain their previous values. If a OneOf field was previously
-// cached as being set, attempting to unmarshal that OneOf again will return
-// canoto.ErrDuplicateOneOf.
-//
-// This function enables configuration of reader options.
-func (c *SerializeRawTxData) UnmarshalCanotoFrom(r canoto.Reader) error {
-	var minField uint32
-	for canoto.HasNext(&r) {
-		field, wireType, err := canoto.ReadTag(&r)
-		if err != nil {
-			return err
-		}
-		if field < minField {
-			return canoto.ErrInvalidFieldOrder
-		}
-
-		switch field {
-		case 1:
-			if wireType != canoto.Len {
-				return canoto.ErrUnexpectedWireType
-			}
-
-			if err := canoto.ReadBytes(&r, &c.TransactionData); err != nil {
-				return err
-			}
-			if len(c.TransactionData) == 0 {
-				return canoto.ErrZeroValue
-			}
-		case 2:
-			if wireType != canoto.Len {
-				return canoto.ErrUnexpectedWireType
-			}
-
-			if err := canoto.ReadBytes(&r, &c.Auth); err != nil {
-				return err
-			}
-			if len(c.Auth) == 0 {
-				return canoto.ErrZeroValue
-			}
-		default:
-			return canoto.ErrUnknownField
-		}
-
-		minField = field + 1
-	}
-	return nil
-}
-
-// ValidCanoto validates that the struct can be correctly marshaled into the
-// Canoto format.
-//
-// Specifically, ValidCanoto ensures:
-// 1. All OneOfs are specified at most once.
-// 2. All strings are valid utf-8.
-// 3. All custom fields are ValidCanoto.
-func (c *SerializeRawTxData) ValidCanoto() bool {
-	if c == nil {
-		return true
-	}
-	return true
-}
-
-// CalculateCanotoCache populates size and OneOf caches based on the current
-// values in the struct.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeRawTxData) CalculateCanotoCache() {
-	if c == nil {
-		return
-	}
-	c.canotoData.size = 0
-	if len(c.TransactionData) != 0 {
-		c.canotoData.size += len(canoto__SerializeRawTxData__TransactionData__tag) + canoto.SizeBytes(c.TransactionData)
-	}
-	if len(c.Auth) != 0 {
-		c.canotoData.size += len(canoto__SerializeRawTxData__Auth__tag) + canoto.SizeBytes(c.Auth)
-	}
-}
-
-// CachedCanotoSize returns the previously calculated size of the Canoto
-// representation from CalculateCanotoCache.
-//
-// If CalculateCanotoCache has not yet been called, it will return 0.
-//
-// If the struct has been modified since the last call to CalculateCanotoCache,
-// the returned size may be incorrect.
-func (c *SerializeRawTxData) CachedCanotoSize() int {
-	if c == nil {
-		return 0
-	}
-	return c.canotoData.size
-}
-
-// MarshalCanoto returns the Canoto representation of this struct.
-//
-// It is assumed that this struct is ValidCanoto.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeRawTxData) MarshalCanoto() []byte {
-	c.CalculateCanotoCache()
-	w := canoto.Writer{
-		B: make([]byte, 0, c.CachedCanotoSize()),
-	}
-	w = c.MarshalCanotoInto(w)
-	return w.B
-}
-
-// MarshalCanotoInto writes the struct into a canoto.Writer and returns the
-// resulting canoto.Writer. Most users should just use MarshalCanoto.
-//
-// It is assumed that CalculateCanotoCache has been called since the last
-// modification to this struct.
-//
-// It is assumed that this struct is ValidCanoto.
-//
-// It is not safe to call this function concurrently.
-func (c *SerializeRawTxData) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
-	if c == nil {
-		return w
-	}
-	if len(c.TransactionData) != 0 {
-		canoto.Append(&w, canoto__SerializeRawTxData__TransactionData__tag)
-		canoto.AppendBytes(&w, c.TransactionData)
-	}
-	if len(c.Auth) != 0 {
-		canoto.Append(&w, canoto__SerializeRawTxData__Auth__tag)
-		canoto.AppendBytes(&w, c.Auth)
-	}
-	return w
-}
-
-const (
-	canoto__SerializeTx__TransactionData__tag = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__SerializeTx__Auth__tag            = "\x12" // canoto.Tag(2, canoto.Len)
+	canoto__SerializeTx__Base__tag    = "\x0a" // canoto.Tag(1, canoto.Len)
+	canoto__SerializeTx__Actions__tag = "\x12" // canoto.Tag(2, canoto.Len)
+	canoto__SerializeTx__Auth__tag    = "\x1a" // canoto.Tag(3, canoto.Len)
 )
 
 type canotoData_SerializeTx struct {
@@ -461,12 +93,42 @@ func (c *SerializeTx) UnmarshalCanotoFrom(r canoto.Reader) error {
 
 			remainingBytes := r.B
 			r.B = msgBytes
-			err = (&c.TransactionData).UnmarshalCanotoFrom(r)
+			err = (&c.Base).UnmarshalCanotoFrom(r)
 			r.B = remainingBytes
 			if err != nil {
 				return err
 			}
 		case 2:
+			if wireType != canoto.Len {
+				return canoto.ErrUnexpectedWireType
+			}
+
+			remainingBytes := r.B
+			originalUnsafe := r.Unsafe
+			r.Unsafe = true
+			err := canoto.ReadBytes(&r, new([]byte))
+			r.Unsafe = originalUnsafe
+			if err != nil {
+				return err
+			}
+
+			count, err := canoto.CountBytes(r.B, canoto__SerializeTx__Actions__tag)
+			if err != nil {
+				return err
+			}
+			c.Actions = canoto.MakeSlice(c.Actions, 1+count)
+
+			r.B = remainingBytes
+			if err := canoto.ReadBytes(&r, &c.Actions[0]); err != nil {
+				return err
+			}
+			for i := range count {
+				r.B = r.B[len(canoto__SerializeTx__Actions__tag):]
+				if err := canoto.ReadBytes(&r, &c.Actions[1+i]); err != nil {
+					return err
+				}
+			}
+		case 3:
 			if wireType != canoto.Len {
 				return canoto.ErrUnexpectedWireType
 			}
@@ -497,7 +159,7 @@ func (c *SerializeTx) ValidCanoto() bool {
 	if c == nil {
 		return true
 	}
-	if !(&c.TransactionData).ValidCanoto() {
+	if !(&c.Base).ValidCanoto() {
 		return false
 	}
 	return true
@@ -512,9 +174,12 @@ func (c *SerializeTx) CalculateCanotoCache() {
 		return
 	}
 	c.canotoData.size = 0
-	(&c.TransactionData).CalculateCanotoCache()
-	if fieldSize := (&c.TransactionData).CachedCanotoSize(); fieldSize != 0 {
-		c.canotoData.size += len(canoto__SerializeTx__TransactionData__tag) + canoto.SizeInt(int64(fieldSize)) + fieldSize
+	(&c.Base).CalculateCanotoCache()
+	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
+		c.canotoData.size += len(canoto__SerializeTx__Base__tag) + canoto.SizeInt(int64(fieldSize)) + fieldSize
+	}
+	for _, v := range c.Actions {
+		c.canotoData.size += len(canoto__SerializeTx__Actions__tag) + canoto.SizeBytes(v)
 	}
 	if len(c.Auth) != 0 {
 		c.canotoData.size += len(canoto__SerializeTx__Auth__tag) + canoto.SizeBytes(c.Auth)
@@ -562,10 +227,14 @@ func (c *SerializeTx) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if c == nil {
 		return w
 	}
-	if fieldSize := (&c.TransactionData).CachedCanotoSize(); fieldSize != 0 {
-		canoto.Append(&w, canoto__SerializeTx__TransactionData__tag)
+	if fieldSize := (&c.Base).CachedCanotoSize(); fieldSize != 0 {
+		canoto.Append(&w, canoto__SerializeTx__Base__tag)
 		canoto.AppendInt(&w, int64(fieldSize))
-		w = (&c.TransactionData).MarshalCanotoInto(w)
+		w = (&c.Base).MarshalCanotoInto(w)
+	}
+	for _, v := range c.Actions {
+		canoto.Append(&w, canoto__SerializeTx__Actions__tag)
+		canoto.AppendBytes(&w, v)
 	}
 	if len(c.Auth) != 0 {
 		canoto.Append(&w, canoto__SerializeTx__Auth__tag)
