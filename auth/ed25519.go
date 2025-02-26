@@ -75,12 +75,15 @@ func (d *ED25519) Bytes() []byte {
 }
 
 func UnmarshalED25519(bytes []byte) (chain.Auth, error) {
-	var d ED25519
 	if len(bytes) != ED25519Size {
 		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(bytes), ED25519Size)
 	}
 
-	// Skip the typeID, which we assume is stripped by the type parser
+	if bytes[0] != ED25519ID {
+		return nil, fmt.Errorf("unexpected ed25519 typeID: %d != %d", bytes[0], ED25519ID)
+	}
+	
+	var d ED25519
 	copy(d.Signer[:], bytes[1:])
 	copy(d.Signature[:], bytes[1+ed25519.PublicKeyLen:])
 	return &d, nil

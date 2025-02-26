@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -25,9 +26,10 @@ const (
 )
 
 var (
-	ErrOutputValueZero                 = errors.New("value is zero")
-	ErrOutputMemoTooLarge              = errors.New("memo is too large")
-	_                     chain.Action = (*Transfer)(nil)
+	ErrOutputValueZero                     = errors.New("value is zero")
+	ErrOutputMemoTooLarge                  = errors.New("memo is too large")
+	ErrUnmarshalEmptyTransfer              = errors.New("cannot unmarshal empty bytes as transfer")
+	_                         chain.Action = (*Transfer)(nil)
 )
 
 type Transfer struct {
@@ -54,20 +56,32 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 
 func (t *Transfer) Bytes() []byte {
 	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0, 256),
+		Bytes:   make([]byte, 0, MaxMemoSize),
 		MaxSize: MaxTransferSize,
 	}
 	p.PackByte(mconsts.TransferID)
-	// TODO: switch to using Canoto after it supports
-	// dynamically loading ABI for CLI support.
-	_ = codec.LinearCodec.MarshalInto(t, p)
+	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
+	// interact with values unmarshalled from the network, which should guarantee a valid
+	// value here.
+	// Panic if we fail to marshal a value here to catch any potential bugs early.
+	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
+	// here.
+	if err := codec.LinearCodec.MarshalInto(t, p); err != nil {
+		panic(err)
+	}
 	return p.Bytes
 }
 
-func UnmarshalTransfer(b []byte) (chain.Action, error) {
+func UnmarshalTransfer(bytes []byte) (chain.Action, error) {
 	t := &Transfer{}
+	if len(bytes) == 0 {
+		return nil, ErrUnmarshalEmptyTransfer
+	}
+	if bytes[0] != mconsts.TransferID {
+		return nil, fmt.Errorf("unexpected transfer typeID: %d != %d", bytes[0], mconsts.TransferID)
+	}
 	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: b[1:]}, // XXX: first byte is guaranteed to be the typeID by the type parser
+		&wrappers.Packer{Bytes: bytes[1:]},
 		t,
 	); err != nil {
 		return nil, err
@@ -136,8 +150,12 @@ func (t *TransferResult) Bytes() []byte {
 		MaxSize: MaxTransferSize,
 	}
 	p.PackByte(mconsts.TransferID)
-	// TODO: switch to using canoto after dynamic ABI support
-	// so that we don't need to ignore the error here.
+	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
+	// interact with values unmarshalled from the network, which should guarantee a valid
+	// value here.
+	// Panic if we fail to marshal a value here to catch any potential bugs early.
+	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
+	// here.
 	_ = codec.LinearCodec.MarshalInto(t, p)
 	return p.Bytes
 }

@@ -5,6 +5,7 @@ package chain_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -12,12 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
@@ -28,9 +27,22 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-var _ chain.BalanceHandler = (*mockBalanceHandler)(nil)
+const signedTxHex = "0a740a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d6120000000000123e0000000000000000010000000000000000000000010000000401020304000000000000000000000000000000000000000000000000000000000000000000125c0000000000000000010102030000000000000000000000000000000000000000000000000000000000000405060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-var errMockInsufficientBalance = errors.New("mock insufficient balance error")
+var (
+	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
+	preSignedTxBytes []byte
+
+	errMockInsufficientBalance = errors.New("mock insufficient balance error")
+)
+
+func init() {
+	txBytes, err := hex.DecodeString(signedTxHex)
+	if err != nil {
+		panic(err)
+	}
+	preSignedTxBytes = txBytes
+}
 
 type mockBalanceHandler struct {
 	canDeductError error
@@ -56,37 +68,32 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 	return state.Keys{}
 }
 
-func TestJSONMarshalUnmarshal(t *testing.T) {
+func TestTransactionJSON(t *testing.T) {
 	r := require.New(t)
 
-	txData := chain.TransactionData{
-		Base: &chain.Base{
+	txData := chain.NewTxData(
+		&chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
 			MaxFee:    1234567,
 		},
-		Actions: []chain.Action{
+		[]chain.Action{
 			&chaintest.TestAction{
 				NumComputeUnits: 1,
 				ReadKeys:        [][]byte{{1, 2, 3, 4}},
 			},
 		},
+	)
+	authFactory := &chaintest.TestAuthFactory{
+		TestAuth: &chaintest.TestAuth{
+			NumComputeUnits: 1,
+			ActorAddress:    codec.Address{1, 2, 3},
+			SponsorAddress:  codec.Address{4, 5, 6},
+		},
 	}
-	priv, err := ed25519.GeneratePrivateKey()
-	r.NoError(err)
-	factory := auth.NewED25519Factory(priv)
+	parser := chaintest.NewTestParser()
 
-	actionCodec := codec.NewTypeParser[chain.Action]()
-	authCodec := codec.NewTypeParser[chain.Auth]()
-
-	err = actionCodec.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAaction)
-	r.NoError(err)
-	r.NoError(err)
-	err = authCodec.Register(&auth.ED25519{}, auth.UnmarshalED25519)
-	r.NoError(err)
-	parser := chain.NewTxTypeParser(actionCodec, authCodec)
-
-	signedTx, err := txData.Sign(factory)
+	signedTx, err := txData.Sign(authFactory)
 	r.NoError(err)
 
 	b, err := json.Marshal(signedTx)
@@ -98,11 +105,10 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 	equalTx(r, signedTx, txFromJSON)
 }
 
-// TestMarshalUnmarshal roughly validates that a transaction packs and unpacks correctly
-func TestMarshalUnmarshal(t *testing.T) {
+func TestSignTransaction(t *testing.T) {
 	r := require.New(t)
 
-	tx := chain.NewTxData(
+	txData := chain.NewTxData(
 		&chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -120,36 +126,28 @@ func TestMarshalUnmarshal(t *testing.T) {
 			},
 		},
 	)
-
-	factory := &chaintest.TestAuthFactory{
+	authFactory := &chaintest.TestAuthFactory{
 		TestAuth: &chaintest.TestAuth{
 			NumComputeUnits: 1,
 			ActorAddress:    codec.EmptyAddress,
 		},
 	}
-
 	parser := chaintest.NewTestParser()
 
-	// call UnsignedBytes so that the "unsignedBytes" field would get populated.
-	txBeforeSignBytes := tx.UnsignedBytes()
-
-	signedTx, err := tx.Sign(factory)
+	txBeforeSignBytes := utils.CopyBytes(txData.UnsignedBytes())
+	signedTx, err := txData.Sign(authFactory)
 	r.NoError(err)
 
 	unsignedTxAfterSignBytes := signedTx.TransactionData.UnsignedBytes()
-	r.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes)
+	r.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes, "signed unsigned bytes matches original unsigned tx data")
 	r.NoError(signedTx.VerifyAuth(context.Background()))
-	r.Equal(len(signedTx.Actions), len(tx.Actions))
-	for i, action := range signedTx.Actions {
-		r.Equal(tx.Actions[i], action)
-	}
+	equalTxData(r, txData, signedTx.TransactionData, "signed tx data matches original tx data")
 
 	signedTxBytes := signedTx.Bytes()
-	r.Equal(signedTx.GetID(), utils.ToID(signedTxBytes))
-	r.Equal(signedTx.Bytes(), signedTxBytes)
+	r.Equal(signedTx.GetID(), utils.ToID(signedTxBytes), "signed txID matches expected txID")
 
 	unsignedTxBytes := signedTx.UnsignedBytes()
-	originalUnsignedTxBytes := tx.UnsignedBytes()
+	originalUnsignedTxBytes := txData.UnsignedBytes()
 	r.Equal(originalUnsignedTxBytes, unsignedTxBytes)
 
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
@@ -161,7 +159,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 func TestSignRawActionBytesTx(t *testing.T) {
 	require := require.New(t)
 
-	tx := chain.NewTxData(
+	txData := chain.NewTxData(
 		&chain.Base{
 			Timestamp: 1724315246000,
 			ChainID:   [32]byte{1, 2, 3, 4, 5, 6, 7},
@@ -189,20 +187,73 @@ func TestSignRawActionBytesTx(t *testing.T) {
 
 	parser := chaintest.NewTestParser()
 
-	signedTx, err := tx.Sign(factory)
+	signedTx, err := txData.Sign(factory)
 	require.NoError(err)
 
 	actionsBytes := make([][]byte, 0, len(signedTx.Actions))
 	for _, action := range signedTx.Actions {
 		actionsBytes = append(actionsBytes, action.Bytes())
 	}
-	rawSignedTxBytes, err := chain.SignRawActionBytesTx(tx.Base, actionsBytes, factory)
+	rawSignedTxBytes, err := chain.SignRawActionBytesTx(txData.Base, actionsBytes, factory)
 	require.NoError(err)
 
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
 	require.NoError(err)
 
 	equalTx(require, signedTx, parseRawSignedTx)
+}
+
+func TestUnmarshalTx(t *testing.T) {
+	r := require.New(t)
+
+	txData := chain.NewTxData(
+		&chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		[]chain.Action{
+			&chaintest.TestAction{
+				NumComputeUnits: 1,
+				ReadKeys:        [][]byte{{1, 2, 3, 4}},
+			},
+		},
+	)
+	authFactory := &chaintest.TestAuthFactory{
+		TestAuth: &chaintest.TestAuth{
+			NumComputeUnits: 1,
+			ActorAddress:    codec.Address{1, 2, 3},
+			SponsorAddress:  codec.Address{4, 5, 6},
+		},
+	}
+	parser := chaintest.NewTestParser()
+
+	signedTx, err := txData.Sign(authFactory)
+	r.NoError(err)
+
+	signedTxBytes := signedTx.Bytes()
+	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
+	r.NoError(err)
+
+	equalTx(r, signedTx, parsedTx)
+	r.Equal(preSignedTxBytes, signedTxBytes)
+}
+
+// goos: darwin
+// goarch: arm64
+// pkg: github.com/ava-labs/hypersdk/chain
+// BenchmarkUnmarshalTx-12    	  447904	      2874 ns/op	    2368 B/op	      21 allocs/op
+// PASS
+// ok  	github.com/ava-labs/hypersdk/chain	1.826s
+func BenchmarkUnmarshalTx(b *testing.B) {
+	parser := chaintest.NewTestParser()
+	r := require.New(b)
+	b.ResetTimer()
+	for range b.N {
+		tx, err := chain.UnmarshalTx(preSignedTxBytes, parser)
+		r.NoError(err)
+		r.NotNil(tx)
+	}
 }
 
 func TestPreExecute(t *testing.T) {
@@ -431,11 +482,17 @@ func TestPreExecute(t *testing.T) {
 //
 // TODO: replace this at the call site with a simple equals check after fixing the above issues
 func equalTx(r *require.Assertions, expected *chain.Transaction, actual *chain.Transaction) {
-	r.Equal(expected.Base.MarshalCanoto(), actual.Base.MarshalCanoto())
-	r.Equal(len(expected.Actions), len(actual.Actions))
-	for i, action := range expected.Actions {
-		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), "index %d", i)
-	}
+	equalTxData(r, expected.TransactionData, actual.TransactionData)
 	r.Equal(expected.Auth, actual.Auth)
 	r.Equal(expected.Bytes(), actual.Bytes())
+}
+
+func equalTxData(r *require.Assertions, expected chain.TransactionData, actual chain.TransactionData, msgAndArgs ...interface{}) {
+	r.Equal(expected.Base.MarshalCanoto(), actual.Base.MarshalCanoto(), msgAndArgs...)
+	r.Equal(len(expected.Actions), len(actual.Actions), msgAndArgs...)
+	for i, action := range expected.Actions {
+		actionMsgAndArgs := append(msgAndArgs, "index", i)
+		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), actionMsgAndArgs...)
+	}
+	r.Equal(expected.UnsignedBytes(), actual.UnsignedBytes(), msgAndArgs...)
 }

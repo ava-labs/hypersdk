@@ -89,7 +89,7 @@ func NewTestVMFactory(r *require.Assertions) *vm.Factory {
 		outputParser = codec.NewTypeParser[codec.Typed]()
 	)
 	r.NoError(errors.Join(
-		actionParser.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAaction),
+		actionParser.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAction),
 		authParser.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 		outputParser.Register(&chaintest.TestOutput{}, chaintest.UnmarshalTestOutput),
 	))

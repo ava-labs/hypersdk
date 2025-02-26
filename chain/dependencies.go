@@ -110,11 +110,12 @@ type Action interface {
 
 	// Bytes returns the byte representation of this action.
 	// The chain parser must be able to parse this representation and return the corresponding action.
-	// This function is not performance critical because actions/auth are always serialized inside of
-	// a transaction and transactions will cache their byte representations after unmarshal, so this
-	// will only be called on the write path.
-	// The write path is not performance critical because this only impacts transaction issuers, not nodes
-	// which will always parse transactions received from the network or API.
+	// This function is not performance critical because actions/auth are always deserialized into
+	// a transaction.
+	// Transaction cache their byte representations during unmarshal, so Bytes is only called on the
+	// write path ie. constructing/issuing transactions.
+	//
+	// The write path is not performance critical because this only impacts transaction issuers and testing.
 	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
@@ -164,11 +165,12 @@ type Auth interface {
 
 	// Bytes returns the byte representation of this auth credential.
 	// The chain parser must be able to parse this representation and return the corresponding Auth.
-	// This function is not performance critical because actions/auth are always serialized inside of
-	// a transaction and transactions will cache their byte representations after unmarshal, so this
-	// will only be called on the write path.
-	// The write path is not performance critical because this only impacts transaction issuers, not nodes
-	// which will always parse transactions received from the network or API.
+	// This function is not performance critical because actions/auth are always deserialized into
+	// a transaction.
+	// Transaction cache their byte representations during unmarshal, so Bytes is only called on the
+	// write path ie. constructing/issuing transactions.
+	//
+	// The write path is not performance critical because this only impacts transaction issuers and testing.
 	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is

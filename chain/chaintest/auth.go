@@ -6,6 +6,7 @@ package chaintest
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
+
+const TestAuthTypeID = 0
 
 var (
 	ErrTestAuthVerify            = errors.New("test auth verification error")
@@ -29,7 +32,7 @@ type TestAuth struct {
 }
 
 func (t *TestAuth) GetTypeID() uint8 {
-	return 0
+	return TestAuthTypeID
 }
 
 func (t *TestAuth) Bytes() []byte {
@@ -38,14 +41,23 @@ func (t *TestAuth) Bytes() []byte {
 		MaxSize: 256,
 	}
 	p.PackByte(t.GetTypeID())
-	// TODO: switch to using canoto after dynamic ABI support
-	// so that we don't need to ignore the error here.
+	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
+	// interact with values unmarshalled from the network, which should guarantee a valid
+	// value here.
+	// Panic if we fail to marshal a value here to catch any potential bugs early.
+	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
+	// here.
 	_ = codec.LinearCodec.MarshalInto(t, p)
 	return p.Bytes
 }
 
 func UnmarshalTestAuth(bytes []byte) (chain.Auth, error) {
 	t := &TestAuth{}
+
+	if bytes[0] != TestAuthTypeID {
+		return nil, fmt.Errorf("unexpected test auth typeID: %d != %d", bytes[0], TestAuthTypeID)
+	}
+
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: bytes[1:]},
 		t,

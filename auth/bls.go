@@ -81,8 +81,11 @@ func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
 		return nil, fmt.Errorf("invalid BLS auth size %d != %d", len(bytes), BLSSize)
 	}
 
-	var b BLS
+	if bytes[0] != BLSID {
+		return nil, fmt.Errorf("unexpected BLS typeID: %d != %d", bytes[0], BLSID)
+	}
 
+	var b BLS
 	signer := make([]byte, bls.PublicKeyLen)
 	copy(signer, bytes[1:])
 	signature := make([]byte, bls.SignatureLen)

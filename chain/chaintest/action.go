@@ -20,9 +20,14 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.Action = (*TestAction)(nil)
+const TestActionID = 0
 
-var ErrTestActionExecute = errors.New("test action execute error")
+var (
+	_ chain.Action = (*TestAction)(nil)
+
+	ErrTestActionExecute = errors.New("test action execute error")
+	ErrEmptyTestAction   = errors.New("cannot unmarshal empty bytes as test action")
+)
 
 type TestAction struct {
 	NumComputeUnits              uint64              `serialize:"true" json:"computeUnits"`
@@ -38,7 +43,7 @@ type TestAction struct {
 }
 
 func (*TestAction) GetTypeID() uint8 {
-	return 0
+	return TestActionID
 }
 
 func (t *TestAction) Bytes() []byte {
@@ -47,8 +52,12 @@ func (t *TestAction) Bytes() []byte {
 		MaxSize: consts.NetworkSizeLimit,
 	}
 	p.PackByte(t.GetTypeID())
-	// TODO: switch to using canoto after dynamic ABI support
-	// so that we don't need to ignore the error here.
+	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
+	// interact with values unmarshalled from the network, which should guarantee a valid
+	// value here.
+	// Panic if we fail to marshal a value here to catch any potential bugs early.
+	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
+	// here.
 	err := codec.LinearCodec.MarshalInto(t, p)
 	if err != nil {
 		panic(err)
@@ -56,8 +65,15 @@ func (t *TestAction) Bytes() []byte {
 	return p.Bytes
 }
 
-func UnmarshalTestAaction(b []byte) (chain.Action, error) {
+func UnmarshalTestAction(b []byte) (chain.Action, error) {
 	t := &TestAction{}
+	if len(b) == 0 {
+		return nil, ErrEmptyTestAction
+	}
+	if b[0] != TestActionID {
+		return nil, fmt.Errorf("unexpected test action typeID: %d != %d", b[0], TestActionID)
+	}
+
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: b[1:]},
 		t,
@@ -123,11 +139,11 @@ func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
 type TestOutput struct{}
 
 func (*TestOutput) GetTypeID() uint8 {
-	return 0
+	return TestActionID
 }
 
 func UnmarshalTestOutput(b []byte) (codec.Typed, error) {
-	if !bytes.Equal([]byte{0}, b) {
+	if !bytes.Equal([]byte{TestActionID}, b) {
 		return nil, fmt.Errorf("expected lone typeID %d for test output, found %x", 0, b)
 	}
 	return &TestOutput{}, nil

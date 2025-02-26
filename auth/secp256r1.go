@@ -78,8 +78,12 @@ func UnmarshalSECP256R1(bytes []byte) (chain.Auth, error) {
 	if len(bytes) != SECP256R1Size {
 		return nil, fmt.Errorf("invalid secp256r1 auth size %d != %d", len(bytes), ED25519Size)
 	}
-	var d SECP256R1
 
+	if bytes[0] != SECP256R1ID {
+		return nil, fmt.Errorf("unexpected secp256r1 typeID: %d != %d", bytes[0], SECP256R1ID)
+	}
+
+	var d SECP256R1
 	copy(d.Signer[:], bytes[1:])
 	copy(d.Signature[:], bytes[1+secp256r1.PublicKeyLen:])
 	return &d, nil
