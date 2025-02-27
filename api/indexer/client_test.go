@@ -24,7 +24,7 @@ func TestIndexerClient(t *testing.T) {
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 3)
 
 	jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
 	require.NoError(err)
@@ -34,24 +34,27 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
+	parser := chaintest.NewTestParser()
+
 	client := NewClient(httpServer.URL)
-	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, chaintest.NewEmptyParser())
+	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, parser)
 	require.NoError(err)
+	// initStateKeys(executedBlock.Block)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght, chaintest.NewEmptyParser())
+	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght, parser)
 	require.Contains(err.Error(), errBlockNotFound.Error())
 	require.Nil(executedBlock)
 
-	executedBlock, err = client.GetLatestBlock(ctx, chaintest.NewEmptyParser())
+	executedBlock, err = client.GetLatestBlock(ctx, parser)
 	require.NoError(err)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlock(ctx, executedBlocks[numExecutedBlocks-1].Block.GetID(), chaintest.NewEmptyParser())
+	executedBlock, err = client.GetBlock(ctx, executedBlocks[numExecutedBlocks-1].Block.GetID(), parser)
 	require.NoError(err)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
-	executedBlock, err = client.GetBlock(ctx, ids.Empty, chaintest.NewEmptyParser())
+	executedBlock, err = client.GetBlock(ctx, ids.Empty, parser)
 	require.Contains(err.Error(), errBlockNotFound.Error())
 	require.Nil(executedBlock)
 
@@ -61,7 +64,7 @@ func TestIndexerClient(t *testing.T) {
 	require.Equal(GetTxResponse{}, txResponse)
 	require.NoError(err)
 
-	txResponse, tx, found, err := client.GetTx(ctx, ids.GenerateTestID(), chaintest.NewEmptyParser())
+	txResponse, tx, found, err := client.GetTx(ctx, ids.GenerateTestID(), parser)
 	require.False(found)
 	require.Equal(GetTxResponse{}, txResponse)
 	require.Nil(tx)
@@ -73,4 +76,15 @@ func TestIndexerClient(t *testing.T) {
 	require.False(success)
 	require.Zero(fee)
 	require.ErrorIs(err, context.DeadlineExceeded)
+
+	// request one of the transactions included in the latest block.
+	txResponse, tx, found, err = client.GetTx(ctx, executedBlocks[numExecutedBlocks-1].Block.Txs[0].GetID(), parser)
+	require.True(found)
+	require.Equal(GetTxResponse{
+		TxBytes:   executedBlocks[numExecutedBlocks-1].Block.Txs[0].Bytes(),
+		Timestamp: executedBlocks[numExecutedBlocks-1].Block.Tmstmp,
+		Result:    executedBlocks[numExecutedBlocks-1].Results[0],
+	}, txResponse)
+	require.Equal(executedBlocks[numExecutedBlocks-1].Block.Txs[0], tx)
+	require.NoError(err)
 }

@@ -19,6 +19,7 @@ func createTestIndexer(
 	ctx context.Context,
 	numExecutedBlocks int,
 	blockWindow int,
+	numTxs int,
 ) (indexer *Indexer, executedBlocks []*chain.ExecutedBlock, indexerDir string) {
 	require := require.New(t)
 
@@ -26,13 +27,15 @@ func createTestIndexer(
 	indexer, err := NewIndexer(tempDir, chaintest.NewEmptyParser(), uint64(blockWindow))
 	require.NoError(err)
 
-	executedBlocks = chaintest.GenerateEmptyExecutedBlocks(
+	executedBlocks = chaintest.GenerateTestExecutedBlocks(
 		require,
+		ids.GenerateTestID(),
 		ids.GenerateTestID(),
 		0,
 		0,
 		1,
 		numExecutedBlocks,
+		numTxs,
 	)
 	for _, blk := range executedBlocks {
 		err = indexer.Notify(ctx, blk)
@@ -81,7 +84,7 @@ func TestBlockIndex(t *testing.T) {
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 0)
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
@@ -94,7 +97,7 @@ func TestBlockIndexRestart(t *testing.T) {
 		numExecutedBlocks = 4
 		blockWindow       = 2
 	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 0)
 
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)

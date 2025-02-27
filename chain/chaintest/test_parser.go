@@ -54,3 +54,11 @@ func (p *Parser) AuthCodec() *codec.TypeParser[chain.Auth] {
 func (p *Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 	return p.outputCodec
 }
+
+func NewTestParser() *Parser {
+	parser := NewEmptyParser()
+	parser.actionCodec.Register(&TestAction{}, unmarshalTestAction)
+	parser.authCodec.Register(&TestAuth{}, unmarshalTestAuth)
+	parser.outputCodec.Register(&TestOutput{}, unmarshalTestOutput)
+	return parser
+}
