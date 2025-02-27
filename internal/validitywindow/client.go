@@ -64,7 +64,7 @@ func NewBlockFetcherClient[B Block](
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
 func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, height uint64, timestamp int64, minTimestamp *atomic.Int64) <-chan FetchResult[B] {
-	resultChan := make(chan FetchResult[B], 100)
+	resultChan := make(chan FetchResult[B], 1)
 
 	// Start fetching in a separate goroutine
 	go func() {
@@ -138,8 +138,8 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, heig
 					select {
 					case <-ctx.Done():
 						return
-					// try to write
-					case resultChan <- FetchResult[B]{Block: maybe.Some(block)}:
+					default:
+						resultChan <- FetchResult[B]{Block: maybe.Some(block)}
 						// Update checkpoint
 						c.checkpointLock.Lock()
 						c.checkpoint.parentID = block.GetParent()

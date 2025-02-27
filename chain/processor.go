@@ -144,15 +144,6 @@ func (p *Processor) Execute(
 
 	if isNormalOp {
 		if err := p.validityWindow.VerifyExpiryReplayProtection(ctx, b); err != nil {
-			p.log.Debug("failed to verify expiry replay protection", zap.Error(err), zap.Stringer("block", b))
-
-			for _, tx := range b.StatelessBlock.Txs {
-				json, err := tx.MarshalJSON()
-				if err != nil {
-					return nil, fmt.Errorf("tx marshal error: %w", err)
-				}
-				p.log.Debug("tx", zap.String("tx", string(json)))
-			}
 			return nil, fmt.Errorf("%w: %w", ErrDuplicateTx, err)
 		}
 	}
