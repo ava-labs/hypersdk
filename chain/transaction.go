@@ -96,6 +96,14 @@ func (t *TransactionData) GetExpiry() int64 { return t.Base.Timestamp }
 
 func (t *TransactionData) MaxFee() uint64 { return t.Base.MaxFee }
 
+// Transaction is a signed transaction that can be executed on chain.
+// Transaction must be treated as immutable.
+//
+// Transaction implements [canoto.Field] using the [SerializeTx] field
+// as an intermediate representation, so that it can convert from the
+// Action/Auth types to corresponding raw byte slices.
+// This additionally allows the transaction type to cache the pre-calculated
+// bytes, size, and id fields, so that they never need to be re-computed.
 type Transaction struct {
 	TransactionData
 

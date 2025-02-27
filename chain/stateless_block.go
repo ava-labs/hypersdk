@@ -15,7 +15,10 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var ErrNilTxInBlock = errors.New("block contains nil transaction")
+var (
+	_               canoto.Field = (*StatelessBlock)(nil)
+	ErrNilTxInBlock              = errors.New("block contains nil transaction")
+)
 
 type Block struct {
 	Prnt   ids.ID `canoto:"fixed bytes,1" json:"parent"`
@@ -42,6 +45,14 @@ type Block struct {
 	canotoData canotoData_Block
 }
 
+// StatelessBlock defines the chain package raw block format.
+// StatelessBlock must be treated as immutable.
+//
+// StatelessBlock implements [canoto.Field] and embeds [Block] to provide the
+// default serialization and deserialization behavior. By overrdiing [canoto.Field],
+// StatelessBlock caches the bytes and ID of the block to avoid re-computing them.
+// This requires StatelessBlock to be treated as immutable, since modifying its fields
+// will cause a divergence from the private, cached bytes and ID fields.
 type StatelessBlock struct {
 	Block
 
