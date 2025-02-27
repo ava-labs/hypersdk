@@ -24,6 +24,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
@@ -161,6 +162,7 @@ func NewTestNetwork(
 	ctx context.Context,
 	t *testing.T,
 	factory *vm.Factory,
+	genesisAndRuleFactory genesis.GenesisAndRuleFactory,
 	numVMs int,
 	authFactories []chain.AuthFactory,
 	genesisBytes []byte,
@@ -193,9 +195,9 @@ func NewTestNetwork(
 	testNetwork.nodeIDToVM = nodeIDToVM
 	testNetwork.uris = uris
 	configuration := workload.NewDefaultTestNetworkConfiguration(
-		vms[0].VM.GenesisBytes,
 		"hypervmtests",
-		vms[0].VM.GetRuleFactory(),
+		genesisAndRuleFactory,
+		vms[0].VM.GenesisBytes,
 		vms[0].VM.GetTxParser(),
 		authFactories,
 	)

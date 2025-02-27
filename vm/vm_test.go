@@ -134,25 +134,35 @@ func NewVMTestNetwork(ctx context.Context, t *testing.T, numVMs int, opts ...VMT
 	testRules := genesis.NewDefaultRules()
 	testRules.MinBlockGap = 0
 	testRules.MinEmptyBlockGap = 0
-	genesis := &genesis.DefaultGenesis{
+	testGenesis := &genesis.DefaultGenesis{
 		StateBranchFactor: merkledb.BranchFactor16,
 		CustomAllocation:  allocations,
 		Rules:             testRules,
 	}
 	// Set test default of MinEmptyBlockGap = 0
 	// so we don't need to wait to build a block
-	genesis.Rules.MinEmptyBlockGap = 0
+	testGenesis.Rules.MinEmptyBlockGap = 0
 	if options.GenesisRuleOverride != nil {
-		options.GenesisRuleOverride(genesis.Rules)
+		options.GenesisRuleOverride(testGenesis.Rules)
 	}
-	genesisBytes, err := json.Marshal(genesis)
+	genesisBytes, err := json.Marshal(testGenesis)
 	r.NoError(err)
 	var configBytes []byte
 	if options.ConfigBytes != nil {
 		configBytes = options.ConfigBytes()
 	}
 
-	return vmtest.NewTestNetwork(ctx, t, factory, numVMs, authFactories, genesisBytes, nil, configBytes)
+	return vmtest.NewTestNetwork(
+		ctx,
+		t,
+		factory,
+		genesis.DefaultGenesisFactory{},
+		numVMs,
+		authFactories,
+		genesisBytes,
+		nil,
+		configBytes,
+	)
 }
 
 func TestEmptyBlock(t *testing.T) {

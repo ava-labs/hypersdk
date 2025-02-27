@@ -2,7 +2,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 
 go 1.22.9
 
-toolchain go1.23.6
+toolchain go1.22.12
 
 require (
 	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250209190418-217ef3979ea7
