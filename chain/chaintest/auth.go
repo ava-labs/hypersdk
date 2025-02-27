@@ -111,6 +111,6 @@ func (t *TestAuthFactory) MaxUnits() (bandwidth uint64, compute uint64) {
 	return uint64(len(t.TestAuth.Bytes())), t.TestAuth.NumComputeUnits
 }
 
-func (*TestAuthFactory) Address() codec.Address {
-	panic("not implemented")
+func (t *TestAuthFactory) Address() codec.Address {
+	return t.TestAuth.ActorAddress
 }

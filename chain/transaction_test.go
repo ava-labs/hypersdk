@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/utils"
 
 	safemath "github.com/ava-labs/avalanchego/utils/math"
@@ -255,6 +256,45 @@ func BenchmarkUnmarshalTx(b *testing.B) {
 		tx, err := chain.UnmarshalTx(preSignedTxBytes, parser)
 		r.NoError(err)
 		r.NotNil(tx)
+	}
+}
+
+func TestEstimateUnits(t *testing.T) {
+	r := require.New(t)
+
+	txData := chain.NewTxData(
+		chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		[]chain.Action{
+			&chaintest.TestAction{
+				NumComputeUnits: 1,
+				ReadKeys:        [][]byte{{1, 2, 3, 4}},
+			},
+		},
+	)
+	authFactory := &chaintest.TestAuthFactory{
+		TestAuth: &chaintest.TestAuth{
+			NumComputeUnits: 1,
+			ActorAddress:    codec.Address{1, 2, 3},
+			SponsorAddress:  codec.Address{4, 5, 6},
+		},
+	}
+	signedTx, err := txData.Sign(authFactory)
+	r.NoError(err)
+
+	rules := genesis.NewDefaultRules()
+	balanceHandler := balance.NewPrefixBalanceHandler([]byte{0})
+
+	estimatedUnits, err := chain.EstimateUnits(rules, txData.Actions, authFactory)
+	r.NoError(err)
+
+	actualUnits, err := signedTx.Units(balanceHandler, rules)
+	r.NoError(err)
+	for i := range estimatedUnits {
+		r.LessOrEqual(actualUnits[i], estimatedUnits[i])
 	}
 }
 

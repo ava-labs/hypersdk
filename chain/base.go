@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	BaseSize = consts.Uint64Len*2 + ids.IDLen
+	// Timestamp (varint) + ChainID (size + fixed 32 bytes) + MaxFee (fixed uint64) + 3 wire tags
+	MaxBaseSize = consts.MaxVarintLen + consts.Uint64Len + ids.IDLen + consts.MaxVarintLen + 3*consts.MaxVarintLen
 	// TODO: make this divisor configurable
 	validityWindowTimestampDivisor = consts.MillisecondsPerSecond
 )

@@ -402,7 +402,7 @@ func UnmarshalTx(
 // This is typically used during transaction construction.
 func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
-		bandwidth          = uint64(BaseSize)
+		bandwidth          = uint64(MaxBaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
 		computeOp          = math.NewUint64Operator(r.GetBaseComputeUnits())
 		readsOp            = math.NewUint64Operator(0)
@@ -422,12 +422,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
 		}
-		bandwidth += consts.ByteLen + uint64(actionSize)
+		bandwidth += uint64(actionSize)
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
 	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth += consts.ByteLen + authBandwidth
+	bandwidth += authBandwidth
 	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
 	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
 	computeOp.Add(authCompute)
