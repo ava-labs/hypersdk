@@ -33,10 +33,11 @@ type issuer struct {
 
 	// injected from the spammer
 	tracker *tracker
+	wg      *sync.WaitGroup
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	i.tracker.issuerWg.Add(1)
+	i.wg.Add(1)
 	go func() {
 		for {
 			txID, result, err := i.ws.ListenTx(context.TODO())
@@ -53,7 +54,7 @@ func (i *issuer) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			i.tracker.issuerWg.Done()
+			i.wg.Done()
 		}()
 
 		<-ctx.Done()
