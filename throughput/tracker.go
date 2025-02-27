@@ -17,14 +17,23 @@ import (
 )
 
 type tracker struct {
-	issuerWg sync.WaitGroup
 	inflight atomic.Int64
 
 	l            sync.Mutex
 	confirmedTxs int
 	totalTxs     int
 
-	sent atomic.Int64
+	sent   atomic.Int64
+	ticker *time.Ticker
+
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
+func newTracker() *tracker {
+	return &tracker{
+		done: make(chan struct{}),
+	}
 }
 
 // logResult logs the result of a transaction received over the websocket connection
@@ -45,20 +54,33 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	}
 }
 
-func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
+func (t *tracker) startPeriodicLog(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
-	tick := time.NewTicker(1 * time.Second) // ensure no duplicates created
-	var psent int64
+	t.ticker = time.NewTicker(time.Second)
+	cctx, cancel := context.WithCancel(ctx)
+	t.cancel = cancel
+	var (
+		prevSent int64
+		prevTime = time.Now()
+	)
+
 	go func() {
-		defer tick.Stop()
+		defer close(t.done)
 		for {
 			select {
-			case <-tick.C:
-				current := t.sent.Load()
+			case <-t.ticker.C:
 				t.l.Lock()
 				if t.totalTxs > 0 {
-					unitPrices, err := cli.UnitPrices(ctx, false)
+					unitPrices, err := cli.UnitPrices(cctx, false)
 					if err != nil {
+						continue
+					}
+					currSent := t.sent.Load()
+					currTime := time.Now()
+					diff := currTime.Sub(prevTime).Seconds()
+					// This should never happen, but golang only guarantees that time is monotonically increasing,
+					// so we add a check to prevent division by zero here.
+					if diff == 0 {
 						continue
 					}
 					utils.Outf(
@@ -66,19 +88,27 @@ func (t *tracker) logState(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 						t.totalTxs,
 						float64(t.confirmedTxs)/float64(t.totalTxs)*100,
 						t.inflight.Load(),
-						current-psent,
+						uint64(float64(currSent-prevSent)/diff),
 						unitPrices,
 					)
+					prevTime = currTime
+					prevSent = currSent
 				}
 				t.l.Unlock()
-				psent = current
-			case <-ctx.Done():
+			case <-cctx.Done():
 				return
 			}
 		}
 	}()
 }
 
-func (t *tracker) IncrementSent() int64 {
+func (t *tracker) incrementSent() int64 {
 	return t.sent.Add(1)
+}
+
+func (t *tracker) stop() {
+	t.ticker.Stop()
+	t.cancel()
+	<-t.done
+	utils.Outf("{{yellow}}stopped tracker{{/}}\n")
 }
