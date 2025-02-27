@@ -16,7 +16,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
@@ -51,18 +50,6 @@ func (vm *VM) GetABI() abi.ABI {
 
 func (vm *VM) GetTxParser() chain.Parser {
 	return vm.txParser
-}
-
-func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
-	return vm.actionCodec
-}
-
-func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
-	return vm.outputCodec
-}
-
-func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
-	return vm.authCodec
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
