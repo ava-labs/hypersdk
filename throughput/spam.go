@@ -59,6 +59,8 @@ type Spammer struct {
 	// Number of accounts
 	numAccounts int
 
+	signals chan os.Signal
+
 	// keep track of variables shared across issuers
 	tracker  *tracker
 	issuerWg *sync.WaitGroup
@@ -99,6 +101,10 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 // [terminate] if true, the spammer will stop after reaching the target TPS.
 // [symbol] and [decimals] are used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
+	// make sure we can exit gracefully & return funds
+	s.signals = make(chan os.Signal, 2)
+	signal.Notify(s.signals, syscall.SIGINT, syscall.SIGTERM)
+
 	// log distribution
 	s.logZipf(s.zipfSeed)
 
@@ -149,14 +155,13 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	s.tracker.startPeriodicLog(ctx, cli)
 
 	// broadcast transactions
-	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
-	cancel()
-	if err != nil {
+	if err := s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate); err != nil {
 		s.tracker.stop()
 		return err
 	}
 
 	// Wait for all issuers to finish
+	cancel()
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
 	s.tracker.stop()
@@ -168,7 +173,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	return s.returnFunds(ctx, cli, parser, maxUnits, sh, accounts, factories, symbol)
 }
 
-func (s Spammer) broadcast(
+func (s *Spammer) broadcast(
 	ctx context.Context,
 	sh SpamHelper,
 
@@ -178,10 +183,6 @@ func (s Spammer) broadcast(
 	feePerTx uint64,
 	terminate bool,
 ) error {
-	// make sure we can exit gracefully & return funds
-	signals := make(chan os.Signal, 2)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
 		z = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
@@ -259,7 +260,7 @@ func (s Spammer) broadcast(
 		case <-ctx.Done():
 			stop = true
 			utils.Outf("{{yellow}}context canceled{{/}}\n")
-		case <-signals:
+		case <-s.signals:
 			stop = true
 			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 		}
