@@ -306,12 +306,6 @@ func (t *Transaction) Execute(
 			}, nil
 		}
 
-		// Ensure output standardization (match form we will
-		// unmarshal)
-		if actionOutput == nil {
-			actionOutput = []byte{}
-		}
-
 		actionOutputs = append(actionOutputs, actionOutput)
 	}
 	return &Result{

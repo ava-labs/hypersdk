@@ -303,9 +303,6 @@ func (j *JSONRPCServer) SimulateActions(
 		actionResult := SimulateActionResult{
 			Output: actionOutput,
 		}
-		if actionOutput == nil {
-			actionResult.Output = []byte{}
-		}
 		if err != nil {
 			return err
 		}
