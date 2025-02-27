@@ -321,11 +321,8 @@ func (s *Spammer) distributeFunds(ctx context.Context, parser chain.Parser, feeP
 	if err != nil {
 		return nil, nil, err
 	}
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
+	p := newPacer(webSocketClient, s.minTxsPerSecond)
+	go p.Run(ctx)
 	for i := 0; i < s.numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -380,11 +377,8 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, p
 	if err != nil {
 		return err
 	}
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
+	p := newPacer(webSocketClient, s.minTxsPerSecond)
+	go p.Run(ctx)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
 		balance, err := sh.LookupBalance(accounts[i].Address)
