@@ -32,30 +32,44 @@ var (
 	_ canoto.Field = (*Transaction)(nil)
 )
 
+// TransactionData represents an unsigned transaction
 type TransactionData struct {
 	Base Base
 
 	Actions []Action
+
+	// unsignedBytes is the byte slice representation of the unsigned tx
+	// This field is always populated either by the constructor or via signed transaction
+	// parsing.
+	unsignedBytes []byte
 }
 
 func NewTxData(base Base, actions []Action) TransactionData {
-	return TransactionData{
+	txData := TransactionData{
 		Base:    base,
 		Actions: actions,
 	}
+
+	actionBytes := make([]codec.Bytes, len(txData.Actions))
+	for i, action := range txData.Actions {
+		actionBytes[i] = action.Bytes()
+	}
+	// Serialize the unsigned transaction
+	// Note: canoto does not serialize empty fields, which allows us to
+	// re-use the SerializeTx intermediate type directly. This produces an
+	// identical serialization to creating a separate SerializeUnsignedTx
+	// type that omitted the Auth field.
+	serializeTxData := &SerializeTx{
+		Base:    txData.Base,
+		Actions: actionBytes,
+	}
+	txData.unsignedBytes = serializeTxData.MarshalCanoto()
+	return txData
 }
 
 // UnsignedBytes returns the byte slice representation of the tx
 func (t *TransactionData) UnsignedBytes() []byte {
-	actionBytes := make([]codec.Bytes, len(t.Actions))
-	for i, action := range t.Actions {
-		actionBytes[i] = action.Bytes()
-	}
-	serializeTxData := &SerializeTx{
-		Base:    t.Base,
-		Actions: actionBytes,
-	}
-	return serializeTxData.MarshalCanoto()
+	return t.unsignedBytes
 }
 
 // Sign returns a new signed transaction with the unsigned tx copied from
@@ -502,10 +516,35 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 		return fmt.Errorf("failed to parse auth %x: %w", serializeTx.Auth, err)
 	}
 
+	// We do not assume that the auth field is non-zero le
+	var unsignedTxBytes []byte
+	// If the auth field is zero-length, then the unsigned tx bytes are identical to the
+	// bytes of the transaction. This is an unexpected case because it's unlikely an auth
+	// parser would allow a zero-length byte slice to be parsed as a valid auth and should
+	// error above. However, we do not assume a zero-length auth field is invalid, so we
+	// handle the case here.
+	if len(serializeTx.Auth) == 0 {
+		unsignedTxBytes = r.B
+	} else {
+		authSuffixSize := len(canoto__SerializeTx__Auth__tag) + canoto.SizeBytes(serializeTx.Auth)
+		unsignedTxBytesLimit := len(r.B) - authSuffixSize
+		// Defensive: check to ensure the calculated auth suffix size is within expected bounds
+		// and return an error rather than panic on index out of bounds if not.
+		if unsignedTxBytesLimit < 0 || unsignedTxBytesLimit > len(r.B) {
+			return fmt.Errorf("failed to extract unsigned tx bytes due to invalid offset: %d, tx size: %d auth suffix size: %d",
+				unsignedTxBytesLimit,
+				len(r.B),
+				authSuffixSize,
+			)
+		}
+		unsignedTxBytes = r.B[:len(r.B)-authSuffixSize]
+	}
+
 	tx := &Transaction{
 		TransactionData: TransactionData{
-			Base:    serializeTx.Base,
-			Actions: actions,
+			Base:          serializeTx.Base,
+			Actions:       actions,
+			unsignedBytes: unsignedTxBytes,
 		},
 		Auth: auth,
 	}
