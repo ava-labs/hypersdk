@@ -40,7 +40,7 @@ Execute(
 
 To provide performance out of the box, the `chain.Action` interface requires additional functions to provide state prefetching, pessimistic concurrency control, and multi-dimensional fees.
 
-For the full details, see the MorpheusVM tutorial on implementing the `Transfer` Action [here](./docs/tutorials/morpheusvm/morpheusvm.md).
+For the full details, see the MorpheusVM tutorial on implementing the `Transfer` Action [here](./docs/tutorials/morpheusvm/1_morpheusvm.md).
 
 ### Services
 
