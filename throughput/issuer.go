@@ -76,7 +76,7 @@ func (i *issuer) start(ctx context.Context) {
 	}()
 }
 
-func (i *issuer) send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
+func (i *issuer) send(actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
 	tx, err := chain.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
 	if err != nil {

@@ -229,7 +229,7 @@ func (s Spammer) broadcast(
 					actions := sh.GetActions()
 					s.tracker.incrementSent()
 					// assumes the sender has the funds to pay for the transaction
-					return issuer.send(ctx, actions, factory, feePerTx)
+					return issuer.send(actions, factory, feePerTx)
 				})
 			}
 
