@@ -198,7 +198,7 @@ func NewTestNetwork(
 		"hypervmtests",
 		genesisAndRuleFactory,
 		vms[0].VM.GenesisBytes,
-		vms[0].VM.GetTxParser(),
+		vms[0].VM.GetParser(),
 		authFactories,
 	)
 	testNetwork.configuration = configuration

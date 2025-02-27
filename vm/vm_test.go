@@ -562,7 +562,7 @@ func TestIndexerAPI(t *testing.T) {
 	defer network.Shutdown(ctx)
 
 	client := indexer.NewClient(network.URIs()[0])
-	parser := network.VMs[0].VM.GetTxParser()
+	parser := network.VMs[0].VM.GetParser()
 	genesisBlock, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
 	lastAccepted, err := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
@@ -622,7 +622,7 @@ func TestWebsocketAPI(t *testing.T) {
 		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
 	}
 
-	wsBlk, wsResults, wsUnitPrices, err := client.ListenBlock(ctx, network.VMs[0].VM.GetTxParser())
+	wsBlk, wsResults, wsUnitPrices, err := client.ListenBlock(ctx, network.VMs[0].VM.GetParser())
 	r.NoError(err)
 
 	txID, res, unpackErr := client.ListenTx(ctx)

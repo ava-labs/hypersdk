@@ -95,7 +95,7 @@ func (j *JSONRPCServer) SubmitTx(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	tx, err := chain.UnmarshalTx(args.Tx, j.vm.GetTxParser())
+	tx, err := chain.UnmarshalTx(args.Tx, j.vm.GetParser())
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -180,7 +180,7 @@ func (j *JSONRPCServer) ExecuteActions(
 		return fmt.Errorf("exceeded max actions per simulation: %d", maxActionsPerTx)
 	}
 	actions := make([]chain.Action, 0, len(args.Actions))
-	txParser := j.vm.GetTxParser()
+	txParser := j.vm.GetParser()
 	for _, actionBytes := range args.Actions {
 		action, err := txParser.ParseAction(actionBytes)
 		if err != nil {
@@ -262,7 +262,7 @@ func (j *JSONRPCServer) SimulateActions(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
-	txParser := j.vm.GetTxParser()
+	txParser := j.vm.GetParser()
 	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, actionBytes := range args.Actions {
 		action, err := txParser.ParseAction(actionBytes)

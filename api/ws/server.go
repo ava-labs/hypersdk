@@ -52,7 +52,7 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		v,
 		v.Logger(),
 		v.Tracer(),
-		v.GetTxParser(),
+		v.GetParser(),
 		config.MaxPendingMessages,
 	)
 

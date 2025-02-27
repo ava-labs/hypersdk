@@ -27,7 +27,7 @@ type VM interface {
 	SubnetID() ids.ID
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-	GetTxParser() chain.Parser
+	GetParser() chain.Parser
 	GetABI() abi.ABI
 	GetRuleFactory() chain.RuleFactory
 	Submit(

@@ -48,7 +48,7 @@ func (vm *VM) GetABI() abi.ABI {
 	return vm.abi
 }
 
-func (vm *VM) GetTxParser() chain.Parser {
+func (vm *VM) GetParser() chain.Parser {
 	return vm.txParser
 }
 

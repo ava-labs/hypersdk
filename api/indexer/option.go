@@ -40,7 +40,7 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		return vm.NewOpt(), nil
 	}
 	indexerPath := filepath.Join(v.GetDataDir(), Namespace)
-	indexer, err := NewIndexer(indexerPath, v.GetTxParser(), config.BlockWindow)
+	indexer, err := NewIndexer(indexerPath, v.GetParser(), config.BlockWindow)
 	if err != nil {
 		return nil, err
 	}
