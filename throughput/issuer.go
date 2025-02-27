@@ -7,35 +7,41 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/exp/rand"
 
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 type issuer struct {
-	i      int
+	id     int
 	uri    string
 	parser chain.Parser
 
-	// TODO: clean up potential race conditions here.
-	l              sync.Mutex
-	cli            *jsonrpc.JSONRPCClient
 	ws             *ws.WebSocketClient
-	outstandingTxs int
-	abandoned      error
+	outstandingTxs atomic.Int64
 
 	// injected from the spammer
 	tracker *tracker
 	wg      *sync.WaitGroup
 }
 
-func (i *issuer) Start(ctx context.Context) {
+func newIssuer(id int, ws *ws.WebSocketClient, parser chain.Parser, uri string, tracker *tracker, wg *sync.WaitGroup) *issuer {
+	return &issuer{
+		id:      id,
+		ws:      ws,
+		parser:  parser,
+		uri:     uri,
+		tracker: tracker,
+		wg:      wg,
+	}
+}
+
+func (i *issuer) start(ctx context.Context) {
 	i.wg.Add(1)
 	go func() {
 		for {
@@ -43,10 +49,7 @@ func (i *issuer) Start(ctx context.Context) {
 			if err != nil {
 				return
 			}
-			i.l.Lock()
-			i.outstandingTxs--
-			i.l.Unlock()
-			i.tracker.inflight.Add(-1)
+			i.outstandingTxs.Add(-1)
 			i.tracker.logResult(txID, result)
 		}
 	}()
@@ -62,20 +65,18 @@ func (i *issuer) Start(ctx context.Context) {
 			if i.ws.Closed() {
 				return
 			}
-			i.l.Lock()
-			outstanding := i.outstandingTxs
-			i.l.Unlock()
+			outstanding := i.outstandingTxs.Load()
 			if outstanding == 0 {
 				return
 			}
-			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.i, outstanding)
+			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.id, outstanding)
 			time.Sleep(time.Second)
 		}
-		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.i)
+		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.id)
 	}()
 }
 
-func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
+func (i *issuer) send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
 	tx, err := chain.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
 	if err != nil {
@@ -83,40 +84,13 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 		return fmt.Errorf("failed to generate tx: %w", err)
 	}
 
-	// Increase outstanding txs for issuer
-	i.l.Lock()
-	i.outstandingTxs++
-	i.l.Unlock()
-	i.tracker.inflight.Add(1)
-
-	// Register transaction and recover upon failure
+	// Register transaction
 	if err := i.ws.RegisterTx(tx); err != nil {
-		if i.ws.Closed() {
-			i.l.Lock()
-			if i.abandoned != nil {
-				i.l.Unlock()
-				return i.abandoned
-			}
-
-			// Attempt to recreate issuer
-			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %s\n", i.i, i.uri)
-			ws, err := ws.NewWebSocketClient(i.uri, ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-			if err != nil {
-				i.abandoned = err
-				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
-				i.l.Unlock()
-				return err
-			}
-			i.ws = ws
-			i.l.Unlock()
-
-			i.Start(ctx)
-			utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", i.i)
-		}
-
-		// If issuance fails during retry, we should fail
-		return i.ws.RegisterTx(tx)
+		utils.Outf("{{orange}}failed to register tx:{{/}} %v\n", err)
+		return fmt.Errorf("failed to register tx: %w", err)
 	}
+	i.outstandingTxs.Add(1)
+	i.tracker.incrementInflight()
 	return nil
 }
 

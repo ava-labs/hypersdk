@@ -142,7 +142,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	defer cancel()
 
 	for _, issuer := range issuers {
-		issuer.Start(cctx)
+		issuer.start(cctx)
 	}
 
 	// start logging
@@ -229,7 +229,7 @@ func (s Spammer) broadcast(
 					actions := sh.GetActions()
 					s.tracker.incrementSent()
 					// assumes the sender has the funds to pay for the transaction
-					return issuer.Send(ctx, actions, factory, feePerTx)
+					return issuer.send(ctx, actions, factory, feePerTx)
 				})
 			}
 
@@ -282,23 +282,23 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
 
+	id := 0
 	for i := 0; i < len(s.uris); i++ {
 		for j := 0; j < s.numClients; j++ {
-			cli := jsonrpc.NewJSONRPCClient(s.uris[i])
 			webSocketClient, err := ws.NewWebSocketClient(s.uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return nil, err
 			}
-			issuer := &issuer{
-				i:       len(issuers),
-				cli:     cli,
-				ws:      webSocketClient,
-				parser:  parser,
-				uri:     s.uris[i],
-				tracker: s.tracker,
-				wg:      s.issuerWg,
-			}
+			issuer := newIssuer(
+				id,
+				webSocketClient,
+				parser,
+				s.uris[i],
+				s.tracker,
+				s.issuerWg,
+			)
 			issuers = append(issuers, issuer)
+			id++
 		}
 	}
 	return issuers, nil

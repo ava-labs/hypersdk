@@ -41,6 +41,7 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 	t.l.Lock()
 	defer t.l.Unlock()
 
+	t.inflight.Add(-1)
 	t.totalTxs++
 	if result == nil {
 		utils.Outf("{{orange}}transaction %s expired\n", txID)
@@ -104,6 +105,10 @@ func (t *tracker) startPeriodicLog(ctx context.Context, cli *jsonrpc.JSONRPCClie
 
 func (t *tracker) incrementSent() int64 {
 	return t.sent.Add(1)
+}
+
+func (t *tracker) incrementInflight() int64 {
+	return t.inflight.Add(1)
 }
 
 func (t *tracker) stop() {
