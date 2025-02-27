@@ -92,7 +92,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) GetParser() chain.Parser {
+func (*JSONRPCClient) GetParser() chain.Parser {
 	return chain.NewTxTypeParser(ActionParser, AuthParser)
 }
 
