@@ -34,7 +34,7 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
-	parser := chaintest.NewTestParser()
+	parser := chaintest.NewTestParser(require)
 
 	client := NewClient(httpServer.URL)
 	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, parser)

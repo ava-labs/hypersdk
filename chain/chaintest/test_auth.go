@@ -22,7 +22,7 @@ func (ta *TestAuth) ComputeUnits(chain.Rules) uint64 {
 	return ta.NumComputeUnits
 }
 
-func (ta *TestAuth) Verify(ctx context.Context, msg []byte) error {
+func (*TestAuth) Verify(context.Context, []byte) error {
 	return nil
 }
 
@@ -35,18 +35,18 @@ func (ta *TestAuth) Sponsor() codec.Address {
 }
 
 func (ta *TestAuth) Marshal(p *codec.Packer) {
-	codec.LinearCodec.MarshalInto(ta, p.Packer)
+	_ = codec.LinearCodec.MarshalInto(ta, p.Packer)
 }
 
-func (ta *TestAuth) Size() int {
+func (*TestAuth) Size() int {
 	return 0
 }
 
-func (ta *TestAuth) GetTypeID() uint8 {
+func (*TestAuth) GetTypeID() uint8 {
 	return 0
 }
 
-func (ta *TestAuth) ValidRange(chain.Rules) (start int64, end int64) {
+func (*TestAuth) ValidRange(chain.Rules) (start int64, end int64) {
 	return -1, -1
 }
 

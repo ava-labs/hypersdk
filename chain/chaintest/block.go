@@ -10,16 +10,16 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
-	internal_fees "github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
+
+	internal_fees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 func GenerateEmptyExecutedBlocks(
@@ -68,7 +68,7 @@ func GenerateTestExecutedBlocks(
 	rules := genesis.NewDefaultRules()
 	feeManager := internal_fees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
-	parser := NewTestParser()
+	parser := NewTestParser(require)
 	ts := tstate.New(0)
 	db, err := merkledb.New(
 		context.Background(),
