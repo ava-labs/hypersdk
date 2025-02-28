@@ -55,6 +55,9 @@ RUN . ./build_env.sh && \
 # ============= Cleanup Stage ================
 FROM $AVALANCHEGO_NODE_IMAGE AS execution
 
-# Copy the VM binary into the correct location in the container
+# Place the VM binary and set the AVAGO_PLUGIN_DIR env variable, so that
+# AvalancheGo reads it correctly without additional configuration.
 ARG VM_ID
+ENV AVAGO_PLUGIN_DIR="/avalanchego/build/plugins"
+
 COPY --from=builder /build/build/vm /avalanchego/build/plugins/$VM_ID
