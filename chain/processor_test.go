@@ -257,7 +257,7 @@ func TestProcessorExecute(t *testing.T) {
 
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					0,
+					testRules.GetMinBlockGap()-1,
 					1,
 					[]*chain.Transaction{tx},
 					parentRoot,
@@ -283,7 +283,7 @@ func TestProcessorExecute(t *testing.T) {
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				block, err := chain.NewStatelessBlock(
 					ids.Empty,
-					0,
+					testRules.GetMinEmptyBlockGap()-1,
 					1,
 					nil,
 					parentRoot,
@@ -292,7 +292,7 @@ func TestProcessorExecute(t *testing.T) {
 				r.NoError(err)
 				return block
 			},
-			expectedErr: chain.ErrTimestampTooEarly,
+			expectedErr: chain.ErrTimestampTooEarlyEmptyBlock,
 		},
 		{
 			name:           "failed to get fee",
