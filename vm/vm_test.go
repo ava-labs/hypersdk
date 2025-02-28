@@ -795,7 +795,8 @@ func TestStateSync(t *testing.T) {
 					WriteValues:                  [][]byte{{byte(i)}},
 					Start:                        -1,
 					End:                          -1,
-				}},
+				},
+			},
 			network.AuthFactories()[0],
 		)
 		r.NoError(err)
@@ -848,7 +849,8 @@ func TestStateSync(t *testing.T) {
 							WriteValues:                  [][]byte{{byte(i)}},
 							Start:                        -1,
 							End:                          -1,
-						}},
+						},
+					},
 					network.AuthFactories()[0],
 				)
 				r.NoError(err)
