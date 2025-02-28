@@ -551,8 +551,8 @@ func TestIndexerAPI(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	client := indexer.NewClient(network.URIs()[0])
 	parser := network.VMs[0].VM
+	client := indexer.NewClient(network.URIs()[0])
 	genesisBlock, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
 	lastAccepted, err := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)
@@ -573,10 +573,16 @@ func TestIndexerAPI(t *testing.T) {
 	r.Equal(lastAccepted.GetID(), blk1.Block.GetID())
 	r.Equal(uint64(1), blk1.Block.GetHeight())
 
-	txRes, success, err := client.GetTx(ctx, tx.GetID())
+	txRes, success, err := client.GetTxResults(ctx, tx.GetID())
 	r.NoError(err)
 	r.True(success)
-	r.True(txRes.Success)
+	r.True(txRes.Result.Success)
+
+	txRes, txOut, success, err := client.GetTx(ctx, tx.GetID(), parser)
+	r.NoError(err)
+	r.True(success)
+	r.True(txRes.Result.Success)
+	r.Equal(tx.Bytes(), txOut.Bytes())
 }
 
 func TestWebsocketAPI(t *testing.T) {

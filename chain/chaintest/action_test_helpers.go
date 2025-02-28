@@ -71,10 +71,22 @@ func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
 	return -1, -1
 }
 
+func unmarshalTestAction(p *codec.Packer) (chain.Action, error) {
+	var testAction TestAction
+	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &testAction)
+	return &testAction, err
+}
+
 type TestOutput struct{}
 
 func (*TestOutput) GetTypeID() uint8 {
 	return 0
+}
+
+func unmarshalTestOutput(p *codec.Packer) (codec.Typed, error) {
+	var testOutput TestOutput
+	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &testOutput)
+	return &testOutput, err
 }
 
 // InMemoryStore is an in-memory implementation of `state.Mutable`

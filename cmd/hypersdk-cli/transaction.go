@@ -97,6 +97,7 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
 
+		// TODO : find a way to work around this nil
 		indexerClient := indexer.NewClient(endpoint)
 
 		expectedTxID, err := client.SubmitTx(ctx, signedBytes)
@@ -110,7 +111,7 @@ var txCmd = &cobra.Command{
 				return fmt.Errorf("context expired while waiting for tx: %w", err)
 			}
 
-			getTxResponse, found, err = indexerClient.GetTx(ctx, expectedTxID)
+			getTxResponse, found, err = indexerClient.GetTxResults(ctx, expectedTxID)
 			if err != nil {
 				return fmt.Errorf("failed to get tx: %w", err)
 			}
@@ -121,9 +122,9 @@ var txCmd = &cobra.Command{
 		}
 
 		var resultStruct map[string]interface{}
-		if getTxResponse.Success {
-			if len(getTxResponse.Outputs) == 1 {
-				resultJSON, err := dynamic.UnmarshalOutput(abi, getTxResponse.Outputs[0])
+		if getTxResponse.Result.Success {
+			if len(getTxResponse.Result.Outputs) == 1 {
+				resultJSON, err := dynamic.UnmarshalOutput(abi, getTxResponse.Result.Outputs[0])
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal result: %w", err)
 				}
@@ -132,16 +133,16 @@ var txCmd = &cobra.Command{
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal result JSON: %w", err)
 				}
-			} else if len(getTxResponse.Outputs) > 1 {
-				return fmt.Errorf("expected 1 output, got %d", len(getTxResponse.Outputs))
+			} else if len(getTxResponse.Result.Outputs) > 1 {
+				return fmt.Errorf("expected 1 output, got %d", len(getTxResponse.Result.Outputs))
 			}
 		}
 
 		return printValue(cmd, txResponse{
 			Result:  resultStruct,
-			Success: getTxResponse.Success,
+			Success: getTxResponse.Result.Success,
 			TxID:    expectedTxID,
-			Error:   getTxResponse.ErrorStr,
+			Error:   string(getTxResponse.Result.Error),
 		})
 	},
 }
