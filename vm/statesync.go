@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 
@@ -23,14 +22,6 @@ import (
 )
 
 const StateSyncNamespace = "statesync"
-
-type samplerAdapter struct {
-	peers *p2p.Peers
-}
-
-func (s *samplerAdapter) Sample(_ context.Context, limit int) []ids.NodeID {
-	return s.peers.Sample(limit)
-}
 
 type StateSyncConfig struct {
 	MerkleSimultaneousWorkLimit int    `json:"merkleSimultaneousWorkLimit"`
@@ -77,7 +68,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	blockFetcherClient := validitywindow.NewBlockFetcherClient[*chain.ExecutionBlock](
 		blockFetcherP2PClient,
 		vm,
-		&samplerAdapter{peers: vm.network.Peers},
+		p2p.PeerSampler{Peers: vm.network.Peers},
 	)
 	syncer := validitywindow.NewSyncer[*chain.Transaction, *chain.ExecutionBlock](vm, vm.chainTimeValidityWindow, blockFetcherClient, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
