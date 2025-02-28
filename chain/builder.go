@@ -45,7 +45,7 @@ type Builder struct {
 	balanceHandler  BalanceHandler
 	mempool         Mempool
 	validityWindow  ValidityWindow
-	metrics         *chainMetrics
+	metrics         *ChainMetrics
 	config          Config
 }
 
@@ -57,7 +57,7 @@ func NewBuilder(
 	balanceHandler BalanceHandler,
 	mempool Mempool,
 	validityWindow ValidityWindow,
-	metrics *chainMetrics,
+	metrics *ChainMetrics,
 	config Config,
 ) *Builder {
 	return &Builder{
