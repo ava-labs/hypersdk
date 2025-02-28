@@ -5,7 +5,6 @@ package workload
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -40,12 +39,12 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 
 	for height < targetHeight {
 		tx, confirm, err := w.Generator.GenerateTx(ctx, uri)
-		require.NoError(err, fmt.Sprintf("failed to generate tx at height %d", height))
+		require.NoError(err, "failed to generate tx at height %d", height)
 		_, err = client.SubmitTx(ctx, tx.Bytes())
-		require.NoError(err, fmt.Sprintf("failed to submit tx at height %d", height))
+		require.NoError(err, "failed to submit tx at height %d", height)
 		confirm(ctx, require, uri)
 		_, acceptedHeight, _, err := client.Accepted(ctx)
-		require.NoError(err, fmt.Sprintf("failed to get accepted height at height %d", height))
+		require.NoError(err, "failed to get accepted height at height %d", height)
 		height = acceptedHeight
 	}
 
@@ -58,7 +57,7 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 			}
 			return acceptedHeight >= targetHeight, nil
 		})
-		require.NoError(err, fmt.Sprintf("failed to reach target height %d; current height %d; uri %s", targetHeight, height, uri))
+		require.NoError(err, "failed to reach target height %d; current height %d; uri %s", targetHeight, height, uri)
 	}
 }
 
