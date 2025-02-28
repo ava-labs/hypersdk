@@ -269,7 +269,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrTimestampTooEarly,
 		},
 		{
-			name:           "empty block timestamp less than parent timestamp with gap",
+			name:           "empty block - timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
