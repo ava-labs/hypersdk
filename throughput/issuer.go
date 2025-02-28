@@ -32,10 +32,11 @@ type issuer struct {
 
 	// injected from the spammer
 	tracker *tracker
+	wg      *sync.WaitGroup
 }
 
 func (i *issuer) Start(ctx context.Context) {
-	i.tracker.issuerWg.Add(1)
+	i.wg.Add(1)
 	go func() {
 		for {
 			txID, result, err := i.ws.ListenTx(context.TODO())
@@ -52,7 +53,7 @@ func (i *issuer) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			_ = i.ws.Close()
-			i.tracker.issuerWg.Done()
+			i.wg.Done()
 		}()
 
 		<-ctx.Done()
@@ -76,7 +77,7 @@ func (i *issuer) Start(ctx context.Context) {
 
 func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
-	_, tx, err := i.cli.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
+	tx, err := chain.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)

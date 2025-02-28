@@ -229,7 +229,7 @@ func generateChainPanels(chainID ids.ID) []string {
 	utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_calculated_sum[5s])/1000000/5", chainID))
-	utils.Outf("{{yellow}}root calcuation (ms/s):{{/}} %s\n", panels[len(panels)-1])
+	utils.Outf("{{yellow}}root calculation (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 	panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_root_sum[5s])/1000000/5", chainID))
 	utils.Outf("{{yellow}}wait root calculation (ms/s):{{/}} %s\n", panels[len(panels)-1])
