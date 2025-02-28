@@ -99,11 +99,18 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 // the original account after the test is complete.
 // [sh] injects the necessary functions to interact with the network.
 // [terminate] if true, the spammer will stop after reaching the target TPS.
-// [symbol] and [decimals] are used to format the output.
+// [symbol] is used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
 	// make sure we can exit gracefully & return funds
 	s.signals = make(chan os.Signal, 2)
 	signal.Notify(s.signals, syscall.SIGINT, syscall.SIGTERM)
+
+	cctx, cancel := context.WithCancel(ctx)
+	go func() {
+		<-s.signals
+		utils.Outf("{{yellow}}received interrupt signal{{/}}\n")
+		cancel()
+	}()
 
 	// log distribution
 	s.logZipf(s.zipfSeed)
@@ -112,7 +119,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	cli := jsonrpc.NewJSONRPCClient(s.uris[0])
 
 	// Compute max units
-	parser, err := sh.GetParser(ctx)
+	parser, err := sh.GetParser(cctx)
 	if err != nil {
 		return err
 	}
@@ -123,7 +130,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	unitPrices, err := cli.UnitPrices(ctx, false)
+	unitPrices, err := cli.UnitPrices(cctx, false)
 	if err != nil {
 		return err
 	}
@@ -133,7 +140,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, factories, err := s.distributeFunds(ctx, parser, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(cctx, parser, feePerTx, sh)
 	if err != nil {
 		return err
 	}
@@ -144,27 +151,22 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	for _, issuer := range issuers {
 		issuer.start(cctx)
 	}
 
-	// start logging
-	s.tracker.startPeriodicLog(ctx, cli)
+	s.tracker.startPeriodicLog(cctx, cli)
 
-	// broadcast transactions
 	if err := s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate); err != nil {
-		s.tracker.stop()
+		cancel()
 		return err
 	}
 
-	// Wait for all issuers to finish
+	// [cancel] signals to the issuers and the tracker to stop
+	// this call is necessary if [terminate] is true
 	cancel()
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
-	s.tracker.stop()
 
 	maxUnits, err = chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
@@ -260,9 +262,6 @@ func (s *Spammer) broadcast(
 		case <-ctx.Done():
 			stop = true
 			utils.Outf("{{yellow}}context canceled{{/}}\n")
-		case <-s.signals:
-			stop = true
-			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 		}
 	}
 

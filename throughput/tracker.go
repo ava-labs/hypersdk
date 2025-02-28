@@ -25,15 +25,10 @@ type tracker struct {
 
 	sent   atomic.Int64
 	ticker *time.Ticker
-
-	cancel context.CancelFunc
-	done   chan struct{}
 }
 
 func newTracker() *tracker {
-	return &tracker{
-		done: make(chan struct{}),
-	}
+	return &tracker{}
 }
 
 // logResult logs the result of a transaction received over the websocket connection
@@ -58,21 +53,18 @@ func (t *tracker) logResult(txID ids.ID, result *chain.Result) {
 func (t *tracker) startPeriodicLog(ctx context.Context, cli *jsonrpc.JSONRPCClient) {
 	// Log stats
 	t.ticker = time.NewTicker(time.Second)
-	cctx, cancel := context.WithCancel(ctx)
-	t.cancel = cancel
 	var (
 		prevSent int64
 		prevTime = time.Now()
 	)
 
 	go func() {
-		defer close(t.done)
 		for {
 			select {
 			case <-t.ticker.C:
 				t.l.Lock()
 				if t.totalTxs > 0 {
-					unitPrices, err := cli.UnitPrices(cctx, false)
+					unitPrices, err := cli.UnitPrices(ctx, false)
 					if err != nil {
 						continue
 					}
@@ -96,7 +88,7 @@ func (t *tracker) startPeriodicLog(ctx context.Context, cli *jsonrpc.JSONRPCClie
 					prevSent = currSent
 				}
 				t.l.Unlock()
-			case <-cctx.Done():
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -109,11 +101,4 @@ func (t *tracker) incrementSent() int64 {
 
 func (t *tracker) incrementInflight() int64 {
 	return t.inflight.Add(1)
-}
-
-func (t *tracker) stop() {
-	t.ticker.Stop()
-	t.cancel()
-	<-t.done
-	utils.Outf("{{yellow}}stopped tracker{{/}}\n")
 }
