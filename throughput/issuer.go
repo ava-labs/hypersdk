@@ -18,7 +18,7 @@ import (
 )
 
 type issuer struct {
-	id     int
+	index  int
 	uri    string
 	parser chain.Parser
 
@@ -30,9 +30,9 @@ type issuer struct {
 	wg      *sync.WaitGroup
 }
 
-func newIssuer(id int, ws *ws.WebSocketClient, parser chain.Parser, uri string, tracker *tracker, wg *sync.WaitGroup) *issuer {
+func newIssuer(index int, ws *ws.WebSocketClient, parser chain.Parser, uri string, tracker *tracker, wg *sync.WaitGroup) *issuer {
 	return &issuer{
-		id:      id,
+		index:   index,
 		ws:      ws,
 		parser:  parser,
 		uri:     uri,
@@ -69,10 +69,10 @@ func (i *issuer) start(ctx context.Context) {
 			if outstanding == 0 {
 				return
 			}
-			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.id, outstanding)
+			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.index, outstanding)
 			time.Sleep(time.Second)
 		}
-		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.id)
+		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.index)
 	}()
 }
 

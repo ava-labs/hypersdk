@@ -283,7 +283,7 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 	issuers := []*issuer{}
 
-	id := 0
+	index := 0
 	for i := 0; i < len(s.uris); i++ {
 		for j := 0; j < s.numClients; j++ {
 			webSocketClient, err := ws.NewWebSocketClient(s.uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
@@ -291,7 +291,7 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 				return nil, err
 			}
 			issuer := newIssuer(
-				id,
+				index,
 				webSocketClient,
 				parser,
 				s.uris[i],
@@ -299,7 +299,7 @@ func (s *Spammer) createIssuers(parser chain.Parser) ([]*issuer, error) {
 				s.issuerWg,
 			)
 			issuers = append(issuers, issuer)
-			id++
+			index++
 		}
 	}
 	return issuers, nil
