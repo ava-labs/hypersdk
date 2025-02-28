@@ -42,7 +42,7 @@ func TestPreExecutor(t *testing.T) {
 				),
 			},
 		},
-		Auth: &chaintest.TestAuth{},
+		Auth: chaintest.NewDummyTestAuth(),
 	}
 
 	tests := []struct {
@@ -102,10 +102,12 @@ func TestPreExecutor(t *testing.T) {
 						&chaintest.TestAction{
 							SpecifiedStateKeys:           []string{""},
 							SpecifiedStateKeyPermissions: []state.Permissions{state.None},
+							Start:                        -1,
+							End:                          -1,
 						},
 					},
 				},
-				Auth: &chaintest.TestAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            chain.ErrInvalidKeyValue,
@@ -121,6 +123,8 @@ func TestPreExecutor(t *testing.T) {
 				},
 				Auth: &chaintest.TestAuth{
 					ShouldErr: true,
+					Start:     -1,
+					End:       -1,
 				},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
@@ -135,7 +139,7 @@ func TestPreExecutor(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: chain.Base{},
 				},
-				Auth: &chaintest.TestAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            validitywindow.ErrTimestampExpired,

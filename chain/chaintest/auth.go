@@ -30,6 +30,16 @@ type TestAuth struct {
 	End             int64         `serialize:"true" json:"end"`
 }
 
+func NewDummyTestAuth() *TestAuth {
+	return &TestAuth{
+		NumComputeUnits: 1,
+		ActorAddress:    codec.Address{1, 2, 3},
+		SponsorAddress:  codec.Address{1, 2, 3},
+		Start:           -1,
+		End:             -1,
+	}
+}
+
 func (*TestAuth) GetTypeID() uint8 {
 	return TestAuthTypeID
 }
@@ -69,15 +79,7 @@ func UnmarshalTestAuth(bytes []byte) (chain.Auth, error) {
 // ValidRange returns the start/end fields of the action unless 0 is specified.
 // If 0 is specified, return -1 for always valid, which is a more useful default value.
 func (t *TestAuth) ValidRange(_ chain.Rules) (int64, int64) {
-	start := t.Start
-	end := t.End
-	if start == 0 {
-		start = -1
-	}
-	if end == 0 {
-		end = -1
-	}
-	return start, end
+	return t.Start, t.End
 }
 
 func (t *TestAuth) ComputeUnits(_ chain.Rules) uint64 {

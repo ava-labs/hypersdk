@@ -28,7 +28,7 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d6120000000000123e00000000000000000100000000000000000000000100000004010203040000000000000000000000000000000000000000000000000000000000000000001a5c0000000000000000010102030000000000000000000000000000000000000000000000000000000000000405060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
 var (
 	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
@@ -79,18 +79,11 @@ func TestTransactionJSON(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		[]chain.Action{
-			&chaintest.TestAction{
-				NumComputeUnits: 1,
-				ReadKeys:        [][]byte{{1, 2, 3, 4}},
-			},
+			chaintest.NewDummyTestAction(),
 		},
 	)
 	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: &chaintest.TestAuth{
-			NumComputeUnits: 1,
-			ActorAddress:    codec.Address{1, 2, 3},
-			SponsorAddress:  codec.Address{4, 5, 6},
-		},
+		TestAuth: chaintest.NewDummyTestAuth(),
 	}
 	parser := chaintest.NewTestParser()
 
@@ -116,22 +109,12 @@ func TestSignTransaction(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		[]chain.Action{
-			&chaintest.TestAction{
-				NumComputeUnits: 2,
-				ReadKeys:        [][]byte{{1, 2, 3, 4}},
-				WriteKeys:       [][]byte{{5, 6, 7, 8}},
-				WriteValues:     [][]byte{{9, 10, 11, 12}},
-			},
-			&chaintest.TestAction{
-				NumComputeUnits: 1,
-			},
+			chaintest.NewDummyTestAction(),
+			chaintest.NewDummyTestAction(),
 		},
 	)
 	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: &chaintest.TestAuth{
-			NumComputeUnits: 1,
-			ActorAddress:    codec.EmptyAddress,
-		},
+		TestAuth: chaintest.NewDummyTestAuth(),
 	}
 	parser := chaintest.NewTestParser()
 
@@ -167,23 +150,12 @@ func TestSignRawActionBytesTx(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		[]chain.Action{
-			&chaintest.TestAction{
-				NumComputeUnits: 2,
-				ReadKeys:        [][]byte{{1, 2, 3, 4}},
-				WriteKeys:       [][]byte{{5, 6, 7, 8}},
-				WriteValues:     [][]byte{{9, 10, 11, 12}},
-			},
-			&chaintest.TestAction{
-				NumComputeUnits: 1,
-			},
+			chaintest.NewDummyTestAction(),
 		},
 	)
 
 	factory := &chaintest.TestAuthFactory{
-		TestAuth: &chaintest.TestAuth{
-			NumComputeUnits: 1,
-			ActorAddress:    codec.EmptyAddress,
-		},
+		TestAuth: chaintest.NewDummyTestAuth(),
 	}
 
 	parser := chaintest.NewTestParser()
@@ -214,18 +186,11 @@ func TestUnmarshalTx(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		[]chain.Action{
-			&chaintest.TestAction{
-				NumComputeUnits: 1,
-				ReadKeys:        [][]byte{{1, 2, 3, 4}},
-			},
+			chaintest.NewDummyTestAction(),
 		},
 	)
 	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: &chaintest.TestAuth{
-			NumComputeUnits: 1,
-			ActorAddress:    codec.Address{1, 2, 3},
-			SponsorAddress:  codec.Address{4, 5, 6},
-		},
+		TestAuth: chaintest.NewDummyTestAuth(),
 	}
 	parser := chaintest.NewTestParser()
 
@@ -269,18 +234,11 @@ func TestEstimateUnits(t *testing.T) {
 			MaxFee:    1234567,
 		},
 		[]chain.Action{
-			&chaintest.TestAction{
-				NumComputeUnits: 1,
-				ReadKeys:        [][]byte{{1, 2, 3, 4}},
-			},
+			chaintest.NewDummyTestAction(),
 		},
 	)
 	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: &chaintest.TestAuth{
-			NumComputeUnits: 1,
-			ActorAddress:    codec.Address{1, 2, 3},
-			SponsorAddress:  codec.Address{4, 5, 6},
-		},
+		TestAuth: chaintest.NewDummyTestAuth(),
 	}
 	signedTx, err := txData.Sign(authFactory)
 	r.NoError(err)
@@ -316,7 +274,7 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: chain.Base{},
 				},
-				Auth: &chaintest.TestAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			bh: &mockBalanceHandler{},
 		},
@@ -375,7 +333,7 @@ func TestPreExecute(t *testing.T) {
 					Actions: func() []chain.Action {
 						actions := make([]chain.Action, testRules.MaxActionsPerTx+1)
 						for i := 0; i < int(testRules.MaxActionsPerTx)+1; i++ {
-							actions = append(actions, &chaintest.TestAction{})
+							actions = append(actions, chaintest.NewDummyTestAction())
 						}
 						return actions
 					}(),
@@ -391,6 +349,7 @@ func TestPreExecute(t *testing.T) {
 					Actions: []chain.Action{
 						&chaintest.TestAction{
 							Start: consts.MillisecondsPerSecond,
+							End:   -1,
 						},
 					},
 				},
@@ -423,6 +382,7 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: &chaintest.TestAuth{
 					Start: 1 * consts.MillisecondsPerSecond,
+					End:   -1,
 				},
 			},
 			err: chain.ErrAuthNotActivated,
@@ -436,7 +396,8 @@ func TestPreExecute(t *testing.T) {
 					},
 				},
 				Auth: &chaintest.TestAuth{
-					End: 1 * consts.MillisecondsPerSecond,
+					Start: -1,
+					End:   1 * consts.MillisecondsPerSecond,
 				},
 			},
 			timestamp: 2 * consts.MillisecondsPerSecond,
@@ -448,12 +409,10 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: chain.Base{},
 					Actions: []chain.Action{
-						&chaintest.TestAction{
-							NumComputeUnits: 1,
-						},
+						chaintest.NewDummyTestAction(),
 					},
 				},
-				Auth: &chaintest.TestAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			fm: func() *fees.Manager {
 				fm := fees.NewManager([]byte{})
@@ -471,12 +430,10 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: chain.Base{},
 					Actions: []chain.Action{
-						&chaintest.TestAction{
-							NumComputeUnits: 1,
-						},
+						chaintest.NewDummyTestAction(),
 					},
 				},
-				Auth: &chaintest.TestAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			bh: &mockBalanceHandler{
 				canDeductError: errMockInsufficientBalance,

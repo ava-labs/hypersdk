@@ -182,16 +182,24 @@ func TestValidBlocks(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	validActions := chaintest.NewDummyTestActions(2)
+	tx, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			validActions[0],
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
-	tx, err = network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-		Nonce:           1,
-	}}, network.AuthFactories()[0])
+	tx, err = network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			validActions[1],
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 }
@@ -211,7 +219,9 @@ func TestSubmitTx(t *testing.T) {
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 1_000),
 						MaxFee:    1_000,
 					},
-					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+					[]chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
 				)
 				tx, err := unsignedTx.Sign(network.AuthFactories()[0])
 				r.NoError(err)
@@ -228,7 +238,9 @@ func TestSubmitTx(t *testing.T) {
 						Timestamp: 1,
 						MaxFee:    1_000,
 					},
-					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+					[]chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
 				)
 				tx, err := unsignedTx.Sign(network.AuthFactories()[0])
 				r.NoError(err)
@@ -245,7 +257,9 @@ func TestSubmitTx(t *testing.T) {
 						Timestamp: int64(time.Millisecond),
 						MaxFee:    1_000,
 					},
-					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+					[]chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
 				)
 				tx, err := unsignedTx.Sign(network.AuthFactories()[0])
 				r.NoError(err)
@@ -262,7 +276,9 @@ func TestSubmitTx(t *testing.T) {
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), time.Hour.Milliseconds()),
 						MaxFee:    1_000,
 					},
-					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+					[]chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
 				)
 				tx, err := unsignedTx.Sign(network.AuthFactories()[0])
 				r.NoError(err)
@@ -279,7 +295,9 @@ func TestSubmitTx(t *testing.T) {
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
 						MaxFee:    1_000,
 					},
-					[]chain.Action{&chaintest.TestAction{NumComputeUnits: 1}},
+					[]chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
 				)
 				invalidAuth, err := network.AuthFactories()[0].Sign([]byte{0})
 				r.NoError(err)
@@ -312,9 +330,14 @@ func TestValidityWindowDuplicateAcceptedBlock(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	action0 := chaintest.NewDummyTestAction()
+	tx0, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			action0,
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx0}))
@@ -323,10 +346,15 @@ func TestValidityWindowDuplicateAcceptedBlock(t *testing.T) {
 
 	// Build another block, so that the duplicate is in an accepted ancestor
 	// instead of the direct parent (last accepted block)
-	tx1, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-		Nonce:           1,
-	}}, network.AuthFactories()[0])
+	action1 := chaintest.NewDummyTestAction()
+	action1.Nonce = 1
+	tx1, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			action1,
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx1}))
 
@@ -341,14 +369,21 @@ func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	validActions := chaintest.NewDummyTestActions(2)
+	tx0, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			validActions[0],
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
-	tx1, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-		Nonce:           1,
-	}}, network.AuthFactories()[0])
+	tx1, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			validActions[1],
+		},
+		network.AuthFactories()[0])
 	r.NoError(err)
 
 	txs0 := []*chain.Transaction{tx0}
@@ -384,9 +419,12 @@ func TestIssueDuplicateInMempool(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx0, err := network.GenerateTx(ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 
 	vm0 := network.VMs[0].VM
@@ -404,9 +442,12 @@ func TestForceGossip(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-	tx0, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx0, err := network.GenerateTx(ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 
 	vm0 := network.VMs[0].VM
@@ -435,9 +476,12 @@ func TestAccepted(t *testing.T) {
 	r.Equal(uint64(0), blockHeight)
 	r.Equal(genesisBlock.GetTimestamp(), timestamp)
 
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx, err := network.GenerateTx(ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
@@ -503,9 +547,13 @@ func TestExternalSubscriber(t *testing.T) {
 	r.NoError(err)
 	r.Equal(lastAccepted.GetID(), genesisBlkID)
 
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
@@ -536,13 +584,21 @@ func TestDirectStateAPI(t *testing.T) {
 
 	keys := [][]byte{key}
 	values := [][]byte{value}
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits:              1,
-		SpecifiedStateKeys:           []string{string(key)},
-		SpecifiedStateKeyPermissions: []state.Permissions{state.All},
-		WriteKeys:                    keys,
-		WriteValues:                  values,
-	}}, network.AuthFactories()[0])
+	tx, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			&chaintest.TestAction{
+				NumComputeUnits:              1,
+				SpecifiedStateKeys:           []string{string(key)},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+				WriteKeys:                    keys,
+				WriteValues:                  values,
+				Start:                        -1,
+				End:                          -1,
+			},
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
@@ -570,9 +626,13 @@ func TestIndexerAPI(t *testing.T) {
 	r.Equal(lastAccepted.GetID(), genesisBlock.Block.GetID())
 	r.Equal(uint64(0), genesisBlock.Block.GetHeight())
 
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(network.ConfirmTxs(ctx, []*chain.Transaction{tx}))
 
@@ -610,9 +670,13 @@ func TestWebsocketAPI(t *testing.T) {
 
 	r.NoError(client.RegisterBlocks())
 
-	tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-		NumComputeUnits: 1,
-	}}, network.AuthFactories()[0])
+	tx, err := network.GenerateTx(
+		ctx,
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+		network.AuthFactories()[0],
+	)
 	r.NoError(err)
 	r.NoError(client.RegisterTx(tx))
 
@@ -648,14 +712,22 @@ func TestSkipStateSync(t *testing.T) {
 
 	numBlocks := 5
 	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
-		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-			NumComputeUnits:              1,
-			Nonce:                        uint64(i),
-			SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
-			SpecifiedStateKeyPermissions: []state.Permissions{state.All},
-			WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-			WriteValues:                  [][]byte{{byte(i)}},
-		}}, network.AuthFactories()[0])
+		tx, err := network.GenerateTx(
+			ctx,
+			[]chain.Action{
+				&chaintest.TestAction{
+					NumComputeUnits:              1,
+					Nonce:                        uint64(i),
+					SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+					SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+					WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+					WriteValues:                  [][]byte{{byte(i)}},
+					Start:                        -1,
+					End:                          -1,
+				},
+			},
+			network.AuthFactories()[0],
+		)
 		r.NoError(err)
 		return []*chain.Transaction{tx}
 	})
@@ -711,14 +783,21 @@ func TestStateSync(t *testing.T) {
 	nonce := uint64(0)
 	network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
 		nonce++
-		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-			NumComputeUnits:              1,
-			Nonce:                        nonce,
-			SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
-			SpecifiedStateKeyPermissions: []state.Permissions{state.All},
-			WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-			WriteValues:                  [][]byte{{byte(i)}},
-		}}, network.AuthFactories()[0])
+		tx, err := network.GenerateTx(
+			ctx,
+			[]chain.Action{
+				&chaintest.TestAction{
+					NumComputeUnits:              1,
+					Nonce:                        nonce,
+					SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+					SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+					WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+					WriteValues:                  [][]byte{{byte(i)}},
+					Start:                        -1,
+					End:                          -1,
+				}},
+			network.AuthFactories()[0],
+		)
 		r.NoError(err)
 		return []*chain.Transaction{tx}
 	})
@@ -757,14 +836,21 @@ func TestStateSync(t *testing.T) {
 		for {
 			network.ConfirmBlocks(ctx, numBlocks, func(i int) []*chain.Transaction {
 				nonce++
-				tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-					NumComputeUnits:              1,
-					Nonce:                        uint64(nonce),
-					SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
-					SpecifiedStateKeyPermissions: []state.Permissions{state.All},
-					WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
-					WriteValues:                  [][]byte{{byte(i)}},
-				}}, network.AuthFactories()[0])
+				tx, err := network.GenerateTx(
+					ctx,
+					[]chain.Action{
+						&chaintest.TestAction{
+							NumComputeUnits:              1,
+							Nonce:                        uint64(nonce),
+							SpecifiedStateKeys:           []string{string(keys.EncodeChunks([]byte{byte(i)}, 1))},
+							SpecifiedStateKeyPermissions: []state.Permissions{state.All},
+							WriteKeys:                    [][]byte{keys.EncodeChunks([]byte{byte(i)}, 1)},
+							WriteValues:                  [][]byte{{byte(i)}},
+							Start:                        -1,
+							End:                          -1,
+						}},
+					network.AuthFactories()[0],
+				)
 				r.NoError(err)
 				return []*chain.Transaction{tx}
 			})
@@ -787,10 +873,13 @@ func TestStateSync(t *testing.T) {
 
 	network.ConfirmBlocks(ctx, 1, func(int) []*chain.Transaction {
 		nonce++
-		tx, err := network.GenerateTx(ctx, []chain.Action{&chaintest.TestAction{
-			NumComputeUnits: 1,
-			Nonce:           nonce,
-		}}, network.AuthFactories()[0])
+		tx, err := network.GenerateTx(
+			ctx,
+			[]chain.Action{
+				chaintest.NewDummyTestAction(),
+			},
+			network.AuthFactories()[0],
+		)
 		r.NoError(err)
 		return []*chain.Transaction{tx}
 	})

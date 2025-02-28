@@ -42,6 +42,34 @@ type TestAction struct {
 	End                          int64               `serialize:"true" json:"end"`
 }
 
+// NewDummyTestAction returns a single valid instance of TestAction
+func NewDummyTestAction() *TestAction {
+	actions := NewDummyTestActions(1)
+	return actions[0]
+}
+
+// NewDummyTestActions returns [numActions] valid TestAction instances.
+// Each action has a unique nonce, so that they are all valid to include in the
+// same chain.
+func NewDummyTestActions(numActions int) []*TestAction {
+	actions := make([]*TestAction, numActions)
+	for i := 0; i < numActions; i++ {
+		actions[i] = &TestAction{
+			NumComputeUnits:              1,
+			SpecifiedStateKeys:           []string{},
+			SpecifiedStateKeyPermissions: []state.Permissions{},
+			ReadKeys:                     [][]byte{},
+			WriteKeys:                    [][]byte{},
+			WriteValues:                  [][]byte{},
+			Start:                        -1,
+			End:                          -1,
+			Nonce:                        uint64(i),
+		}
+	}
+
+	return actions
+}
+
 func (*TestAction) GetTypeID() uint8 {
 	return TestActionID
 }
@@ -125,15 +153,7 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 // ValidRange returns the start/end fields of the action unless 0 is specified.
 // If 0 is specified, return -1 for always valid, which is a more useful default value.
 func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
-	start := t.Start
-	end := t.End
-	if start == 0 {
-		start = -1
-	}
-	if end == 0 {
-		end = -1
-	}
-	return start, end
+	return t.Start, t.End
 }
 
 type TestOutput struct{}
