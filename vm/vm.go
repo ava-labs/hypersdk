@@ -382,10 +382,10 @@ func (vm *VM) initChainStore() error {
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
 	}
-	if errors.Is(err, database.ErrNotFound) {
+	if err == database.ErrNotFound {
 		return vm.initGenesisAsLastAccepted(ctx)
 	}
 	if lastAcceptedHeight == 0 {
