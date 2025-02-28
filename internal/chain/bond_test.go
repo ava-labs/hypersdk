@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"math"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -13,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/auth/authtest"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -33,7 +33,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -47,7 +47,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -61,7 +61,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -75,7 +75,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -90,7 +90,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -105,7 +105,7 @@ func TestBond(t *testing.T) {
 				tx, err := chain.NewTxData(
 					&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 					nil,
-				).Sign(&NoAuthFactory{})
+				).Sign(&authtest.NoAuthFactory{})
 				require.NoError(t, err)
 
 				return tx
@@ -141,7 +141,7 @@ func TestUnbond_NoBondCalled(t *testing.T) {
 	tx, err := chain.NewTxData(
 		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
-	).Sign(&NoAuthFactory{})
+	).Sign(&authtest.NoAuthFactory{})
 	r.NoError(err)
 
 	r.NoError(b.Unbond(tx))
@@ -157,7 +157,7 @@ func TestUnbond_DuplicateUnbond(t *testing.T) {
 	tx, err := chain.NewTxData(
 		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
-	).Sign(&NoAuthFactory{})
+	).Sign(&authtest.NoAuthFactory{})
 	r.NoError(err)
 
 	ok, err := b.Bond(context.Background(), view, tx, 0)
@@ -178,7 +178,7 @@ func TestUnbond_UnbondAfterFailedBond(t *testing.T) {
 	tx, err := chain.NewTxData(
 		&chain.Base{Timestamp: 123, ChainID: ids.Empty, MaxFee: 456},
 		nil,
-	).Sign(&NoAuthFactory{})
+	).Sign(&authtest.NoAuthFactory{})
 	r.NoError(err)
 
 	ok, err := b.Bond(context.Background(), view, tx, 1)
@@ -194,7 +194,7 @@ func TestSetMaxBalanceDuringBond(t *testing.T) {
 
 	ts := tstate.New(0)
 	view := ts.NewView(state.CompletePermissions, newDB(t), 0)
-	authFactory := &NoAuthFactory{}
+	authFactory := &authtest.NoAuthFactory{}
 
 	tx1, err := chain.NewTxData(&chain.Base{Timestamp: 0}, nil).Sign(authFactory)
 	r.NoError(err)
@@ -236,50 +236,6 @@ func newDB(t *testing.T) merkledb.MerkleDB {
 	)
 	require.NoError(t, err)
 	return db
-}
-
-type NoAuthFactory struct{}
-
-func (NoAuthFactory) Sign([]byte) (chain.Auth, error) {
-	return NoAuth{}, nil
-}
-
-func (NoAuthFactory) MaxUnits() (uint64, uint64) {
-	return 0, 0
-}
-
-func (NoAuthFactory) Address() codec.Address {
-	return codec.EmptyAddress
-}
-
-type NoAuth struct{}
-
-func (NoAuth) GetTypeID() uint8 {
-	return 0
-}
-
-func (NoAuth) ValidRange(chain.Rules) (start int64, end int64) {
-	return 0, math.MaxInt64
-}
-
-func (NoAuth) Marshal(*codec.Packer) {}
-
-func (NoAuth) Size() int { return 0 }
-
-func (NoAuth) ComputeUnits(chain.Rules) uint64 {
-	return 0
-}
-
-func (NoAuth) Verify(context.Context, []byte) error {
-	return nil
-}
-
-func (NoAuth) Actor() codec.Address {
-	return codec.EmptyAddress
-}
-
-func (NoAuth) Sponsor() codec.Address {
-	return codec.EmptyAddress
 }
 
 func newBalance(balance uint64) *uint64 {

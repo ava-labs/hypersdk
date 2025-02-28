@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/auth/authtest"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
@@ -33,7 +34,6 @@ var (
 	_ chain.Action         = (*mockTransferAction)(nil)
 	_ chain.Action         = (*action2)(nil)
 	_ chain.BalanceHandler = (*mockBalanceHandler)(nil)
-	_ chain.Auth           = (*mockAuth)(nil)
 )
 
 var errMockInsufficientBalance = errors.New("mock insufficient balance error")
@@ -121,47 +121,6 @@ func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ stat
 
 func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 	return state.Keys{}
-}
-
-type mockAuth struct {
-	start        int64
-	end          int64
-	computeUnits uint64
-	actor        codec.Address
-	sponsor      codec.Address
-	verifyError  error
-}
-
-func (m *mockAuth) Actor() codec.Address {
-	return m.actor
-}
-
-func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
-	return m.computeUnits
-}
-
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Marshal(*codec.Packer) {
-	panic("unimplemented")
-}
-
-func (*mockAuth) Size() int {
-	panic("unimplemented")
-}
-
-func (m *mockAuth) Sponsor() codec.Address {
-	return m.sponsor
-}
-
-func (m *mockAuth) ValidRange(chain.Rules) (int64, int64) {
-	return m.start, m.end
-}
-
-func (m *mockAuth) Verify(context.Context, []byte) error {
-	return m.verifyError
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
@@ -358,7 +317,7 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{},
+				Auth: &authtest.MockAuth{},
 			},
 			bh: &mockBalanceHandler{},
 		},
@@ -463,8 +422,8 @@ func TestPreExecute(t *testing.T) {
 				TransactionData: chain.TransactionData{
 					Base: &chain.Base{},
 				},
-				Auth: &mockAuth{
-					start: 1 * consts.MillisecondsPerSecond,
+				Auth: &authtest.MockAuth{
+					Start: 1 * consts.MillisecondsPerSecond,
 				},
 			},
 			err: chain.ErrAuthNotActivated,
@@ -477,8 +436,8 @@ func TestPreExecute(t *testing.T) {
 						Timestamp: 2 * consts.MillisecondsPerSecond,
 					},
 				},
-				Auth: &mockAuth{
-					end: 1 * consts.MillisecondsPerSecond,
+				Auth: &authtest.MockAuth{
+					End: 1 * consts.MillisecondsPerSecond,
 				},
 			},
 			timestamp: 2 * consts.MillisecondsPerSecond,
@@ -495,7 +454,7 @@ func TestPreExecute(t *testing.T) {
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &authtest.MockAuth{},
 			},
 			fm: func() *fees.Manager {
 				fm := fees.NewManager([]byte{})
@@ -518,7 +477,7 @@ func TestPreExecute(t *testing.T) {
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: &authtest.MockAuth{},
 			},
 			bh: &mockBalanceHandler{
 				canDeductError: errMockInsufficientBalance,
