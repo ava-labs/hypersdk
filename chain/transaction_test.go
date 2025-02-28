@@ -101,6 +101,7 @@ func unmarshalAction2(p *codec.Packer) (chain.Action, error) {
 
 type mockBalanceHandler struct {
 	canDeductError error
+	deductError    error
 }
 
 func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
@@ -111,8 +112,8 @@ func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ sta
 	return m.canDeductError
 }
 
-func (*mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	panic("unimplemented")
+func (m *mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	return m.deductError
 }
 
 func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
@@ -126,10 +127,12 @@ func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
 type mockAuth struct {
 	start        int64
 	end          int64
+	typeID       uint8
 	computeUnits uint64
 	actor        codec.Address
 	sponsor      codec.Address
 	verifyError  error
+	size         int
 }
 
 func (m *mockAuth) Actor() codec.Address {
@@ -140,16 +143,14 @@ func (m *mockAuth) ComputeUnits(chain.Rules) uint64 {
 	return m.computeUnits
 }
 
-func (*mockAuth) GetTypeID() uint8 {
-	panic("unimplemented")
+func (m *mockAuth) GetTypeID() uint8 {
+	return m.typeID
 }
 
-func (*mockAuth) Marshal(*codec.Packer) {
-	panic("unimplemented")
-}
+func (*mockAuth) Marshal(*codec.Packer) {}
 
-func (*mockAuth) Size() int {
-	panic("unimplemented")
+func (m *mockAuth) Size() int {
+	return m.size
 }
 
 func (m *mockAuth) Sponsor() codec.Address {
