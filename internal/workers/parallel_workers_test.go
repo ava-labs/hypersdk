@@ -171,7 +171,7 @@ func TestJobGo(t *testing.T) {
 		n += 1
 	}
 	n = 1
-	// Ensure corret errors
+	// Ensure correct errors
 	for n <= 2 {
 		response := <-job.tasks
 		if n == 1 {
