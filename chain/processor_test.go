@@ -231,7 +231,7 @@ func TestProcessorExecute(t *testing.T) {
 			expectedErr: chain.ErrFailedToParseParentTimestamp,
 		},
 		{
-			name:           "non-empty block timestamp less than parent timestamp with gap",
+			name:           "non-empty block - timestamp less than parent timestamp with gap",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			newViewF: func(r *require.Assertions) merkledb.View {
 				v, err := createTestView(map[string][]byte{
