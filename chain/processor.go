@@ -42,7 +42,7 @@ type OutputBlock struct {
 	*ExecutionBlock
 
 	View             merkledb.View
-	ExecutionResults ExecutionResults
+	ExecutionResults *ExecutionResults
 }
 
 type blockContext struct {
@@ -210,7 +210,7 @@ func (p *Processor) Execute(
 	return &OutputBlock{
 		ExecutionBlock: b,
 		View:           view,
-		ExecutionResults: ExecutionResults{
+		ExecutionResults: &ExecutionResults{
 			Results:       results,
 			UnitPrices:    blockContext.feeManager.UnitPrices(),
 			UnitsConsumed: blockContext.feeManager.UnitsConsumed(),
@@ -330,7 +330,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	}
 
 	// Setup signature verification job
-	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures")
 
 	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
@@ -341,10 +341,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	}()
 
 	for _, tx := range block.StatelessBlock.Txs {
-		unsignedTxBytes, err := tx.UnsignedBytes()
-		if err != nil {
-			return nil, err //nolint:spancheck
-		}
+		unsignedTxBytes := tx.UnsignedBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return sigJob, nil

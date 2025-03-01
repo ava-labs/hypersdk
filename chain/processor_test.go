@@ -21,6 +21,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -244,14 +245,14 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
 						),
 					},
 					[]chain.Action{},
-					&mockAuth{typeID: 1},
+					chaintest.NewDummyTestAuth(),
 				)
 				r.NoError(err)
 
@@ -364,20 +365,26 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
 						),
 					},
 					[]chain.Action{
-						&mockAction{
-							stateKeys: state.Keys{
-								"": state.None,
+						&chaintest.TestAction{
+							NumComputeUnits: 1,
+							Start:           -1,
+							End:             -1,
+							SpecifiedStateKeys: []string{
+								"",
+							},
+							SpecifiedStateKeyPermissions: []state.Permissions{
+								state.None,
 							},
 						},
 					},
-					&mockAuth{typeID: 1},
+					chaintest.NewDummyTestAuth(),
 				)
 				r.NoError(err)
 
@@ -437,7 +444,7 @@ func TestProcessorExecute(t *testing.T) {
 				r.NoError(err)
 
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),

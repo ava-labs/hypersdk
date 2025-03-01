@@ -87,10 +87,7 @@ func (h *Handler) WatchChain(hideTxs bool) error {
 		return err
 	}
 	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-	parser, err := h.c.GetParser(uris[0])
-	if err != nil {
-		return err
-	}
+	parser := h.c.GetParser()
 	scli, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err

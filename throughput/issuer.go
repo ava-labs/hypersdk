@@ -19,9 +19,10 @@ import (
 )
 
 type issuer struct {
-	i      int
-	uri    string
-	parser chain.Parser
+	i           int
+	uri         string
+	parser      chain.Parser
+	ruleFactory chain.RuleFactory
 
 	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
@@ -77,7 +78,8 @@ func (i *issuer) Start(ctx context.Context) {
 
 func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
-	tx, err := chain.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
+	rules := i.ruleFactory.GetRules(time.Now().UnixMilli())
+	tx, err := chain.GenerateTransactionManual(rules, actions, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)
