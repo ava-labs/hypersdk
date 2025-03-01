@@ -58,7 +58,7 @@ func NewDefaultConfig() Config {
 }
 
 // TODO: replace with AvalancheGo implementation (if still used for Vryx)
-func New(file string, cfg Config, registerer prometheus.Registerer) (*Database, error) {
+func New(dirName string, cfg Config, registerer prometheus.Registerer) (*Database, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
 	d := &Database{closing: make(chan struct{})}
 	opts := &pebble.Options{
@@ -96,7 +96,7 @@ func New(file string, cfg Config, registerer prometheus.Registerer) (*Database, 
 		return nil, err
 	}
 	d.metrics = metrics
-	db, err := pebble.Open(file, opts)
+	db, err := pebble.Open(dirName, opts)
 	if err != nil {
 		return nil, err
 	}

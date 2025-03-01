@@ -29,11 +29,16 @@ var (
 
 type GetTimeValidityWindowFunc func(timestamp int64) int64
 
-type ExecutionBlock[T emap.Item] interface {
+type Block interface {
 	GetID() ids.ID
 	GetParent() ids.ID
 	GetTimestamp() int64
 	GetHeight() uint64
+	GetBytes() []byte
+}
+
+type ExecutionBlock[T emap.Item] interface {
+	Block
 	GetContainers() []T
 	Contains(ids.ID) bool
 }

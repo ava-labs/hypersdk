@@ -399,7 +399,7 @@ type testChainIndex struct {
 	blocks map[ids.ID]ExecutionBlock[container]
 }
 
-func (t testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
+func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, nil
 	}
@@ -439,6 +439,7 @@ type executionBlock struct {
 	Hght   uint64
 	Ctrs   []container
 	ID     ids.ID
+	Bytes  []byte
 }
 
 func (e executionBlock) GetID() ids.ID {
@@ -470,12 +471,19 @@ func (e executionBlock) Contains(id ids.ID) bool {
 	return false
 }
 
+func (e executionBlock) GetBytes() []byte {
+	return e.Bytes
+}
+
 func newExecutionBlock(height uint64, timestamp int64, containers []int64) executionBlock {
+	id := uint64ToID(height)
+
 	e := executionBlock{
 		Prnt:   uint64ToID(height - 1), // Allow underflow for genesis
 		Tmstmp: timestamp,
 		Hght:   height,
-		ID:     uint64ToID(height),
+		ID:     id,
+		Bytes:  binary.BigEndian.AppendUint64(nil, height),
 	}
 	for _, c := range containers {
 		e.Ctrs = append(e.Ctrs, newContainer(c))
