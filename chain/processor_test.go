@@ -36,14 +36,17 @@ import (
 var (
 	_ chain.AuthVM = (*mockAuthVM)(nil)
 
-	heightKey    = string(chain.HeightKey([]byte{0}))
-	timestampKey = string(chain.TimestampKey([]byte{1}))
-
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
+
+	testMetadataManager := metadata.NewDefaultManager()
+	feeKey := string(chain.FeeKey(testMetadataManager.FeePrefix()))
+	heightKey := string(chain.HeightKey(testMetadataManager.HeightPrefix()))
+	timestampKey := string(chain.TimestampKey(testMetadataManager.TimestampPrefix()))
+
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
@@ -486,7 +489,7 @@ func TestProcessorExecute(t *testing.T) {
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
 				&mockAuthVM{},
-				metadata.NewDefaultManager(),
+				testMetadataManager,
 				&mockBalanceHandler{},
 				tt.validityWindow,
 				metrics,
