@@ -22,17 +22,17 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var (
-	feeKey = string(chain.FeeKey([]byte{2}))
-
-	errMockValidityWindow = errors.New("mock validity window error")
-)
+var errMockValidityWindow = errors.New("mock validity window error")
 
 func TestPreExecutor(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	ruleFactory := genesis.ImmutableRuleFactory{
 		Rules: testRules,
 	}
+
+	testMetadataManager := metadata.NewDefaultManager()
+	feeKey := string(chain.FeeKey(testMetadataManager.FeePrefix()))
+
 	validTx := &chain.Transaction{
 		TransactionData: chain.TransactionData{
 			Base: chain.Base{
@@ -154,7 +154,7 @@ func TestPreExecutor(t *testing.T) {
 			preExecutor := chain.NewPreExecutor(
 				&ruleFactory,
 				tt.validityWindow,
-				metadata.NewDefaultManager(),
+				testMetadataManager,
 				&mockBalanceHandler{},
 			)
 
