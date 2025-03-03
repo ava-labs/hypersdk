@@ -156,9 +156,9 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	if err != nil {
 		return err
 	}
-		// Use the original context, so that we attempt to return funds before exiting after
-		// receiving user interrupt
-		return s.returnFunds(ctx, cli, maxUnits, sh, accounts, factories, symbol)
+	// Use the original context, so that we attempt to return funds before exiting after
+	// receiving user interrupt
+	return s.returnFunds(ctx, cli, maxUnits, sh, accounts, factories, symbol)
 }
 
 // [run] starts the issuers, the tracker, and begins the broadcasting of transactions
