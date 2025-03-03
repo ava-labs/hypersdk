@@ -35,7 +35,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			wantBlocks:   8,
 		},
 		{
-			name: "partial blocks with missing height",
+			name: "partial response",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				blocks := generateBlockChain(10, 3)
 				delete(blocks, uint64(7))
@@ -43,15 +43,15 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			},
 			blockHeight:  9,
 			minTimestamp: 0,
-			wantErr:      true,
 			wantBlocks:   2, // Should get block 9 and 8 before failing on 7
 		},
 		{
-			name:         "zero height request",
-			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return generateBlockChain(10, 3) },
-			blockHeight:  0,
-			minTimestamp: 0,
+			name:         "no blocks - should error",
+			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return nil },
+			blockHeight:  9,
+			minTimestamp: 3,
 			wantBlocks:   0,
+			wantErr:      true,
 		},
 	}
 

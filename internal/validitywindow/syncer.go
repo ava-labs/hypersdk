@@ -9,18 +9,15 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/maybe"
-
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 type FetchResult[B Block] struct {
-	Block maybe.Maybe[B]
+	Block B
 }
 
 type BlockFetcher[T Block] interface {
-	FetchBlocks(ctx context.Context, id ids.ID, height uint64, timestamp int64, minTimestamp *atomic.Int64) <-chan FetchResult[T]
+	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan FetchResult[T]
 }
 
 // Syncer ensures the node does not transition to normal operation
@@ -89,15 +86,9 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.cancel = cancel
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
-		id := lastAccepted.GetID()
-		height := lastAccepted.GetHeight()
-		timestamp := lastAccepted.GetTimestamp()
-
-		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, id, height, timestamp, &s.minTimestamp)
+		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, lastAccepted, &s.minTimestamp)
 		for result := range resultChan {
-			if result.Block.HasValue() {
-				s.timeValidityWindow.Accept(result.Block.Value())
-			}
+			s.timeValidityWindow.AcceptHistorical(result.Block)
 		}
 
 		s.signalDone()
@@ -140,7 +131,7 @@ func (s *Syncer[T, B]) UpdateSyncTarget(_ context.Context, target B) error {
 }
 
 // accept new incoming block from consensus
-func (s *Syncer[T, B]) accept(blk ExecutionBlock[T]) bool {
+func (s *Syncer[T, B]) accept(blk B) bool {
 	// Check if this new block completes our validity window
 	seenValidityWindow := blk.GetTimestamp()-s.oldestBlock.GetTimestamp() >
 		s.getValidityWindow(blk.GetTimestamp())
@@ -168,6 +159,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	// Keep fetching parents until we:
 	// - Fill validity window, or
 	// - Can't find more blocks
+	// - The order is guaranteed
 	for {
 		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
@@ -182,15 +174,11 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		}
 	}
 
-	lastAccepted := block
-	for i, bl := range parents {
-		if i == 0 {
-			s.oldestBlock = bl
-		}
-		if bl.GetHeight() > lastAccepted.GetHeight() {
-			lastAccepted = bl
-		}
-		s.timeValidityWindow.Accept(bl)
+	lastAccepted := parents[len(parents)-1]
+	s.oldestBlock = parents[0]
+
+	for i := len(parents) - 1; i >= 0; i-- {
+		s.timeValidityWindow.Accept(parents[i])
 	}
 
 	return lastAccepted, seenValidityWindow

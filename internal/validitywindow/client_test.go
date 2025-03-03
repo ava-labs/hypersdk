@@ -14,8 +14,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +27,7 @@ import (
 // and construct valid state from partial states
 func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	req := require.New(t)
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	validChain := generateTestChain(10)
@@ -49,31 +53,26 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	}
 
 	network := setupTestNetwork(t, ctx, nodes)
-	blkParser := setupParser[ExecutionBlock[container]](validChain)
+	blkParser := setupParser(validChain)
 	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
+	// start fetching from the tip i.e. last known accepted block, this block will not be included
 	tip := validChain[len(validChain)-1]
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	id := tip.GetID()
-	height := tip.GetHeight()
-	ts := tip.GetTimestamp()
-
 	// Get block channel from fetcher
-	resultChan := fetcher.FetchBlocks(ctx, id, height, ts, &minTS)
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
 
 	// Collect all blocks from the channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for result := range resultChan {
-		req.True(result.Block.HasValue())
-
-		block := result.Block.Value()
+		block := result.Block
 		receivedBlocks[block.GetHeight()] = block
 	}
 
-	req.Len(receivedBlocks, 8) // block height from 9 to 2 should be received; 2 being boundary block due to strict verification
-	for _, block := range validChain[2:] {
+	req.Len(receivedBlocks, 7) // block height from 8 to 2 should be received; 2 being boundary block due to strict verification
+	for _, block := range validChain[2:9] {
 		received, ok := receivedBlocks[block.GetHeight()]
 		req.True(ok)
 		req.Equal(block.GetID(), received.GetID())
@@ -112,35 +111,29 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	id := tip.GetID()
-	height := tip.GetHeight()
-	ts := tip.GetTimestamp()
-
-	resultChan := fetcher.FetchBlocks(ctx, id, height, ts, &minTS)
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 
 	// upper bound timeout for receiving block
-	timeout := time.After(time.Second)
+	timeout := time.After(5 * time.Second)
 loop:
 	for {
 		select {
 		case result := <-resultChan:
-			if result.Block.HasValue() {
-				block := result.Block.Value()
-				receivedBlocks[block.GetHeight()] = block
-				// reset the timeout for each successful block received
-				timeout = time.After(time.Second)
-			}
+			block := result.Block
+			receivedBlocks[block.GetHeight()] = block
+			// reset the timeout for each successful block received
+			timeout = time.After(5 * time.Second)
 		case <-timeout:
 			break loop
 		}
 	}
 
-	// We should have 6 blocks in our state instead of 7 since the last one is invalid. Partial commit of valid blocks
-	req.Len(receivedBlocks, 6)
+	// We should have 5 blocks in our state instead of 6 since the last one is invalid. Partial commit of valid blocks
+	req.Len(receivedBlocks, 5)
 
-	// Verify blocks from 9 to 4 have been received
-	for i := 4; i <= 9; i++ {
+	// Verify blocks from 8 to 4 have been received
+	for i := 4; i <= 8; i++ {
 		expectedBlock := chain[i]
 		h := expectedBlock.GetHeight()
 		receivedBlock, ok := receivedBlocks[h]
@@ -160,8 +153,8 @@ Test demonstrates dynamic minTimestamp boundary updates during block fetching.
 
 Initial state:
 
-	Blocks (height -> minTimestamp):  0->0, 1->1, 2->2, 3->3, 4->4, 5->5, 6->6, 7->7, 8->8, 9->9 -> 10->10 -> 11->11
-	Initial minTS = 3: Should fetch blocks with timestamps > 3 (blocks 4-9)
+	Blocks (height -> minTimestamp):  0->0, 1->1, 2->2, 3->3, 4->4, 5->5, 6->6, 7->7, 8->8, 9->9
+	Initial minTS = 3, blkHeight=9: Should fetch blocks with timestamps > 3 (blocks 4-8)
 
 During execution:
 1. Node responds with a delay for each request
@@ -169,12 +162,12 @@ During execution:
 3. This updates the boundary - now only fetches blocks with timestamps > 5
 
 Expected outcome:
-  - Only blocks 4 to 9 should be received (6 blocks total, 4th block being boundary block due to stricter adherence)
+  - Only blocks 4 to 8 should be received (5 blocks total, 4th block being boundary block due to stricter adherence)
   - Blocks 0-3 should not be received as they're below the updated minTS
 */
 func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	req := require.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	delay := 50 * time.Millisecond
@@ -198,7 +191,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}
 
 	network := setupTestNetwork(t, ctx, nodes)
-	blkParser := setupParser[ExecutionBlock[container]](validChain)
+	blkParser := setupParser(validChain)
 	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
 	tip := validChain[len(validChain)-1]
@@ -210,24 +203,16 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		minTimestamp.Store(5)
 	}()
 
-	id := tip.GetID()
-	height := tip.GetHeight()
-	ts := tip.GetTimestamp()
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
 
-	blockChan := fetcher.FetchBlocks(ctx, id, height, ts, &minTimestamp)
-
-	// Collect blocks from channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	for result := range blockChan {
-		req.True(result.Block.HasValue())
-
-		block := result.Block.Value()
+	for result := range resultChan {
+		block := result.Block
 		receivedBlocks[block.GetHeight()] = block
 	}
 
-	req.Len(receivedBlocks, 6)
-
-	for _, block := range validChain[4:] {
+	req.Len(receivedBlocks, 5)
+	for _, block := range validChain[4:9] {
 		_, ok := receivedBlocks[block.GetHeight()]
 		req.True(ok)
 	}
@@ -282,7 +267,7 @@ func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeSce
 	}
 
 	return &testNetwork{
-		client:  p2ptest.NewClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
+		client:  newClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
 		sampler: &testNodeSampler{nodes: nodes},
 		nodes:   nodes,
 	}
@@ -317,9 +302,9 @@ func (m *parser[T]) ParseBlock(_ context.Context, data []byte) (T, error) {
 }
 
 // setupParser is prefilling the parser state, mocking parsing
-func setupParser[T Block](chain []T) *parser[T] {
-	p := &parser[T]{
-		state: make(map[ids.ID]T),
+func setupParser(chain []ExecutionBlock[container]) *parser[ExecutionBlock[container]] {
+	p := &parser[ExecutionBlock[container]]{
+		state: make(map[ids.ID]ExecutionBlock[container]),
 	}
 
 	for _, block := range chain {
@@ -343,4 +328,89 @@ func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
 		return t.nodes
 	}
 	return t.nodes[:num]
+}
+
+// newClientWithPeers generates a client to communicate to a set of peers
+func newClientWithPeers(
+	t *testing.T,
+	ctx context.Context,
+	clientNodeID ids.NodeID,
+	clientHandler p2p.Handler,
+	peers map[ids.NodeID]p2p.Handler,
+) *p2p.Client {
+	peers[clientNodeID] = clientHandler
+
+	peerSenders := make(map[ids.NodeID]*enginetest.Sender)
+	peerNetworks := make(map[ids.NodeID]*p2p.Network)
+	for nodeID := range peers {
+		peerSenders[nodeID] = &enginetest.Sender{}
+		peerNetwork, err := p2p.NewNetwork(logging.NoLog{}, peerSenders[nodeID], prometheus.NewRegistry(), "")
+		require.NoError(t, err)
+		peerNetworks[nodeID] = peerNetwork
+	}
+
+	peerSenders[clientNodeID].SendAppGossipF = func(ctx context.Context, _ common.SendConfig, gossipBytes []byte) error {
+		// Send the request asynchronously to avoid deadlock when the server
+		// sends the response back to the client
+		for nodeID := range peers {
+			go func() {
+				require.NoError(t, peerNetworks[nodeID].AppGossip(ctx, nodeID, gossipBytes))
+			}()
+		}
+
+		return nil
+	}
+
+	peerSenders[clientNodeID].SendAppRequestF = func(ctx context.Context, nodeIDs set.Set[ids.NodeID], requestID uint32, requestBytes []byte) error {
+		for nodeID := range nodeIDs {
+			network, ok := peerNetworks[nodeID]
+			if !ok {
+				return fmt.Errorf("%s is not connected", nodeID)
+			}
+
+			// Send the request asynchronously to avoid deadlock when the server
+			// sends the response back to the client
+			go func() {
+				require.NoError(t, network.AppRequest(ctx, clientNodeID, requestID, time.Time{}, requestBytes))
+			}()
+		}
+
+		return nil
+	}
+
+	for nodeID := range peers {
+		peerSenders[nodeID].SendAppResponseF = func(ctx context.Context, _ ids.NodeID, requestID uint32, responseBytes []byte) error {
+			// Send the request asynchronously to avoid deadlock when the server
+			// sends the response back to the client
+			go func() {
+				require.NoError(t, peerNetworks[clientNodeID].AppResponse(ctx, nodeID, requestID, responseBytes))
+			}()
+
+			return nil
+		}
+	}
+
+	for nodeID := range peers {
+		peerSenders[nodeID].SendAppErrorF = func(ctx context.Context, _ ids.NodeID, requestID uint32, errorCode int32, errorMessage string) error {
+			// Send the request asynchronously to avoid deadlock when the server
+			// sends the response back to the client
+			nodeIDCopy := nodeID
+			go func() {
+				require.NoError(t, peerNetworks[clientNodeID].AppRequestFailed(ctx, nodeIDCopy, requestID, &common.AppError{
+					Code:    errorCode,
+					Message: errorMessage,
+				}))
+			}()
+
+			return nil
+		}
+	}
+
+	for nodeID := range peers {
+		require.NoError(t, peerNetworks[nodeID].Connected(ctx, clientNodeID, nil))
+		require.NoError(t, peerNetworks[nodeID].Connected(ctx, nodeID, nil))
+		require.NoError(t, peerNetworks[nodeID].AddHandler(0, peers[nodeID]))
+	}
+
+	return peerNetworks[clientNodeID].NewClient(0)
 }

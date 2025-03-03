@@ -63,7 +63,7 @@ func TestSyncer_Start(t *testing.T) {
 				}
 
 				network := setupTestNetwork(t, ctx, nodes)
-				blkParser := setupParser[ExecutionBlock[container]](blkChain)
+				blkParser := setupParser(blkChain)
 				fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
 				return fetcher
@@ -99,7 +99,7 @@ func TestSyncer_Start(t *testing.T) {
 				}
 
 				network := setupTestNetwork(t, ctx, nodes)
-				blkParser := setupParser[ExecutionBlock[container]](blkChain)
+				blkParser := setupParser(blkChain)
 				fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 
 				return fetcher
@@ -162,7 +162,7 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				}
 
 				network := setupTestNetwork(t, ctx, nodes)
-				blkParser := setupParser[ExecutionBlock[container]](blkChain)
+				blkParser := setupParser(blkChain)
 				return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 			},
 			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
@@ -213,7 +213,7 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				}
 
 				network := setupTestNetwork(t, ctx, nodes)
-				blkParser := setupParser[ExecutionBlock[container]](blkChain)
+				blkParser := setupParser(blkChain)
 				return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 			},
 			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
@@ -275,7 +275,7 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				}
 
 				network := setupTestNetwork(t, ctx, nodes)
-				blkParser := setupParser[ExecutionBlock[container]](blkChain)
+				blkParser := setupParser(blkChain)
 				return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
 			},
 			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {

@@ -5,30 +5,18 @@ package validitywindow
 
 import (
 	"context"
-	"math/rand"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/utils/maybe"
-
 	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
 
 const (
 	requestTimeout = 1 * time.Second // Timeout for each request
-	numSampleNodes = 10              // Number of nodes to sample
+	backoff        = 500 * time.Millisecond
 )
-
-// checkpoint tracks our current position, it's keeping track of the
-// last valid accepted block
-type checkpoint struct {
-	parentID   ids.ID // last accepted parentID
-	nextHeight uint64 // next block nextHeight to fetch
-	timestamp  int64  // last accepted timestamp
-}
 
 type BlockParser[T Block] interface {
 	ParseBlock(ctx context.Context, blockBytes []byte) (T, error)
@@ -37,13 +25,11 @@ type BlockParser[T Block] interface {
 // BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
 // blocks, it ensures we have at least min validity window of blocks so we can transition from state sync to normal operation faster
 type BlockFetcherClient[B Block] struct {
-	client  *typedclient.TypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
-	parser  BlockParser[B]
-	sampler p2p.NodeSampler
-
-	checkpointLock sync.RWMutex
-	checkpoint     checkpoint
-	once           sync.Once
+	parser     BlockParser[B]
+	sampler    p2p.NodeSampler
+	syncClient *typedclient.SyncTypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
+	lastBlock  Block
+	nextHeight uint64
 }
 
 func NewBlockFetcherClient[B Block](
@@ -52,117 +38,85 @@ func NewBlockFetcherClient[B Block](
 	sampler p2p.NodeSampler,
 ) *BlockFetcherClient[B] {
 	return &BlockFetcherClient[B]{
-		client:  typedclient.NewTypedClient(baseClient, &blockFetcherMarshaler{}),
-		parser:  parser,
-		sampler: sampler,
+		syncClient: typedclient.NewSyncTypedClient(baseClient, &blockFetcherMarshaler{}),
+		parser:     parser,
+		sampler:    sampler,
 	}
 }
 
-// FetchBlocks fetches blocks from peers **backward** (nextHeight N → minTS).
+// FetchBlocks fetches blocks from peers **backward**.
 //   - It stops when `minTS` is met (this can update dynamically, e.g., via `UpdateSyncTarget`).
 //   - Each request is limited by the node's max execution time (currently ~50ms),
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
-func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, id ids.ID, height uint64, timestamp int64, minTimestamp *atomic.Int64) <-chan FetchResult[B] {
+func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan FetchResult[B] {
 	resultChan := make(chan FetchResult[B], 1)
 
-	// Start fetching in a separate goroutine
 	go func() {
-		c.checkpointLock.Lock()
-		c.checkpoint = checkpoint{
-			parentID:   id,
-			nextHeight: height,
-			timestamp:  timestamp,
-		}
-		c.checkpointLock.Unlock()
-		req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load()}
+		c.lastBlock = blk
+		req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load(), BlockHeight: blk.GetHeight() - 1}
 
 		for {
-			reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-
 			select {
 			case <-ctx.Done():
-				cancel()
 				return
 			default:
 			}
 
-			c.checkpointLock.RLock()
-			tstamp := c.checkpoint.timestamp
-			nextHeight := c.checkpoint.nextHeight
-			c.checkpointLock.RUnlock()
-
 			// Multiple blocks can share the same timestamp, so we have not filled the validity window
 			// until we find and include the first block whose timestamp is strictly less than the minimum
 			// timestamp. This ensures we have a complete and verifiable validity window
-			if tstamp < minTimestamp.Load() {
-				cancel() // Call order is important, cancel writer's before closing
-				c.once.Do(func() {
-					close(resultChan)
-				})
+			if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
+				close(resultChan)
 				return
 			}
 
-			nodeID := c.sampleNodeID(ctx)
-			if nodeID.Compare(ids.EmptyNodeID) == 0 {
+			nodeID, ok := c.sampleNodeID(ctx)
+			if !ok {
+				time.Sleep(backoff)
 				continue
 			}
 
-			req.BlockHeight = nextHeight
-			err := c.client.AppRequest(reqCtx, nodeID, req, func(ctx context.Context, _ ids.NodeID, response *BlockFetchResponse, err error) {
-				// Handle response
-				if err != nil {
-					return
-				}
+			reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+			response, err := c.syncClient.SyncAppRequest(reqCtx, nodeID, req)
+			cancel()
 
-				respBlocks := response.Blocks
-				if len(respBlocks) == 0 {
-					return
-				}
-
-				c.checkpointLock.RLock()
-				expectedParentID := c.checkpoint.parentID
-				c.checkpointLock.RUnlock()
-
-				for _, raw := range respBlocks {
-					block, err := c.parser.ParseBlock(ctx, raw)
-					if err != nil {
-						return
-					}
-
-					if expectedParentID != block.GetID() {
-						return
-					}
-					expectedParentID = block.GetParent()
-
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						resultChan <- FetchResult[B]{Block: maybe.Some(block)}
-						// Update checkpoint
-						c.checkpointLock.Lock()
-						c.checkpoint.parentID = block.GetParent()
-						c.checkpoint.timestamp = block.GetTimestamp()
-						if nextBlkHeight := block.GetHeight(); nextBlkHeight > 0 {
-							c.checkpoint.nextHeight = nextBlkHeight - 1
-						}
-						c.checkpointLock.Unlock()
-					}
-				}
-			})
-			if err != nil {
-				cancel()
+			if err != nil || response == nil {
+				time.Sleep(backoff)
+				continue
 			}
-			time.Sleep(500 * time.Millisecond)
+
+			expectedParentID := c.lastBlock.GetParent()
+			for _, raw := range response.Blocks {
+				block, err := c.parser.ParseBlock(ctx, raw)
+				if err != nil {
+					continue
+				}
+
+				if expectedParentID != block.GetID() {
+					continue
+				}
+				expectedParentID = block.GetParent()
+
+				select {
+				case <-ctx.Done():
+					return
+				case resultChan <- FetchResult[B]{Block: block}:
+					c.lastBlock = block
+					req.BlockHeight = c.lastBlock.GetHeight() - 1
+				}
+			}
+			time.Sleep(backoff)
 		}
 	}()
 
 	return resultChan
 }
 
-func (c *BlockFetcherClient[B]) sampleNodeID(ctx context.Context) ids.NodeID {
-	nodes := c.sampler.Sample(ctx, numSampleNodes)
-	randIndex := rand.Intn(len(nodes)) //nolint:gosec
-	return nodes[randIndex]
+func (c *BlockFetcherClient[B]) sampleNodeID(ctx context.Context) (ids.NodeID, bool) {
+	nodes := c.sampler.Sample(ctx, 1)
+	if len(nodes) == 0 {
+		return ids.EmptyNodeID, false
+	}
+	return nodes[0], true
 }

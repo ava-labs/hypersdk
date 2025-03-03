@@ -692,9 +692,9 @@ func TestNode_GetChunkSignature_SignValidChunk(t *testing.T) {
 				chainID,
 				p2ptest.NewClient(
 					t,
-					context.Background(),
-					ids.EmptyNodeID,
+					context.Background(),,
 					p2p.NoOpHandler{},
+					ids.EmptyNodeID,
 					node.ID,
 					node.GetChunkSignatureHandler,
 				),

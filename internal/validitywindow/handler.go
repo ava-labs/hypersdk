@@ -17,7 +17,6 @@ const maxProcessingDuration = 50 * time.Millisecond
 
 const (
 	ErrCodeUnmarshal = iota + 1
-	ErrCodeRetrieval
 	ErrBlocksNotFound
 )
 
@@ -62,24 +61,16 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 	}
 
 	blocks, err := b.fetchBlocks(ctx, request)
-	response := &BlockFetchResponse{Blocks: blocks}
 
-	// If we have any blocks, return them even if there was an error (partial response)
-	if len(blocks) > 0 {
-		return response.MarshalCanoto(), nil
-	}
-
-	if err != nil {
+	if err != nil && len(blocks) == 0 {
 		return nil, &common.AppError{
-			Code:    ErrCodeRetrieval,
-			Message: fmt.Sprintf("failed to fetch blocks: %v", err),
+			Code:    ErrBlocksNotFound,
+			Message: fmt.Sprintf("no blocks found starting at height %d: %v", request.BlockHeight, err),
 		}
 	}
 
-	return nil, &common.AppError{
-		Code:    ErrBlocksNotFound,
-		Message: fmt.Sprintf("no blocks found starting at height %d", request.BlockHeight),
-	}
+	response := &BlockFetchResponse{Blocks: blocks}
+	return response.MarshalCanoto(), nil
 }
 
 func (*BlockFetcherHandler[T]) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) {}
@@ -103,22 +94,24 @@ func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *Block
 		minTimestamp = request.MinTimestamp
 	)
 
-	for height > 0 {
-		select {
-		case <-timeoutCtx.Done():
-			return blocks, nil
-		default:
-			block, err := b.retriever.GetBlockByHeight(ctx, height)
-			if err != nil {
-				return blocks, err
-			}
-			blocks = append(blocks, block.GetBytes())
+	for {
+		block, err := b.retriever.GetBlockByHeight(ctx, height)
 
-			if block.GetTimestamp() < minTimestamp {
-				return blocks, nil
-			}
-			height--
+		switch {
+		case err != nil && len(blocks) == 0:
+			return nil, err
+		// Handle partial responses
+		case err != nil:
+			return blocks, nil
+		}
+
+		blocks = append(blocks, block.GetBytes())
+		height--
+
+		if height == 0 ||
+			timeoutCtx.Err() != nil ||
+			block.GetTimestamp() < minTimestamp {
+			return blocks, nil
 		}
 	}
-	return blocks, nil
 }
