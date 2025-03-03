@@ -96,7 +96,6 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to sign tx: %w", err)
 		}
 
-		// TODO : find a way to work around this nil
 		indexerClient := indexer.NewClient(endpoint)
 
 		expectedTxID, err := client.SubmitTx(ctx, signedBytes)

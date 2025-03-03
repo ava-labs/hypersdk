@@ -20,11 +20,12 @@ import (
 func TestIndexerClient(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
-	var (
+	const (
 		numExecutedBlocks = 4
 		blockWindow       = 2
+		numTxs            = 3
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 3)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 	jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
 	require.NoError(err)
@@ -34,12 +35,11 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
-	parser := chaintest.NewTestParser( /*require*/ )
+	parser := chaintest.NewTestParser()
 
 	client := NewClient(httpServer.URL)
 	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, parser)
 	require.NoError(err)
-	// initStateKeys(executedBlock.Block)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 
 	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght, parser)
