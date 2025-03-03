@@ -617,13 +617,8 @@ func TestIndexerAPI(t *testing.T) {
 	network.SetState(ctx, avasnow.NormalOp)
 	defer network.Shutdown(ctx)
 
-<<<<<<< HEAD
-	parser := network.VMs[0].VM
-	client := indexer.NewClient(network.URIs()[0])
-=======
 	client := indexer.NewClient(network.URIs()[0])
 	parser := network.VMs[0].VM.GetParser()
->>>>>>> main
 	genesisBlock, err := client.GetLatestBlock(ctx, parser)
 	r.NoError(err)
 	lastAccepted, err := network.VMs[0].SnowVM.GetConsensusIndex().GetLastAccepted(ctx)

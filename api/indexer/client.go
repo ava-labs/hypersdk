@@ -123,6 +123,8 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (G
 	if err != nil {
 		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
 	}
+
+	resp.Result.CalculateCanotoCache()
 	return resp, tx, true, nil
 }
 
