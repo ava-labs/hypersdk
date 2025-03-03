@@ -59,9 +59,9 @@ func GenerateEmptyExecutionBlocks(
 	parentID ids.ID,
 	parentHeight uint64,
 	parentTimestamp int64,
-	timestampOffset int64,
 	numBlocks int,
 ) ([]*chain.ExecutionBlock, error) {
+	timestampOffset := rules.GetMinEmptyBlockGap()
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
 	for i := range executionBlocks {
 		timestamp := parentTimestamp + timestampOffset*(int64(i)+1)

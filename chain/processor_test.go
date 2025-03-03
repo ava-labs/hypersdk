@@ -544,7 +544,7 @@ func BenchmarkProcessorExecuteEmptyBlocks(b *testing.B) {
 		&genesis.ImmutableRuleFactory{Rules: testRules},
 		workers.NewSerial(),
 		&mockAuthVM{},
-		metadata.NewDefaultManager(),
+		metadataManager,
 		&mockBalanceHandler{},
 		&validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 		metrics,
@@ -562,7 +562,6 @@ func BenchmarkProcessorExecuteEmptyBlocks(b *testing.B) {
 		genesisBlock.GetID(),
 		genesisBlock.GetHeight(),
 		genesisBlock.GetTimestamp(),
-		testRules.GetMinEmptyBlockGap(),
 		b.N,
 	)
 	r.NoError(err)
