@@ -34,7 +34,7 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
-	parser := chaintest.NewTestParser(require)
+	parser := chaintest.NewTestParser( /*require*/ )
 
 	client := NewClient(httpServer.URL)
 	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, parser)
@@ -83,7 +83,7 @@ func TestIndexerClient(t *testing.T) {
 	require.Equal(GetTxResponse{
 		TxBytes:   executedBlocks[numExecutedBlocks-1].Block.Txs[0].Bytes(),
 		Timestamp: executedBlocks[numExecutedBlocks-1].Block.Tmstmp,
-		Result:    executedBlocks[numExecutedBlocks-1].Results[0],
+		Result:    executedBlocks[numExecutedBlocks-1].ExecutionResults.Results[0],
 	}, txResponse)
 	require.Equal(executedBlocks[numExecutedBlocks-1].Block.Txs[0], tx)
 	require.NoError(err)

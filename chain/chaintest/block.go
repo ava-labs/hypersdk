@@ -88,7 +88,7 @@ func GenerateTestExecutedBlocks(
 		}
 		for range numTx {
 			actions := []chain.Action{&TestAction{
-				SpecifiedStateKeys: state.Keys{},
+				SpecifiedStateKeys: []string{},
 				ReadKeys:           [][]byte{},
 				WriteKeys:          [][]byte{},
 				WriteValues:        [][]byte{},

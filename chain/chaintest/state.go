@@ -3,7 +3,14 @@
 
 package chaintest
 
-/*
+import (
+	"context"
+
+	"github.com/ava-labs/avalanchego/database"
+
+	"github.com/ava-labs/hypersdk/state"
+)
+
 var (
 	_ state.Mutable   = (*InMemoryStore)(nil)
 	_ state.Immutable = (*InMemoryStore)(nil)
@@ -37,4 +44,3 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	delete(i.Storage, string(key))
 	return nil
 }
-*/
