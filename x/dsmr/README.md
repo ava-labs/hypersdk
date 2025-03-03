@@ -1,5 +1,10 @@
 # DSMR
 
+Decoupled State Machine Replication (DSMR) decouples reliable data dissemination from consensus. This enables block builders to produce a block that includes the smallest amount of information possible that provides a deterministic ordering of data and proves that the data has been successfully replicated and can therefore be retrieved.
+
+- succinct commitment to scalable amount of data
+
+
 ## Chunks
 
 Chunks wrap a group of containers (transactions) submitted by a single node. Each validator is responsible for building chunks locally with their own view of the mempool, request signatures from a threshold of the network to mark them as replicated, and distribute chunk certificates with >= 2f + 1 signatures that are eligible to be included in a block.
