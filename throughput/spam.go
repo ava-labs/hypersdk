@@ -104,9 +104,12 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 
 	cctx, cancel := context.WithCancel(ctx)
 	go func() {
-		<-signals
-		utils.Outf("{{yellow}}received interrupt signal{{/}}\n")
-		cancel()
+		select {
+		case <-signals:
+			utils.Outf("{{yellow}}received interrupt signal{{/}}\n")
+			cancel()
+		case <-cctx.Done():
+		}
 	}()
 
 	// log distribution
