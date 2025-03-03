@@ -83,8 +83,9 @@ func TestBlockIndex(t *testing.T) {
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
+		numTxs            = 0
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 0)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
@@ -96,8 +97,9 @@ func TestBlockIndexRestart(t *testing.T) {
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
+		numTxs            = 0
 	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, 0)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
@@ -119,11 +121,13 @@ func TestBlockIndexRestart(t *testing.T) {
 
 func TestInvalidBlockWindowSizes(t *testing.T) {
 	require := require.New(t)
-	indexer, err := NewIndexer(t.TempDir(), chaintest.NewTestParser(), 0)
+	blockWindow := uint64(0)
+	indexer, err := NewIndexer(t.TempDir(), chaintest.NewTestParser(), blockWindow)
 	require.Nil(indexer)
 	require.ErrorIs(err, errZeroBlockWindow)
 
-	indexer, err = NewIndexer(t.TempDir(), chaintest.NewTestParser(), maxBlockWindow+1)
+	blockWindow = uint64(maxBlockWindow + 1)
+	indexer, err = NewIndexer(t.TempDir(), chaintest.NewTestParser(), blockWindow)
 	require.Nil(indexer)
 	require.ErrorIs(err, errInvalidBlockWindowSize)
 }

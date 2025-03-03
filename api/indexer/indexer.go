@@ -61,10 +61,10 @@ type cachedTransaction struct {
 }
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
-	if blockWindow > maxBlockWindow {
+	switch {
+	case blockWindow > maxBlockWindow:
 		return nil, fmt.Errorf("%w: block window %d exceeds maximum %d", errInvalidBlockWindowSize, blockWindow, maxBlockWindow)
-	}
-	if blockWindow == 0 {
+	case blockWindow == 0:
 		return nil, errZeroBlockWindow
 	}
 	blockDB, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
