@@ -30,8 +30,10 @@ var (
 )
 
 var (
-	errBlockNotFound    = errors.New("block not found")
-	errTxResultNotFound = errors.New("transaction result not found")
+	errBlockNotFound          = errors.New("block not found")
+	errTxResultNotFound       = errors.New("transaction result not found")
+	errZeroBlockWindow        = errors.New("indexer configuration of non zero block window is expected")
+	errInvalidBlockWindowSize = errors.New("invalid indexer block window size specified")
 )
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
@@ -60,7 +62,10 @@ type cachedTransaction struct {
 
 func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer, error) {
 	if blockWindow > maxBlockWindow {
-		return nil, fmt.Errorf("block window %d exceeds maximum %d", blockWindow, maxBlockWindow)
+		return nil, fmt.Errorf("%w: block window %d exceeds maximum %d", errInvalidBlockWindowSize, blockWindow, maxBlockWindow)
+	}
+	if blockWindow == 0 {
+		return nil, errZeroBlockWindow
 	}
 	blockDB, err := pebble.New(filepath.Join(path, "block"), pebble.NewDefaultConfig(), prometheus.NewRegistry())
 	if err != nil {
@@ -149,10 +154,6 @@ func (i *Indexer) initBlocks() error {
 }
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
-	if i.blockWindow == 0 {
-		return nil
-	}
-
 	i.mu.Lock()
 	i.insertBlockIntoCache(blk)
 	i.mu.Unlock()

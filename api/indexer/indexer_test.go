@@ -116,3 +116,14 @@ func TestBlockIndexRestart(t *testing.T) {
 	checkBlocks(require, restartedIndexerSingleBlockWindow, executedBlocks, 1)
 	require.NoError(restartedIndexerSingleBlockWindow.Close())
 }
+
+func TestInvalidBlockWindowSizes(t *testing.T) {
+	require := require.New(t)
+	indexer, err := NewIndexer(t.TempDir(), chaintest.NewTestParser(), 0)
+	require.Nil(indexer)
+	require.ErrorIs(err, errZeroBlockWindow)
+
+	indexer, err = NewIndexer(t.TempDir(), chaintest.NewTestParser(), maxBlockWindow+1)
+	require.Nil(indexer)
+	require.ErrorIs(err, errInvalidBlockWindowSize)
+}

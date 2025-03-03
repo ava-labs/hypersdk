@@ -68,7 +68,7 @@ func GenerateTestExecutedBlocks(
 	rules := genesis.NewDefaultRules()
 	feeManager := internal_fees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
-	parser := NewTestParser( /*require*/ )
+	parser := NewTestParser()
 	ts := tstate.New(0)
 	db, err := merkledb.New(
 		context.Background(),
