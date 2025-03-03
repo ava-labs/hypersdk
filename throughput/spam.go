@@ -170,8 +170,7 @@ func (s *Spammer) run(
 	terminate bool,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
-	// Deferring [cancel] ensures that the issuers and the tracker begin to shut down
-	// upon [run] returning
+	// Defer cancel to signal issuers and tracker to shutdown once broadcast terminates
 	defer cancel()
 
 	parser := sh.GetParser()
