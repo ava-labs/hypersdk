@@ -3,21 +3,7 @@
 
 package chaintest
 
-import (
-	"context"
-	"errors"
-	"fmt"
-	"testing"
-
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/stretchr/testify/require"
-
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
-)
-
+/*
 var (
 	_ chain.Action  = (*TestAction)(nil)
 	_ state.Mutable = (*InMemoryStore)(nil)
@@ -202,3 +188,4 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 		}
 	}
 }
+*/

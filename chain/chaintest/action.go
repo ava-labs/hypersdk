@@ -3,7 +3,22 @@
 
 package chaintest
 
-/*
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/stretchr/testify/require"
+)
+
 const TestActionID = 0
 
 var (
@@ -140,7 +155,6 @@ func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
 	return t.Start, t.End
 }
 
-
 type TestOutput struct{}
 
 func (*TestOutput) GetTypeID() uint8 {
@@ -233,4 +247,3 @@ func (test *ActionBenchmark) Run(ctx context.Context, b *testing.B) {
 		}
 	}
 }
-*/
