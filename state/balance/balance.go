@@ -70,7 +70,7 @@ func (p *PrefixBalanceHandler) Deduct(
 ) error {
 	balanceKey := p.BalanceKey(addr)
 	balanceBytes, err := mu.GetValue(ctx, balanceKey)
-	if err == database.ErrNotFound {
+	if errors.Is(err, database.ErrNotFound) {
 		return fmt.Errorf("%w: %d < %d", ErrInsufficientBalance, 0, amount)
 	}
 	if err != nil {
@@ -121,7 +121,7 @@ func (p *PrefixBalanceHandler) AddBalance(
 
 func (p *PrefixBalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	balanceBytes, err := im.GetValue(ctx, p.BalanceKey(addr))
-	if err == database.ErrNotFound {
+	if errors.Is(err, database.ErrNotFound) {
 		return 0, nil
 	}
 	if err != nil {

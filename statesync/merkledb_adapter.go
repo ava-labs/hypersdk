@@ -87,7 +87,7 @@ func (m *MerkleSyncer[T]) Close() error {
 
 func (m *MerkleSyncer[T]) UpdateSyncTarget(_ context.Context, target T) error {
 	err := m.syncManager.UpdateSyncTarget(target.GetStateRoot())
-	if err == sync.ErrAlreadyClosed {
+	if errors.Is(err, sync.ErrAlreadyClosed) {
 		return nil
 	}
 	return err

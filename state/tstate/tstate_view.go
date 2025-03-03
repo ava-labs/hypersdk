@@ -6,6 +6,7 @@ package tstate
 import (
 	"bytes"
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
@@ -260,10 +261,10 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	}
 	k := string(key)
 	past, err := ts.getValue(ctx, k)
-	if err != nil && err != database.ErrNotFound {
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return err
 	}
-	if err == database.ErrNotFound {
+	if errors.Is(err, database.ErrNotFound) {
 		// We do not update writes if the key does not exist.
 		return nil
 	}
