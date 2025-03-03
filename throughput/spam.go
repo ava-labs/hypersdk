@@ -58,9 +58,6 @@ type Spammer struct {
 
 	// Number of accounts
 	numAccounts int
-
-	signals chan os.Signal
-
 	// keep track of variables shared across issuers
 	tracker  *tracker
 	issuerWg *sync.WaitGroup
@@ -102,12 +99,12 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 // [symbol] is used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
 	// make sure we can exit gracefully & return funds
-	s.signals = make(chan os.Signal, 2)
-	signal.Notify(s.signals, syscall.SIGINT, syscall.SIGTERM)
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	cctx, cancel := context.WithCancel(ctx)
 	go func() {
-		<-s.signals
+		<-signals
 		utils.Outf("{{yellow}}received interrupt signal{{/}}\n")
 		cancel()
 	}()
