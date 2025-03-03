@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,13 +25,17 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/metadata"
+	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/utils"
+
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 var (
@@ -511,6 +516,113 @@ func TestProcessorExecute(t *testing.T) {
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}
+}
+
+func BenchmarkProcessorExecuteEmptyBlocks(b *testing.B) {
+	r := require.New(b)
+	ctx := context.Background()
+
+	metrics, err := chain.NewMetrics(prometheus.NewRegistry())
+	r.NoError(err)
+
+	testRules := genesis.NewDefaultRules()
+	metadataManager := metadata.NewDefaultManager()
+
+	db, err := merkledb.New(
+		context.Background(),
+		memdb.New(),
+		merkledb.Config{
+			BranchFactor: merkledb.BranchFactor16,
+			Tracer:       trace.Noop,
+		},
+	)
+	r.NoError(err)
+
+	processor := chain.NewProcessor(
+		trace.Noop,
+		&logging.NoLog{},
+		&genesis.ImmutableRuleFactory{Rules: testRules},
+		workers.NewSerial(),
+		&mockAuthVM{},
+		metadata.NewDefaultManager(),
+		&mockBalanceHandler{},
+		&validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+		metrics,
+		chain.NewDefaultConfig(),
+	)
+
+	genesisBlock, err := generateGenesisBlock(ctx, db, metadataManager, testRules)
+	r.NoError(err)
+
+	blocks, err := chaintest.GenerateEmptyExecutionBlocks(
+		ctx,
+		testRules,
+		metadataManager,
+		db,
+		genesisBlock.GetID(),
+		genesisBlock.GetHeight(),
+		genesisBlock.GetTimestamp(),
+		testRules.GetMinEmptyBlockGap(),
+		b.N,
+	)
+	r.NoError(err)
+
+	var view merkledb.View
+	view = db
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		outputBlock, err := processor.Execute(
+			ctx,
+			view,
+			blocks[i],
+			false,
+		)
+		r.NoError(err)
+		view = outputBlock.View
+	}
+}
+
+func generateGenesisBlock(
+	ctx context.Context,
+	view merkledb.View,
+	metadataManager chain.MetadataManager,
+	rules chain.Rules,
+) (*chain.ExecutionBlock, error) {
+	ts := tstate.New(0)
+	tsv := ts.NewView(state.CompletePermissions, state.ImmutableStorage(map[string][]byte{}), 0)
+
+	if err := tsv.Insert(ctx, chain.HeightKey(metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		return nil, fmt.Errorf("failed to set genesis height: %w", err)
+	}
+	if err := tsv.Insert(ctx, chain.TimestampKey(metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		return nil, fmt.Errorf("failed to set genesis timestamp: %w", err)
+	}
+
+	feeManager := internalfees.NewManager(nil)
+	minUnitPrice := rules.GetMinUnitPrice()
+	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
+		feeManager.SetUnitPrice(i, minUnitPrice[i])
+	}
+
+	if err := tsv.Insert(ctx, chain.FeeKey(metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
+		return nil, fmt.Errorf("failed to set genesis fee manager: %w", err)
+	}
+	tsv.Commit()
+	view, err := view.NewView(ctx, merkledb.ViewChanges{
+		MapOps:       ts.ChangedKeys(),
+		ConsumeBytes: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit genesis initialized state diff: %w", err)
+	}
+	if err := view.CommitToDB(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit genesis view: %w", err)
+	}
+	root, err := view.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get initialized genesis root: %w", err)
+	}
+	return chain.NewGenesisBlock(root)
 }
 
 func createTestView(mp map[string][]byte) (merkledb.View, error) {
