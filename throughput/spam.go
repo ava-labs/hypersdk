@@ -119,7 +119,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	cli := jsonrpc.NewJSONRPCClient(s.uris[0])
 
 	// Compute max units
-	parser := sh.GetParser()
 	ruleFactory, err := sh.GetRuleFactory(ctx)
 	if err != nil {
 		return err
@@ -146,26 +145,10 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	// create issuers
-	issuers, err := s.createIssuers(parser, ruleFactory)
-	if err != nil {
+	if err := s.run(cctx, cli, ruleFactory, sh, factories, feePerTx, terminate); err != nil {
 		return err
 	}
 
-	for _, issuer := range issuers {
-		issuer.start(cctx)
-	}
-
-	s.tracker.startPeriodicLog(cctx, cli)
-
-	if err := s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate); err != nil {
-		cancel()
-		return err
-	}
-
-	// [cancel] signals to the issuers and the tracker to stop
-	// this call is necessary if [terminate] is true
-	cancel()
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
 
@@ -174,6 +157,36 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 	return s.returnFunds(ctx, cli, maxUnits, sh, accounts, factories, symbol)
+}
+
+// [run] starts the issuers, the tracker, and begins the broadcasting of transactions
+func (s *Spammer) run(
+	ctx context.Context,
+	cli *jsonrpc.JSONRPCClient,
+	ruleFactory chain.RuleFactory,
+	sh SpamHelper,
+	factories []chain.AuthFactory,
+	feePerTx uint64,
+	terminate bool,
+) error {
+	ctx, cancel := context.WithCancel(ctx)
+	// Deferring [cancel] ensures that the issuers and the tracker begin to shut down
+	// upon [run] returning
+	defer cancel()
+
+	parser := sh.GetParser()
+	issuers, err := s.createIssuers(parser, ruleFactory)
+	if err != nil {
+		return err
+	}
+
+	for _, issuer := range issuers {
+		issuer.start(ctx)
+	}
+
+	s.tracker.startPeriodicLog(ctx, cli)
+
+	return s.broadcast(ctx, sh, factories, issuers, feePerTx, terminate)
 }
 
 func (s *Spammer) broadcast(
