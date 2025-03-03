@@ -4,8 +4,6 @@
 package chaintest
 
 import (
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -57,6 +55,8 @@ func (p *Parser) OutputCodec() *codec.TypeParser[codec.Typed] {
 	return p.outputCodec
 }
 
+/*
+
 func NewTestParser(require *require.Assertions) *Parser {
 	parser := NewEmptyParser()
 	require.NoError(parser.actionCodec.Register(&TestAction{}, unmarshalTestAction))
@@ -65,3 +65,4 @@ func NewTestParser(require *require.Assertions) *Parser {
 
 	return parser
 }
+*/

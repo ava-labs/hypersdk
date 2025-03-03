@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/requester"
 )
 
@@ -120,8 +119,7 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (G
 	}
 
 	var tx *chain.Transaction
-	p := codec.NewReader(resp.TxBytes, consts.NetworkSizeLimit)
-	tx, err = chain.UnmarshalTx(p, parser.ActionCodec(), parser.AuthCodec())
+	tx, err = chain.UnmarshalTx(resp.TxBytes, parser)
 	if err != nil {
 		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
 	}

@@ -14,8 +14,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
@@ -44,16 +44,12 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) ActionCodec() *codec.TypeParser[chain.Action] {
-	return vm.actionCodec
+func (vm *VM) GetABI() abi.ABI {
+	return vm.abi
 }
 
-func (vm *VM) OutputCodec() *codec.TypeParser[codec.Typed] {
-	return vm.outputCodec
-}
-
-func (vm *VM) AuthCodec() *codec.TypeParser[chain.Auth] {
-	return vm.authCodec
+func (vm *VM) GetParser() chain.Parser {
+	return vm.txParser
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
@@ -76,8 +72,8 @@ func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
-func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.ruleFactory.GetRules(t)
+func (vm *VM) GetRuleFactory() chain.RuleFactory {
+	return vm.ruleFactory
 }
 
 func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {

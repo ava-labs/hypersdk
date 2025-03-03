@@ -3,13 +3,7 @@
 
 package chaintest
 
-import (
-	"context"
-
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-)
-
+/*
 var _ chain.Auth = (*TestAuth)(nil)
 
 type TestAuth struct {
@@ -54,4 +48,4 @@ func unmarshalTestAuth(p *codec.Packer) (chain.Auth, error) {
 	var testAuth TestAuth
 	err := codec.LinearCodec.UnmarshalFrom(p.Packer, &testAuth)
 	return &testAuth, err
-}
+}*/

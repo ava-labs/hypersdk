@@ -4,48 +4,66 @@
 package chain
 
 import (
+	"fmt"
+
+	"github.com/StephenButtolph/canoto"
+
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
-// initialCapacity is the initial size of a txs array we allocate when
-// unmarshaling a batch of txs.
-const initialCapacity = 1000
+var _ Parser = (*TxTypeParser)(nil)
 
-type TxSerializer struct {
+type TxTypeParser struct {
 	ActionRegistry *codec.TypeParser[Action]
 	AuthRegistry   *codec.TypeParser[Auth]
 }
 
-func (s *TxSerializer) Unmarshal(data []byte) ([]*Transaction, error) {
-	p := codec.NewReader(data, consts.NetworkSizeLimit)
-	txCount := p.UnpackInt(true)
-	txs := make([]*Transaction, 0, min(txCount, initialCapacity)) // DoS to set size to txCount
-	for i := uint32(0); i < txCount; i++ {
-		tx, err := UnmarshalTx(p, s.ActionRegistry, s.AuthRegistry)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
+func NewTxTypeParser(
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
+) *TxTypeParser {
+	return &TxTypeParser{
+		ActionRegistry: actionRegistry,
+		AuthRegistry:   authRegistry,
 	}
-	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
-	}
-	return txs, p.Err()
 }
 
-func (*TxSerializer) Marshal(txs []*Transaction) ([]byte, error) {
-	if len(txs) == 0 {
-		return nil, ErrNoTxs
+func (t *TxTypeParser) ParseAction(bytes []byte) (Action, error) {
+	return t.ActionRegistry.Unmarshal(bytes)
+}
+
+func (t *TxTypeParser) ParseAuth(bytes []byte) (Auth, error) {
+	return t.AuthRegistry.Unmarshal(bytes)
+}
+
+type BatchedTransactions struct {
+	Transactions []*Transaction `canoto:"repeated pointer,1"`
+
+	canotoData canotoData_BatchedTransactions
+}
+
+type BatchedTransactionSerializer struct {
+	Parser Parser
+}
+
+func (*BatchedTransactionSerializer) Marshal(txs []*Transaction) []byte {
+	batch := BatchedTransactions{Transactions: txs}
+	return batch.MarshalCanoto()
+}
+
+func (b *BatchedTransactionSerializer) Unmarshal(bytes []byte) ([]*Transaction, error) {
+	reader := canoto.Reader{
+		B:       bytes,
+		Context: b.Parser,
 	}
-	size := consts.IntLen + codec.CummSize(txs)
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(uint32(len(txs)))
-	for _, tx := range txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
+	batch := &BatchedTransactions{}
+	if err := batch.UnmarshalCanotoFrom(reader); err != nil {
+		return nil, err
+	}
+	for i, tx := range batch.Transactions {
+		if tx == nil {
+			return nil, fmt.Errorf("%w: at index %d", ErrNilTxInBlock, i)
 		}
 	}
-	return p.Bytes(), p.Err()
+	return batch.Transactions, nil
 }

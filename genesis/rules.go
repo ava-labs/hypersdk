@@ -18,6 +18,8 @@ var (
 )
 
 type Rules struct {
+	// TODO: NetworkID and ChainID are populated via Load, not by parsing the genesis.
+	// Make this explicit by making these private fields and/or not including them in the JSON output.
 	NetworkID uint32 `json:"networkID"`
 	ChainID   ids.ID `json:"chainID"`
 

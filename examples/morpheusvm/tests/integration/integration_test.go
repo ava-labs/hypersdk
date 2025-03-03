@@ -30,6 +30,7 @@ func TestIntegration(t *testing.T) {
 		ctx,
 		t,
 		vmFactory,
+		testingNetworkConfig.GenesisAndRuleFactory(),
 		2,
 		testingNetworkConfig.AuthFactories(),
 		testingNetworkConfig.GenesisBytes(),

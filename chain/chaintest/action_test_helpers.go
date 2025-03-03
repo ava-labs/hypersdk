@@ -47,7 +47,7 @@ func (t *TestAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return t.SpecifiedStateKeys
 }
 
-func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) (codec.Typed, error) {
+func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mutable, _ int64, _ codec.Address, _ ids.ID) ([]byte, error) {
 	if t.ExecuteErr {
 		return nil, errTestActionExecute
 	}
@@ -64,11 +64,16 @@ func (t *TestAction) Execute(ctx context.Context, _ chain.Rules, state state.Mut
 			return nil, err
 		}
 	}
-	return &TestOutput{}, nil
+	return []byte{}, nil
 }
 
 func (*TestAction) ValidRange(_ chain.Rules) (start int64, end int64) {
 	return -1, -1
+}
+
+func (*TestAction) Bytes() []byte {
+	panic(nil) // TODO.
+	// return nil
 }
 
 func unmarshalTestAction(p *codec.Packer) (chain.Action, error) {

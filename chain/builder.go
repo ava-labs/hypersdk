@@ -45,7 +45,7 @@ type Builder struct {
 	balanceHandler  BalanceHandler
 	mempool         Mempool
 	validityWindow  ValidityWindow
-	metrics         *chainMetrics
+	metrics         *ChainMetrics
 	config          Config
 }
 
@@ -57,7 +57,7 @@ func NewBuilder(
 	balanceHandler BalanceHandler,
 	mempool Mempool,
 	validityWindow ValidityWindow,
-	metrics *chainMetrics,
+	metrics *ChainMetrics,
 	config Config,
 ) *Builder {
 	return &Builder{
@@ -465,7 +465,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	return execBlock, &OutputBlock{
 		ExecutionBlock: execBlock,
 		View:           view,
-		ExecutionResults: ExecutionResults{
+		ExecutionResults: &ExecutionResults{
 			Results:       results,
 			UnitPrices:    feeManager.UnitPrices(),
 			UnitsConsumed: feeManager.UnitsConsumed(),

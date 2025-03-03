@@ -162,17 +162,13 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) ([]SimulateActionResult, error) {
 	args := &SimulatActionsArgs{
 		Actor: actor,
 	}
 
 	for _, action := range actions {
-		marshaledAction, err := chain.MarshalTyped(action)
-		if err != nil {
-			return nil, err
-		}
-		args.Actions = append(args.Actions, marshaledAction)
+		args.Actions = append(args.Actions, action.Bytes())
 	}
 
 	resp := new(SimulateActionsReply)

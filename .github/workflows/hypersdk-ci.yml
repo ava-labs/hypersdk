@@ -120,7 +120,6 @@ jobs:
         run: scripts/tests.unit.sh
 
   morpheusvm-e2e-tests:
-    needs: [morpheusvm-lint, morpheusvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:

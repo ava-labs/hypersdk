@@ -68,7 +68,7 @@ func GenerateTestExecutedBlocks(
 	rules := genesis.NewDefaultRules()
 	feeManager := internal_fees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
-	parser := NewTestParser(require)
+	parser := NewTestParser( /*require*/ )
 	ts := tstate.New(0)
 	db, err := merkledb.New(
 		context.Background(),
@@ -81,13 +81,13 @@ func GenerateTestExecutedBlocks(
 	for i := range executedBlocks {
 		// generate transactions.
 		txs := []*chain.Transaction{}
-		base := &chain.Base{
+		base := chain.Base{
 			Timestamp: ((parentTimestamp + timestampOffset*int64(i)/consts.MillisecondsPerSecond) + 1) * consts.MillisecondsPerSecond,
 			ChainID:   chainID,
 			MaxFee:    math.MaxUint64,
 		}
 		for range numTx {
-			actions := chain.Actions{&TestAction{
+			actions := []chain.Action{&TestAction{
 				SpecifiedStateKeys: state.Keys{},
 				ReadKeys:           [][]byte{},
 				WriteKeys:          [][]byte{},
@@ -116,7 +116,7 @@ func GenerateTestExecutedBlocks(
 			results = append(results, res)
 		}
 		// marshal and unmarshal the block in order to remove all non-persisting data members ( i.e. statekeys )
-		blkBytes, err := statelessBlock.Marshal()
+		blkBytes := statelessBlock.MarshalCanoto()
 		require.NoError(err)
 		statelessBlock, err = chain.UnmarshalBlock(blkBytes, parser)
 		require.NoError(err)

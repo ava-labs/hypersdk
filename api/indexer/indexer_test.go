@@ -24,7 +24,7 @@ func createTestIndexer(
 	require := require.New(t)
 
 	tempDir := t.TempDir()
-	indexer, err := NewIndexer(tempDir, chaintest.NewEmptyParser(), uint64(blockWindow))
+	indexer, err := NewIndexer(tempDir, chaintest.NewTestParser(), uint64(blockWindow))
 	require.NoError(err)
 
 	executedBlocks = chaintest.GenerateTestExecutedBlocks(
@@ -104,14 +104,14 @@ func TestBlockIndexRestart(t *testing.T) {
 	require.NoError(indexer.Close())
 
 	// Confirm we have indexed the expected window of blocks after restart
-	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewEmptyParser(), uint64(blockWindow))
+	restartedIndexer, err := NewIndexer(indexerDir, chaintest.NewTestParser(), uint64(blockWindow))
 	require.NoError(err)
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(restartedIndexer.Close())
 
 	// Confirm we have indexed the expected window of blocks after restart and a window
 	// change
-	restartedIndexerSingleBlockWindow, err := NewIndexer(indexerDir, chaintest.NewEmptyParser(), 1)
+	restartedIndexerSingleBlockWindow, err := NewIndexer(indexerDir, chaintest.NewTestParser(), 1)
 	require.NoError(err)
 	checkBlocks(require, restartedIndexerSingleBlockWindow, executedBlocks, 1)
 	require.NoError(restartedIndexerSingleBlockWindow.Close())
