@@ -21,6 +21,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -35,14 +36,17 @@ import (
 var (
 	_ chain.AuthVM = (*mockAuthVM)(nil)
 
-	heightKey    = string(chain.HeightKey([]byte{0}))
-	timestampKey = string(chain.TimestampKey([]byte{1}))
-
 	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 )
 
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
+
+	testMetadataManager := metadata.NewDefaultManager()
+	feeKey := string(chain.FeeKey(testMetadataManager.FeePrefix()))
+	heightKey := string(chain.HeightKey(testMetadataManager.HeightPrefix()))
+	timestampKey := string(chain.TimestampKey(testMetadataManager.TimestampPrefix()))
+
 	tests := []struct {
 		name           string
 		validityWindow chain.ValidityWindow
@@ -244,14 +248,14 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
 						),
 					},
 					[]chain.Action{},
-					&mockAuth{typeID: 1},
+					chaintest.NewDummyTestAuth(),
 				)
 				r.NoError(err)
 
@@ -364,20 +368,26 @@ func TestProcessorExecute(t *testing.T) {
 			},
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
 						),
 					},
 					[]chain.Action{
-						&mockAction{
-							stateKeys: state.Keys{
-								"": state.None,
+						&chaintest.TestAction{
+							NumComputeUnits: 1,
+							Start:           -1,
+							End:             -1,
+							SpecifiedStateKeys: []string{
+								"",
+							},
+							SpecifiedStateKeyPermissions: []state.Permissions{
+								state.None,
 							},
 						},
 					},
-					&mockAuth{typeID: 1},
+					chaintest.NewDummyTestAuth(),
 				)
 				r.NoError(err)
 
@@ -437,7 +447,7 @@ func TestProcessorExecute(t *testing.T) {
 				r.NoError(err)
 
 				tx, err := chain.NewTransaction(
-					&chain.Base{
+					chain.Base{
 						Timestamp: utils.UnixRMilli(
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
@@ -479,7 +489,7 @@ func TestProcessorExecute(t *testing.T) {
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
 				&mockAuthVM{},
-				metadata.NewDefaultManager(),
+				testMetadataManager,
 				&mockBalanceHandler{},
 				tt.validityWindow,
 				metrics,

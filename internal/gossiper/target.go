@@ -350,13 +350,10 @@ func (g *Target[T]) sendTxs(ctx context.Context, txs []T) error {
 
 	for _, gossipContainer := range gossipContainers {
 		// Marshal gossip
-		b, err := g.serializer.Marshal(gossipContainer.Txs)
-		if err != nil {
-			return err
-		}
+		txBatchBytes := g.serializer.Marshal(gossipContainer.Txs)
 
 		// Send gossip to specified peers
-		if err := g.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, b); err != nil {
+		if err := g.client.AppGossip(ctx, common.SendConfig{NodeIDs: gossipContainer.NodeIDs}, txBatchBytes); err != nil {
 			return err
 		}
 	}

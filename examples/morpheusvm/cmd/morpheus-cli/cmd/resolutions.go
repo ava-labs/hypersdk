@@ -22,9 +22,9 @@ import (
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *jsonrpc.JSONRPCClient,
-	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	bcli *vm.JSONRPCClient, ws *ws.WebSocketClient, authFactory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
-	parser, err := bcli.Parser(ctx)
+	ruleFactory, err := bcli.GetRuleFactory(ctx)
 	if err != nil {
 		return false, ids.Empty, err
 	}
@@ -34,7 +34,7 @@ func sendAndWait(
 		return false, ids.Empty, err
 	}
 
-	tx, err := chain.GenerateTransaction(unitPrices, parser, actions, factory)
+	tx, err := chain.GenerateTransaction(ruleFactory, unitPrices, actions, authFactory)
 	if err != nil {
 		return false, ids.Empty, err
 	}

@@ -155,7 +155,7 @@ func (c *WebSocketClient) ListenBlock(
 		if err != nil {
 			return nil, nil, fees.Dimensions{}, err
 		}
-		return executedBlock.Block, executedBlock.Results, executedBlock.UnitPrices, nil
+		return executedBlock.Block, executedBlock.ExecutionResults.Results, executedBlock.ExecutionResults.UnitPrices, nil
 	case <-c.readStopped:
 		return nil, nil, fees.Dimensions{}, c.err
 	case <-ctx.Done():

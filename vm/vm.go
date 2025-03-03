@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
@@ -106,6 +107,8 @@ type VM struct {
 	executionResultsDB    database.Database
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
+	txParser              chain.Parser
+	abi                   abi.ABI
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
@@ -140,10 +143,16 @@ func New(
 		}
 		allocatedNamespaces.Add(option.Namespace)
 	}
+	abi, err := abi.NewABI(actionCodec.GetRegisteredTypes(), outputCodec.GetRegisteredTypes())
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct ABI: %w", err)
+	}
 
 	return &VM{
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
+		txParser:              chain.NewTxTypeParser(actionCodec, authCodec),
+		abi:                   abi,
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
@@ -292,7 +301,7 @@ func (vm *VM) Initialize(
 	}
 
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
-		return vm.Rules(timestamp).GetValidityWindow()
+		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
 	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
@@ -305,7 +314,7 @@ func (vm *VM) Initialize(
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
 		chainRegistry,
-		vm,
+		vm.txParser,
 		vm.Mempool(),
 		vm.Logger(),
 		vm.ruleFactory,
@@ -396,7 +405,7 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 		return &chain.OutputBlock{
 			ExecutionBlock:   blk,
 			View:             vm.stateDB,
-			ExecutionResults: chain.ExecutionResults{},
+			ExecutionResults: &chain.ExecutionResults{},
 		}, nil
 	}
 
@@ -450,14 +459,14 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 		if err != nil {
 			return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
 		}
-		executionResults, err := chain.UnmarshalExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
+		executionResults, err := chain.ParseExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal execution results for last accepted block: %w", err)
 		}
 		return &chain.OutputBlock{
 			ExecutionBlock:   blk,
 			View:             vm.stateDB,
-			ExecutionResults: *executionResults,
+			ExecutionResults: executionResults,
 		}, nil
 	}
 
@@ -531,7 +540,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	return &chain.OutputBlock{
 		ExecutionBlock:   genesisExecutionBlk,
 		View:             vm.stateDB,
-		ExecutionResults: chain.ExecutionResults{},
+		ExecutionResults: &chain.ExecutionResults{},
 	}, nil
 }
 
@@ -597,15 +606,15 @@ func (vm *VM) applyOptions(o *Options) error {
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", gossiperNamespace, err)
 	}
+	batchedTxSerializer := &chain.BatchedTransactionSerializer{
+		Parser: vm.txParser,
+	}
 	if o.gossiper {
 		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
 			vm.snowCtx.Log,
 			gossipRegistry,
 			vm.mempool,
-			&chain.TxSerializer{
-				ActionRegistry: vm.actionCodec,
-				AuthRegistry:   vm.authCodec,
-			},
+			batchedTxSerializer,
 			vm,
 			vm.config.TargetGossipDuration,
 		)
@@ -618,10 +627,7 @@ func (vm *VM) applyOptions(o *Options) error {
 			vm.snowCtx.Log,
 			gossipRegistry,
 			vm.mempool,
-			&chain.TxSerializer{
-				ActionRegistry: vm.actionCodec,
-				AuthRegistry:   vm.authCodec,
-			},
+			batchedTxSerializer,
 			vm,
 			vm,
 			vm.config.TargetGossipDuration,
@@ -666,10 +672,7 @@ func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block 
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
-	resultBytes, err := block.ExecutionResults.Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal execution results: %w", err)
-	}
+	resultBytes := block.ExecutionResults.Marshal()
 	resultBytes = binary.BigEndian.AppendUint64(resultBytes, block.Hght)
 	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
 		return nil, fmt.Errorf("failed to write execution results: %w", err)

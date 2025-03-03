@@ -25,23 +25,17 @@ type txMessage struct {
 // marked as expired.
 // Expiry is the only failure condition that triggers a notification sent to
 // the client.
-func packTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	var (
-		resultBytes []byte
-		err         error
-	)
+func packTxMessage(txID ids.ID, result *chain.Result) []byte {
+	var resultBytes []byte
 	if result != nil {
-		resultBytes, err = result.Marshal()
-		if err != nil {
-			return nil, err
-		}
+		resultBytes = result.Marshal()
 	}
 	txMessage := txMessage{
 		TxID:        txID,
 		ResultBytes: resultBytes,
 	}
 	txMessageBytes := txMessage.MarshalCanoto()
-	return txMessageBytes, nil
+	return txMessageBytes
 }
 
 // unpackTxMessage unpacks a txID and result. A nil result indicates the

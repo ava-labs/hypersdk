@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -31,27 +32,27 @@ const (
 )
 
 type Network struct {
-	network      *tmpnet.Network
-	blockchainID ids.ID
-	// The parser here is the original parser provided by the vm, with the chain ID populated by
-	// the newly created network. On e2e networks, we can't tell in advance what the ChainID would be,
-	// and therefore need to update it from the network.
-	parser *parser
+	network *tmpnet.Network
+	// blockchainID is set in the constructor from the network, so that we can determine
+	// the correct URI to access the network
+	blockchainID          ids.ID
+	parser                chain.Parser
+	genesisBytes          []byte
+	genesisAndRuleFactory genesis.GenesisAndRuleFactory
+	ruleFactory           chain.RuleFactory
 }
 
 func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 	network := e2e.GetEnv(tc).GetNetwork()
+	// load the blockchainID from the network, so that we can determine the correct URI
+	// to access the network
 	blockchainID := network.GetSubnet(networkConfig.Name()).Chains[0].ChainID
 	testNetwork := &Network{
-		network:      network,
-		blockchainID: blockchainID,
-		parser: &parser{
-			Parser: networkConfig.Parser(),
-			rules: &rules{
-				Rules:   networkConfig.Parser().Rules(0),
-				chainID: blockchainID,
-			},
-		},
+		network:               network,
+		blockchainID:          blockchainID,
+		parser:                networkConfig.Parser(),
+		genesisBytes:          networkConfig.GenesisBytes(),
+		genesisAndRuleFactory: networkConfig.GenesisAndRuleFactory(),
 	}
 	return testNetwork
 }
@@ -63,6 +64,28 @@ func (n *Network) URIs() []string {
 		uris = append(uris, formatURI(nodeURI.URI, n.blockchainID))
 	}
 	return uris
+}
+
+func (n *Network) getRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
+	if n.ruleFactory != nil {
+		return n.ruleFactory, nil
+	}
+	uris := n.URIs()
+	client := jsonrpc.NewJSONRPCClient(uris[0])
+
+	networkID, _, chainID, err := client.Network(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if chainID != n.blockchainID {
+		return nil, fmt.Errorf("found unexpected chainID %s != %s", chainID, n.blockchainID)
+	}
+	_, ruleFactory, err := n.genesisAndRuleFactory.Load(n.genesisBytes, nil, networkID, chainID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load genesis and rule factory: %w", err)
+	}
+	n.ruleFactory = ruleFactory
+	return ruleFactory, nil
 }
 
 func (n *Network) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) error {
@@ -115,28 +138,14 @@ func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth c
 	if err != nil {
 		return nil, err
 	}
+	ruleFactory, err := n.getRuleFactory(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return chain.GenerateTransaction(unitPrices, n.parser, actions, auth)
+	return chain.GenerateTransaction(ruleFactory, unitPrices, actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
 	return networkConfig
-}
-
-type rules struct {
-	chain.Rules
-	chainID ids.ID
-}
-
-func (r *rules) GetChainID() ids.ID {
-	return r.chainID
-}
-
-type parser struct {
-	chain.Parser
-	rules *rules
-}
-
-func (p *parser) Rules(int64) chain.Rules {
-	return p.rules
 }

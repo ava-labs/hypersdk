@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -21,31 +22,27 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var (
-	feeKey = string(chain.FeeKey([]byte{2}))
-
-	errMockAuth           = errors.New("mock auth error")
-	errMockValidityWindow = errors.New("mock validity window error")
-)
+var errMockValidityWindow = errors.New("mock validity window error")
 
 func TestPreExecutor(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	ruleFactory := genesis.ImmutableRuleFactory{
 		Rules: testRules,
 	}
+
+	testMetadataManager := metadata.NewDefaultManager()
+	feeKey := string(chain.FeeKey(testMetadataManager.FeePrefix()))
+
 	validTx := &chain.Transaction{
 		TransactionData: chain.TransactionData{
-			Base: &chain.Base{
+			Base: chain.Base{
 				Timestamp: utils.UnixRMilli(
 					time.Now().UnixMilli(),
 					testRules.GetValidityWindow(),
 				),
 			},
 		},
-		Auth: &mockAuth{
-			start: -1,
-			end:   -1,
-		},
+		Auth: chaintest.NewDummyTestAuth(),
 	}
 
 	tests := []struct {
@@ -102,14 +99,15 @@ func TestPreExecutor(t *testing.T) {
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
 					Actions: []chain.Action{
-						&mockAction{
-							stateKeys: state.Keys{
-								"": state.None,
-							},
+						&chaintest.TestAction{
+							SpecifiedStateKeys:           []string{""},
+							SpecifiedStateKeyPermissions: []state.Permissions{state.None},
+							Start:                        -1,
+							End:                          -1,
 						},
 					},
 				},
-				Auth: &mockAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            chain.ErrInvalidKeyValue,
@@ -121,14 +119,16 @@ func TestPreExecutor(t *testing.T) {
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
-				Auth: &mockAuth{
-					verifyError: errMockAuth,
+				Auth: &chaintest.TestAuth{
+					ShouldErr: true,
+					Start:     -1,
+					End:       -1,
 				},
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
-			err:            errMockAuth,
+			err:            chaintest.ErrTestAuthVerify,
 		},
 		{
 			name: "tx pre-execute error",
@@ -137,9 +137,9 @@ func TestPreExecutor(t *testing.T) {
 			},
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: &chain.Base{},
+					Base: chain.Base{},
 				},
-				Auth: &mockAuth{},
+				Auth: chaintest.NewDummyTestAuth(),
 			},
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			err:            validitywindow.ErrTimestampExpired,
@@ -154,7 +154,7 @@ func TestPreExecutor(t *testing.T) {
 			preExecutor := chain.NewPreExecutor(
 				&ruleFactory,
 				tt.validityWindow,
-				metadata.NewDefaultManager(),
+				testMetadataManager,
 				&mockBalanceHandler{},
 			)
 

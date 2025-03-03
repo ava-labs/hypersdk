@@ -5,13 +5,12 @@ package codec
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ava-labs/hypersdk/consts"
 )
 
 type decoder[T Typed] struct {
-	f func(*Packer) (T, error)
+	f func([]byte) (T, error)
 }
 
 // The number of types is limited to 255.
@@ -37,7 +36,7 @@ type Typed interface {
 // Register registers a new type into TypeParser [p]. Registers the type by using
 // the string representation of [o], and sets the decoder of that index to [f].
 // Returns an error if [o] has already been registered or the TypeParser is full.
-func (p *TypeParser[T]) Register(instance Typed, f func(*Packer) (T, error)) error {
+func (p *TypeParser[T]) Register(instance Typed, f func([]byte) (T, error)) error {
 	if len(p.indexToDecoder) == int(consts.MaxUint8)+1 {
 		return ErrTooManyItems
 	}
@@ -45,17 +44,7 @@ func (p *TypeParser[T]) Register(instance Typed, f func(*Packer) (T, error)) err
 	if _, ok := p.indexToDecoder[instance.GetTypeID()]; ok {
 		return ErrDuplicateItem
 	}
-	if f == nil {
-		instanceType := reflect.TypeOf(instance).Elem()
-		f = func(p *Packer) (T, error) {
-			t := reflect.New(instanceType).Interface().(T)
-			err := LinearCodec.UnmarshalFrom(p.Packer, t)
-			return t, err
-		}
-	}
-
 	p.indexToDecoder[instance.GetTypeID()] = &decoder[T]{f: f}
-
 	p.registeredTypes = append(p.registeredTypes, instance)
 
 	return nil
@@ -63,7 +52,7 @@ func (p *TypeParser[T]) Register(instance Typed, f func(*Packer) (T, error)) err
 
 // lookupIndex returns the decoder function and success of lookup of [index]
 // from Typeparser [p].
-func (p *TypeParser[T]) lookupIndex(index uint8) (func(*Packer) (T, error), bool) {
+func (p *TypeParser[T]) lookupIndex(index uint8) (func([]byte) (T, error), bool) {
 	d, ok := p.indexToDecoder[index]
 	if ok {
 		return d.f, true
@@ -73,17 +62,23 @@ func (p *TypeParser[T]) lookupIndex(index uint8) (func(*Packer) (T, error), bool
 
 // Unmarshal unmarshals a value of type [T] from the reader by unpacking
 // the typeID and invoking the corresponding decoder function.
-func (p *TypeParser[T]) Unmarshal(reader *Packer) (T, error) {
-	typeID := reader.UnpackByte()
-	if reader.Errored() {
-		return *new(T), reader.Err()
+func (p *TypeParser[T]) Unmarshal(bytes []byte) (T, error) {
+	if len(bytes) == 0 {
+		return *new(T), fmt.Errorf("typeID not found in slice with length %d", len(bytes))
 	}
 
+	typeID := bytes[0]
 	decoder, ok := p.lookupIndex(typeID)
 	if !ok {
-		return *new(T), fmt.Errorf("type %d not found", typeID)
+		return *new(T), fmt.Errorf("typeID %d not found", typeID)
 	}
-	return decoder(reader)
+
+	// Note: we include the typeID in the slice to be unpacked.
+	// This ensures that for a given type T, Unmarshal(Bytes(T)) == T
+	// This is preferred over two alternatives:
+	// 1. A separate component prepends the typeID to the result of Bytes(T)
+	// 2. Bytes(T) includes the typeID, and Unmarshal assumes the typeID has been stripped
+	return decoder(bytes)
 }
 
 // GetRegisteredTypes returns all registered types in the TypeParser.

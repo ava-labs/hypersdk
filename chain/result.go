@@ -7,20 +7,22 @@ import (
 	"encoding/json"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
 type Result struct {
-	Success bool
-	Error   []byte
+	Success bool `canoto:"bool,1"`
+	// XXX: do not couple state transition logic to exact error values
+	Error []byte `canoto:"bytes,2"`
 
-	Outputs [][]byte
+	Outputs [][]byte `canoto:"repeated bytes,3"`
 
 	// Computing [Units] requires access to [StateManager], so it is returned
 	// to make life easier for indexers.
-	Units fees.Dimensions
-	Fee   uint64
+	Units fees.Dimensions `canoto:"fixed repeated int,4"`
+	Fee   uint64          `canoto:"fint64,5"`
+
+	canotoData canotoData_Result
 }
 
 type ResultJSON struct {
@@ -32,7 +34,7 @@ type ResultJSON struct {
 	Fee     uint64          `json:"fee"`
 }
 
-func (r Result) MarshalJSON() ([]byte, error) {
+func (r *Result) MarshalJSON() ([]byte, error) {
 	outputs := make([]codec.Bytes, len(r.Outputs))
 	for i, output := range r.Outputs {
 		outputs[i] = output
@@ -65,96 +67,47 @@ func (r *Result) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r *Result) Size() int {
-	outputSize := consts.Uint8Len // actions
-	for _, actionOutput := range r.Outputs {
-		outputSize += codec.BytesLen(actionOutput)
-	}
-	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
-}
-
-func (r *Result) Marshal() ([]byte, error) {
-	p := codec.NewWriter(r.Size(), consts.MaxInt)
-	if err := r.marshalInto(p); err != nil {
-		return nil, err
-	}
-	return p.Bytes(), p.Err()
-}
-
-func (r *Result) marshalInto(p *codec.Packer) error {
-	p.PackBool(r.Success)
-	p.PackBytes(r.Error)
-	p.PackByte(uint8(len(r.Outputs)))
-	for _, actionOutput := range r.Outputs {
-		p.PackBytes(actionOutput)
-	}
-	p.PackFixedBytes(r.Units.Bytes())
-	p.PackUint64(r.Fee)
-	return p.Err()
-}
-
-func MarshalResults(src []*Result) ([]byte, error) {
-	size := consts.IntLen + codec.CummSize(src)
-	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
-	p.PackInt(uint32(len(src)))
-	for _, result := range src {
-		if err := result.marshalInto(p); err != nil {
-			return nil, err
-		}
-	}
-	return p.Bytes(), p.Err()
+func (r *Result) Marshal() []byte {
+	return r.MarshalCanoto()
 }
 
 func UnmarshalResult(src []byte) (*Result, error) {
-	p := codec.NewReader(src, consts.MaxInt)
-	result, err := unmarshalResultFrom(p)
-	if err != nil {
+	result := new(Result)
+	if err := result.UnmarshalCanoto(src); err != nil {
 		return nil, err
 	}
-	if !p.Empty() {
-		return nil, ErrInvalidObject
-	}
+	result.CalculateCanotoCache() // TODO: remove this call after canoto guarantees canotoData is populated during unmarshal
 	return result, nil
 }
 
-func unmarshalResultFrom(p *codec.Packer) (*Result, error) {
-	result := &Result{
-		Success: p.UnpackBool(),
-	}
-	p.UnpackBytes(consts.MaxInt, false, &result.Error)
-	outputs := [][]byte{}
-	numActions := p.UnpackByte()
-	for i := uint8(0); i < numActions; i++ {
-		var output []byte
-		p.UnpackBytes(consts.MaxInt, false, &output)
-		outputs = append(outputs, output)
-	}
-	result.Outputs = outputs
-	consumedRaw := make([]byte, fees.DimensionsLen)
-	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
-	units, err := fees.UnpackDimensions(consumedRaw)
-	if err != nil {
-		return nil, err
-	}
-	result.Units = units
-	result.Fee = p.UnpackUint64(false)
-	// Wait to check if empty until after all results are unpacked.
-	return result, p.Err()
+type ExecutionResults struct {
+	Results       []*Result       `canoto:"repeated field,1"        json:"results"`
+	UnitPrices    fees.Dimensions `canoto:"fixed repeated fint64,2" json:"unitPrices"`
+	UnitsConsumed fees.Dimensions `canoto:"fixed repeated fint64,3" json:"unitsConsumed"`
+
+	canotoData canotoData_ExecutionResults
 }
 
-func UnmarshalResults(src []byte) ([]*Result, error) {
-	p := codec.NewReader(src, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
-	items := p.UnpackInt(false)
-	results := make([]*Result, items)
-	for i := uint32(0); i < items; i++ {
-		result, err := unmarshalResultFrom(p)
-		if err != nil {
-			return nil, err
-		}
-		results[i] = result
+func NewExecutionResults(
+	results []*Result,
+	unitPrices fees.Dimensions,
+	unitsConsumed fees.Dimensions,
+) *ExecutionResults {
+	return &ExecutionResults{
+		Results:       results,
+		UnitPrices:    unitPrices,
+		UnitsConsumed: unitsConsumed,
 	}
-	if !p.Empty() {
-		return nil, ErrInvalidObject
+}
+
+func (e *ExecutionResults) Marshal() []byte {
+	return e.MarshalCanoto()
+}
+
+func ParseExecutionResults(bytes []byte) (*ExecutionResults, error) {
+	results := &ExecutionResults{}
+	if err := results.UnmarshalCanoto(bytes); err != nil {
+		return nil, err
 	}
 	return results, nil
 }

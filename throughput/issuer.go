@@ -18,9 +18,10 @@ import (
 )
 
 type issuer struct {
-	index  int
-	uri    string
-	parser chain.Parser
+	index       int
+	uri         string
+	parser      chain.Parser
+	ruleFactory chain.RuleFactory
 
 	ws             *ws.WebSocketClient
 	outstandingTxs atomic.Int64
@@ -30,14 +31,15 @@ type issuer struct {
 	wg      *sync.WaitGroup
 }
 
-func newIssuer(index int, ws *ws.WebSocketClient, parser chain.Parser, uri string, tracker *tracker, wg *sync.WaitGroup) *issuer {
+func newIssuer(index int, ws *ws.WebSocketClient, ruleFactory chain.RuleFactory, parser chain.Parser, uri string, tracker *tracker, wg *sync.WaitGroup) *issuer {
 	return &issuer{
-		index:   index,
-		ws:      ws,
-		parser:  parser,
-		uri:     uri,
-		tracker: tracker,
-		wg:      wg,
+		index:       index,
+		ws:          ws,
+		ruleFactory: ruleFactory,
+		parser:      parser,
+		uri:         uri,
+		tracker:     tracker,
+		wg:          wg,
 	}
 }
 
@@ -78,7 +80,8 @@ func (i *issuer) start(ctx context.Context) {
 
 func (i *issuer) send(actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
-	tx, err := chain.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
+	rules := i.ruleFactory.GetRules(time.Now().UnixMilli())
+	tx, err := chain.GenerateTransactionManual(rules, actions, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)
