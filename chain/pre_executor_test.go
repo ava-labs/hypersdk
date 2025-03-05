@@ -155,7 +155,7 @@ func TestPreExecutor(t *testing.T) {
 				&ruleFactory,
 				tt.validityWindow,
 				testMetadataManager,
-				&mockBalanceHandler{},
+				chaintest.NewTestBalanceHandler(nil, nil),
 			)
 
 			r.ErrorIs(

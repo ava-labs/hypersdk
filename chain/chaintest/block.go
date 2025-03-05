@@ -64,7 +64,7 @@ func GenerateTestExecutedBlocks(
 	numBlocks int,
 	numTx int,
 ) []*chain.ExecutedBlock {
-	bh := NewEmptyBalanceHandler(nil)
+	bh := NewTestBalanceHandler(nil, nil)
 	rules := genesis.NewDefaultRules()
 	feeManager := internal_fees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
