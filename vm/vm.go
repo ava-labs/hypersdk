@@ -28,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
@@ -37,13 +36,10 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validators"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 
 	avatrace "github.com/ava-labs/avalanchego/trace"
-	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 	hsnow "github.com/ava-labs/hypersdk/snow"
 )
 
@@ -487,51 +483,27 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 }
 
 func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	ts := tstate.New(0)
-	tsv := ts.NewView(state.CompletePermissions, vm.stateDB, 0)
-	if err := vm.genesis.InitializeState(ctx, vm.tracer, tsv, vm.balanceHandler); err != nil {
-		return nil, fmt.Errorf("failed to initialize genesis state: %w", err)
-	}
-
-	// Update chain metadata
-	if err := tsv.Insert(ctx, chain.HeightKey(vm.metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-		return nil, fmt.Errorf("failed to set genesis height: %w", err)
-	}
-	if err := tsv.Insert(ctx, chain.TimestampKey(vm.metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-		return nil, fmt.Errorf("failed to set genesis timestamp: %w", err)
-	}
-	genesisRules := vm.ruleFactory.GetRules(0)
-	feeManager := internalfees.NewManager(nil)
-	minUnitPrice := genesisRules.GetMinUnitPrice()
-	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
-		feeManager.SetUnitPrice(i, minUnitPrice[i])
-		vm.snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-	}
-	if err := tsv.Insert(ctx, chain.FeeKey(vm.metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
-		return nil, fmt.Errorf("failed to set genesis fee manager: %w", err)
-	}
-
-	// Commit genesis block post-execution state and compute root
-	tsv.Commit()
-	view, err := vm.stateDB.NewView(ctx, merkledb.ViewChanges{
-		MapOps:       ts.ChangedKeys(),
-		ConsumeBytes: true,
-	})
+	genesisExecutionBlk, genesisView, err := chain.NewGenesisStateDiff(
+		ctx,
+		vm.stateDB,
+		vm.genesis,
+		vm.metadataManager,
+		vm.balanceHandler,
+		vm.ruleFactory,
+		vm.tracer,
+		vm.snowCtx.Log,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to commit genesis initialized state diff: %w", err)
+		return nil, fmt.Errorf("failed to create genesis state diff: %w", err)
 	}
-	if err := view.CommitToDB(ctx); err != nil {
+
+	vm.snowCtx.Log.Info(
+		"genesis state created",
+		zap.Stringer("root", genesisExecutionBlk.GetStateRoot()),
+	)
+
+	if err := genesisView.CommitToDB(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit genesis view: %w", err)
-	}
-	root, err := vm.stateDB.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get initialized genesis root: %w", err)
-	}
-	vm.snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
-	// Create genesis block
-	genesisExecutionBlk, err := chain.NewGenesisBlock(root)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genesis block: %w", err)
 	}
 	if err := vm.chainStore.UpdateLastAccepted(ctx, genesisExecutionBlk); err != nil {
 		return nil, fmt.Errorf("failed to write genesis block: %w", err)

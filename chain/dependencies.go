@@ -7,7 +7,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
@@ -29,6 +31,11 @@ type Mempool interface {
 	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
 	FinishStreaming(context.Context, []*Transaction) int
+}
+
+type Genesis interface {
+	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler BalanceHandler) error
+	GetStateBranchFactor() merkledb.BranchFactor
 }
 
 // TODO: add fixed rules as a subset of this interface
