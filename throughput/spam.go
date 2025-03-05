@@ -58,7 +58,6 @@ type Spammer struct {
 
 	// Number of accounts
 	numAccounts int
-
 	// keep track of variables shared across issuers
 	tracker  *tracker
 	issuerWg *sync.WaitGroup
@@ -97,8 +96,22 @@ func NewSpammer(sc *Config, sh SpamHelper) (*Spammer, error) {
 // the original account after the test is complete.
 // [sh] injects the necessary functions to interact with the network.
 // [terminate] if true, the spammer will stop after reaching the target TPS.
-// [symbol] and [decimals] are used to format the output.
+// [symbol] is used to format the output.
 func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbol string) error {
+	// make sure we can exit gracefully & return funds
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	cctx, cancel := context.WithCancel(ctx)
+	go func() {
+		select {
+		case <-signals:
+			utils.Outf("{{yellow}}received interrupt signal{{/}}\n")
+			cancel()
+		case <-cctx.Done():
+		}
+	}()
+
 	// log distribution
 	s.logZipf(s.zipfSeed)
 
@@ -106,7 +119,6 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	cli := jsonrpc.NewJSONRPCClient(s.uris[0])
 
 	// Compute max units
-	parser := sh.GetParser()
 	ruleFactory, err := sh.GetRuleFactory(ctx)
 	if err != nil {
 		return err
@@ -118,7 +130,7 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 		return err
 	}
 
-	unitPrices, err := cli.UnitPrices(ctx, false)
+	unitPrices, err := cli.UnitPrices(cctx, false)
 	if err != nil {
 		return err
 	}
@@ -128,48 +140,57 @@ func (s *Spammer) Spam(ctx context.Context, sh SpamHelper, terminate bool, symbo
 	}
 
 	// distribute funds
-	accounts, factories, err := s.distributeFunds(ctx, feePerTx, sh)
+	accounts, factories, err := s.distributeFunds(cctx, feePerTx, sh)
 	if err != nil {
 		return err
 	}
 
-	// create issuers
-	issuers, err := s.createIssuers(parser, ruleFactory)
-	if err != nil {
+	if err := s.run(cctx, cli, ruleFactory, sh, factories, feePerTx, terminate); err != nil {
 		return err
 	}
 
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	for _, issuer := range issuers {
-		issuer.Start(cctx)
-	}
-
-	// start logging
-	s.tracker.startPeriodicLog(ctx, cli)
-
-	// broadcast transactions
-	err = s.broadcast(cctx, sh, factories, issuers, feePerTx, terminate)
-	cancel()
-	if err != nil {
-		s.tracker.stop()
-		return err
-	}
-
-	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	s.issuerWg.Wait()
-	s.tracker.stop()
 
 	maxUnits, err = chain.EstimateUnits(ruleFactory.GetRules(time.Now().UnixMilli()), actions, s.authFactory)
 	if err != nil {
 		return err
 	}
+	// Use the original context, so that we attempt to return funds before exiting after
+	// receiving user interrupt
 	return s.returnFunds(ctx, cli, maxUnits, sh, accounts, factories, symbol)
 }
 
-func (s Spammer) broadcast(
+// [run] starts the issuers, the tracker, and begins the broadcasting of transactions
+func (s *Spammer) run(
+	ctx context.Context,
+	cli *jsonrpc.JSONRPCClient,
+	ruleFactory chain.RuleFactory,
+	sh SpamHelper,
+	factories []chain.AuthFactory,
+	feePerTx uint64,
+	terminate bool,
+) error {
+	ctx, cancel := context.WithCancel(ctx)
+	// Defer cancel to signal issuers and tracker to shutdown once broadcast terminates
+	defer cancel()
+
+	parser := sh.GetParser()
+	issuers, err := s.createIssuers(parser, ruleFactory)
+	if err != nil {
+		return err
+	}
+
+	for _, issuer := range issuers {
+		issuer.start(ctx)
+	}
+
+	s.tracker.startPeriodicLog(ctx, cli)
+
+	return s.broadcast(ctx, sh, factories, issuers, feePerTx, terminate)
+}
+
+func (s *Spammer) broadcast(
 	ctx context.Context,
 	sh SpamHelper,
 
@@ -179,10 +200,6 @@ func (s Spammer) broadcast(
 	feePerTx uint64,
 	terminate bool,
 ) error {
-	// make sure we can exit gracefully & return funds
-	signals := make(chan os.Signal, 2)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
 	var (
 		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
 		z = rand.NewZipf(s.zipfSeed, s.sZipf, s.vZipf, uint64(s.numAccounts)-1)
@@ -230,7 +247,7 @@ func (s Spammer) broadcast(
 					actions := sh.GetActions()
 					s.tracker.incrementSent()
 					// assumes the sender has the funds to pay for the transaction
-					return issuer.Send(ctx, actions, factory, feePerTx)
+					return issuer.send(actions, factory, feePerTx)
 				})
 			}
 
@@ -260,9 +277,6 @@ func (s Spammer) broadcast(
 		case <-ctx.Done():
 			stop = true
 			utils.Outf("{{yellow}}context canceled{{/}}\n")
-		case <-signals:
-			stop = true
-			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 		}
 	}
 
@@ -283,24 +297,24 @@ func (s *Spammer) logZipf(zipfSeed *rand.Rand) {
 func (s *Spammer) createIssuers(parser chain.Parser, ruleFactory chain.RuleFactory) ([]*issuer, error) {
 	issuers := []*issuer{}
 
+	index := 0
 	for i := 0; i < len(s.uris); i++ {
 		for j := 0; j < s.numClients; j++ {
-			cli := jsonrpc.NewJSONRPCClient(s.uris[i])
 			webSocketClient, err := ws.NewWebSocketClient(s.uris[i], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return nil, err
 			}
-			issuer := &issuer{
-				i:           len(issuers),
-				cli:         cli,
-				ws:          webSocketClient,
-				parser:      parser,
-				ruleFactory: ruleFactory,
-				uri:         s.uris[i],
-				tracker:     s.tracker,
-				wg:          s.issuerWg,
-			}
+			issuer := newIssuer(
+				index,
+				webSocketClient,
+				ruleFactory,
+				parser,
+				s.uris[i],
+				s.tracker,
+				s.issuerWg,
+			)
 			issuers = append(issuers, issuer)
+			index++
 		}
 	}
 	return issuers, nil
@@ -328,11 +342,8 @@ func (s *Spammer) distributeFunds(ctx context.Context, feePerTx uint64, sh SpamH
 	if err != nil {
 		return nil, nil, err
 	}
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
+	p := newPacer(webSocketClient, s.minTxsPerSecond)
+	go p.Run(ctx)
 	for i := 0; i < s.numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -392,11 +403,8 @@ func (s *Spammer) returnFunds(ctx context.Context, cli *jsonrpc.JSONRPCClient, m
 		return err
 	}
 	rules := ruleFactory.GetRules(time.Now().UnixMilli())
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
+	p := newPacer(webSocketClient, s.minTxsPerSecond)
+	go p.Run(ctx)
 	for i := 0; i < s.numAccounts; i++ {
 		// Determine if we should return funds
 		balance, err := sh.LookupBalance(accounts[i].Address)
