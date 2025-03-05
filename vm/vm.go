@@ -483,16 +483,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 }
 
 func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	genesisExecutionBlk, genesisView, err := chain.NewGenesisStateDiff(
-		ctx,
-		vm.stateDB,
-		vm.genesis,
-		vm.metadataManager,
-		vm.balanceHandler,
-		vm.ruleFactory,
-		vm.tracer,
-		vm.snowCtx.Log,
-	)
+	genesisExecutionBlk, genesisView, err := vm.chain.GenerateGenesisDiff(ctx, vm.stateDB, vm.genesis)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genesis state diff: %w", err)
 	}

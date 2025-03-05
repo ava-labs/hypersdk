@@ -22,39 +22,58 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-// NewGenesisStateDiff returns both a block and a view that represents the
-// genesis state transition.
-func NewGenesisStateDiff(
-	ctx context.Context,
-	view merkledb.View,
-	genesis Genesis,
+type GenesisGenerator struct {
+	tracer          trace.Tracer
+	log             logging.Logger
+	metadataManager MetadataManager
+	balanceHandler  BalanceHandler
+	ruleFactory     RuleFactory
+}
+
+func NewGenesisGenerator(
+	tracer trace.Tracer,
+	log logging.Logger,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	ruleFactory RuleFactory,
-	tracer trace.Tracer,
-	logger logging.Logger,
+) *GenesisGenerator {
+	return &GenesisGenerator{
+		tracer:          tracer,
+		log:             log,
+		metadataManager: metadataManager,
+		balanceHandler:  balanceHandler,
+		ruleFactory:     ruleFactory,
+	}
+}
+
+// CreateDiff returns both a block and a view that represents the
+// genesis state transition.
+func (g *GenesisGenerator) CreateDiff(
+	ctx context.Context,
+	view merkledb.View,
+	genesis Genesis,
 ) (*ExecutionBlock, merkledb.View, error) {
 	ts := tstate.New(0)
 	tsv := ts.NewView(state.CompletePermissions, view, 0)
-	if err := genesis.InitializeState(ctx, tracer, tsv, balanceHandler); err != nil {
+	if err := genesis.InitializeState(ctx, g.tracer, tsv, g.balanceHandler); err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize genesis state: %w", err)
 	}
 
 	// Update chain metadata
-	if err := tsv.Insert(ctx, HeightKey(metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+	if err := tsv.Insert(ctx, HeightKey(g.metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 		return nil, nil, fmt.Errorf("failed to set genesis height: %w", err)
 	}
-	if err := tsv.Insert(ctx, TimestampKey(metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+	if err := tsv.Insert(ctx, TimestampKey(g.metadataManager.TimestampPrefix()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 		return nil, nil, fmt.Errorf("failed to set genesis timestamp: %w", err)
 	}
-	genesisRules := ruleFactory.GetRules(0)
+	genesisRules := g.ruleFactory.GetRules(0)
 	feeManager := internalfees.NewManager(nil)
 	minUnitPrice := genesisRules.GetMinUnitPrice()
 	for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 		feeManager.SetUnitPrice(i, minUnitPrice[i])
-		logger.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
+		g.log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 	}
-	if err := tsv.Insert(ctx, FeeKey(metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
+	if err := tsv.Insert(ctx, FeeKey(g.metadataManager.FeePrefix()), feeManager.Bytes()); err != nil {
 		return nil, nil, fmt.Errorf("failed to set genesis fee manager: %w", err)
 	}
 

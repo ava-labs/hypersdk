@@ -17,11 +17,12 @@ import (
 )
 
 type Chain struct {
-	builder     *Builder
-	processor   *Processor
-	preExecutor *PreExecutor
-	blockParser *BlockParser
-	accepter    *Accepter
+	builder          *Builder
+	genesisGenerator *GenesisGenerator
+	processor        *Processor
+	preExecutor      *PreExecutor
+	blockParser      *BlockParser
+	accepter         *Accepter
 }
 
 func NewChain(
@@ -54,6 +55,13 @@ func NewChain(
 			metrics,
 			config,
 		),
+		genesisGenerator: NewGenesisGenerator(
+			tracer,
+			logger,
+			metadataManager,
+			balanceHandler,
+			ruleFactory,
+		),
 		processor: NewProcessor(
 			tracer,
 			logger,
@@ -79,6 +87,14 @@ func NewChain(
 
 func (c *Chain) BuildBlock(ctx context.Context, pChainCtx *block.Context, parentOutputBlock *OutputBlock) (*ExecutionBlock, *OutputBlock, error) {
 	return c.builder.BuildBlock(ctx, pChainCtx, parentOutputBlock)
+}
+
+func (c *Chain) GenerateGenesisDiff(
+	ctx context.Context,
+	view merkledb.View,
+	genesis Genesis,
+) (*ExecutionBlock, merkledb.View, error) {
+	return c.genesisGenerator.CreateDiff(ctx, view, genesis)
 }
 
 func (c *Chain) Execute(
