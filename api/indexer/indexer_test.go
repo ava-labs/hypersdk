@@ -126,7 +126,7 @@ func TestInvalidBlockWindowSizes(t *testing.T) {
 	require.Nil(indexer)
 	require.ErrorIs(err, errZeroBlockWindow)
 
-	blockWindow = uint64(maxBlockWindow + 1)
+	blockWindow = maxBlockWindow + 1
 	indexer, err = NewIndexer(t.TempDir(), chaintest.NewTestParser(), blockWindow)
 	require.Nil(indexer)
 	require.ErrorIs(err, errInvalidBlockWindowSize)
