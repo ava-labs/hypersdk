@@ -124,14 +124,6 @@ type TestAuthVM struct {
 	Log                   logging.Logger
 }
 
-func (t *TestAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	return t.GetAuthBatchVerifierF(authTypeID, cores, count)
-}
-
-func (t *TestAuthVM) Logger() logging.Logger {
-	return t.Log
-}
-
 // NewDummyTestAuthVM returns an instance of TestAuthVM with no-op implementations
 func NewDummyTestAuthVM() *TestAuthVM {
 	return &TestAuthVM{
@@ -140,4 +132,12 @@ func NewDummyTestAuthVM() *TestAuthVM {
 		},
 		Log: logging.NoLog{},
 	}
+}
+
+func (t *TestAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	return t.GetAuthBatchVerifierF(authTypeID, cores, count)
+}
+
+func (t *TestAuthVM) Logger() logging.Logger {
+	return t.Log
 }
