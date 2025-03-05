@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -29,6 +30,10 @@ type Mempool interface {
 	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
 	FinishStreaming(context.Context, []*Transaction) int
+}
+
+type Genesis interface {
+	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler BalanceHandler) error
 }
 
 // TODO: add fixed rules as a subset of this interface

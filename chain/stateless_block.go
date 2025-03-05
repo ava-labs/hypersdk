@@ -6,7 +6,6 @@ package chain
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
@@ -143,27 +142,4 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	// rather than only setting it on the write path.
 	b.CalculateCanotoCache()
 	return b, nil
-}
-
-func NewGenesisBlock(root ids.ID) (*ExecutionBlock, error) {
-	// We set the genesis block timestamp to be after the ProposerVM fork activation.
-	//
-	// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
-	// where the child timestamp is rounded down to the nearest second (which may be before
-	// the timestamp of its parent, which is denoted in milliseconds).
-	//
-	// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
-	// .../vms/proposervm/pre_fork_block.go#L201
-	sb, err := NewStatelessBlock(
-		ids.Empty,
-		time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
-		0,
-		nil,
-		root, // StateRoot should include all allocates made when loading the genesis file
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return NewExecutionBlock(sb), nil
 }
