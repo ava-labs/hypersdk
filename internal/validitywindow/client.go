@@ -49,8 +49,8 @@ func NewBlockFetcherClient[B Block](
 //   - Each request is limited by the node's max execution time (currently ~50ms),
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
-func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan FetchResult[B] {
-	resultChan := make(chan FetchResult[B], 1)
+func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan B {
+	resultChan := make(chan B, 1)
 
 	go func() {
 		c.lastBlock = blk
@@ -81,7 +81,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 			response, err := c.syncClient.SyncAppRequest(reqCtx, nodeID, req)
 			cancel()
 
-			if err != nil || response == nil {
+			if err != nil {
 				time.Sleep(backoff)
 				continue
 			}
@@ -90,18 +90,18 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 			for _, raw := range response.Blocks {
 				block, err := c.parser.ParseBlock(ctx, raw)
 				if err != nil {
-					continue
+					break
 				}
 
 				if expectedParentID != block.GetID() {
-					continue
+					break
 				}
 				expectedParentID = block.GetParent()
 
 				select {
 				case <-ctx.Done():
 					return
-				case resultChan <- FetchResult[B]{Block: block}:
+				case resultChan <- block:
 					c.lastBlock = block
 					req.BlockHeight = c.lastBlock.GetHeight() - 1
 				}

@@ -62,7 +62,7 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 
 	blocks, err := b.fetchBlocks(ctx, request)
 
-	if err != nil && len(blocks) == 0 {
+	if err != nil {
 		return nil, &common.AppError{
 			Code:    ErrBlocksNotFound,
 			Message: fmt.Sprintf("no blocks found starting at height %d: %v", request.BlockHeight, err),

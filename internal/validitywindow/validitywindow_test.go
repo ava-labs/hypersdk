@@ -395,6 +395,35 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r.ErrorIs(VerifyTimestamp(validityWindowDuration, validityWindowDuration+1, 1, validityWindowDuration), ErrTimestampExpired)
 }
 
+func TestAcceptHistorical(t *testing.T) {
+	r := require.New(t)
+
+	chainIndex := &testChainIndex{}
+	validityWindowDuration := int64(10)
+	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+		return validityWindowDuration
+	})
+
+	// Create and accept the genesis block to set an initial lastAcceptedBlockHeight
+	genesisBlk := newExecutionBlock(0, 0, []int64{})
+	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+	validityWindow.Accept(genesisBlk)
+	r.Equal(uint64(0), validityWindow.lastAcceptedBlockHeight)
+
+	// Create a block at height 1 and accept it
+	blk1 := newExecutionBlock(1, 5, []int64{1, 2})
+	chainIndex.set(blk1.GetID(), blk1)
+	validityWindow.Accept(blk1)
+	r.Equal(uint64(1), validityWindow.lastAcceptedBlockHeight)
+
+	// Create a historical block at height 5 (higher than current accepted)
+	historicalBlk := newExecutionBlock(5, 20, []int64{5, 6})
+	chainIndex.set(historicalBlk.GetID(), historicalBlk)
+	validityWindow.AcceptHistorical(historicalBlk)
+	// Verify that lastAcceptedBlockHeight has not changed
+	r.Equal(uint64(1), validityWindow.lastAcceptedBlockHeight)
+}
+
 type testChainIndex struct {
 	blocks map[ids.ID]ExecutionBlock[container]
 }

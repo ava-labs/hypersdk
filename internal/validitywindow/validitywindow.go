@@ -84,7 +84,13 @@ func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	v.accept(blk)
+	evicted := v.seen.SetMin(blk.GetTimestamp())
+	v.log.Debug("accepting block to validity window",
+		zap.Stringer("blkID", blk.GetID()),
+		zap.Time("minTimestamp", time.UnixMilli(blk.GetTimestamp())),
+		zap.Int("evicted", len(evicted)),
+	)
+	v.seen.Add(blk.GetContainers())
 	v.lastAcceptedBlockHeight = blk.GetHeight()
 }
 
@@ -92,7 +98,12 @@ func (v *TimeValidityWindow[T]) AcceptHistorical(blk ExecutionBlock[T]) {
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	v.accept(blk)
+	v.log.Debug("adding historical block to validity window",
+		zap.Stringer("blkID", blk.GetID()),
+		zap.Uint64("height", blk.GetHeight()),
+		zap.Time("timestamp", time.UnixMilli(blk.GetTimestamp())),
+	)
+	v.seen.Add(blk.GetContainers())
 }
 
 func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
@@ -187,16 +198,6 @@ func (v *TimeValidityWindow[T]) isRepeat(
 
 func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
 	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
-}
-
-func (v *TimeValidityWindow[T]) accept(blk ExecutionBlock[T]) {
-	evicted := v.seen.SetMin(blk.GetTimestamp())
-	v.log.Debug("accepting block to validity window",
-		zap.Stringer("blkID", blk.GetID()),
-		zap.Time("minTimestamp", time.UnixMilli(blk.GetTimestamp())),
-		zap.Int("evicted", len(evicted)),
-	)
-	v.seen.Add(blk.GetContainers())
 }
 
 func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {

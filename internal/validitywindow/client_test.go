@@ -66,9 +66,8 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 
 	// Collect all blocks from the channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	for result := range resultChan {
-		block := result.Block
-		receivedBlocks[block.GetHeight()] = block
+	for blk := range resultChan {
+		receivedBlocks[blk.GetHeight()] = blk
 	}
 
 	req.Len(receivedBlocks, 7) // block height from 8 to 2 should be received; 2 being boundary block due to strict verification
@@ -119,9 +118,8 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 loop:
 	for {
 		select {
-		case result := <-resultChan:
-			block := result.Block
-			receivedBlocks[block.GetHeight()] = block
+		case blk := <-resultChan:
+			receivedBlocks[blk.GetHeight()] = blk
 			// reset the timeout for each successful block received
 			timeout = time.After(5 * time.Second)
 		case <-timeout:
@@ -206,9 +204,8 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
 
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	for result := range resultChan {
-		block := result.Block
-		receivedBlocks[block.GetHeight()] = block
+	for blk := range resultChan {
+		receivedBlocks[blk.GetHeight()] = blk
 	}
 
 	req.Len(receivedBlocks, 5)

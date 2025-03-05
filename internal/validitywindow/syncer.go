@@ -12,12 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
-type FetchResult[B Block] struct {
-	Block B
-}
-
 type BlockFetcher[T Block] interface {
-	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan FetchResult[T]
+	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan T
 }
 
 // Syncer ensures the node does not transition to normal operation
@@ -73,10 +69,10 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	minTS := s.calculateMinTimestamp(target.GetTimestamp())
 	s.minTimestamp.Store(minTS)
 
-	// Try to build partial validity window from existing blocks
+	// Try to build a partial validity window from existing blocks
 	lastAccepted, seenValidityWindow := s.backfillFromExisting(ctx, target)
 
-	// If we've filled validity window from cache/disk, we're done
+	// If we've filled a validity window from cache/disk, we're done
 	if seenValidityWindow {
 		s.signalDone()
 		return nil
@@ -87,8 +83,8 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
 		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, lastAccepted, &s.minTimestamp)
-		for result := range resultChan {
-			s.timeValidityWindow.AcceptHistorical(result.Block)
+		for blk := range resultChan {
+			s.timeValidityWindow.AcceptHistorical(blk)
 		}
 
 		s.signalDone()
@@ -159,7 +155,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	// Keep fetching parents until we:
 	// - Fill validity window, or
 	// - Can't find more blocks
-	// - The order is guaranteed
+	// - The order (desc) is guaranteed
 	for {
 		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
@@ -174,13 +170,12 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		}
 	}
 
-	lastAccepted := parents[len(parents)-1]
-	s.oldestBlock = parents[0]
+	lastAccepted := parents[0]
+	s.oldestBlock = parents[len(parents)-1]
 
 	for i := len(parents) - 1; i >= 0; i-- {
 		s.timeValidityWindow.Accept(parents[i])
 	}
-
 	return lastAccepted, seenValidityWindow
 }
 

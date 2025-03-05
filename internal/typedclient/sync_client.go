@@ -28,18 +28,21 @@ func (s *SyncTypedClient[T, U, V]) SyncAppRequest(
 	nodeID ids.NodeID,
 	request T,
 ) (U, error) {
-	type responseWrapper struct {
-		resp U
-		err  error
-	}
-	respCh := make(chan responseWrapper, 1)
+	var (
+		response U
+		respErr  error
+		done     = make(chan struct{})
+	)
 
-	// We are guaranteed to eventually receive response
-	onResponse := func(_ context.Context, _ ids.NodeID, resp U, respErr error) {
+	// We are guaranteed to eventually receive a response
+	onResponse := func(_ context.Context, _ ids.NodeID, resp U, err error) {
 		select {
-		case respCh <- responseWrapper{resp: resp, err: respErr}:
+		case <-done:
+			return
 		default:
-			// Channel is either full or closed - can happen if timeout already occurred
+			response = resp
+			respErr = err
+			close(done)
 		}
 	}
 
@@ -47,12 +50,10 @@ func (s *SyncTypedClient[T, U, V]) SyncAppRequest(
 		return utils.Zero[U](), err
 	}
 
-	// Wait for either a response or context cancellation
 	select {
-	case wrapper := <-respCh:
-		return wrapper.resp, wrapper.err
+	case <-done:
+		return response, respErr
 	case <-ctx.Done():
-		// Context was canceled or timed out
 		return utils.Zero[U](), ctx.Err()
 	}
 }
