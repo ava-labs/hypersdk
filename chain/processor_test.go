@@ -479,18 +479,12 @@ func TestProcessorExecute(t *testing.T) {
 			metrics, err := chain.NewMetrics(prometheus.NewRegistry())
 			r.NoError(err)
 
-			testAuthVM := &chaintest.TestAuthVM{
-				GetAuthBatchVerifierF: func(uint8, int, int) (chain.AuthBatchVerifier, bool) {
-					return nil, false
-				},
-			}
-
 			processor := chain.NewProcessor(
 				trace.Noop,
 				&logging.NoLog{},
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
-				testAuthVM,
+				chaintest.NewDummyTestAuthVM(),
 				testMetadataManager,
 				&mockBalanceHandler{},
 				tt.validityWindow,

@@ -131,3 +131,13 @@ func (t *TestAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int
 func (t *TestAuthVM) Logger() logging.Logger {
 	return t.Log
 }
+
+// NewDummyTestAuthVM returns an instance of TestAuthVM with no-op implementations
+func NewDummyTestAuthVM() *TestAuthVM {
+	return &TestAuthVM{
+		GetAuthBatchVerifierF: func(uint8, int, int) (chain.AuthBatchVerifier, bool) {
+			return nil, false
+		},
+		Log: logging.NoLog{},
+	}
+}
