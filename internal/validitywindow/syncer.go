@@ -154,7 +154,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	// Keep fetching parents until we:
 	// - Fill validity window, or
 	// - Can't find more blocks
-	// - The order (desc) is guaranteed
+	// Descending order is guaranteed by the parent-based traversal method
 	for {
 		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
