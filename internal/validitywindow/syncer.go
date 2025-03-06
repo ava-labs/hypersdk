@@ -37,8 +37,7 @@ type BlockFetcher[T Block] interface {
 //	Forward Syncer: (Processing new blocks from consensus)
 //	  [N] → [N+1] → [N+2] → [N+3] → [N+K]
 //
-// The validity window can be marked as complete once either mechanism builds it,
-// but forward syncing continues to maintain the window regardless.
+// The validity window can be marked as complete once either mechanism completes.
 type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 	chainIndex         ChainIndex[T]
 	timeValidityWindow *TimeValidityWindow[T]
@@ -70,7 +69,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.minTimestamp.Store(minTS)
 
 	// Try to build a partial validity window from existing blocks
-	lastAccepted, seenValidityWindow := s.backfillFromExisting(ctx, target)
+	seenValidityWindow := s.backfillFromExisting(ctx, target)
 
 	// If we've filled a validity window from cache/disk, we're done
 	if seenValidityWindow {
@@ -82,7 +81,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.cancel = cancel
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
-		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, lastAccepted, &s.minTimestamp)
+		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp)
 		for blk := range resultChan {
 			s.timeValidityWindow.AcceptHistorical(blk)
 		}
@@ -143,7 +142,7 @@ func (s *Syncer[T, B]) accept(blk B) bool {
 func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
-) (ExecutionBlock[T], bool) {
+) bool {
 	var (
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
@@ -160,7 +159,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
-			break // This is expected when we run out of cached and/or on-disk blocks
+			break // This is expected when we run out-of-cached and/or on-disk blocks
 		}
 		parents = append(parents, parent)
 
@@ -170,13 +169,11 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		}
 	}
 
-	lastAccepted := parents[0]
 	s.oldestBlock = parents[len(parents)-1]
-
 	for i := len(parents) - 1; i >= 0; i-- {
 		s.timeValidityWindow.Accept(parents[i])
 	}
-	return lastAccepted, seenValidityWindow
+	return seenValidityWindow
 }
 
 func (s *Syncer[T, B]) signalDone() {

@@ -10,12 +10,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 )
 
-// SyncTypedClient provides a synchronous interface for the TypedClient
+// SyncTypedClient provides a synchronous wrapper around TypedClient
 type SyncTypedClient[T any, U any, V any] struct {
 	client *TypedClient[T, U, V]
 }
 
-// NewSyncTypedClient creates a new synchronous client with the default timeout of 30 seconds
+// NewSyncTypedClient creates a new synchronous client
 func NewSyncTypedClient[T any, U any, V any](client *p2p.Client, marshaler Marshaler[T, U, V]) *SyncTypedClient[T, U, V] {
 	return &SyncTypedClient[T, U, V]{
 		client: NewTypedClient(client, marshaler),
