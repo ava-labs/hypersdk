@@ -22,9 +22,9 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-// NewGenesisStateDiff returns both a block and a view that represents the
+// NewGenesisCommit returns both a block and a view that represents the
 // genesis state transition.
-func NewGenesisStateDiff(
+func NewGenesisCommit(
 	ctx context.Context,
 	view merkledb.View,
 	genesis Genesis,

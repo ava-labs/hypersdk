@@ -483,7 +483,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 }
 
 func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	genesisExecutionBlk, genesisView, err := chain.NewGenesisStateDiff(
+	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
 		ctx,
 		vm.stateDB,
 		vm.genesis,
