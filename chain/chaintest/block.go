@@ -113,10 +113,8 @@ func GenerateExecutionBlocks(
 	numOfTxsPerBlock uint64,
 ) ([]*chain.ExecutionBlock, error) {
 	var timestampOffset int64
-	switch numOfTxsPerBlock {
-	case 0:
-		timestampOffset = rules.GetMinEmptyBlockGap()
-	default:
+	timestampOffset = rules.GetMinEmptyBlockGap()
+	if numOfTxsPerBlock > 0 {
 		timestampOffset = rules.GetMinBlockGap()
 	}
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
@@ -240,19 +238,13 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	r.NoError(err)
 
 	var (
-		processorWorkers          workers.Workers
 		numOfAuthVerificationJobs = 100
 		allocBalance              = 1_000_000_000
 	)
 
-	switch test.AuthVerificationCores {
-	case 0, 1:
-		processorWorkers = workers.NewSerial()
-	default:
-		processorWorkers = workers.NewParallel(
-			test.AuthVerificationCores,
-			numOfAuthVerificationJobs,
-		)
+	processorWorkers := workers.NewSerial()
+	if test.AuthVerificationCores > 1 {
+		processorWorkers = workers.NewParallel(test.AuthVerificationCores, numOfAuthVerificationJobs)
 	}
 
 	factories := []chain.AuthFactory{}
