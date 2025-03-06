@@ -276,7 +276,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.Config,
 	)
 
-	genesisExecutionBlk, genesisView, err := chain.NewGenesisStateDiff(
+	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
 		ctx,
 		db,
 		genesis,
