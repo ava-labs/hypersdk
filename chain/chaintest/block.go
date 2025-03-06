@@ -305,7 +305,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 				ctx,
 				parentView,
 				blocks[j],
-				false,
+				true,
 			)
 			r.NoError(err)
 			// we update [parentView] so that the view produced by [outputBlock]
