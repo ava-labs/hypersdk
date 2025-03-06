@@ -30,6 +30,8 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
+var _ BlockBenchmarkHelper = (*NoopBlockBenchmarkHelper)(nil)
+
 func GenerateEmptyExecutedBlocks(
 	require *require.Assertions,
 	parentID ids.ID,
@@ -78,6 +80,17 @@ type BlockBenchmarkHelper interface {
 	GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error)
 	// GenerateTxList should return a list of transactions of length [numOfTxsPerBlock].
 	GenerateTxList(numOfTxsPerBlock uint64, txGenerator TxGenerator) ([]*chain.Transaction, error)
+}
+
+// NoopBlockBenchmarkHelper returns an empty genesis and an empty list of transactions.
+type NoopBlockBenchmarkHelper struct{}
+
+func (NoopBlockBenchmarkHelper) GenerateGenesis(uint64) (genesis.Genesis, error) {
+	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), nil
+}
+
+func (NoopBlockBenchmarkHelper) GenerateTxList(uint64, TxGenerator) ([]*chain.Transaction, error) {
+	return []*chain.Transaction{}, nil
 }
 
 // GenerateExecutionBlocks generates [numBlocks] execution blocks with
