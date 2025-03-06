@@ -126,7 +126,7 @@ type ZipfTxListGenerator struct {
 // X is sampled from a Zipf distribution where the sample set is a set of random addresses.
 func (z *ZipfTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, factories []chain.AuthFactory, numOfTxs uint64) ([]*chain.Transaction, error) {
 	var (
-		zipfSeed = rand.New(rand.NewSource(0))
+		zipfSeed = rand.New(rand.NewSource(0)) //nolint:gosec
 		sZipf    = 1.01
 		vZipf    = 2.7
 	)
