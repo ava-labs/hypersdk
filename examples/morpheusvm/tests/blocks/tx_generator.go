@@ -23,23 +23,30 @@ var (
 )
 
 type ParallelTxListGenerator struct {
-	nonce uint64
+	factories []chain.AuthFactory
+	nonce     uint64
+}
+
+func NewParallelTxListGenerator(factories []chain.AuthFactory) *ParallelTxListGenerator {
+	return &ParallelTxListGenerator{
+		factories: factories,
+	}
 }
 
 // Generate creates a list of transactions where each transaction sends 1 unit
 // to itself.
-func (p *ParallelTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, factories []chain.AuthFactory, numOfTxs uint64) ([]*chain.Transaction, error) {
+func (p *ParallelTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, numOfTxs uint64) ([]*chain.Transaction, error) {
 	txs := make([]*chain.Transaction, numOfTxs)
 	for i := 0; i < int(numOfTxs); i++ {
 		action := &actions.Transfer{
-			To:    factories[i].Address(),
+			To:    p.factories[i].Address(),
 			Value: 1,
 			Memo:  binary.BigEndian.AppendUint64(nil, p.nonce),
 		}
 
 		p.nonce++
 
-		units, err := chain.EstimateUnits(rules, []chain.Action{action}, factories[i])
+		units, err := chain.EstimateUnits(rules, []chain.Action{action}, p.factories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +65,7 @@ func (p *ParallelTxListGenerator) Generate(rules chain.Rules, timestamp int64, u
 			[]chain.Action{action},
 		)
 
-		tx, err := txData.Sign(factories[i])
+		tx, err := txData.Sign(p.factories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -70,12 +77,19 @@ func (p *ParallelTxListGenerator) Generate(rules chain.Rules, timestamp int64, u
 }
 
 type SerialTxListGenerator struct {
-	nonce uint64
+	factories []chain.AuthFactory
+	nonce     uint64
+}
+
+func NewSerialTxListGenerator(factories []chain.AuthFactory) *SerialTxListGenerator {
+	return &SerialTxListGenerator{
+		factories: factories,
+	}
 }
 
 // Generate creates a list of transaction where each transaction sends 1 unit to
 // the zero address.
-func (s *SerialTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, factories []chain.AuthFactory, numOfTxs uint64) ([]*chain.Transaction, error) {
+func (s *SerialTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, numOfTxs uint64) ([]*chain.Transaction, error) {
 	txs := make([]*chain.Transaction, numOfTxs)
 	for i := 0; i < int(numOfTxs); i++ {
 		action := &actions.Transfer{
@@ -86,7 +100,7 @@ func (s *SerialTxListGenerator) Generate(rules chain.Rules, timestamp int64, uni
 
 		s.nonce++
 
-		units, err := chain.EstimateUnits(rules, []chain.Action{action}, factories[i])
+		units, err := chain.EstimateUnits(rules, []chain.Action{action}, s.factories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +119,7 @@ func (s *SerialTxListGenerator) Generate(rules chain.Rules, timestamp int64, uni
 			[]chain.Action{action},
 		)
 
-		tx, err := txData.Sign(factories[i])
+		tx, err := txData.Sign(s.factories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -117,14 +131,21 @@ func (s *SerialTxListGenerator) Generate(rules chain.Rules, timestamp int64, uni
 }
 
 type ZipfTxListGenerator struct {
-	nonce uint64
+	factories []chain.AuthFactory
+	nonce     uint64
+}
+
+func NewZipfTxListGenerator(factories []chain.AuthFactory) *ZipfTxListGenerator {
+	return &ZipfTxListGenerator{
+		factories: factories,
+	}
 }
 
 // Generate creates a list of transactions where each transaction sends 1 unit
 // to X.
 //
 // X is sampled from a Zipf distribution where the sample set is a set of random addresses.
-func (z *ZipfTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, factories []chain.AuthFactory, numOfTxs uint64) ([]*chain.Transaction, error) {
+func (z *ZipfTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitPrices fees.Dimensions, numOfTxs uint64) ([]*chain.Transaction, error) {
 	var (
 		zipfSeed = rand.New(rand.NewSource(0)) //nolint:gosec
 		sZipf    = 1.01
@@ -148,7 +169,7 @@ func (z *ZipfTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitP
 
 		z.nonce++
 
-		units, err := chain.EstimateUnits(rules, []chain.Action{action}, factories[i])
+		units, err := chain.EstimateUnits(rules, []chain.Action{action}, z.factories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +188,7 @@ func (z *ZipfTxListGenerator) Generate(rules chain.Rules, timestamp int64, unitP
 			[]chain.Action{action},
 		)
 
-		tx, err := txData.Sign(factories[i])
+		tx, err := txData.Sign(z.factories[i])
 		if err != nil {
 			return nil, err
 		}

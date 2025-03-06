@@ -18,9 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -69,13 +67,10 @@ func GenerateEmptyExecutedBlocks(
 type TxListGenerator interface {
 	// Generate returns a list of transactions that will be the TX list of a
 	// block (can be empty or can have a length not equal to [numOfTxs]).
-	//
-	// [factories] is a list of unique accounts whose length is equal to [numOfTxs].
 	Generate(
 		rules chain.Rules,
 		timestamp int64,
 		unitPrices fees.Dimensions,
-		factories []chain.AuthFactory,
 		numOfTxs uint64,
 	) ([]*chain.Transaction, error)
 }
@@ -87,7 +82,6 @@ func (NoopTxListGenerator) Generate(
 	chain.Rules,
 	int64,
 	fees.Dimensions,
-	[]chain.AuthFactory,
 	uint64,
 ) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
@@ -104,7 +98,6 @@ func GenerateExecutionBlocks(
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
 	txListGenerator TxListGenerator,
-	factories []chain.AuthFactory,
 	parentView state.View,
 	parentID ids.ID,
 	parentHeight uint64,
@@ -130,7 +123,7 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txs, err := txListGenerator.Generate(rules, timestamp, unitPrices, factories, numOfTxsPerBlock)
+		txs, err := txListGenerator.Generate(rules, timestamp, unitPrices, numOfTxsPerBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -210,6 +203,8 @@ type BlockBenchmark struct {
 	AuthVM          chain.AuthVM
 	TxListGenerator TxListGenerator
 
+	Genesis genesis.Genesis
+
 	Config                chain.Config
 	AuthVerificationCores int
 
@@ -237,31 +232,12 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	)
 	r.NoError(err)
 
-	var (
-		numOfAuthVerificationJobs = 100
-		allocBalance              = 1_000_000_000
-	)
+	numOfAuthVerificationJobs := 100
 
 	processorWorkers := workers.NewSerial()
 	if test.AuthVerificationCores > 1 {
 		processorWorkers = workers.NewParallel(test.AuthVerificationCores, numOfAuthVerificationJobs)
 	}
-
-	factories := []chain.AuthFactory{}
-	customAllocs := []*genesis.CustomAllocation{}
-	for range test.NumOfTxsPerBlock {
-		pk, err := ed25519.GeneratePrivateKey()
-		r.NoError(err)
-
-		factory := auth.NewED25519Factory(pk)
-		factories = append(factories, factory)
-
-		customAllocs = append(customAllocs, &genesis.CustomAllocation{
-			Address: factory.Address(),
-			Balance: uint64(allocBalance),
-		})
-	}
-	genesis := genesis.NewDefaultGenesis(customAllocs)
 
 	processor := chain.NewProcessor(
 		trace.Noop,
@@ -279,7 +255,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
 		ctx,
 		db,
-		genesis,
+		test.Genesis,
 		test.MetadataManager,
 		test.BalanceHandler,
 		test.RuleFactory,
@@ -287,7 +263,6 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		logging.NoLog{},
 	)
 	r.NoError(err)
-
 	r.NoError(genesisView.CommitToDB(ctx))
 
 	// Generate blocks
@@ -297,7 +272,6 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.MetadataManager,
 		test.BalanceHandler,
 		test.TxListGenerator,
-		factories,
 		db,
 		genesisExecutionBlk.GetID(),
 		genesisExecutionBlk.GetHeight(),
