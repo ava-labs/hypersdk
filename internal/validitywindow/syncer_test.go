@@ -35,6 +35,13 @@ func TestSyncer_Start(t *testing.T) {
 				err := syncer.Start(ctx, target)
 				req.NoError(err)
 				req.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				// We're expecting oldestBlock to have height 8 because:
+				// - We have 15 blocks (height 0-14)
+				// - Validity window is 5 time units
+				// - Given target block at height 14 (timestamp 14)
+				// - We need blocks until timestamp difference > 5
+				// - This happens at block height 8 (14 - 8 > 5)
+				req.Equal(blkChain[8].GetHeight(), syncer.oldestBlock.GetHeight())
 			},
 		},
 		{
@@ -76,12 +83,13 @@ func TestSyncer_Start(t *testing.T) {
 				req.NoError(err)
 				req.NoError(syncer.Wait(ctx))
 
-				// last accepted height should be last accepted height from the cache, since historical blocks should not update last accepted field
+				// the last accepted height should be the last accepted height from the cache, since historical blocks should not update the last accepted field
 				req.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				req.Equal(blkChain[15].GetHeight(), syncer.oldestBlock.GetHeight())
 
 				// verify the oldest allowed block in time validity window
-				req.Equal(syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()), blkChain[4].GetTimestamp())
-				req.NotEqual(syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()), blkChain[3].GetTimestamp())
+				req.Equal(blkChain[4].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
+				req.NotEqual(blkChain[3].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
 			},
 		},
 		{
@@ -150,7 +158,7 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 			validityWindow: 15,
 			numOfBlocks:    25,
 			setupChainIndex: func(blkChain []ExecutionBlock[container]) *testChainIndex {
-				// Start with most recent 5 blocks in local chain
+				// Start with the most recent 5 blocks in cache
 				ci := &testChainIndex{}
 				for i := 20; i < len(blkChain); i++ {
 					ci.set(blkChain[i].GetID(), blkChain[i])
