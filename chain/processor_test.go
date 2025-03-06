@@ -516,7 +516,7 @@ func TestProcessorExecute(t *testing.T) {
 	}
 }
 
-func BenchmarExecuteEmptyBlocks(b *testing.B) {
+func BenchmarkExecuteEmptyBlocks(b *testing.B) {
 	test := &chaintest.BlockBenchmark{
 		MetadataManager: metadata.NewDefaultManager(),
 		BalanceHandler:  &mockBalanceHandler{},
@@ -535,6 +535,75 @@ func BenchmarExecuteEmptyBlocks(b *testing.B) {
 		Config:               chain.NewDefaultConfig(),
 		NumOfBlocks:          10_000,
 		NumOfTxsPerBlock:     0,
+	}
+	test.Run(context.Background(), b)
+}
+
+func BenchmarkExecuteBlocksParallelTxs(b *testing.B) {
+	test := &chaintest.BlockBenchmark{
+		MetadataManager: metadata.NewDefaultManager(),
+		BalanceHandler:  &mockBalanceHandler{},
+		AuthVM: &chaintest.TestAuthVM{
+			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+				bv, ok := auth.Engines()[authTypeID]
+				if !ok {
+					return nil, false
+				}
+				return bv.GetBatchVerifier(cores, count), ok
+			},
+			Log: logging.NoLog{},
+		},
+		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+		BlockBenchmarkHelper: &parallelTxBlockHelper{},
+		Config:               chain.NewDefaultConfig(),
+		NumOfBlocks:          1_000,
+		NumOfTxsPerBlock:     16,
+	}
+	test.Run(context.Background(), b)
+}
+
+func BenchmarkExecuteBlocksSerialTxs(b *testing.B) {
+	test := &chaintest.BlockBenchmark{
+		MetadataManager: metadata.NewDefaultManager(),
+		BalanceHandler:  &mockBalanceHandler{},
+		AuthVM: &chaintest.TestAuthVM{
+			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+				bv, ok := auth.Engines()[authTypeID]
+				if !ok {
+					return nil, false
+				}
+				return bv.GetBatchVerifier(cores, count), ok
+			},
+			Log: logging.NoLog{},
+		},
+		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+		BlockBenchmarkHelper: &serialTxBlockHelper{},
+		Config:               chain.NewDefaultConfig(),
+		NumOfBlocks:          1_000,
+		NumOfTxsPerBlock:     16,
+	}
+	test.Run(context.Background(), b)
+}
+
+func BenchmarkExecuteBlocksZipfTxs(b *testing.B) {
+	test := &chaintest.BlockBenchmark{
+		MetadataManager: metadata.NewDefaultManager(),
+		BalanceHandler:  &mockBalanceHandler{},
+		AuthVM: &chaintest.TestAuthVM{
+			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+				bv, ok := auth.Engines()[authTypeID]
+				if !ok {
+					return nil, false
+				}
+				return bv.GetBatchVerifier(cores, count), ok
+			},
+			Log: logging.NoLog{},
+		},
+		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+		BlockBenchmarkHelper: &zipfTxBlockHelper{},
+		Config:               chain.NewDefaultConfig(),
+		NumOfBlocks:          1_000,
+		NumOfTxsPerBlock:     16,
 	}
 	test.Run(context.Background(), b)
 }
@@ -597,29 +666,6 @@ func (p *parallelTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenera
 	return txs, nil
 }
 
-func BenchmarkExecuteBlocksParallelTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &parallelTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
-	}
-	test.Run(context.Background(), b)
-}
-
 type serialTxBlockHelper struct {
 	factories []chain.AuthFactory
 	nonce     uint64
@@ -661,29 +707,6 @@ func (s *serialTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerato
 	}
 
 	return txs, nil
-}
-
-func BenchmarkExecuteBlocksSerialTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &serialTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
-	}
-	test.Run(context.Background(), b)
 }
 
 type zipfTxBlockHelper struct {
@@ -749,29 +772,6 @@ func (z *zipfTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator 
 		txs[i] = tx
 	}
 	return txs, nil
-}
-
-func BenchmarkExecuteBlocksZipfTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &zipfTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
-	}
-	test.Run(context.Background(), b)
 }
 
 func createGenesis(numOfFactories uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
