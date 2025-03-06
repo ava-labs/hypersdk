@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ var (
 
 	_ chaintest.BlockBenchmarkHelper = (*parallelTxBlockHelper)(nil)
 	_ chaintest.BlockBenchmarkHelper = (*serialTxBlockHelper)(nil)
+	_ chaintest.BlockBenchmarkHelper = (*zipfTxBlockHelper)(nil)
 )
 
 func TestProcessorExecute(t *testing.T) {
@@ -677,6 +679,94 @@ func BenchmarkExecuteBlocksSerialTxs(b *testing.B) {
 		},
 		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
 		BlockBenchmarkHelper: &serialTxBlockHelper{},
+		Config:               chain.NewDefaultConfig(),
+		NumOfBlocks:          1_000,
+		NumOfTxsPerBlock:     16,
+	}
+	test.Run(context.Background(), b)
+}
+
+type zipfTxBlockHelper struct {
+	factories    []chain.AuthFactory
+	zipfGen      *rand.Zipf
+	nonce        uint64
+	databaseKeys []string
+	values       [][]byte
+}
+
+func (z *zipfTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, err
+	}
+	z.factories = factories
+
+	// Generate kv-pairs for testing
+	databaseKeys := make([]string, numOfTxsPerBlock)
+	values := make([][]byte, numOfTxsPerBlock)
+
+	for i := range numOfTxsPerBlock {
+		key := string(binary.BigEndian.AppendUint16(
+			binary.BigEndian.AppendUint64(nil, i),
+			1,
+		))
+		databaseKeys[i] = key
+		values[i] = binary.BigEndian.AppendUint64(nil, i)
+	}
+
+	z.databaseKeys = databaseKeys
+	z.values = values
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	z.zipfGen = rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+
+	return genesis, nil
+}
+
+func (z *zipfTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+	txs := make([]*chain.Transaction, numOfTxsPerBlock)
+	for i := range numOfTxsPerBlock {
+		index := z.zipfGen.Uint64()
+		action := &chaintest.TestAction{
+			Nonce:                        z.nonce,
+			SpecifiedStateKeys:           []string{z.databaseKeys[index]},
+			SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+			WriteKeys:                    [][]byte{[]byte(z.databaseKeys[index])},
+			WriteValues:                  [][]byte{z.values[index]},
+			Start:                        -1,
+			End:                          -1,
+		}
+
+		z.nonce++
+
+		tx, err := txGenerator([]chain.Action{action}, z.factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+	return txs, nil
+}
+
+func BenchmarkExecuteBlocksZipfTxs(b *testing.B) {
+	test := &chaintest.BlockBenchmark{
+		MetadataManager: metadata.NewDefaultManager(),
+		BalanceHandler:  &mockBalanceHandler{},
+		AuthVM: &chaintest.TestAuthVM{
+			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+				bv, ok := auth.Engines()[authTypeID]
+				if !ok {
+					return nil, false
+				}
+				return bv.GetBatchVerifier(cores, count), ok
+			},
+			Log: logging.NoLog{},
+		},
+		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+		BlockBenchmarkHelper: &zipfTxBlockHelper{},
 		Config:               chain.NewDefaultConfig(),
 		NumOfBlocks:          1_000,
 		NumOfTxsPerBlock:     16,

@@ -5,10 +5,12 @@ package blocks
 
 import (
 	"encoding/binary"
+	"math/rand"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -73,7 +75,7 @@ func (s *SerialTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, t
 	txs := make([]*chain.Transaction, numOfTxsPerBlock)
 	for i := 0; i < int(numOfTxsPerBlock); i++ {
 		action := &actions.Transfer{
-			To:    s.factories[i].Address(),
+			To:    codec.EmptyAddress,
 			Value: 1,
 			Memo:  binary.BigEndian.AppendUint64(nil, s.nonce),
 		}
@@ -93,6 +95,7 @@ func (s *SerialTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, t
 
 type ZipfTxBlockBenchmarkHelper struct {
 	factories []chain.AuthFactory
+	zipfGen   *rand.Zipf
 	nonce     uint64
 }
 
@@ -102,6 +105,12 @@ func (z *ZipfTxBlockBenchmarkHelper) GenerateGenesis(numOfTxsPerBlock uint64) (g
 		return nil, err
 	}
 	z.factories = factories
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	z.zipfGen = rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+
 	return gen, nil
 }
 
@@ -109,7 +118,7 @@ func (z *ZipfTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, txG
 	txs := make([]*chain.Transaction, numOfTxsPerBlock)
 	for i := 0; i < int(numOfTxsPerBlock); i++ {
 		action := &actions.Transfer{
-			To:    z.factories[i].Address(),
+			To:    z.factories[z.zipfGen.Uint64()].Address(),
 			Value: 1,
 			Memo:  binary.BigEndian.AppendUint64(nil, z.nonce),
 		}
