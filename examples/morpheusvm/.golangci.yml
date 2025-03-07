@@ -22,7 +22,7 @@ linters:
     - depguard
     - errcheck
     - errorlint
-    - exportloopref
+    - copyloopvar
     - goconst
     - gocritic
     - gofmt

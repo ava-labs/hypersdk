@@ -45,7 +45,7 @@ linters:
     - dupword
     - errcheck
     - errorlint
-    - exportloopref
+    - copyloopvar
     - forbidigo
     - gci
     - goconst

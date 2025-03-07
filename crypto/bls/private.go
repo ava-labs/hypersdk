@@ -6,6 +6,7 @@ package bls
 import (
 	"errors"
 
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls/signer/localsigner"
 
 	blst "github.com/supranational/blst/bindings/go"
@@ -37,6 +38,7 @@ func PublicFromPrivateKey(pk *PrivateKey) *PublicKey {
 	return pk.PublicKey()
 }
 
-func Sign(msg []byte, pk *PrivateKey) (*Signature, error) {
-	return pk.Sign(msg)
+func Sign(msg []byte, pk *PrivateKey) (*bls.Signature, error) {
+	sig := pk.Sign(msg)
+	return sig, nil
 }
