@@ -1,11 +1,9 @@
 module github.com/ava-labs/hypersdk
 
-go 1.23.6
-
-toolchain go1.23.7
+go 1.23.7
 
 require (
-	github.com/StephenButtolph/canoto v0.10.2-0.20250210180110-33bcad847890
+	github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020
 	github.com/ava-labs/avalanchego v1.12.3-0.20250307191620-6e7a7d51954c
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0

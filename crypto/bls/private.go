@@ -39,6 +39,5 @@ func PublicFromPrivateKey(pk *PrivateKey) *PublicKey {
 }
 
 func Sign(msg []byte, pk *PrivateKey) (*bls.Signature, error) {
-	sig := pk.Sign(msg)
-	return sig, nil
+	return pk.Sign(msg)
 }
