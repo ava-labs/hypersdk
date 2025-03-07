@@ -33,11 +33,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var (
-	_ chain.AuthVM = (*mockAuthVM)(nil)
-
-	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
-)
+var errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
@@ -488,7 +484,7 @@ func TestProcessorExecute(t *testing.T) {
 				&logging.NoLog{},
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
-				&mockAuthVM{},
+				chaintest.NewDummyTestAuthVM(),
 				testMetadataManager,
 				chaintest.NewTestBalanceHandler(nil, nil),
 				tt.validityWindow,
@@ -533,14 +529,4 @@ func createTestView(mp map[string][]byte) (merkledb.View, error) {
 	}
 
 	return db, nil
-}
-
-type mockAuthVM struct{}
-
-func (*mockAuthVM) GetAuthBatchVerifier(uint8, int, int) (chain.AuthBatchVerifier, bool) {
-	return nil, false
-}
-
-func (*mockAuthVM) Logger() logging.Logger {
-	panic("unimplemented")
 }

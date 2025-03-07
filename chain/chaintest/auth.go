@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -17,8 +18,9 @@ import (
 const TestAuthTypeID = 0
 
 var (
-	ErrTestAuthVerify            = errors.New("test auth verification error")
-	_                 chain.Auth = (*TestAuth)(nil)
+	ErrTestAuthVerify              = errors.New("test auth verification error")
+	_                 chain.Auth   = (*TestAuth)(nil)
+	_                 chain.AuthVM = (*TestAuthVM)(nil)
 )
 
 type TestAuth struct {
@@ -115,4 +117,27 @@ func (t *TestAuthFactory) MaxUnits() (bandwidth uint64, compute uint64) {
 
 func (t *TestAuthFactory) Address() codec.Address {
 	return t.TestAuth.ActorAddress
+}
+
+type TestAuthVM struct {
+	GetAuthBatchVerifierF func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
+	Log                   logging.Logger
+}
+
+func (t *TestAuthVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	return t.GetAuthBatchVerifierF(authTypeID, cores, count)
+}
+
+func (t *TestAuthVM) Logger() logging.Logger {
+	return t.Log
+}
+
+// NewDummyTestAuthVM returns an instance of TestAuthVM with no-op implementations
+func NewDummyTestAuthVM() *TestAuthVM {
+	return &TestAuthVM{
+		GetAuthBatchVerifierF: func(uint8, int, int) (chain.AuthBatchVerifier, bool) {
+			return nil, false
+		},
+		Log: logging.NoLog{},
+	}
 }
