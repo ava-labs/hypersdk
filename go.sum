@@ -51,8 +51,6 @@ github.com/Joker/hpp v1.0.0/go.mod h1:8x5n+M1Hp5hC0g8okX3sR3vFQwynaX/UgSOM9MeBKz
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
-github.com/StephenButtolph/canoto v0.10.2-0.20250210180110-33bcad847890 h1:w7v1J4Jp5NncflwpBY1A8gAEjeqxRn/awb4j0HlVGG8=
-github.com/StephenButtolph/canoto v0.10.2-0.20250210180110-33bcad847890/go.mod h1:JFhw0c5orUI7e6lnySCBxpE1MmKgM2G4eWL21CtWjB4=
 github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020 h1:xeEobha7w7m5ZSQ5vLg1m5wt12n0EZqt3BHWMVITZFA=
 github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020/go.mod h1:JFhw0c5orUI7e6lnySCBxpE1MmKgM2G4eWL21CtWjB4=
 github.com/VictoriaMetrics/fastcache v1.12.1 h1:i0mICQuojGDL3KblA7wUNlY5lOK6a4bwt3uRKnkZU40=
