@@ -86,5 +86,5 @@ func (sh *SpamHelper) GetActions() []chain.Action {
 }
 
 func (sh *SpamHelper) uniqueBytes() []byte {
-	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1)))
+	return binary.BigEndian.AppendUint64(nil, uint64(sh.sent.Add(1))) //nolint:gosec
 }
