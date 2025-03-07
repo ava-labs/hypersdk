@@ -62,13 +62,13 @@ func (eh *ExpiryHeap[T]) Remove(id ids.ID) (T, bool) {
 func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 	removed := []T{}
 	for {
-		min, ok := eh.PeekMin()
+		minItem, ok := eh.PeekMin()
 		if !ok {
 			break
 		}
-		if min.GetExpiry() < val {
+		if minItem.GetExpiry() < val {
 			eh.PopMin() // Assumes that there is not concurrent access to [ExpiryHeap]
-			removed = append(removed, min)
+			removed = append(removed, minItem)
 			continue
 		}
 		break

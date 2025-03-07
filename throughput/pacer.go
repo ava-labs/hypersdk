@@ -20,10 +20,10 @@ type pacer struct {
 	err error
 }
 
-func newPacer(ws *ws.WebSocketClient, max int) *pacer {
+func newPacer(ws *ws.WebSocketClient, maxPending int) *pacer {
 	return &pacer{
 		ws:       ws,
-		inflight: make(chan struct{}, max),
+		inflight: make(chan struct{}, maxPending),
 		done:     make(chan struct{}),
 	}
 }

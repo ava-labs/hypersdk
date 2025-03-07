@@ -136,7 +136,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	require.True(keys.Add("key1", Read))
 	bytes, err := keys.MarshalJSON()
 	require.NoError(err)
-	require.Equal(`{"6b657931":"read"}`, string(bytes))
+	require.JSONEq(`{"6b657931":"read"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
@@ -147,7 +147,7 @@ func TestKeysMarshalingSimple(t *testing.T) {
 	require.True(keys.Add("key2", Read|Write))
 	bytes, err = keys.MarshalJSON()
 	require.NoError(err)
-	require.Equal(`{"6b657932":"write"}`, string(bytes))
+	require.JSONEq(`{"6b657932":"write"}`, string(bytes))
 	keys = Keys{}
 	require.NoError(keys.UnmarshalJSON(bytes))
 	require.Len(keys, 1)
