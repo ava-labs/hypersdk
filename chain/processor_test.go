@@ -516,96 +516,57 @@ func TestProcessorExecute(t *testing.T) {
 	}
 }
 
-func BenchmarkExecuteEmptyBlocks(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
+func BenchmarkExecuteBlocks(b *testing.B) {
+	benchmarks := []struct {
+		name             string
+		h                chaintest.BlockBenchmarkHelper
+		numOfTxsPerBlock uint64
+	}{
+		{
+			name: "empty blocks",
+			h:    chaintest.NoopBlockBenchmarkHelper{},
 		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: chaintest.NoopBlockBenchmarkHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          10_000,
-		NumOfTxsPerBlock:     0,
+		{
+			name:             "blocks with txs that do not have conflicting state keys",
+			h:                &parallelTxBlockHelper{},
+			numOfTxsPerBlock: 16,
+		},
+		{
+			name:             "blocks with txs that all touch the same state key",
+			h:                &serialTxBlockHelper{},
+			numOfTxsPerBlock: 16,
+		},
+		{
+			name:             "blocks with txs whose state keys are zipf distributed",
+			h:                &zipfTxBlockHelper{},
+			numOfTxsPerBlock: 16,
+		},
 	}
-	test.Run(context.Background(), b)
-}
 
-func BenchmarkExecuteBlocksParallelTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &parallelTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			benchmark := &chaintest.BlockBenchmark{
+				MetadataManager: metadata.NewDefaultManager(),
+				BalanceHandler:  &mockBalanceHandler{},
+				AuthVM: &chaintest.TestAuthVM{
+					GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+						bv, ok := auth.Engines()[authTypeID]
+						if !ok {
+							return nil, false
+						}
+						return bv.GetBatchVerifier(cores, count), ok
+					},
+					Log: logging.NoLog{},
+				},
+				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+				BlockBenchmarkHelper: bm.h,
+				Config:               chain.NewDefaultConfig(),
+				NumOfBlocks:          1_000,
+				NumOfTxsPerBlock:     bm.numOfTxsPerBlock,
+			}
+			benchmark.Run(context.Background(), b)
+		})
 	}
-	test.Run(context.Background(), b)
-}
-
-func BenchmarkExecuteBlocksSerialTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &serialTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
-	}
-	test.Run(context.Background(), b)
-}
-
-func BenchmarkExecuteBlocksZipfTxs(b *testing.B) {
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &mockBalanceHandler{},
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-				bv, ok := auth.Engines()[authTypeID]
-				if !ok {
-					return nil, false
-				}
-				return bv.GetBatchVerifier(cores, count), ok
-			},
-			Log: logging.NoLog{},
-		},
-		RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-		BlockBenchmarkHelper: &zipfTxBlockHelper{},
-		Config:               chain.NewDefaultConfig(),
-		NumOfBlocks:          1_000,
-		NumOfTxsPerBlock:     16,
-	}
-	test.Run(context.Background(), b)
 }
 
 type parallelTxBlockHelper struct {
