@@ -15,12 +15,10 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -31,7 +29,6 @@ import (
 const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
 var (
-	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	preSignedTxBytes []byte
 
 	errMockInsufficientBalance = errors.New("mock insufficient balance error")
@@ -43,31 +40,6 @@ func init() {
 		panic(err)
 	}
 	preSignedTxBytes = txBytes
-}
-
-type mockBalanceHandler struct {
-	canDeductError error
-	deductError    error
-}
-
-func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	panic("unimplemented")
-}
-
-func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	return m.canDeductError
-}
-
-func (m *mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	return m.deductError
-}
-
-func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
-	return state.Keys{}
 }
 
 func TestTransactionJSON(t *testing.T) {
@@ -277,7 +249,7 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh: &mockBalanceHandler{},
+			bh: chaintest.NewTestBalanceHandler(nil, nil),
 		},
 		{
 			name: "base transaction timestamp misaligned",
@@ -422,7 +394,7 @@ func TestPreExecute(t *testing.T) {
 				}
 				return fm
 			}(),
-			bh:  &mockBalanceHandler{},
+			bh:  chaintest.NewTestBalanceHandler(nil, nil),
 			err: safemath.ErrOverflow,
 		},
 		{
@@ -436,9 +408,7 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh: &mockBalanceHandler{
-				canDeductError: errMockInsufficientBalance,
-			},
+			bh:  chaintest.NewTestBalanceHandler(errMockInsufficientBalance, nil),
 			err: errMockInsufficientBalance,
 		},
 	}
@@ -452,7 +422,7 @@ func TestPreExecute(t *testing.T) {
 				tt.fm = fees.NewManager([]byte{})
 			}
 			if tt.bh == nil {
-				tt.bh = &mockBalanceHandler{}
+				tt.bh = chaintest.NewTestBalanceHandler(nil, nil)
 			}
 
 			r.ErrorIs(

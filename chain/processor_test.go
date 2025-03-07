@@ -486,7 +486,7 @@ func TestProcessorExecute(t *testing.T) {
 				workers.NewSerial(),
 				chaintest.NewDummyTestAuthVM(),
 				testMetadataManager,
-				&mockBalanceHandler{},
+				chaintest.NewTestBalanceHandler(nil, nil),
 				tt.validityWindow,
 				metrics,
 				chain.NewDefaultConfig(),
