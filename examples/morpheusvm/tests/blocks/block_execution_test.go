@@ -21,46 +21,56 @@ import (
 	"github.com/ava-labs/hypersdk/state/metadata"
 )
 
-func BenchmarkMorpheusParallelExecution(b *testing.B) {
-	benchmarkMorpheusBlocks(b, &ParallelTxBlockBenchmarkHelper{})
-}
-
-func BenchmarkMorpheusSerialExecution(b *testing.B) {
-	benchmarkMorpheusBlocks(b, &SerialTxBlockBenchmarkHelper{})
-}
-
-func BenchmarkMorpheusZipfExecution(b *testing.B) {
-	benchmarkMorpheusBlocks(b, &ZipfTxBlockBenchmarkHelper{})
-}
-
-func benchmarkMorpheusBlocks(b *testing.B, blockBenchmarkHelper chaintest.BlockBenchmarkHelper) {
+func BenchmarkMorpheusBlocks(b *testing.B) {
 	rules := genesis.NewDefaultRules()
 	// we maximize the window target units and max block units to avoid fund exhaustion from fee spikes.
 	rules.WindowTargetUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
 	rules.MaxBlockUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
 	ruleFactory := &genesis.ImmutableRuleFactory{Rules: rules}
 
-	test := &chaintest.BlockBenchmark{
-		MetadataManager: metadata.NewDefaultManager(),
-		BalanceHandler:  &storage.BalanceHandler{},
-		RuleFactory:     ruleFactory,
-		AuthVM: &chaintest.TestAuthVM{
-			GetAuthBatchVerifierF: getAuthBatchVerifier,
-			Log:                   logging.NoLog{},
+	benchmarks := []struct {
+		name                 string
+		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
+	}{
+		{
+			name:                 "transfer txs with disjoint recipients",
+			blockBenchmarkHelper: &ParallelTxBlockBenchmarkHelper{},
 		},
-		BlockBenchmarkHelper: blockBenchmarkHelper,
-		Config: chain.Config{
-			TargetBuildDuration:       100 * time.Millisecond,
-			TransactionExecutionCores: 4,
-			StateFetchConcurrency:     4,
-			TargetTxsSize:             1.5 * units.MiB,
+		{
+			name:                 "transfer txs that all send to the same recipient",
+			blockBenchmarkHelper: &SerialTxBlockBenchmarkHelper{},
 		},
-		AuthVerificationCores: 8,
-		NumOfBlocks:           10,
-		NumOfTxsPerBlock:      5_000,
+		{
+			name:                 "transfer txs whose recipient is sampled from the zipf distribution",
+			blockBenchmarkHelper: &ZipfTxBlockBenchmarkHelper{},
+		},
 	}
 
-	test.Run(context.Background(), b)
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			benchmark := &chaintest.BlockBenchmark{
+				MetadataManager: metadata.NewDefaultManager(),
+				BalanceHandler:  &storage.BalanceHandler{},
+				RuleFactory:     ruleFactory,
+				AuthVM: &chaintest.TestAuthVM{
+					GetAuthBatchVerifierF: getAuthBatchVerifier,
+					Log:                   logging.NoLog{},
+				},
+				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
+				Config: chain.Config{
+					TargetBuildDuration:       100 * time.Millisecond,
+					TransactionExecutionCores: 4,
+					StateFetchConcurrency:     4,
+					TargetTxsSize:             1.5 * units.MiB,
+				},
+				AuthVerificationCores: 8,
+				NumOfBlocks:           10,
+				NumOfTxsPerBlock:      5_000,
+			}
+
+			benchmark.Run(context.Background(), b)
+		})
+	}
 }
 
 func getAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
