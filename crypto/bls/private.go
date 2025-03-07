@@ -37,6 +37,6 @@ func PublicFromPrivateKey(pk *PrivateKey) *PublicKey {
 	return pk.PublicKey()
 }
 
-func Sign(msg []byte, pk *PrivateKey) *Signature {
+func Sign(msg []byte, pk *PrivateKey) (*Signature, error) {
 	return pk.Sign(msg)
 }
