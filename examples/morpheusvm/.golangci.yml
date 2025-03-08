@@ -105,6 +105,7 @@ linters-settings:
   gosec:
     excludes:
       - G107 # https://securego.io/docs/rules/g107.html
+      - G115 # TODO Enable this ruleset in a follow-up PR
   depguard:
     rules:
       packages:
