@@ -160,11 +160,7 @@ func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
 }
 
 func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	bv, ok := vm.authEngine[authTypeID]
-	if !ok {
-		return nil, false
-	}
-	return bv.GetBatchVerifier(cores, count), ok
+	return vm.authEngines.GetAuthBatchVerifier(authTypeID, cores, count)
 }
 
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {

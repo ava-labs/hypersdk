@@ -109,7 +109,7 @@ type VM struct {
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
-	authEngine            map[uint8]auth.Engine
+	authEngines           auth.Engines
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
@@ -130,7 +130,7 @@ func New(
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
-	authEngine map[uint8]auth.Engine,
+	authEngines auth.Engines,
 	options ...Option,
 ) (*VM, error) {
 	allocatedNamespaces := set.NewSet[string](len(options))
@@ -153,7 +153,7 @@ func New(
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
-		authEngine:            authEngine,
+		authEngines:           authEngines,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
 	}, nil
