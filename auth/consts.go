@@ -16,7 +16,7 @@ const (
 )
 
 func DefaultEngines() Engines {
-	return map[uint8]Engine{
+	return Engines{
 		ED25519ID: &ED25519AuthEngine{},
 	}
 }
