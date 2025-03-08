@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
@@ -60,15 +62,21 @@ func TestSerialization(t *testing.T) {
 func TestDeployment(t *testing.T) {
 	require := require.New(t)
 
-	testCtx := NewTestContext()
+	testCtx, err := NewTestContext()
+	require.NoError(err)
 	blockContext := chain.NewBlockContext(0, testCtx.Timestamp)
+
+	testContractABI, ok := testCtx.ABIs["TestContract"]
+	require.True(ok)
+	factoryContractABI, ok := testCtx.ABIs["ContractFactory"]
+	require.True(ok)
 
 	firstDeployTest := &chaintest.ActionTest{
 		Name: "deploy contract",
 		Action: &EvmCall{
 			Value:    0,
 			GasLimit: testCtx.SufficientGas,
-			Data:     testCtx.TestContractABI.Bytecode,
+			Data:     testContractABI.Bytecode,
 			Keys:     state.Keys{},
 		},
 		Rules:    testCtx.Rules,
@@ -79,7 +87,7 @@ func TestDeployment(t *testing.T) {
 		ExpectedOutputs: &EvmCallResult{
 			Success:         true,
 			UsedGas:         0x8459a,
-			Return:          testCtx.TestContractABI.DeployedBytecode,
+			Return:          testContractABI.DeployedBytecode,
 			ErrorCode:       NilError,
 			ContractAddress: crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce),
 		},
@@ -87,7 +95,7 @@ func TestDeployment(t *testing.T) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
-			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
+			require.ElementsMatch(code, testContractABI.DeployedBytecode)
 		},
 	}
 	firstDeployTest.Run(testCtx.Context, t)
@@ -99,7 +107,7 @@ func TestDeployment(t *testing.T) {
 		Action: &EvmCall{
 			Value:    0,
 			GasLimit: testCtx.SufficientGas,
-			Data:     testCtx.TestContractABI.Bytecode,
+			Data:     testContractABI.Bytecode,
 		},
 		BlockCtx: blockContext,
 		Rules:    testCtx.Rules,
@@ -109,7 +117,7 @@ func TestDeployment(t *testing.T) {
 		ExpectedOutputs: &EvmCallResult{
 			Success:         true,
 			UsedGas:         0x8459a,
-			Return:          testCtx.TestContractABI.DeployedBytecode,
+			Return:          testContractABI.DeployedBytecode,
 			ErrorCode:       NilError,
 			ContractAddress: crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce),
 		},
@@ -117,7 +125,7 @@ func TestDeployment(t *testing.T) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
-			require.ElementsMatch(code, testCtx.TestContractABI.DeployedBytecode)
+			require.ElementsMatch(code, testContractABI.DeployedBytecode)
 		},
 	}
 	secondDeployTest.Run(testCtx.Context, t)
@@ -129,7 +137,7 @@ func TestDeployment(t *testing.T) {
 		Action: &EvmCall{
 			Value:    0,
 			GasLimit: testCtx.SufficientGas,
-			Data:     testCtx.FactoryABI.Bytecode,
+			Data:     factoryContractABI.Bytecode,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -139,7 +147,7 @@ func TestDeployment(t *testing.T) {
 		ExpectedOutputs: &EvmCallResult{
 			Success:         true,
 			UsedGas:         0x98bf6,
-			Return:          testCtx.FactoryABI.DeployedBytecode,
+			Return:          factoryContractABI.DeployedBytecode,
 			ErrorCode:       NilError,
 			ContractAddress: crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce),
 		},
@@ -147,7 +155,7 @@ func TestDeployment(t *testing.T) {
 			code, err := storage.GetCode(ctx, mu, crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce))
 			require.NoError(err)
 			require.NotEmpty(code)
-			require.ElementsMatch(code, testCtx.FactoryABI.DeployedBytecode)
+			require.ElementsMatch(code, factoryContractABI.DeployedBytecode)
 		},
 	}
 	factoryDeployTest.Run(testCtx.Context, t)
@@ -155,7 +163,7 @@ func TestDeployment(t *testing.T) {
 	testCtx.Nonce++
 
 	factoryAddr := crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce) // we just deployed the factory
-	deployData := testCtx.FactoryABI.ABI.Methods["deployContract"].ID
+	deployData := factoryContractABI.ABI.Methods["deployContract"].ID
 	deployFromFactoryTest := &chaintest.ActionTest{
 		Name: "deploy contract from a contract",
 		Action: &EvmCall{
@@ -186,16 +194,20 @@ func TestDeployment(t *testing.T) {
 func TestEVMTransfers(t *testing.T) {
 	require := require.New(t)
 
-	testCtx := NewTestContext()
+	testCtx, err := NewTestContext()
+	require.NoError(err)
 	height := uint64(0)
 	to := storage.ToEVMAddress(testCtx.Recipient)
+
+	testContractABI, ok := testCtx.ABIs["TestContract"]
+	require.True(ok)
 
 	deployTest := &chaintest.ActionTest{
 		Name: "deploy contract for transfer tests",
 		Action: &EvmCall{
 			Value:    0,
 			GasLimit: testCtx.SufficientGas,
-			Data:     testCtx.TestContractABI.Bytecode,
+			Data:     testContractABI.Bytecode,
 			Keys:     state.Keys{},
 		},
 		Rules:    testCtx.Rules,
@@ -206,7 +218,7 @@ func TestEVMTransfers(t *testing.T) {
 		ExpectedOutputs: &EvmCallResult{
 			Success:         true,
 			UsedGas:         0x8459a,
-			Return:          testCtx.TestContractABI.DeployedBytecode,
+			Return:          testContractABI.DeployedBytecode,
 			ErrorCode:       NilError,
 			ContractAddress: crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce),
 		},
@@ -246,7 +258,7 @@ func TestEVMTransfers(t *testing.T) {
 	directTransfer.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	transferData := testCtx.TestContractABI.ABI.Methods["transferToAddress"].ID
+	transferData := testContractABI.ABI.Methods["transferToAddress"].ID
 	transferData = append(transferData, common.LeftPadBytes(to.Bytes(), 32)...)
 
 	transferToAddress := &chaintest.ActionTest{
@@ -279,7 +291,7 @@ func TestEVMTransfers(t *testing.T) {
 	transferToAddress.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
 
-	transferThroughData := testCtx.TestContractABI.ABI.Methods["transferThroughContract"].ID
+	transferThroughData := testContractABI.ABI.Methods["transferThroughContract"].ID
 	transferThroughData = append(transferThroughData, common.LeftPadBytes(to.Bytes(), 32)...)
 
 	transferThroughContract := &chaintest.ActionTest{
@@ -323,8 +335,12 @@ func TestEVMTransfers(t *testing.T) {
 func TestEVMTstate(t *testing.T) {
 	require := require.New(t)
 
-	testCtx := NewTestContext()
+	testCtx, err := NewTestContext()
+	require.NoError(err)
 	height := uint64(0)
+
+	testContractABI, ok := testCtx.ABIs["TestContract"]
+	require.True(ok)
 
 	// First deploy the test contract
 	deployTest := &chaintest.ActionTest{
@@ -332,7 +348,7 @@ func TestEVMTstate(t *testing.T) {
 		Action: &EvmCall{
 			Value:    0,
 			GasLimit: testCtx.SufficientGas,
-			Data:     testCtx.TestContractABI.Bytecode,
+			Data:     testContractABI.Bytecode,
 		},
 		Rules:    testCtx.Rules,
 		State:    testCtx.State,
@@ -342,7 +358,7 @@ func TestEVMTstate(t *testing.T) {
 		ExpectedOutputs: &EvmCallResult{
 			Success:         true,
 			UsedGas:         0x8459a,
-			Return:          testCtx.TestContractABI.DeployedBytecode,
+			Return:          testContractABI.DeployedBytecode,
 			ErrorCode:       NilError,
 			ContractAddress: crypto.CreateAddress(storage.ToEVMAddress(testCtx.From), testCtx.Nonce),
 		},
@@ -354,7 +370,7 @@ func TestEVMTstate(t *testing.T) {
 	testCtx.Nonce++
 
 	value := big.NewInt(42)
-	setValueData := testCtx.TestContractABI.ABI.Methods["setValue"].ID
+	setValueData := testContractABI.ABI.Methods["setValue"].ID
 	setValueData = append(setValueData, common.LeftPadBytes(value.Bytes(), 32)...)
 
 	call := &EvmCall{
@@ -418,4 +434,52 @@ func TestEVMTstate(t *testing.T) {
 	}
 	tstateTest.Run(testCtx.Context, t)
 	require.NoError(testCtx.State.Commit(testCtx.Context))
+}
+
+func TestEVMLogs(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+
+	testCtx, err := NewTestContext()
+	r.NoError(err)
+	height := uint64(0)
+	blockCtx := chain.NewBlockContext(height, testCtx.Timestamp)
+
+	eventContractABI, ok := testCtx.ABIs["EmitEvent"]
+	r.True(ok)
+
+	// Deploy event contract
+	action := &EvmCall{
+		To:            common.Address{},
+		IsNullAddress: true,
+		Value:         0,
+		GasLimit:      testCtx.SufficientGas,
+		Data:          eventContractABI.Bytecode,
+		From:          storage.ToEVMAddress(testCtx.From),
+	}
+
+	result, err := action.Execute(ctx, blockCtx, testCtx.Rules, testCtx.State, codec.EmptyAddress, ids.Empty)
+	r.NoError(err)
+
+	deployResult, ok := result.(*EvmCallResult)
+	r.True(ok)
+	r.True(deployResult.Success)
+
+	eventContractAddress := deployResult.ContractAddress
+	t.Log("Event contract address:", eventContractAddress)
+
+	emitAction := &EvmCall{
+		To:       eventContractAddress,
+		Value:    0,
+		GasLimit: testCtx.SufficientGas,
+		Data:     []byte("0x5278c0fa"),
+		From:     storage.ToEVMAddress(testCtx.From),
+	}
+
+	result, err = emitAction.Execute(ctx, blockCtx, testCtx.Rules, testCtx.State, codec.EmptyAddress, ids.Empty)
+	r.NoError(err)
+
+	emitResult, ok := result.(*EvmCallResult)
+	r.True(ok)
+	r.True(emitResult.Success)
 }

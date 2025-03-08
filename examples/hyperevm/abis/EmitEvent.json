@@ -1,0 +1,106 @@
+{
+    "abi": [
+        {
+            "type": "function",
+            "name": "EmitEvent",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "event",
+            "name": "TestEvent",
+            "inputs": [
+                {
+                    "name": "num",
+                    "type": "uint256",
+                    "indexed": false,
+                    "internalType": "uint256"
+                }
+            ],
+            "anonymous": false
+        }
+    ],
+    "bytecode": {
+        "object": "0x6080604052348015600e575f5ffd5b50609e80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80635278c0fa14602a575b5f5ffd5b60306032565b005b604051600181527f1440c4dd67b4344ea1905ec0318995133b550f168b4ee959a0da6b503d7d24149060200160405180910390a156fea2646970667358221220e13307f44c6d0f61719e240b34e44df1e9e2beab22509a2443a494f0294bda3964736f6c634300081c0033",
+        "sourceMap": "65:127:0:-:0;;;;;;;;;;;;;;;;;;;",
+        "linkReferences": {}
+    },
+    "deployedBytecode": {
+        "object": "0x6080604052348015600e575f5ffd5b50600436106026575f3560e01c80635278c0fa14602a575b5f5ffd5b60306032565b005b604051600181527f1440c4dd67b4344ea1905ec0318995133b550f168b4ee959a0da6b503d7d24149060200160405180910390a156fea2646970667358221220e13307f44c6d0f61719e240b34e44df1e9e2beab22509a2443a494f0294bda3964736f6c634300081c0033",
+        "sourceMap": "65:127:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;128:62;;;:::i;:::-;;;171:12;;181:1;168:25:1;;171:12:0;;156:2:1;141:18;171:12:0;;;;;;;128:62::o",
+        "linkReferences": {}
+    },
+    "methodIdentifiers": {
+        "EmitEvent()": "5278c0fa"
+    },
+    "rawMetadata": "{\"compiler\":{\"version\":\"0.8.28+commit.7893614a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"num\",\"type\":\"uint256\"}],\"name\":\"TestEvent\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"EmitEvent\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/EventEmitter.sol\":\"EventEmitter\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":forge-std/=lib/forge-std/src/\"]},\"sources\":{\"src/EventEmitter.sol\":{\"keccak256\":\"0x56e37f832f8d70b95e477e5b18b0840e2c443550167cc0541ff7620877967bba\",\"license\":\"UNLICENSED\",\"urls\":[\"bzz-raw://d1966ba17e9005121c4b2aa65d80c1f8d3fdc296859b65736718b1563f604674\",\"dweb:/ipfs/QmfSJ8P1kQRi13v8f9tKbKzAw165qpeBCVwQnaxr3TTmiN\"]}},\"version\":1}",
+    "metadata": {
+        "compiler": {
+            "version": "0.8.28+commit.7893614a"
+        },
+        "language": "Solidity",
+        "output": {
+            "abi": [
+                {
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "num",
+                            "type": "uint256",
+                            "indexed": false
+                        }
+                    ],
+                    "type": "event",
+                    "name": "TestEvent",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function",
+                    "name": "EmitEvent"
+                }
+            ],
+            "devdoc": {
+                "kind": "dev",
+                "methods": {},
+                "version": 1
+            },
+            "userdoc": {
+                "kind": "user",
+                "methods": {},
+                "version": 1
+            }
+        },
+        "settings": {
+            "remappings": [
+                "forge-std/=lib/forge-std/src/"
+            ],
+            "optimizer": {
+                "enabled": true,
+                "runs": 200
+            },
+            "metadata": {
+                "bytecodeHash": "ipfs"
+            },
+            "compilationTarget": {
+                "src/EventEmitter.sol": "EventEmitter"
+            },
+            "evmVersion": "cancun",
+            "libraries": {}
+        },
+        "sources": {
+            "src/EventEmitter.sol": {
+                "keccak256": "0x56e37f832f8d70b95e477e5b18b0840e2c443550167cc0541ff7620877967bba",
+                "urls": [
+                    "bzz-raw://d1966ba17e9005121c4b2aa65d80c1f8d3fdc296859b65736718b1563f604674",
+                    "dweb:/ipfs/QmfSJ8P1kQRi13v8f9tKbKzAw165qpeBCVwQnaxr3TTmiN"
+                ],
+                "license": "UNLICENSED"
+            }
+        },
+        "version": 1
+    },
+    "id": 0
+}

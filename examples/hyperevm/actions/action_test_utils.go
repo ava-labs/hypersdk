@@ -31,71 +31,65 @@ import (
 )
 
 type TestContext struct {
-	Context         context.Context
-	From            codec.Address
-	Recipient       codec.Address
-	SufficientGas   uint64
-	Rules           *genesis.Rules
-	Timestamp       int64
-	ActionID        ids.ID
-	Tracer          trace.Tracer
-	State           *SimpleMutable
-	Nonce           uint64
-	FactoryNonce    uint64
-	TestContractABI *ParsedABI
-	FactoryABI      *ParsedABI
+	Context       context.Context
+	From          codec.Address
+	Recipient     codec.Address
+	SufficientGas uint64
+	Rules         *genesis.Rules
+	Timestamp     int64
+	ActionID      ids.ID
+	Tracer        trace.Tracer
+	State         *SimpleMutable
+	Nonce         uint64
+	FactoryNonce  uint64
+	ABIs          map[string]*ParsedABI
 }
 
-func NewTestContext() *TestContext {
+func NewTestContext() (*TestContext, error) {
 	ctx := context.Background()
 
 	from := codec.CreateAddress(uint8(1), ids.GenerateTestID())
 
 	tracer, err := trace.New(trace.Config{Enabled: false})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	statedb, err := merkledb.New(ctx, memdb.New(), getTestMerkleConfig(tracer))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	mu := NewSimpleMutable(statedb)
 	err = InitAccount(ctx, mu, from, uint64(10000000))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	testContractABI, err := NewABI("../abis/TestContract.json")
+	abis, err := ParseABIs("../abis")
 	if err != nil {
-		panic(err)
-	}
-	testContractFactoryABI, err := NewABI("../abis/ContractFactory.json")
-	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	recipient := codec.CreateAddress(uint8(2), ids.GenerateTestID())
 	err = InitAccount(ctx, mu, recipient, 0)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return &TestContext{
-		Context:         ctx,
-		SufficientGas:   uint64(1000000),
-		From:            from,
-		Rules:           genesis.NewDefaultRules(),
-		Timestamp:       time.Now().UnixMilli(),
-		ActionID:        ids.GenerateTestID(),
-		Tracer:          tracer,
-		State:           mu,
-		Nonce:           0,
-		FactoryNonce:    0,
-		TestContractABI: testContractABI,
-		FactoryABI:      testContractFactoryABI,
-		Recipient:       recipient,
-	}
+		Context:       ctx,
+		SufficientGas: uint64(1000000),
+		From:          from,
+		Rules:         genesis.NewDefaultRules(),
+		Timestamp:     time.Now().UnixMilli(),
+		ActionID:      ids.GenerateTestID(),
+		Tracer:        tracer,
+		State:         mu,
+		Nonce:         0,
+		FactoryNonce:  0,
+		ABIs:          abis,
+		Recipient:     recipient,
+	}, nil
 }
 
 func getTestMerkleConfig(tracer trace.Tracer) merkledb.Config {
@@ -131,70 +125,94 @@ func InitAccount(ctx context.Context, mu state.Mutable, address codec.Address, b
 	return nil
 }
 
-func GetStateKeys(ctx context.Context, call *EvmCall) state.Keys {
-	return call.Keys
-}
-
 type ParsedABI struct {
 	ABI              abi.ABI
 	Bytecode         []byte
 	DeployedBytecode []byte
 }
 
-type rawJSON string
-
-func (r *rawJSON) UnmarshalJSON(data []byte) error {
-	*r = rawJSON(data)
-	return nil
-}
-
-func (r rawJSON) AsString() string {
-	return string(r[1 : len(r)-1])
-}
-
-func NewABI(compiledFn string) (*ParsedABI, error) {
-	f, err := os.Open(compiledFn)
+func ParseABIs(abiDir string) (map[string]*ParsedABI, error) {
+	// Iterate over all files in directory
+	files, err := os.ReadDir(abiDir)
 	if err != nil {
 		return nil, err
 	}
+	parsedABIs := make(map[string]*ParsedABI, len(files))
+	for _, file := range files {
+		// Parse file name
+		parsedFileName := strings.SplitN(file.Name(), ".", 2)
+		if len(parsedFileName) != 2 {
+			return nil, fmt.Errorf("invalid file name: %s", file.Name())
+		}
+		// Parse each file
+		parsedABI, err := ParseABI(abiDir, file)
+		if err != nil {
+			return nil, err
+		}
+		parsedABIs[parsedFileName[0]] = parsedABI
+	}
+	return parsedABIs, nil
+}
 
-	mapData := make(map[string]rawJSON)
+func ParseABI(dir string, file os.DirEntry) (*ParsedABI, error) {
+	// TODO: could we make creating the filepath cleaner?
+	f, err := os.Open(dir + "/" + file.Name())
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mapData := make(map[string]json.RawMessage)
 	if err := json.NewDecoder(f).Decode(&mapData); err != nil {
 		return nil, err
 	}
 
-	bytecodeHex := mapData["bytecode"].AsString()
-	bytecodeHex = strings.TrimLeft(bytecodeHex, "0x")
-	bytecode, err := hex.DecodeString(bytecodeHex)
+	bytecodeHexData, err := parseBytecode("bytecode", mapData["bytecode"])
 	if err != nil {
 		return nil, err
 	}
 
-	var deployedBytecode []byte
-	if _, ok := mapData["deployedBytecode"]; ok {
-		deployedBytecodeHex := mapData["deployedBytecode"].AsString()
-		deployedBytecodeHex = strings.TrimLeft(deployedBytecodeHex, "0x")
-		deployedBytecode, err = hex.DecodeString(deployedBytecodeHex)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		deployedBytecode = bytecode
+	deployedBytecodeHexData, err := parseBytecode("deployedBytecode", mapData["deployedBytecode"])
+	if err != nil {
+		return nil, err
 	}
 
 	abi, err := abi.JSON(strings.NewReader(string(mapData["abi"])))
 	if err != nil {
 		return nil, err
 	}
-	return &ParsedABI{ABI: abi, Bytecode: bytecode, DeployedBytecode: deployedBytecode}, nil
+
+	return &ParsedABI{
+		ABI:              abi,
+		Bytecode:         bytecodeHexData,
+		DeployedBytecode: deployedBytecodeHexData,
+	}, nil
 }
 
-func (p *ParsedABI) BytecodeHex() string {
-	return hex.EncodeToString(p.Bytecode)
-}
-
-func (p *ParsedABI) DeployedBytecodeHex() string {
-	return hex.EncodeToString(p.DeployedBytecode)
+func parseBytecode(namespace string, msg json.RawMessage) ([]byte, error) {
+	var bytecodeHex string
+	if err := json.Unmarshal(msg, &bytecodeHex); err != nil {
+		// attempt to unmarshal map
+		var mapData map[string]json.RawMessage
+		if err := json.Unmarshal(msg, &mapData); err != nil {
+			return nil, err
+		}
+		var str string
+		object, ok := mapData["object"]
+		if !ok {
+			return nil, fmt.Errorf("missing object field in %s", namespace)
+		}
+		if err := json.Unmarshal(object, &str); err != nil {
+			return nil, err
+		}
+		bytecodeHex = str
+	}
+	bytecodeHex = strings.TrimLeft(bytecodeHex, "0x")
+	bytecode, err := hex.DecodeString(bytecodeHex)
+	if err != nil {
+		return nil, err
+	}
+	return bytecode, nil
 }
 
 var _ state.Mutable = (*SimpleMutable)(nil)
