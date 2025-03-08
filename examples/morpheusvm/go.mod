@@ -1,11 +1,9 @@
 module github.com/ava-labs/hypersdk/examples/morpheusvm
 
-go 1.22.9
-
-toolchain go1.22.12
+go 1.23.7
 
 require (
-	github.com/ava-labs/avalanchego v1.12.3-warp-verify6.0.20250209190418-217ef3979ea7
+	github.com/ava-labs/avalanchego v1.12.3-0.20250307191620-6e7a7d51954c
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
@@ -18,9 +16,9 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/StephenButtolph/canoto v0.10.2-0.20250210180110-33bcad847890 // indirect
+	github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.14.2-verify-interface6 // indirect
+	github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect

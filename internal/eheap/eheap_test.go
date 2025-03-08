@@ -78,8 +78,8 @@ func TestExpiryHeapRemoveEmpty(t *testing.T) {
 	eheap := New[*TestItem](0)
 	item := GenerateTestItem("sponsor", 1)
 	// Require this returns
-	eheap.Remove(item.GetID())
-	require.True(true, "not true")
+	_, removed := eheap.Remove(item.GetID())
+	require.False(removed)
 }
 
 func TestSetMin(t *testing.T) {
@@ -131,27 +131,27 @@ func TestPeekMin(t *testing.T) {
 	itemMin := GenerateTestItem(testSponsor, 1)
 	itemMed := GenerateTestItem(testSponsor, 2)
 	itemMax := GenerateTestItem(testSponsor, 3)
-	min, ok := eheap.PeekMin()
+	minItem, ok := eheap.PeekMin()
 	require.False(ok)
-	require.Nil(min, "Peek UnitPrice is incorrect")
+	require.Nil(minItem, "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	eheap.Add(itemMed)
 	require.True(eheap.Has(itemMed.GetID()), "TX not included")
-	min, ok = eheap.PeekMin()
+	minItem, ok = eheap.PeekMin()
 	require.True(ok)
-	require.Equal(itemMed, min, "Peek value is incorrect")
+	require.Equal(itemMed, minItem, "Peek value is incorrect")
 
 	eheap.Add(itemMin)
 	require.True(eheap.Has(itemMin.GetID()), "TX not included")
-	min, ok = eheap.PeekMin()
+	minItem, ok = eheap.PeekMin()
 	require.True(ok)
-	require.Equal(itemMin, min, "Peek value is incorrect")
+	require.Equal(itemMin, minItem, "Peek value is incorrect")
 
 	eheap.Add(itemMax)
 	require.True(eheap.Has(itemMax.GetID()), "TX not included")
-	min, ok = eheap.PeekMin()
+	minItem, ok = eheap.PeekMin()
 	require.True(ok)
-	require.Equal(itemMin, min, "Peek value is incorrect")
+	require.Equal(itemMin, minItem, "Peek value is incorrect")
 }
 
 func TestPopMin(t *testing.T) {
@@ -162,22 +162,22 @@ func TestPopMin(t *testing.T) {
 	itemMin := GenerateTestItem(testSponsor, 1)
 	itemMed := GenerateTestItem(testSponsor, 2)
 	itemMax := GenerateTestItem(testSponsor, 3)
-	min, ok := eheap.PopMin()
+	minItem, ok := eheap.PopMin()
 	require.False(ok)
-	require.Nil(min, "Pop value is incorrect")
+	require.Nil(minItem, "Pop value is incorrect")
 	// Check PeekMin
 	eheap.Add(itemMed)
 	eheap.Add(itemMin)
 	eheap.Add(itemMax)
-	min, ok = eheap.PopMin()
+	minItem, ok = eheap.PopMin()
 	require.True(ok)
-	require.Equal(itemMin, min, "PopMin value is incorrect")
-	min, ok = eheap.PopMin()
+	require.Equal(itemMin, minItem, "PopMin value is incorrect")
+	minItem, ok = eheap.PopMin()
 	require.True(ok)
-	require.Equal(itemMed, min, "PopMin value is incorrect")
-	min, ok = eheap.PopMin()
+	require.Equal(itemMed, minItem, "PopMin value is incorrect")
+	minItem, ok = eheap.PopMin()
 	require.True(ok)
-	require.Equal(itemMax, min, "PopMin value is incorrect")
+	require.Equal(itemMax, minItem, "PopMin value is incorrect")
 }
 
 func TestHas(t *testing.T) {

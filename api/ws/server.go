@@ -153,7 +153,7 @@ func (w *WebSocketServer) expireTx(txID ids.ID) {
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *WebSocketServer) setMinTx(t int64) error {
+func (w *WebSocketServer) setMinTx(t int64) {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
 		w.expireTx(id)
@@ -161,7 +161,6 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 	if exp := len(expired); exp > 0 {
 		w.logger.Debug("expired listeners", zap.Int("count", exp))
 	}
-	return nil
 }
 
 func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock) error {
@@ -194,7 +193,8 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return w.setMinTx(b.Block.Tmstmp)
+	w.setMinTx(b.Block.Tmstmp)
+	return nil
 }
 
 func (w *WebSocketServer) MessageCallback() pubsub.Callback {

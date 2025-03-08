@@ -144,7 +144,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 			c.metrics.clearedMempool.Inc()
 			break
 		}
-		ctx, executeSpan := c.tracer.Start(ctx, "Chain.BuildBlock.Execute") //nolint:spancheck
+		ctx, executeSpan := c.tracer.Start(ctx, "Chain.BuildBlock.Execute")
 
 		// Perform a batch repeat check
 		// IsRepeat only returns an error if we fail to fetch the full validity window of blocks.
@@ -276,7 +276,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 					// Ignore the error and drop the transaction.
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
-					return nil //nolint:nilerr
+					return nil
 				}
 				result, err := tx.Execute(
 					ctx,
@@ -371,7 +371,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(blockTransactions) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
+			return nil, nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
 		}
 		c.metrics.emptyBlockBuilt.Inc()
 	}

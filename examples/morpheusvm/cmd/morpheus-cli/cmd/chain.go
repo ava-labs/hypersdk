@@ -30,7 +30,7 @@ var setChainCmd = &cobra.Command{
 
 var importAvalancheCliChainCmd = &cobra.Command{
 	Use: "import-cli [path]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(_ *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
@@ -50,7 +50,7 @@ var chainInfoCmd = &cobra.Command{
 
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return handler.Root().WatchChain(hideTxs)
 	},
 }

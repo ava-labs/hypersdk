@@ -40,7 +40,7 @@ var (
 
 type Verifier[T Tx] interface {
 	Verify(chunk Chunk[T]) error
-	SetMin(min int64)
+	SetMin(updatedMin int64)
 	VerifyCertificate(ctx context.Context, chunkCert *ChunkCertificate) error
 }
 
@@ -60,8 +60,8 @@ func NewChunkVerifier[T Tx](chainState ChainState, ruleFactory RuleFactory) *Chu
 	return verifier
 }
 
-func (c *ChunkVerifier[T]) SetMin(min int64) {
-	c.min = min
+func (c *ChunkVerifier[T]) SetMin(updatedMin int64) {
+	c.min = updatedMin
 }
 
 func (c ChunkVerifier[T]) Verify(chunk Chunk[T]) error {

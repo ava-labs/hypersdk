@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-AVALANCHE_VERSION=${AVALANCHE_VERSION:-'13c08681c17d0790a94ed8c8ef8a3c88f8bb196d'}
+AVALANCHE_VERSION=${AVALANCHE_VERSION:-'6e7a7d51954c094e4b748748ad1fb1a36b4e5695'}
 # Optionally specify a separate version of AvalancheGo for building docker images
 # Added to support the case there's no such docker image for the specified commit of AvalancheGo
 AVALANCHE_DOCKER_VERSION=${AVALANCHE_DOCKER_VERSION:-'v1.12.2'}
