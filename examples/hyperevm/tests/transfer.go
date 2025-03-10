@@ -5,7 +5,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -55,10 +54,6 @@ func TransferTest(t require.TestingT, tn tworkload.TestNetwork) {
 		authFactory,
 	)
 	r.NoError(err)
-
-	units, err := tx.Units(&storage.BalanceHandler{}, tn.Configuration().Parser().Rules(time.Now().UnixMilli()))
-	r.NoError(err)
-	fmt.Println("Units:", units)
 
 	timeoutCtx, timeoutCtxFnc := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer timeoutCtxFnc()

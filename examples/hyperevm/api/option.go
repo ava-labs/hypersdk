@@ -39,7 +39,7 @@ func With() vm.Option {
 	return vm.NewOption(Namespace, NewDefaultConfig(), func(v api.VM, config Config) (vm.Opt, error) {
 		// Creating indexer
 		indexerPath := filepath.Join(v.GetDataDir(), Namespace)
-		indexer, err := ethrpc.NewIndexer(indexerPath, v, config.BlockWindow)
+		indexer, err := ethrpc.NewIndexer(indexerPath, v.GetParser(), config.BlockWindow)
 		if err != nil {
 			return nil, err
 		}

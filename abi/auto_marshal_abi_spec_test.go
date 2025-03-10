@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -27,12 +26,17 @@ func TestABIHash(t *testing.T) {
 
 	// get spec from file
 	abiJSON := mustReadFile(t, "testdata/abi.json")
-	var abiFromFile ABI
-	err := json.Unmarshal(abiJSON, &abiFromFile)
+	abiFromFile := new(ABI)
+	err := json.Unmarshal(abiJSON, abiFromFile)
 	require.NoError(err)
 
 	// check hash and compare it to expected
-	abiBytes := chain.MustMarshal(&abiFromFile)
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0),
+		MaxSize: consts.NetworkSizeLimit,
+	}
+	require.NoError(codec.LinearCodec.MarshalInto(abiFromFile, p))
+	abiBytes := p.Bytes
 
 	abiHash := sha256.Sum256(abiBytes)
 	expectedHashHex := strings.TrimSpace(string(mustReadFile(t, "testdata/abi.hash.hex")))

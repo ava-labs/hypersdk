@@ -65,10 +65,14 @@ func TestGetTransfer(t *testing.T) {
 	output, err := evmCall.Execute(context.Background(), blockCtx, rules, tsv, from.Address, ids.Empty)
 	r.NoError(err)
 
-	result, ok := output.(*actions.EvmCallResult)
+	result, err := actions.UnmarshalEvmCallResult(output)
+	r.NoError(err)
+
+	castResult, ok := result.(*actions.EvmCallResult)
 	r.True(ok)
-	r.True(result.Success)
-	r.Equal(actions.NilError, result.ErrorCode)
-	r.Equal(evmCall.GasLimit, result.UsedGas)
-	r.Equal(common.Address{}, result.ContractAddress)
+	r.True(ok)
+	r.True(castResult.Success)
+	r.Equal(actions.NilError, castResult.ErrorCode)
+	r.Equal(evmCall.GasLimit, castResult.UsedGas)
+	r.Equal(common.Address{}, castResult.ContractAddress)
 }

@@ -52,8 +52,9 @@ func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *g
 	genesis.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	genesis.Rules.MinBlockGap = minBlockGap.Milliseconds()
 
-	genesis.Rules.NetworkID = uint32(1)
-	genesis.Rules.ChainID = ids.GenerateTestID()
+	// The NetworkID and ChainID must be populated when the VM is instantiated.
+	genesis.Rules.NetworkID = uint32(0)
+	genesis.Rules.ChainID = ids.Empty
 
 	return genesis
 }
@@ -72,15 +73,16 @@ func newDefaultAuthFactories() []chain.AuthFactory {
 
 func NewTestNetworkConfig(minBlockGap time.Duration) (workload.DefaultTestNetworkConfiguration, error) {
 	keys := newDefaultAuthFactories()
-	genesis := newGenesis(keys, minBlockGap)
-	genesisBytes, err := json.Marshal(genesis)
+	networkGenesis := newGenesis(keys, minBlockGap)
+	genesisBytes, err := json.Marshal(networkGenesis)
 	if err != nil {
 		return workload.DefaultTestNetworkConfiguration{}, err
 	}
 	return workload.NewDefaultTestNetworkConfiguration(
-		genesisBytes,
 		consts.Name,
-		vm.NewParser(genesis),
+		genesis.DefaultGenesisFactory{},
+		genesisBytes,
+		vm.Parser,
 		keys,
 	), nil
 }

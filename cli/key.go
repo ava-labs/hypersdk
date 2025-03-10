@@ -60,11 +60,11 @@ func (h *Handler) Balance(checkAllChains bool) error {
 		return err
 	}
 
-	max := len(uris)
+	maxURIs := len(uris)
 	if !checkAllChains {
-		max = 1
+		maxURIs = 1
 	}
-	for _, uri := range uris[:max] {
+	for _, uri := range uris[:maxURIs] {
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
 		balance, err := h.c.LookupBalance(addr, uris[0])
 		if err != nil {

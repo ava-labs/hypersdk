@@ -58,10 +58,10 @@ func TestTypeParser(t *testing.T) {
 		errBlah1 := errors.New("blah1")
 		errBlah2 := errors.New("blah2")
 		require.NoError(
-			tp.Register(blah1, func(*Packer) (Blah, error) { return nil, errBlah1 }),
+			tp.Register(blah1, func([]byte) (Blah, error) { return nil, errBlah1 }),
 		)
 		require.NoError(
-			tp.Register(blah2, func(*Packer) (Blah, error) { return nil, errBlah2 }),
+			tp.Register(blah2, func([]byte) (Blah, error) { return nil, errBlah2 }),
 		)
 
 		f, ok := tp.lookupIndex(blah1.GetTypeID())

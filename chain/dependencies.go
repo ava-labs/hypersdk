@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,10 +17,8 @@ import (
 )
 
 type Parser interface {
-	Rules(int64) Rules
-	ActionCodec() *codec.TypeParser[Action]
-	OutputCodec() *codec.TypeParser[codec.Typed]
-	AuthCodec() *codec.TypeParser[Auth]
+	ParseAction([]byte) (Action, error)
+	ParseAuth([]byte) (Auth, error)
 }
 
 type Mempool interface {
@@ -31,6 +30,10 @@ type Mempool interface {
 	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
 	FinishStreaming(context.Context, []*Transaction) int
+}
+
+type Genesis interface {
+	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler BalanceHandler) error
 }
 
 // TODO: add fixed rules as a subset of this interface
@@ -108,27 +111,22 @@ type BalanceHandler interface {
 	GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error)
 }
 
-type Object interface {
-	// GetTypeID uniquely identifies each supported [Action]. We use IDs to avoid
-	// reflection.
+type Action interface {
 	GetTypeID() uint8
-
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
 	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
-}
 
-type Marshaler interface {
-	// Marshal encodes a type as bytes.
-	Marshal(p *codec.Packer)
-	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
-	// memory during encoding and to charge bandwidth fees.
-	Size() int
-}
-
-type Action interface {
-	Object
+	// Bytes returns the byte representation of this action.
+	// The chain parser must be able to parse this representation and return the corresponding action.
+	// This function is not performance critical because actions/auth are always deserialized into
+	// a transaction.
+	// Transaction cache their byte representations during unmarshal, so Bytes is only called on the
+	// write path ie. constructing/issuing transactions.
+	//
+	// The write path is not performance critical because this only impacts transaction issuers and testing.
+	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
@@ -164,12 +162,26 @@ type Action interface {
 		mu state.Mutable,
 		actor codec.Address,
 		actionID ids.ID,
-	) (codec.Typed, error)
+	) ([]byte, error)
 }
 
 type Auth interface {
-	Object
-	Marshaler
+	// GetTypeID returns the typeID of this auth instance.
+	GetTypeID() uint8
+	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
+	//
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
+
+	// Bytes returns the byte representation of this auth credential.
+	// The chain parser must be able to parse this representation and return the corresponding Auth.
+	// This function is not performance critical because actions/auth are always deserialized into
+	// a transaction.
+	// Transaction cache their byte representations during unmarshal, so Bytes is only called on the
+	// write path ie. constructing/issuing transactions.
+	//
+	// The write path is not performance critical because this only impacts transaction issuers and testing.
+	Bytes() []byte
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute

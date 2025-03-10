@@ -15,7 +15,7 @@ import (
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
-	GetParser(string) (chain.Parser, error)
+	GetParser() chain.Parser
 	HandleTx(*chain.Transaction, *chain.Result)
 	LookupBalance(address codec.Address, uri string) (uint64, error)
 }

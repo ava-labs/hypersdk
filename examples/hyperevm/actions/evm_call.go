@@ -9,6 +9,7 @@ import (
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/subnet-evm/core"
 	"github.com/ava-labs/subnet-evm/core/vm"
 	"github.com/ava-labs/subnet-evm/vmerrs"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/hyperevm/consts"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/shim"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/fees"
@@ -39,6 +41,16 @@ type EvmCall struct {
 
 func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 	return 1
+}
+
+func (e *EvmCall) Bytes() []byte {
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0),
+		MaxSize: 1024,
+	}
+	p.PackByte(econsts.EvmCallID)
+	_ = codec.LinearCodec.MarshalInto(e, p)
+	return p.Bytes
 }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
@@ -76,7 +88,7 @@ func (e *EvmCall) Execute(
 	mu state.Mutable,
 	actor codec.Address,
 	_ ids.ID,
-) (codec.Typed, error) {
+) ([]byte, error) {
 	blockGasLimit := r.GetMaxBlockUnits()[fees.Compute]
 	ethBlockCtx := vm.BlockContext{
 		CanTransfer: core.CanTransfer,
@@ -140,17 +152,28 @@ func (e *EvmCall) Execute(
 		ErrorCode:       resultErrCode,
 		ContractAddress: contractAddress,
 	}
-	return res, nil
+	return res.Bytes(), nil
 }
 
-var _ codec.Typed = (*EvmCallResult)(nil)
+func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
+	return -1, -1
+}
 
-type EvmCallResult struct {
-	Success         bool           `serialize:"true" json:"success"`
-	Return          []byte         `serialize:"true" json:"return"`
-	UsedGas         uint64         `serialize:"true" json:"usedGas"`
-	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
-	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
+func UnmarshalEvmCall(bytes []byte) (chain.Action, error) {
+	t := &EvmCall{}
+	if len(bytes) == 0 {
+		return nil, ErrUnmarshalEmptyEvmCall
+	}
+	if bytes[0] != consts.EvmCallID {
+		return nil, fmt.Errorf("unexpected transfer typeID: %d != %d", bytes[0], consts.EvmCallID)
+	}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		&wrappers.Packer{Bytes: bytes[1:]},
+		t,
+	); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // The result.Err field returned by core.ApplyMessage contains an error type, but
@@ -197,10 +220,38 @@ func (e *ErrorCode) UnmarshalText(text []byte) error {
 	return nil
 }
 
+var _ codec.Typed = (*EvmCallResult)(nil)
+
+type EvmCallResult struct {
+	Success         bool           `serialize:"true" json:"success"`
+	Return          []byte         `serialize:"true" json:"return"`
+	UsedGas         uint64         `serialize:"true" json:"usedGas"`
+	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
+	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
+}
+
 func (*EvmCallResult) GetTypeID() uint8 {
 	return econsts.EvmCallID
 }
 
-func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
-	return -1, -1
+func (e *EvmCallResult) Bytes() []byte {
+	// TODO: fine-tune these values
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0),
+		MaxSize: 1024,
+	}
+	p.PackByte(econsts.EvmCallID)
+	_ = codec.LinearCodec.MarshalInto(e, p)
+	return p.Bytes
+}
+
+func UnmarshalEvmCallResult(b []byte) (codec.Typed, error) {
+	t := &EvmCallResult{}
+	if err := codec.LinearCodec.UnmarshalFrom(
+		&wrappers.Packer{Bytes: b[1:]}, // XXX: first byte is guaranteed to be the typeID by the type parser
+		t,
+	); err != nil {
+		return nil, err
+	}
+	return t, nil
 }

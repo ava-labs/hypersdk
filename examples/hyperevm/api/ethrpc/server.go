@@ -515,7 +515,7 @@ func (e *EthRPCServer) SendTransaction(req *http.Request, rpcTx *RPCTransaction,
 	}
 	action.Keys = stateKeys
 
-	base := &chain.Base{
+	base := chain.Base{
 		ChainID:   e.vm.ChainID(),
 		Timestamp: time.Now().Unix()*1000 + 60*1000,
 		MaxFee:    1_000_000,
@@ -569,7 +569,7 @@ func (e *EthRPCServer) SendRawTransaction(req *http.Request, args *hexutil.Bytes
 		Keys: stateKeys,
 	}
 
-	base := &chain.Base{
+	base := chain.Base{
 		ChainID:   e.vm.ChainID(),
 		Timestamp: time.Now().Unix()*1000 + 60*1000,
 		MaxFee:    1_000_000,
@@ -621,13 +621,11 @@ func (e *EthRPCServer) GetTransactionReceipt(req *http.Request, args *common.Has
 		return fmt.Errorf("expected 1 output, got %d", len(outputs))
 	}
 
-	p := codec.NewReader(outputs[0], 100_000)
-	result, err := e.vm.OutputCodec().Unmarshal(p)
+	result, err := actions.UnmarshalEvmCallResult(outputs[0])
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal call result: %w", err)
 	}
-
-	callResult, ok := result.(*actions.EvmCallResult)
+	castResult, ok := result.(*actions.EvmCallResult)
 	if !ok {
 		return fmt.Errorf("unexpected result type: %T", result)
 	}
@@ -652,19 +650,19 @@ func (e *EthRPCServer) GetTransactionReceipt(req *http.Request, args *common.Has
 	// Note to self: we probably need to look into the TX receipt/receipt hash
 	txInfo["type"] = "0x00"
 	txInfo["blockNumber"] = hexutil.Uint64(blk.Block.GetHeight())
-	txInfo["contractAddress"] = callResult.ContractAddress
+	txInfo["contractAddress"] = castResult.ContractAddress
 	blkID := blk.Block.GetID()
 	txInfo["blockHash"] = common.BytesToHash(blkID[:])
 	txInfo["gasUsed"] = "0x5208"
 	txInfo["effectiveGasPrice"] = "0x1"
-	txInfo["cumulativeGasUsed"] = hexutil.Uint64(callResult.UsedGas)
+	txInfo["cumulativeGasUsed"] = hexutil.Uint64(castResult.UsedGas)
 	txInfo["from"] = "0x784ce85b107389004d6a0e0d6d7518eeae1292d9"
 	txInfo["transactionHash"] = *args
 	txInfo["transactionIndex"] = "0x0"
 	txInfo["units"] = units
 	txInfo["logs"] = []*types.Log{}
 	txInfo["logsBloom"] = "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-	txInfo["result"] = callResult
+	txInfo["result"] = castResult
 	*reply = txInfo
 
 	return nil
@@ -744,28 +742,18 @@ func (e *EthRPCServer) simulateAction(ctx context.Context, action chain.Action) 
 	)
 
 	currentTime := time.Now().UnixMilli()
+	ruleFactory := e.vm.GetRuleFactory()
+	rules := ruleFactory.GetRules(currentTime)
 	blockCtx := chain.NewBlockContext(0, currentTime)
 	actionOutput, err := action.Execute(
 		ctx,
 		blockCtx,
-		e.vm.Rules(currentTime),
+		rules,
 		tsv,
 		codec.EmptyAddress,
 		ids.Empty,
 	)
 	e.vm.Logger().Info("executed action", zap.Any("output", actionOutput), zap.Error(err))
-	var output codec.Bytes
-	if actionOutput == nil {
-		output = []byte{}
-	} else {
-		output, err = chain.MarshalTyped(actionOutput)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal action output: %w", err)
-		}
-	}
-	if err != nil {
-		return nil, nil, err
-	}
 
-	return output, scope.StateKeys(), nil
+	return actionOutput, scope.StateKeys(), nil
 }

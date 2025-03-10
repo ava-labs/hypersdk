@@ -17,8 +17,6 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-AVALANCHE_VERSION="6dea1b366756"
-
 # build avalanchego
 # https://github.com/ava-labs/avalanchego/releases
 HYPERSDK_DIR=$HOME/.hypersdk

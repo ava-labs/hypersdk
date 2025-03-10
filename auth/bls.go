@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -17,7 +18,7 @@ var _ chain.Auth = (*BLS)(nil)
 
 const (
 	BLSComputeUnits = 10
-	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
+	BLSSize         = 1 + bls.PublicKeyLen + bls.SignatureLen
 )
 
 type BLS struct {
@@ -61,22 +62,30 @@ func (b *BLS) Sponsor() codec.Address {
 	return b.address()
 }
 
-func (*BLS) Size() int {
-	return BLSSize
+func (b *BLS) Bytes() []byte {
+	bytes := make([]byte, BLSSize)
+	bytes[0] = BLSID
+	publicKeyBytes := bls.PublicKeyToBytes(b.Signer)
+	copy(bytes[1:], publicKeyBytes)
+	signatureBytes := bls.SignatureToBytes(b.Signature)
+	copy(bytes[1+bls.PublicKeyLen:], signatureBytes)
+	return bytes
 }
 
-func (b *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.PublicKeyToBytes(b.Signer))
-	p.PackFixedBytes(bls.SignatureToBytes(b.Signature))
-}
+func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
+	if len(bytes) != BLSSize {
+		return nil, fmt.Errorf("invalid BLS auth size %d != %d", len(bytes), BLSSize)
+	}
 
-func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
+	if bytes[0] != BLSID {
+		return nil, fmt.Errorf("unexpected BLS typeID: %d != %d", bytes[0], BLSID)
+	}
+
 	var b BLS
-
 	signer := make([]byte, bls.PublicKeyLen)
-	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
+	copy(signer, bytes[1:])
 	signature := make([]byte, bls.SignatureLen)
-	p.UnpackFixedBytes(bls.SignatureLen, &signature)
+	copy(signature, bytes[1+bls.PublicKeyLen:])
 
 	pk, err := bls.PublicKeyFromBytes(signer)
 	if err != nil {
@@ -88,9 +97,9 @@ func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	b.Signature = sig
-	return &b, p.Err()
+
+	return &b, nil
 }
 
 var _ chain.AuthFactory = (*BLSFactory)(nil)
@@ -104,7 +113,11 @@ func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 }
 
 func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
-	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
+	signature, err := bls.Sign(msg, b.priv)
+	if err != nil {
+		return nil, err
+	}
+	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: signature}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64) {

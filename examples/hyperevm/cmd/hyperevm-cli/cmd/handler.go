@@ -121,9 +121,8 @@ func (*Controller) Symbol() string {
 	return consts.Symbol
 }
 
-func (*Controller) GetParser(uri string) (chain.Parser, error) {
-	cli := vm.NewJSONRPCClient(uri)
-	return cli.Parser(context.TODO())
+func (*Controller) GetParser() chain.Parser {
+	return vm.Parser
 }
 
 func (*Controller) HandleTx(tx *chain.Transaction, result *chain.Result) {

@@ -5,7 +5,6 @@ package vm
 
 import (
 	"errors"
-	"fmt"
 	"maps"
 	"net/http"
 	"time"
@@ -102,20 +101,15 @@ func (j *JSONRPCServer) SimulateActions(
 	args *SimulatActionsArgs,
 	reply *SimulateActionsReply,
 ) error {
-	j.vm.Logger().Info("SimulateActions")
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
-	actionRegistry := j.vm.ActionCodec()
-	var actions chain.Actions
+	txParser := j.vm.GetParser()
+	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, actionBytes := range args.Actions {
-		actionsReader := codec.NewReader(actionBytes, len(actionBytes))
-		action, err := (*actionRegistry).Unmarshal(actionsReader)
+		action, err := txParser.ParseAction(actionBytes)
 		if err != nil {
 			return err
-		}
-		if !actionsReader.Empty() {
-			return errTransactionExtraBytes
 		}
 		actions = append(actions, action)
 	}
@@ -136,25 +130,21 @@ func (j *JSONRPCServer) SimulateActions(
 	)
 
 	currentTime := time.Now().UnixMilli()
+	ruleFactory := j.vm.GetRuleFactory()
+	rules := ruleFactory.GetRules(currentTime)
 	blockCtx := chain.NewBlockContext(0, currentTime)
 	for _, action := range actions {
 		actionOutput, err := action.Execute(
 			ctx,
 			blockCtx,
-			j.vm.Rules(currentTime),
+			rules,
 			tsv,
 			args.Actor,
 			ids.Empty,
 		)
 
-		var actionResult SimulateActionResult
-		if actionOutput == nil {
-			actionResult.Output = []byte{}
-		} else {
-			actionResult.Output, err = chain.MarshalTyped(actionOutput)
-			if err != nil {
-				return fmt.Errorf("failed to marshal output: %w", err)
-			}
+		actionResult := SimulateActionResult{
+			Output: actionOutput,
 		}
 		if err != nil {
 			return err

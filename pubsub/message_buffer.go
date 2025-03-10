@@ -10,9 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
-
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 type MessageBuffer struct {
@@ -49,11 +46,8 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 		if l == 0 {
 			return
 		}
-		if err := m.clearPending(); err != nil {
-			log.Debug("unable to clear pending messages", zap.Error(err))
-		} else {
-			log.Debug("sent messages", zap.Int("count", l))
-		}
+		m.clearPending()
+		log.Debug("sent messages", zap.Int("count", l))
 	})
 	go m.pendingTimer.Dispatch()
 	return m
@@ -71,10 +65,7 @@ func (m *MessageBuffer) Close() error {
 	//
 	// It is up to the caller to ensure all of these items actually are written
 	// to the connection before it is closed.
-	if err := m.clearPending(); err != nil {
-		m.log.Debug("unable to clear pending messages", zap.Error(err))
-		return err
-	}
+	m.clearPending()
 
 	m.pendingTimer.Stop()
 	m.closed = true
@@ -82,11 +73,8 @@ func (m *MessageBuffer) Close() error {
 	return nil
 }
 
-func (m *MessageBuffer) clearPending() error {
-	bm, err := CreateBatchMessage(m.maxSize, m.pending)
-	if err != nil {
-		return err
-	}
+func (m *MessageBuffer) clearPending() {
+	bm := CreateBatchMessage(m.pending)
 	select {
 	case m.Queue <- bm:
 	default:
@@ -95,7 +83,6 @@ func (m *MessageBuffer) clearPending() error {
 
 	m.pendingSize = 0
 	m.pending = [][]byte{}
-	return nil
 }
 
 func (m *MessageBuffer) Send(msg []byte) error {
@@ -114,9 +101,7 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	// Clear existing buffer if too large
 	if m.pendingSize+l > m.maxSize {
 		m.pendingTimer.Cancel()
-		if err := m.clearPending(); err != nil {
-			return err
-		}
+		m.clearPending()
 	}
 
 	m.pendingSize += l
@@ -125,32 +110,4 @@ func (m *MessageBuffer) Send(msg []byte) error {
 		m.pendingTimer.SetTimeoutIn(m.timeout)
 	}
 	return nil
-}
-
-func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
-	size := consts.IntLen
-	for _, msg := range msgs {
-		size += codec.BytesLen(msg)
-	}
-	msgBatch := codec.NewWriter(size, maxSize)
-	msgBatch.PackInt(uint32(len(msgs)))
-	for _, msg := range msgs {
-		msgBatch.PackBytes(msg)
-	}
-	return msgBatch.Bytes(), msgBatch.Err()
-}
-
-func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
-	msgBatch := codec.NewReader(msg, maxSize)
-	msgLen := msgBatch.UnpackInt(true)
-	msgs := [][]byte{}
-	for i := uint32(0); i < msgLen; i++ {
-		var nextMsg []byte
-		msgBatch.UnpackBytes(-1, true, &nextMsg)
-		if err := msgBatch.Err(); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, nextMsg)
-	}
-	return msgs, msgBatch.Err()
 }

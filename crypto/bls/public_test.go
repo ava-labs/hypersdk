@@ -75,8 +75,10 @@ func TestAggregatePublicKeys(t *testing.T) {
 	require.NoError(err)
 
 	// Aggregates 2 signatures
-	sig1 := Sign(msg, sk1)
-	sig2 := Sign(msg, sk2)
+	sig1, err := Sign(msg, sk1)
+	require.NoError(err)
+	sig2, err := Sign(msg, sk2)
+	require.NoError(err)
 	aggSigs, err := AggregateSignatures([]*Signature{sig1, sig2})
 	require.NoError(err)
 

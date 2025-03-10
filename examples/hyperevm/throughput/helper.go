@@ -34,6 +34,8 @@ type SpamHelper struct {
 	sent atomic.Int64
 }
 
+var _ throughput.SpamHelper = (*SpamHelper)(nil)
+
 func (sh *SpamHelper) CreateAccount() (*auth.PrivateKey, error) {
 	pk, err := vm.AuthProvider.GeneratePrivateKey(sh.KeyType)
 	if err != nil {
@@ -55,8 +57,12 @@ func (sh *SpamHelper) GetActions(factory chain.AuthFactory) []chain.Action {
 	return sh.GetTransfer(sh.pks[pkIndex].Address, 1, sh.uniqueBytes(), factory)
 }
 
-func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
-	return sh.cli.Parser(ctx)
+func (sh *SpamHelper) GetParser() chain.Parser {
+	return sh.cli.GetParser()
+}
+
+func (sh *SpamHelper) GetRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
+	return sh.cli.GetRuleFactory(ctx)
 }
 
 func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, fromFactory chain.AuthFactory) []chain.Action {

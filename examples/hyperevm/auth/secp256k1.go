@@ -22,7 +22,7 @@ var _ chain.Auth = (*SECP256K1)(nil)
 const (
 	SECP256K1ID           uint8 = 3
 	SECP256K1ComputeUnits       = 10
-	SECP256K1Size               = secp256k1.PublicKeyLen + secp256k1.SignatureLen
+	SECP256K1Size               = 1 + secp256k1.PublicKeyLen + secp256k1.SignatureLen
 )
 
 type SECP256K1 struct {
@@ -75,13 +75,27 @@ func (d *SECP256K1) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(d.Signature[:])
 }
 
-func UnmarshalSECP256K1(p *codec.Packer) (chain.Auth, error) {
+func (d *SECP256K1) Bytes() []byte {
+	b := make([]byte, SECP256K1Size)
+	b[0] = d.GetTypeID()
+	copy(b[1:], d.Signer[:])
+	copy(b[1+secp256k1.PublicKeyLen:], d.Signature[:])
+	return b
+}
+
+func UnmarshalSECP256K1(bytes []byte) (chain.Auth, error) {
+	if len(bytes) != SECP256K1Size {
+		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(bytes), SECP256K1Size)
+	}
+
+	if bytes[0] != SECP256K1ID {
+		return nil, fmt.Errorf("unexpected ed25519 typeID: %d != %d", bytes[0], SECP256K1ID)
+	}
+
 	var d SECP256K1
-	signer := d.Signer[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(secp256k1.PublicKeyLen, &signer)
-	signature := d.Signature[:] // avoid allocating additional memory
-	p.UnpackFixedBytes(secp256k1.SignatureLen, &signature)
-	return &d, p.Err()
+	copy(d.Signer[:], bytes[1:])
+	copy(d.Signature[:], bytes[1+secp256k1.PublicKeyLen:])
+	return &d, nil
 }
 
 var _ chain.AuthFactory = (*SECP256K1Factory)(nil)

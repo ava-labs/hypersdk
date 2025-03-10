@@ -9,54 +9,68 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 type pacer struct {
 	ws *ws.WebSocketClient
 
 	inflight chan struct{}
-	done     chan error
+	done     chan struct{}
+
+	err error
 }
 
-func (p *pacer) Run(ctx context.Context, max int) {
-	p.inflight = make(chan struct{}, max)
-	p.done = make(chan error, 1)
+func newPacer(ws *ws.WebSocketClient, maxPending int) *pacer {
+	return &pacer{
+		ws:       ws,
+		inflight: make(chan struct{}, maxPending),
+		done:     make(chan struct{}),
+	}
+}
 
-	// Start a goroutine to process transaction results
+func (p *pacer) Run(ctx context.Context) {
+	defer close(p.done)
+
 	for range p.inflight {
-		_, wsErr, result, err := p.ws.ListenTx(ctx)
+		txID, result, err := p.ws.ListenTx(ctx)
 		if err != nil {
-			p.done <- fmt.Errorf("error listening to tx: %w", err)
+			p.err = fmt.Errorf("error listening to tx %s: %w", txID, err)
 			return
 		}
-		if wsErr != nil {
-			p.done <- fmt.Errorf("websocket error: %w", wsErr)
+		if result == nil {
+			p.err = fmt.Errorf("tx %s expired", txID)
 			return
 		}
 		if !result.Success {
 			// Should never happen
-			p.done <- fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
+			p.err = fmt.Errorf("tx failure %w: %s", ErrTxFailed, result.Error)
 			return
 		}
 	}
-	p.done <- nil
 }
 
 func (p *pacer) Add(tx *chain.Transaction) error {
-	if err := p.ws.RegisterTx(tx); err != nil {
-		return err
+	// If Run failed, return the first error immediately, otherwise register the next tx
+	select {
+	case <-p.done:
+		return p.err
+	default:
+		if err := p.ws.RegisterTx(tx); err != nil {
+			return err
+		}
 	}
+
 	select {
 	case p.inflight <- struct{}{}:
 		return nil
-	case err := <-p.done:
-		utils.Outf("{{red}} Error adding tx: %s\n", err)
-		return err
+	case <-p.done:
+		return p.err
 	}
 }
 
 func (p *pacer) Wait() error {
 	close(p.inflight)
-	return <-p.done
+	// Wait for Run to complete
+	<-p.done
+	return p.err
 }

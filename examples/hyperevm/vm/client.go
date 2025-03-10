@@ -20,7 +20,11 @@ const balanceCheckInterval = 500 * time.Millisecond
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
-	g         *genesis.DefaultGenesis
+
+	// genesis and the rule factory rely on data fetched via the client
+	// and are cached on the client
+	g           *genesis.DefaultGenesis
+	ruleFactory chain.RuleFactory
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -28,7 +32,9 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, nil}
+	return &JSONRPCClient{
+		requester: req,
+	}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.DefaultGenesis, error) {
@@ -85,17 +91,13 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) ([]SimulateActionResult, error) {
 	args := &SimulatActionsArgs{
 		Actor: actor,
 	}
 
 	for _, action := range actions {
-		marshaledAction, err := chain.MarshalTyped(action)
-		if err != nil {
-			return nil, err
-		}
-		args.Actions = append(args.Actions, marshaledAction)
+		args.Actions = append(args.Actions, action.Bytes())
 	}
 
 	resp := new(SimulateActionsReply)
@@ -112,10 +114,18 @@ func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Act
 	return resp.ActionResults, nil
 }
 
-func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
-	g, err := cli.Genesis(ctx)
+func (*JSONRPCClient) GetParser() chain.Parser {
+	return chain.NewTxTypeParser(ActionParser, AuthParser)
+}
+
+func (cli *JSONRPCClient) GetRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
+	if cli.ruleFactory != nil {
+		return cli.ruleFactory, nil
+	}
+	networkGenesis, err := cli.Genesis(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return NewParser(g), nil
+	cli.ruleFactory = &genesis.ImmutableRuleFactory{Rules: networkGenesis.Rules}
+	return cli.ruleFactory, nil
 }

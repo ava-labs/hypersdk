@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const unitPricesCacheRefresh = 10 * time.Second
@@ -115,73 +114,6 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 	return resp.TxID, err
 }
 
-type Modifier interface {
-	Base(*chain.Base)
-}
-
-func (cli *JSONRPCClient) GenerateTransaction(
-	ctx context.Context,
-	parser chain.Parser,
-	actions []chain.Action,
-	authFactory chain.AuthFactory,
-	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, uint64, error) {
-	// Get latest fee info
-	unitPrices, err := cli.UnitPrices(ctx, true)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	maxFee, err := fees.MulSum(unitPrices, units)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, modifiers...)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	return f, tx, maxFee, nil
-}
-
-func (cli *JSONRPCClient) GenerateTransactionManual(
-	parser chain.Parser,
-	actions []chain.Action,
-	authFactory chain.AuthFactory,
-	maxFee uint64,
-	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, error) {
-	// Construct transaction
-	now := time.Now().UnixMilli()
-	rules := parser.Rules(now)
-	base := &chain.Base{
-		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.GetChainID(),
-		MaxFee:    maxFee,
-	}
-
-	// Modify gathered data
-	for _, m := range modifiers {
-		m.Base(base)
-	}
-
-	// Build transaction
-	unsignedTx := chain.NewTxData(base, actions)
-	tx, err := unsignedTx.Sign(authFactory)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
-	}
-
-	// Return max fee and transaction for issuance
-	return func(ictx context.Context) error {
-		_, err := cli.SubmitTx(ictx, tx.Bytes())
-		return err
-	}, tx, nil
-}
-
 func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
@@ -230,17 +162,13 @@ func Wait(ctx context.Context, interval time.Duration, check func(ctx context.Co
 	return ctx.Err()
 }
 
-func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions chain.Actions, actor codec.Address) ([]SimulateActionResult, error) {
+func (cli *JSONRPCClient) SimulateActions(ctx context.Context, actions []chain.Action, actor codec.Address) ([]SimulateActionResult, error) {
 	args := &SimulatActionsArgs{
 		Actor: actor,
 	}
 
 	for _, action := range actions {
-		marshaledAction, err := chain.MarshalTyped(action)
-		if err != nil {
-			return nil, err
-		}
-		args.Actions = append(args.Actions, marshaledAction)
+		args.Actions = append(args.Actions, action.Bytes())
 	}
 
 	resp := new(SimulateActionsReply)

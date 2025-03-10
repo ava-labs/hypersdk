@@ -117,3 +117,9 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 	}
 	return bytes, nil
 }
+
+func CopyBytes(bytes []byte) []byte {
+	copiedBytes := make([]byte, len(bytes))
+	copy(copiedBytes, bytes)
+	return copiedBytes
+}
