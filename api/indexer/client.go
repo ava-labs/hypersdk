@@ -32,7 +32,7 @@ type Client struct {
 // Use a separate type that only decodes the block bytes because we cannot decode block JSON
 // due to Actions/Auth interfaces included in the block's transactions.
 type GetBlockClientResponse struct {
-	BlockBytes codec.Bytes `json:"blockBytes"`
+	BlockBytes codec.Bytes `json:"block"`
 }
 
 func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser) (*chain.ExecutedBlock, error) {
@@ -40,7 +40,7 @@ func (c *Client) GetBlock(ctx context.Context, blkID ids.ID, parser chain.Parser
 	err := c.requester.SendRequest(
 		ctx,
 		"getBlock",
-		&GetBlockRequest{BlockID: blkID},
+		&GetBlockRequest{BlockID: blkID, Encoding: Hex},
 		&resp,
 	)
 	if err != nil {
@@ -54,7 +54,7 @@ func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser cha
 	err := c.requester.SendRequest(
 		ctx,
 		"getBlockByHeight",
-		&GetBlockByHeightRequest{Height: height},
+		&GetBlockByHeightRequest{Height: height, Encoding: Hex},
 		&resp,
 	)
 	if err != nil {
@@ -68,7 +68,7 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	err := c.requester.SendRequest(
 		ctx,
 		"getLatestBlock",
-		nil,
+		&GetLatestBlockRequest{Encoding: Hex},
 		&resp,
 	)
 	if err != nil {
