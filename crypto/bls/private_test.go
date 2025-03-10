@@ -34,12 +34,14 @@ func TestPrivateKeyBytes(t *testing.T) {
 
 	sk, err := GeneratePrivateKey()
 	require.NoError(err)
-	sig := Sign(msg, sk)
+	sig, err := Sign(msg, sk)
+	require.NoError(err)
 	skBytes := PrivateKeyToBytes(sk)
 
 	sk2, err := PrivateKeyFromBytes(skBytes)
 	require.NoError(err)
-	sig2 := Sign(msg, sk2)
+	sig2, err := Sign(msg, sk2)
+	require.NoError(err)
 	sk2Bytes := PrivateKeyToBytes(sk2)
 
 	require.Equal(sk, sk2)
