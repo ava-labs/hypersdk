@@ -61,14 +61,14 @@ func Address(label string) (codec.Address, error) {
 	return codec.StringToAddress(recipient)
 }
 
-func String(label string, min int, max int) (string, error) {
+func String(label string, minLen int, maxLen int) (string, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) < min {
+			if len(input) < minLen {
 				return ErrInputEmpty
 			}
-			if len(input) > max {
+			if len(input) > maxLen {
 				return ErrInputTooLarge
 			}
 			return nil
@@ -151,9 +151,9 @@ func Amount(
 
 func Int(
 	label string,
-	max int,
+	maxValue int,
 ) (int, error) {
-	stringToInt := func(input string, max int) (int, error) {
+	stringToInt := func(input string, maxValue int) (int, error) {
 		input = strings.TrimSpace(input)
 
 		if len(input) == 0 {
@@ -166,8 +166,8 @@ func Int(
 		if amount <= 0 {
 			return 0, fmt.Errorf("%d must be > 0", amount)
 		}
-		if amount > max {
-			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		if amount > maxValue {
+			return 0, fmt.Errorf("%d must be <= %d", amount, maxValue)
 		}
 		return amount, nil
 	}
@@ -175,7 +175,7 @@ func Int(
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			_, err := stringToInt(input, max)
+			_, err := stringToInt(input, maxValue)
 			return err
 		},
 	}
@@ -183,14 +183,14 @@ func Int(
 	if err != nil {
 		return 0, err
 	}
-	return stringToInt(rawAmount, max)
+	return stringToInt(rawAmount, maxValue)
 }
 
 func Uint(
 	label string,
-	max uint,
+	maxValue uint,
 ) (uint, error) {
-	stringToUint := func(input string, max uint) (uint, error) {
+	stringToUint := func(input string, maxValue uint) (uint, error) {
 		input = strings.TrimSpace(input)
 
 		if len(input) == 0 {
@@ -203,8 +203,8 @@ func Uint(
 		if amount > math.MaxUint {
 			return 0, fmt.Errorf("%d exceeds the maximum value for uint", amount)
 		}
-		if uint(amount) > max {
-			return 0, fmt.Errorf("%d must be <= %d", amount, max)
+		if uint(amount) > maxValue {
+			return 0, fmt.Errorf("%d must be <= %d", amount, maxValue)
 		}
 		return uint(amount), nil
 	}
@@ -212,7 +212,7 @@ func Uint(
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			_, err := stringToUint(input, max)
+			_, err := stringToUint(input, maxValue)
 			return err
 		},
 	}
@@ -220,12 +220,12 @@ func Uint(
 	if err != nil {
 		return 0, err
 	}
-	return stringToUint(rawAmount, max)
+	return stringToUint(rawAmount, maxValue)
 }
 
 func Float(
 	label string,
-	max float64,
+	maxValue float64,
 ) (float64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
@@ -240,8 +240,8 @@ func Float(
 			if amount <= 0 {
 				return fmt.Errorf("%f must be > 0", amount)
 			}
-			if amount > max {
-				return fmt.Errorf("%f must be <= %f", amount, max)
+			if amount > maxValue {
+				return fmt.Errorf("%f must be <= %f", amount, maxValue)
 			}
 			return nil
 		},
@@ -254,8 +254,8 @@ func Float(
 	return strconv.ParseFloat(rawAmount, 64)
 }
 
-func Choice(label string, max int) (int, error) {
-	if max == 1 {
+func Choice(label string, maxChoice int) (int, error) {
+	if maxChoice == 1 {
 		utils.Outf("{{yellow}}%s:{{/}} 0 [auto-selected]\n", label)
 		return 0, nil
 	}
@@ -269,7 +269,7 @@ func Choice(label string, max int) (int, error) {
 			if err != nil {
 				return err
 			}
-			if index >= max || index < 0 {
+			if index >= maxChoice || index < 0 {
 				return ErrIndexOutOfRange
 			}
 			return nil

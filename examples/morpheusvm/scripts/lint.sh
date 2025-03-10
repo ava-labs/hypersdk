@@ -11,6 +11,4 @@ if ! [[ "$0" =~ scripts/lint.sh ]]; then
   exit 255
 fi
 
-# Specify the version of golangci-lint. Should be upgraded after linting issues are resolved.
-export GOLANGCI_LINT_VERSION="v1.51.2"
 ../../scripts/lint.sh

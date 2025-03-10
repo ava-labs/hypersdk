@@ -113,7 +113,11 @@ func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 }
 
 func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
-	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
+	signature, err := bls.Sign(msg, b.priv)
+	if err != nil {
+		return nil, err
+	}
+	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: signature}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64) {
