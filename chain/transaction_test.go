@@ -5,11 +5,14 @@ package chain_test
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
@@ -229,9 +232,43 @@ func TestEstimateUnits(t *testing.T) {
 	}
 }
 
+type testDB struct {
+	storage map[string][]byte
+}
+
+func newTestDB(keyBase string) *testDB {
+	db := testDB{storage: make(map[string][]byte)}
+	for i := 0; i < 100; i += 2 {
+		db.storage[keyBase+strconv.Itoa(i)] = []byte("value") // key must be long enough to be valid
+	}
+	return &db
+}
+
+func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+	val, ok := db.storage[string(key)]
+	if !ok {
+		return nil, database.ErrNotFound
+	}
+	return val, nil
+}
+
+type immutableStateStub struct {
+	GetValueF func(context.Context, []byte) ([]byte, error)
+}
+
+func (iss *immutableStateStub) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return iss.GetValueF(ctx, key)
+}
+
 func TestPreExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	differentChainID := ids.ID{1}
+
+	im := &immutableStateStub{
+		GetValueF: func(context.Context, []byte) ([]byte, error) {
+			return binary.BigEndian.AppendUint64(nil, 0), nil
+		},
+	}
 
 	tests := []struct {
 		name      string
@@ -239,7 +276,6 @@ func TestPreExecute(t *testing.T) {
 		timestamp int64
 		err       error
 		fm        *fees.Manager
-		bh        chain.BalanceHandler
 	}{
 		{
 			name: "valid test case",
@@ -249,7 +285,6 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh: chaintest.NewTestBalanceHandler(nil, nil),
 		},
 		{
 			name: "base transaction timestamp misaligned",
@@ -394,7 +429,6 @@ func TestPreExecute(t *testing.T) {
 				}
 				return fm
 			}(),
-			bh:  chaintest.NewTestBalanceHandler(nil, nil),
 			err: safemath.ErrOverflow,
 		},
 		{
@@ -408,8 +442,14 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh:  chaintest.NewTestBalanceHandler(errMockInsufficientBalance, nil),
-			err: errMockInsufficientBalance,
+			fm: func() *fees.Manager {
+				fm := fees.NewManager([]byte{})
+				for i := 0; i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(externalfees.Dimension(i), 1)
+				}
+				return fm
+			}(),
+			err: balance.ErrInsufficientBalance,
 		},
 	}
 
@@ -421,17 +461,13 @@ func TestPreExecute(t *testing.T) {
 			if tt.fm == nil {
 				tt.fm = fees.NewManager([]byte{})
 			}
-			if tt.bh == nil {
-				tt.bh = chaintest.NewTestBalanceHandler(nil, nil)
-			}
-
 			r.ErrorIs(
 				tt.tx.PreExecute(
 					ctx,
 					tt.fm,
-					tt.bh,
+					balance.NewPrefixBalanceHandler([]byte{0}),
 					testRules,
-					nil,
+					im,
 					tt.timestamp,
 				),
 				tt.err,

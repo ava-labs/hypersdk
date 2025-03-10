@@ -5,6 +5,7 @@ package chaintest
 
 import (
 	"context"
+	"encoding/binary"
 	"math"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -17,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
 	internal_fees "github.com/ava-labs/hypersdk/internal/fees"
@@ -64,7 +66,7 @@ func GenerateTestExecutedBlocks(
 	numBlocks int,
 	numTx int,
 ) []*chain.ExecutedBlock {
-	bh := NewTestBalanceHandler(nil, nil)
+	bh := balance.NewPrefixBalanceHandler([]byte{0})
 	rules := genesis.NewDefaultRules()
 	feeManager := internal_fees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
@@ -76,7 +78,9 @@ func GenerateTestExecutedBlocks(
 		merkledb.Config{BranchFactor: 2},
 	)
 	require.NoError(err)
+
 	tstateview := ts.NewView(state.CompletePermissions, db, 0)
+	tstateview.Insert(context.Background(), balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64))
 
 	for i := range executedBlocks {
 		// generate transactions.
@@ -93,7 +97,7 @@ func GenerateTestExecutedBlocks(
 				WriteKeys:          [][]byte{},
 				WriteValues:        [][]byte{},
 			}}
-			auth := &TestAuth{}
+			auth := NewDummyTestAuth()
 			tx, err := chain.NewTransaction(base, actions, auth)
 			require.NoError(err)
 			txs = append(txs, tx)

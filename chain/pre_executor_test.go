@@ -5,7 +5,9 @@ package chain_test
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -56,6 +59,7 @@ func TestPreExecutor(t *testing.T) {
 			name: "valid tx",
 			state: map[string][]byte{
 				feeKey: {},
+				string(balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(validTx.Auth.Sponsor())): binary.BigEndian.AppendUint64(nil, math.MaxUint64),
 			},
 			tx:             validTx,
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
@@ -155,7 +159,7 @@ func TestPreExecutor(t *testing.T) {
 				&ruleFactory,
 				tt.validityWindow,
 				testMetadataManager,
-				chaintest.NewTestBalanceHandler(nil, nil),
+				balance.NewPrefixBalanceHandler([]byte{0}),
 			)
 
 			r.ErrorIs(
