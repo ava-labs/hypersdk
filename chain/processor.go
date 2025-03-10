@@ -380,7 +380,7 @@ func (p *Processor) createBlockContext(
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return blockExecContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentHeight, err)
 	}
 	if block.Hght != parentHeight+1 {
 		return blockExecContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
@@ -390,11 +390,11 @@ func (p *Processor) createBlockContext(
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
 	if err != nil {
-		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentTimestamp, err)
 	}
 	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return blockExecContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
+		return blockExecContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentTimestamp, err)
 	}
 
 	// Confirm block timestamp is valid

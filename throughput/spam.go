@@ -361,15 +361,11 @@ func (s *Spammer) distributeFunds(ctx context.Context, feePerTx uint64, sh SpamH
 	if err != nil {
 		return nil, nil, err
 	}
-	p := &pacer{ws: webSocketClient}
-	go p.Run(ctx, s.minTxsPerSecond)
-	// TODO: we sleep here because occasionally the pacer will hang. Potentially due to
-	// p.wait() closing the inflight channel before the tx is registered/sent. Debug more.
-	time.Sleep(3 * time.Second)
-
+	p := newPacer(webSocketClient, s.minTxsPerSecond)
+	go p.Run(ctx)
 	for i := 0; i < len(distributionActions); i += distributeFundsBatchSize {
 		actions := distributionActions[i:min(i+distributeFundsBatchSize, len(distributionActions))]
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, s.authFactory, feePerTx*distributeFundsBatchSize)
+		tx, err := chain.GenerateTransactionManual(rules, actions, s.authFactory, feePerTx*distributeFundsBatchSize)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -63,7 +63,7 @@ func NewDefaultRules() *Rules {
 
 		// Tx Parameters
 		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
-		MaxActionsPerTx:     16,
+		MaxActionsPerTx:     100,
 		MaxOutputsPerAction: 1,
 
 		// Tx Fee Compute Parameters
