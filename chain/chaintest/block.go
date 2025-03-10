@@ -80,7 +80,7 @@ func GenerateTestExecutedBlocks(
 	require.NoError(err)
 
 	tstateview := ts.NewView(state.CompletePermissions, db, 0)
-	tstateview.Insert(context.Background(), balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64))
+	require.NoError(tstateview.Insert(context.Background(), balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64)))
 
 	for i := range executedBlocks {
 		// generate transactions.

@@ -8,11 +8,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"strconv"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
@@ -31,11 +28,7 @@ import (
 
 const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
-var (
-	preSignedTxBytes []byte
-
-	errMockInsufficientBalance = errors.New("mock insufficient balance error")
-)
+var preSignedTxBytes []byte
 
 func init() {
 	txBytes, err := hex.DecodeString(signedTxHex)
@@ -230,26 +223,6 @@ func TestEstimateUnits(t *testing.T) {
 	for i := range estimatedUnits {
 		r.LessOrEqual(actualUnits[i], estimatedUnits[i])
 	}
-}
-
-type testDB struct {
-	storage map[string][]byte
-}
-
-func newTestDB(keyBase string) *testDB {
-	db := testDB{storage: make(map[string][]byte)}
-	for i := 0; i < 100; i += 2 {
-		db.storage[keyBase+strconv.Itoa(i)] = []byte("value") // key must be long enough to be valid
-	}
-	return &db
-}
-
-func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
-	val, ok := db.storage[string(key)]
-	if !ok {
-		return nil, database.ErrNotFound
-	}
-	return val, nil
 }
 
 type immutableStateStub struct {
