@@ -46,11 +46,8 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 		if l == 0 {
 			return
 		}
-		if err := m.clearPending(); err != nil {
-			log.Debug("unable to clear pending messages", zap.Error(err))
-		} else {
-			log.Debug("sent messages", zap.Int("count", l))
-		}
+		m.clearPending()
+		log.Debug("sent messages", zap.Int("count", l))
 	})
 	go m.pendingTimer.Dispatch()
 	return m
@@ -68,10 +65,7 @@ func (m *MessageBuffer) Close() error {
 	//
 	// It is up to the caller to ensure all of these items actually are written
 	// to the connection before it is closed.
-	if err := m.clearPending(); err != nil {
-		m.log.Debug("unable to clear pending messages", zap.Error(err))
-		return err
-	}
+	m.clearPending()
 
 	m.pendingTimer.Stop()
 	m.closed = true
@@ -79,7 +73,7 @@ func (m *MessageBuffer) Close() error {
 	return nil
 }
 
-func (m *MessageBuffer) clearPending() error {
+func (m *MessageBuffer) clearPending() {
 	bm := CreateBatchMessage(m.pending)
 	select {
 	case m.Queue <- bm:
@@ -89,7 +83,6 @@ func (m *MessageBuffer) clearPending() error {
 
 	m.pendingSize = 0
 	m.pending = [][]byte{}
-	return nil
 }
 
 func (m *MessageBuffer) Send(msg []byte) error {
@@ -108,9 +101,7 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	// Clear existing buffer if too large
 	if m.pendingSize+l > m.maxSize {
 		m.pendingTimer.Cancel()
-		if err := m.clearPending(); err != nil {
-			return err
-		}
+		m.clearPending()
 	}
 
 	m.pendingSize += l
