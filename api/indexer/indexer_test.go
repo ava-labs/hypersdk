@@ -19,6 +19,7 @@ func createTestIndexer(
 	ctx context.Context,
 	numExecutedBlocks int,
 	blockWindow int,
+	numTxs int,
 ) (indexer *Indexer, executedBlocks []*chain.ExecutedBlock, indexerDir string) {
 	require := require.New(t)
 
@@ -26,13 +27,15 @@ func createTestIndexer(
 	indexer, err := NewIndexer(tempDir, chaintest.NewTestParser(), uint64(blockWindow))
 	require.NoError(err)
 
-	executedBlocks = chaintest.GenerateEmptyExecutedBlocks(
+	executedBlocks = chaintest.GenerateTestExecutedBlocks(
 		require,
+		ids.GenerateTestID(),
 		ids.GenerateTestID(),
 		0,
 		0,
 		1,
 		numExecutedBlocks,
+		numTxs,
 	)
 	for _, blk := range executedBlocks {
 		err = indexer.Notify(ctx, blk)
@@ -80,8 +83,9 @@ func TestBlockIndex(t *testing.T) {
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
+		numTxs            = 0
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
 	require.NoError(indexer.Close())
@@ -93,8 +97,9 @@ func TestBlockIndexRestart(t *testing.T) {
 	var (
 		numExecutedBlocks = 4
 		blockWindow       = 2
+		numTxs            = 0
 	)
-	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow)
+	indexer, executedBlocks, indexerDir := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 	// Confirm we have indexed the expected window of blocks
 	checkBlocks(require, indexer, executedBlocks, blockWindow)
@@ -112,4 +117,17 @@ func TestBlockIndexRestart(t *testing.T) {
 	require.NoError(err)
 	checkBlocks(require, restartedIndexerSingleBlockWindow, executedBlocks, 1)
 	require.NoError(restartedIndexerSingleBlockWindow.Close())
+}
+
+func TestInvalidBlockWindowSizes(t *testing.T) {
+	require := require.New(t)
+	blockWindow := uint64(0)
+	indexer, err := NewIndexer(t.TempDir(), chaintest.NewTestParser(), blockWindow)
+	require.Nil(indexer)
+	require.ErrorIs(err, errZeroBlockWindow)
+
+	blockWindow = maxBlockWindow + 1
+	indexer, err = NewIndexer(t.TempDir(), chaintest.NewTestParser(), blockWindow)
+	require.Nil(indexer)
+	require.ErrorIs(err, errInvalidBlockWindowSize)
 }

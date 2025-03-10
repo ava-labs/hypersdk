@@ -147,6 +147,9 @@ func SendJSONRequest(
 		// Drop any error during close to report the original error
 		all, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
+		if rpcError, ok := err.(*rpc.Error); ok {
+			return fmt.Errorf("server responded with rpc error: %w %s %s", rpcError, all, uri.String())
+		}
 		return fmt.Errorf("failed to decode client response: %w %s %s", err, all, uri.String())
 	}
 	return resp.Body.Close()
