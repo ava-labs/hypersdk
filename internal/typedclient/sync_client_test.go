@@ -5,23 +5,22 @@ package typedclient
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/stretchr/testify/require"
 )
 
 // testHandler simulates different response behaviors
 type testHandler struct {
-	simulateTimeout       bool
-	simulateError         bool
-	simulateNetworkError  bool
-	responseDelay         time.Duration
-	simulateMultiResponse bool
+	simulateTimeout      bool
+	simulateError        bool
+	simulateNetworkError bool
+	responseDelay        time.Duration
 }
 
 func (t *testHandler) AppRequest(
@@ -54,7 +53,7 @@ func (t *testHandler) AppRequest(
 }
 
 // AppGossip is required by the interface but not used in this test
-func (t *testHandler) AppGossip(
+func (*testHandler) AppGossip(
 	_ context.Context,
 	_ ids.NodeID,
 	_ []byte,
@@ -109,7 +108,7 @@ func TestSyncAppRequest(t *testing.T) {
 			}
 
 			handlerID := ids.GenerateTestNodeID()
-			client := p2ptest.NewClient(t, ctx, handler, ids.EmptyNodeID, handlerID)
+			client := p2ptest.NewSelfClient(t, ctx, handlerID, handler)
 
 			marshaler := testMarshaler{}
 			syncClient := NewSyncTypedClient[testRequest, testResponse, []byte](client, &marshaler)
@@ -140,14 +139,14 @@ type testResponse struct {
 
 type testMarshaler struct{}
 
-func (m testMarshaler) MarshalRequest(request testRequest) ([]byte, error) {
+func (testMarshaler) MarshalRequest(request testRequest) ([]byte, error) {
 	return []byte(request.message), nil
 }
 
-func (m testMarshaler) UnmarshalResponse(bytes []byte) (testResponse, error) {
+func (testMarshaler) UnmarshalResponse(bytes []byte) (testResponse, error) {
 	return testResponse{string(bytes)}, nil
 }
 
-func (m testMarshaler) MarshalGossip([]byte) ([]byte, error) {
+func (testMarshaler) MarshalGossip([]byte) ([]byte, error) {
 	return []byte{}, nil
 }

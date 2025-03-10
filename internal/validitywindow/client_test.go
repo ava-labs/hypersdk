@@ -14,12 +14,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
+	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -264,7 +260,7 @@ func setupTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeSce
 	}
 
 	return &testNetwork{
-		client:  newClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
+		client:  p2ptest.NewClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
 		sampler: &testNodeSampler{nodes: nodes},
 		nodes:   nodes,
 	}
@@ -325,89 +321,4 @@ func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
 		return t.nodes
 	}
 	return t.nodes[:num]
-}
-
-// newClientWithPeers generates a client to communicate to a set of peers
-func newClientWithPeers(
-	t *testing.T,
-	ctx context.Context,
-	clientNodeID ids.NodeID,
-	clientHandler p2p.Handler,
-	peers map[ids.NodeID]p2p.Handler,
-) *p2p.Client {
-	peers[clientNodeID] = clientHandler
-
-	peerSenders := make(map[ids.NodeID]*enginetest.Sender)
-	peerNetworks := make(map[ids.NodeID]*p2p.Network)
-	for nodeID := range peers {
-		peerSenders[nodeID] = &enginetest.Sender{}
-		peerNetwork, err := p2p.NewNetwork(logging.NoLog{}, peerSenders[nodeID], prometheus.NewRegistry(), "")
-		require.NoError(t, err)
-		peerNetworks[nodeID] = peerNetwork
-	}
-
-	peerSenders[clientNodeID].SendAppGossipF = func(ctx context.Context, _ common.SendConfig, gossipBytes []byte) error {
-		// Send the request asynchronously to avoid deadlock when the server
-		// sends the response back to the client
-		for nodeID := range peers {
-			go func() {
-				require.NoError(t, peerNetworks[nodeID].AppGossip(ctx, nodeID, gossipBytes))
-			}()
-		}
-
-		return nil
-	}
-
-	peerSenders[clientNodeID].SendAppRequestF = func(ctx context.Context, nodeIDs set.Set[ids.NodeID], requestID uint32, requestBytes []byte) error {
-		for nodeID := range nodeIDs {
-			network, ok := peerNetworks[nodeID]
-			if !ok {
-				return fmt.Errorf("%s is not connected", nodeID)
-			}
-
-			// Send the request asynchronously to avoid deadlock when the server
-			// sends the response back to the client
-			go func() {
-				require.NoError(t, network.AppRequest(ctx, clientNodeID, requestID, time.Time{}, requestBytes))
-			}()
-		}
-
-		return nil
-	}
-
-	for nodeID := range peers {
-		peerSenders[nodeID].SendAppResponseF = func(ctx context.Context, _ ids.NodeID, requestID uint32, responseBytes []byte) error {
-			// Send the request asynchronously to avoid deadlock when the server
-			// sends the response back to the client
-			go func() {
-				require.NoError(t, peerNetworks[clientNodeID].AppResponse(ctx, nodeID, requestID, responseBytes))
-			}()
-
-			return nil
-		}
-	}
-
-	for nodeID := range peers {
-		peerSenders[nodeID].SendAppErrorF = func(ctx context.Context, _ ids.NodeID, requestID uint32, errorCode int32, errorMessage string) error {
-			// Send the request asynchronously to avoid deadlock when the server
-			// sends the response back to the client
-			nodeIDCopy := nodeID
-			go func() {
-				require.NoError(t, peerNetworks[clientNodeID].AppRequestFailed(ctx, nodeIDCopy, requestID, &common.AppError{
-					Code:    errorCode,
-					Message: errorMessage,
-				}))
-			}()
-
-			return nil
-		}
-	}
-
-	for nodeID := range peers {
-		require.NoError(t, peerNetworks[nodeID].Connected(ctx, clientNodeID, nil))
-		require.NoError(t, peerNetworks[nodeID].Connected(ctx, nodeID, nil))
-		require.NoError(t, peerNetworks[nodeID].AddHandler(0, peers[nodeID]))
-	}
-
-	return peerNetworks[clientNodeID].NewClient(0)
 }

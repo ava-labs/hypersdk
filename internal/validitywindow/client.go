@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
+
 	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
 
@@ -29,7 +30,6 @@ type BlockFetcherClient[B Block] struct {
 	sampler    p2p.NodeSampler
 	syncClient *typedclient.SyncTypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
 	lastBlock  Block
-	nextHeight uint64
 }
 
 func NewBlockFetcherClient[B Block](

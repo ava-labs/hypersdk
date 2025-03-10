@@ -61,7 +61,6 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 	}
 
 	blocks, err := b.fetchBlocks(ctx, request)
-
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    ErrBlocksNotFound,
