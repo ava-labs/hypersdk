@@ -18,10 +18,10 @@ PROJECT_CLI_NAME="morpheus-cli"
 PROJECT_VM_COMMIT="c3c9cafd5726aeb4b608e3315922910aeb0baeeb"
 
 # Set AvalancheGo Build (should have canPop disabled)
-AVALANCHEGO_COMMIT=f03745d187d0c33b927121d4c8da977789b929ac
+AVALANCHEGO_COMMIT=9755e8ab0eb64a17484f0673a8fc282e68442262
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=18e5259b499bb9b487bb5e1e620d3107e68f2171
+LOCAL_CLI_COMMIT=a181034bfe3b92d7376d6719bf16bb8268967a1d
 
 # Set console colors
 RED='\033[1;31m'
@@ -200,7 +200,7 @@ trap cleanup SIGINT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,us-west-2 --use-static-ip=false --auto-replace-keypair --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/${PROJECT_NAME}/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/${PROJECT_NAME}.genesis" --subnet-config="${TMPDIR}/${PROJECT_NAME}.genesis" --chain-config="${TMPDIR}/${PROJECT_NAME}.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/${PROJECT_NAME}/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-volume-iops=2500 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 1,1,1,1,1 --region us-west-1,us-east-1,us-east-2,ap-northeast-1,us-west-2 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/${PROJECT_NAME}/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/${PROJECT_NAME}.genesis" --subnet-config="${TMPDIR}/${PROJECT_NAME}.genesis" --chain-config="${TMPDIR}/${PROJECT_NAME}.config" --node-config="${TMPDIR}/node.config" --skip-update-check --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/${PROJECT_NAME}/grafana.json"
 
 # Import the cluster into project cli for local interaction
 $TMPDIR/$PROJECT_CLI_NAME chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
