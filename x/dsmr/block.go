@@ -199,6 +199,10 @@ func (b Block) GetParent() ids.ID {
 	return b.ParentID
 }
 
+func (b Block) GetBytes() []byte {
+	return b.blkBytes
+}
+
 // ExecutedBlock contains block data with any referenced chunks reconstructed
 type ExecutedBlock[T Tx] struct {
 	BlockHeader

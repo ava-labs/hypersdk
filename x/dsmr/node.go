@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/internal/emap"
+	"github.com/ava-labs/hypersdk/internal/typedclient"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/proto/pb/dsmr"
 	"github.com/ava-labs/hypersdk/utils"
@@ -127,8 +128,8 @@ type Node[T Tx] struct {
 	Signer                       warp.Signer
 	LastAccepted                 Block
 	ruleFactory                  RuleFactory
-	getChunkClient               *TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
-	chunkCertificateGossipClient *TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
+	getChunkClient               *typedclient.TypedClient[*dsmr.GetChunkRequest, Chunk[T], []byte]
+	chunkCertificateGossipClient *typedclient.TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
 	chainState                   ChainState
 	chunkSignatureAggregator     *acp118.SignatureAggregator
 
