@@ -229,7 +229,7 @@ type immutableStateStub struct {
 	GetValueF func(context.Context, []byte) ([]byte, error)
 }
 
-func (iss *immutableStateStub) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (iss *immutableStateStub) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	return iss.GetValueF(ctx, key)
 }
 
