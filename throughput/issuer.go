@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/exp/rand"
+	"math/rand"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
