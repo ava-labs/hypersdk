@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"unicode/utf8"
 
-	"github.com/ava-labs/hypersdk/internal/canoto"
+	"github.com/StephenButtolph/canoto"
 )
 
 // Ensure that unused imports do not error

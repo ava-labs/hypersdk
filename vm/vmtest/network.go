@@ -24,6 +24,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/snow"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
@@ -161,6 +162,7 @@ func NewTestNetwork(
 	ctx context.Context,
 	t *testing.T,
 	factory *vm.Factory,
+	genesisAndRuleFactory genesis.GenesisAndRuleFactory,
 	numVMs int,
 	authFactories []chain.AuthFactory,
 	genesisBytes []byte,
@@ -193,9 +195,10 @@ func NewTestNetwork(
 	testNetwork.nodeIDToVM = nodeIDToVM
 	testNetwork.uris = uris
 	configuration := workload.NewDefaultTestNetworkConfiguration(
-		vms[0].VM.GenesisBytes,
 		"hypervmtests",
-		vms[0].VM,
+		genesisAndRuleFactory,
+		vms[0].VM.GenesisBytes,
+		vms[0].VM.GetParser(),
 		authFactories,
 	)
 	testNetwork.configuration = configuration
@@ -432,7 +435,12 @@ func (n *TestNetwork) GenerateTx(ctx context.Context, actions []chain.Action, au
 	if err != nil {
 		return nil, err
 	}
-	return chain.GenerateTransaction(unitPrices, n.VMs[0].VM, actions, authFactory)
+	return chain.GenerateTransaction(
+		n.VMs[0].VM.GetRuleFactory(),
+		unitPrices,
+		actions,
+		authFactory,
+	)
 }
 
 func (n *TestNetwork) ConfirmBlocks(ctx context.Context, numBlocks int, generateTxs func(i int) []*chain.Transaction) {

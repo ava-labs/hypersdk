@@ -20,7 +20,7 @@ type Mempool[T any] interface {
 }
 
 type Serializer[T any] interface {
-	Marshal([]T) ([]byte, error)
+	Marshal([]T) []byte
 	Unmarshal(b []byte) ([]T, error)
 }
 

@@ -14,8 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/internal/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -50,13 +48,11 @@ func OptionFunc(v api.VM, config Config) (vm.Opt, error) {
 		return vm.NewOpt(), nil
 	}
 
-	actionCodec, authCodec := v.ActionCodec(), v.AuthCodec()
 	server, handler := NewWebSocketServer(
 		v,
 		v.Logger(),
 		v.Tracer(),
-		actionCodec,
-		authCodec,
+		v.GetParser(),
 		config.MaxPendingMessages,
 	)
 
@@ -92,11 +88,10 @@ func (w WebSocketServerFactory) New(api.VM) (api.Handler, error) {
 }
 
 type WebSocketServer struct {
-	vm          api.VM
-	logger      logging.Logger
-	tracer      trace.Tracer
-	actionCodec *codec.TypeParser[chain.Action]
-	authCodec   *codec.TypeParser[chain.Auth]
+	vm     api.VM
+	logger logging.Logger
+	tracer trace.Tracer
+	parser chain.Parser
 
 	s *pubsub.Server
 
@@ -111,16 +106,14 @@ func NewWebSocketServer(
 	vm api.VM,
 	log logging.Logger,
 	tracer trace.Tracer,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
+	txParser chain.Parser,
 	maxPendingMessages int,
 ) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
 		vm:             vm,
 		logger:         log,
 		tracer:         tracer,
-		actionCodec:    actionCodec,
-		authCodec:      authCodec,
+		parser:         txParser,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
@@ -148,33 +141,26 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
-func (w *WebSocketServer) expireTx(txID ids.ID) error {
+func (w *WebSocketServer) expireTx(txID ids.ID) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
-		return nil
+		return
 	}
 	// nil result indicates the transaction expired
-	bytes, err := packTxMessage(txID, nil)
-	if err != nil {
-		return err
-	}
+	bytes := packTxMessage(txID, nil)
 	w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
-	return nil
 }
 
-func (w *WebSocketServer) setMinTx(t int64) error {
+func (w *WebSocketServer) setMinTx(t int64) {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		if err := w.expireTx(id); err != nil {
-			return err
-		}
+		w.expireTx(id)
 	}
 	if exp := len(expired); exp > 0 {
 		w.logger.Debug("expired listeners", zap.Int("count", exp))
 	}
-	return nil
 }
 
 func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock) error {
@@ -191,7 +177,7 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	results := b.Results
+	results := b.ExecutionResults.Results
 	for i, tx := range b.Block.Txs {
 		txID := tx.GetID()
 		listeners, ok := w.txListeners[txID]
@@ -199,17 +185,16 @@ func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock)
 			continue
 		}
 		// Publish to tx listener
-		bytes, err := packTxMessage(txID, results[i])
-		if err != nil {
-			return err
-		}
+		bytes := packTxMessage(txID, results[i])
+
 		// Skip clearing inactive connections because they'll be deleted
 		// regardless.
 		_ = w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return w.setMinTx(b.Block.Tmstmp)
+	w.setMinTx(b.Block.Tmstmp)
+	return nil
 }
 
 func (w *WebSocketServer) MessageCallback() pubsub.Callback {
@@ -234,8 +219,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
-			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, w.actionCodec, w.authCodec)
+			tx, err := chain.UnmarshalTx(msgBytes, w.parser)
 			if err != nil {
 				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),

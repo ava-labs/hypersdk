@@ -20,10 +20,15 @@ type pacer struct {
 	err error
 }
 
-func (p *pacer) Run(ctx context.Context, max int) {
-	p.inflight = make(chan struct{}, max)
-	p.done = make(chan struct{})
+func newPacer(ws *ws.WebSocketClient, maxPending int) *pacer {
+	return &pacer{
+		ws:       ws,
+		inflight: make(chan struct{}, maxPending),
+		done:     make(chan struct{}),
+	}
+}
 
+func (p *pacer) Run(ctx context.Context) {
 	defer close(p.done)
 
 	for range p.inflight {

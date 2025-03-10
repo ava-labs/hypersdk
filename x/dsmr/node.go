@@ -45,7 +45,6 @@ var (
 	ErrInvalidBlockTimestamp               = errors.New("invalid block timestamp")
 	ErrInvalidWarpSignature                = errors.New("invalid warp signature")
 	ErrInvalidSignatureType                = errors.New("invalid signature type")
-	ErrFailedToReplicate                   = errors.New("failed to replicate to sufficient stake")
 )
 
 type ChainState interface {
@@ -213,7 +212,7 @@ func (n *Node[T]) BuildChunk(
 		return fmt.Errorf("failed to get canonical validator set: %w", err)
 	}
 
-	aggregatedMsg, _, _, ok, err := n.chunkSignatureAggregator.AggregateSignatures(
+	aggregatedMsg, _, _, err := n.chunkSignatureAggregator.AggregateSignatures(
 		ctx,
 		msg,
 		chunk.bytes,
@@ -223,10 +222,6 @@ func (n *Node[T]) BuildChunk(
 	)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate signatures: %w", err)
-	}
-
-	if !ok {
-		return ErrFailedToReplicate
 	}
 
 	bitSetSignature, ok := aggregatedMsg.Signature.(*warp.BitSetSignature)

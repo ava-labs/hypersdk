@@ -42,7 +42,7 @@ type OutputBlock struct {
 	*ExecutionBlock
 
 	View             merkledb.View
-	ExecutionResults ExecutionResults
+	ExecutionResults *ExecutionResults
 }
 
 type blockContext struct {
@@ -83,7 +83,7 @@ type Processor struct {
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
 	validityWindow          ValidityWindow
-	metrics                 *chainMetrics
+	metrics                 *ChainMetrics
 	config                  Config
 }
 
@@ -96,7 +96,7 @@ func NewProcessor(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	validityWindow ValidityWindow,
-	metrics *chainMetrics,
+	metrics *ChainMetrics,
 	config Config,
 ) *Processor {
 	return &Processor{
@@ -210,7 +210,7 @@ func (p *Processor) Execute(
 	return &OutputBlock{
 		ExecutionBlock: b,
 		View:           view,
-		ExecutionResults: ExecutionResults{
+		ExecutionResults: &ExecutionResults{
 			Results:       results,
 			UnitPrices:    blockContext.feeManager.UnitPrices(),
 			UnitsConsumed: blockContext.feeManager.UnitsConsumed(),
@@ -330,7 +330,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	}
 
 	// Setup signature verification job
-	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures") //nolint:spancheck
+	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures")
 
 	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
@@ -341,10 +341,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	}()
 
 	for _, tx := range block.StatelessBlock.Txs {
-		unsignedTxBytes, err := tx.UnsignedBytes()
-		if err != nil {
-			return nil, err //nolint:spancheck
-		}
+		unsignedTxBytes := tx.UnsignedBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
 	return sigJob, nil
@@ -383,7 +380,7 @@ func (p *Processor) createBlockContext(
 	}
 	parentHeight, err := database.ParseUInt64(parentHeightRaw)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("failed to parse parent height from state: %w", err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentHeight, err)
 	}
 	if block.Hght != parentHeight+1 {
 		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
@@ -393,11 +390,11 @@ func (p *Processor) createBlockContext(
 	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
 	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentTimestamp, err)
 	}
 	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
 	if err != nil {
-		return blockContext{}, fmt.Errorf("failed to parse timestamp from state: %w", err)
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentTimestamp, err)
 	}
 
 	// Confirm block timestamp is valid

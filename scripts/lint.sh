@@ -10,7 +10,7 @@ if ! [[ "$0" =~ scripts/lint.sh ]]; then
 fi
 
 # Default version of golangci-lint
-GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.64.6"}
+GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.64.5"}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/scripts/common/utils.sh

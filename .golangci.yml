@@ -15,11 +15,6 @@ run:
   # By default, it isn't set.
   modules-download-mode: readonly
 
-output:
-  # Make issues output unique by line.
-  # Default: true
-  uniq-by-line: false
-
 issues:
   # Maximum issues count per one linter.
   # Set to 0 to disable.
@@ -36,6 +31,10 @@ issues:
   # Default: true
   exclude-dirs-use-default: false
 
+  # Make issues output unique by line.
+  # Default: true
+  uniq-by-line: false
+
 linters:
   disable-all: true
   enable:
@@ -45,7 +44,7 @@ linters:
     - dupword
     - errcheck
     - errorlint
-    - exportloopref
+    - copyloopvar
     - forbidigo
     - gci
     - goconst
@@ -121,6 +120,7 @@ linters-settings:
   gosec:
     excludes:
       - G107 # Url provided to HTTP request as taint input https://securego.io/docs/rules/g107
+      - G115 # TODO Enable this ruleset in a follow-up PR
   importas:
     # Do not allow unaliased imports of aliased packages.
     no-unaliased: false
