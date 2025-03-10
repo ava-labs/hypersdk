@@ -4,6 +4,7 @@
 package vm
 
 import (
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -16,7 +17,7 @@ type Factory struct {
 	actionCodec     *codec.TypeParser[chain.Action]
 	authCodec       *codec.TypeParser[chain.Auth]
 	outputCodec     *codec.TypeParser[codec.Typed]
-	authEngine      map[uint8]AuthEngine
+	authEngine      map[uint8]auth.Engine
 
 	options []Option
 }
@@ -28,7 +29,7 @@ func NewFactory(
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
-	authEngine map[uint8]AuthEngine,
+	authEngine map[uint8]auth.Engine,
 	options ...Option,
 ) *Factory {
 	return &Factory{

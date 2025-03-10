@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/ava-labs/hypersdk/codec"
@@ -108,7 +109,7 @@ type VM struct {
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
-	authEngine            map[uint8]AuthEngine
+	authEngine            map[uint8]auth.Engine
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
@@ -129,7 +130,7 @@ func New(
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
-	authEngine map[uint8]AuthEngine,
+	authEngine map[uint8]auth.Engine,
 	options ...Option,
 ) (*VM, error) {
 	allocatedNamespaces := set.NewSet[string](len(options))

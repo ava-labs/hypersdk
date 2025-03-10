@@ -3,8 +3,6 @@
 
 package auth
 
-import "github.com/ava-labs/hypersdk/vm"
-
 // Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
 const (
 	// Auth TypeIDs
@@ -17,8 +15,8 @@ const (
 	BLSKey       = "bls"
 )
 
-func Engines() map[uint8]vm.AuthEngine {
-	return map[uint8]vm.AuthEngine{
+func Engines() map[uint8]Engine {
+	return map[uint8]Engine{
 		ED25519ID: &ED25519AuthEngine{},
 	}
 }
