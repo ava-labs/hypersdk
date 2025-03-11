@@ -71,7 +71,7 @@ func NewFactory() *vm.Factory {
 		ActionParser,
 		AuthParser,
 		OutputParser,
-		auth.Engines(),
+		auth.DefaultEngines(),
 		options...,
 	)
 }

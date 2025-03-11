@@ -15,8 +15,8 @@ const (
 	BLSKey       = "bls"
 )
 
-func Engines() map[uint8]Engine {
-	return map[uint8]Engine{
+func DefaultEngines() Engines {
+	return Engines{
 		ED25519ID: &ED25519AuthEngine{},
 	}
 }
