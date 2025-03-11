@@ -506,7 +506,6 @@ func TestEVMLogs(t *testing.T) {
 
 	// Deploy event contract
 	action := &EvmCall{
-		To:            common.Address{},
 		IsNullAddress: true,
 		Value:         0,
 		GasLimit:      testCtx.SufficientGas,
@@ -523,15 +522,17 @@ func TestEVMLogs(t *testing.T) {
 	deployResult, ok := unmarshaledResult.(*EvmCallResult)
 	r.True(ok)
 	r.True(deployResult.Success)
+	r.Equal(eventContractABI.DeployedBytecode, deployResult.Return)
+	r.Equal(NilError, deployResult.ErrorCode)
 
 	eventContractAddress := deployResult.ContractAddress
-	t.Log("Event contract address:", eventContractAddress)
+	emitData := eventContractABI.ABI.Methods["EmitEvent"].ID
 
 	emitAction := &EvmCall{
 		To:       eventContractAddress,
 		Value:    0,
 		GasLimit: testCtx.SufficientGas,
-		Data:     []byte("0x5278c0fa"),
+		Data:     emitData,
 		From:     storage.ToEVMAddress(testCtx.From),
 	}
 
@@ -544,4 +545,8 @@ func TestEVMLogs(t *testing.T) {
 	emitResult, ok := unmarshaledResult.(*EvmCallResult)
 	r.True(ok)
 	r.True(emitResult.Success)
+
+	r.Len(emitResult.Logs, 1)
+	log := emitResult.Logs[0]
+	r.Equal(eventContractAddress, log.Address)
 }

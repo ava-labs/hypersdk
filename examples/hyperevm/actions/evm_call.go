@@ -164,7 +164,7 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		GasTipCap:         big.NewInt(0),
 		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
 	}
-	if e.To == (common.Address{}) && !e.IsNullAddress {
+	if e.To == (common.Address{}) && e.IsNullAddress {
 		coreMessage.To = nil
 	}
 	return coreMessage
