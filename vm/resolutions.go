@@ -159,10 +159,6 @@ func (vm *VM) SubmitTx(ctx context.Context, tx *chain.Transaction) error {
 	return errs[0]
 }
 
-func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	return vm.authEngines.GetAuthBatchVerifier(authTypeID, cores, count)
-}
-
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.MetadataManager().FeePrefix()))
 	if err != nil {

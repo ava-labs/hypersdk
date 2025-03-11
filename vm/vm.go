@@ -318,7 +318,7 @@ func (vm *VM) Initialize(
 		vm.MetadataManager(),
 		vm.BalanceHandler(),
 		vm.AuthVerifiers(),
-		vm,
+		vm.authEngines,
 		vm.chainTimeValidityWindow,
 		chainConfig,
 	)
