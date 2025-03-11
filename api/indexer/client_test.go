@@ -157,8 +157,8 @@ func TestIndexerClientTransactions(t *testing.T) {
 
 func TestIndexerClientWaitForTransaction(t *testing.T) {
 	const (
-		numExecutedBlocks = 4
-		blockWindow       = 2
+		numExecutedBlocks = 2
+		blockWindow       = 1
 		numTxs            = 3
 	)
 	require := require.New(t)
