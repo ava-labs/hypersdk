@@ -34,7 +34,6 @@ type VM interface {
 		ctx context.Context,
 		txs []*chain.Transaction,
 	) (errs []error)
-	Mempool() chain.Mempool
 	LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error)
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	CurrentValidators(

@@ -492,11 +492,6 @@ func (e *EthRPCServer) Call(req *http.Request, args *RPCTransaction, reply *hexu
 	return nil
 }
 
-func (e *EthRPCServer) MempoolSize(req *http.Request, _ *struct{}, reply *int) error {
-	*reply = e.vm.Mempool().Len(req.Context())
-	return nil
-}
-
 // We assume that address == 0x784ce85b107389004d6a0e0d6d7518eeae1292d9
 // TODO: figure out state keys
 // If client doesn't specify state keys, we can compute for them
