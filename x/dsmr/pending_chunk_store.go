@@ -52,8 +52,8 @@ type pendingChunkStore struct {
 	pendingChunks map[ids.ID]*UnsignedChunk
 
 	// chunkEMap provides an in-memory heap of pending chunks to provide an efficient
-	// way to garbage collect expired chunks that have not been accepte as they expire.
-	chunkEMap *emap.EMap[*emapChunk]
+	// way to garbage collect expired chunks that have not been accepted as they expire.
+	chunkEMap *emap.EMap[eChunk]
 
 	// pendingValidatorChunks tracks the total bandwidth of pending chunks per validator
 	pendingValidatorChunks map[ids.NodeID]uint64
@@ -68,7 +68,7 @@ func newPendingChunkStore(
 	store := &pendingChunkStore{
 		db:                     db,
 		pendingChunks:          make(map[ids.ID]*UnsignedChunk),
-		chunkEMap:              emap.NewEMap[*emapChunk](),
+		chunkEMap:              emap.NewEMap[eChunk](),
 		pendingValidatorChunks: make(map[ids.NodeID]uint64),
 		ruleFactory:            ruleFactory,
 	}
@@ -81,7 +81,10 @@ func newPendingChunkStore(
 			return nil, fmt.Errorf("failed to parse pending chunk: %w", err)
 		}
 		store.pendingChunks[unsignedChunk.id] = unsignedChunk
-		store.chunkEMap.Add([]*emapChunk{{unsignedChunk: unsignedChunk}})
+		store.chunkEMap.Add([]eChunk{{
+			chunkID: unsignedChunk.id,
+			expiry:  unsignedChunk.Expiry,
+		}})
 		store.pendingValidatorChunks[unsignedChunk.Builder] += uint64(len(unsignedChunk.bytes))
 	}
 	if err := iter.Error(); err != nil {
@@ -159,7 +162,10 @@ func (c *pendingChunkStore) putPendingChunk(unsignedChunk *UnsignedChunk) error 
 	}
 
 	c.pendingChunks[unsignedChunk.id] = unsignedChunk
-	c.chunkEMap.Add([]*emapChunk{{unsignedChunk: unsignedChunk}})
+	c.chunkEMap.Add([]eChunk{{
+		chunkID: unsignedChunk.id,
+		expiry:  unsignedChunk.Expiry,
+	}})
 	c.pendingValidatorChunks[unsignedChunk.Builder] += uint64(len(unsignedChunk.bytes))
 	return nil
 }
@@ -207,18 +213,4 @@ func parsePendingChunkKey(key []byte) (slot int64, chunkID ids.ID, err error) {
 		return 0, ids.Empty, fmt.Errorf("unexpected pending chunk key prefix: %d", prefix)
 	}
 	return slot, chunkID, nil
-}
-
-var _ emap.Item = (*emapChunk)(nil)
-
-type emapChunk struct {
-	unsignedChunk *UnsignedChunk
-}
-
-func (e emapChunk) GetID() ids.ID {
-	return e.unsignedChunk.id
-}
-
-func (e emapChunk) GetExpiry() int64 {
-	return e.unsignedChunk.Expiry
 }
