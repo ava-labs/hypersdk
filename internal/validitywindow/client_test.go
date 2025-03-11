@@ -137,14 +137,14 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 
 	// upper bound timeout for receiving block
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(2 * time.Second)
 loop:
 	for {
 		select {
 		case blk := <-resultChan:
 			receivedBlocks[blk.GetHeight()] = blk
 			// reset the timeout for each successful block received
-			timeout = time.After(5 * time.Second)
+			timeout = time.After(2 * time.Second)
 		case <-timeout:
 			break loop
 		}
@@ -213,27 +213,36 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 
 	var minTimestamp atomic.Int64
 	minTimestamp.Store(3)
+
+	// Signal timestamp update
+	signalUpdate := make(chan struct{})
 	go func() {
-		time.Sleep(delay * 2)
-		minTimestamp.Store(5)
+		select {
+		case <-signalUpdate:
+			minTimestamp.Store(5)
+		case <-ctx.Done():
+			return
+		}
 	}()
 
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
-
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
+
+	count := 0
 	for blk := range resultChan {
 		receivedBlocks[blk.GetHeight()] = blk
+
+		count++
+		// After receiving some blocks signal to update the timestamp
+		if count == 2 {
+			close(signalUpdate)
+		}
 	}
 
 	r.Len(receivedBlocks, 5)
 	for _, block := range validChain[4:9] {
 		_, ok := receivedBlocks[block.GetHeight()]
 		r.True(ok)
-	}
-
-	for _, block := range validChain[:4] {
-		_, ok := receivedBlocks[block.GetHeight()]
-		r.False(ok)
 	}
 }
 

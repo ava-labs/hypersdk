@@ -103,6 +103,11 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 					return
 				case resultChan <- block:
 					c.lastBlock = block
+					if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
+						close(resultChan)
+						return
+					}
+
 					req.BlockHeight = c.lastBlock.GetHeight() - 1
 				}
 			}

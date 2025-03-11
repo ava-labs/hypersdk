@@ -22,7 +22,6 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		setupBlocks  func() map[uint64]ExecutionBlock[container]
 		blockHeight  uint64
 		minTimestamp int64
-		delay        time.Duration
 		wantErr      bool
 		wantBlocks   int
 	}{
@@ -62,7 +61,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			r := require.New(t)
 
 			blocks := tt.setupBlocks()
-			retriever := newTestBlockRetriever(withBlocks(blocks), withDelay(tt.delay))
+			retriever := newTestBlockRetriever(withBlocks(blocks))
 
 			handler := NewBlockFetcherHandler(retriever)
 			fetchedBlocks, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
@@ -161,8 +160,6 @@ func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	r.NotEqual(7, len(fetchedBlocksBytes))
 	// We should've received some blocks
 	r.NotEmpty(fetchedBlocksBytes)
-
-	// Verify received block bytes when parsed exist in retriever's state
 	for _, blkBytes := range fetchedBlocksBytes {
 		_, err := retriever.parseBlock(blkBytes)
 		r.NoError(err)
@@ -190,6 +187,7 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 type testBlockRetriever struct {
 	options *optionsImpl
 	errChan chan error
+	delayCh chan struct{}
 }
 
 func newTestBlockRetriever(opts ...option) *testBlockRetriever {
@@ -206,9 +204,32 @@ func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 		}
 	}
 
-	return &testBlockRetriever{
+	retriever := &testBlockRetriever{
 		options: optImpl,
 		errChan: make(chan error, 1),
+	}
+
+	if optImpl.delay > 0 {
+		retriever.delayCh = make(chan struct{})
+		// Start a goroutine to manage simulated delays
+		go retriever.simulateDelays(optImpl.delay)
+	}
+
+	return retriever
+}
+
+func (r *testBlockRetriever) simulateDelays(delay time.Duration) {
+	ticker := time.NewTicker(delay)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+		select {
+		case r.delayCh <- struct{}{}:
+			// Successfully sent signal
+		default:
+			// Channel full or closed, no one is waiting
+		}
 	}
 }
 
@@ -259,9 +280,14 @@ func withBlocks(blocks map[uint64]ExecutionBlock[container]) option {
 	return blocksOption(blocks)
 }
 
-func (r *testBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
-	if r.options.delay.Milliseconds() > 0 {
-		time.Sleep(r.options.delay)
+func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
+	if r.delayCh != nil {
+		select {
+		case <-r.delayCh:
+			// Delay completed
+		case <-ctx.Done():
+			return utils.Zero[ExecutionBlock[container]](), ctx.Err()
+		}
 	}
 
 	block, ok := r.options.blocks[blockHeight]
