@@ -34,23 +34,14 @@ type EvmSignedCall struct {
 	Keys state.Keys    `serialize:"true" json:"stateKeys"` // State keys accessed by this call
 }
 
-func (e *EvmSignedCall) ComputeUnits(chain.Rules) uint64 {
-	// TODO: make dynamic
-	return 1
-}
-
-func (e *EvmSignedCall) Bytes() []byte {
-	// TODO: fine-tune this
-	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0),
-		MaxSize: 1024,
-	}
-	p.PackByte(econsts.EvmSignedCallID)
-	_ = codec.LinearCodec.MarshalInto(e, p)
-	return p.Bytes
-}
-
-func (e *EvmSignedCall) Execute(ctx context.Context, blockCtx chain.BlockContext, r chain.Rules, mu state.Mutable, _ codec.Address, actionID ids.ID) ([]byte, error) {
+func (e *EvmSignedCall) Execute(
+	ctx context.Context,
+	blockCtx chain.BlockContext,
+	r chain.Rules,
+	mu state.Mutable,
+	_ codec.Address,
+	actionID ids.ID,
+) ([]byte, error) {
 	// Convert to TX
 	tx := new(types.Transaction)
 	if err := tx.UnmarshalBinary(e.Data); err != nil {
@@ -124,6 +115,22 @@ func (e *EvmSignedCall) Execute(ctx context.Context, blockCtx chain.BlockContext
 	}
 	// TODO: can we reuse the same result type for signed calls?
 	return res.Bytes(), nil
+}
+
+func (e *EvmSignedCall) ComputeUnits(chain.Rules) uint64 {
+	// TODO: make dynamic
+	return 1
+}
+
+func (e *EvmSignedCall) Bytes() []byte {
+	// TODO: fine-tune this
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0),
+		MaxSize: 1024,
+	}
+	p.PackByte(econsts.EvmSignedCallID)
+	_ = codec.LinearCodec.MarshalInto(e, p)
+	return p.Bytes
 }
 
 func (e *EvmSignedCall) GetTypeID() uint8 {

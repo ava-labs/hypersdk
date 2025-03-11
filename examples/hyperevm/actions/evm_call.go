@@ -39,46 +39,6 @@ type EvmCall struct {
 	From          common.Address `serialize:"true" json:"from"`      // Address of the sender
 }
 
-func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
-	return 1
-}
-
-func (e *EvmCall) Bytes() []byte {
-	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0),
-		MaxSize: 1024,
-	}
-	p.PackByte(econsts.EvmCallID)
-	_ = codec.LinearCodec.MarshalInto(e, p)
-	return p.Bytes
-}
-
-func (e *EvmCall) toMessage(from common.Address) *core.Message {
-	coreMessage := &core.Message{
-		From:              from,
-		To:                &e.To,
-		Value:             big.NewInt(int64(e.Value)),
-		Data:              e.Data,
-		GasLimit:          e.GasLimit,
-		GasPrice:          big.NewInt(0),
-		GasFeeCap:         big.NewInt(0),
-		GasTipCap:         big.NewInt(0),
-		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
-	}
-	if e.To == (common.Address{}) && !e.IsNullAddress {
-		coreMessage.To = nil
-	}
-	return coreMessage
-}
-
-func (*EvmCall) GetTypeID() uint8 {
-	return econsts.EvmCallID
-}
-
-func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	return e.Keys
-}
-
 // An error should only be returned if a fatal error was encountered, otherwise [success] should
 // be marked as false and fees will still be charged.
 func (e *EvmCall) Execute(
@@ -155,8 +115,48 @@ func (e *EvmCall) Execute(
 	return res.Bytes(), nil
 }
 
+func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
+	return 1
+}
+
+func (e *EvmCall) Bytes() []byte {
+	p := &wrappers.Packer{
+		Bytes:   make([]byte, 0),
+		MaxSize: 1024,
+	}
+	p.PackByte(econsts.EvmCallID)
+	_ = codec.LinearCodec.MarshalInto(e, p)
+	return p.Bytes
+}
+
+func (*EvmCall) GetTypeID() uint8 {
+	return econsts.EvmCallID
+}
+
+func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return e.Keys
+}
+
 func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
+}
+
+func (e *EvmCall) toMessage(from common.Address) *core.Message {
+	coreMessage := &core.Message{
+		From:              from,
+		To:                &e.To,
+		Value:             big.NewInt(int64(e.Value)),
+		Data:              e.Data,
+		GasLimit:          e.GasLimit,
+		GasPrice:          big.NewInt(0),
+		GasFeeCap:         big.NewInt(0),
+		GasTipCap:         big.NewInt(0),
+		SkipAccountChecks: true, // Disables EVM state transition pre-check (nonce, EOA/prohibited addresses, and tx allow list)
+	}
+	if e.To == (common.Address{}) && !e.IsNullAddress {
+		coreMessage.To = nil
+	}
+	return coreMessage
 }
 
 func UnmarshalEvmCall(bytes []byte) (chain.Action, error) {
@@ -174,50 +174,6 @@ func UnmarshalEvmCall(bytes []byte) (chain.Action, error) {
 		return nil, err
 	}
 	return t, nil
-}
-
-// The result.Err field returned by core.ApplyMessage contains an error type, but
-// the actual value is not part of the EVM's state transition function. ie. if the
-// error changes it should not change the state transition (block/state).
-// We convert it to an error code representing the three differentiated error types:
-// nil (success), revert (special case), and all other erros as a generic failure.
-type ErrorCode byte
-
-const (
-	NilError ErrorCode = iota
-	ErrExecutionReverted
-	ErrExecutionFailed
-)
-
-func (e ErrorCode) String() string {
-	switch {
-	case e == NilError:
-		return "nil"
-	case e == ErrExecutionReverted:
-		return "reverted"
-	case e == ErrExecutionFailed:
-		return "failed"
-	default:
-		return "unknown"
-	}
-}
-
-func (e ErrorCode) MarshalText() ([]byte, error) {
-	return []byte(e.String()), nil
-}
-
-func (e *ErrorCode) UnmarshalText(text []byte) error {
-	switch string(text) {
-	case "nil":
-		*e = NilError
-	case "reverted":
-		*e = ErrExecutionReverted
-	case "failed":
-		*e = ErrExecutionFailed
-	default:
-		return fmt.Errorf("failed to unmarshal error code: %s", text)
-	}
-	return nil
 }
 
 var _ codec.Typed = (*EvmCallResult)(nil)
