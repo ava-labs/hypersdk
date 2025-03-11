@@ -56,6 +56,19 @@ jobs:
         shell: bash
         run: scripts/tests.actionlint.sh
 
+  check_canotogen:
+    name: Up-to-date canoto
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - shell: bash
+        run: go generate -run "github.com/StephenButtolph/canoto/canoto" ./...
+      - shell: bash
+        run: .github/workflows/check-clean-branch.sh
+
   hypersdk-unit-tests:
     runs-on: ubuntu-22.04-32
     timeout-minutes: 10
