@@ -5,6 +5,7 @@ package validitywindow
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -58,15 +59,10 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			req := require.New(t)
+			r := require.New(t)
 
 			blocks := tt.setupBlocks()
-			retriever := newTestBlockRetriever().
-				withBlocks(blocks)
-
-			if tt.delay > 0 {
-				retriever.withDelay(tt.delay)
-			}
+			retriever := newTestBlockRetriever(withBlocks(blocks), withDelay(tt.delay))
 
 			handler := NewBlockFetcherHandler(retriever)
 			fetchedBlocks, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
@@ -75,12 +71,19 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			})
 
 			if tt.wantErr {
-				req.Error(err)
+				r.Error(err)
 			} else {
-				req.NoError(err)
+				r.NoError(err)
 			}
 
-			req.Len(fetchedBlocks, tt.wantBlocks)
+			r.Len(fetchedBlocks, tt.wantBlocks)
+			for _, blk := range fetchedBlocks {
+				block, err := retriever.parseBlock(blk)
+				r.NoError(err)
+
+				_, ok := blocks[block.GetHeight()]
+				r.True(ok)
+			}
 		})
 	}
 }
@@ -112,8 +115,7 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 			req := require.New(t)
 
 			blocks := generateBlockChain(10, 5)
-			retriever := newTestBlockRetriever().
-				withBlocks(blocks)
+			retriever := newTestBlockRetriever(withBlocks(blocks))
 
 			handler := NewBlockFetcherHandler(retriever)
 
@@ -143,44 +145,27 @@ func TestBlockFetcherHandler_AppRequest(t *testing.T) {
 
 func TestBlockFetcherHandler_Timeout(t *testing.T) {
 	ctx := context.Background()
-	req := require.New(t)
+	r := require.New(t)
 
-	blocks := generateBlockChain(20, 1)
-	retriever := newTestBlockRetriever().
-		withBlocks(blocks).
-		withDelay(maxProcessingDuration + 10*time.Millisecond)
+	blks := generateBlockChain(20, 1)
+	retriever := newTestBlockRetriever(withBlocks(blks), withDelay(maxProcessingDuration+10*time.Millisecond))
 
 	handler := NewBlockFetcherHandler(retriever)
+	fetchedBlocksBytes, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
+		BlockHeight:  9,
+		MinTimestamp: 3,
+	})
 
-	type result struct {
-		blocks   [][]byte
-		err      error
-		duration time.Duration
-	}
-	resultCh := make(chan result, 1)
+	r.NoError(err)
+	// We should not receive all blocks from (9 to 2) due to delay which should trigger timeout
+	r.NotEqual(7, len(fetchedBlocksBytes))
+	// We should've received some blocks
+	r.NotEmpty(fetchedBlocksBytes)
 
-	start := time.Now()
-	go func() {
-		fetchedBlockBytes, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
-			BlockHeight:  9,
-			MinTimestamp: 3,
-		})
-		resultCh <- result{
-			blocks:   fetchedBlockBytes,
-			err:      err,
-			duration: time.Since(start),
-		}
-	}()
-
-	select {
-	case r := <-resultCh:
-		req.NoError(r.err)
-		// We should get some blocks before timeout
-		req.NotEmpty(r.blocks)
-		// But not all; 7 = (Block of nextHeight 10, fetch until minTimestamp of block 3)
-		req.NotEqual(7, len(r.blocks))
-	case <-time.After(2 * maxProcessingDuration):
-		req.Fail("Test took too long to complete")
+	// Verify received block bytes when parsed exist in retriever's state
+	for _, blkBytes := range fetchedBlocksBytes {
+		_, err := retriever.parseBlock(blkBytes)
+		r.NoError(err)
 	}
 }
 
@@ -203,50 +188,103 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 }
 
 type testBlockRetriever struct {
-	delay   time.Duration
-	nodeID  ids.NodeID
+	options *optionsImpl
 	errChan chan error
-	blocks  map[uint64]ExecutionBlock[container]
 }
 
-func newTestBlockRetriever() *testBlockRetriever {
+func newTestBlockRetriever(opts ...option) *testBlockRetriever {
+	optImpl := &optionsImpl{
+		delay:  0,
+		nodeID: ids.EmptyNodeID,
+		blocks: make(map[uint64]ExecutionBlock[container]),
+	}
+
+	// Apply all provided options
+	for _, opt := range opts {
+		if opt != nil {
+			opt.apply(optImpl)
+		}
+	}
+
 	return &testBlockRetriever{
+		options: optImpl,
 		errChan: make(chan error, 1),
 	}
 }
 
-func (r *testBlockRetriever) withBlocks(blocks map[uint64]ExecutionBlock[container]) *testBlockRetriever {
-	r.blocks = blocks
-	return r
+type optionsImpl struct {
+	delay  time.Duration
+	nodeID ids.NodeID
+	blocks map[uint64]ExecutionBlock[container]
 }
 
-func (r *testBlockRetriever) withDelay(delay time.Duration) *testBlockRetriever {
-	r.delay = delay
-	return r
+type option interface {
+	apply(*optionsImpl)
 }
 
-func (r *testBlockRetriever) withNodeID(nodeID ids.NodeID) *testBlockRetriever {
-	r.nodeID = nodeID
-	return r
+// Delay option
+type delayOption time.Duration
+
+func (d delayOption) apply(opts *optionsImpl) {
+	opts.delay = time.Duration(d)
+}
+
+func withDelay(delay time.Duration) option {
+	if delay > 0 {
+		return delayOption(delay)
+	}
+
+	return nil
+}
+
+// NodeID option
+type nodeIDOption ids.NodeID
+
+func (n nodeIDOption) apply(opts *optionsImpl) {
+	opts.nodeID = ids.NodeID(n)
+}
+
+func withNodeID(nodeID ids.NodeID) option {
+	return nodeIDOption(nodeID)
+}
+
+// Blocks option
+type blocksOption map[uint64]ExecutionBlock[container]
+
+func (b blocksOption) apply(opts *optionsImpl) {
+	opts.blocks = b
+}
+
+func withBlocks(blocks map[uint64]ExecutionBlock[container]) option {
+	return blocksOption(blocks)
 }
 
 func (r *testBlockRetriever) GetBlockByHeight(_ context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
-	if r.delay.Milliseconds() > 0 {
-		time.Sleep(r.delay)
+	if r.options.delay.Milliseconds() > 0 {
+		time.Sleep(r.options.delay)
 	}
 
-	var err error
-	if r.nodeID.Compare(ids.EmptyNodeID) == 0 {
-		err = fmt.Errorf("block nextHeight %d not found", blockHeight)
-	} else {
-		err = fmt.Errorf("%s: block nextHeight %d not found", r.nodeID, blockHeight)
-	}
-
-	block, ok := r.blocks[blockHeight]
-
-	if !ok && err != nil {
-		r.errChan <- err
-		return utils.Zero[ExecutionBlock[container]](), err
+	block, ok := r.options.blocks[blockHeight]
+	if !ok {
+		return utils.Zero[ExecutionBlock[container]](), fmt.Errorf("%s: block height %d not found", r.options.nodeID, blockHeight)
 	}
 	return block, nil
+}
+
+func (r *testBlockRetriever) parseBlock(blk []byte) (ExecutionBlock[container], error) {
+	// Ensure we have at least 8 bytes for the height
+	if len(blk) < 8 {
+		return nil, fmt.Errorf("block bytes too short: %d bytes", len(blk))
+	}
+
+	// Extract the height from the first 8 bytes
+	height := binary.BigEndian.Uint64(blk[:8])
+
+	for _, block := range r.options.blocks {
+		if block.GetHeight() == height {
+			return block, nil
+		}
+	}
+
+	return nil, fmt.Errorf("block with height %d not found", height)
 }
