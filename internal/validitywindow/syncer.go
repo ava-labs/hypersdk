@@ -159,7 +159,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		// Get execution block from cache or disk
 		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
-			break // This is expected when we run out-of-cached and/or on-disk blocks
+			break // This is expected when we run out of cached and/or on-disk blocks
 		}
 		parents = append(parents, parent)
 
