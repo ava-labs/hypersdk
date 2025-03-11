@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -24,9 +23,14 @@ import (
 
 const maxBlockWindow uint64 = 1_000_000
 
+const (
+	blockEntryByte = iota + 1
+	latestBlockHeightByte
+)
+
 var (
-	blockEntryKeyPrefix  = []byte("block")
-	latestBlockHeightKey = []byte("latestblockheight")
+	blockEntryKeyPrefix  = []byte{blockEntryByte}
+	latestBlockHeightKey = []byte{latestBlockHeightByte}
 )
 
 var (
@@ -40,12 +44,11 @@ var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
 	blockDB            *pebble.Database // height -> block bytes
-	cachedBlocks       buffer.Queue[uint64]
+	cachedBlocks       []uint64
 	blockIDToHeight    map[ids.ID]uint64
 	blockHeightToBlock map[uint64]*chain.ExecutedBlock
 	txCache            map[ids.ID]cachedTransaction
-	evictedBlocks      []uint64 // list of blocks that are queued for deletion.
-	blockWindow        uint64   // Maximum window of blocks to retain
+	blockWindow        uint64 // Maximum window of blocks to retain
 	lastHeight         uint64
 	parser             chain.Parser
 
@@ -80,35 +83,10 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		blockWindow:        blockWindow,
 		parser:             parser,
 		lastHeight:         math.MaxUint64,
-	}
-
-	i.cachedBlocks, err = buffer.NewBoundedQueue(int(blockWindow), i.evictBlock)
-	if err != nil {
-		return nil, err
+		cachedBlocks:       make([]uint64, 0, int(blockWindow)),
 	}
 
 	return i, i.initBlocks()
-}
-
-// evictBlock is called by the BoundedQueue when an entry need to be evicted.
-// Eviction can happen only as a result of adding entries to the queue, which
-// happens exelusively during insertBlockIntoCache. insertBlockIntoCache gurentee
-// that the lock is already held or doesn't need to be held.
-func (i *Indexer) evictBlock(blockHeight uint64) {
-	// find the block in the blocks cache.
-	blk := i.blockHeightToBlock[blockHeight]
-
-	// remove the block from the caches
-	delete(i.blockIDToHeight, blk.Block.GetID())
-	delete(i.blockHeightToBlock, blockHeight)
-
-	// remove the transactions from the cache.
-	for _, tx := range blk.Block.Txs {
-		delete(i.txCache, tx.GetID())
-	}
-
-	// add the block height to evictedBlocks so that it would get removed from database
-	i.evictedBlocks = append(i.evictedBlocks, blockHeight)
 }
 
 func (i *Indexer) initBlocks() error {
@@ -155,17 +133,34 @@ func (i *Indexer) initBlocks() error {
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	i.mu.Lock()
-	i.insertBlockIntoCache(blk)
+	evictedBlockHeights := i.insertBlockIntoCache(blk)
 	i.mu.Unlock()
 
-	return i.storeBlock(blk)
+	return i.storeBlock(blk, evictedBlockHeights)
 }
 
 // insertBlockIntoCache add the given block and its transactions to the
-// cache.
+// cache. It returns a slice of the evicted block heights.
 // assumes the write lock is held
-func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
-	i.cachedBlocks.Push(blk.Block.Hght)
+func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) []uint64 {
+	var evictedBlockHeights []uint64
+	if len(i.cachedBlocks) == int(i.blockWindow) {
+		evictedBlockHeights = []uint64{i.cachedBlocks[0]}
+		i.cachedBlocks = i.cachedBlocks[1:]
+
+		// find the block in the blocks cache.
+		blk := i.blockHeightToBlock[evictedBlockHeights[0]]
+
+		// remove the block from the caches
+		delete(i.blockIDToHeight, blk.Block.GetID())
+		delete(i.blockHeightToBlock, evictedBlockHeights[0])
+
+		// remove the transactions from the cache.
+		for _, tx := range blk.Block.Txs {
+			delete(i.txCache, tx.GetID())
+		}
+	}
+	i.cachedBlocks = append(i.cachedBlocks, blk.Block.Hght)
 	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
 	i.blockHeightToBlock[blk.Block.Hght] = blk
 
@@ -176,11 +171,13 @@ func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
 		}
 	}
 	i.lastHeight = blk.Block.Hght
+
+	return evictedBlockHeights
 }
 
 // storeBlock persist the given block to the database, and remove the
 // evicted blocks.
-func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
+func (i *Indexer) storeBlock(blk *chain.ExecutedBlock, evictedBlockHeights []uint64) error {
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
 		return err
@@ -192,7 +189,7 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return err
 	}
 
-	for _, evictedBlockHeight := range i.evictedBlocks {
+	for _, evictedBlockHeight := range evictedBlockHeights {
 		if err := blkBatch.Delete(blockEntryKey(evictedBlockHeight)); err != nil {
 			return err
 		}
@@ -201,9 +198,6 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	if err := blkBatch.Put(latestBlockHeightKey, binary.BigEndian.AppendUint64(nil, i.lastHeight)); err != nil {
 		return err
 	}
-
-	// clear the slice without allocation
-	i.evictedBlocks = i.evictedBlocks[:0]
 
 	return blkBatch.Write()
 }

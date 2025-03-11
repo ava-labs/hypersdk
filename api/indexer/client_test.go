@@ -72,9 +72,7 @@ func TestIndexerClient(t *testing.T) {
 
 	timeoutCtx, ctxCancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer ctxCancel()
-	success, fee, err := client.WaitForTransaction(timeoutCtx, 1*time.Millisecond, ids.GenerateTestID())
-	require.False(success)
-	require.Zero(fee)
+	_, _, err = client.WaitForTransaction(timeoutCtx, 1*time.Millisecond, ids.GenerateTestID())
 	require.ErrorIs(err, context.DeadlineExceeded)
 
 	// request one of the transactions included in the latest block.

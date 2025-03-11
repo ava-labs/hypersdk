@@ -98,6 +98,7 @@ func (c *Client) GetTxResults(ctx context.Context, txID ids.ID) (GetTxResponse, 
 		return GetTxResponse{}, false, err
 	}
 
+	resp.Result.CalculateCanotoCache()
 	return resp, true, nil
 }
 

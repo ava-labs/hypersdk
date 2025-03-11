@@ -56,6 +56,8 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
+// GenerateTestExecutedBlocks creates [numBlocks] executed block for testing purposes, each with [numTx] transactions.
+// these blocks are not semantically valid for execution, and are meant execlusively for serialization testing purposes.
 func GenerateTestExecutedBlocks(
 	require *require.Assertions,
 	parentID ids.ID,
@@ -75,7 +77,7 @@ func GenerateTestExecutedBlocks(
 	db, err := merkledb.New(
 		context.Background(),
 		memdb.New(),
-		merkledb.Config{BranchFactor: 2},
+		merkledb.Config{BranchFactor: merkledb.BranchFactor16},
 	)
 	require.NoError(err)
 
@@ -91,12 +93,8 @@ func GenerateTestExecutedBlocks(
 			MaxFee:    math.MaxUint64,
 		}
 		for range numTx {
-			actions := []chain.Action{&TestAction{
-				SpecifiedStateKeys: []string{},
-				ReadKeys:           [][]byte{},
-				WriteKeys:          [][]byte{},
-				WriteValues:        [][]byte{},
-			}}
+
+			actions := []chain.Action{NewDummyTestAction()}
 			auth := NewDummyTestAuth()
 			tx, err := chain.NewTransaction(base, actions, auth)
 			require.NoError(err)
