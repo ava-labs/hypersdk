@@ -84,6 +84,7 @@ func GenerateTestExecutedBlocks(
 	tstateview := ts.NewView(state.CompletePermissions, db, 0)
 	require.NoError(tstateview.Insert(context.Background(), balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64)))
 
+	actions := NewDummyTestActions(numBlocks * numTx)
 	for i := range executedBlocks {
 		// generate transactions.
 		txs := []*chain.Transaction{}
@@ -92,9 +93,8 @@ func GenerateTestExecutedBlocks(
 			ChainID:   chainID,
 			MaxFee:    math.MaxUint64,
 		}
-		for range numTx {
-
-			actions := []chain.Action{NewDummyTestAction()}
+		for j := range numTx {
+			actions := []chain.Action{actions[i*numTx+j]}
 			auth := NewDummyTestAuth()
 			tx, err := chain.NewTransaction(base, actions, auth)
 			require.NoError(err)

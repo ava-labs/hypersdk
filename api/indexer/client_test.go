@@ -17,15 +17,153 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
 
-func TestIndexerClient(t *testing.T) {
-	require := require.New(t)
-	ctx := context.Background()
+func TestIndexerClientBlocks(t *testing.T) {
 	const (
 		numExecutedBlocks = 4
 		blockWindow       = 2
 		numTxs            = 3
 	)
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
+
+	testCases := []struct {
+		name      string
+		blkHeight uint64
+		err       error
+	}{
+		{
+			name:      "success",
+			blkHeight: numExecutedBlocks - 1,
+			err:       nil,
+		},
+		{
+			name:      "missing block",
+			blkHeight: 0,
+			err:       errBlockNotFound,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.Background()
+			indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
+
+			jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
+			require.NoError(err)
+
+			httpServer := httptest.NewServer(jsonHandler)
+			t.Cleanup(func() {
+				httpServer.Close()
+			})
+
+			parser := chaintest.NewTestParser()
+
+			client := NewClient(httpServer.URL)
+			executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[tt.blkHeight].Block.Hght, parser)
+			if tt.err == nil {
+				require.NoError(err)
+				require.Equal(executedBlocks[tt.blkHeight].Block, executedBlock.Block)
+			} else {
+				require.Contains(err.Error(), tt.err.Error())
+			}
+
+			executedBlock, err = client.GetBlock(ctx, executedBlocks[tt.blkHeight].Block.GetID(), parser)
+			if tt.err == nil {
+				require.NoError(err)
+				require.Equal(executedBlocks[tt.blkHeight].Block, executedBlock.Block)
+			} else {
+				require.Contains(err.Error(), tt.err.Error())
+			}
+
+			executedBlock, err = client.GetLatestBlock(ctx, parser)
+			require.NoError(err)
+			require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
+		})
+	}
+}
+
+func TestIndexerClientTransactions(t *testing.T) {
+	const (
+		numExecutedBlocks = 4
+		blockWindow       = 2
+		numTxs            = 3
+	)
+
+	testCases := []struct {
+		name     string
+		txBlkIdx int
+		txIdx    int
+		err      error
+		found    bool
+	}{
+		{
+			name:     "success",
+			txBlkIdx: numExecutedBlocks - 1,
+			txIdx:    0,
+			found:    true,
+			err:      nil,
+		},
+		{
+			name:     "missing transaction",
+			txBlkIdx: 0,
+			txIdx:    0,
+			found:    false,
+			err:      nil,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.Background()
+			indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
+
+			jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
+			require.NoError(err)
+
+			httpServer := httptest.NewServer(jsonHandler)
+			t.Cleanup(func() {
+				httpServer.Close()
+			})
+
+			parser := chaintest.NewTestParser()
+
+			client := NewClient(httpServer.URL)
+
+			txResponse, found, err := client.GetTxResults(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID())
+			require.Equal(tt.err, err)
+			require.Equal(tt.found, found)
+			if tt.found {
+				require.Equal(GetTxResponse{
+					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
+					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
+					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
+				}, txResponse)
+			}
+
+			txResponse, tx, found, err := client.GetTx(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID(), parser)
+			require.Equal(tt.err, err)
+			require.Equal(tt.found, found)
+			if tt.found {
+				require.Equal(GetTxResponse{
+					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
+					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
+					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
+				}, txResponse)
+				require.Equal(executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx], tx)
+			}
+		})
+	}
+}
+
+func TestIndexerClientWaitForTransaction(t *testing.T) {
+	const (
+		numExecutedBlocks = 4
+		blockWindow       = 2
+		numTxs            = 3
+	)
+	require := require.New(t)
+	ctx := context.Background()
+	indexer, _, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 	jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
 	require.NoError(err)
@@ -35,54 +173,10 @@ func TestIndexerClient(t *testing.T) {
 		httpServer.Close()
 	})
 
-	parser := chaintest.NewTestParser()
-
 	client := NewClient(httpServer.URL)
-	executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[numExecutedBlocks-1].Block.Hght, parser)
-	require.NoError(err)
-	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
-
-	executedBlock, err = client.GetBlockByHeight(ctx, executedBlocks[0].Block.Hght, parser)
-	require.Contains(err.Error(), errBlockNotFound.Error())
-	require.Nil(executedBlock)
-
-	executedBlock, err = client.GetLatestBlock(ctx, parser)
-	require.NoError(err)
-	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
-
-	executedBlock, err = client.GetBlock(ctx, executedBlocks[numExecutedBlocks-1].Block.GetID(), parser)
-	require.NoError(err)
-	require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
-
-	executedBlock, err = client.GetBlock(ctx, ids.Empty, parser)
-	require.Contains(err.Error(), errBlockNotFound.Error())
-	require.Nil(executedBlock)
-
-	// test for missing transaction
-	txResponse, found, err := client.GetTxResults(ctx, ids.GenerateTestID())
-	require.False(found)
-	require.Equal(GetTxResponse{}, txResponse)
-	require.NoError(err)
-
-	txResponse, tx, found, err := client.GetTx(ctx, ids.GenerateTestID(), parser)
-	require.False(found)
-	require.Equal(GetTxResponse{}, txResponse)
-	require.Nil(tx)
-	require.NoError(err)
 
 	timeoutCtx, ctxCancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer ctxCancel()
 	_, _, err = client.WaitForTransaction(timeoutCtx, 1*time.Millisecond, ids.GenerateTestID())
 	require.ErrorIs(err, context.DeadlineExceeded)
-
-	// request one of the transactions included in the latest block.
-	txResponse, tx, found, err = client.GetTx(ctx, executedBlocks[numExecutedBlocks-1].Block.Txs[0].GetID(), parser)
-	require.True(found)
-	require.Equal(GetTxResponse{
-		TxBytes:   executedBlocks[numExecutedBlocks-1].Block.Txs[0].Bytes(),
-		Timestamp: executedBlocks[numExecutedBlocks-1].Block.Tmstmp,
-		Result:    executedBlocks[numExecutedBlocks-1].ExecutionResults.Results[0],
-	}, txResponse)
-	require.Equal(executedBlocks[numExecutedBlocks-1].Block.Txs[0], tx)
-	require.NoError(err)
 }

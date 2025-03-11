@@ -149,14 +149,14 @@ func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) []uint64 {
 		i.cachedBlocks = i.cachedBlocks[1:]
 
 		// find the block in the blocks cache.
-		blk := i.blockHeightToBlock[evictedBlockHeights[0]]
+		evictedBlk := i.blockHeightToBlock[evictedBlockHeights[0]]
 
 		// remove the block from the caches
-		delete(i.blockIDToHeight, blk.Block.GetID())
+		delete(i.blockIDToHeight, evictedBlk.Block.GetID())
 		delete(i.blockHeightToBlock, evictedBlockHeights[0])
 
 		// remove the transactions from the cache.
-		for _, tx := range blk.Block.Txs {
+		for _, tx := range evictedBlk.Block.Txs {
 			delete(i.txCache, tx.GetID())
 		}
 	}
