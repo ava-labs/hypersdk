@@ -17,7 +17,7 @@ type Factory struct {
 	actionCodec     *codec.TypeParser[chain.Action]
 	authCodec       *codec.TypeParser[chain.Auth]
 	outputCodec     *codec.TypeParser[codec.Typed]
-	authEngine      map[uint8]auth.Engine
+	authEngines     auth.Engines
 
 	options []Option
 }
@@ -29,7 +29,7 @@ func NewFactory(
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
-	authEngine map[uint8]auth.Engine,
+	authEngines auth.Engines,
 	options ...Option,
 ) *Factory {
 	return &Factory{
@@ -39,7 +39,7 @@ func NewFactory(
 		actionCodec:     actionCodec,
 		authCodec:       authCodec,
 		outputCodec:     outputCodec,
-		authEngine:      authEngine,
+		authEngines:     authEngines,
 		options:         options,
 	}
 }
@@ -52,7 +52,7 @@ func (f *Factory) New(options ...Option) (*VM, error) {
 		f.actionCodec,
 		f.authCodec,
 		f.outputCodec,
-		f.authEngine,
+		f.authEngines,
 		append(f.options, options...)...,
 	)
 }
