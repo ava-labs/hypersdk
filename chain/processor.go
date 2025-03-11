@@ -297,6 +297,10 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
+			// we need to pass in the following for action execution:
+			// 1. the tx index
+			// 2. the tx hash
+			// passing in these values would make logging possible
 			result, err := tx.Execute(ctx, blockCtx, feeManager, p.balanceHandler, r, tsv)
 			if err != nil {
 				return err

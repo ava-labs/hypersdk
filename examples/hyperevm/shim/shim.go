@@ -30,13 +30,13 @@ type DatabaseShim struct {
 	err error
 }
 
-func NewStateDB(ctx context.Context, mu state.Mutable) (*evm_state.StateDB, *DatabaseShim) {
+func NewStateDB(ctx context.Context, mu state.Mutable) (*evm_state.StateDB, *DatabaseShim, error) {
 	shim := NewDatabaseShim(ctx, mu)
 	statedb, err := evm_state.New(common.Hash{}, shim, nil)
 	if err != nil {
-		panic(err) // This can never happen since OpenTrie will always succeed
+		return nil, nil, err
 	}
-	return statedb, shim
+	return statedb, shim, nil
 }
 
 func NewDatabaseShim(ctx context.Context, mu state.Mutable) *DatabaseShim {

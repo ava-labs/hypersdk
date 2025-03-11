@@ -70,7 +70,10 @@ func (e *EvmSignedCall) Execute(
 		BaseFee:     baseFee,
 	}
 
-	statedb, shim := shim.NewStateDB(ctx, mu)
+	statedb, shim, err := shim.NewStateDB(ctx, mu)
+	if err != nil {
+		return nil, err
+	}
 	txContext := core.NewEVMTxContext(msg)
 
 	evm := vm.NewEVM(

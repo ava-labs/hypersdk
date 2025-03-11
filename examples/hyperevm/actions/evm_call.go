@@ -61,7 +61,10 @@ func (e *EvmCall) Execute(
 		BaseFee:     big.NewInt(0),
 	}
 
-	statedb, shim := shim.NewStateDB(ctx, mu)
+	statedb, shim, err := shim.NewStateDB(ctx, mu)
+	if err != nil {
+		return nil, err
+	}
 	var from common.Address
 	if e.From != (common.Address{}) {
 		from = e.From
