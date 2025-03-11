@@ -30,8 +30,6 @@ import (
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-var _ BlockBenchmarkHelper = (*NoopBlockBenchmarkHelper)(nil)
-
 func GenerateEmptyExecutedBlocks(
 	require *require.Assertions,
 	parentID ids.ID,
@@ -68,29 +66,29 @@ func GenerateEmptyExecutedBlocks(
 // [actions]. [factory] will be the signer of the TX.
 type TxGenerator func(actions []chain.Action, factory chain.AuthFactory) (*chain.Transaction, error)
 
-// BlockBenchmarkHelper is a VM-agnostic helper that allows the tester to
-// generate the genesis commit and the list of transactions for each block.
-type BlockBenchmarkHelper interface {
-	// GenerateGenesis returns the genesis that will be used to create the
-	// genesis commit of the chain. This method will be called exactly once at
-	// the beginning of the benchmark and will be called before GenerateTxList.
-	//
-	// Any factories that will be needed for GenerateTxList should be created
-	// here and part of the genesis (i.e. the allocation list).
-	GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error)
-	// GenerateTxList should return a list of transactions of length [numOfTxsPerBlock].
-	GenerateTxList(numOfTxsPerBlock uint64, txGenerator TxGenerator) ([]*chain.Transaction, error)
-}
+// TxListGenerator is a function that should return a list of valid TXs of
+// length [numOfTxsPerBlock].
+type TxListGenerator func(numOfTxsPerBlock uint64, txGenerator TxGenerator) ([]*chain.Transaction, error)
 
-// NoopBlockBenchmarkHelper returns an empty genesis and an empty list of transactions.
-type NoopBlockBenchmarkHelper struct{}
-
-func (NoopBlockBenchmarkHelper) GenerateGenesis(uint64) (genesis.Genesis, error) {
-	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), nil
-}
-
-func (NoopBlockBenchmarkHelper) GenerateTxList(uint64, TxGenerator) ([]*chain.Transaction, error) {
+func EmptyTxListGenerator(uint64, TxGenerator) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
+}
+
+// BlockBenchmarkHelper initializes a BlockBenchmark test by returning the
+// genesis and TxListGenerator to be used.
+type BlockBenchmarkHelper func(numOfTxsPerBlock uint64) (genesis.Genesis, TxListGenerator, error)
+
+func NoopBlockBenchmarkHelper(uint64) (genesis.Genesis, TxListGenerator, error) {
+	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), EmptyTxListGenerator, nil
+}
+
+// parentContext holds values relating to the parent block that is required
+// for producing the child block.
+type parentContext struct {
+	view      state.View
+	id        ids.ID
+	height    uint64
+	timestamp int64
 }
 
 // GenerateExecutionBlocks generates [numBlocks] execution blocks with
@@ -103,11 +101,8 @@ func GenerateExecutionBlocks(
 	rules chain.Rules,
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
-	blockBenchmarkHelper BlockBenchmarkHelper,
-	parentView state.View,
-	parentID ids.ID,
-	parentHeight uint64,
-	parentTimestamp int64,
+	txListGenerator TxListGenerator,
+	parentCtx *parentContext,
 	numBlocks uint64,
 	numOfTxsPerBlock uint64,
 ) ([]*chain.ExecutionBlock, error) {
@@ -118,10 +113,10 @@ func GenerateExecutionBlocks(
 	}
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
 	for i := range executionBlocks {
-		timestamp := parentTimestamp + timestampOffset*(int64(i)+1)
-		height := parentHeight + 1 + uint64(i)
+		timestamp := parentCtx.timestamp + timestampOffset*(int64(i)+1)
+		height := parentCtx.height + 1 + uint64(i)
 
-		feeBytes, err := parentView.GetValue(ctx, chain.FeeKey(metadataManager.FeePrefix()))
+		feeBytes, err := parentCtx.view.GetValue(ctx, chain.FeeKey(metadataManager.FeePrefix()))
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +147,7 @@ func GenerateExecutionBlocks(
 			return txData.Sign(factory)
 		}
 
-		txs, err := blockBenchmarkHelper.GenerateTxList(numOfTxsPerBlock, txGenerator)
+		txs, err := txListGenerator(numOfTxsPerBlock, txGenerator)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +158,7 @@ func GenerateExecutionBlocks(
 			if err != nil {
 				return nil, err
 			}
-			tsv := ts.NewView(stateKeys, parentView, 0)
+			tsv := ts.NewView(stateKeys, parentCtx.view, 0)
 			if err := tx.PreExecute(ctx, feeManager, balanceHandler, rules, tsv, timestamp); err != nil {
 				return nil, err
 			}
@@ -178,7 +173,7 @@ func GenerateExecutionBlocks(
 			tsv.Commit()
 		}
 
-		tsv := ts.NewView(state.CompletePermissions, parentView, 0)
+		tsv := ts.NewView(state.CompletePermissions, parentCtx.view, 0)
 		if err := tsv.Insert(ctx, chain.HeightKey(metadataManager.HeightPrefix()), binary.BigEndian.AppendUint64(nil, height)); err != nil {
 			return nil, err
 		}
@@ -190,12 +185,12 @@ func GenerateExecutionBlocks(
 		}
 		tsv.Commit()
 
-		root, err := parentView.GetMerkleRoot(ctx)
+		root, err := parentCtx.view.GetMerkleRoot(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		parentView, err = parentView.NewView(ctx, merkledb.ViewChanges{
+		parentCtx.view, err = parentCtx.view.NewView(ctx, merkledb.ViewChanges{
 			MapOps:       ts.ChangedKeys(),
 			ConsumeBytes: true,
 		})
@@ -204,7 +199,7 @@ func GenerateExecutionBlocks(
 		}
 
 		statelessBlock, err := chain.NewStatelessBlock(
-			parentID,
+			parentCtx.id,
 			timestamp,
 			height,
 			txs,
@@ -214,7 +209,7 @@ func GenerateExecutionBlocks(
 		if err != nil {
 			return nil, err
 		}
-		parentID = statelessBlock.GetID()
+		parentCtx.id = statelessBlock.GetID()
 
 		blk := chain.NewExecutionBlock(statelessBlock)
 		executionBlocks[i] = blk
@@ -278,7 +273,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.Config,
 	)
 
-	genesis, err := test.BlockBenchmarkHelper.GenerateGenesis(test.NumOfTxsPerBlock)
+	genesis, txListGenerator, err := test.BlockBenchmarkHelper(test.NumOfTxsPerBlock)
 	r.NoError(err)
 
 	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
@@ -294,16 +289,20 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	r.NoError(err)
 	r.NoError(genesisView.CommitToDB(ctx))
 
+	parentCtx := &parentContext{
+		view:      db,
+		id:        genesisExecutionBlk.GetID(),
+		height:    genesisExecutionBlk.GetHeight(),
+		timestamp: genesisExecutionBlk.GetTimestamp(),
+	}
+
 	blocks, err := GenerateExecutionBlocks(
 		ctx,
 		test.RuleFactory.GetRules(time.Now().UnixMilli()),
 		test.MetadataManager,
 		test.BalanceHandler,
-		test.BlockBenchmarkHelper,
-		db,
-		genesisExecutionBlk.GetID(),
-		genesisExecutionBlk.GetHeight(),
-		genesisExecutionBlk.GetTimestamp(),
+		txListGenerator,
+		parentCtx,
 		test.NumOfBlocks,
 		test.NumOfTxsPerBlock,
 	)

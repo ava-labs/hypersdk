@@ -16,124 +16,101 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 )
 
-var (
-	_ chaintest.BlockBenchmarkHelper = (*ParallelTxBlockBenchmarkHelper)(nil)
-	_ chaintest.BlockBenchmarkHelper = (*SerialTxBlockBenchmarkHelper)(nil)
-)
-
-type ParallelTxBlockBenchmarkHelper struct {
-	factories []chain.AuthFactory
-	nonce     uint64
-}
-
-func (p *ParallelTxBlockBenchmarkHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+func parallelTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
 	factories, gen, err := createGenesis(numOfTxsPerBlock, 1_000_000)
 	if err != nil {
-		return nil, err
-	}
-	p.factories = factories
-	return gen, nil
-}
-
-func (p *ParallelTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
-	for i := 0; i < int(numOfTxsPerBlock); i++ {
-		action := &actions.Transfer{
-			To:    p.factories[i].Address(),
-			Value: 1,
-			Memo:  binary.BigEndian.AppendUint64(nil, p.nonce),
-		}
-
-		p.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, p.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return nil, nil, err
 	}
 
-	return txs, nil
+	nonce := uint64(0)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := 0; i < int(numOfTxsPerBlock); i++ {
+			action := &actions.Transfer{
+				To:    factories[i].Address(),
+				Value: 1,
+				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
+			}
+
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+
+		return txs, nil
+	}
+	return gen, txListGenerator, nil
 }
 
-type SerialTxBlockBenchmarkHelper struct {
-	factories []chain.AuthFactory
-	nonce     uint64
-}
-
-func (s *SerialTxBlockBenchmarkHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
 	factories, gen, err := createGenesis(numOfTxsPerBlock, 1_000_000)
 	if err != nil {
-		return nil, err
-	}
-	s.factories = factories
-	return gen, nil
-}
-
-func (s *SerialTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
-	for i := 0; i < int(numOfTxsPerBlock); i++ {
-		action := &actions.Transfer{
-			To:    codec.EmptyAddress,
-			Value: 1,
-			Memo:  binary.BigEndian.AppendUint64(nil, s.nonce),
-		}
-
-		s.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, s.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return nil, nil, err
 	}
 
-	return txs, nil
+	nonce := uint64(0)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := 0; i < int(numOfTxsPerBlock); i++ {
+			action := &actions.Transfer{
+				To:    codec.EmptyAddress,
+				Value: 1,
+				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
+			}
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+
+		return txs, nil
+	}
+	return gen, txListGenerator, nil
 }
 
-type ZipfTxBlockBenchmarkHelper struct {
-	factories []chain.AuthFactory
-	zipfGen   *rand.Zipf
-	nonce     uint64
-}
-
-func (z *ZipfTxBlockBenchmarkHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
 	factories, gen, err := createGenesis(numOfTxsPerBlock, 1_000_000)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	z.factories = factories
+
+	nonce := uint64(0)
 
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	sZipf := 1.01
 	vZipf := 2.7
-	z.zipfGen = rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
 
-	return gen, nil
-}
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := 0; i < int(numOfTxsPerBlock); i++ {
+			action := &actions.Transfer{
+				To:    factories[zipfGen.Uint64()].Address(),
+				Value: 1,
+				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
+			}
 
-func (z *ZipfTxBlockBenchmarkHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
-	for i := 0; i < int(numOfTxsPerBlock); i++ {
-		action := &actions.Transfer{
-			To:    z.factories[z.zipfGen.Uint64()].Address(),
-			Value: 1,
-			Memo:  binary.BigEndian.AppendUint64(nil, z.nonce),
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
 		}
 
-		z.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, z.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return txs, nil
 	}
-
-	return txs, nil
+	return gen, txListGenerator, nil
 }
 
 func createGenesis(numOfFactories uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -34,13 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var (
-	errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
-
-	_ chaintest.BlockBenchmarkHelper = (*parallelTxBlockHelper)(nil)
-	_ chaintest.BlockBenchmarkHelper = (*serialTxBlockHelper)(nil)
-	_ chaintest.BlockBenchmarkHelper = (*zipfTxBlockHelper)(nil)
-)
+var errMockVerifyExpiryReplayProtection = errors.New("mock validity window error")
 
 func TestProcessorExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
@@ -518,28 +513,28 @@ func TestProcessorExecute(t *testing.T) {
 
 func BenchmarkExecuteBlocks(b *testing.B) {
 	benchmarks := []struct {
-		name             string
-		h                chaintest.BlockBenchmarkHelper
-		numOfTxsPerBlock uint64
+		name                 string
+		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
+		numOfTxsPerBlock     uint64
 	}{
 		{
-			name: "empty blocks",
-			h:    chaintest.NoopBlockBenchmarkHelper{},
+			name:                 "empty blocks",
+			blockBenchmarkHelper: chaintest.NoopBlockBenchmarkHelper,
 		},
 		{
-			name:             "blocks with txs that do not have conflicting state keys",
-			h:                &parallelTxBlockHelper{},
-			numOfTxsPerBlock: 16,
+			name:                 "blocks with txs that do not have conflicting state keys",
+			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
 		},
 		{
-			name:             "blocks with txs that all touch the same state key",
-			h:                &serialTxBlockHelper{},
-			numOfTxsPerBlock: 16,
+			name:                 "blocks with txs that all touch the same state key",
+			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
 		},
 		{
-			name:             "blocks with txs whose state keys are zipf distributed",
-			h:                &zipfTxBlockHelper{},
-			numOfTxsPerBlock: 16,
+			name:                 "blocks with txs whose state keys are zipf distributed",
+			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
 		},
 	}
 
@@ -559,35 +554,32 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 					Log: logging.NoLog{},
 				},
 				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
-				BlockBenchmarkHelper: bm.h,
-				Config:               chain.NewDefaultConfig(),
-				NumOfBlocks:          1_000,
-				NumOfTxsPerBlock:     bm.numOfTxsPerBlock,
+				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
+				Config: chain.Config{
+					TargetBuildDuration:       100 * time.Millisecond,
+					TransactionExecutionCores: 4,
+					StateFetchConcurrency:     4,
+					TargetTxsSize:             1.5 * units.MiB,
+				},
+				NumOfBlocks:      1_000,
+				NumOfTxsPerBlock: bm.numOfTxsPerBlock,
 			}
 			benchmark.Run(context.Background(), b)
 		})
 	}
 }
 
-type parallelTxBlockHelper struct {
-	factories    []chain.AuthFactory
-	databaseKeys []string
-	values       [][]byte
-	nonce        uint64
-}
-
-func (p *parallelTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
-	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+func parallelTxsBlockBenchmarkHelper(numOfTxs uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numOfTxs, 1_000_000)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	p.factories = factories
 
 	// Generate kv-pairs for testing
-	databaseKeys := make([]string, numOfTxsPerBlock)
-	values := make([][]byte, numOfTxsPerBlock)
+	databaseKeys := make([]string, numOfTxs)
+	values := make([][]byte, numOfTxs)
 
-	for i := range numOfTxsPerBlock {
+	for i := range numOfTxs {
 		key := string(binary.BigEndian.AppendUint16(
 			binary.BigEndian.AppendUint64(nil, i),
 			1,
@@ -596,94 +588,79 @@ func (p *parallelTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesi
 		values[i] = binary.BigEndian.AppendUint64(nil, i)
 	}
 
-	p.databaseKeys = databaseKeys
-	p.values = values
+	nonce := uint64(0)
 
-	return genesis, nil
-}
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[i]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[i])},
+				WriteValues:                  [][]byte{values[i]},
+				Start:                        -1,
+				End:                          -1,
+			}
 
-func (p *parallelTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
-	for i := range numOfTxsPerBlock {
-		action := &chaintest.TestAction{
-			Nonce:                        p.nonce,
-			SpecifiedStateKeys:           []string{p.databaseKeys[i]},
-			SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
-			WriteKeys:                    [][]byte{[]byte(p.databaseKeys[i])},
-			WriteValues:                  [][]byte{p.values[i]},
-			Start:                        -1,
-			End:                          -1,
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
 		}
-
-		p.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, p.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return txs, nil
 	}
-	return txs, nil
+
+	return genesis, txListGenerator, nil
 }
 
-type serialTxBlockHelper struct {
-	factories []chain.AuthFactory
-	nonce     uint64
-}
-
-func (s *serialTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
 	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	s.factories = factories
-	return genesis, nil
-}
-
-func (s *serialTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
 
 	k := string(binary.BigEndian.AppendUint16(nil, 1))
 	v := binary.BigEndian.AppendUint64(nil, 1)
 
-	for i := range numOfTxsPerBlock {
-		action := &chaintest.TestAction{
-			Nonce:                        s.nonce,
-			SpecifiedStateKeys:           []string{k},
-			SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
-			WriteKeys:                    [][]byte{v},
-			Start:                        -1,
-			End:                          -1,
+	nonce := uint64(0)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{k},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{v},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
 		}
-
-		s.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, s.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return txs, nil
 	}
 
-	return txs, nil
+	return genesis, txListGenerator, nil
 }
 
-type zipfTxBlockHelper struct {
-	factories    []chain.AuthFactory
-	zipfGen      *rand.Zipf
-	nonce        uint64
-	databaseKeys []string
-	values       [][]byte
-}
-
-func (z *zipfTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Genesis, error) {
+func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
 	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	z.factories = factories
 
 	// Generate kv-pairs for testing
 	databaseKeys := make([]string, numOfTxsPerBlock)
@@ -698,41 +675,40 @@ func (z *zipfTxBlockHelper) GenerateGenesis(numOfTxsPerBlock uint64) (genesis.Ge
 		values[i] = binary.BigEndian.AppendUint64(nil, i)
 	}
 
-	z.databaseKeys = databaseKeys
-	z.values = values
+	nonce := uint64(0)
 
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	sZipf := 1.01
 	vZipf := 2.7
-	z.zipfGen = rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
 
-	return genesis, nil
-}
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			index := zipfGen.Uint64()
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[index]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[index])},
+				WriteValues:                  [][]byte{values[index]},
+				Start:                        -1,
+				End:                          -1,
+			}
 
-func (z *zipfTxBlockHelper) GenerateTxList(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-	txs := make([]*chain.Transaction, numOfTxsPerBlock)
-	for i := range numOfTxsPerBlock {
-		index := z.zipfGen.Uint64()
-		action := &chaintest.TestAction{
-			Nonce:                        z.nonce,
-			SpecifiedStateKeys:           []string{z.databaseKeys[index]},
-			SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
-			WriteKeys:                    [][]byte{[]byte(z.databaseKeys[index])},
-			WriteValues:                  [][]byte{z.values[index]},
-			Start:                        -1,
-			End:                          -1,
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
 		}
-
-		z.nonce++
-
-		tx, err := txGenerator([]chain.Action{action}, z.factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txs[i] = tx
+		return txs, nil
 	}
-	return txs, nil
+
+	return genesis, txListGenerator, nil
 }
 
 func createGenesis(numOfFactories uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
