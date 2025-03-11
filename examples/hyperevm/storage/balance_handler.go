@@ -16,12 +16,12 @@ var _ chain.BalanceHandler = (*BalanceHandler)(nil)
 
 type BalanceHandler struct{}
 
-func (b *BalanceHandler) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
+func (*BalanceHandler) AddBalance(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
 	_, err := AddBalance(ctx, mu, ToEVMAddress(addr), amount)
 	return err
 }
 
-func (b *BalanceHandler) CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error {
+func (*BalanceHandler) CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error {
 	bal, err := GetBalance(ctx, im, ToEVMAddress(addr))
 	if err != nil {
 		return err
@@ -37,16 +37,16 @@ func (b *BalanceHandler) CanDeduct(ctx context.Context, addr codec.Address, im s
 	return nil
 }
 
-func (b *BalanceHandler) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
+func (*BalanceHandler) Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error {
 	_, err := SubBalance(ctx, mu, ToEVMAddress(addr), amount)
 	return err
 }
 
-func (b *BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
+func (*BalanceHandler) GetBalance(ctx context.Context, addr codec.Address, im state.Immutable) (uint64, error) {
 	return GetBalance(ctx, im, ToEVMAddress(addr))
 }
 
-func (b *BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
+func (*BalanceHandler) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(AccountKey(ToEVMAddress(addr))): state.Read | state.Write,
 	}

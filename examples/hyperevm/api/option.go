@@ -68,8 +68,12 @@ func (e ethAPIFactory) New(vm api.VM) (api.Handler, error) {
 	server.RegisterCodec(NewCodec(), "application/json")
 	server.RegisterCodec(NewCodec(), "application/json;charset=UTF-8")
 
-	server.RegisterService(ethrpc.NewService(vm, e.indexer))
-	server.RegisterService(net.NewService(vm))
+	if err := server.RegisterService(ethrpc.NewService(vm, e.indexer)); err != nil {
+		return api.Handler{}, err
+	}
+	if err := server.RegisterService(net.NewService(vm)); err != nil {
+		return api.Handler{}, err
+	}
 
 	return api.Handler{
 		Handler: server,

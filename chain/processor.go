@@ -236,8 +236,7 @@ func (p *Processor) executeTxs(
 	defer span.End()
 
 	var (
-		numTxs   = len(b.StatelessBlock.Txs)
-		blockCtx = NewBlockContext(b.Hght, b.GetTimestamp())
+		numTxs = len(b.StatelessBlock.Txs)
 
 		f       = fetcher.New(im, numTxs, p.config.StateFetchConcurrency)
 		e       = executor.New(numTxs, p.config.TransactionExecutionCores, MaxKeyDependencies, p.metrics.executorVerifyRecorder)
@@ -297,11 +296,17 @@ func (p *Processor) executeTxs(
 				return err
 			}
 
+			actionCtx := NewActionContext(
+				b.GetHeight(),
+				b.GetTimestamp(),
+				txID,
+			)
+
 			// we need to pass in the following for action execution:
 			// 1. the tx index
 			// 2. the tx hash
 			// passing in these values would make logging possible
-			result, err := tx.Execute(ctx, blockCtx, feeManager, p.balanceHandler, r, tsv)
+			result, err := tx.Execute(ctx, actionCtx, feeManager, p.balanceHandler, r, tsv)
 			if err != nil {
 				return err
 			}

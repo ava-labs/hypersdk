@@ -189,7 +189,16 @@ func (j *JSONRPCServer) ExecuteActions(
 		actions = append(actions, action)
 	}
 
-	blockCtx := chain.NewBlockContext(0, now)
+	latestBlock, err := j.vm.LastAcceptedBlock(req.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get latest block: %w", err)
+	}
+
+	actionCtx := chain.NewActionContext(
+		latestBlock.GetHeight()+1,
+		now,
+		ids.Empty,
+	)
 
 	storage := make(map[string][]byte)
 	ts := tstate.New(1)
@@ -225,7 +234,7 @@ func (j *JSONRPCServer) ExecuteActions(
 
 		output, err := action.Execute(
 			ctx,
-			blockCtx,
+			actionCtx,
 			rules,
 			tsv,
 			args.Actor,
@@ -289,10 +298,19 @@ func (j *JSONRPCServer) SimulateActions(
 		0,
 	)
 
+	latestBlock, err := j.vm.LastAcceptedBlock(req.Context())
+	if err != nil {
+		return err
+	}
+
 	currentTime := time.Now().UnixMilli()
 	ruleFactory := j.vm.GetRuleFactory()
 	rules := ruleFactory.GetRules(currentTime)
-	blockCtx := chain.NewBlockContext(0, currentTime)
+	blockCtx := chain.NewActionContext(
+		latestBlock.GetHeight()+1,
+		currentTime,
+		ids.Empty,
+	)
 	for _, action := range actions {
 		actionOutput, err := action.Execute(
 			ctx,

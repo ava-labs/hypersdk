@@ -57,11 +57,11 @@ func (d *DatabaseShim) OpenTrie(common.Hash) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
 
-func (d *DatabaseShim) OpenStorageTrie(root common.Hash, addr common.Address, hash common.Hash, _ evm_state.Trie) (evm_state.Trie, error) {
+func (d *DatabaseShim) OpenStorageTrie(_ common.Hash, _ common.Address, _ common.Hash, _ evm_state.Trie) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
 
-func (d *DatabaseShim) ContractCode(addr common.Address, codeHash common.Hash) ([]byte, error) {
+func (d *DatabaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
 	codeBytes, err := storage.GetCode(d.ctx, d.mu, addr)
 	d.setError(err)
 	return codeBytes, err

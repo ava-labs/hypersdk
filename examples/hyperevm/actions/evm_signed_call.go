@@ -36,11 +36,11 @@ type EvmSignedCall struct {
 
 func (e *EvmSignedCall) Execute(
 	ctx context.Context,
-	blockCtx chain.BlockContext,
+	actionCtx chain.ActionContext,
 	r chain.Rules,
 	mu state.Mutable,
 	_ codec.Address,
-	actionID ids.ID,
+	_ ids.ID,
 ) ([]byte, error) {
 	// Convert to TX
 	tx := new(types.Transaction)
@@ -48,7 +48,7 @@ func (e *EvmSignedCall) Execute(
 		return nil, err
 	}
 	// Get signer
-	signer := types.MakeSigner(econsts.ChainConfig, new(big.Int).SetUint64(blockCtx.Height()), uint64(blockCtx.Timestamp()))
+	signer := types.MakeSigner(econsts.ChainConfig, new(big.Int).SetUint64(actionCtx.GetHeight()), uint64(actionCtx.GetTimestamp()))
 	// Construct message
 	baseFee := big.NewInt(0)
 	msg, err := core.TransactionToMessage(tx, signer, baseFee)
@@ -64,8 +64,8 @@ func (e *EvmSignedCall) Execute(
 		Transfer:    core.Transfer,
 		GetHash:     func(uint64) common.Hash { return common.Hash{} },
 		GasLimit:    blockGasLimit,
-		BlockNumber: new(big.Int).SetUint64(blockCtx.Height()),
-		Time:        uint64(blockCtx.Timestamp()),
+		BlockNumber: new(big.Int).SetUint64(actionCtx.GetHeight()),
+		Time:        uint64(actionCtx.GetTimestamp()),
 		Difficulty:  big.NewInt(1),
 		BaseFee:     baseFee,
 	}
@@ -74,6 +74,7 @@ func (e *EvmSignedCall) Execute(
 	if err != nil {
 		return nil, err
 	}
+	statedb.SetTxContext(common.Hash(actionCtx.GetTxID()), 0)
 	txContext := core.NewEVMTxContext(msg)
 
 	evm := vm.NewEVM(
@@ -120,7 +121,7 @@ func (e *EvmSignedCall) Execute(
 	return res.Bytes(), nil
 }
 
-func (e *EvmSignedCall) ComputeUnits(chain.Rules) uint64 {
+func (*EvmSignedCall) ComputeUnits(chain.Rules) uint64 {
 	// TODO: make dynamic
 	return 1
 }
@@ -136,14 +137,14 @@ func (e *EvmSignedCall) Bytes() []byte {
 	return p.Bytes
 }
 
-func (e *EvmSignedCall) GetTypeID() uint8 {
+func (*EvmSignedCall) GetTypeID() uint8 {
 	return econsts.EvmSignedCallID
 }
 
-func (e *EvmSignedCall) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (e *EvmSignedCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return e.Keys
 }
 
-func (e *EvmSignedCall) ValidRange(chain.Rules) (start int64, end int64) {
+func (*EvmSignedCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }

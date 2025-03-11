@@ -99,7 +99,7 @@ func main() {
 
 	adminClient := admin.NewClient("http://localhost:9650")
 	if err := adminClient.AliasChain(context.Background(), subnet.Chains[0].ChainID.String(), consts.Name); err != nil {
-		network.Stop(context.Background())
+		network.Stop(context.Background()) //nolint:errcheck
 		panic(err)
 	}
 

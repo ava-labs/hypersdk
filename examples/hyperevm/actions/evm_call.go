@@ -23,8 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
-
-	econsts "github.com/ava-labs/hypersdk/examples/hyperevm/consts"
 )
 
 var _ chain.Action = (*EvmCall)(nil)
@@ -43,7 +41,7 @@ type EvmCall struct {
 // be marked as false and fees will still be charged.
 func (e *EvmCall) Execute(
 	ctx context.Context,
-	blockCtx chain.BlockContext,
+	actionCtx chain.ActionContext,
 	r chain.Rules,
 	mu state.Mutable,
 	actor codec.Address,
@@ -55,8 +53,8 @@ func (e *EvmCall) Execute(
 		Transfer:    core.Transfer,
 		GetHash:     func(uint64) common.Hash { return common.Hash{} },
 		GasLimit:    blockGasLimit,
-		BlockNumber: new(big.Int).SetUint64(blockCtx.Height()),
-		Time:        uint64(blockCtx.Timestamp()),
+		BlockNumber: new(big.Int).SetUint64(actionCtx.GetHeight()),
+		Time:        uint64(actionCtx.GetTimestamp()),
 		Difficulty:  big.NewInt(1),
 		BaseFee:     big.NewInt(0),
 	}
@@ -65,6 +63,7 @@ func (e *EvmCall) Execute(
 	if err != nil {
 		return nil, err
 	}
+	statedb.SetTxContext(common.Hash(actionCtx.GetTxID()), 0)
 	var from common.Address
 	if e.From != (common.Address{}) {
 		from = e.From
@@ -75,7 +74,7 @@ func (e *EvmCall) Execute(
 	txContext := core.NewEVMTxContext(msg)
 
 	evm := vm.NewEVM(
-		ethBlockCtx, txContext, statedb, econsts.ChainConfig, vm.Config{},
+		ethBlockCtx, txContext, statedb, consts.ChainConfig, vm.Config{},
 	)
 	gp := new(core.GasPool).AddGas(e.GasLimit)
 	result, err := core.ApplyMessage(evm, msg, gp)
@@ -108,17 +107,26 @@ func (e *EvmCall) Execute(
 		nonce := statedb.GetNonce(from)
 		contractAddress = crypto.CreateAddress(from, nonce-1)
 	}
+
+	logs := statedb.GetLogs(
+		common.Hash(actionCtx.GetTxID()),
+		actionCtx.GetHeight(),
+		common.Hash(ids.Empty),
+	)
+	convertedLogs := convertLogs(logs)
+
 	res := &EvmCallResult{
 		Success:         result.Err == nil,
 		Return:          result.ReturnData,
 		UsedGas:         result.UsedGas,
 		ErrorCode:       resultErrCode,
 		ContractAddress: contractAddress,
+		Logs:            convertedLogs,
 	}
 	return res.Bytes(), nil
 }
 
-func (e *EvmCall) ComputeUnits(_ chain.Rules) uint64 {
+func (*EvmCall) ComputeUnits(_ chain.Rules) uint64 {
 	return 1
 }
 
@@ -127,13 +135,13 @@ func (e *EvmCall) Bytes() []byte {
 		Bytes:   make([]byte, 0),
 		MaxSize: 1024,
 	}
-	p.PackByte(econsts.EvmCallID)
+	p.PackByte(consts.EvmCallID)
 	_ = codec.LinearCodec.MarshalInto(e, p)
 	return p.Bytes
 }
 
 func (*EvmCall) GetTypeID() uint8 {
-	return econsts.EvmCallID
+	return consts.EvmCallID
 }
 
 func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
@@ -187,19 +195,20 @@ type EvmCallResult struct {
 	UsedGas         uint64         `serialize:"true" json:"usedGas"`
 	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
 	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
+	Logs            []Log          `serialize:"true" json:"logs"`
 }
 
 func (*EvmCallResult) GetTypeID() uint8 {
-	return econsts.EvmCallID
+	return consts.EvmCallID
 }
 
 func (e *EvmCallResult) Bytes() []byte {
 	// TODO: fine-tune these values
 	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0),
+		Bytes:   make([]byte, 1024),
 		MaxSize: 1024,
 	}
-	p.PackByte(econsts.EvmCallID)
+	p.PackByte(consts.EvmCallID)
 	_ = codec.LinearCodec.MarshalInto(e, p)
 	return p.Bytes
 }

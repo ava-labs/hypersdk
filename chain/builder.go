@@ -93,7 +93,6 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 		timestamp         = nextTime
 		height            = parent.Hght + 1
 		blockTransactions = []*Transaction{}
-		blockCtx          = NewBlockContext(height, timestamp)
 	)
 
 	// Compute next unit prices to use
@@ -274,6 +273,13 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 					state.ImmutableStorage(storage),
 					len(stateKeys),
 				)
+
+				actionCtx := NewActionContext(
+					height,
+					timestamp,
+					tx.GetID(),
+				)
+
 				if err := tx.PreExecute(ctx, feeManager, c.balanceHandler, r, tsv, nextTime); err != nil {
 					// Ignore the error and drop the transaction.
 					// We don't need to rollback [tsv] here because it will never
@@ -282,7 +288,7 @@ func (c *Builder) BuildBlock(ctx context.Context, pChainCtx *block.Context, pare
 				}
 				result, err := tx.Execute(
 					ctx,
-					blockCtx,
+					actionCtx,
 					feeManager,
 					c.balanceHandler,
 					r,

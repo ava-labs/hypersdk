@@ -158,7 +158,7 @@ func (args *EstimateGasArgs) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (e *EthRPCServer) EstimateGas(req *http.Request, args *EstimateGasArgs, reply *hexutil.Uint64) error {
+func (e *EthRPCServer) EstimateGas(_ *http.Request, _ *EstimateGasArgs, reply *hexutil.Uint64) error {
 	e.vm.Logger().Info("eth_estimateGas")
 
 	// Overestimating for now
@@ -210,7 +210,7 @@ type FeeHistoryReply struct {
 	BlobGasUsedRatio []float64        `json:"blobGasUsedRatio,omitempty"`
 }
 
-func (e *EthRPCServer) FeeHistory(_ *http.Request, args *FeeHistoryArgs, reply *FeeHistoryReply) error {
+func (e *EthRPCServer) FeeHistory(*http.Request, *FeeHistoryArgs, *FeeHistoryReply) error {
 	e.vm.Logger().Info("eth_feeHistory")
 	return nil
 }
@@ -222,7 +222,7 @@ func (e *EthRPCServer) GasPrice(_ *http.Request, _ *struct{}, reply *hexutil.Big
 	return nil
 }
 
-func (e *EthRPCServer) ChainId(_ *http.Request, _ *struct{}, reply *hexutil.Big) error {
+func (e *EthRPCServer) ChainID(_ *http.Request, _ *struct{}, reply *hexutil.Big) error {
 	e.vm.Logger().Info("eth_chainID")
 
 	*reply = (hexutil.Big)(*consts.ChainConfig.ChainID)
@@ -431,8 +431,8 @@ func (e *EthRPCServer) GetBlockByNumber(req *http.Request, args *GetBlockByNumbe
 
 	txs := make([]common.Hash, 0)
 	for _, tx := range blk.Block.Txs {
-		txId := tx.GetID()
-		txs = append(txs, common.BytesToHash(txId[:]))
+		txID := tx.GetID()
+		txs = append(txs, common.BytesToHash(txID[:]))
 	}
 	blockInfo["transactions"] = txs
 	blockRoot := blk.Block.GetStateRoot()
@@ -589,7 +589,7 @@ func (e *EthRPCServer) SendRawTransaction(req *http.Request, args *hexutil.Bytes
 	return nil
 }
 
-func (e *EthRPCServer) GetTransactionReceipt(req *http.Request, args *common.Hash, reply *map[string]interface{}) error {
+func (e *EthRPCServer) GetTransactionReceipt(_ *http.Request, args *common.Hash, reply *map[string]interface{}) error {
 	e.vm.Logger().Info("eth_getTransactionReceipt", zap.Any("txID", args))
 
 	txInfo := make(map[string]interface{})
@@ -667,7 +667,7 @@ func convertTxToAction(tx *types.Transaction, height uint64, timestamp int64) (*
 	// Convert TX to action before doing expensive work
 	to := tx.To()
 	var (
-		isNullAddress bool = true
+		isNullAddress = true
 		toAddr        common.Address
 	)
 	if to != nil {
@@ -705,7 +705,7 @@ func convertRPCTxToAction(tx *RPCTransaction) (*actions.EvmCall, error) {
 
 	var (
 		toAddress     common.Address
-		isNullAddress bool = true
+		isNullAddress = true
 	)
 	if tx.To != nil {
 		toAddress = *tx.To
@@ -739,10 +739,10 @@ func (e *EthRPCServer) simulateAction(ctx context.Context, action chain.Action) 
 	currentTime := time.Now().UnixMilli()
 	ruleFactory := e.vm.GetRuleFactory()
 	rules := ruleFactory.GetRules(currentTime)
-	blockCtx := chain.NewBlockContext(0, currentTime)
+	actionCtx := chain.NewActionContext(0, currentTime, ids.Empty)
 	actionOutput, err := action.Execute(
 		ctx,
-		blockCtx,
+		actionCtx,
 		rules,
 		tsv,
 		codec.EmptyAddress,

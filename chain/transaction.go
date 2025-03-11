@@ -284,7 +284,7 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	blockCtx BlockContext,
+	actionCtx ActionContext,
 	feeManager *internalfees.Manager,
 	bh BalanceHandler,
 	r Rules,
@@ -316,7 +316,7 @@ func (t *Transaction) Execute(
 		actionOutputs = [][]byte{}
 	)
 	for i, action := range t.Actions {
-		actionOutput, err := action.Execute(ctx, blockCtx, r, ts, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
+		actionOutput, err := action.Execute(ctx, actionCtx, r, ts, t.Auth.Actor(), CreateActionID(t.GetID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{

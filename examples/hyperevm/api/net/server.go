@@ -26,7 +26,7 @@ func NewNetServer(vm api.VM) *NetServer {
 	return &NetServer{vm: vm}
 }
 
-func (n *NetServer) Version(_ *http.Request, args *struct{}, reply *uint64) error {
+func (*NetServer) Version(_ *http.Request, _ *struct{}, reply *uint64) error {
 	chainID := big.NewInt(0).Add(params.DefaultChainID, big.NewInt(1))
 	*reply = chainID.Uint64()
 

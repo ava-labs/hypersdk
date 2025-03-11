@@ -56,13 +56,13 @@ func TestGetTransfer(t *testing.T) {
 	r.NoError(bh.AddBalance(context.Background(), from.Address, mp, 1))
 
 	// Defining tx context
-	blockCtx := chain.NewBlockContext(0, time.Now().UnixMilli())
+	actionCtx := chain.NewActionContext(0, time.Now().UnixMilli(), ids.Empty)
 	rules := genesis.NewDefaultRules()
 	rules.MaxBlockUnits = fees.Dimensions{1800000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
 
 	ts := tstate.New(0)
 	tsv := ts.NewView(evmCall.Keys, mp, 0)
-	output, err := evmCall.Execute(context.Background(), blockCtx, rules, tsv, from.Address, ids.Empty)
+	output, err := evmCall.Execute(context.Background(), actionCtx, rules, tsv, from.Address, ids.Empty)
 	r.NoError(err)
 
 	result, err := actions.UnmarshalEvmCallResult(output)

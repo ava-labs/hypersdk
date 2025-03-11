@@ -65,7 +65,7 @@ func (sh *SpamHelper) GetRuleFactory(ctx context.Context) (chain.RuleFactory, er
 	return sh.cli.GetRuleFactory(ctx)
 }
 
-func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, fromFactory chain.AuthFactory) []chain.Action {
+func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte, fromFactory chain.AuthFactory) []chain.Action {
 	to := storage.ToEVMAddress(address)
 	from := storage.ToEVMAddress(fromFactory.Address())
 

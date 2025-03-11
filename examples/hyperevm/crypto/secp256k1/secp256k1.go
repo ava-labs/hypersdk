@@ -81,7 +81,7 @@ func Verify(msg []byte, p PublicKey, s Signature) bool {
 	// }
 	digest := crypto.Keccak256Hash(msg)
 	signatureNoRecoverID := s[:len(s)-1]
-	res := crypto.VerifySignature(publicKeyBytes[:], digest.Bytes(), signatureNoRecoverID[:])
+	res := crypto.VerifySignature(publicKeyBytes, digest.Bytes(), signatureNoRecoverID)
 	return res
 }
 

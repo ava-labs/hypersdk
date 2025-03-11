@@ -25,10 +25,7 @@ const JSONRPCEndpoint = "/evmapi"
 
 var _ api.HandlerFactory[api.VM] = (*jsonRPCServerFactory)(nil)
 
-var (
-	errSimulateZeroActions   = errors.New("simulateAction expects at least a single action, none found")
-	errTransactionExtraBytes = errors.New("transaction has extra bytes")
-)
+var errSimulateZeroActions = errors.New("simulateAction expects at least a single action, none found")
 
 type jsonRPCServerFactory struct{}
 
@@ -132,11 +129,11 @@ func (j *JSONRPCServer) SimulateActions(
 	currentTime := time.Now().UnixMilli()
 	ruleFactory := j.vm.GetRuleFactory()
 	rules := ruleFactory.GetRules(currentTime)
-	blockCtx := chain.NewBlockContext(0, currentTime)
+	actionCtx := chain.NewActionContext(0, currentTime, ids.Empty)
 	for _, action := range actions {
 		actionOutput, err := action.Execute(
 			ctx,
-			blockCtx,
+			actionCtx,
 			rules,
 			tsv,
 			args.Actor,
