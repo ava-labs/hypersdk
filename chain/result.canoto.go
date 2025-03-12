@@ -33,8 +33,7 @@ const (
 )
 
 type canotoData_Result struct {
-	size      atomic.Int64
-	UnitsSize atomic.Int64
+	size atomic.Int64
 }
 
 // CanotoSpec returns the specification of this canoto message.
@@ -63,14 +62,14 @@ func (*Result) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 				OneOf:       "",
 				TypeBytes:   true,
 			},
-			{
-				FieldNumber: 4,
-				Name:        "Units",
-				FixedLength: uint64(len(zero.Units)),
-				Repeated:    true,
-				OneOf:       "",
-				TypeInt:     canoto.SizeOf(canoto.MakeEntry(zero.Units[:])),
-			},
+			canoto.FieldTypeFromFint(
+				/*type inference:*/ canoto.MakeEntry(zero.Units[:]),
+				/*FieldNumber:   */ 4,
+				/*Name:          */ "Units",
+				/*FixedLength:   */ uint64(len(zero.Units)),
+				/*Repeated:      */ true,
+				/*OneOf:         */ "",
+			),
 			canoto.FieldTypeFromFint(
 				/*type inference:*/ zero.Fee,
 				/*FieldNumber:   */ 5,
@@ -197,7 +196,7 @@ func (c *Result) UnmarshalCanotoFrom(r canoto.Reader) error {
 			remainingBytes := r.B
 			r.B = msgBytes
 			for i := range &c.Units {
-				if err := canoto.ReadInt(&r, &(&c.Units)[i]); err != nil {
+				if err := canoto.ReadFint64(&r, &(&c.Units)[i]); err != nil {
 					return err
 				}
 			}
@@ -208,7 +207,6 @@ func (c *Result) UnmarshalCanotoFrom(r canoto.Reader) error {
 				return canoto.ErrZeroValue
 			}
 			r.B = remainingBytes
-			c.canotoData.UnitsSize.Store(int64(len(msgBytes)))
 		case 5:
 			if wireType != canoto.I64 {
 				return canoto.ErrUnexpectedWireType
@@ -262,12 +260,8 @@ func (c *Result) CalculateCanotoCache() {
 		size += len(canoto__Result__Outputs__tag) + canoto.SizeBytes(v)
 	}
 	if !canoto.IsZero(c.Units) {
-		var fieldSize int
-		for _, v := range &c.Units {
-			fieldSize += canoto.SizeInt(v)
-		}
-		size += len(canoto__Result__Units__tag) + canoto.SizeUint(uint64(fieldSize)) + fieldSize
-		c.canotoData.UnitsSize.Store(int64(fieldSize))
+		const fieldSize = len(c.Units) * canoto.SizeFint64
+		size += len(canoto__Result__Units__tag) + fieldSize + canoto.SizeUint(uint64(fieldSize))
 	}
 	if !canoto.IsZero(c.Fee) {
 		size += len(canoto__Result__Fee__tag) + canoto.SizeFint64
@@ -325,10 +319,11 @@ func (c *Result) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 		canoto.AppendBytes(&w, v)
 	}
 	if !canoto.IsZero(c.Units) {
+		const fieldSize = len(c.Units) * canoto.SizeFint64
 		canoto.Append(&w, canoto__Result__Units__tag)
-		canoto.AppendUint(&w, uint64(c.canotoData.UnitsSize.Load()))
+		canoto.AppendUint(&w, uint64(fieldSize))
 		for _, v := range &c.Units {
-			canoto.AppendInt(&w, v)
+			canoto.AppendFint64(&w, v)
 		}
 	}
 	if !canoto.IsZero(c.Fee) {
