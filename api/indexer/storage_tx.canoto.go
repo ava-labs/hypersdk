@@ -25,10 +25,10 @@ var (
 )
 
 const (
-	canoto__storageTx__Timestamp__tag = "\x08" // canoto.Tag(1, canoto.Varint)
+	canoto__storageTx__Timestamp__tag = "\x09" // canoto.Tag(1, canoto.I64)
 	canoto__storageTx__Success__tag   = "\x10" // canoto.Tag(2, canoto.Varint)
 	canoto__storageTx__Units__tag     = "\x1a" // canoto.Tag(3, canoto.Len)
-	canoto__storageTx__Fee__tag       = "\x20" // canoto.Tag(4, canoto.Varint)
+	canoto__storageTx__Fee__tag       = "\x21" // canoto.Tag(4, canoto.I64)
 	canoto__storageTx__Outputs__tag   = "\x2a" // canoto.Tag(5, canoto.Len)
 	canoto__storageTx__Error__tag     = "\x32" // canoto.Tag(6, canoto.Len)
 )
@@ -44,12 +44,14 @@ func (*storageTx) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 	s := &canoto.Spec{
 		Name: "storageTx",
 		Fields: []*canoto.FieldType{
-			{
-				FieldNumber: 1,
-				Name:        "Timestamp",
-				OneOf:       "",
-				TypeInt:     canoto.SizeOf(zero.Timestamp),
-			},
+			canoto.FieldTypeFromFint(
+				/*type inference:*/ zero.Timestamp,
+				/*FieldNumber:   */ 1,
+				/*Name:          */ "Timestamp",
+				/*FixedLength:   */ 0,
+				/*Repeated:      */ false,
+				/*OneOf:         */ "",
+			),
 			{
 				FieldNumber: 2,
 				Name:        "Success",
@@ -62,12 +64,14 @@ func (*storageTx) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 				OneOf:       "",
 				TypeBytes:   true,
 			},
-			{
-				FieldNumber: 4,
-				Name:        "Fee",
-				OneOf:       "",
-				TypeInt:     canoto.SizeOf(zero.Fee),
-			},
+			canoto.FieldTypeFromFint(
+				/*type inference:*/ zero.Fee,
+				/*FieldNumber:   */ 4,
+				/*Name:          */ "Fee",
+				/*FixedLength:   */ 0,
+				/*Repeated:      */ false,
+				/*OneOf:         */ "",
+			),
 			{
 				FieldNumber: 5,
 				Name:        "Outputs",
@@ -125,11 +129,11 @@ func (c *storageTx) UnmarshalCanotoFrom(r canoto.Reader) error {
 
 		switch field {
 		case 1:
-			if wireType != canoto.Varint {
+			if wireType != canoto.I64 {
 				return canoto.ErrUnexpectedWireType
 			}
 
-			if err := canoto.ReadInt(&r, &c.Timestamp); err != nil {
+			if err := canoto.ReadFint64(&r, &c.Timestamp); err != nil {
 				return err
 			}
 			if canoto.IsZero(c.Timestamp) {
@@ -158,11 +162,11 @@ func (c *storageTx) UnmarshalCanotoFrom(r canoto.Reader) error {
 				return canoto.ErrZeroValue
 			}
 		case 4:
-			if wireType != canoto.Varint {
+			if wireType != canoto.I64 {
 				return canoto.ErrUnexpectedWireType
 			}
 
-			if err := canoto.ReadInt(&r, &c.Fee); err != nil {
+			if err := canoto.ReadFint64(&r, &c.Fee); err != nil {
 				return err
 			}
 			if canoto.IsZero(c.Fee) {
@@ -250,7 +254,7 @@ func (c *storageTx) CalculateCanotoCache() {
 		size int
 	)
 	if !canoto.IsZero(c.Timestamp) {
-		size += len(canoto__storageTx__Timestamp__tag) + canoto.SizeInt(c.Timestamp)
+		size += len(canoto__storageTx__Timestamp__tag) + canoto.SizeFint64
 	}
 	if !canoto.IsZero(c.Success) {
 		size += len(canoto__storageTx__Success__tag) + canoto.SizeBool
@@ -259,7 +263,7 @@ func (c *storageTx) CalculateCanotoCache() {
 		size += len(canoto__storageTx__Units__tag) + canoto.SizeBytes(c.Units)
 	}
 	if !canoto.IsZero(c.Fee) {
-		size += len(canoto__storageTx__Fee__tag) + canoto.SizeInt(c.Fee)
+		size += len(canoto__storageTx__Fee__tag) + canoto.SizeFint64
 	}
 	for _, v := range c.Outputs {
 		size += len(canoto__storageTx__Outputs__tag) + canoto.SizeBytes(v)
@@ -309,7 +313,7 @@ func (c *storageTx) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	}
 	if !canoto.IsZero(c.Timestamp) {
 		canoto.Append(&w, canoto__storageTx__Timestamp__tag)
-		canoto.AppendInt(&w, c.Timestamp)
+		canoto.AppendFint64(&w, c.Timestamp)
 	}
 	if !canoto.IsZero(c.Success) {
 		canoto.Append(&w, canoto__storageTx__Success__tag)
@@ -321,7 +325,7 @@ func (c *storageTx) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	}
 	if !canoto.IsZero(c.Fee) {
 		canoto.Append(&w, canoto__storageTx__Fee__tag)
-		canoto.AppendInt(&w, c.Fee)
+		canoto.AppendFint64(&w, c.Fee)
 	}
 	for _, v := range c.Outputs {
 		canoto.Append(&w, canoto__storageTx__Outputs__tag)

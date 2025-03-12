@@ -26,7 +26,7 @@ var (
 
 const (
 	canoto__Block__Prnt__tag         = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__Block__Tmstmp__tag       = "\x10" // canoto.Tag(2, canoto.Varint)
+	canoto__Block__Tmstmp__tag       = "\x11" // canoto.Tag(2, canoto.I64)
 	canoto__Block__Hght__tag         = "\x19" // canoto.Tag(3, canoto.I64)
 	canoto__Block__BlockContext__tag = "\x22" // canoto.Tag(4, canoto.Len)
 	canoto__Block__Txs__tag          = "\x2a" // canoto.Tag(5, canoto.Len)
@@ -50,12 +50,14 @@ func (*Block) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 				OneOf:          "",
 				TypeFixedBytes: uint64(len(zero.Prnt)),
 			},
-			{
-				FieldNumber: 2,
-				Name:        "Tmstmp",
-				OneOf:       "",
-				TypeInt:     canoto.SizeOf(zero.Tmstmp),
-			},
+			canoto.FieldTypeFromFint(
+				/*type inference:*/ zero.Tmstmp,
+				/*FieldNumber:   */ 2,
+				/*Name:          */ "Tmstmp",
+				/*FixedLength:   */ 0,
+				/*Repeated:      */ false,
+				/*OneOf:         */ "",
+			),
 			canoto.FieldTypeFromFint(
 				/*type inference:*/ zero.Hght,
 				/*FieldNumber:   */ 3,
@@ -157,11 +159,11 @@ func (c *Block) UnmarshalCanotoFrom(r canoto.Reader) error {
 			}
 			r.B = r.B[expectedLength:]
 		case 2:
-			if wireType != canoto.Varint {
+			if wireType != canoto.I64 {
 				return canoto.ErrUnexpectedWireType
 			}
 
-			if err := canoto.ReadInt(&r, &c.Tmstmp); err != nil {
+			if err := canoto.ReadFint64(&r, &c.Tmstmp); err != nil {
 				return err
 			}
 			if canoto.IsZero(c.Tmstmp) {
@@ -324,7 +326,7 @@ func (c *Block) CalculateCanotoCache() {
 		size += len(canoto__Block__Prnt__tag) + canoto.SizeBytes((&c.Prnt)[:])
 	}
 	if !canoto.IsZero(c.Tmstmp) {
-		size += len(canoto__Block__Tmstmp__tag) + canoto.SizeInt(c.Tmstmp)
+		size += len(canoto__Block__Tmstmp__tag) + canoto.SizeFint64
 	}
 	if !canoto.IsZero(c.Hght) {
 		size += len(canoto__Block__Hght__tag) + canoto.SizeFint64
@@ -392,7 +394,7 @@ func (c *Block) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	}
 	if !canoto.IsZero(c.Tmstmp) {
 		canoto.Append(&w, canoto__Block__Tmstmp__tag)
-		canoto.AppendInt(&w, c.Tmstmp)
+		canoto.AppendFint64(&w, c.Tmstmp)
 	}
 	if !canoto.IsZero(c.Hght) {
 		canoto.Append(&w, canoto__Block__Hght__tag)
