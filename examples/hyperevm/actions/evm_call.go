@@ -115,13 +115,15 @@ func (e *EvmCall) Execute(
 	)
 	convertedLogs := convertLogs(logs)
 
-	res := &EvmCallResult{
+	res := &EvmActionResult{
 		Success:         result.Err == nil,
 		Return:          result.ReturnData,
 		UsedGas:         result.UsedGas,
 		ErrorCode:       resultErrCode,
 		ContractAddress: contractAddress,
 		Logs:            convertedLogs,
+		To:              e.To,
+		From:            from,
 	}
 	return res.Bytes(), nil
 }
@@ -180,43 +182,6 @@ func UnmarshalEvmCall(bytes []byte) (chain.Action, error) {
 	}
 	if err := codec.LinearCodec.UnmarshalFrom(
 		&wrappers.Packer{Bytes: bytes[1:]},
-		t,
-	); err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-var _ codec.Typed = (*EvmCallResult)(nil)
-
-type EvmCallResult struct {
-	Success         bool           `serialize:"true" json:"success"`
-	Return          []byte         `serialize:"true" json:"return"`
-	UsedGas         uint64         `serialize:"true" json:"usedGas"`
-	ErrorCode       ErrorCode      `serialize:"true" json:"errorCode"`
-	ContractAddress common.Address `serialize:"true" json:"contractAddress"`
-	Logs            []Log          `serialize:"true" json:"logs"`
-}
-
-func (*EvmCallResult) GetTypeID() uint8 {
-	return consts.EvmCallID
-}
-
-func (e *EvmCallResult) Bytes() []byte {
-	// TODO: fine-tune these values
-	p := &wrappers.Packer{
-		Bytes:   make([]byte, 1024),
-		MaxSize: 1024,
-	}
-	p.PackByte(consts.EvmCallID)
-	_ = codec.LinearCodec.MarshalInto(e, p)
-	return p.Bytes
-}
-
-func UnmarshalEvmCallResult(b []byte) (codec.Typed, error) {
-	t := &EvmCallResult{}
-	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: b[1:]}, // XXX: first byte is guaranteed to be the typeID by the type parser
 		t,
 	); err != nil {
 		return nil, err

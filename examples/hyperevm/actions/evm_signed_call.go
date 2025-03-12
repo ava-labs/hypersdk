@@ -110,14 +110,22 @@ func (e *EvmSignedCall) Execute(
 		nonce := statedb.GetNonce(msg.From)
 		contractAddress = crypto.CreateAddress(msg.From, nonce-1)
 	}
-	res := &EvmCallResult{
+	logs := statedb.GetLogs(
+		common.Hash(actionCtx.GetTxID()),
+		actionCtx.GetHeight(),
+		common.Hash(ids.Empty),
+	)
+	convertedLogs := convertLogs(logs)
+	// TODO: populate [To] field
+	res := &EvmActionResult{
 		Success:         result.Err == nil,
 		Return:          result.ReturnData,
 		UsedGas:         result.UsedGas,
 		ErrorCode:       resultErrCode,
 		ContractAddress: contractAddress,
+		Logs:            convertedLogs,
+		From:            msg.From,
 	}
-	// TODO: can we reuse the same result type for signed calls?
 	return res.Bytes(), nil
 }
 

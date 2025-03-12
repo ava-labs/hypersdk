@@ -65,10 +65,10 @@ func TestGetTransfer(t *testing.T) {
 	output, err := evmCall.Execute(context.Background(), actionCtx, rules, tsv, from.Address, ids.Empty)
 	r.NoError(err)
 
-	result, err := actions.UnmarshalEvmCallResult(output)
+	result, err := actions.UnmarshalEvmActionResult(output)
 	r.NoError(err)
 
-	castResult, ok := result.(*actions.EvmCallResult)
+	castResult, ok := result.(*actions.EvmActionResult)
 	r.True(ok)
 	r.True(ok)
 	r.True(castResult.Success)

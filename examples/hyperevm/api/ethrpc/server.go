@@ -616,11 +616,11 @@ func (e *EthRPCServer) GetTransactionReceipt(_ *http.Request, args *common.Hash,
 		return fmt.Errorf("expected 1 output, got %d", len(outputs))
 	}
 
-	result, err := actions.UnmarshalEvmCallResult(outputs[0])
+	result, err := actions.UnmarshalEvmActionResult(outputs[0])
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal call result: %w", err)
 	}
-	castResult, ok := result.(*actions.EvmCallResult)
+	castResult, ok := result.(*actions.EvmActionResult)
 	if !ok {
 		return fmt.Errorf("unexpected result type: %T", result)
 	}
@@ -651,11 +651,12 @@ func (e *EthRPCServer) GetTransactionReceipt(_ *http.Request, args *common.Hash,
 	txInfo["gasUsed"] = "0x5208"
 	txInfo["effectiveGasPrice"] = "0x1"
 	txInfo["cumulativeGasUsed"] = hexutil.Uint64(castResult.UsedGas)
-	txInfo["from"] = "0x784ce85b107389004d6a0e0d6d7518eeae1292d9"
+	txInfo["from"] = castResult.From
+	txInfo["to"] = castResult.To
 	txInfo["transactionHash"] = *args
 	txInfo["transactionIndex"] = "0x0"
 	txInfo["units"] = units
-	txInfo["logs"] = []*types.Log{}
+	txInfo["logs"] = castResult.Logs
 	txInfo["logsBloom"] = "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 	txInfo["result"] = castResult
 	*reply = txInfo

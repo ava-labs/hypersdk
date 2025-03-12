@@ -105,7 +105,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	require.Equal(consts.EvmCallID, evmCallOutputBytes[0])
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(evmCallOutputBytes)
 	require.NoError(err)
-	transferOutput, ok := transferOutputTyped.(*actions.EvmCallResult)
+	transferOutput, ok := transferOutputTyped.(*actions.EvmActionResult)
 	require.True(ok)
 	require.True(transferOutput.Success)
 	require.Equal(uint64(21_000), transferOutput.UsedGas)

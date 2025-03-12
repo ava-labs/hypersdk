@@ -51,7 +51,7 @@ func init() {
 		AuthParser.Register(&hauth.BLS{}, hauth.UnmarshalBLS),
 		AuthParser.Register(&auth.SECP256K1{}, auth.UnmarshalSECP256K1),
 
-		OutputParser.Register(&actions.EvmCallResult{}, actions.UnmarshalEvmCallResult),
+		OutputParser.Register(&actions.EvmActionResult{}, actions.UnmarshalEvmActionResult),
 	); err != nil {
 		panic(err)
 	}
