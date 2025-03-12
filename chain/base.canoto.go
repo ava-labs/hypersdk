@@ -45,7 +45,7 @@ func (*Base) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 				FieldNumber: 1,
 				Name:        "Timestamp",
 				OneOf:       "",
-				TypeInt:     canoto.SizeOf(zero.Timestamp),
+				TypeInt:    canoto.SizeOf(zero.Timestamp),
 			},
 			{
 				FieldNumber:    2,
