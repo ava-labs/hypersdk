@@ -1,0 +1,2 @@
+paths-ignore:
+  - '**/*.canoto.go'  # Exclude all files ending with .canoto.go
