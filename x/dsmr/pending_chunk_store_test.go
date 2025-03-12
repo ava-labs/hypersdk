@@ -27,9 +27,9 @@ func TestPendingChunkStore(t *testing.T) {
 	r.NotNil(store)
 
 	now := time.Now()
-	chunk1 := NewUnsignedChunk(ids.GenerateTestNodeID(), now.Add(5*time.Minute).UnixMilli(), []byte("chunk1"))
-	chunk2 := NewUnsignedChunk(ids.GenerateTestNodeID(), now.Add(10*time.Minute).UnixMilli(), []byte("chunk2"))
-	chunk3 := NewUnsignedChunk(ids.GenerateTestNodeID(), now.Add(15*time.Minute).UnixMilli(), []byte("chunk3"))
+	chunk1 := NewChunk(ids.GenerateTestNodeID(), now.Add(5*time.Minute).UnixMilli(), []byte("chunk1"))
+	chunk2 := NewChunk(ids.GenerateTestNodeID(), now.Add(10*time.Minute).UnixMilli(), []byte("chunk2"))
+	chunk3 := NewChunk(ids.GenerateTestNodeID(), now.Add(15*time.Minute).UnixMilli(), []byte("chunk3"))
 
 	// Add chunks to store
 	r.NoError(store.putPendingChunk(chunk1))
@@ -50,7 +50,7 @@ func TestPendingChunkStore(t *testing.T) {
 	r.Equal(chunk3, retrievedChunk3)
 
 	// Set min timestamp to exactly chunk2's timestamp
-	r.NoError(store.setMin(now.Add(10 * time.Minute).UnixMilli()))
+	r.NoError(store.setMin(now.Add(10*time.Minute).UnixMilli(), nil)) // XXX
 
 	// Verify chunk1 is no longer present
 	_, ok = store.getPendingChunk(chunk1.id)
@@ -78,8 +78,8 @@ func TestPendingChunkStore_Restart(t *testing.T) {
 	r.NotNil(store)
 
 	now := time.Now()
-	chunk1 := NewUnsignedChunk(ids.GenerateTestNodeID(), now.Add(5*time.Minute).UnixMilli(), []byte("chunk1"))
-	chunk2 := NewUnsignedChunk(ids.GenerateTestNodeID(), now.Add(10*time.Minute).UnixMilli(), []byte("chunk2"))
+	chunk1 := NewChunk(ids.GenerateTestNodeID(), now.Add(5*time.Minute).UnixMilli(), []byte("chunk1"))
+	chunk2 := NewChunk(ids.GenerateTestNodeID(), now.Add(10*time.Minute).UnixMilli(), []byte("chunk2"))
 
 	// Add chunks to store
 	r.NoError(store.putPendingChunk(chunk1))
@@ -95,7 +95,7 @@ func TestPendingChunkStore_Restart(t *testing.T) {
 	r.Equal(chunk2, retrievedChunk2)
 
 	// Set min timestamp between chunks
-	r.NoError(store.setMin(now.Add(7 * time.Minute).UnixMilli()))
+	r.NoError(store.setMin(now.Add(7*time.Minute).UnixMilli(), nil)) // XXX
 
 	// Create new instance of store with same DB
 	store, err = newPendingChunkStore(db, ruleFactory)
@@ -123,8 +123,8 @@ func TestPendingChunkStore_MaxBandwidth(t *testing.T) {
 
 	now := time.Now()
 	validatorID := ids.GenerateTestNodeID()
-	chunk1 := NewUnsignedChunk(validatorID, now.Add(5*time.Minute).UnixMilli(), make([]byte, 10))
-	chunk2 := NewUnsignedChunk(validatorID, now.Add(10*time.Minute).UnixMilli(), make([]byte, 500))
+	chunk1 := NewChunk(validatorID, now.Add(5*time.Minute).UnixMilli(), make([]byte, 10))
+	chunk2 := NewChunk(validatorID, now.Add(10*time.Minute).UnixMilli(), make([]byte, 500))
 
 	// First chunk should be accepted
 	r.NoError(store.putPendingChunk(chunk1))
@@ -135,8 +135,23 @@ func TestPendingChunkStore_MaxBandwidth(t *testing.T) {
 }
 
 type rules struct {
+	minBlockGap                     int64
+	minEmptyBlockGap                int64
 	maxPendingBandwidthPerValidator uint64
 	validityWindow                  int64
+	networkID                       uint32
+	subnetID                        ids.ID
+	chainID                         ids.ID
+	quorumNum                       uint64
+	quorumDen                       uint64
+}
+
+func (r *rules) GetMinBlockGap() int64 {
+	return r.minBlockGap
+}
+
+func (r *rules) GetMinEmptyBlockGap() int64 {
+	return r.minEmptyBlockGap
 }
 
 func (r *rules) GetMaxPendingBandwidthPerValidator() uint64 {
@@ -147,15 +162,39 @@ func (r *rules) GetValidityWindow() int64 {
 	return r.validityWindow
 }
 
+func (r *rules) GetNetworkID() uint32 {
+	return r.networkID
+}
+
+func (r *rules) GetSubnetID() ids.ID {
+	return r.subnetID
+}
+
+func (r *rules) GetChainID() ids.ID {
+	return r.chainID
+}
+
+func (r *rules) GetQuorumNum() uint64 {
+	return r.quorumNum
+}
+
+func (r *rules) GetQuorumDen() uint64 {
+	return r.quorumDen
+}
+
 type ruleFactory struct {
 	rules *rules
 }
 
-func newRuleFactory(maxPendingBandwidthPerValidator uint64, validityWindow int64) *ruleFactory {
+func newRuleFactory(
+	maxPendingBandwidthPerValidator uint64,
+	validityWindow int64,
+) *ruleFactory {
 	return &ruleFactory{
 		rules: &rules{
 			maxPendingBandwidthPerValidator: maxPendingBandwidthPerValidator,
 			validityWindow:                  validityWindow,
+			// TODO: fill remain
 		},
 	}
 }

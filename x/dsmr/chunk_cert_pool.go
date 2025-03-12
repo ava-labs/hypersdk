@@ -13,8 +13,8 @@ type chunkPool struct {
 	chunkCertEHeap *eheap.ExpiryHeap[eChunk]
 }
 
-func newChunkPool() chunkPool {
-	return chunkPool{
+func newChunkPool() *chunkPool {
+	return &chunkPool{
 		pool:           make(map[ids.ID]*ChunkCertificate),
 		chunkCertEHeap: eheap.New[eChunk](100),
 	}

@@ -8,8 +8,7 @@ package dsmr;
 option go_package = "github.com/ava-labs/hypersdk/proto/pb/dsmr";
 
 message GetChunkRequest {
-  bytes chunk_id = 1;
-  int64 expiry = 2;
+  bytes chunk_ref = 1;
 }
 
 message GetChunkResponse {

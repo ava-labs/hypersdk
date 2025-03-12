@@ -4,6 +4,7 @@
 package dsmr
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/StephenButtolph/canoto"
@@ -23,80 +24,28 @@ var (
 	_ canoto.Field                          = (*Chunk)(nil)
 	_ emap.Item                             = (*eChunk)(nil)
 	_ validitywindow.ExecutionBlock[eChunk] = (*eChunkBlock)(nil)
+
+	ErrNilChunkCert      = errors.New("nil chunk cert in block")
+	ErrNilChunkReference = errors.New("nil chunk reference")
 )
 
-type (
-	Rules interface {
-		GetValidityWindow() int64
-		GetMaxPendingBandwidthPerValidator() uint64
-	}
+type Chunk struct {
+	Builder ids.NodeID `canoto:"fixed bytes,1"`
+	Expiry  int64      `canoto:"int,2"`
+	Data    []byte     `canoto:"bytes,3"`
 
-	RuleFactory interface {
-		GetRules(timestamp int64) Rules
-	}
+	bytes []byte
+	id    ids.ID
 
-	UnsignedChunk struct {
-		Builder ids.NodeID `canoto:"fixed bytes,1"`
-		Expiry  int64      `canoto:"int,2"`
-		Data    []byte     `canoto:"bytes,3"`
+	canotoData canotoData_Chunk
+}
 
-		bytes []byte
-		id    ids.ID
-
-		canotoData canotoData_UnsignedChunk
-	}
-
-	ChunkReference struct {
-		ChunkID ids.ID     `canoto:"fixed bytes,1"`
-		Builder ids.NodeID `canoto:"fixed bytes,2"`
-		Expiry  int64      `canoto:"int,3"`
-
-		canotoData canotoData_ChunkReference
-
-		bytes []byte
-	}
-
-	SerializeChunkCertificate struct {
-		Reference ChunkReference `canoto:"value,1"`
-		Signature []byte         `canoto:"bytes,2"`
-
-		canotoData canotoData_SerializeChunkCertificate
-	}
-
-	ChunkCertificate struct {
-		Reference ChunkReference
-		Signature *warp.BitSetSignature
-
-		bytes []byte
-	}
-
-	Chunk struct {
-		UnsignedChunk UnsignedChunk    `canoto:"value,1"`
-		Certificate   ChunkCertificate `canoto:"value,2"`
-
-		canotoData canotoData_Chunk
-	}
-
-	Block struct {
-		ParentID     ids.ID             `canoto:"fixed bytes,1"`
-		Height       uint64             `canoto:"int,2"`
-		Timestamp    int64              `canoto:"int,3"`
-		Chunks       []ChunkCertificate `canoto:"repeated value,4"`
-		BlockContext *block.Context     `canoto:"pointer,5"`
-
-		canotoData canotoData_Block
-
-		bytes []byte
-		id    ids.ID
-	}
-)
-
-func NewUnsignedChunk(
+func NewChunk(
 	builder ids.NodeID,
 	expiry int64,
 	data []byte,
-) *UnsignedChunk {
-	unsignedChunk := &UnsignedChunk{
+) *Chunk {
+	unsignedChunk := &Chunk{
 		Builder: builder,
 		Expiry:  expiry,
 		Data:    data,
@@ -106,8 +55,8 @@ func NewUnsignedChunk(
 	return unsignedChunk
 }
 
-func ParseUnsignedChunk(bytes []byte) (*UnsignedChunk, error) {
-	unsignedChunk := &UnsignedChunk{}
+func ParseUnsignedChunk(bytes []byte) (*Chunk, error) {
+	unsignedChunk := &Chunk{}
 	if err := unsignedChunk.UnmarshalCanoto(bytes); err != nil {
 		return nil, err
 	}
@@ -117,25 +66,66 @@ func ParseUnsignedChunk(bytes []byte) (*UnsignedChunk, error) {
 	return unsignedChunk, nil
 }
 
-func (u UnsignedChunk) Reference() ChunkReference {
-	cr := ChunkReference{
-		ChunkID: u.id,
-		Builder: u.Builder,
-		Expiry:  u.Expiry,
-	}
-
-	cr.bytes = cr.MarshalCanoto()
-	return cr
+func (u *Chunk) CreateReference() *ChunkReference {
+	return NewChunkReference(u.id, u.Builder, u.Expiry)
 }
 
-func NewChunkCertificate(chunkRef ChunkReference, signature *warp.BitSetSignature) (*ChunkCertificate, error) {
+type ChunkReference struct {
+	ChunkID ids.ID     `canoto:"fixed bytes,1"`
+	Builder ids.NodeID `canoto:"fixed bytes,2"`
+	Expiry  int64      `canoto:"int,3"`
+
+	canotoData canotoData_ChunkReference
+
+	bytes []byte
+}
+
+func NewChunkReference(
+	chunkID ids.ID,
+	builder ids.NodeID,
+	expiry int64,
+) *ChunkReference {
+	chunkRef := &ChunkReference{
+		ChunkID: chunkID,
+		Builder: builder,
+		Expiry:  expiry,
+	}
+	chunkRef.bytes = chunkRef.MarshalCanoto()
+	return chunkRef
+}
+
+func ParseChunkReference(bytes []byte) (*ChunkReference, error) {
+	chunkRef := new(ChunkReference)
+	if err := chunkRef.UnmarshalCanoto(bytes); err != nil {
+		return chunkRef, err
+	}
+	chunkRef.bytes = bytes
+	return chunkRef, nil
+}
+
+type SerializeChunkCertificate struct {
+	Reference *ChunkReference `canoto:"pointer,1"`
+	Signature []byte          `canoto:"bytes,2"`
+
+	canotoData canotoData_SerializeChunkCertificate
+}
+
+type ChunkCertificate struct {
+	Reference *ChunkReference
+	Signature *warp.BitSetSignature
+
+	bytes []byte
+}
+
+func NewChunkCertificate(chunkRef *ChunkReference, signature *warp.BitSetSignature) (*ChunkCertificate, error) {
 	chunkCert := &ChunkCertificate{
 		Reference: chunkRef,
 		Signature: signature,
 	}
 
 	signaturePacker := &wrappers.Packer{
-		Bytes: make([]byte, 0, bls.SignatureLen+100),
+		Bytes:   make([]byte, 0, bls.SignatureLen+100),
+		MaxSize: 1_000, // XXX
 	}
 	if err := codec.LinearCodec.MarshalInto(chunkCert.Signature, signaturePacker); err != nil {
 		return nil, err
@@ -152,6 +142,9 @@ func ParseChunkCertificate(bytes []byte) (*ChunkCertificate, error) {
 	chunkCert := &ChunkCertificate{}
 	if err := chunkCert.UnmarshalCanotoFrom(canoto.Reader{B: bytes}); err != nil {
 		return nil, err
+	}
+	if chunkCert.Reference == nil {
+		return nil, ErrNilChunkReference
 	}
 	chunkCert.bytes = bytes
 	return chunkCert, nil
@@ -195,7 +188,7 @@ func (d *ChunkCertificate) ValidCanoto() bool {
 	return true
 }
 
-func (cr ChunkReference) String() string {
+func (cr *ChunkReference) String() string {
 	return fmt.Sprintf("ChunkReference(ChunkID: %s, Builder: %s, Expiry: %d)",
 		cr.ChunkID,
 		cr.Builder,
@@ -203,11 +196,24 @@ func (cr ChunkReference) String() string {
 	)
 }
 
+type Block struct {
+	ParentID     ids.ID              `canoto:"fixed bytes,1"`
+	Height       uint64              `canoto:"int,2"`
+	Timestamp    int64               `canoto:"int,3"`
+	Chunks       []*ChunkCertificate `canoto:"repeated pointer,4"`
+	BlockContext *block.Context      `canoto:"pointer,5"`
+
+	canotoData canotoData_Block
+
+	bytes []byte
+	id    ids.ID
+}
+
 func NewBlock(
 	parentID ids.ID,
 	height uint64,
 	timestamp int64,
-	chunkCerts []ChunkCertificate,
+	chunkCerts []*ChunkCertificate,
 	blockContext *block.Context,
 ) *Block {
 	block := &Block{
@@ -220,6 +226,23 @@ func NewBlock(
 	block.bytes = block.MarshalCanoto()
 	block.id = utils.ToID(block.bytes)
 	return block
+}
+
+func ParseBlock(bytes []byte) (*Block, error) {
+	block := &Block{}
+	if err := block.UnmarshalCanoto(bytes); err != nil {
+		return nil, err
+	}
+	for i, chunkCert := range block.Chunks {
+		if chunkCert == nil {
+			return nil, fmt.Errorf("%w: %d", ErrNilChunkCert, i)
+		}
+		chunkCert.CalculateCanotoCache()
+	}
+	block.CalculateCanotoCache()
+	block.bytes = bytes
+	block.id = utils.ToID(block.bytes)
+	return block, nil
 }
 
 type eChunk struct {

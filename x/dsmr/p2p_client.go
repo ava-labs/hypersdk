@@ -24,30 +24,21 @@ const retryDelay = 50 * time.Millisecond // TODO: add and use util function for 
 var (
 	errReceivedUnexpectedChunk = errors.New("received chunk with unexpected ID")
 
-	_ P2P = (*appP2PClient)(nil)
+	_ Client = (*AppClient)(nil)
 )
 
-// P2PBackend defines the interface the p2p layer requires to request DSMR performs certain actions
-// All implementations must be fully thread-safe.
-type P2PBackend interface {
-	CommitChunk(chunk *UnsignedChunk) error
-	AddChunkCert(cert *ChunkCertificate)
-}
-
-// P2P defines the P2P dependency of DSMR itself.
-// This interface is agnostic to AvalancheGo AppHandler specifics allowing us to test
-// the DSMR logic in isolation from the AvalancheGo specific p2p implementation.
-type P2P interface {
+// Client defines the client network dependency of DSMR.
+// All implementations must be thread-safe.
+type Client interface {
 	BroadcastChunkCertificate(ctx context.Context, cert *ChunkCertificate) error
-	CollectChunkSignature(ctx context.Context, chunk *UnsignedChunk) (*ChunkCertificate, error)
-	GatherChunks(ctx context.Context, missingChunkRefs []ChunkReference) ([]*UnsignedChunk, error)
+	CollectChunkSignature(ctx context.Context, chunk *Chunk) (*ChunkCertificate, error)
+	GatherChunks(ctx context.Context, missingChunkRefs []*ChunkReference) ([]*Chunk, error)
 }
 
-type appP2PClient struct {
-	log       logging.Logger
-	networkID uint32
-	chainID   ids.ID
-	network   *p2p.Network
+type AppClient struct {
+	log         logging.Logger
+	ruleFactory RuleFactory
+	network     *p2p.Network
 
 	chainState          ChainState
 	unsignedChunkClient *UnsignedChunkClient
@@ -57,23 +48,20 @@ type appP2PClient struct {
 	chunkSignatureAggregator        *acp118.SignatureAggregator
 }
 
-func newAppP2PClient(
+func NewAppClient(
 	log logging.Logger,
-	networkID uint32,
-	chainID ids.ID,
+	ruleFactory RuleFactory,
 	network *p2p.Network,
 	getChunkProtocolID uint64,
 	broadcastChunkCertProtocolID uint64,
 	getChunkSignatureProtocolID uint64,
-) *appP2PClient {
-	unsignedChunkClient := NewUnsignedChunkClient(network.NewClient(getChunkProtocolID))
+) *AppClient {
+	unsignedChunkClient := NewChunkClient(network.NewClient(getChunkProtocolID))
 	broadcastChunkCertificateClient := NewChunkCertificateGossipClient(network.NewClient(broadcastChunkCertProtocolID))
 	acp118Client := network.NewClient(getChunkSignatureProtocolID)
 
-	return &appP2PClient{
+	return &AppClient{
 		log:                             log,
-		networkID:                       networkID,
-		chainID:                         chainID,
 		network:                         network,
 		unsignedChunkClient:             unsignedChunkClient,
 		broadcastChunkCertificateClient: broadcastChunkCertificateClient,
@@ -84,7 +72,10 @@ func newAppP2PClient(
 	}
 }
 
-func (c *appP2PClient) BroadcastChunkCertificate(ctx context.Context, cert *ChunkCertificate) error {
+func (c *AppClient) BroadcastChunkCertificate(ctx context.Context, cert *ChunkCertificate) error {
+	c.log.Info("Broadcasting chunk certificate",
+		zap.Stringer("chunkRef", cert.Reference),
+	)
 	return c.broadcastChunkCertificateClient.AppGossip(
 		ctx,
 		&dsmr.ChunkCertificateGossip{
@@ -93,9 +84,15 @@ func (c *appP2PClient) BroadcastChunkCertificate(ctx context.Context, cert *Chun
 	)
 }
 
-func (c *appP2PClient) CollectChunkSignature(ctx context.Context, chunk *UnsignedChunk) (*ChunkCertificate, error) {
-	chunkRef := chunk.Reference()
-	unsignedWarpMsg, err := warp.NewUnsignedMessage(c.networkID, c.chainID, chunkRef.bytes)
+func (c *AppClient) CollectChunkSignature(ctx context.Context, chunk *Chunk) (*ChunkCertificate, error) {
+	chunkRef := chunk.CreateReference()
+	estimatedPChainHeight := c.chainState.EstimatePChainHeight()
+	c.log.Info("Collecting signatures for chunk",
+		zap.Stringer("chunkRef", chunkRef),
+		zap.Uint64("estimatedPChainHeight", estimatedPChainHeight),
+	)
+	rules := c.ruleFactory.GetRules(chunk.Expiry)
+	unsignedWarpMsg, err := warp.NewUnsignedMessage(rules.GetNetworkID(), rules.GetChainID(), chunkRef.bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +100,7 @@ func (c *appP2PClient) CollectChunkSignature(ctx context.Context, chunk *Unsigne
 	if err != nil {
 		return nil, err
 	}
-	canonicalVdrSet, err := c.chainState.GetCanonicalValidatorSet(ctx)
+	canonicalVdrSet, err := c.chainState.GetCanonicalValidatorSet(ctx, estimatedPChainHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +109,8 @@ func (c *appP2PClient) CollectChunkSignature(ctx context.Context, chunk *Unsigne
 		warpMsg,
 		chunk.bytes,
 		canonicalVdrSet.Validators,
-		c.chainState.GetQuorumNum(),
-		c.chainState.GetQuorumDen(),
+		rules.GetQuorumNum(),
+		rules.GetQuorumDen(),
 	)
 	if err != nil {
 		return nil, err
@@ -125,11 +122,14 @@ func (c *appP2PClient) CollectChunkSignature(ctx context.Context, chunk *Unsigne
 	return chunkCert, nil
 }
 
-func (c *appP2PClient) GatherChunks(ctx context.Context, missingChunkRefs []ChunkReference) ([]*UnsignedChunk, error) {
+func (c *AppClient) GatherChunks(ctx context.Context, missingChunkRefs []*ChunkReference) ([]*Chunk, error) {
+	c.log.Info("Gathering missing chunks",
+		zap.Stringers("missingChunkRefs", missingChunkRefs),
+	)
 	wg := sync.WaitGroup{}
 	wg.Add(len(missingChunkRefs))
 
-	chunks := make([]*UnsignedChunk, len(missingChunkRefs))
+	chunks := make([]*Chunk, len(missingChunkRefs))
 
 	// TODO: switch to sync client + consider performing concurrent requests at cost of wasted bandwidth
 	for i, chunkRef := range missingChunkRefs {
@@ -141,15 +141,14 @@ func (c *appP2PClient) GatherChunks(ctx context.Context, missingChunkRefs []Chun
 				attempt++
 				var (
 					done       = make(chan struct{})
-					foundChunk *UnsignedChunk
+					foundChunk *Chunk
 					err        error
 				)
 
 				nodeID := c.chainState.SampleNodeID()
 				if err := c.unsignedChunkClient.AppRequest(ctx, nodeID, &dsmr.GetChunkRequest{
-					ChunkId: chunkRef.ChunkID[:],
-					Expiry:  chunkRef.Expiry,
-				}, func(ctx context.Context, _ ids.NodeID, responseChunk *UnsignedChunk, responseErr error) {
+					ChunkRef: chunkRef.bytes,
+				}, func(ctx context.Context, _ ids.NodeID, responseChunk *Chunk, responseErr error) {
 					defer close(done)
 
 					if responseErr != nil {
@@ -171,8 +170,10 @@ func (c *appP2PClient) GatherChunks(ctx context.Context, missingChunkRefs []Chun
 				<-done
 				if err != nil {
 					c.log.Debug("failed to fetch chunk",
+						zap.Int("chunkIndex", i),
 						zap.Stringer("chunkRef", chunkRef),
 						zap.Stringer("nodeID", nodeID),
+						zap.Int("attempt", attempt),
 						zap.Error(err),
 					)
 					time.Sleep(retryDelay)

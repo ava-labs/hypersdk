@@ -19,13 +19,13 @@ import (
 )
 
 var (
-	_ Marshaler[*dsmr.GetChunkRequest, *UnsignedChunk, []byte]         = (*getChunkMarshaler)(nil)
+	_ Marshaler[*dsmr.GetChunkRequest, *Chunk, []byte]                 = (*getChunkMarshaler)(nil)
 	_ Marshaler[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte] = (*getChunkSignatureMarshaler)(nil)
 	_ Marshaler[[]byte, []byte, *dsmr.ChunkCertificateGossip]          = (*chunkCertificateGossipMarshaler)(nil)
 )
 
 type (
-	UnsignedChunkClient          = TypedClient[*dsmr.GetChunkRequest, *UnsignedChunk, []byte]
+	UnsignedChunkClient          = TypedClient[*dsmr.GetChunkRequest, *Chunk, []byte]
 	ChunkSignatureClient         = TypedClient[*sdk.SignatureRequest, *sdk.SignatureResponse, []byte]
 	ChunkCertificateGossipClient = TypedClient[[]byte, []byte, *dsmr.ChunkCertificateGossip]
 )
@@ -153,7 +153,7 @@ func (getChunkMarshaler) MarshalRequest(t *dsmr.GetChunkRequest) ([]byte, error)
 	return proto.Marshal(t)
 }
 
-func (getChunkMarshaler) UnmarshalResponse(bytes []byte) (*UnsignedChunk, error) {
+func (getChunkMarshaler) UnmarshalResponse(bytes []byte) (*Chunk, error) {
 	response := dsmr.GetChunkResponse{}
 	if err := proto.Unmarshal(bytes, &response); err != nil {
 		return nil, err
@@ -166,8 +166,8 @@ func (getChunkMarshaler) MarshalGossip(bytes []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func NewUnsignedChunkClient(client *p2p.Client) *UnsignedChunkClient {
-	return &TypedClient[*dsmr.GetChunkRequest, *UnsignedChunk, []byte]{
+func NewChunkClient(client *p2p.Client) *UnsignedChunkClient {
+	return &TypedClient[*dsmr.GetChunkRequest, *Chunk, []byte]{
 		client:    client,
 		marshaler: getChunkMarshaler{},
 	}

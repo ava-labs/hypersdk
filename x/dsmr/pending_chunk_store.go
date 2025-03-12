@@ -18,6 +18,7 @@ import (
 const (
 	metadataByte byte = iota + 1
 	pendingByte
+	acceptedByte
 
 	minTimestampByte byte = iota + 1
 
@@ -49,7 +50,7 @@ type pendingChunkStore struct {
 	ruleFactory RuleFactory
 	db          database.Database
 	// map of all committed pending chunkIDs -> unsigned chunks
-	pendingChunks map[ids.ID]*UnsignedChunk
+	pendingChunks map[ids.ID]*Chunk
 
 	// chunkEMap provides an in-memory heap of pending chunks to provide an efficient
 	// way to garbage collect expired chunks that have not been accepted as they expire.
@@ -67,7 +68,7 @@ func newPendingChunkStore(
 ) (*pendingChunkStore, error) {
 	store := &pendingChunkStore{
 		db:                     db,
-		pendingChunks:          make(map[ids.ID]*UnsignedChunk),
+		pendingChunks:          make(map[ids.ID]*Chunk),
 		chunkEMap:              emap.NewEMap[eChunk](),
 		pendingValidatorChunks: make(map[ids.NodeID]uint64),
 		ruleFactory:            ruleFactory,
@@ -104,7 +105,7 @@ func newPendingChunkStore(
 }
 
 // setMin garbage collects expired pending chunks and updates the minimum slot stored on disk.
-func (c *pendingChunkStore) setMin(updatedMin int64) error {
+func (c *pendingChunkStore) setMin(updatedMin int64, acceptedChunks []*Chunk) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -124,6 +125,13 @@ func (c *pendingChunkStore) setMin(updatedMin int64) error {
 	// Note: we can either delete the expired chunks one by one or
 	// via DeleteRange using the updatedMin timestamp as the end key.
 	batch := c.db.NewBatch()
+
+	for _, chunk := range acceptedChunks {
+		if err := batch.Put(acceptedChunkKey(chunk.Expiry, chunk.id), chunk.bytes); err != nil {
+			return fmt.Errorf("failed to write accepted chunk %s to disk: %w", chunk.id, err)
+		}
+	}
+
 	if err := batch.Put(minTimestampKey, binary.BigEndian.AppendUint64(nil, uint64(updatedMin))); err != nil {
 		return fmt.Errorf("failed to write min timestamp %d to batch: %w", updatedMin, err)
 	}
@@ -139,7 +147,7 @@ func (c *pendingChunkStore) setMin(updatedMin int64) error {
 	return nil
 }
 
-func (c *pendingChunkStore) putPendingChunk(unsignedChunk *UnsignedChunk) error {
+func (c *pendingChunkStore) putPendingChunk(unsignedChunk *Chunk) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -172,12 +180,24 @@ func (c *pendingChunkStore) putPendingChunk(unsignedChunk *UnsignedChunk) error 
 
 // getPendingChunk returns the pending chunk if available.
 // Note: all pending chunks are stored in-memory, so this function never reads from disk.
-func (c *pendingChunkStore) getPendingChunk(chunkID ids.ID) (*UnsignedChunk, bool) {
+func (c *pendingChunkStore) getPendingChunk(chunkID ids.ID) (*Chunk, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
 	pendingChunk, ok := c.pendingChunks[chunkID]
 	return pendingChunk, ok
+}
+
+func (c *pendingChunkStore) getAcceptedChunkBytes(chunkRef *ChunkReference) ([]byte, error) {
+	return c.db.Get(acceptedChunkKey(chunkRef.Expiry, chunkRef.ChunkID))
+}
+
+func (c *pendingChunkStore) getChunkBytes(chunkRef *ChunkReference) ([]byte, error) {
+	chunk, ok := c.getPendingChunk(chunkRef.ChunkID)
+	if ok {
+		return chunk.bytes, nil
+	}
+	return c.getAcceptedChunkBytes(chunkRef)
 }
 
 // Define helpers for creating and parsing database keys
@@ -202,6 +222,10 @@ func parseChunkKey(key []byte) (prefix byte, slot int64, chunkID ids.ID, err err
 
 func pendingChunkKey(slot int64, chunkID ids.ID) []byte {
 	return createChunkKey(pendingByte, slot, chunkID)
+}
+
+func acceptedChunkKey(slot int64, chunkID ids.ID) []byte {
+	return createChunkKey(acceptedByte, slot, chunkID)
 }
 
 func parsePendingChunkKey(key []byte) (slot int64, chunkID ids.ID, err error) {
