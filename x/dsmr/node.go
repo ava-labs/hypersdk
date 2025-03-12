@@ -35,20 +35,48 @@ var (
 	_ HandlerBackend = (*Node)(nil)
 )
 
-type Rules interface {
-	GetMinBlockGap() int64
-	GetMinEmptyBlockGap() int64
-	GetValidityWindow() int64
-	GetMaxPendingBandwidthPerValidator() uint64
-	GetNetworkID() uint32
-	GetSubnetID() ids.ID
-	GetChainID() ids.ID
-	GetQuorumNum() uint64
-	GetQuorumDen() uint64
+type Rules struct {
+	MinBlockGap                     int64
+	MinEmptyBlockGap                int64
+	ValidityWindow                  int64
+	MaxPendingBandwidthPerValidator uint64
+	NetworkID                       uint32
+	SubnetID                        ids.ID
+	ChainID                         ids.ID
+	QuorumNum                       uint64
+	QuorumDen                       uint64
+}
+
+func NewDefaultRules(networkID uint32, subnetID ids.ID, chainID ids.ID) Rules {
+	return Rules{
+		MinBlockGap:                     500,        // 500 ms
+		MinEmptyBlockGap:                2_000,      // 2s
+		ValidityWindow:                  60_000,     // 60x
+		MaxPendingBandwidthPerValidator: 50_000_000, // 50 MB
+		NetworkID:                       networkID,
+		SubnetID:                        subnetID,
+		ChainID:                         chainID,
+		QuorumNum:                       33, // f + 1
+		QuorumDen:                       100,
+	}
 }
 
 type RuleFactory interface {
 	GetRules(timestamp int64) Rules
+}
+
+type DefaultRuleFactory struct {
+	rules Rules
+}
+
+func NewDefaultRuleFactory(networkID uint32, subnetID ids.ID, chainID ids.ID) DefaultRuleFactory {
+	return DefaultRuleFactory{
+		rules: NewDefaultRules(networkID, subnetID, chainID),
+	}
+}
+
+func (d DefaultRuleFactory) GetRules(int64) Rules {
+	return d.rules
 }
 
 type ChainState interface {
@@ -66,7 +94,7 @@ type Node struct {
 	lastChunkExpiry int64
 	ruleFactory     RuleFactory
 
-	chunkValidityWindow *validitywindow.TimeValidityWindow[eChunk]
+	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk]
 
 	pendingChunks *pendingChunkStore
 	chunkPool     *chunkPool
@@ -77,7 +105,7 @@ func NewNode(
 	nodeID ids.NodeID,
 	chainState ChainState,
 	ruleFactory RuleFactory,
-	chunkValidityWindow *validitywindow.TimeValidityWindow[eChunk],
+	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk],
 	db database.Database,
 	networkClient Client,
 ) (*Node, error) {
@@ -133,9 +161,9 @@ func (n *Node) BuildBlock(
 ) (*Block, error) {
 	chunkCerts := n.chunkPool.gatherChunkCerts()
 
-	eChunkCerts := make([]eChunk, len(chunkCerts))
+	eChunkCerts := make([]EChunk, len(chunkCerts))
 	for i, cert := range chunkCerts {
-		eChunkCerts[i] = eChunk{
+		eChunkCerts[i] = EChunk{
 			chunkID: cert.Reference.ChunkID,
 			expiry:  cert.Reference.Expiry,
 		}
@@ -197,15 +225,15 @@ func (n *Node) VerifyBlock(
 
 	rules := n.ruleFactory.GetRules(block.Timestamp)
 	timestampDiff := block.Timestamp - parent.Timestamp
-	if minBlockGap := rules.GetMinBlockGap(); timestampDiff < minBlockGap {
+	if minBlockGap := rules.MinBlockGap; timestampDiff < minBlockGap {
 		return fmt.Errorf(
 			"%w: %d < %d",
 			ErrEarlyBlock,
 			timestampDiff,
-			rules.GetMinBlockGap(),
+			rules.MinBlockGap,
 		)
 	}
-	if minEmptyBlockGap := rules.GetMinEmptyBlockGap(); len(block.Chunks) == 0 && timestampDiff < minEmptyBlockGap {
+	if minEmptyBlockGap := rules.MinEmptyBlockGap; len(block.Chunks) == 0 && timestampDiff < minEmptyBlockGap {
 		return fmt.Errorf(
 			"%w: %d < %d",
 			ErrEarlyEmptyBlock,
@@ -237,10 +265,10 @@ func (n *Node) VerifyBlock(
 
 func (n *Node) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalValidatorSet, chunkCert *ChunkCertificate) error {
 	var (
-		networkID = rules.GetNetworkID()
-		chainID   = rules.GetChainID()
-		quorumNum = rules.GetQuorumNum()
-		quorumDen = rules.GetQuorumDen()
+		networkID = rules.NetworkID
+		chainID   = rules.ChainID
+		quorumNum = rules.QuorumNum
+		quorumDen = rules.QuorumDen
 	)
 	unsignedWarpMsg, err := warp.NewUnsignedMessage(networkID, chainID, chunkCert.Reference.bytes)
 	if err != nil {
@@ -312,7 +340,7 @@ func (n *Node) CommitChunk(ctx context.Context, chunk *Chunk) error {
 	}
 	timestamp := n.clock.Time().UnixMilli()
 	rules := n.ruleFactory.GetRules(timestamp)
-	if err := validitywindow.VerifyTimestamp(chunk.Expiry, timestamp, validityWindowTimestampDivisor, rules.GetValidityWindow()); err != nil {
+	if err := validitywindow.VerifyTimestamp(chunk.Expiry, timestamp, validityWindowTimestampDivisor, rules.ValidityWindow); err != nil {
 		return err
 	}
 

@@ -54,6 +54,6 @@ func GetChainConfig(config hcontext.Config) (chain.Config, error) {
 	return hcontext.GetConfig(config, chainNamespace, chain.NewDefaultConfig())
 }
 
-func GetChainIndexConfig(config hcontext.Config) (chainindex.Config, error) {
-	return hcontext.GetConfig(config, chainIndexNamespace, chainindex.NewDefaultConfig())
+func GetChainIndexConfig(config hcontext.Config, namespace string) (chainindex.Config, error) {
+	return hcontext.GetConfig(config, namespace, chainindex.NewDefaultConfig())
 }

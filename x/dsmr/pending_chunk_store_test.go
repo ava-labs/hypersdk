@@ -12,10 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	_ Rules       = (*rules)(nil)
-	_ RuleFactory = (*ruleFactory)(nil)
-)
+var _ RuleFactory = (*ruleFactory)(nil)
 
 func TestPendingChunkStore(t *testing.T) {
 	r := require.New(t)
@@ -134,56 +131,8 @@ func TestPendingChunkStore_MaxBandwidth(t *testing.T) {
 	r.ErrorIs(err, errExceedsPendingBandwidthLimit)
 }
 
-type rules struct {
-	minBlockGap                     int64
-	minEmptyBlockGap                int64
-	maxPendingBandwidthPerValidator uint64
-	validityWindow                  int64
-	networkID                       uint32
-	subnetID                        ids.ID
-	chainID                         ids.ID
-	quorumNum                       uint64
-	quorumDen                       uint64
-}
-
-func (r *rules) GetMinBlockGap() int64 {
-	return r.minBlockGap
-}
-
-func (r *rules) GetMinEmptyBlockGap() int64 {
-	return r.minEmptyBlockGap
-}
-
-func (r *rules) GetMaxPendingBandwidthPerValidator() uint64 {
-	return r.maxPendingBandwidthPerValidator
-}
-
-func (r *rules) GetValidityWindow() int64 {
-	return r.validityWindow
-}
-
-func (r *rules) GetNetworkID() uint32 {
-	return r.networkID
-}
-
-func (r *rules) GetSubnetID() ids.ID {
-	return r.subnetID
-}
-
-func (r *rules) GetChainID() ids.ID {
-	return r.chainID
-}
-
-func (r *rules) GetQuorumNum() uint64 {
-	return r.quorumNum
-}
-
-func (r *rules) GetQuorumDen() uint64 {
-	return r.quorumDen
-}
-
 type ruleFactory struct {
-	rules *rules
+	rules Rules
 }
 
 func newRuleFactory(
@@ -191,9 +140,9 @@ func newRuleFactory(
 	validityWindow int64,
 ) *ruleFactory {
 	return &ruleFactory{
-		rules: &rules{
-			maxPendingBandwidthPerValidator: maxPendingBandwidthPerValidator,
-			validityWindow:                  validityWindow,
+		rules: Rules{
+			MaxPendingBandwidthPerValidator: maxPendingBandwidthPerValidator,
+			ValidityWindow:                  validityWindow,
 			// TODO: fill remain
 		},
 	}

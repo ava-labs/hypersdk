@@ -41,6 +41,7 @@ import (
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
+	"github.com/ava-labs/hypersdk/x/dsmr"
 
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
@@ -50,6 +51,7 @@ import (
 const (
 	blockDB             = "blockdb"
 	stateDB             = "statedb"
+	chunkDBStr          = "chunkdb" // TODO: align var naming
 	resultsDB           = "results"
 	lastResultKey       = byte(0)
 	syncerDB            = "syncerdb"
@@ -59,9 +61,12 @@ const (
 	chainIndexNamespace = "chainindex"
 	gossiperNamespace   = "gossiper"
 
-	changeProofHandlerID = 0x0
-	rangeProofHandlerID  = 0x1
-	txGossipHandlerID    = 0x2
+	changeProofHandlerID uint64 = iota + 1
+	rangeProofHandlerID
+	txGossipHandlerID
+	getChunkProtocolID
+	broadcastChunkCertProtocolID
+	getChunkSignatureProtocolID
 )
 
 var ErrNotAdded = errors.New("not added")
@@ -329,9 +334,16 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.initChainStore(); err != nil {
+	chainIndex, err := initChainStore[
+		*chain.ExecutionBlock,
+		*chain.ExecutionBlock,
+		*chain.OutputBlock,
+		*chain.OutputBlock,
+	](snowApp, chainInput, vm.chain, chainIndexNamespace)
+	if err != nil {
 		return nil, nil, nil, false, err
 	}
+	vm.chainStore = chainIndex
 
 	if err := vm.initStateSync(ctx); err != nil {
 		return nil, nil, nil, false, err
@@ -360,6 +372,43 @@ func (vm *VM) Initialize(
 			return nil, nil, nil, false, err
 		}
 	}
+
+	chunkValidityWindow := validitywindow.NewTimeValidityWindow[dsmr.EChunk](vm.snowCtx.Log, vm.tracer, nil /* TODO */, func(timestamp int64) int64 {
+		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
+	})
+
+	chunkDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chunkDBStr)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to register chunkdb metrics: %w", err)
+	}
+	chunkDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, chunkDBStr, chunkDBRegistry)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	snowApp.AddCloser(chunkDBStr, func() error {
+		if err := chunkDB.Close(); err != nil {
+			return fmt.Errorf("failed to close chunk db: %w", err)
+		}
+		return nil
+	})
+	dsmrNode, err := dsmr.New(
+		vm.snowCtx.NodeID,
+		vm.snowCtx.Log,
+		vm.snowCtx.WarpSigner,
+		nil,
+		dsmr.NewDefaultRuleFactory(snowCtx.NetworkID, snowCtx.SubnetID, snowCtx.ChainID), // TODO: make configurable
+		chunkDB,
+		chunkValidityWindow,
+		vm.network,
+		getChunkProtocolID,
+		broadcastChunkCertProtocolID,
+		getChunkSignatureProtocolID,
+	)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to create DSMR node: %w", err)
+	}
+	_ = dsmrNode
+
 	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
 }
 
@@ -367,26 +416,36 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 	vm.consensusIndex = consensusIndex
 }
 
-func (vm *VM) initChainStore() error {
-	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
+func initChainStore[T chainindex.Block, I hsnow.Block, O hsnow.Block, A hsnow.Block](
+	snowApp *hsnow.VM[I, O, A],
+	snowInput hsnow.ChainInput,
+	parser chainindex.Parser[T],
+	namespace string,
+) (*chainindex.ChainIndex[T], error) {
+	chainIndexRegistry, err := metrics.MakeAndRegister(snowInput.SnowCtx.Metrics, namespace)
 	if err != nil {
-		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
+		return nil, fmt.Errorf("failed to register %s metrics: %w", namespace, err)
 	}
 	pebbleConfig := pebble.NewDefaultConfig()
-	chainStoreDB, err := storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, blockDBRegistry)
+	chainStoreDB, err := storage.New(pebbleConfig, snowInput.SnowCtx.ChainDataDir, namespace, chainIndexRegistry)
 	if err != nil {
-		return fmt.Errorf("failed to create chain index database: %w", err)
+		return nil, fmt.Errorf("failed to create chain index database: %w", err)
 	}
-	vm.snowApp.AddCloser(chainIndexNamespace, chainStoreDB.Close)
-	config, err := GetChainIndexConfig(vm.snowInput.Config)
+	snowApp.AddCloser(chainIndexNamespace, func() error {
+		if err := chainStoreDB.Close(); err != nil {
+			return fmt.Errorf("failed to close chain index %q db: %w", namespace, err)
+		}
+		return nil
+	})
+	config, err := GetChainIndexConfig(snowInput.Config, namespace)
 	if err != nil {
-		return fmt.Errorf("failed to create chain index config: %w", err)
+		return nil, fmt.Errorf("failed to create chain index config: %w", err)
 	}
-	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
+	chainIndex, err := chainindex.New[T](snowInput.SnowCtx.Log, chainIndexRegistry, config, parser, chainStoreDB)
 	if err != nil {
-		return fmt.Errorf("failed to create chain index: %w", err)
+		return nil, fmt.Errorf("failed to create chain index: %w", err)
 	}
-	return nil
+	return chainIndex, nil
 }
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {

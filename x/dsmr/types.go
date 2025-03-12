@@ -22,8 +22,8 @@ import (
 
 var (
 	_ canoto.Field                          = (*Chunk)(nil)
-	_ emap.Item                             = (*eChunk)(nil)
-	_ validitywindow.ExecutionBlock[eChunk] = (*eChunkBlock)(nil)
+	_ emap.Item                             = (*EChunk)(nil)
+	_ validitywindow.ExecutionBlock[EChunk] = (*EChunkBlock)(nil)
 
 	ErrNilChunkCert      = errors.New("nil chunk cert in block")
 	ErrNilChunkReference = errors.New("nil chunk reference")
@@ -245,63 +245,63 @@ func ParseBlock(bytes []byte) (*Block, error) {
 	return block, nil
 }
 
-type eChunk struct {
+type EChunk struct {
 	chunkID ids.ID
 	expiry  int64
 }
 
-func (e eChunk) GetID() ids.ID {
+func (e EChunk) GetID() ids.ID {
 	return e.chunkID
 }
 
-func (e eChunk) GetExpiry() int64 {
+func (e EChunk) GetExpiry() int64 {
 	return e.expiry
 }
 
-type eChunkBlock struct {
+type EChunkBlock struct {
 	*Block
 
-	eChunks    []eChunk
+	eChunks    []EChunk
 	eChunksSet set.Set[ids.ID]
 }
 
-func newEChunkBlock(b *Block) *eChunkBlock {
-	eChunks := make([]eChunk, len(b.Chunks))
+func newEChunkBlock(b *Block) *EChunkBlock {
+	eChunks := make([]EChunk, len(b.Chunks))
 	eChunksSet := set.NewSet[ids.ID](len(b.Chunks))
 	for i, cert := range b.Chunks {
-		eChunks[i] = eChunk{
+		eChunks[i] = EChunk{
 			chunkID: cert.Reference.ChunkID,
 			expiry:  cert.Reference.Expiry,
 		}
 		eChunksSet.Add(cert.Reference.ChunkID)
 	}
-	return &eChunkBlock{
+	return &EChunkBlock{
 		Block:      b,
 		eChunks:    eChunks,
 		eChunksSet: eChunksSet,
 	}
 }
 
-func (e *eChunkBlock) GetID() ids.ID {
+func (e *EChunkBlock) GetID() ids.ID {
 	return e.id
 }
 
-func (e *eChunkBlock) GetParent() ids.ID {
+func (e *EChunkBlock) GetParent() ids.ID {
 	return e.ParentID
 }
 
-func (e *eChunkBlock) GetTimestamp() int64 {
+func (e *EChunkBlock) GetTimestamp() int64 {
 	return e.Timestamp
 }
 
-func (e *eChunkBlock) GetHeight() uint64 {
+func (e *EChunkBlock) GetHeight() uint64 {
 	return e.Height
 }
 
-func (e *eChunkBlock) GetContainers() []eChunk {
+func (e *EChunkBlock) GetContainers() []EChunk {
 	return e.eChunks
 }
 
-func (e *eChunkBlock) Contains(id ids.ID) bool {
+func (e *EChunkBlock) Contains(id ids.ID) bool {
 	return e.eChunksSet.Contains(id)
 }

@@ -10,13 +10,13 @@ import (
 
 type chunkPool struct {
 	pool           map[ids.ID]*ChunkCertificate
-	chunkCertEHeap *eheap.ExpiryHeap[eChunk]
+	chunkCertEHeap *eheap.ExpiryHeap[EChunk]
 }
 
 func newChunkPool() *chunkPool {
 	return &chunkPool{
 		pool:           make(map[ids.ID]*ChunkCertificate),
-		chunkCertEHeap: eheap.New[eChunk](100),
+		chunkCertEHeap: eheap.New[EChunk](100),
 	}
 }
 
@@ -30,7 +30,7 @@ func (c *chunkPool) gatherChunkCerts() []*ChunkCertificate {
 
 func (c *chunkPool) add(cert *ChunkCertificate) {
 	c.pool[cert.Reference.ChunkID] = cert
-	c.chunkCertEHeap.Add(eChunk{
+	c.chunkCertEHeap.Add(EChunk{
 		chunkID: cert.Reference.ChunkID,
 		expiry:  cert.Reference.Expiry,
 	})

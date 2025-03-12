@@ -107,17 +107,15 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
-	return vm.proposerMonitor.IsValidator(ctx, nid)
+func (vm *VM) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, error) {
+	return vm.proposerMonitor.IsValidator(ctx, nodeID)
 }
 
 func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
 	return vm.proposerMonitor.Proposers(ctx, diff, depth)
 }
 
-func (vm *VM) CurrentValidators(
-	ctx context.Context,
-) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
+func (vm *VM) CurrentValidators(ctx context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	return vm.proposerMonitor.Validators(ctx)
 }
 

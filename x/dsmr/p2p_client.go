@@ -92,7 +92,7 @@ func (c *AppClient) CollectChunkSignature(ctx context.Context, chunk *Chunk) (*C
 		zap.Uint64("estimatedPChainHeight", estimatedPChainHeight),
 	)
 	rules := c.ruleFactory.GetRules(chunk.Expiry)
-	unsignedWarpMsg, err := warp.NewUnsignedMessage(rules.GetNetworkID(), rules.GetChainID(), chunkRef.bytes)
+	unsignedWarpMsg, err := warp.NewUnsignedMessage(rules.NetworkID, rules.ChainID, chunkRef.bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +109,8 @@ func (c *AppClient) CollectChunkSignature(ctx context.Context, chunk *Chunk) (*C
 		warpMsg,
 		chunk.bytes,
 		canonicalVdrSet.Validators,
-		rules.GetQuorumNum(),
-		rules.GetQuorumDen(),
+		rules.QuorumNum,
+		rules.QuorumDen,
 	)
 	if err != nil {
 		return nil, err

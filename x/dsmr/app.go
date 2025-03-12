@@ -19,7 +19,7 @@ func New(
 	chainState ChainState,
 	ruleFactory RuleFactory,
 	db database.Database,
-	chunkValidityWindow *validitywindow.TimeValidityWindow[eChunk],
+	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk],
 	network *p2p.Network,
 	getChunkProtocolID uint64,
 	broadcastChunkCertProtocolID uint64,

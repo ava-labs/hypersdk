@@ -54,7 +54,7 @@ type pendingChunkStore struct {
 
 	// chunkEMap provides an in-memory heap of pending chunks to provide an efficient
 	// way to garbage collect expired chunks that have not been accepted as they expire.
-	chunkEMap *emap.EMap[eChunk]
+	chunkEMap *emap.EMap[EChunk]
 
 	// pendingValidatorChunks tracks the total bandwidth of pending chunks per validator
 	pendingValidatorChunks map[ids.NodeID]uint64
@@ -69,7 +69,7 @@ func newPendingChunkStore(
 	store := &pendingChunkStore{
 		db:                     db,
 		pendingChunks:          make(map[ids.ID]*Chunk),
-		chunkEMap:              emap.NewEMap[eChunk](),
+		chunkEMap:              emap.NewEMap[EChunk](),
 		pendingValidatorChunks: make(map[ids.NodeID]uint64),
 		ruleFactory:            ruleFactory,
 	}
@@ -82,7 +82,7 @@ func newPendingChunkStore(
 			return nil, fmt.Errorf("failed to parse pending chunk: %w", err)
 		}
 		store.pendingChunks[unsignedChunk.id] = unsignedChunk
-		store.chunkEMap.Add([]eChunk{{
+		store.chunkEMap.Add([]EChunk{{
 			chunkID: unsignedChunk.id,
 			expiry:  unsignedChunk.Expiry,
 		}})
@@ -152,7 +152,7 @@ func (c *pendingChunkStore) putPendingChunk(unsignedChunk *Chunk) error {
 	defer c.lock.Unlock()
 
 	rules := c.ruleFactory.GetRules(c.minTimestamp)
-	maxOutstandingBandwidth := rules.GetMaxPendingBandwidthPerValidator()
+	maxOutstandingBandwidth := rules.MaxPendingBandwidthPerValidator
 	pendingBytesFromValidator := c.pendingValidatorChunks[unsignedChunk.Builder]
 	if pendingBytesFromValidator+uint64(len(unsignedChunk.bytes)) > maxOutstandingBandwidth {
 		return fmt.Errorf(
@@ -170,7 +170,7 @@ func (c *pendingChunkStore) putPendingChunk(unsignedChunk *Chunk) error {
 	}
 
 	c.pendingChunks[unsignedChunk.id] = unsignedChunk
-	c.chunkEMap.Add([]eChunk{{
+	c.chunkEMap.Add([]EChunk{{
 		chunkID: unsignedChunk.id,
 		expiry:  unsignedChunk.Expiry,
 	}})
