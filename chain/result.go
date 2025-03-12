@@ -3,6 +3,8 @@
 
 package chain
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"encoding/json"
 

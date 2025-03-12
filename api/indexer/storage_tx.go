@@ -3,6 +3,8 @@
 
 package indexer
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 type storageTx struct {
 	Timestamp int64    `canoto:"int,1"`
 	Success   bool     `canoto:"bool,2"`
