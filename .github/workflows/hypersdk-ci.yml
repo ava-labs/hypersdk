@@ -56,6 +56,8 @@ jobs:
         shell: bash
         run: scripts/tests.actionlint.sh
 
+  # This workflow job ensures generated code is up-to-date by running the canoto generator.
+  # It verifies developers have properly run code generation locally before committing, preventing inconsistencies between checked-in generated files and what the generator would produce.
   check_canotogen:
     name: Up-to-date canoto
     runs-on: ubuntu-latest
