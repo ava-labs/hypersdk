@@ -5,9 +5,12 @@ package chain_test
 
 import (
 	"context"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,16 +31,33 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
+var (
+	//go:embed chaintest/testdata/signedTransaction.hex
+	signedTxFS embed.FS
+
+	//go:embed chaintest/testdata/signedTransaction.json
+	signedTxJsonFS embed.FS
+)
 
 var (
 	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	preSignedTxBytes []byte
+	signedTxJson     []byte
 
 	errMockInsufficientBalance = errors.New("mock insufficient balance error")
 )
 
 func init() {
+	updateReferenceTxData()
+
+	signedTx, readHexErr := signedTxFS.ReadFile("chaintest/testdata/signedTransaction.hex")
+	signedTxJsonRaw, readJsonErr := signedTxJsonFS.ReadFile("chaintest/testdata/signedTransaction.json")
+	err := errors.Join(readHexErr, readJsonErr)
+	if err != nil {
+		panic(err)
+	}
+	signedTxJson = signedTxJsonRaw
+	signedTxHex := strings.TrimSpace(string(signedTx))
 	txBytes, err := hex.DecodeString(signedTxHex)
 	if err != nil {
 		panic(err)
@@ -142,7 +162,7 @@ func TestSignTransaction(t *testing.T) {
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
-	require := require.New(t)
+	r := require.New(t)
 
 	txData := chain.NewTxData(
 		chain.Base{
@@ -162,47 +182,34 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	parser := chaintest.NewTestParser()
 
 	signedTx, err := txData.Sign(factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	actionsBytes := make([][]byte, 0, len(signedTx.Actions))
 	for _, action := range signedTx.Actions {
 		actionsBytes = append(actionsBytes, action.Bytes())
 	}
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(txData.Base, actionsBytes, factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
-	require.NoError(err)
+	r.NoError(err)
 
-	equalTx(require, signedTx, parseRawSignedTx)
+	equalTx(r, signedTx, parseRawSignedTx)
 }
 
 func TestUnmarshalTx(t *testing.T) {
 	r := require.New(t)
 
-	txData := chain.NewTxData(
-		chain.Base{
-			Timestamp: 1724315246000,
-			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
-			MaxFee:    1234567,
-		},
-		[]chain.Action{
-			chaintest.NewDummyTestAction(),
-		},
-	)
-	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: chaintest.NewDummyTestAuth(),
-	}
+	txFromJSON := new(chain.Transaction)
 	parser := chaintest.NewTestParser()
-
-	signedTx, err := txData.Sign(authFactory)
+	err := txFromJSON.UnmarshalJSON(signedTxJson, parser)
 	r.NoError(err)
 
-	signedTxBytes := signedTx.Bytes()
+	signedTxBytes := txFromJSON.Bytes()
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
 	r.NoError(err)
 
-	equalTx(r, signedTx, parsedTx)
+	equalTx(r, txFromJSON, parsedTx)
 	r.Equal(preSignedTxBytes, signedTxBytes, "expected %x, actual %x", preSignedTxBytes, signedTxBytes)
 }
 
@@ -495,4 +502,40 @@ func equalTxData(r *require.Assertions, expected chain.TransactionData, actual c
 		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), msgAndArgs...)
 	}
 	r.Equal(expected.UnsignedBytes(), actual.UnsignedBytes(), msgAndArgs...)
+}
+
+// updateReferenceBlockData regenerates the reference hex and JSON files with the current implementation
+// Only runs when UPDATE_TEST_DATA=1 is set eg: UPDATE_TEST_DATA=1 go test ./chain/...
+func updateReferenceTxData() {
+	// Only run when explicitly enabled
+	if os.Getenv("UPDATE_TEST_DATA") != "1" {
+		return
+	}
+
+	txData := chain.NewTxData(
+		chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+	)
+	authFactory := &chaintest.TestAuthFactory{
+		TestAuth: chaintest.NewDummyTestAuth(),
+	}
+
+	signedTx, err := txData.Sign(authFactory)
+	if err != nil {
+		panic(err)
+	}
+	b, err := json.Marshal(signedTx)
+	if err != nil {
+		panic(err)
+	}
+	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0644), os.WriteFile("chaintest/testdata/statelessBlock.hex", []byte(hex.EncodeToString(signedTx.Bytes())), 0644))
+	if err != nil {
+		panic(err)
+	}
 }

@@ -4,8 +4,11 @@
 package chain_test
 
 import (
+	"embed"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,6 +18,28 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
+
+var (
+	//go:embed chaintest/testdata/statelessBlock.hex
+	blockHexRaw embed.FS
+
+	// Hardcoded bytes of the block to verify there are no unexpected serialization changes
+	blockHex string
+)
+
+func init() {
+	err := updateReferenceBlockHex()
+	if err != nil {
+		panic(err)
+	}
+
+	b, err := blockHexRaw.ReadFile("chaintest/testdata/statelessBlock.hex")
+	if err != nil {
+		panic(err)
+	}
+
+	blockHex = strings.TrimSpace(string(b))
+}
 
 func TestBlockSerialization(t *testing.T) {
 	type test struct {
@@ -106,8 +131,6 @@ func TestBlockSerialization(t *testing.T) {
 func TestParseHardcodedBlock(t *testing.T) {
 	r := require.New(t)
 
-	// Hardcoded bytes of the block to verify there are no unexpected serialization changes
-	blockHex := "0a20e902a9a86640bfdb1cd0e36c0cc982b83e5765fad5f6bbe6abdcce7b5ae7d7c7117b000000000000001901000000000000002abd010a2508d00f12203d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a712360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff2ac6010a2e08d00f12203d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a719010000000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff2ac6010a2e08d00f12203d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a719020000000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff32204a177205df5c29929d06db9d941f83d5ea985de302015e99252d16469a6610db"
 	hardcodedBlockBytes, err := hex.DecodeString(blockHex)
 	r.NoError(err)
 
@@ -298,4 +321,49 @@ func createBlockArgs(r *require.Assertions, numTxs int) *blockArgs {
 		stateRoot: stateRoot,
 	}
 	return blockArgs
+}
+
+// updateReferenceBlockHex regenerates the reference hex file with the current implementation
+// Only runs when UPDATE_TEST_DATA=1 is set eg: UPDATE_TEST_DATA=1 go test ./chain/...
+func updateReferenceBlockHex() error {
+	// Only run when explicitly enabled
+	if os.Getenv("UPDATE_TEST_DATA") != "1" {
+		return nil
+	}
+
+	txs := make([]*chain.Transaction, 0, 3)
+	chainID := ids.Empty.Prefix(1)
+	for i := 0; i < 3; i++ {
+		tx, err := chain.NewTransaction(
+			chain.Base{
+				Timestamp: 1_000,
+				ChainID:   chainID,
+				MaxFee:    uint64(i),
+			},
+			[]chain.Action{
+				chaintest.NewDummyTestAction(),
+			},
+			chaintest.NewDummyTestAuth(),
+		)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, tx)
+	}
+
+	block, err := chain.NewStatelessBlock(
+		ids.Empty.Prefix(2),
+		123,
+		1,
+		txs,
+		ids.Empty.Prefix(3),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	blockBytes := block.GetBytes()
+	hexByteSlice := make([]byte, hex.EncodedLen(len(blockBytes)))
+	hex.Encode(hexByteSlice, blockBytes)
+	return os.WriteFile("chaintest/testdata/statelessBlock.hex", hexByteSlice, 0644)
 }
