@@ -534,7 +534,9 @@ func updateReferenceTxData() {
 	if err != nil {
 		panic(err)
 	}
-	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0o600), os.WriteFile("chaintest/testdata/statelessBlock.hex", []byte(hex.EncodeToString(signedTx.Bytes())), 0o600))
+	singedTxBytes := make([]byte, hex.EncodedLen(len(signedTx.Bytes())))
+	hex.Encode(singedTxBytes, signedTx.Bytes())
+	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0o600), os.WriteFile("chaintest/testdata/signedTransaction.hex", singedTxBytes, 0o600))
 	if err != nil {
 		panic(err)
 	}

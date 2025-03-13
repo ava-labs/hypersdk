@@ -4,42 +4,23 @@
 package chain_test
 
 import (
-	"embed"
 	"encoding/hex"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/stretchr/testify/require"
 
+	_ "embed"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 )
 
-var (
-	//go:embed chaintest/testdata/statelessBlock.hex
-	blockHexRaw embed.FS
-
-	// Hardcoded bytes of the block to verify there are no unexpected serialization changes
-	blockHex string
-)
-
-func init() {
-	err := updateReferenceBlockHex()
-	if err != nil {
-		panic(err)
-	}
-
-	b, err := blockHexRaw.ReadFile("chaintest/testdata/statelessBlock.hex")
-	if err != nil {
-		panic(err)
-	}
-
-	blockHex = strings.TrimSpace(string(b))
-}
+//go:embed chaintest/testdata/statelessBlock.hex
+var blockHex string
 
 func TestBlockSerialization(t *testing.T) {
 	type test struct {
@@ -130,7 +111,9 @@ func TestBlockSerialization(t *testing.T) {
 
 func TestParseHardcodedBlock(t *testing.T) {
 	r := require.New(t)
+	r.NoError(updateReferenceBlockHex())
 
+	// Hardcoded bytes of the block to verify there are no unexpected serialization changes
 	hardcodedBlockBytes, err := hex.DecodeString(blockHex)
 	r.NoError(err)
 
