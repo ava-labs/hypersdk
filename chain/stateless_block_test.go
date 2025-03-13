@@ -365,5 +365,5 @@ func updateReferenceBlockHex() error {
 	blockBytes := block.GetBytes()
 	hexByteSlice := make([]byte, hex.EncodedLen(len(blockBytes)))
 	hex.Encode(hexByteSlice, blockBytes)
-	return os.WriteFile("chaintest/testdata/statelessBlock.hex", hexByteSlice, 0644)
+	return os.WriteFile("chaintest/testdata/statelessBlock.hex", hexByteSlice, 0o600)
 }

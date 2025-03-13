@@ -36,13 +36,13 @@ var (
 	signedTxFS embed.FS
 
 	//go:embed chaintest/testdata/signedTransaction.json
-	signedTxJsonFS embed.FS
+	signedTxJSONFS embed.FS
 )
 
 var (
 	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	preSignedTxBytes []byte
-	signedTxJson     []byte
+	signedTxJSON     []byte
 
 	errMockInsufficientBalance = errors.New("mock insufficient balance error")
 )
@@ -51,12 +51,12 @@ func init() {
 	updateReferenceTxData()
 
 	signedTx, readHexErr := signedTxFS.ReadFile("chaintest/testdata/signedTransaction.hex")
-	signedTxJsonRaw, readJsonErr := signedTxJsonFS.ReadFile("chaintest/testdata/signedTransaction.json")
-	err := errors.Join(readHexErr, readJsonErr)
+	signedTxJSONRaw, readJSONErr := signedTxJSONFS.ReadFile("chaintest/testdata/signedTransaction.json")
+	err := errors.Join(readHexErr, readJSONErr)
 	if err != nil {
 		panic(err)
 	}
-	signedTxJson = signedTxJsonRaw
+	signedTxJSON = signedTxJSONRaw
 	signedTxHex := strings.TrimSpace(string(signedTx))
 	txBytes, err := hex.DecodeString(signedTxHex)
 	if err != nil {
@@ -202,7 +202,7 @@ func TestUnmarshalTx(t *testing.T) {
 
 	txFromJSON := new(chain.Transaction)
 	parser := chaintest.NewTestParser()
-	err := txFromJSON.UnmarshalJSON(signedTxJson, parser)
+	err := txFromJSON.UnmarshalJSON(signedTxJSON, parser)
 	r.NoError(err)
 
 	signedTxBytes := txFromJSON.Bytes()
@@ -534,7 +534,7 @@ func updateReferenceTxData() {
 	if err != nil {
 		panic(err)
 	}
-	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0644), os.WriteFile("chaintest/testdata/statelessBlock.hex", []byte(hex.EncodeToString(signedTx.Bytes())), 0644))
+	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0o600), os.WriteFile("chaintest/testdata/statelessBlock.hex", []byte(hex.EncodeToString(signedTx.Bytes())), 0o600))
 	if err != nil {
 		panic(err)
 	}
