@@ -7,5 +7,12 @@ set -euo pipefail
 git add --all
 git update-index --really-refresh >> /dev/null
 
-# Exits if any uncommitted changes are found.
-git diff-index --quiet HEAD
+# Check if there are uncommitted changes
+if ! git diff-index --quiet HEAD; then
+    echo "ERROR: Uncommitted changes found:"
+    echo "----------------------------------------"
+    git diff --name-status HEAD | cat
+    echo "----------------------------------------"
+    echo "Run 'git diff' to see detailed changes"
+    exit 1
+fi
