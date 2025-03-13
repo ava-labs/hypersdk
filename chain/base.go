@@ -35,7 +35,7 @@ type Base struct {
 	// If the fee is too low to pay all fees, the transaction will be dropped.
 	MaxFee uint64 `canoto:"fint64,3" json:"maxFee"`
 
-	canotoData canotoData_Base
+	canotoData canotoData_Base `canoto:"noatomic"`
 }
 
 func (b *Base) Execute(r Rules, timestamp int64) error {

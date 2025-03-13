@@ -31,7 +31,7 @@ const (
 )
 
 type canotoData_Base struct {
-	size atomic.Int64
+	size int
 }
 
 // CanotoSpec returns the specification of this canoto message.
@@ -45,7 +45,7 @@ func (*Base) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 				FieldNumber: 1,
 				Name:        "Timestamp",
 				OneOf:       "",
-				TypeInt:    canoto.SizeOf(zero.Timestamp),
+				TypeInt:     canoto.SizeOf(zero.Timestamp),
 			},
 			{
 				FieldNumber:    2,
@@ -91,7 +91,7 @@ func (c *Base) UnmarshalCanoto(bytes []byte) error {
 func (c *Base) UnmarshalCanotoFrom(r canoto.Reader) error {
 	// Zero the struct before unmarshaling.
 	*c = Base{}
-	c.canotoData.size.Store(int64(len(r.B)))
+	c.canotoData.size = len(r.B)
 
 	var minField uint32
 	for canoto.HasNext(&r) {
@@ -176,6 +176,8 @@ func (c *Base) ValidCanoto() bool {
 
 // CalculateCanotoCache populates size and OneOf caches based on the current
 // values in the struct.
+//
+// It is not safe to call this function concurrently.
 func (c *Base) CalculateCanotoCache() {
 	if c == nil {
 		return
@@ -192,7 +194,7 @@ func (c *Base) CalculateCanotoCache() {
 	if !canoto.IsZero(c.MaxFee) {
 		size += len(canoto__Base__MaxFee__tag) + canoto.SizeFint64
 	}
-	c.canotoData.size.Store(int64(size))
+	c.canotoData.size = size
 }
 
 // CachedCanotoSize returns the previously calculated size of the Canoto
@@ -206,12 +208,14 @@ func (c *Base) CachedCanotoSize() int {
 	if c == nil {
 		return 0
 	}
-	return int(c.canotoData.size.Load())
+	return int(c.canotoData.size)
 }
 
 // MarshalCanoto returns the Canoto representation of this struct.
 //
 // It is assumed that this struct is ValidCanoto.
+//
+// It is not safe to call this function concurrently.
 func (c *Base) MarshalCanoto() []byte {
 	c.CalculateCanotoCache()
 	w := canoto.Writer{
@@ -228,6 +232,8 @@ func (c *Base) MarshalCanoto() []byte {
 // modification to this struct.
 //
 // It is assumed that this struct is ValidCanoto.
+//
+// It is not safe to call this function concurrently.
 func (c *Base) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if c == nil {
 		return w
