@@ -29,11 +29,16 @@ var (
 
 type GetTimeValidityWindowFunc func(timestamp int64) int64
 
-type ExecutionBlock[T emap.Item] interface {
+type Block interface {
 	GetID() ids.ID
 	GetParent() ids.ID
 	GetTimestamp() int64
 	GetHeight() uint64
+	GetBytes() []byte
+}
+
+type ExecutionBlock[T emap.Item] interface {
+	Block
 	GetContainers() []T
 	Contains(ids.ID) bool
 }
@@ -87,6 +92,18 @@ func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 	)
 	v.seen.Add(blk.GetContainers())
 	v.lastAcceptedBlockHeight = blk.GetHeight()
+}
+
+func (v *TimeValidityWindow[T]) AcceptHistorical(blk ExecutionBlock[T]) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	v.log.Debug("adding historical block to validity window",
+		zap.Stringer("blkID", blk.GetID()),
+		zap.Uint64("height", blk.GetHeight()),
+		zap.Time("timestamp", time.UnixMilli(blk.GetTimestamp())),
+	)
+	v.seen.Add(blk.GetContainers())
 }
 
 func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(

@@ -395,11 +395,40 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r.ErrorIs(VerifyTimestamp(validityWindowDuration, validityWindowDuration+1, 1, validityWindowDuration), ErrTimestampExpired)
 }
 
+func TestAcceptHistorical(t *testing.T) {
+	r := require.New(t)
+
+	chainIndex := &testChainIndex{}
+	validityWindowDuration := int64(10)
+	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+		return validityWindowDuration
+	})
+
+	// Create and accept the genesis block to set an initial lastAcceptedBlockHeight
+	genesisBlk := newExecutionBlock(0, 0, []int64{})
+	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+	validityWindow.Accept(genesisBlk)
+	r.Equal(uint64(0), validityWindow.lastAcceptedBlockHeight)
+
+	// Create a block at height 1 and accept it
+	blk1 := newExecutionBlock(1, 5, []int64{1, 2})
+	chainIndex.set(blk1.GetID(), blk1)
+	validityWindow.Accept(blk1)
+	r.Equal(uint64(1), validityWindow.lastAcceptedBlockHeight)
+
+	// Create a historical block at height 5 (higher than current accepted)
+	historicalBlk := newExecutionBlock(5, 20, []int64{5, 6})
+	chainIndex.set(historicalBlk.GetID(), historicalBlk)
+	validityWindow.AcceptHistorical(historicalBlk)
+	// Verify that lastAcceptedBlockHeight has not changed
+	r.Equal(uint64(1), validityWindow.lastAcceptedBlockHeight)
+}
+
 type testChainIndex struct {
 	blocks map[ids.ID]ExecutionBlock[container]
 }
 
-func (t testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
+func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
 	if blk, ok := t.blocks[blkID]; ok {
 		return blk, nil
 	}
@@ -439,6 +468,7 @@ type executionBlock struct {
 	Hght   uint64
 	Ctrs   []container
 	ID     ids.ID
+	Bytes  []byte
 }
 
 func (e executionBlock) GetID() ids.ID {
@@ -470,12 +500,19 @@ func (e executionBlock) Contains(id ids.ID) bool {
 	return false
 }
 
+func (e executionBlock) GetBytes() []byte {
+	return e.Bytes
+}
+
 func newExecutionBlock(height uint64, timestamp int64, containers []int64) executionBlock {
+	id := uint64ToID(height)
+
 	e := executionBlock{
 		Prnt:   uint64ToID(height - 1), // Allow underflow for genesis
 		Tmstmp: timestamp,
 		Hght:   height,
-		ID:     uint64ToID(height),
+		ID:     id,
+		Bytes:  binary.BigEndian.AppendUint64(nil, height),
 	}
 	for _, c := range containers {
 		e.Ctrs = append(e.Ctrs, newContainer(c))
