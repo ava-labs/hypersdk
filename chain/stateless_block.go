@@ -6,6 +6,7 @@ package chain
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
@@ -21,7 +22,7 @@ var (
 
 type Block struct {
 	Prnt   ids.ID `canoto:"fixed bytes,1" json:"parent"`
-	Tmstmp int64  `canoto:"sint,2"        json:"timestamp"`
+	Tmstmp int64  `canoto:"fint64,2"        json:"timestamp"`
 	Hght   uint64 `canoto:"fint64,3"      json:"height"`
 
 	BlockContext *block.Context `canoto:"pointer,4" json:"blockContext"`
@@ -142,4 +143,8 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatelessBlock, error) {
 	// rather than only setting it on the write path.
 	b.CalculateCanotoCache()
 	return b, nil
+}
+
+func (*StatelessBlock) CanotoSpec(types ...reflect.Type) *canoto.Spec {
+	return nil
 }

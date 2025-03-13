@@ -51,8 +51,8 @@ github.com/Joker/hpp v1.0.0/go.mod h1:8x5n+M1Hp5hC0g8okX3sR3vFQwynaX/UgSOM9MeBKz
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
-github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020 h1:xeEobha7w7m5ZSQ5vLg1m5wt12n0EZqt3BHWMVITZFA=
-github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020/go.mod h1:JFhw0c5orUI7e6lnySCBxpE1MmKgM2G4eWL21CtWjB4=
+github.com/StephenButtolph/canoto v0.13.3 h1:tZ0BWaKK6MQr+s45Nvp9YUVa4U5aozNIKSXzQzubXA0=
+github.com/StephenButtolph/canoto v0.13.3/go.mod h1:IcnAHC6nJUfQFVR9y60ko2ecUqqHHSB6UwI9NnBFZnE=
 github.com/VictoriaMetrics/fastcache v1.12.1 h1:i0mICQuojGDL3KblA7wUNlY5lOK6a4bwt3uRKnkZU40=
 github.com/VictoriaMetrics/fastcache v1.12.1/go.mod h1:tX04vaqcNoQeGLD+ra5pU5sWkuxnzWhEzLwhP9w653o=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
@@ -62,8 +62,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
-github.com/ava-labs/avalanchego v1.12.3-0.20250307191620-6e7a7d51954c h1:26a0tMz2beFNGwQ45BnbfgVrG/rbIW76Tx38saPxZww=
-github.com/ava-labs/avalanchego v1.12.3-0.20250307191620-6e7a7d51954c/go.mod h1:STul4CWMJ6Lp7MWu3OU2Y6vp9hSvFdUNaFfVU8Kf760=
+github.com/ava-labs/avalanchego v1.12.3-0.20250312133917-5e5d794200ec h1:2ZaqorE8+Zm0McfjfoagXcq6GVZ2CW8KGLHrBHxCnQg=
+github.com/ava-labs/avalanchego v1.12.3-0.20250312133917-5e5d794200ec/go.mod h1:75Zi0A9maOdD19rpbjuMFTRcIsCAfZ3Dr2Y/zokIjrk=
 github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990 h1:tMdOyCb0L5mbkesMCIvqeTPvQl3XzD0gEkbSkoMSBzk=
 github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990/go.mod h1:ilQRZoMu4fnSx5i8P+r/AhM+/WHhxm3n3tPQudoECb4=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=

@@ -19,7 +19,7 @@ type Result struct {
 
 	// Computing [Units] requires access to [StateManager], so it is returned
 	// to make life easier for indexers.
-	Units fees.Dimensions `canoto:"fixed repeated int,4"`
+	Units fees.Dimensions `canoto:"fixed repeated uint,4"`
 	Fee   uint64          `canoto:"fint64,5"`
 
 	canotoData canotoData_Result
