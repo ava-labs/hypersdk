@@ -50,6 +50,12 @@ func NewTxData(base Base, actions []Action) TransactionData {
 		Base:    base,
 		Actions: actions,
 	}
+	// Call CalculateCanotoCache so that equivalent blocks pass an equals check.
+	// Without calling this function, canoto's required internal field will cause equals
+	// checks to fail on otherwise identical blocks.
+	// TODO: remove after Canoto guarantees this to be set correctly on the read path (unmarshal)
+	// rather than only setting it on the write path.
+	txData.Base.CalculateCanotoCache()
 
 	actionBytes := make([]codec.Bytes, len(txData.Actions))
 	for i, action := range txData.Actions {
