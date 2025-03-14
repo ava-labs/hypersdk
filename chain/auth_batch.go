@@ -13,8 +13,7 @@ import (
 
 const authWorkerBacklog = 16_384
 
-type AuthVM interface {
-	Logger() logging.Logger
+type AuthEngines interface {
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 }
 
@@ -23,20 +22,22 @@ type AuthVM interface {
 // not block the caller when this happens and we should
 // not require each batch package to re-implement this logic.
 type AuthBatch struct {
-	vm  AuthVM
-	job workers.Job
-	bvs map[uint8]*authBatchWorker
+	log     logging.Logger
+	engines AuthEngines
+	job     workers.Job
+	bvs     map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatch {
+func NewAuthBatch(logger logging.Logger, engines AuthEngines, job workers.Job, authTypes map[uint8]int) *AuthBatch {
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
-		bv, ok := vm.GetAuthBatchVerifier(t, job.Workers(), count)
+		bv, ok := engines.GetAuthBatchVerifier(t, job.Workers(), count)
 		if !ok {
 			continue
 		}
 		bw := &authBatchWorker{
-			vm,
+			engines,
+			logger,
 			job,
 			bv,
 			make(chan *authBatchObject, authWorkerBacklog),
@@ -45,7 +46,7 @@ func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatc
 		go bw.start()
 		bvs[t] = bw
 	}
-	return &AuthBatch{vm, job, bvs}
+	return &AuthBatch{logger, engines, job, bvs}
 }
 
 func (a *AuthBatch) Add(digest []byte, auth Auth) {
@@ -66,7 +67,7 @@ func (a *AuthBatch) Done(f func()) {
 
 		for _, item := range bw.bv.Done() {
 			a.job.Go(item)
-			a.vm.Logger().Debug("enqueued batch for processing during done")
+			a.log.Debug("enqueued batch for processing during done")
 		}
 	}
 	a.job.Done(f)
@@ -78,11 +79,12 @@ type authBatchObject struct {
 }
 
 type authBatchWorker struct {
-	vm    AuthVM
-	job   workers.Job
-	bv    AuthBatchVerifier
-	items chan *authBatchObject
-	done  chan struct{}
+	engines AuthEngines
+	log     logging.Logger
+	job     workers.Job
+	bv      AuthBatchVerifier
+	items   chan *authBatchObject
+	done    chan struct{}
 }
 
 func (b *authBatchWorker) start() {
@@ -92,7 +94,7 @@ func (b *authBatchWorker) start() {
 		if j := b.bv.Add(object.digest, object.auth); j != nil {
 			// May finish parts of batch early, let's start computing them as soon as possible
 			b.job.Go(j)
-			b.vm.Logger().Debug("enqueued batch for processing during add")
+			b.log.Debug("enqueued batch for processing during add")
 		}
 	}
 }
