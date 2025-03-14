@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/StephenButtolph/canoto"
@@ -489,6 +490,10 @@ func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 // CalculateCanotoCache is a no-op for [Transaction] because it is immutable
 // and already cached in the internal bytes field.
 func (*Transaction) CalculateCanotoCache() {}
+
+func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
+	return nil
+}
 
 func (t *Transaction) CachedCanotoSize() int { return t.size }
 
