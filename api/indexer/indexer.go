@@ -220,10 +220,10 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, int64, 
 	if !ok {
 		return false, nil, 0, nil, nil
 	}
-	tx := blk.Block.Txs[cachedTx.index]
-	if len(blk.ExecutionResults.Results) <= cachedTx.index {
+	if len(blk.ExecutionResults.Results) <= cachedTx.index || len(blk.Block.Txs) <= cachedTx.index {
 		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errTxResultNotFound, blk.Block.Hght, cachedTx.index)
 	}
+	tx := blk.Block.Txs[cachedTx.index]
 	result := blk.ExecutionResults.Results[cachedTx.index]
 	return true, tx, blk.Block.Tmstmp, result, nil
 }

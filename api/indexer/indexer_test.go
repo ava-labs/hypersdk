@@ -70,13 +70,13 @@ func checkBlocks(
 		require.Equal(expectedBlk.Block.GetID(), blkByID.Block.GetID())
 
 		// confirm all transactions are available
-		for blkTxIndex, blkTx := range expectedBlk.Block.Txs {
-			txID := blkTx.GetID()
-			found, tx, _, res, err := indexer.GetTransaction(txID)
+		for txIndex, expectedTx := range expectedBlk.Block.Txs {
+			txID := expectedTx.GetID()
+			found, actualTx, _, res, err := indexer.GetTransaction(txID)
 			require.NoError(err)
 			require.True(found)
-			require.Equal(tx, blkTx)
-			require.Equal(expectedBlk.ExecutionResults.Results[blkTxIndex], res)
+			require.Equal(expectedTx, actualTx)
+			require.Equal(expectedBlk.ExecutionResults.Results[txIndex], res)
 		}
 	}
 
@@ -87,8 +87,8 @@ func checkBlocks(
 
 		// Confirm all transactions outside of the window are notretrievable
 		expectedBlk := expectedBlocks[i]
-		for _, blkTx := range expectedBlk.Block.Txs {
-			txID := blkTx.GetID()
+		for _, tx := range expectedBlk.Block.Txs {
+			txID := tx.GetID()
 			found, _, _, _, err := indexer.GetTransaction(txID)
 			require.NoError(err)
 			require.False(found)
