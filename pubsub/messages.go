@@ -3,6 +3,8 @@
 
 package pubsub
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 type BatchMessage struct {
 	Messages [][]byte `canoto:"repeated bytes,1"`
 

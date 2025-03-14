@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/StephenButtolph/canoto"
@@ -49,6 +50,10 @@ func NewTxData(base Base, actions []Action) TransactionData {
 		Base:    base,
 		Actions: actions,
 	}
+	// Call CalculateCanotoCache so that equivalent blocks pass an equals check.
+	// Without calling this function, canoto's required internal field will cause equals
+	// checks to fail on otherwise identical blocks.
+	txData.Base.CalculateCanotoCache()
 
 	actionBytes := make([]codec.Bytes, len(txData.Actions))
 	for i, action := range txData.Actions {
@@ -557,6 +562,14 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 }
 
 func (*Transaction) ValidCanoto() bool { return true }
+
+// CanotoSpec returns the specification of this canoto message.
+// Required for canoto.Field interface implementation.
+// Delegates to SerializeTx since Transaction uses it for serialization.
+func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
+	serializeTx := &SerializeTx{}
+	return serializeTx.CanotoSpec(types...)
+}
 
 func GenerateTransaction(
 	ruleFactory RuleFactory,

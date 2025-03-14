@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 var _ Parser = (*TxTypeParser)(nil)
 
 type TxTypeParser struct {

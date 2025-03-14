@@ -9,6 +9,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 const (
 	BlockMode byte = 0
 	TxMode    byte = 1
