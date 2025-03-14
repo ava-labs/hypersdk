@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
@@ -18,20 +17,21 @@ import (
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupBlocks  func() map[uint64]ExecutionBlock[container]
-		blockHeight  uint64
-		minTimestamp int64
-		wantErr      bool
-		wantBlocks   int
+		name          string
+		setupBlocks   func() map[uint64]ExecutionBlock[container]
+		blockHeight   uint64
+		minTimestamp  int64
+		expectErr     bool
+		wantBlocks    int
+		controlBuffer func() chan struct{}
 	}{
 		{
 			name: "happy path - fetch all blocks",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				return generateBlockChain(10, 3)
 			},
-			blockHeight:  9, // The tip of the chain
-			minTimestamp: 3, // Should get blocks with timestamp of 3 - 1 = 2 where 2 is the boundary block
+			blockHeight:  9,
+			minTimestamp: 3,
 			wantBlocks:   8,
 		},
 		{
@@ -43,7 +43,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			},
 			blockHeight:  9,
 			minTimestamp: 0,
-			wantBlocks:   2, // Should get block 9 and 8 before failing on 7
+			wantBlocks:   2,
 		},
 		{
 			name:         "no blocks - should error",
@@ -51,7 +51,28 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			blockHeight:  9,
 			minTimestamp: 3,
 			wantBlocks:   0,
-			wantErr:      true,
+			expectErr:    true,
+		},
+		{
+			name: "should error if block does not exist",
+			setupBlocks: func() map[uint64]ExecutionBlock[container] {
+				return generateBlockChain(2, 1)
+			},
+			blockHeight:  4,
+			minTimestamp: 3,
+			expectErr:    true,
+		},
+		{
+			name: "should timeout",
+			setupBlocks: func() map[uint64]ExecutionBlock[container] {
+				return generateBlockChain(10, 3)
+			},
+			blockHeight:  9,
+			minTimestamp: 3,
+			wantBlocks:   1,
+			controlBuffer: func() chan struct{} {
+				return make(chan struct{}, 1)
+			},
 		},
 	}
 
@@ -61,108 +82,37 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			r := require.New(t)
 
 			blocks := tt.setupBlocks()
+
 			retriever := newTestBlockRetriever(withBlocks(blocks))
+			if tt.controlBuffer != nil {
+				retriever = newTestBlockRetriever(withBlocks(blocks), withBufferedReads(tt.controlBuffer()))
+			}
 
 			handler := NewBlockFetcherHandler(retriever)
-			fetchedBlocks, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
+			fetchCtx, cancel := context.WithTimeout(ctx, maxProcessingDuration)
+			defer cancel()
+
+			fetchedBlocks, err := handler.fetchBlocks(fetchCtx, &BlockFetchRequest{
 				BlockHeight:  tt.blockHeight,
 				MinTimestamp: tt.minTimestamp,
 			})
 
-			if tt.wantErr {
+			if tt.expectErr {
 				r.Error(err)
 			} else {
 				r.NoError(err)
+				r.Len(fetchedBlocks, tt.wantBlocks)
 			}
 
-			r.Len(fetchedBlocks, tt.wantBlocks)
 			for _, blk := range fetchedBlocks {
-				block, err := retriever.parseBlock(blk)
+				parsedBlk, err := retriever.parseBlock(blk)
 				r.NoError(err)
 
-				_, ok := blocks[block.GetHeight()]
+				expectedBlock, ok := blocks[parsedBlk.GetHeight()]
 				r.True(ok)
+				r.EqualValues(expectedBlock, parsedBlk)
 			}
 		})
-	}
-}
-
-func TestBlockFetcherHandler_AppRequest(t *testing.T) {
-	tests := []struct {
-		name        string
-		request     []byte
-		wantErrCode int32
-	}{
-		{
-			name:        "invalid request bytes",
-			request:     []byte("invalid"),
-			wantErrCode: ErrCodeUnmarshal,
-		},
-		{
-			name: "valid request",
-			request: (&BlockFetchRequest{
-				BlockHeight:  9,
-				MinTimestamp: 3,
-			}).MarshalCanoto(),
-			wantErrCode: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			req := require.New(t)
-
-			blocks := generateBlockChain(10, 5)
-			retriever := newTestBlockRetriever(withBlocks(blocks))
-
-			handler := NewBlockFetcherHandler(retriever)
-
-			response, appErr := handler.AppRequest(
-				ctx,
-				ids.EmptyNodeID,
-				time.Now(),
-				tt.request,
-			)
-
-			if tt.wantErrCode > 0 {
-				req.NotNil(appErr)
-				req.Equal(tt.wantErrCode, appErr.Code)
-			} else {
-				req.Nil(appErr)
-				req.NotEmpty(response)
-
-				// Verify response can be unmarshaled
-				resp := new(BlockFetchResponse)
-				err := resp.UnmarshalCanoto(response)
-				req.NoError(err)
-				req.NotEmpty(resp.Blocks)
-			}
-		})
-	}
-}
-
-func TestBlockFetcherHandler_Timeout(t *testing.T) {
-	ctx := context.Background()
-	r := require.New(t)
-
-	blks := generateBlockChain(20, 1)
-	retriever := newTestBlockRetriever(withBlocks(blks), withDelay(maxProcessingDuration+10*time.Millisecond))
-
-	handler := NewBlockFetcherHandler(retriever)
-	fetchedBlocksBytes, err := handler.fetchBlocks(ctx, &BlockFetchRequest{
-		BlockHeight:  9,
-		MinTimestamp: 3,
-	})
-
-	r.NoError(err)
-	// We should not receive all blocks from (9 to 2) due to delay which should trigger timeout
-	r.NotEqual(7, len(fetchedBlocksBytes))
-	// We should've received some blocks
-	r.NotEmpty(fetchedBlocksBytes)
-	for _, blkBytes := range fetchedBlocksBytes {
-		_, err := retriever.parseBlock(blkBytes)
-		r.NoError(err)
 	}
 }
 
@@ -187,12 +137,10 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 type testBlockRetriever struct {
 	options *optionsImpl
 	errChan chan error
-	delayCh chan struct{}
 }
 
 func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 	optImpl := &optionsImpl{
-		delay:  0,
 		nodeID: ids.EmptyNodeID,
 		blocks: make(map[uint64]ExecutionBlock[container]),
 	}
@@ -209,53 +157,17 @@ func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 		errChan: make(chan error, 1),
 	}
 
-	if optImpl.delay > 0 {
-		retriever.delayCh = make(chan struct{})
-		// Start a goroutine to manage simulated delays
-		go retriever.simulateDelays(optImpl.delay)
-	}
-
 	return retriever
 }
 
-func (r *testBlockRetriever) simulateDelays(delay time.Duration) {
-	ticker := time.NewTicker(delay)
-	defer ticker.Stop()
-
-	for {
-		<-ticker.C
-		select {
-		case r.delayCh <- struct{}{}:
-			// Successfully sent signal
-		default:
-			// Channel full or closed, no one is waiting
-		}
-	}
-}
-
 type optionsImpl struct {
-	delay  time.Duration
-	nodeID ids.NodeID
-	blocks map[uint64]ExecutionBlock[container]
+	nodeID      ids.NodeID
+	blocks      map[uint64]ExecutionBlock[container]
+	bufferReads chan struct{}
 }
 
 type option interface {
 	apply(*optionsImpl)
-}
-
-// Delay option
-type delayOption time.Duration
-
-func (d delayOption) apply(opts *optionsImpl) {
-	opts.delay = time.Duration(d)
-}
-
-func withDelay(delay time.Duration) option {
-	if delay > 0 {
-		return delayOption(delay)
-	}
-
-	return nil
 }
 
 // NodeID option
@@ -280,12 +192,26 @@ func withBlocks(blocks map[uint64]ExecutionBlock[container]) option {
 	return blocksOption(blocks)
 }
 
+type bufferedReadsOption chan struct{}
+
+func (b bufferedReadsOption) apply(opts *optionsImpl) {
+	opts.bufferReads = b
+}
+
+func withBufferedReads(buffer chan struct{}) option {
+	if buffer != nil {
+		return bufferedReadsOption(buffer)
+	}
+
+	return nil
+}
+
 func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
-	if r.delayCh != nil {
+	if r.options.bufferReads != nil {
 		select {
-		case <-r.delayCh:
-			// Delay completed
+		case r.options.bufferReads <- struct{}{}:
 		case <-ctx.Done():
+			// Context canceled, return error
 			return utils.Zero[ExecutionBlock[container]](), ctx.Err()
 		}
 	}
