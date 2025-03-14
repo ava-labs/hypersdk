@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
-	internal_fees "github.com/ava-labs/hypersdk/internal/fees"
+	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
 // GenerateTestExecutedBlocks creates [numBlocks] executed block for testing purposes, each with [numTx] transactions.
@@ -34,11 +34,11 @@ func GenerateTestExecutedBlocks(
 	parentTimestamp int64,
 	timestampOffset int64,
 	numBlocks int,
-	numTx int,
+	numTxsPerBlock int,
 ) []*chain.ExecutedBlock {
 	bh := balance.NewPrefixBalanceHandler([]byte{0})
 	rules := genesis.NewDefaultRules()
-	feeManager := internal_fees.NewManager(nil)
+	feeManager := internalfees.NewManager(nil)
 	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
 	parser := NewTestParser()
 	ts := tstate.New(0)
@@ -50,22 +50,22 @@ func GenerateTestExecutedBlocks(
 	require.NoError(err)
 
 	tstateview := ts.NewView(state.CompletePermissions, db, 0)
-	require.NoError(tstateview.Insert(context.Background(), balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64)))
+	require.NoError(tstateview.Insert(context.Background(), bh.BalanceKey(NewDummyTestAuth().Sponsor()), binary.BigEndian.AppendUint64(nil, math.MaxUint64)))
 
-	actions := NewDummyTestActions(numBlocks * numTx)
-	for i := range executedBlocks {
-		blkTimestamp := parentTimestamp + timestampOffset*int64(i)
+	actions := NewDummyTestActions(numBlocks * numTxsPerBlock)
+	for blockIndex := range executedBlocks {
+		blkTimestamp := parentTimestamp + timestampOffset*int64(blockIndex)
 		// set transaction timestamp to the next whole second multiplier past the block timestamp.
 		txTimestamp := (parentTimestamp/consts.MillisecondsPerSecond + 1) * consts.MillisecondsPerSecond
 		// generate transactions.
-		txs := []*chain.Transaction{}
+		txs := make([]*chain.Transaction, 0, numTxsPerBlock)
 		base := chain.Base{
 			Timestamp: txTimestamp,
 			ChainID:   chainID,
 			MaxFee:    math.MaxUint64,
 		}
-		for j := range numTx {
-			actions := []chain.Action{actions[i*numTx+j]}
+		for txIndex := range numTxsPerBlock {
+			actions := []chain.Action{actions[blockIndex*numTxsPerBlock+txIndex]}
 			auth := NewDummyTestAuth()
 			tx, err := chain.NewTransaction(base, actions, auth)
 			require.NoError(err)
@@ -74,7 +74,7 @@ func GenerateTestExecutedBlocks(
 		statelessBlock, err := chain.NewStatelessBlock(
 			parentID,
 			blkTimestamp,
-			parentHeight+1+uint64(i),
+			parentHeight+1+uint64(blockIndex),
 			txs,
 			ids.Empty,
 			nil,
@@ -84,7 +84,7 @@ func GenerateTestExecutedBlocks(
 
 		results := []*chain.Result{}
 		for _, tx := range txs {
-			res, err := tx.Execute(context.Background(), feeManager, bh, rules, tstateview, parentTimestamp+timestampOffset*int64(i))
+			res, err := tx.Execute(context.Background(), feeManager, bh, rules, tstateview, blkTimestamp)
 			require.NoError(err)
 			results = append(results, res)
 		}
@@ -100,7 +100,7 @@ func GenerateTestExecutedBlocks(
 			fees.Dimensions{},
 			fees.Dimensions{},
 		)
-		executedBlocks[i] = blk
+		executedBlocks[blockIndex] = blk
 	}
 	return executedBlocks
 }

@@ -21,17 +21,12 @@ import (
 	"github.com/ava-labs/hypersdk/internal/pebble"
 )
 
-const maxBlockWindow uint64 = 1_000_000
-
 const (
-	blockEntryByte = iota + 1
-	latestBlockHeightByte
+	maxBlockWindow uint64 = 1_000_000
+	blockEntryByte        = iota + 1
 )
 
-var (
-	blockEntryKeyPrefix  = []byte{blockEntryByte}
-	latestBlockHeightKey = []byte{latestBlockHeightByte}
-)
+var blockEntryKeyPrefix = []byte{blockEntryByte}
 
 var (
 	errBlockNotFound          = errors.New("block not found")
@@ -43,21 +38,21 @@ var (
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
-	blockDB            *pebble.Database // height -> block bytes
+	blockDB     *pebble.Database // height -> block bytes
+	blockWindow uint64           // Maximum window of blocks to retain
+	parser      chain.Parser
+
+	// synchronization mutex between r/w
+	mu                 sync.RWMutex
 	blockIDToHeight    map[ids.ID]uint64
 	blockHeightToBlock map[uint64]*chain.ExecutedBlock
 	txCache            map[ids.ID]cachedTransaction
-	blockWindow        uint64 // Maximum window of blocks to retain
 	lastHeight         uint64
-	parser             chain.Parser
-
-	// synchronization mutex between r/w
-	mu sync.RWMutex
 }
 
 type cachedTransaction struct {
-	// blk is the block that contains the transaction
-	blk *chain.ExecutedBlock
+	// blkHeight is the block height that contains the transaction
+	blkHeight uint64
 	// index is the position where the transaction appear within the block.
 	index int
 }
@@ -88,28 +83,6 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 }
 
 func (i *Indexer) initBlocks() error {
-	// Return immediately if the db is empty
-	hasLastHeight, err := i.blockDB.Has(latestBlockHeightKey)
-	if err != nil || !hasLastHeight {
-		return err
-	}
-
-	lastHeight, err := i.blockDB.Get(latestBlockHeightKey)
-	if err != nil {
-		return err
-	}
-
-	i.lastHeight = binary.BigEndian.Uint64(lastHeight)
-
-	if i.lastHeight > i.blockWindow {
-		lastRetainedHeight := i.lastHeight - i.blockWindow
-		lastRetainedHeightKey := blockEntryKey(lastRetainedHeight)
-		firstBlkKey := blockEntryKey(0)
-		if err := i.blockDB.DeleteRange(firstBlkKey, lastRetainedHeightKey); err != nil {
-			return err
-		}
-	}
-
 	// Load blockID <-> height mapping
 	iter := i.blockDB.NewIteratorWithPrefix(blockEntryKeyPrefix)
 	defer iter.Release()
@@ -126,6 +99,15 @@ func (i *Indexer) initBlocks() error {
 		return err
 	}
 	iter.Release()
+
+	if i.lastHeight > i.blockWindow {
+		lastRetainedHeight := i.lastHeight - i.blockWindow
+		lastRetainedHeightKey := blockEntryKey(lastRetainedHeight)
+		firstBlkKey := blockEntryKey(0)
+		if err := i.blockDB.DeleteRange(firstBlkKey, lastRetainedHeightKey); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -162,8 +144,8 @@ func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
 
 	for idx, tx := range blk.Block.Txs {
 		i.txCache[tx.GetID()] = cachedTransaction{
-			blk:   blk,
-			index: idx,
+			blkHeight: blk.Block.Hght,
+			index:     idx,
 		}
 	}
 	i.lastHeight = blk.Block.Hght
@@ -184,10 +166,6 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	}
 
 	if err := blkBatch.Delete(blockEntryKey(blk.Block.Hght - i.blockWindow)); err != nil {
-		return err
-	}
-
-	if err := blkBatch.Put(latestBlockHeightKey, binary.BigEndian.AppendUint64(nil, i.lastHeight)); err != nil {
 		return err
 	}
 
@@ -238,12 +216,16 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, int64, 
 	if !ok {
 		return false, nil, 0, nil, nil
 	}
-	tx := cachedTx.blk.Block.Txs[cachedTx.index]
-	if len(cachedTx.blk.ExecutionResults.Results) <= cachedTx.index {
-		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errTxResultNotFound, cachedTx.blk.Block.Hght, cachedTx.index)
+	blk, ok := i.blockHeightToBlock[cachedTx.blkHeight]
+	if !ok {
+		return false, nil, 0, nil, nil
 	}
-	result := cachedTx.blk.ExecutionResults.Results[cachedTx.index]
-	return true, tx, cachedTx.blk.Block.Tmstmp, result, nil
+	tx := blk.Block.Txs[cachedTx.index]
+	if len(blk.ExecutionResults.Results) <= cachedTx.index {
+		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errTxResultNotFound, blk.Block.Hght, cachedTx.index)
+	}
+	result := blk.ExecutionResults.Results[cachedTx.index]
+	return true, tx, blk.Block.Tmstmp, result, nil
 }
 
 func (i *Indexer) Close() error {

@@ -46,6 +46,7 @@ func TestProcessorExecute(t *testing.T) {
 	timestampKey := string(chain.TimestampKey(testMetadataManager.TimestampPrefix()))
 	pk, err := ed25519.GeneratePrivateKey()
 	require.NoError(t, err)
+	balanceHandler := balance.NewPrefixBalanceHandler([]byte{0})
 
 	tests := []struct {
 		name           string
@@ -441,7 +442,7 @@ func TestProcessorExecute(t *testing.T) {
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
-					string(balance.NewPrefixBalanceHandler([]byte{0}).BalanceKey(auth.Sponsor())): binary.BigEndian.AppendUint64(nil, math.MaxUint64),
+					string(balanceHandler.BalanceKey(auth.Sponsor())): binary.BigEndian.AppendUint64(nil, math.MaxUint64),
 				})
 
 				r.NoError(err)
@@ -492,7 +493,7 @@ func TestProcessorExecute(t *testing.T) {
 				workers.NewSerial(),
 				chaintest.NewDummyTestAuthVM(),
 				testMetadataManager,
-				balance.NewPrefixBalanceHandler([]byte{0}),
+				balanceHandler,
 				tt.validityWindow,
 				metrics,
 				chain.NewDefaultConfig(),

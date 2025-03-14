@@ -91,25 +91,25 @@ func TestIndexerClientTransactions(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name     string
-		txBlkIdx int
-		txIdx    int
-		err      error
-		found    bool
+		name       string
+		blockIndex int
+		txIndex    int
+		err        error
+		found      bool
 	}{
 		{
-			name:     "success",
-			txBlkIdx: numExecutedBlocks - 1,
-			txIdx:    0,
-			found:    true,
-			err:      nil,
+			name:       "success",
+			blockIndex: numExecutedBlocks - 1,
+			txIndex:    0,
+			found:      true,
+			err:        nil,
 		},
 		{
-			name:     "missing transaction",
-			txBlkIdx: 0,
-			txIdx:    0,
-			found:    false,
-			err:      nil,
+			name:       "missing transaction",
+			blockIndex: 0,
+			txIndex:    0,
+			found:      false,
+			err:        nil,
 		},
 	}
 
@@ -130,28 +130,30 @@ func TestIndexerClientTransactions(t *testing.T) {
 			parser := chaintest.NewTestParser()
 
 			client := NewClient(httpServer.URL)
+			executedBlock := executedBlocks[tt.blockIndex]
+			executedTx := executedBlock.Block.Txs[tt.txIndex]
 
-			txResponse, found, err := client.GetTxResults(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID())
+			txResponse, found, err := client.GetTxResults(ctx, executedTx.GetID())
 			r.Equal(tt.err, err)
 			r.Equal(tt.found, found)
 			if tt.found {
 				r.Equal(GetTxResponse{
-					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
-					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
-					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
+					TxBytes:   executedTx.Bytes(),
+					Timestamp: executedBlock.Block.Tmstmp,
+					Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
 				}, txResponse)
 			}
 
-			txResponse, tx, found, err := client.GetTx(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID(), parser)
+			txResponse, tx, found, err := client.GetTx(ctx, executedTx.GetID(), parser)
 			r.Equal(tt.err, err)
 			r.Equal(tt.found, found)
 			if tt.found {
 				r.Equal(GetTxResponse{
-					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
-					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
-					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
+					TxBytes:   executedTx.Bytes(),
+					Timestamp: executedBlock.Block.Tmstmp,
+					Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
 				}, txResponse)
-				r.Equal(executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx], tx)
+				r.Equal(executedTx, tx)
 			}
 		})
 	}
