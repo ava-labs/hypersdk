@@ -46,12 +46,13 @@ func init() {
 }
 
 type mockBalanceHandler struct {
-	canDeductError error
-	deductError    error
+	addBalanceError error
+	canDeductError  error
+	deductError     error
 }
 
-func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	panic("unimplemented")
+func (m *mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	return m.addBalanceError
 }
 
 func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {

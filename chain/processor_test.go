@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -507,6 +509,224 @@ func TestProcessorExecute(t *testing.T) {
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}
+}
+
+func BenchmarkExecuteBlocks(b *testing.B) {
+	benchmarks := []struct {
+		name                 string
+		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
+		numOfTxsPerBlock     uint64
+	}{
+		{
+			name:                 "empty blocks",
+			blockBenchmarkHelper: chaintest.NoopBlockBenchmarkHelper,
+		},
+		{
+			name:                 "blocks with txs that do not have conflicting state keys",
+			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
+		},
+		{
+			name:                 "blocks with txs that all touch the same state key",
+			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
+		},
+		{
+			name:                 "blocks with txs whose state keys are zipf distributed",
+			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
+			numOfTxsPerBlock:     16,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			benchmark := &chaintest.BlockBenchmark{
+				MetadataManager: metadata.NewDefaultManager(),
+				BalanceHandler:  &mockBalanceHandler{},
+				AuthVM: &chaintest.TestAuthVM{
+					GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+						bv, ok := auth.Engines()[authTypeID]
+						if !ok {
+							return nil, false
+						}
+						return bv.GetBatchVerifier(cores, count), ok
+					},
+					Log: logging.NoLog{},
+				},
+				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
+				Config: chain.Config{
+					TargetBuildDuration:       100 * time.Millisecond,
+					TransactionExecutionCores: 4,
+					StateFetchConcurrency:     4,
+					TargetTxsSize:             1.5 * units.MiB,
+				},
+				NumOfBlocks:      1_000,
+				NumOfTxsPerBlock: bm.numOfTxsPerBlock,
+			}
+			benchmark.Run(context.Background(), b)
+		})
+	}
+}
+
+func parallelTxsBlockBenchmarkHelper(numOfTxs uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numOfTxs, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Generate kv-pairs for testing
+	databaseKeys := make([]string, numOfTxs)
+	values := make([][]byte, numOfTxs)
+
+	for i := range numOfTxs {
+		key := string(binary.BigEndian.AppendUint16(
+			binary.BigEndian.AppendUint64(nil, i),
+			1,
+		))
+		databaseKeys[i] = key
+		values[i] = binary.BigEndian.AppendUint64(nil, i)
+	}
+
+	nonce := uint64(0)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[i]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[i])},
+				WriteValues:                  [][]byte{values[i]},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	k := string(binary.BigEndian.AppendUint16(nil, 1))
+	v := binary.BigEndian.AppendUint64(nil, 1)
+
+	nonce := uint64(0)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{k},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{v},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Generate kv-pairs for testing
+	databaseKeys := make([]string, numOfTxsPerBlock)
+	values := make([][]byte, numOfTxsPerBlock)
+
+	for i := range numOfTxsPerBlock {
+		key := string(binary.BigEndian.AppendUint16(
+			binary.BigEndian.AppendUint64(nil, i),
+			1,
+		))
+		databaseKeys[i] = key
+		values[i] = binary.BigEndian.AppendUint64(nil, i)
+	}
+
+	nonce := uint64(0)
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+
+	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numOfTxsPerBlock)
+		for i := range numOfTxsPerBlock {
+			index := zipfGen.Uint64()
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[index]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[index])},
+				WriteValues:                  [][]byte{values[index]},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func createGenesis(numOfFactories uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
+	factories := make([]chain.AuthFactory, numOfFactories)
+	customAllocs := make([]*genesis.CustomAllocation, numOfFactories)
+	for i := range numOfFactories {
+		pk, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, nil, err
+		}
+		factory := auth.NewED25519Factory(pk)
+		factories[i] = factory
+		customAllocs[i] = &genesis.CustomAllocation{
+			Address: factory.Address(),
+			Balance: allocAmount,
+		}
+	}
+	return factories, genesis.NewDefaultGenesis(customAllocs), nil
 }
 
 func createTestView(mp map[string][]byte) (merkledb.View, error) {
