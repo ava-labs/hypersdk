@@ -24,25 +24,6 @@ import (
 	internal_fees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-func GenerateEmptyExecutedBlocks(
-	require *require.Assertions,
-	parentID ids.ID,
-	parentHeight uint64,
-	parentTimestamp int64,
-	timestampOffset int64,
-	numBlocks int,
-) []*chain.ExecutedBlock {
-	return GenerateTestExecutedBlocks(require,
-		parentID,
-		ids.Empty,
-		parentHeight,
-		parentTimestamp,
-		timestampOffset,
-		numBlocks,
-		0,
-	)
-}
-
 // GenerateTestExecutedBlocks creates [numBlocks] executed block for testing purposes, each with [numTx] transactions.
 // these blocks are not semantically valid for execution, and are meant execlusively for serialization testing purposes.
 func GenerateTestExecutedBlocks(
@@ -73,10 +54,13 @@ func GenerateTestExecutedBlocks(
 
 	actions := NewDummyTestActions(numBlocks * numTx)
 	for i := range executedBlocks {
+		blkTimestamp := parentTimestamp + timestampOffset*int64(i)
+		// set transaction timestamp to the next whole second multiplier past the block timestamp.
+		txTimestamp := (parentTimestamp/consts.MillisecondsPerSecond + 1) * consts.MillisecondsPerSecond
 		// generate transactions.
 		txs := []*chain.Transaction{}
 		base := chain.Base{
-			Timestamp: ((parentTimestamp + timestampOffset*int64(i)/consts.MillisecondsPerSecond) + 1) * consts.MillisecondsPerSecond,
+			Timestamp: txTimestamp,
 			ChainID:   chainID,
 			MaxFee:    math.MaxUint64,
 		}
@@ -89,7 +73,7 @@ func GenerateTestExecutedBlocks(
 		}
 		statelessBlock, err := chain.NewStatelessBlock(
 			parentID,
-			parentTimestamp+timestampOffset*int64(i),
+			blkTimestamp,
 			parentHeight+1+uint64(i),
 			txs,
 			ids.Empty,
@@ -105,7 +89,7 @@ func GenerateTestExecutedBlocks(
 			results = append(results, res)
 		}
 		// marshal and unmarshal the block in order to remove all non-persisting data members ( i.e. statekeys )
-		blkBytes := statelessBlock.MarshalCanoto()
+		blkBytes := statelessBlock.GetBytes()
 		require.NoError(err)
 		statelessBlock, err = chain.UnmarshalBlock(blkBytes, parser)
 		require.NoError(err)

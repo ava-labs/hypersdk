@@ -68,12 +68,31 @@ func checkBlocks(
 		blkByID, err := indexer.GetBlock(expectedBlk.Block.GetID())
 		require.NoError(err)
 		require.Equal(expectedBlk.Block.GetID(), blkByID.Block.GetID())
+
+		// confirm all transactions are available
+		for blkTxIndex, blkTx := range expectedBlk.Block.Txs {
+			txID := blkTx.GetID()
+			found, tx, _, res, err := indexer.GetTransaction(txID)
+			require.NoError(err)
+			require.True(found)
+			require.Equal(tx, blkTx)
+			require.Equal(expectedBlk.ExecutionResults.Results[blkTxIndex], res)
+		}
 	}
 
 	// Confirm blocks outside the window are not retrievable
 	for i := 0; i <= len(expectedBlocks)-blockWindow; i++ {
 		_, err := indexer.GetBlockByHeight(uint64(i))
 		require.ErrorIs(err, errBlockNotFound, "height=%d", i)
+
+		// Confirm all transactions outside of the window are notretrievable
+		expectedBlk := expectedBlocks[i]
+		for _, blkTx := range expectedBlk.Block.Txs {
+			txID := blkTx.GetID()
+			found, _, _, _, err := indexer.GetTransaction(txID)
+			require.NoError(err)
+			require.False(found)
+		}
 	}
 }
 
