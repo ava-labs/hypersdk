@@ -120,18 +120,13 @@ func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 }
 
 // insertBlockIntoCache add the given block and its transactions to the
-// cache. It returns a slice of the evicted block heights.
+// cache.
 // assumes the write lock is held
 func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
-	if _, ok := i.blockHeightToBlock[blk.Block.Hght-i.blockWindow]; ok {
-		evictedBlockHeight := blk.Block.Hght - i.blockWindow
-
-		// find the block in the blocks cache.
-		evictedBlk := i.blockHeightToBlock[evictedBlockHeight]
-
+	if evictedBlk, ok := i.blockHeightToBlock[blk.Block.Hght-i.blockWindow]; ok {
 		// remove the block from the caches
 		delete(i.blockIDToHeight, evictedBlk.Block.GetID())
-		delete(i.blockHeightToBlock, evictedBlockHeight)
+		delete(i.blockHeightToBlock, evictedBlk.Block.GetHeight())
 
 		// remove the transactions from the cache.
 		for _, tx := range evictedBlk.Block.Txs {
@@ -151,8 +146,8 @@ func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
 	i.lastHeight = blk.Block.Hght
 }
 
-// storeBlock persist the given block to the database, and remove the
-// evicted blocks.
+// storeBlock persist the given block to the database, and deletes a block
+// if it surpasses the retention window
 func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
