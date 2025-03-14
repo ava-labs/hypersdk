@@ -44,7 +44,6 @@ var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
 
 type Indexer struct {
 	blockDB            *pebble.Database // height -> block bytes
-	cachedBlocks       []uint64
 	blockIDToHeight    map[ids.ID]uint64
 	blockHeightToBlock map[uint64]*chain.ExecutedBlock
 	txCache            map[ids.ID]cachedTransaction
@@ -83,7 +82,6 @@ func NewIndexer(path string, parser chain.Parser, blockWindow uint64) (*Indexer,
 		blockWindow:        blockWindow,
 		parser:             parser,
 		lastHeight:         math.MaxUint64,
-		cachedBlocks:       make([]uint64, 0, int(blockWindow)),
 	}
 
 	return i, i.initBlocks()
@@ -133,34 +131,32 @@ func (i *Indexer) initBlocks() error {
 
 func (i *Indexer) Notify(_ context.Context, blk *chain.ExecutedBlock) error {
 	i.mu.Lock()
-	evictedBlockHeights := i.insertBlockIntoCache(blk)
+	i.insertBlockIntoCache(blk)
 	i.mu.Unlock()
 
-	return i.storeBlock(blk, evictedBlockHeights)
+	return i.storeBlock(blk)
 }
 
 // insertBlockIntoCache add the given block and its transactions to the
 // cache. It returns a slice of the evicted block heights.
 // assumes the write lock is held
-func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) []uint64 {
-	var evictedBlockHeights []uint64
-	if len(i.cachedBlocks) == int(i.blockWindow) {
-		evictedBlockHeights = []uint64{i.cachedBlocks[0]}
-		i.cachedBlocks = i.cachedBlocks[1:]
+func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) {
+	if _, ok := i.blockHeightToBlock[blk.Block.Hght-i.blockWindow]; ok {
+		evictedBlockHeight := blk.Block.Hght - i.blockWindow
 
 		// find the block in the blocks cache.
-		evictedBlk := i.blockHeightToBlock[evictedBlockHeights[0]]
+		evictedBlk := i.blockHeightToBlock[evictedBlockHeight]
 
 		// remove the block from the caches
 		delete(i.blockIDToHeight, evictedBlk.Block.GetID())
-		delete(i.blockHeightToBlock, evictedBlockHeights[0])
+		delete(i.blockHeightToBlock, evictedBlockHeight)
 
 		// remove the transactions from the cache.
 		for _, tx := range evictedBlk.Block.Txs {
 			delete(i.txCache, tx.GetID())
 		}
 	}
-	i.cachedBlocks = append(i.cachedBlocks, blk.Block.Hght)
+
 	i.blockIDToHeight[blk.Block.GetID()] = blk.Block.Hght
 	i.blockHeightToBlock[blk.Block.Hght] = blk
 
@@ -171,13 +167,11 @@ func (i *Indexer) insertBlockIntoCache(blk *chain.ExecutedBlock) []uint64 {
 		}
 	}
 	i.lastHeight = blk.Block.Hght
-
-	return evictedBlockHeights
 }
 
 // storeBlock persist the given block to the database, and remove the
 // evicted blocks.
-func (i *Indexer) storeBlock(blk *chain.ExecutedBlock, evictedBlockHeights []uint64) error {
+func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 	executedBlkBytes, err := blk.Marshal()
 	if err != nil {
 		return err
@@ -189,10 +183,8 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock, evictedBlockHeights []uin
 		return err
 	}
 
-	for _, evictedBlockHeight := range evictedBlockHeights {
-		if err := blkBatch.Delete(blockEntryKey(evictedBlockHeight)); err != nil {
-			return err
-		}
+	if err := blkBatch.Delete(blockEntryKey(blk.Block.Hght - i.blockWindow)); err != nil {
+		return err
 	}
 
 	if err := blkBatch.Put(latestBlockHeightKey, binary.BigEndian.AppendUint64(nil, i.lastHeight)); err != nil {

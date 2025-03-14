@@ -32,28 +32,15 @@ func GenerateEmptyExecutedBlocks(
 	timestampOffset int64,
 	numBlocks int,
 ) []*chain.ExecutedBlock {
-	executedBlocks := make([]*chain.ExecutedBlock, numBlocks)
-	for i := range executedBlocks {
-		statelessBlock, err := chain.NewStatelessBlock(
-			parentID,
-			parentTimestamp+timestampOffset*int64(i),
-			parentHeight+1+uint64(i),
-			[]*chain.Transaction{},
-			ids.Empty,
-			nil,
-		)
-		require.NoError(err)
-		parentID = statelessBlock.GetID()
-
-		blk := chain.NewExecutedBlock(
-			statelessBlock,
-			[]*chain.Result{},
-			fees.Dimensions{},
-			fees.Dimensions{},
-		)
-		executedBlocks[i] = blk
-	}
-	return executedBlocks
+	return GenerateTestExecutedBlocks(require,
+		parentID,
+		ids.Empty,
+		parentHeight,
+		parentTimestamp,
+		timestampOffset,
+		numBlocks,
+		0,
+	)
 }
 
 // GenerateTestExecutedBlocks creates [numBlocks] executed block for testing purposes, each with [numTx] transactions.

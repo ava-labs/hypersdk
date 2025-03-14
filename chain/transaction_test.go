@@ -5,7 +5,6 @@ package chain_test
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
@@ -225,23 +224,11 @@ func TestEstimateUnits(t *testing.T) {
 	}
 }
 
-type immutableStateStub struct {
-	GetValueF func(context.Context, []byte) ([]byte, error)
-}
-
-func (iss *immutableStateStub) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	return iss.GetValueF(ctx, key)
-}
-
 func TestPreExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	differentChainID := ids.ID{1}
 
-	im := &immutableStateStub{
-		GetValueF: func(context.Context, []byte) ([]byte, error) {
-			return binary.BigEndian.AppendUint64(nil, 0), nil
-		},
-	}
+	im := chaintest.NewInMemoryStore()
 
 	tests := []struct {
 		name      string
