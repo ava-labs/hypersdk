@@ -43,12 +43,12 @@ func TestIndexerClientBlocks(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
+			r := require.New(t)
 			ctx := context.Background()
 			indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 			jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
-			require.NoError(err)
+			r.NoError(err)
 
 			httpServer := httptest.NewServer(jsonHandler)
 			t.Cleanup(func() {
@@ -58,25 +58,27 @@ func TestIndexerClientBlocks(t *testing.T) {
 			parser := chaintest.NewTestParser()
 
 			client := NewClient(httpServer.URL)
-			executedBlock, err := client.GetBlockByHeight(ctx, executedBlocks[tt.blkHeight].Block.Hght, parser)
+
+			expectedBlock := executedBlocks[tt.blkHeight]
+			executedBlock, err := client.GetBlockByHeight(ctx, expectedBlock.Block.Hght, parser)
 			if tt.err == nil {
-				require.NoError(err)
-				require.Equal(executedBlocks[tt.blkHeight].Block, executedBlock.Block)
+				r.NoError(err)
+				r.Equal(expectedBlock.Block, executedBlock.Block)
 			} else {
-				require.Contains(err.Error(), tt.err.Error())
+				r.ErrorContains(err, tt.err.Error())
 			}
 
-			executedBlock, err = client.GetBlock(ctx, executedBlocks[tt.blkHeight].Block.GetID(), parser)
+			executedBlock, err = client.GetBlock(ctx, expectedBlock.Block.GetID(), parser)
 			if tt.err == nil {
-				require.NoError(err)
-				require.Equal(executedBlocks[tt.blkHeight].Block, executedBlock.Block)
+				r.NoError(err)
+				r.Equal(expectedBlock.Block, executedBlock.Block)
 			} else {
-				require.Contains(err.Error(), tt.err.Error())
+				r.ErrorContains(err, tt.err.Error())
 			}
 
 			executedBlock, err = client.GetLatestBlock(ctx, parser)
-			require.NoError(err)
-			require.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
+			r.NoError(err)
+			r.Equal(executedBlocks[numExecutedBlocks-1].Block, executedBlock.Block)
 		})
 	}
 }
@@ -113,12 +115,12 @@ func TestIndexerClientTransactions(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
+			r := require.New(t)
 			ctx := context.Background()
 			indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 			jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
-			require.NoError(err)
+			r.NoError(err)
 
 			httpServer := httptest.NewServer(jsonHandler)
 			t.Cleanup(func() {
@@ -130,10 +132,10 @@ func TestIndexerClientTransactions(t *testing.T) {
 			client := NewClient(httpServer.URL)
 
 			txResponse, found, err := client.GetTxResults(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID())
-			require.Equal(tt.err, err)
-			require.Equal(tt.found, found)
+			r.Equal(tt.err, err)
+			r.Equal(tt.found, found)
 			if tt.found {
-				require.Equal(GetTxResponse{
+				r.Equal(GetTxResponse{
 					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
 					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
 					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
@@ -141,15 +143,15 @@ func TestIndexerClientTransactions(t *testing.T) {
 			}
 
 			txResponse, tx, found, err := client.GetTx(ctx, executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].GetID(), parser)
-			require.Equal(tt.err, err)
-			require.Equal(tt.found, found)
+			r.Equal(tt.err, err)
+			r.Equal(tt.found, found)
 			if tt.found {
-				require.Equal(GetTxResponse{
+				r.Equal(GetTxResponse{
 					TxBytes:   executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx].Bytes(),
 					Timestamp: executedBlocks[tt.txBlkIdx].Block.Tmstmp,
 					Result:    executedBlocks[tt.txBlkIdx].ExecutionResults.Results[tt.txIdx],
 				}, txResponse)
-				require.Equal(executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx], tx)
+				r.Equal(executedBlocks[tt.txBlkIdx].Block.Txs[tt.txIdx], tx)
 			}
 		})
 	}
@@ -161,12 +163,12 @@ func TestIndexerClientWaitForTransaction(t *testing.T) {
 		blockWindow       = 1
 		numTxs            = 3
 	)
-	require := require.New(t)
+	r := require.New(t)
 	ctx := context.Background()
 	indexer, _, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
 
 	jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
-	require.NoError(err)
+	r.NoError(err)
 
 	httpServer := httptest.NewServer(jsonHandler)
 	t.Cleanup(func() {
@@ -178,5 +180,5 @@ func TestIndexerClientWaitForTransaction(t *testing.T) {
 	timeoutCtx, ctxCancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer ctxCancel()
 	_, _, err = client.WaitForTransaction(timeoutCtx, 1*time.Millisecond, ids.GenerateTestID())
-	require.ErrorIs(err, context.DeadlineExceeded)
+	r.ErrorIs(err, context.DeadlineExceeded)
 }
