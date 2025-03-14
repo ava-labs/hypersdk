@@ -565,6 +565,14 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 
 func (*Transaction) ValidCanoto() bool { return true }
 
+// CanotoSpec returns the specification of this canoto message.
+// Required for canoto.Field interface implementation.
+// Delegates to SerializeTx since Transaction uses it for serialization.
+func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
+	serializeTx := &SerializeTx{}
+	return serializeTx.CanotoSpec(types...)
+}
+
 func GenerateTransaction(
 	ruleFactory RuleFactory,
 	unitPrices fees.Dimensions,
@@ -606,12 +614,4 @@ func GenerateTransactionManual(
 		return nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}
 	return tx, nil
-}
-
-// CanotoSpec returns the specification of this canoto message.
-// Required for canoto.Field interface implementation.
-// Delegates to SerializeTx since Transaction uses it for serialization.
-func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
-	serializeTx := &SerializeTx{}
-	return serializeTx.CanotoSpec(types...)
 }
