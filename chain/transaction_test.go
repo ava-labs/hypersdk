@@ -5,12 +5,9 @@ package chain_test
 
 import (
 	"context"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -31,33 +28,16 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-var (
-	//go:embed chaintest/testdata/signedTransaction.hex
-	signedTxFS embed.FS
-
-	//go:embed chaintest/testdata/signedTransaction.json
-	signedTxJSONFS embed.FS
-)
+const signedTxHex = "0a3208e0f69493af64122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
 var (
 	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
 	preSignedTxBytes []byte
-	signedTxJSON     []byte
 
 	errMockInsufficientBalance = errors.New("mock insufficient balance error")
 )
 
 func init() {
-	updateReferenceTxData()
-
-	signedTx, readHexErr := signedTxFS.ReadFile("chaintest/testdata/signedTransaction.hex")
-	signedTxJSONRaw, readJSONErr := signedTxJSONFS.ReadFile("chaintest/testdata/signedTransaction.json")
-	err := errors.Join(readHexErr, readJSONErr)
-	if err != nil {
-		panic(err)
-	}
-	signedTxJSON = signedTxJSONRaw
-	signedTxHex := strings.TrimSpace(string(signedTx))
 	txBytes, err := hex.DecodeString(signedTxHex)
 	if err != nil {
 		panic(err)
@@ -200,16 +180,29 @@ func TestSignRawActionBytesTx(t *testing.T) {
 func TestUnmarshalTx(t *testing.T) {
 	r := require.New(t)
 
-	txFromJSON := new(chain.Transaction)
+	txData := chain.NewTxData(
+		chain.Base{
+			Timestamp: 1724315246000,
+			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
+			MaxFee:    1234567,
+		},
+		[]chain.Action{
+			chaintest.NewDummyTestAction(),
+		},
+	)
+	authFactory := &chaintest.TestAuthFactory{
+		TestAuth: chaintest.NewDummyTestAuth(),
+	}
 	parser := chaintest.NewTestParser()
-	err := txFromJSON.UnmarshalJSON(signedTxJSON, parser)
+
+	signedTx, err := txData.Sign(authFactory)
 	r.NoError(err)
 
-	signedTxBytes := txFromJSON.Bytes()
+	signedTxBytes := signedTx.Bytes()
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
 	r.NoError(err)
 
-	equalTx(r, txFromJSON, parsedTx)
+	equalTx(r, signedTx, parsedTx)
 	r.Equal(preSignedTxBytes, signedTxBytes, "expected %x, actual %x", preSignedTxBytes, signedTxBytes)
 }
 
@@ -502,42 +495,4 @@ func equalTxData(r *require.Assertions, expected chain.TransactionData, actual c
 		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), msgAndArgs...)
 	}
 	r.Equal(expected.UnsignedBytes(), actual.UnsignedBytes(), msgAndArgs...)
-}
-
-// updateReferenceBlockData regenerates the reference hex and JSON files with the current implementation
-// Only runs when UPDATE_TEST_DATA=1 is set eg: UPDATE_TEST_DATA=1 go test ./chain/...
-func updateReferenceTxData() {
-	// Only run when explicitly enabled
-	if os.Getenv("UPDATE_TEST_DATA") != "1" {
-		return
-	}
-
-	txData := chain.NewTxData(
-		chain.Base{
-			Timestamp: 1724315246000,
-			ChainID:   ids.ID{1, 2, 3, 4, 5, 6, 7},
-			MaxFee:    1234567,
-		},
-		[]chain.Action{
-			chaintest.NewDummyTestAction(),
-		},
-	)
-	authFactory := &chaintest.TestAuthFactory{
-		TestAuth: chaintest.NewDummyTestAuth(),
-	}
-
-	signedTx, err := txData.Sign(authFactory)
-	if err != nil {
-		panic(err)
-	}
-	b, err := json.Marshal(signedTx)
-	if err != nil {
-		panic(err)
-	}
-	singedTxBytes := make([]byte, hex.EncodedLen(len(signedTx.Bytes())))
-	hex.Encode(singedTxBytes, signedTx.Bytes())
-	err = errors.Join(os.WriteFile("chaintest/testdata/signedTransaction.json", b, 0o600), os.WriteFile("chaintest/testdata/signedTransaction.hex", singedTxBytes, 0o600))
-	if err != nil {
-		panic(err)
-	}
 }
