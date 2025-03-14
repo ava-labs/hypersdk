@@ -35,7 +35,7 @@ type Base struct {
 	// If the fee is too low to pay all fees, the transaction will be dropped.
 	MaxFee uint64 `canoto:"fint64,3" json:"maxFee"`
 
-	// Base uses "noatomic" tag to ensure it can be safely passed by value (immutable), therefore, Base is not thread safe
+	// Base uses "noatomic" tag to ensure it can be safely passed by value (immutable)
 	canotoData canotoData_Base `canoto:"noatomic"` //nolint:revive
 }
 
