@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -49,17 +50,18 @@ import (
 )
 
 const (
-	blockDB             = "blockdb"
-	stateDB             = "statedb"
-	chunkDBStr          = "chunkdb" // TODO: align var naming
-	resultsDB           = "results"
-	lastResultKey       = byte(0)
-	syncerDB            = "syncerdb"
-	vmDataDir           = "vm"
-	hyperNamespace      = "hypervm"
-	chainNamespace      = "chain"
-	chainIndexNamespace = "chainindex"
-	gossiperNamespace   = "gossiper"
+	blockDB                 = "blockdb"
+	stateDB                 = "statedb"
+	chunkDBStr              = "dsmrChunkDB" // TODO: align var naming
+	resultsDB               = "results"
+	lastResultKey           = byte(0)
+	syncerDB                = "syncerdb"
+	vmDataDir               = "vm"
+	hyperNamespace          = "hypervm"
+	chainNamespace          = "chain"
+	chainIndexNamespace     = "chainindex"
+	dsmrChainIndexNamespace = "dsmrChainIndex"
+	gossiperNamespace       = "gossiper"
 
 	changeProofHandlerID uint64 = iota + 1
 	rangeProofHandlerID
@@ -305,8 +307,23 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
+	chainIndexAdapter := validitywindow.NewChainIndexAdapter[*chain.ExecutionBlock, *chain.Transaction](
+		func(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+			_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+			defer span.End()
+
+			blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
+			if err != nil {
+				return nil, err
+			}
+			return blk, nil
+		},
+	)
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, chainIndexAdapter, func(timestamp int64) int64 {
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
+	})
+	vm.syncer = validitywindow.NewSyncer(chainIndexAdapter, vm.chainTimeValidityWindow, func(time int64) int64 {
+		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
@@ -334,7 +351,7 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	chainIndex, err := initChainStore[
+	chainIndex, err := initChainIndex[
 		*chain.ExecutionBlock,
 		*chain.ExecutionBlock,
 		*chain.OutputBlock,
@@ -373,7 +390,28 @@ func (vm *VM) Initialize(
 		}
 	}
 
-	chunkValidityWindow := validitywindow.NewTimeValidityWindow[dsmr.EChunk](vm.snowCtx.Log, vm.tracer, nil /* TODO */, func(timestamp int64) int64 {
+	dsmrChainIndex, err := initChainIndex[
+		*dsmr.Block,
+		*chain.ExecutionBlock,
+		*chain.OutputBlock,
+		*chain.OutputBlock,
+	](snowApp, chainInput, dsmr.Parser{}, dsmrChainIndexNamespace)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	dsmrChainIndexAdapter := validitywindow.NewChainIndexAdapter[*dsmr.EChunkBlock, dsmr.EChunk](
+		func(ctx context.Context, blkID ids.ID) (*dsmr.EChunkBlock, error) {
+			_, span := vm.tracer.Start(ctx, "VM.ValidityWindow.GetExecutionBlock")
+			defer span.End()
+
+			blk, err := dsmrChainIndex.GetBlock(ctx, blkID)
+			if err != nil {
+				return nil, err
+			}
+			return &dsmr.EChunkBlock{Block: blk}, nil
+		},
+	)
+	chunkValidityWindow := validitywindow.NewTimeValidityWindow[dsmr.EChunk](vm.snowCtx.Log, vm.tracer, dsmrChainIndexAdapter, func(timestamp int64) int64 {
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
 	})
 
@@ -391,11 +429,12 @@ func (vm *VM) Initialize(
 		}
 		return nil
 	})
+	var dsmrChainState dsmr.ChainState
 	dsmrNode, err := dsmr.New(
 		vm.snowCtx.NodeID,
 		vm.snowCtx.Log,
 		vm.snowCtx.WarpSigner,
-		nil,
+		dsmrChainState,
 		dsmr.NewDefaultRuleFactory(snowCtx.NetworkID, snowCtx.SubnetID, snowCtx.ChainID), // TODO: make configurable
 		chunkDB,
 		chunkValidityWindow,
@@ -407,7 +446,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to create DSMR node: %w", err)
 	}
-	_ = dsmrNode
+	_ = dsmrNode // TODO: switch VM interface to use DSMR blocks
 
 	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
 }
@@ -416,7 +455,7 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 	vm.consensusIndex = consensusIndex
 }
 
-func initChainStore[T chainindex.Block, I hsnow.Block, O hsnow.Block, A hsnow.Block](
+func initChainIndex[T chainindex.Block, I hsnow.Block, O hsnow.Block, A hsnow.Block](
 	snowApp *hsnow.VM[I, O, A],
 	snowInput hsnow.ChainInput,
 	parser chainindex.Parser[T],

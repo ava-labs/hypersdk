@@ -20,17 +20,13 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
-	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
 
-var (
-	_ gossiper.ValidatorSet                         = (*VM)(nil)
-	_ validitywindow.ChainIndex[*chain.Transaction] = (*VM)(nil)
-)
+var _ gossiper.ValidatorSet = (*VM)(nil)
 
 func (vm *VM) ChainID() ids.ID {
 	return vm.snowCtx.ChainID
@@ -74,17 +70,6 @@ func (vm *VM) Logger() logging.Logger {
 
 func (vm *VM) GetRuleFactory() chain.RuleFactory {
 	return vm.ruleFactory
-}
-
-func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywindow.ExecutionBlock[*chain.Transaction], error) {
-	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
-	defer span.End()
-
-	blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
-	if err != nil {
-		return nil, err
-	}
-	return blk, nil
 }
 
 func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error) {

@@ -208,12 +208,11 @@ func (t *Tree[T]) GetBalance(parent Container[T], epoch uint64, sponsor codec.Ad
 	if err != nil {
 		return 0, err
 	}
-	
+
 	// If my parent is the tip
 	if parent.GetID() == t.tip.GetID() {
 		return epochBalance - t.tipAccumulatedFees[sponsor], nil
 	}
-
 
 	if parent.Epoch() == epoch {
 		return t.tipAccumulatedFees[sponsor], nil

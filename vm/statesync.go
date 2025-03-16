@@ -65,9 +65,6 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		return err
 	}
 
-	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
-		return vm.ruleFactory.GetRules(time).GetValidityWindow()
-	})
 	blockWindowSyncer := statesync.NewBlockWindowSyncer[*chain.ExecutionBlock](validityWindowAdapter{vm.syncer})
 
 	merkleSyncer, err := statesync.NewMerkleSyncer[*chain.ExecutionBlock](

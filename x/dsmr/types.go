@@ -4,6 +4,7 @@
 package dsmr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -245,6 +246,29 @@ func ParseBlock(bytes []byte) (*Block, error) {
 	return block, nil
 }
 
+// Implement snow.Block
+func (b *Block) String() string {
+	return fmt.Sprintf("Block(ID: %s, ParentID: %s, Height: %d, Timestamp: %d, NumChunks: %d)",
+		b.id,
+		b.ParentID,
+		b.Height,
+		b.Timestamp,
+		len(b.Chunks),
+	)
+}
+func (b *Block) GetID() ids.ID              { return b.id }
+func (b *Block) GetParent() ids.ID          { return b.ParentID }
+func (b *Block) GetTimestamp() int64        { return b.Timestamp }
+func (b *Block) GetBytes() []byte           { return b.bytes }
+func (b *Block) GetHeight() uint64          { return b.Height }
+func (b *Block) GetContext() *block.Context { return b.BlockContext }
+
+type Parser struct{}
+
+func (Parser) ParseBlock(ctx context.Context, bytes []byte) (*Block, error) {
+	return ParseBlock(bytes)
+}
+
 type EChunk struct {
 	chunkID ids.ID
 	expiry  int64
@@ -280,6 +304,10 @@ func newEChunkBlock(b *Block) *EChunkBlock {
 		eChunks:    eChunks,
 		eChunksSet: eChunksSet,
 	}
+}
+
+func (e *EChunkBlock) GetBytes() []byte {
+	return e.Block.bytes
 }
 
 func (e *EChunkBlock) GetID() ids.ID {
