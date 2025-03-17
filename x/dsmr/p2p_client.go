@@ -86,7 +86,10 @@ func (c *AppClient) BroadcastChunkCertificate(ctx context.Context, cert *ChunkCe
 
 func (c *AppClient) CollectChunkSignature(ctx context.Context, chunk *Chunk) (*ChunkCertificate, error) {
 	chunkRef := chunk.CreateReference()
-	estimatedPChainHeight := c.chainState.EstimatePChainHeight()
+	estimatedPChainHeight, err := c.chainState.EstimatePChainHeight(ctx)
+	if err != nil {
+		return nil, err
+	}
 	c.log.Info("Collecting signatures for chunk",
 		zap.Stringer("chunkRef", chunkRef),
 		zap.Uint64("estimatedPChainHeight", estimatedPChainHeight),
@@ -145,7 +148,12 @@ func (c *AppClient) GatherChunks(ctx context.Context, missingChunkRefs []*ChunkR
 					err        error
 				)
 
-				nodeID := c.chainState.SampleNodeID()
+				// If there are no validators, we can't fetch the chunk. Return a fatal error.
+				nodeID, sampleErr := c.chainState.SampleNodeID(ctx)
+				if sampleErr != nil {
+					err = sampleErr
+					close(done)
+				}
 				if err := c.unsignedChunkClient.AppRequest(ctx, nodeID, &dsmr.GetChunkRequest{
 					ChunkRef: chunkRef.bytes,
 				}, func(ctx context.Context, _ ids.NodeID, responseChunk *Chunk, responseErr error) {

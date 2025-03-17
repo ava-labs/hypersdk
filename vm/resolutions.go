@@ -113,7 +113,7 @@ func (vm *VM) PreferredHeight(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return blk.Hght, nil
+	return blk.GetHeight(), nil
 }
 
 // Used for integration and load testing

@@ -79,13 +79,6 @@ func (d DefaultRuleFactory) GetRules(int64) Rules {
 	return d.rules
 }
 
-type ChainState interface {
-	EstimatePChainHeight() uint64
-	GetCanonicalValidatorSet(ctx context.Context, pChainHeight uint64) (validators warp.CanonicalValidatorSet, err error)
-	IsNodeValidator(ctx context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error)
-	SampleNodeID() ids.NodeID
-}
-
 type Node struct {
 	nodeID ids.NodeID
 
@@ -169,7 +162,9 @@ func (n *Node) BuildBlock(
 		}
 	}
 	timestamp := n.clock.Time().UnixMilli()
-	repeatIndices, err := n.chunkValidityWindow.IsRepeat(ctx, nil /* TODO */, timestamp, eChunkCerts)
+
+	// TODO: effectively cache container set
+	repeatIndices, err := n.chunkValidityWindow.IsRepeat(ctx, newEChunkBlock(parentBlock), timestamp, eChunkCerts)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +326,14 @@ func (n *Node) gatherAcceptedChunks(
 }
 
 func (n *Node) CommitChunk(ctx context.Context, chunk *Chunk) error {
-	ok, err := n.chainState.IsNodeValidator(ctx, chunk.Builder, n.chainState.EstimatePChainHeight())
+	// Only commit chunks if our current estimate of the next P-Chain height / epoch indicates
+	// that node should be allowed to create the chunk.
+	// XXX: if the chain pauses, what's the worst that can happen here?
+	estimatedPChainHeight, err := n.chainState.EstimatePChainHeight(ctx)
+	if err != nil {
+		return err
+	}
+	ok, err := n.chainState.IsNodeValidator(ctx, chunk.Builder, estimatedPChainHeight)
 	if err != nil {
 		return err
 	}
@@ -358,7 +360,12 @@ func (n *Node) AddChunkCert(ctx context.Context, chunkCert *ChunkCertificate) er
 		)
 	}
 	rules := n.ruleFactory.GetRules(chunkCert.Reference.Expiry)
-	canonicalVdrSet, err := n.chainState.GetCanonicalValidatorSet(ctx, n.chainState.EstimatePChainHeight())
+	// XXX: should we use estimated P-Chain height, preferred, or last accepted?
+	estimatedPChainHeight, err := n.chainState.EstimatePChainHeight(ctx)
+	if err != nil {
+		return err
+	}
+	canonicalVdrSet, err := n.chainState.GetCanonicalValidatorSet(ctx, estimatedPChainHeight)
 	if err != nil {
 		return err
 	}
@@ -372,9 +379,3 @@ func (n *Node) AddChunkCert(ctx context.Context, chunkCert *ChunkCertificate) er
 func (n *Node) GetChunkBytes(_ context.Context, chunkRef *ChunkReference) ([]byte, error) {
 	return n.pendingChunks.getChunkBytes(chunkRef)
 }
-
-// integrate into VM
-// write package level tests
-// pass over verification conditions
-// update README
-// create issue to implement p2p network + main and test outside of VM context

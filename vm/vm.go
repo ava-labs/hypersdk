@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
@@ -73,17 +74,28 @@ const (
 
 var ErrNotAdded = errors.New("not added")
 
+// We set the genesis block timestamp to be after the ProposerVM fork activation.
+//
+// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+// where the child timestamp is rounded down to the nearest second (which may be before
+// the timestamp of its parent, which is denoted in milliseconds).
+//
+// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
+// .../vms/proposervm/pre_fork_block.go#L201
+var GenesisTime = time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+
 var (
 	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
 	_ hsnow.Block = (*chain.OutputBlock)(nil)
 
-	_ hsnow.Chain[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock] = (*VM)(nil)
-	_ hsnow.ChainIndex[*chain.ExecutionBlock]                                    = (*chainindex.ChainIndex[*chain.ExecutionBlock])(nil)
+	_ hsnow.Chain[*dsmr.Block, *dsmr.Block, *chain.OutputBlock] = (*VM)(nil)
+	_ hsnow.ChainIndex[*chain.ExecutionBlock]                   = (*chainindex.ChainIndex[*chain.ExecutionBlock])(nil)
+	_ hsnow.ChainIndex[*dsmr.EChunkBlock]                       = (*chainindex.ChainIndex[*dsmr.EChunkBlock])(nil)
 )
 
 type VM struct {
 	snowInput hsnow.ChainInput
-	snowApp   *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
+	snowApp   *hsnow.VM[*dsmr.Block, *dsmr.Block, *chain.OutputBlock]
 
 	proposerMonitor *validators.ProposerMonitor
 
@@ -95,13 +107,19 @@ type VM struct {
 	ruleFactory           chain.RuleFactory
 	options               []Option
 
+	// Chain index components
 	chain                   *chain.Chain
 	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
-	SyncClient              *statesync.Client[*chain.ExecutionBlock]
+	chainIndex              *chainindex.ChainIndex[*chain.ExecutionBlock]
+	// TODO: switch and support DSMR block based state sync
+	SyncClient *statesync.Client[*chain.ExecutionBlock]
 
-	consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]
-	chainStore     *chainindex.ChainIndex[*chain.ExecutionBlock]
+	// DSMR Indexing components
+	dsmrChainIndex *chainindex.ChainIndex[*dsmr.Block]
+	dsmrNode       *dsmr.Node
+
+	consensusIndex *hsnow.ConsensusIndex[*dsmr.Block, *dsmr.Block, *chain.OutputBlock]
 
 	normalOp atomic.Bool
 	builder  builder.Builder
@@ -173,8 +191,8 @@ func New(
 func (vm *VM) Initialize(
 	ctx context.Context,
 	chainInput hsnow.ChainInput,
-	snowApp *hsnow.VM[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock],
-) (hsnow.ChainIndex[*chain.ExecutionBlock], *chain.OutputBlock, *chain.OutputBlock, bool, error) {
+	snowApp *hsnow.VM[*dsmr.Block, *dsmr.Block, *chain.OutputBlock],
+) (hsnow.ChainIndex[*dsmr.Block], *dsmr.Block, *chain.OutputBlock, bool, error) {
 	var (
 		snowCtx      = chainInput.SnowCtx
 		genesisBytes = chainInput.GenesisBytes
@@ -212,6 +230,7 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	// TODO: modify mempool + builder to depend only on accepted state
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	snowApp.AddAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
@@ -223,18 +242,18 @@ func (vm *VM) Initialize(
 			return nil
 		},
 	})
-	snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-			vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
-			return nil
-		},
-	})
-	snowApp.AddRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-			vm.mempool.Add(ctx, b.StatelessBlock.Txs)
-			return nil
-		},
-	})
+	// snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	// 	NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+	// 		vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
+	// 		return nil
+	// 	},
+	// })
+	// snowApp.AddRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
+	// 	NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
+	// 		vm.mempool.Add(ctx, b.StatelessBlock.Txs)
+	// 		return nil
+	// 	},
+	// })
 
 	// Instantiate DBs
 	pebbleConfig := pebble.NewDefaultConfig()
@@ -307,16 +326,26 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
+	chainParser := chain.NewBlockParser(
+		vm.tracer,
+		vm.txParser,
+	)
+	chainIndex, err := initChainIndex[
+		*chain.ExecutionBlock,
+		*dsmr.Block,
+		*dsmr.Block,
+		*chain.OutputBlock,
+	](snowApp, chainInput, chainParser, chainIndexNamespace)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	vm.chainIndex = chainIndex
 	chainIndexAdapter := validitywindow.NewChainIndexAdapter[*chain.ExecutionBlock, *chain.Transaction](
 		func(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
-			_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
+			_, span := vm.tracer.Start(ctx, "VM.ChainValidityWindow.GetExecutionBlock")
 			defer span.End()
 
-			blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
-			if err != nil {
-				return nil, err
-			}
-			return blk, nil
+			return vm.chainIndex.GetBlock(ctx, blkID)
 		},
 	)
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, chainIndexAdapter, func(timestamp int64) int64 {
@@ -333,7 +362,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to get chain config: %w", err)
 	}
-	vm.chain, err = chain.NewChain(
+	vm.chain, err = chain.NewChain( // TODO: break up
 		vm.Tracer(),
 		chainRegistry,
 		vm.txParser,
@@ -351,57 +380,19 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	chainIndex, err := initChainIndex[
-		*chain.ExecutionBlock,
-		*chain.ExecutionBlock,
-		*chain.OutputBlock,
-		*chain.OutputBlock,
-	](snowApp, chainInput, vm.chain, chainIndexNamespace)
-	if err != nil {
-		return nil, nil, nil, false, err
-	}
-	vm.chainStore = chainIndex
-
-	if err := vm.initStateSync(ctx); err != nil {
-		return nil, nil, nil, false, err
-	}
-
-	snowApp.AddNormalOpStarter(func(_ context.Context) error {
-		if vm.SyncClient.Started() {
-			return nil
-		}
-		return vm.startNormalOp(ctx)
-	})
-
-	for _, apiFactory := range vm.vmAPIHandlerFactories {
-		api, err := apiFactory.New(vm)
-		if err != nil {
-			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
-		}
-		snowApp.AddHandler(api.Path, api.Handler)
-	}
-
-	stateReady := !vm.SyncClient.MustStateSync()
-	var lastAccepted *chain.OutputBlock
-	if stateReady {
-		lastAccepted, err = vm.initLastAccepted(ctx)
-		if err != nil {
-			return nil, nil, nil, false, err
-		}
-	}
-
 	dsmrChainIndex, err := initChainIndex[
 		*dsmr.Block,
-		*chain.ExecutionBlock,
-		*chain.OutputBlock,
+		*dsmr.Block,
+		*dsmr.Block,
 		*chain.OutputBlock,
 	](snowApp, chainInput, dsmr.Parser{}, dsmrChainIndexNamespace)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
+	vm.dsmrChainIndex = dsmrChainIndex
 	dsmrChainIndexAdapter := validitywindow.NewChainIndexAdapter[*dsmr.EChunkBlock, dsmr.EChunk](
 		func(ctx context.Context, blkID ids.ID) (*dsmr.EChunkBlock, error) {
-			_, span := vm.tracer.Start(ctx, "VM.ValidityWindow.GetExecutionBlock")
+			_, span := vm.tracer.Start(ctx, "VM.ChainValidityWindow.GetExecutionBlock")
 			defer span.End()
 
 			blk, err := dsmrChainIndex.GetBlock(ctx, blkID)
@@ -429,12 +420,11 @@ func (vm *VM) Initialize(
 		}
 		return nil
 	})
-	var dsmrChainState dsmr.ChainState
 	dsmrNode, err := dsmr.New(
 		vm.snowCtx.NodeID,
 		vm.snowCtx.Log,
 		vm.snowCtx.WarpSigner,
-		dsmrChainState,
+		dsmr.NewPChainState(vm.snowCtx.SubnetID, vm.snowCtx.ValidatorState),
 		dsmr.NewDefaultRuleFactory(snowCtx.NetworkID, snowCtx.SubnetID, snowCtx.ChainID), // TODO: make configurable
 		chunkDB,
 		chunkValidityWindow,
@@ -446,12 +436,47 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to create DSMR node: %w", err)
 	}
-	_ = dsmrNode // TODO: switch VM interface to use DSMR blocks
+	vm.dsmrNode = dsmrNode
 
-	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
+	if err := vm.initStateSync(ctx); err != nil {
+		return nil, nil, nil, false, err
+	}
+
+	snowApp.AddNormalOpStarter(func(_ context.Context) error {
+		if vm.SyncClient.Started() {
+			return nil
+		}
+		return vm.startNormalOp(ctx)
+	})
+
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
+		if err != nil {
+			return nil, nil, nil, false, fmt.Errorf("failed to initialize api: %w", err)
+		}
+		snowApp.AddHandler(api.Path, api.Handler)
+	}
+
+	stateReady := !vm.SyncClient.MustStateSync()
+	var (
+		lastAcceptedDSMRBlock   *dsmr.Block
+		lastAcceptedOutputBlock *chain.OutputBlock
+	)
+	if stateReady {
+		lastAcceptedOutputBlock, err = vm.initLastAccepted(ctx)
+		if err != nil {
+			return nil, nil, nil, false, err
+		}
+		lastAcceptedDSMRBlock, err = vm.dsmrChainIndex.GetBlockByHeight(ctx, lastAcceptedOutputBlock.GetHeight())
+		if err != nil {
+			return nil, nil, nil, false, err
+		}
+	}
+
+	return dsmrChainIndex, lastAcceptedDSMRBlock, lastAcceptedOutputBlock, stateReady, nil
 }
 
-func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.ExecutionBlock, *chain.OutputBlock, *chain.OutputBlock]) {
+func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*dsmr.Block, *dsmr.Block, *chain.OutputBlock]) {
 	vm.consensusIndex = consensusIndex
 }
 
@@ -488,7 +513,7 @@ func initChainIndex[T chainindex.Block, I hsnow.Block, O hsnow.Block, A hsnow.Bl
 }
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
+	lastAcceptedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
 	}
@@ -496,15 +521,16 @@ func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) 
 		return vm.initGenesisAsLastAccepted(ctx)
 	}
 	if lastAcceptedHeight == 0 {
-		blk, err := vm.chainStore.GetBlockByHeight(ctx, 0)
+		chainGenesisBlock, err := vm.chainIndex.GetBlockByHeight(ctx, 0)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch genesis block: %w", err)
 		}
-		return &chain.OutputBlock{
-			ExecutionBlock:   blk,
+		chainOuputGenesisBlock := &chain.OutputBlock{
+			ExecutionBlock:   chainGenesisBlock,
 			View:             vm.stateDB,
 			ExecutionResults: &chain.ExecutionResults{},
-		}, nil
+		}
+		return chainOuputGenesisBlock, nil
 	}
 
 	// If the chain index is initialized, return the output block that matches with the latest
@@ -529,7 +555,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
 	}
-	lastIndexedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
+	lastIndexedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last accepted height: %w", err)
 	}
@@ -553,7 +579,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 		if executionResultsHeight != stateHeight {
 			return nil, fmt.Errorf("execution results height %d does not match state height %d", executionResultsHeight, stateHeight)
 		}
-		blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight)
+		blk, err := vm.chainIndex.GetBlockByHeight(ctx, stateHeight)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
 		}
@@ -570,7 +596,7 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 
 	// The last indexedHeight must be stateHeight+1, so we can execute the last block to populate
 	// execution results
-	blk, err := vm.chainStore.GetBlockByHeight(ctx, stateHeight+1)
+	blk, err := vm.chainIndex.GetBlockByHeight(ctx, stateHeight+1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
 	}
@@ -578,8 +604,8 @@ func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock,
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute block at latest state height %d: %w", stateHeight, err)
 	}
-	if _, err := vm.AcceptBlock(ctx, nil, outputBlock); err != nil {
-		return nil, err
+	if err := vm.acceptChainBlock(ctx, outputBlock); err != nil {
+		return nil, fmt.Errorf("failed to accept latest chain block: %w", err)
 	}
 	return outputBlock, nil
 }
@@ -627,11 +653,11 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	}
 	vm.snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 	// Create genesis block
-	genesisExecutionBlk, err := chain.NewGenesisBlock(root)
+	genesisExecutionBlk, err := chain.NewGenesisBlock(GenesisTime, root)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genesis block: %w", err)
 	}
-	if err := vm.chainStore.UpdateLastAccepted(ctx, genesisExecutionBlk); err != nil {
+	if err := vm.chainIndex.UpdateLastAccepted(ctx, genesisExecutionBlk); err != nil {
 		return nil, fmt.Errorf("failed to write genesis block: %w", err)
 	}
 
@@ -696,7 +722,8 @@ func (vm *VM) applyOptions(o *Options) error {
 			if err != nil {
 				return 0, 0, err
 			}
-			return blk.Tmstmp, vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
+
+			return blk.GetTimestamp(), vm.ruleFactory.GetRules(t).GetMinBlockGap(), nil
 		})
 	}
 
@@ -740,8 +767,8 @@ func (vm *VM) applyOptions(o *Options) error {
 			return err
 		}
 		vm.gossiper = txGossiper
-		vm.snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-			NotifyF: func(_ context.Context, b *chain.OutputBlock) error {
+		vm.snowApp.AddVerifiedSub(event.SubscriptionFunc[*dsmr.Block]{
+			NotifyF: func(_ context.Context, b *dsmr.Block) error {
 				txGossiper.BlockVerified(b.GetTimestamp())
 				return nil
 			},
@@ -755,31 +782,47 @@ func (vm *VM) checkActivity(ctx context.Context) {
 	vm.builder.Queue(ctx)
 }
 
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (*chain.ExecutionBlock, error) {
-	return vm.chain.ParseBlock(ctx, source)
+func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (*dsmr.Block, error) {
+	return dsmr.ParseBlock(bytes)
 }
 
-func (vm *VM) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *chain.OutputBlock) (*chain.ExecutionBlock, *chain.OutputBlock, error) {
+func (vm *VM) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *dsmr.Block) (*dsmr.Block, *dsmr.Block, error) {
 	defer vm.checkActivity(ctx)
 
-	return vm.chain.BuildBlock(ctx, pChainCtx, parent)
+	block, err := vm.dsmrNode.BuildBlock(ctx, pChainCtx, parent)
+	if err != nil {
+		return nil, nil, err
+	}
+	return block, block, nil
 }
 
-func (vm *VM) VerifyBlock(ctx context.Context, parent *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {
-	return vm.chain.Execute(ctx, parent.View, block, vm.normalOp.Load())
+func (vm *VM) VerifyBlock(ctx context.Context, parent *dsmr.Block, block *dsmr.Block) (*dsmr.Block, error) {
+	if err := vm.dsmrNode.VerifyBlock(ctx, parent, block); err != nil {
+		return nil, err
+	}
+	return block, nil
 }
 
-func (vm *VM) AcceptBlock(ctx context.Context, _ *chain.OutputBlock, block *chain.OutputBlock) (*chain.OutputBlock, error) {
+func (vm *VM) acceptChainBlock(ctx context.Context, block *chain.OutputBlock) error {
 	resultBytes := block.ExecutionResults.Marshal()
 	resultBytes = binary.BigEndian.AppendUint64(resultBytes, block.Hght)
 	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
-		return nil, fmt.Errorf("failed to write execution results: %w", err)
+		return fmt.Errorf("failed to write execution results: %w", err)
 	}
 
 	if err := vm.chain.AcceptBlock(ctx, block); err != nil {
-		return nil, fmt.Errorf("failed to accept block %s: %w", block, err)
+		return fmt.Errorf("failed to accept block %s: %w", block, err)
 	}
-	return block, nil
+	return nil
+}
+
+func (vm *VM) AcceptBlock(ctx context.Context, acceptedParent *chain.OutputBlock, block *dsmr.Block) (*chain.OutputBlock, error) {
+	if err := vm.dsmrNode.AcceptBlock(ctx, block); err != nil {
+		return nil, err
+	}
+
+	// TODO: Assemble + execute block
+	return nil, nil
 }
 
 func (vm *VM) Submit(
@@ -791,7 +834,7 @@ func (vm *VM) Submit(
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
 
 	// Create temporary execution context
-	preferredBlk, err := vm.consensusIndex.GetPreferredBlock(ctx)
+	preferredBlk, err := vm.consensusIndex.GetLastAccepted(ctx)
 	if err != nil {
 		vm.snowCtx.Log.Error("failed to fetch preferred block for tx submission", zap.Error(err))
 		return []error{err}

@@ -56,6 +56,13 @@ func NewProposerMonitor(backend Backend, snowCtx *snow.Context) *ProposerMonitor
 	}
 }
 
+func (p *ProposerMonitor) EstimatePChainHeight(ctx context.Context) (uint64, error) {
+	if err := p.refresh(ctx); err != nil {
+		return 0, err
+	}
+	return p.currentPHeight, nil
+}
+
 func (p *ProposerMonitor) refresh(ctx context.Context) error {
 	p.rl.Lock()
 	defer p.rl.Unlock()

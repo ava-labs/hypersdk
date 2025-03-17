@@ -229,6 +229,10 @@ func NewBlock(
 	return block
 }
 
+func NewGenesisBlock(timestamp int64) *Block {
+	return NewBlock(ids.Empty, 0, timestamp, nil, nil)
+}
+
 func ParseBlock(bytes []byte) (*Block, error) {
 	block := &Block{}
 	if err := block.UnmarshalCanoto(bytes); err != nil {
