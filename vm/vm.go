@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/ava-labs/hypersdk/codec"
@@ -108,7 +109,7 @@ type VM struct {
 	actionCodec           *codec.TypeParser[chain.Action]
 	authCodec             *codec.TypeParser[chain.Auth]
 	outputCodec           *codec.TypeParser[codec.Typed]
-	authEngine            map[uint8]AuthEngine
+	authEngines           auth.Engines
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
@@ -129,7 +130,7 @@ func New(
 	actionCodec *codec.TypeParser[chain.Action],
 	authCodec *codec.TypeParser[chain.Auth],
 	outputCodec *codec.TypeParser[codec.Typed],
-	authEngine map[uint8]AuthEngine,
+	authEngines auth.Engines,
 	options ...Option,
 ) (*VM, error) {
 	allocatedNamespaces := set.NewSet[string](len(options))
@@ -152,7 +153,7 @@ func New(
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
-		authEngine:            authEngine,
+		authEngines:           authEngines,
 		genesisAndRuleFactory: genesisFactory,
 		options:               options,
 	}, nil
@@ -317,7 +318,7 @@ func (vm *VM) Initialize(
 		vm.MetadataManager(),
 		vm.BalanceHandler(),
 		vm.AuthVerifiers(),
-		vm,
+		vm.authEngines,
 		vm.chainTimeValidityWindow,
 		chainConfig,
 	)
