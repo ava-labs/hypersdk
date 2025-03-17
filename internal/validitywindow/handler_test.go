@@ -7,16 +7,12 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/stretchr/testify/require"
 )
-
-// Use a fixed seed for deterministic test results
-var seed = rand.New(rand.NewSource(42)) //nolint:gosec
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
@@ -31,7 +27,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "happy path - fetch all blocks",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(10, 3, seed)
+				return generateBlockChain(10, 3)
 			},
 			blockHeight:  9,
 			minTimestamp: 3,
@@ -40,7 +36,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "partial response",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				blocks := generateBlockChain(10, 3, seed)
+				blocks := generateBlockChain(10, 3)
 				delete(blocks, uint64(7))
 				return blocks
 			},
@@ -59,7 +55,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "should error if block does not exist",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(2, 1, seed)
+				return generateBlockChain(2, 1)
 			},
 			blockHeight:  4,
 			minTimestamp: 3,
@@ -68,7 +64,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "should timeout",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(10, 3, seed)
+				return generateBlockChain(10, 3)
 			},
 			blockHeight:  9,
 			minTimestamp: 3,
@@ -119,7 +115,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	}
 }
 
-func generateBlockChain(n int, containersPerBlock int, r *rand.Rand) map[uint64]ExecutionBlock[container] {
+func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock[container] {
 	genesis := newExecutionBlock(0, 0, []int64{})
 	blks := make(map[uint64]ExecutionBlock[container])
 	blks[0] = genesis
@@ -127,7 +123,10 @@ func generateBlockChain(n int, containersPerBlock int, r *rand.Rand) map[uint64]
 	for i := 1; i < n; i++ {
 		containers := make([]int64, containersPerBlock)
 		for j := 0; j < containersPerBlock; j++ {
-			containers[j] = r.Int63n(int64(n))
+			containers[j] = int64(j + 1)
+			if containers[j] < int64(i) {
+				containers[j] = int64(i) + 1
+			}
 		}
 		b := newExecutionBlock(uint64(i), int64(i), containers)
 		b.Prnt = blks[uint64(i-1)].GetID()

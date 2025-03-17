@@ -300,7 +300,7 @@ func runSyncerTest(t *testing.T, test testCases) {
 	ctx := context.Background()
 	req := require.New(t)
 
-	blkChain := generateTestChain(test.numOfBlocks, seed)
+	blkChain := generateTestChain(test.numOfBlocks)
 	chainIndex := test.setupChainIndex(blkChain)
 
 	validityWindow := NewTimeValidityWindow(

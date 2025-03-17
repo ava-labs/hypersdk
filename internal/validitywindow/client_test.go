@@ -34,7 +34,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	validChain := generateTestChain(10, 0)
+	validChain := generateTestChain(10)
 	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
@@ -109,7 +109,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	chain := generateTestChain(20, 42)
+	chain := generateTestChain(20)
 	numReceivedBlocks := 5
 
 	// Buffered channel for fine-grained control of block retrieval
@@ -197,7 +197,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	validChain := generateTestChain(10, 0)
+	validChain := generateTestChain(10)
 	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
@@ -256,8 +256,8 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}
 }
 
-func generateTestChain(n int, seed int64) []ExecutionBlock[container] {
-	chain := generateBlockChain(n, 5, seed)
+func generateTestChain(n int) []ExecutionBlock[container] {
+	chain := generateBlockChain(n, 5)
 	validChain := make([]ExecutionBlock[container], 0, len(chain))
 	for _, block := range chain {
 		validChain = append(validChain, block)
