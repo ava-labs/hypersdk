@@ -222,7 +222,7 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimension
 
 	unpackedUnits, err := fees.UnpackDimensions(storageTx.Units)
 	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unpack units for storage tx %s: %w", txID, err)
+		return false, 0, false, fees.Dimensions{}, 0, nil, "", fmt.Errorf("failed to unxxack units for storage tx %s: %w", txID, err)
 	}
 	return true, storageTx.Timestamp, storageTx.Success, unpackedUnits, storageTx.Fee, storageTx.Outputs, storageTx.Error, nil
 }
