@@ -105,7 +105,9 @@ type VM struct {
 	genesis               genesis.Genesis
 	GenesisBytes          []byte
 	ruleFactory           chain.RuleFactory
-	options               []Option
+
+	opts    []Option
+	options *Options
 
 	// Chain index components
 	chain                   *chain.Chain
@@ -183,7 +185,7 @@ func New(
 		outputCodec:           outputCodec,
 		authEngine:            authEngine,
 		genesisAndRuleFactory: genesisFactory,
-		options:               options,
+		opts:                  options,
 	}, nil
 }
 
@@ -233,15 +235,15 @@ func (vm *VM) Initialize(
 	vm.initMempool(ctx)
 
 	// Set defaults
-	options := &Options{}
-	for _, Option := range vm.options {
+	vm.options = &Options{}
+	for _, Option := range vm.opts {
 		opt, err := Option.optionFunc(vm, vm.snowInput.Config.GetRawConfig(Option.Namespace))
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
-		opt.apply(options)
+		opt.apply(vm.options)
 	}
-	err = vm.applyOptions(options)
+	err = vm.applyModuleOptions()
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
@@ -257,7 +259,7 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.initAPIs(ctx); err != nil {
+	if err := vm.applyServiceOptions(); err != nil {
 		return nil, nil, nil, false, err
 	}
 	return vm.initLatestState(ctx)
@@ -475,7 +477,27 @@ func (vm *VM) initDSMR() error {
 	return nil
 }
 
-func (vm *VM) initAPIs(ctx context.Context) error {
+// applyServiceOptions initializes the service options of the VM
+// Services include the block subs and APIs (ie. downstream of the VM)
+func (vm *VM) applyServiceOptions() error {
+	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(vm.options.blockSubscriptionFactories))
+	for i, factory := range vm.options.blockSubscriptionFactories {
+		sub, err := factory.New()
+		if err != nil {
+			return err
+		}
+		blockSubs[i] = sub
+	}
+	executedBlockSub := event.Aggregate(blockSubs...)
+	outputBlockSub := event.Map(func(b *chain.OutputBlock) *chain.ExecutedBlock {
+		return &chain.ExecutedBlock{
+			Block:            b.StatelessBlock,
+			ExecutionResults: b.ExecutionResults,
+		}
+	}, executedBlockSub)
+	vm.snowApp.AddAcceptedSub(outputBlockSub)
+	vm.vmAPIHandlerFactories = vm.options.vmAPIHandlerFactories
+
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
 		if err != nil {
@@ -527,7 +549,6 @@ func initChainIndex[T chainindex.Block](
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	// we no longer need the state root to be deferred
-	
 	lastAcceptedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
@@ -715,25 +736,10 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) applyOptions(o *Options) error {
-	blockSubs := make([]event.Subscription[*chain.ExecutedBlock], len(o.blockSubscriptionFactories))
-	for i, factory := range o.blockSubscriptionFactories {
-		sub, err := factory.New()
-		if err != nil {
-			return err
-		}
-		blockSubs[i] = sub
-	}
-	executedBlockSub := event.Aggregate(blockSubs...)
-	outputBlockSub := event.Map(func(b *chain.OutputBlock) *chain.ExecutedBlock {
-		return &chain.ExecutedBlock{
-			Block:            b.StatelessBlock,
-			ExecutionResults: b.ExecutionResults,
-		}
-	}, executedBlockSub)
-	vm.snowApp.AddAcceptedSub(outputBlockSub)
-	vm.vmAPIHandlerFactories = o.vmAPIHandlerFactories
-	if o.builder {
+// applyModuleOptions configures the optional modules of the VM ie. builder/gossiper
+// which are part of the VM and can be configured via options.
+func (vm *VM) applyModuleOptions() error {
+	if vm.options.builder {
 		vm.builder = builder.NewManual(vm.snowInput.ToEngine, vm.snowCtx.Log)
 	} else {
 		vm.builder = builder.NewTime(vm.snowInput.ToEngine, vm.snowCtx.Log, vm.mempool, func(ctx context.Context, t int64) (int64, int64, error) {
@@ -753,7 +759,7 @@ func (vm *VM) applyOptions(o *Options) error {
 	batchedTxSerializer := &chain.BatchedTransactionSerializer{
 		Parser: vm.txParser,
 	}
-	if o.gossiper {
+	if vm.options.gossiper {
 		vm.gossiper, err = gossiper.NewManual[*chain.Transaction](
 			vm.snowCtx.Log,
 			gossipRegistry,
