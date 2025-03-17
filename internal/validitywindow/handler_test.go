@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -124,11 +123,14 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 	for i := 1; i < n; i++ {
 		containers := make([]int64, containersPerBlock)
 		for j := 0; j < containersPerBlock; j++ {
-			containers[j] = rand.Int63n(int64(n)) //nolint:gosec
+			containers[j] = int64(j + 1)
+			if containers[j] < int64(i) {
+				containers[j] = int64(i) + 1
+			}
 		}
 		b := newExecutionBlock(uint64(i), int64(i), containers)
 		b.Prnt = blks[uint64(i-1)].GetID()
-		blks[uint64(i)] = newExecutionBlock(uint64(i), int64(i), containers)
+		blks[uint64(i)] = b
 	}
 
 	return blks

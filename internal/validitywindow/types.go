@@ -3,6 +3,8 @@
 
 package validitywindow
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
@@ -10,8 +12,8 @@ import (
 var _ typedclient.Marshaler[*BlockFetchRequest, *BlockFetchResponse, []byte] = (*blockFetcherMarshaler)(nil)
 
 type BlockFetchRequest struct {
-	BlockHeight  uint64 `canoto:"int,1"`
-	MinTimestamp int64  `canoto:"int,2"`
+	BlockHeight  uint64 `canoto:"fint64,1"`
+	MinTimestamp int64  `canoto:"fint64,2"`
 
 	canotoData canotoData_BlockFetchRequest
 }

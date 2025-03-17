@@ -3,8 +3,8 @@ module github.com/ava-labs/hypersdk
 go 1.23.7
 
 require (
-	github.com/StephenButtolph/canoto v0.10.2-0.20250304002129-77c244561020
-	github.com/ava-labs/avalanchego v1.12.3-0.20250307191620-6e7a7d51954c
+	github.com/StephenButtolph/canoto v0.13.3
+	github.com/ava-labs/avalanchego v1.12.3-0.20250312153957-a83e69299c1c
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
@@ -60,6 +60,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/ethereum/go-ethereum v1.13.14 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
