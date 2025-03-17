@@ -100,7 +100,7 @@ func NewTestVMFactory(r *require.Assertions) *vm.Factory {
 		actionParser,
 		authParser,
 		outputParser,
-		auth.Engines(),
+		auth.DefaultEngines(),
 		append(defaultvm.NewDefaultOptions(), vm.WithManual())...,
 	)
 }

@@ -491,7 +491,7 @@ func TestProcessorExecute(t *testing.T) {
 				&logging.NoLog{},
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
-				chaintest.NewDummyTestAuthVM(),
+				chaintest.NewDummyTestAuthEngines(),
 				testMetadataManager,
 				balanceHandler,
 				tt.validityWindow,

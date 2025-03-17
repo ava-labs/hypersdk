@@ -25,7 +25,7 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
+const signedTxHex = "0a3208e0f69493af64122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
 var preSignedTxBytes []byte
 
@@ -109,7 +109,7 @@ func TestSignTransaction(t *testing.T) {
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
-	require := require.New(t)
+	r := require.New(t)
 
 	txData := chain.NewTxData(
 		chain.Base{
@@ -129,19 +129,19 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	parser := chaintest.NewTestParser()
 
 	signedTx, err := txData.Sign(factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	actionsBytes := make([][]byte, 0, len(signedTx.Actions))
 	for _, action := range signedTx.Actions {
 		actionsBytes = append(actionsBytes, action.Bytes())
 	}
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(txData.Base, actionsBytes, factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
-	require.NoError(err)
+	r.NoError(err)
 
-	equalTx(require, signedTx, parseRawSignedTx)
+	equalTx(r, signedTx, parseRawSignedTx)
 }
 
 func TestUnmarshalTx(t *testing.T) {
