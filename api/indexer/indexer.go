@@ -29,10 +29,11 @@ const (
 var blockEntryKeyPrefix = []byte{blockEntryByte}
 
 var (
-	errBlockNotFound          = errors.New("block not found")
-	errTxResultNotFound       = errors.New("transaction result not found")
-	errZeroBlockWindow        = errors.New("indexer configuration of non zero block window is expected")
-	errInvalidBlockWindowSize = errors.New("invalid indexer block window size specified")
+	errBlockNotFound           = errors.New("block not found")
+	errTxResultNotFound        = errors.New("transaction result not found")
+	errInternalIndexerMismatch = errors.New("internal indexer mismatch")
+	errZeroBlockWindow         = errors.New("indexer configuration of non zero block window is expected")
+	errInvalidBlockWindowSize  = errors.New("invalid indexer block window size specified")
 )
 
 var _ event.Subscription[*chain.ExecutedBlock] = (*Indexer)(nil)
@@ -215,7 +216,12 @@ func (i *Indexer) GetTransaction(txID ids.ID) (bool, *chain.Transaction, int64, 
 	if !ok {
 		return false, nil, 0, nil, nil
 	}
-	if len(blk.ExecutionResults.Results) <= cachedTx.index || len(blk.Block.Txs) <= cachedTx.index {
+	if len(blk.Block.Txs) <= cachedTx.index {
+		// this should never happen, regardless of input parameters, since the indexer is atomically populating
+		// the txCache and blockHeightToBlock with the transaction index corresponding to the same transaction.
+		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errInternalIndexerMismatch, blk.Block.Hght, cachedTx.index)
+	}
+	if len(blk.ExecutionResults.Results) <= cachedTx.index {
 		return false, nil, 0, nil, fmt.Errorf("%w: block height %d, transaction index %d", errTxResultNotFound, blk.Block.Hght, cachedTx.index)
 	}
 	tx := blk.Block.Txs[cachedTx.index]
