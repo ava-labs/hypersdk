@@ -7,7 +7,7 @@ REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 cd "${REPO_ROOT}"
 
 # Build if needed
-if command -a tmpnetctl; then
+if ! command -v tmpnetctl; then
   # Set AVALANCHE_VERSION
   . ./scripts/constants.sh
 
