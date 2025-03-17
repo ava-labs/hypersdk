@@ -55,10 +55,11 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
+      - uses: ava-labs/avalanchego/.github/actions/install-nix@8551e1d96221c8a5c2c034c2bad0cd571610ad35
       - name: Ensure consistent avalanchego version
         shell: bash
         run: |
-          bash -x scripts/update_avalanchego_version.sh
+          nix develop --command bash -x scripts/update_avalanchego_version.sh
           git diff --exit-code
 
   # This workflow job ensures generated code is up-to-date

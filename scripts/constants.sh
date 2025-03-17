@@ -32,7 +32,7 @@ if [[ -z ${AVALANCHE_VERSION:-} ]]; then
         CURL_HEADER="-H 'Authorization: token ${GITHUB_TOKEN}'"
       fi
       CURL_URL="https://api.github.com/repos/ava-labs/avalanchego/commits/${MODULE_HASH}"
-      FULL_AVALANCHE_VERSION="$(curl -s "${CURL_HEADER}" "${CURL_URL}" | grep '"sha":' | head -n1 | cut -d'"' -f4)"
+      FULL_AVALANCHE_VERSION="$(curl -s ${CURL_HEADER} "${CURL_URL}" | grep '"sha":' | head -n1 | cut -d'"' -f4)"
     fi
   elif [[ -n "${SET_FULL_AVALANCHE_VERSION:-}" ]]; then
     # Assume AVALANCHEGO_VERSION is a tag.
