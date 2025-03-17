@@ -48,16 +48,17 @@ func (w *TxWorkload) GenerateBlocks(ctx context.Context, require *require.Assert
 		height = acceptedHeight
 	}
 
-	for _, uri := range uris {
+	for _, uri := range uris[1:] {
 		client := jsonrpc.NewJSONRPCClient(uri)
+		acceptedHeight := uint64(0)
 		err := jsonrpc.Wait(ctx, reachedAcceptedTipSleepInterval, func(ctx context.Context) (bool, error) {
-			_, acceptedHeight, _, err := client.Accepted(ctx)
+			_, acceptedHeight, _, err = client.Accepted(ctx)
 			if err != nil {
 				return false, err
 			}
 			return acceptedHeight >= targetHeight, nil
 		})
-		require.NoError(err, "failed to reach target height %d; current height %d; uri %s", targetHeight, height, uri)
+		require.NoError(err, "failed to reach target height %d; current height %d; uri %s", targetHeight, acceptedHeight, uri)
 	}
 }
 
