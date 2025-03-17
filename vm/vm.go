@@ -195,13 +195,8 @@ func (vm *VM) Initialize(
 	chainInput hsnow.ChainInput,
 	snowApp *hsnow.VM[*dsmr.Block, *dsmr.Block, *chain.OutputBlock],
 ) (hsnow.ChainIndex[*dsmr.Block], *dsmr.Block, *chain.OutputBlock, bool, error) {
-	var (
-		snowCtx      = chainInput.SnowCtx
-		genesisBytes = chainInput.GenesisBytes
-		upgradeBytes = chainInput.UpgradeBytes
-	)
-	vm.DataDir = filepath.Join(snowCtx.ChainDataDir, vmDataDir)
-	vm.snowCtx = snowCtx
+	vm.DataDir = filepath.Join(chainInput.SnowCtx.ChainDataDir, vmDataDir)
+	vm.snowCtx = chainInput.SnowCtx
 	vm.snowInput = chainInput
 	vm.snowApp = snowApp
 
@@ -217,8 +212,8 @@ func (vm *VM) Initialize(
 
 	vm.network = snowApp.GetNetwork()
 
-	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
-	vm.GenesisBytes = genesisBytes
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleFactory.Load(chainInput.GenesisBytes, chainInput.UpgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.GenesisBytes = chainInput.GenesisBytes
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -254,11 +249,9 @@ func (vm *VM) Initialize(
 	if err := vm.initDSMR(); err != nil {
 		return nil, nil, nil, false, err
 	}
-
 	if err := vm.initStateSync(ctx); err != nil {
 		return nil, nil, nil, false, err
 	}
-
 	if err := vm.applyServiceOptions(); err != nil {
 		return nil, nil, nil, false, err
 	}
