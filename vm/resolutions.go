@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/builder"
 	"github.com/ava-labs/hypersdk/internal/gossiper"
-	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
@@ -46,10 +45,6 @@ func (vm *VM) GetABI() abi.ABI {
 
 func (vm *VM) GetParser() chain.Parser {
 	return vm.txParser
-}
-
-func (vm *VM) AuthVerifiers() workers.Workers {
-	return vm.authVerifiers
 }
 
 func (vm *VM) RuleFactory() chain.RuleFactory {

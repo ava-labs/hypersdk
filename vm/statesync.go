@@ -134,5 +134,11 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 	// server := statesync.NewServer[*chain.ExecutionBlock](vm.snowCtx.Log, inputCovariantVM)
 	// stateSyncableVM := statesync.NewStateSyncableVM(client, server)
 	// vm.snowApp.SetStateSyncableVM(stateSyncableVM)
+	// vm.snowApp.AddNormalOpStarter(func(_ context.Context) error {
+	// 	if vm.SyncClient.Started() {
+	// 		return nil
+	// 	}
+	// 	return vm.startNormalOp(ctx)
+	// })
 	// return nil
 }
