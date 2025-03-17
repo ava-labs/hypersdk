@@ -56,6 +56,21 @@ jobs:
         shell: bash
         run: scripts/tests.actionlint.sh
 
+  # This workflow job ensures generated code is up-to-date
+  # It verifies developers have properly run code generation locally before committing, preventing inconsistencies between checked-in generated files and what the generator would produce.
+  check_generated_code:
+    name: Verify go generate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - shell: bash
+        run: go generate ./...
+      - shell: bash
+        run: .github/workflows/check-clean-branch.sh
+
   hypersdk-unit-tests:
     runs-on: ubuntu-22.04-32
     timeout-minutes: 10
@@ -76,7 +91,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Go
         uses: ./.github/actions/install-go
-      - name: Run unit tests
+      - name: Benchmark
         shell: bash
         run: scripts/tests.benchmark.sh
 

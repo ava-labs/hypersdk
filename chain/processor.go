@@ -79,7 +79,7 @@ type Processor struct {
 	log                     logging.Logger
 	ruleFactory             RuleFactory
 	authVerificationWorkers workers.Workers
-	authVM                  AuthVM
+	authEngines             AuthEngines
 	metadataManager         MetadataManager
 	balanceHandler          BalanceHandler
 	validityWindow          ValidityWindow
@@ -92,7 +92,7 @@ func NewProcessor(
 	log logging.Logger,
 	ruleFactory RuleFactory,
 	authVerificationWorkers workers.Workers,
-	authVM AuthVM,
+	authEngines AuthEngines,
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	validityWindow ValidityWindow,
@@ -104,7 +104,7 @@ func NewProcessor(
 		log:                     log,
 		ruleFactory:             ruleFactory,
 		authVerificationWorkers: authVerificationWorkers,
-		authVM:                  authVM,
+		authEngines:             authEngines,
 		metadataManager:         metadataManager,
 		balanceHandler:          balanceHandler,
 		validityWindow:          validityWindow,
@@ -332,7 +332,7 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 	// Setup signature verification job
 	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures")
 
-	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
+	batchVerifier := NewAuthBatch(p.log, p.authEngines, sigJob, block.authCounts)
 	// Make sure to always call [Done], otherwise we will block all future [Workers]
 	defer func() {
 		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
