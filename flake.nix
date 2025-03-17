@@ -26,7 +26,6 @@
               # Required to ensure scripts/update_avalanchego_version.sh works on darwin
               # TODO(marun) Convert the update script to golang to avoid this dependency
               pkgs.gnused
-              pkgs.curl
             ];
           });
         }
