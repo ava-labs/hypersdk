@@ -21,8 +21,9 @@ import (
 )
 
 var (
-	_ BlockParser[Block] = (*parser[Block])(nil)
-	_ p2p.NodeSampler    = (*testNodeSampler)(nil)
+	_       BlockParser[Block] = (*parser[Block])(nil)
+	_       p2p.NodeSampler    = (*testNodeSampler)(nil)
+	timeout                    = 5 * time.Second
 )
 
 // The nodes have partial state, we're testing client's functionality to query different nodes
@@ -31,7 +32,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	validChain := generateTestChain(10)
+	validChain := generateTestChain(10, seed)
 	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
@@ -62,16 +63,14 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// Get a channel from fetcher
 	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTS)
 
 	// Collect all blocks from the channel
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	for blk := range resultChan {
-		receivedBlocks[blk.GetHeight()] = blk
-	}
+	receive(fetchCtx, resultChan, receivedBlocks)
 
 	// Retrieve blocks from height 8 down to 2 (inclusive)
 	//nolint:dupword
@@ -106,7 +105,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	chain := generateTestChain(20)
+	chain := generateTestChain(20, seed)
 	numReceivedBlocks := 5
 
 	// Buffered channel for fine-grained control of block retrieval
@@ -151,20 +150,12 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTS)
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 
-loop:
-	for {
-		select {
-		case blk := <-resultChan:
-			receivedBlocks[blk.GetHeight()] = blk
-		case <-fetchCtx.Done():
-			break loop
-		}
-	}
+	receive(fetchCtx, resultChan, receivedBlocks)
 
 	// We should have 5 blocks in our state instead of 6 since the last one is invalid. Partial commit of valid blocks
 	r.Len(receivedBlocks, numReceivedBlocks)
@@ -200,7 +191,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	validChain := generateTestChain(10)
+	validChain := generateTestChain(10, seed)
 	nodes := []nodeScenario{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
@@ -238,17 +229,28 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		}
 	}()
 
-	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
+	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTimestamp)
 	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 
 	recvCount := 0
-	for blk := range resultChan {
-		receivedBlocks[blk.GetHeight()] = blk
+loop:
+	for {
+		select {
+		case blk, ok := <-resultChan:
+			if !ok {
+				break loop
+			}
+			receivedBlocks[blk.GetHeight()] = blk
 
-		recvCount++
-		// After receiving some blocks signal to update the timestamp
-		if recvCount == 2 {
-			close(signalUpdate)
+			recvCount++
+			// After receiving some blocks signal to update the timestamp
+			if recvCount == 2 {
+				close(signalUpdate)
+			}
+		case <-fetchCtx.Done():
+			break loop
 		}
 	}
 
@@ -259,8 +261,8 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}
 }
 
-func generateTestChain(n int) []ExecutionBlock[container] {
-	chain := generateBlockChain(n, 5)
+func generateTestChain(n int, r *rand.Rand) []ExecutionBlock[container] {
+	chain := generateBlockChain(n, 5, r)
 	validChain := make([]ExecutionBlock[container], 0, len(chain))
 	for _, block := range chain {
 		validChain = append(validChain, block)
@@ -357,7 +359,7 @@ type testNodeSampler struct {
 }
 
 func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
-	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
+	r := rand.New(seed) //nolint:gosec
 	r.Shuffle(len(t.nodes), func(i, j int) {
 		t.nodes[i], t.nodes[j] = t.nodes[j], t.nodes[i]
 	})
@@ -365,4 +367,22 @@ func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
 		return t.nodes
 	}
 	return t.nodes[:num]
+}
+
+// receive collects blocks from resultChan until either:
+// 1. The context is canceled (ctx.Done), or
+// 2. The channel is closed by the sender
+func receive(ctx context.Context, resultChan <-chan ExecutionBlock[container], receivedBlocks map[uint64]ExecutionBlock[container]) {
+loop:
+	for {
+		select {
+		case blk, ok := <-resultChan:
+			if !ok {
+				break loop
+			}
+			receivedBlocks[blk.GetHeight()] = blk
+		case <-ctx.Done():
+			break loop
+		}
+	}
 }

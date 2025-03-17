@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Use a fixed seed for deterministic test results
+var seed = rand.New(rand.NewSource(42)) //nolint:gosec
+
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -28,7 +31,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "happy path - fetch all blocks",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(10, 3)
+				return generateBlockChain(10, 3, seed)
 			},
 			blockHeight:  9,
 			minTimestamp: 3,
@@ -37,7 +40,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "partial response",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				blocks := generateBlockChain(10, 3)
+				blocks := generateBlockChain(10, 3, seed)
 				delete(blocks, uint64(7))
 				return blocks
 			},
@@ -56,7 +59,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "should error if block does not exist",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(2, 1)
+				return generateBlockChain(2, 1, seed)
 			},
 			blockHeight:  4,
 			minTimestamp: 3,
@@ -65,7 +68,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		{
 			name: "should timeout",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(10, 3)
+				return generateBlockChain(10, 3, seed)
 			},
 			blockHeight:  9,
 			minTimestamp: 3,
@@ -116,7 +119,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	}
 }
 
-func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock[container] {
+func generateBlockChain(n int, containersPerBlock int, r *rand.Rand) map[uint64]ExecutionBlock[container] {
 	genesis := newExecutionBlock(0, 0, []int64{})
 	blks := make(map[uint64]ExecutionBlock[container])
 	blks[0] = genesis
@@ -124,11 +127,11 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 	for i := 1; i < n; i++ {
 		containers := make([]int64, containersPerBlock)
 		for j := 0; j < containersPerBlock; j++ {
-			containers[j] = rand.Int63n(int64(n)) //nolint:gosec
+			containers[j] = r.Int63n(int64(n))
 		}
 		b := newExecutionBlock(uint64(i), int64(i), containers)
 		b.Prnt = blks[uint64(i-1)].GetID()
-		blks[uint64(i)] = newExecutionBlock(uint64(i), int64(i), containers)
+		blks[uint64(i)] = b
 	}
 
 	return blks
