@@ -643,10 +643,16 @@ func TestIndexerAPI(t *testing.T) {
 	r.Equal(lastAccepted.GetID(), blk1.Block.GetID())
 	r.Equal(uint64(1), blk1.Block.GetHeight())
 
-	txRes, success, err := client.GetTx(ctx, tx.GetID())
+	txRes, success, err := client.GetTxResults(ctx, tx.GetID())
 	r.NoError(err)
 	r.True(success)
-	r.True(txRes.Success)
+	r.True(txRes.Result.Success)
+
+	txRes, txOut, success, err := client.GetTx(ctx, tx.GetID(), parser)
+	r.NoError(err)
+	r.True(success)
+	r.True(txRes.Result.Success)
+	r.Equal(tx.Bytes(), txOut.Bytes())
 }
 
 func TestWebsocketAPI(t *testing.T) {
