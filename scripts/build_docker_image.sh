@@ -5,17 +5,20 @@
 set -euo pipefail
 
 # e.g.,
-# ./scripts/build_docker_image.sh                                                        # Build local image
-# ./scripts/build_docker_image.sh --no-cache                                             # All script arguments are provided to `docker buildx build`
-# DOCKER_IMAGE=mymorpheusvm ./scripts/build_docker_image.sh                              # Build local image with a custom image name
-# DOCKER_IMAGE=localhost:5001/morpheusvm ./scripts/build_docker_image.sh                 # Build and push image to private registry
-# BUILD_MULTI_ARCH=1 DOCKER_IMAGE=avaplatform/morpheusvm ./scripts/build_docker_image.sh # Build and push multi-arch image to docker hub
+# ./scripts/build_docker_image.sh                                                           # Build local image
+# ./scripts/build_docker_image.sh --no-cache                                                # All script arguments are provided to `docker buildx build`
+# DOCKER_IMAGE=mymorpheusvm ./scripts/build_docker_image.sh                                 # Build local image with a custom image name
+# BUILD_MULTI_ARCH=1 DOCKER_IMAGE=avaplatform/morpheusvm ./scripts/build_docker_image.sh    # Build and push multi-arch image to docker hub
+# FORCE_TAG_LATEST=1 DOCKER_IMAGE=localhost:5001/morpheusvm ./scripts/build_docker_image.sh # Build and push image to private registry with tag `latest`
 
 # Directory above this script
 HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
   cd .. && pwd
 )
+
+# Force tagging as latest even if not the master branch
+FORCE_TAG_LATEST="${FORCE_TAG_LATEST:-}"
 
 source "$HYPERSDK_PATH"/scripts/constants.sh
 source "$HYPERSDK_PATH"/scripts/git_commit.sh
@@ -92,7 +95,7 @@ ${DOCKER_CMD} -t "${DOCKER_IMAGE}:${IMAGE_TAG}" -t "${DOCKER_IMAGE}:${COMMIT_HAS
   --build-arg VM_NAME="${VM_NAME}"
 
 # Only tag the latest image for the main branch when images are pushed to a registry
-if [[ "${DOCKER_IMAGE}" == *"/"* && "${IMAGE_TAG}" == "main" ]]; then
+if [[ "${DOCKER_IMAGE}" == *"/"* && ("${IMAGE_TAG}" == "main" || -n "${FORCE_TAG_LATEST}") ]]; then
   echo "Tagging current image as ${DOCKER_IMAGE}:latest"
   docker buildx imagetools create -t "${DOCKER_IMAGE}:latest" "${DOCKER_IMAGE}:${COMMIT_HASH}"
 fi
