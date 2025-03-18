@@ -33,7 +33,7 @@ func GenerateEmptyExecutedBlocks(
 		parentID = statelessBlock.GetID()
 
 		blk := chain.NewExecutedBlock(
-			statelessBlock,
+			chain.NewExecutionBlock(statelessBlock),
 			[]*chain.Result{},
 			fees.Dimensions{},
 			fees.Dimensions{},

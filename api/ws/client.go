@@ -145,6 +145,7 @@ func (c *WebSocketClient) RegisterBlocks() error {
 }
 
 // ListenBlock listens for block messages from the streaming server.
+// TODO: switch to streaming executed block type
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
@@ -155,7 +156,7 @@ func (c *WebSocketClient) ListenBlock(
 		if err != nil {
 			return nil, nil, fees.Dimensions{}, err
 		}
-		return executedBlock.Block, executedBlock.ExecutionResults.Results, executedBlock.ExecutionResults.UnitPrices, nil
+		return executedBlock.Block.StatelessBlock, executedBlock.ExecutionResults.Results, executedBlock.ExecutionResults.UnitPrices, nil
 	case <-c.readStopped:
 		return nil, nil, fees.Dimensions{}, c.err
 	case <-ctx.Done():

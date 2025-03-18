@@ -56,10 +56,7 @@ func NewExternalSubscriberClient(
 }
 
 func (e *ExternalSubscriberClient) Notify(ctx context.Context, blk *chain.ExecutedBlock) error {
-	blockBytes, err := blk.Marshal()
-	if err != nil {
-		return err
-	}
+	blockBytes := blk.GetBytes()
 
 	req := &pb.BlockRequest{
 		BlockData: blockBytes,
@@ -68,7 +65,7 @@ func (e *ExternalSubscriberClient) Notify(ctx context.Context, blk *chain.Execut
 		zap.Stringer("blockID", blk.Block.GetID()),
 		zap.Uint64("blockHeight", blk.Block.Hght),
 	)
-	_, err = e.client.Notify(ctx, req)
+	_, err := e.client.Notify(ctx, req)
 	return err
 }
 

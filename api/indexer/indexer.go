@@ -120,12 +120,7 @@ func (i *Indexer) storeBlock(blk *chain.ExecutedBlock) error {
 		return nil
 	}
 
-	executedBlkBytes, err := blk.Marshal()
-	if err != nil {
-		return err
-	}
-
-	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), executedBlkBytes); err != nil {
+	if err := i.blockDB.Put(binary.BigEndian.AppendUint64(nil, blk.Block.Hght), blk.GetBytes()); err != nil {
 		return err
 	}
 	// Ignore overflows in key calculation which will simply delete a non-existent key

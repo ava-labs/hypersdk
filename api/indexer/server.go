@@ -60,11 +60,7 @@ type GetBlockResponse struct {
 
 func (g *GetBlockResponse) setResponse(block *chain.ExecutedBlock) error {
 	g.Block = block
-	blockBytes, err := block.Marshal()
-	if err != nil {
-		return err
-	}
-	g.BlockBytes = blockBytes
+	g.BlockBytes = block.GetBytes()
 	return nil
 }
 

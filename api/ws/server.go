@@ -166,10 +166,7 @@ func (w *WebSocketServer) setMinTx(t int64) error {
 
 func (w *WebSocketServer) AcceptBlock(_ context.Context, b *chain.ExecutedBlock) error {
 	if w.blockListeners.Len() > 0 {
-		bytes, err := b.Marshal()
-		if err != nil {
-			return err
-		}
+		bytes := b.GetBytes()
 		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
 		for _, conn := range inactiveConnection {
 			w.blockListeners.Remove(conn)

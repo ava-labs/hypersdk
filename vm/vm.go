@@ -28,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
@@ -113,7 +112,7 @@ type VM struct {
 	chain                   *chain.Chain
 	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
-	chainIndex              *chainindex.ChainIndex[*chain.ExecutionBlock]
+	chainIndex              *chainindex.ChainIndex[*chain.ExecutedBlock]
 	// TODO: switch and support DSMR block based state sync
 	SyncClient *statesync.Client[*chain.ExecutionBlock]
 
@@ -255,28 +254,33 @@ func (vm *VM) Initialize(
 	if err := vm.applyServiceOptions(); err != nil {
 		return nil, nil, nil, false, err
 	}
-	return vm.initLatestState(ctx)
-}
 
-func (vm *VM) initLatestState(ctx context.Context) (*chainindex.ChainIndex[*dsmr.Block], *dsmr.Block, *chain.OutputBlock, bool, error) {
+	// If the state is not ready (we are mid state sync), return false without attempting to load
+	// the latest block.
 	stateReady := !vm.SyncClient.MustStateSync()
-	var (
-		lastAcceptedDSMRBlock   *dsmr.Block
-		lastAcceptedOutputBlock *chain.OutputBlock
-		err                     error
-	)
-	if stateReady {
-		lastAcceptedOutputBlock, err = vm.initLastAccepted(ctx)
-		if err != nil {
-			return nil, nil, nil, false, err
-		}
-		lastAcceptedDSMRBlock, err = vm.dsmrChainIndex.GetBlockByHeight(ctx, lastAcceptedOutputBlock.GetHeight())
-		if err != nil {
-			return nil, nil, nil, false, err
-		}
+	if !stateReady {
+		return vm.dsmrChainIndex, nil, nil, false, nil
 	}
 
-	return vm.dsmrChainIndex, lastAcceptedDSMRBlock, lastAcceptedOutputBlock, stateReady, nil
+	// Otherwise, load the latest output/accepted block and return them
+	latestDSMRBlock, latestOutputBlock, err := vm.initLatestState(ctx)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	return vm.dsmrChainIndex, latestDSMRBlock, latestOutputBlock, true, nil
+}
+
+func (vm *VM) initLatestState(ctx context.Context) (*dsmr.Block, *chain.OutputBlock, error) {
+	lastAcceptedOutputBlock, err := vm.initLastAccepted(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	lastAcceptedDSMRBlock, err := vm.dsmrChainIndex.GetBlockByHeight(ctx, lastAcceptedOutputBlock.GetHeight())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return lastAcceptedDSMRBlock, lastAcceptedOutputBlock, nil
 }
 
 func (vm *VM) initMempool(ctx context.Context) {
@@ -353,17 +357,26 @@ func (vm *VM) initChain(ctx context.Context) error {
 		return nil
 	})
 
-	chainParser := chain.NewBlockParser(
-		vm.tracer,
-		vm.txParser,
-	)
-	chainIndex, err := initChainIndex[*chain.ExecutionBlock](vm.snowApp, vm.snowInput, chainParser, chainIndexNamespace)
+	chainIndex, err := initChainIndex[*chain.ExecutedBlock](vm.snowApp, vm.snowInput, chain.NewExecutedBlockParser(vm.txParser), chainIndexNamespace)
 	if err != nil {
 		return err
 	}
+	// requirements:
+	// chain index for validity window
+	// load latest block on init + state sync + load execution results
+	// switching to DSMR, there's less reason to defer state root within the block itself
+	// chain index > state height
+	// if state height == last indexed height, great
+	// if state height is less, load state (potentially write genesis), and re-execute up to chain index tip (we guarantee any other chain index is ahead)
+	// write block
+	// write state
+	//
+	// what's the easiest way to handle the chain index? maintain a single chain index that supports the validity window
+	// change ExecutedBlock to include ExecutionBlock instead of StatelessBlock
+
 	vm.chainIndex = chainIndex
-	chainIndexAdapter := validitywindow.NewChainIndexAdapter[*chain.ExecutionBlock, *chain.Transaction](
-		func(ctx context.Context, blkID ids.ID) (*chain.ExecutionBlock, error) {
+	chainIndexAdapter := validitywindow.NewChainIndexAdapter[*chain.ExecutedBlock, *chain.Transaction](
+		func(ctx context.Context, blkID ids.ID) (*chain.ExecutedBlock, error) {
 			_, span := vm.tracer.Start(ctx, "VM.ChainValidityWindow.GetExecutionBlock")
 			defer span.End()
 
@@ -484,7 +497,7 @@ func (vm *VM) applyServiceOptions() error {
 	executedBlockSub := event.Aggregate(blockSubs...)
 	outputBlockSub := event.Map(func(b *chain.OutputBlock) *chain.ExecutedBlock {
 		return &chain.ExecutedBlock{
-			Block:            b.StatelessBlock,
+			Block:            b.ExecutionBlock,
 			ExecutionResults: b.ExecutionResults,
 		}
 	}, executedBlockSub)
@@ -541,7 +554,6 @@ func initChainIndex[T chainindex.Block](
 }
 
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	// we no longer need the state root to be deferred
 	lastAcceptedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
 		return nil, fmt.Errorf("failed to load genesis block: %w", err)
@@ -577,66 +589,6 @@ func (vm *VM) extractStateHeight() (uint64, error) {
 		return 0, fmt.Errorf("failed to parse state height: %w", err)
 	}
 	return stateHeight, nil
-}
-
-func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
-	stateHeight, err := vm.extractStateHeight()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
-	}
-	lastIndexedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get last accepted height: %w", err)
-	}
-	if lastIndexedHeight != stateHeight && lastIndexedHeight != stateHeight+1 {
-		return nil, fmt.Errorf("cannot extract latest output block from invalid state with last indexed height %d and state height %d", lastIndexedHeight, stateHeight)
-	}
-
-	// If the heights match exactly, we must have stored the last execution results
-	if lastIndexedHeight == stateHeight {
-		resultBytes, err := vm.executionResultsDB.Get([]byte{lastResultKey})
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch last execution results: %w", err)
-		}
-		if len(resultBytes) < consts.Uint64Len {
-			return nil, fmt.Errorf("invalid execution results length: %d", len(resultBytes))
-		}
-		executionResultsHeight, err := database.ParseUInt64(resultBytes[len(resultBytes)-consts.Uint64Len:])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse execution results height: %w", err)
-		}
-		if executionResultsHeight != stateHeight {
-			return nil, fmt.Errorf("execution results height %d does not match state height %d", executionResultsHeight, stateHeight)
-		}
-		blk, err := vm.chainIndex.GetBlockByHeight(ctx, stateHeight)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
-		}
-		executionResults, err := chain.ParseExecutionResults(resultBytes[:len(resultBytes)-consts.Uint64Len])
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal execution results for last accepted block: %w", err)
-		}
-		return &chain.OutputBlock{
-			ExecutionBlock:   blk,
-			View:             vm.stateDB,
-			ExecutionResults: executionResults,
-		}, nil
-	}
-
-	// The last indexedHeight must be stateHeight+1, so we can execute the last block to populate
-	// execution results
-	blk, err := vm.chainIndex.GetBlockByHeight(ctx, stateHeight+1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get block at latest state height %d: %w", stateHeight, err)
-	}
-	outputBlock, err := vm.chain.Execute(ctx, vm.stateDB, blk, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute block at latest state height %d: %w", stateHeight, err)
-	}
-	if err := vm.acceptChainBlock(ctx, outputBlock); err != nil {
-		return nil, fmt.Errorf("failed to accept latest chain block: %w", err)
-	}
-	return outputBlock, nil
 }
 
 // initGenesisAsLastAccepted writes the genesis block state diff to the stateDB, indexes the genesis block,
@@ -690,7 +642,8 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genesis block: %w", err)
 	}
-	if err := vm.chainIndex.UpdateLastAccepted(ctx, genesisExecutionBlk); err != nil {
+	genesisExecutedBlock := chain.NewExecutedBlock(genesisExecutionBlk, nil /* no txs in genesis => no results */, feeManager.UnitPrices(), fees.Dimensions{})
+	if err := vm.chainIndex.UpdateLastAccepted(ctx, genesisExecutedBlock); err != nil {
 		return nil, fmt.Errorf("failed to write genesis block: %w", err)
 	}
 

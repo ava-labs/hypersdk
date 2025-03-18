@@ -22,12 +22,15 @@ import (
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
+
+var _ validitywindow.ExecutionBlock[*Transaction] = (*ExecutionBlock)(nil)
 
 type ExecutionBlock struct {
 	*StatelessBlock
