@@ -31,7 +31,7 @@ fi
 # - Configure constants.sh to determine the full avalanche SHA if the version is not a tag.
 # - Determination of the full SHA requires querying the github API and is disabled by default
 #   to avoid unnecessary network calls.
-# - A full SHA is required for versioning a github custom action like the run-monitored-tmpnet-cmd
+# - A full SHA is required for versioning a github custom action e.g. run-monitored-tmpnet-cmd
 SET_FULL_AVALANCHE_VERSION=1
 
 # Discover AVALANCHE_VERSION and FULL_AVALANCHE_VERSION
