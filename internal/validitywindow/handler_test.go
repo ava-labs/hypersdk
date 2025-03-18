@@ -21,7 +21,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 		minTimestamp   int64
 		expectErr      bool
 		expectedBlocks int
-		controlChannel chan struct{} // control the number of returned blocks
+		blkControl     chan struct{} // control the number of returned blocks
 	}{
 		{
 			name: "happy path - fetch all blocks",
@@ -74,7 +74,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			blockHeight:    9,
 			minTimestamp:   3,
 			expectedBlocks: 3,                      // Expect to retrieve 3 blocks before timeout
-			controlChannel: make(chan struct{}, 3), // Limits to 3 retrieval attempts
+			blkControl:     make(chan struct{}, 3), // Limits to 3 retrieval attempts
 			expectErr:      true,                   // Expect timeout error after the buffer is full
 		},
 	}
@@ -87,8 +87,8 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			blocks := tt.setupBlocks()
 
 			retriever := newTestBlockRetriever(withBlocks(blocks))
-			if tt.controlChannel != nil {
-				retriever = newTestBlockRetriever(withBlocks(blocks), withBufferedReads(tt.controlChannel))
+			if tt.blkControl != nil {
+				retriever = newTestBlockRetriever(withBlocks(blocks), withBlockControl(tt.blkControl))
 			}
 
 			handler := NewBlockFetcherHandler(retriever)
@@ -167,9 +167,9 @@ func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 }
 
 type optionsImpl struct {
-	nodeID      ids.NodeID
-	blocks      map[uint64]ExecutionBlock[container]
-	bufferReads chan struct{}
+	nodeID       ids.NodeID
+	blocks       map[uint64]ExecutionBlock[container]
+	blockControl chan struct{}
 }
 
 type option interface {
@@ -198,24 +198,24 @@ func withBlocks(blocks map[uint64]ExecutionBlock[container]) option {
 	return blocksOption(blocks)
 }
 
-type bufferedReadsOption chan struct{}
+type blockControl chan struct{}
 
-func (b bufferedReadsOption) apply(opts *optionsImpl) {
-	opts.bufferReads = b
+func (b blockControl) apply(opts *optionsImpl) {
+	opts.blockControl = b
 }
 
-func withBufferedReads(buffer chan struct{}) option {
+func withBlockControl(buffer chan struct{}) option {
 	if buffer != nil {
-		return bufferedReadsOption(buffer)
+		return blockControl(buffer)
 	}
 
 	return nil
 }
 
 func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
-	if r.options.bufferReads != nil {
+	if r.options.blockControl != nil {
 		select {
-		case r.options.bufferReads <- struct{}{}:
+		case r.options.blockControl <- struct{}{}:
 		case <-ctx.Done():
 			// Context canceled, return error
 			return nil, ctx.Err()
