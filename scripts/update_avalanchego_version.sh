@@ -16,11 +16,14 @@ VERSION="${1:-}"
 
 # Function to update version in go.mod and run go get
 update_avalanchego_mod_version() {
-    local path=$1
-    local version=$2
+  local path=$1
+  local version=$2
 
-    echo "Ensuring AvalancheGo version $version in $path/go.mod"
-    (cd "$path" && go get "github.com/ava-labs/avalanchego@$version" && go mod tidy)
+  echo "Ensuring AvalancheGo version $version in $path/go.mod"
+  pushd "$path" > /dev/null
+    go get "github.com/ava-labs/avalanchego@$version"
+    go mod tidy
+  popd > /dev/null
 }
 
 if [[ -n "${VERSION}" ]]; then
