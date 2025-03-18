@@ -55,6 +55,10 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
+		if e2e.GetEnv(tc).GetNetwork().DefaultRuntimeConfig.KubeRuntimeConfig != nil {
+			ginkgo.Skip("The stable network identity test is not relevant for a network running in kube")
+		}
+
 		hardcodedHostPort := "http://localhost:9650"
 		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + networkConfig.Name()
 
@@ -66,8 +70,9 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("GetNetwork", func() {
-		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
-		baseURIs := getE2EBaseURIs(tc)
+		network := e2e.GetEnv(tc).GetNetwork()
+		expectedBlockchainID := network.GetSubnet(networkConfig.Name()).Chains[0].ChainID
+		baseURIs := getE2EBaseURIs(tc, network)
 		baseURI := baseURIs[0]
 		client := info.NewClient(baseURI)
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
@@ -151,7 +156,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		)
 		ginkgo.By("Start a new node to bootstrap", func() {
 			bootstrapNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-			bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
+			bootstrapNodeURI = getBlockchainURI(tc, bootstrapNode, blockchainID)
 			uris = append(uris, bootstrapNodeURI)
 		})
 		ginkgo.By("Accept a transaction after bootstrapping", func() {
@@ -159,8 +164,8 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("Restart the node", func() {
-			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), tc.Log(), bootstrapNode))
-			bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
+			require.NoError(bootstrapNode.Restart(tc.DefaultContext()))
+			bootstrapNodeURI = getBlockchainURI(tc, bootstrapNode, blockchainID)
 			uris[len(uris)-1] = bootstrapNodeURI
 		})
 		ginkgo.By("Generate > StateSyncMinBlocks=128", func() {
@@ -172,7 +177,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 		)
 		ginkgo.By("Start a new node to state sync", func() {
 			syncNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-			syncNodeURI = formatURI(syncNode.URI, blockchainID)
+			syncNodeURI = getBlockchainURI(tc, syncNode, blockchainID)
 			uris = append(uris, syncNodeURI)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
@@ -197,11 +202,11 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			txWorkload.GenerateBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, 32)
 		})
 		ginkgo.By("Resume the node", func() {
-			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), tc.Log(), syncNode))
+			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), syncNode))
 			utils.Outf("Waiting for sync node to restart")
-			require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
+			require.NoError(tmpnet.WaitForHealthyNode(tc.DefaultContext(), tc.Log(), syncNode))
 
-			syncNodeURI = formatURI(syncNode.URI, blockchainID)
+			syncNodeURI = getBlockchainURI(tc, syncNode, blockchainID)
 			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
 
 			c := jsonrpc.NewJSONRPCClient(syncNodeURI)
@@ -232,7 +237,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", ginkgo.Serial, func() {
 			time.Sleep(5 * time.Second)
 
 			syncConcurrentNode := e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-			syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
+			syncConcurrentNodeURI := getBlockchainURI(tc, syncConcurrentNode, blockchainID)
 			uris = append(uris, syncConcurrentNodeURI)
 			c := jsonrpc.NewJSONRPCClient(syncConcurrentNodeURI)
 			_, _, _, err := c.Network(tc.DefaultContext())
@@ -258,23 +263,35 @@ var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 })
 
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
-	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()
-	uris := make([]string, 0, len(nodeURIs))
-	for _, nodeURI := range nodeURIs {
-		uris = append(uris, formatURI(nodeURI.URI, blockchainID))
-	}
-	return uris
+	network := e2e.GetEnv(tc).GetNetwork()
+	return formatURIs(getE2EBaseURIs(tc, network), blockchainID)
 }
 
-func getE2EBaseURIs(tc tests.TestContext) []string {
-	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()
-	uris := make([]string, 0, len(nodeURIs))
-	for _, nodeURI := range nodeURIs {
-		uris = append(uris, nodeURI.URI)
+func getE2EBaseURIs(tc tests.TestContext, network *tmpnet.Network) []string {
+	uris := make([]string, 0, len(network.Nodes))
+	for _, node := range network.Nodes {
+		uri, cancel, err := node.GetLocalURI(tc.DefaultContext())
+		require.NoError(tc, err)
+		ginkgo.DeferCleanup(cancel)
+		uris = append(uris, uri)
 	}
 	return uris
 }
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
+}
+
+func formatURIs(uris []string, blockchainID ids.ID) []string {
+	for i := range uris {
+		uris[i] = formatURI(uris[i], blockchainID)
+	}
+	return uris
+}
+
+func getBlockchainURI(tc tests.TestContext, node *tmpnet.Node, blockchainID ids.ID) string {
+	uri, cancel, err := node.GetLocalURI(tc.DefaultContext())
+	require.NoError(tc, err)
+	ginkgo.DeferCleanup(cancel)
+	return formatURI(uri, blockchainID)
 }
