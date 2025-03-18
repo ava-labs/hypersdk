@@ -38,7 +38,7 @@ type BlockRetriever[T HandlerBlock] interface {
 }
 
 // BlockFetcherHandler handles incoming block fetch requests with a time limit
-// Each request returns blocks in descending nextHeight order until:
+// Each request returns blocks in descending nextHeight sampleOrder until:
 // - maxProcessingDuration is reached
 // - minTimestamp is reached
 type BlockFetcherHandler[T HandlerBlock] struct {

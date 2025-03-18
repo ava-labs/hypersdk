@@ -10,28 +10,27 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
-		name          string
-		setupBlocks   func() map[uint64]ExecutionBlock[container]
-		blockHeight   uint64
-		minTimestamp  int64
-		expectErr     bool
-		wantBlocks    int
-		controlBuffer func() chan struct{}
+		name           string
+		setupBlocks    func() map[uint64]ExecutionBlock[container]
+		blockHeight    uint64
+		minTimestamp   int64
+		expectErr      bool
+		expectedBlocks int
+		controlChannel chan struct{} // control the number of returned blocks
 	}{
 		{
 			name: "happy path - fetch all blocks",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				return generateBlockChain(10, 3)
 			},
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   8,
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 8,
 		},
 		{
 			name: "partial response",
@@ -40,17 +39,17 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				delete(blocks, uint64(7))
 				return blocks
 			},
-			blockHeight:  9,
-			minTimestamp: 0,
-			wantBlocks:   2,
+			blockHeight:    9,
+			minTimestamp:   0,
+			expectedBlocks: 2,
 		},
 		{
-			name:         "no blocks - should error",
-			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return nil },
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   0,
-			expectErr:    true,
+			name:           "no blocks - should error",
+			setupBlocks:    func() map[uint64]ExecutionBlock[container] { return nil },
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 0,
+			expectErr:      true,
 		},
 		{
 			name: "should error if block does not exist",
@@ -62,16 +61,21 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			expectErr:    true,
 		},
 		{
+			// Tests timeout behavior by allowing exactly 3 block retrieval attempts before blocking.
+			// The buffer capacity of 3 ensures the 4th retrieval attempt will block indefinitely,
+			// triggering a context timeout error while still returning the first 3 blocks.
 			name: "should timeout",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				return generateBlockChain(10, 3)
+				// Generate one more block than buffer capacity (4 vs 3)
+				// This forces a 4th retrieval that will block indefinitely,
+				// triggering context timeout in GetBlockHeight's select
+				return generateBlockChain(4, 3)
 			},
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   1,
-			controlBuffer: func() chan struct{} {
-				return make(chan struct{}, 1)
-			},
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 3,                      // Expect to retrieve 3 blocks before timeout
+			controlChannel: make(chan struct{}, 3), // Limits to 3 retrieval attempts
+			expectErr:      true,                   // Expect timeout error after the buffer is full
 		},
 	}
 
@@ -83,8 +87,8 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			blocks := tt.setupBlocks()
 
 			retriever := newTestBlockRetriever(withBlocks(blocks))
-			if tt.controlBuffer != nil {
-				retriever = newTestBlockRetriever(withBlocks(blocks), withBufferedReads(tt.controlBuffer()))
+			if tt.controlChannel != nil {
+				retriever = newTestBlockRetriever(withBlocks(blocks), withBufferedReads(tt.controlChannel))
 			}
 
 			handler := NewBlockFetcherHandler(retriever)
@@ -100,7 +104,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				r.Error(err)
 			} else {
 				r.NoError(err)
-				r.Len(fetchedBlocks, tt.wantBlocks)
+				r.Len(fetchedBlocks, tt.expectedBlocks)
 			}
 
 			for _, blk := range fetchedBlocks {
@@ -214,13 +218,13 @@ func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight u
 		case r.options.bufferReads <- struct{}{}:
 		case <-ctx.Done():
 			// Context canceled, return error
-			return utils.Zero[ExecutionBlock[container]](), ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 
 	block, ok := r.options.blocks[blockHeight]
 	if !ok {
-		return utils.Zero[ExecutionBlock[container]](), fmt.Errorf("%s: block height %d not found", r.options.nodeID, blockHeight)
+		return nil, fmt.Errorf("%s: block height %d not found", r.options.nodeID, blockHeight)
 	}
 	return block, nil
 }
