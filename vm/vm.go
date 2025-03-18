@@ -809,9 +809,27 @@ func (vm *VM) acceptChainBlock(ctx context.Context, block *chain.OutputBlock) er
 }
 
 func (vm *VM) AcceptBlock(ctx context.Context, acceptedParent *chain.OutputBlock, block *dsmr.Block) (*chain.OutputBlock, error) {
-	if err := vm.dsmrNode.AcceptBlock(ctx, block); err != nil {
+	assembledBlock, err := vm.dsmrNode.AcceptBlock(ctx, block)
+	if err != nil {
 		return nil, err
 	}
+
+	parentRoot, err := acceptedParent.View.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	blk, err := chain.NewStatelessBlock(
+		acceptedParent.GetID(),
+		assembledBlock.Block.GetTimestamp(),
+		acceptedParent.Hght+1,
+		nil,
+		parentRoot,
+		assembledBlock.Block.BlockContext,
+	)
+	if err != nil {
+		return nil, err
+	}
+	_ = blk
 
 	// TODO: Assemble + execute block
 	return nil, nil

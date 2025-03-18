@@ -281,20 +281,19 @@ func (n *Node) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalValida
 func (n *Node) AcceptBlock(
 	ctx context.Context,
 	block *Block,
-) error {
+) (*AssembledBlock, error) {
 	acceptedChunks, err := n.gatherAcceptedChunks(ctx, block.Chunks)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	n.chunkPool.updateHead(block)
 	if err := n.pendingChunks.setMin(block.Timestamp, acceptedChunks); err != nil {
-		return err
+		return nil, err
 	}
 	n.chunkValidityWindow.Accept(newEChunkBlock(block))
 
-	_ = acceptedChunks // TODO: assemble + execute block
-	return nil
+	return NewAssembledBlock(block, acceptedChunks), nil
 }
 
 func (n *Node) gatherAcceptedChunks(

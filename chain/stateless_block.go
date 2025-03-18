@@ -64,7 +64,7 @@ func NewStatelessBlock(
 	timestamp int64,
 	height uint64,
 	txs []*Transaction,
-	stateRoot ids.ID,
+	parentStateRoot ids.ID,
 	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	block := &StatelessBlock{
@@ -73,7 +73,7 @@ func NewStatelessBlock(
 			Tmstmp:       timestamp,
 			Hght:         height,
 			Txs:          txs,
-			StateRoot:    stateRoot,
+			StateRoot:    parentStateRoot,
 			BlockContext: blockContext,
 		},
 	}
