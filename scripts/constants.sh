@@ -21,22 +21,6 @@ if [[ -z ${AVALANCHE_VERSION:-} ]]; then
 
     # The first 8 chars of the hash is used as the tag of avalanchego images
     AVALANCHE_VERSION="${MODULE_HASH::8}"
-
-    # The full SHA is required for versioning the run-monitored-tmpnet-cmd custom
-    # action. It is only done if explicitly requested to avoid unnecessary API
-    # calls.
-    if [[ -n "${SET_FULL_AVALANCHE_VERSION:-}" ]]; then
-      CURL_ARGS=(curl -s)
-      if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        # Using an auth token avoids being rate limited when run in CI
-        CURL_ARGS+=(-H "Authorization: token ${GITHUB_TOKEN}")
-      fi
-      CURL_URL="https://api.github.com/repos/ava-labs/avalanchego/commits/${MODULE_HASH}"
-      FULL_AVALANCHE_VERSION="$("${CURL_ARGS[@]}" "${CURL_URL}" | grep '"sha":' | head -n1 | cut -d'"' -f4)"
-    fi
-  elif [[ -n "${SET_FULL_AVALANCHE_VERSION:-}" ]]; then
-    # Assume AVALANCHEGO_VERSION is a tag.
-    FULL_AVALANCHE_VERSION="${AVALANCHE_VERSION}"
   fi
 fi
 

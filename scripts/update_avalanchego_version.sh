@@ -30,17 +30,20 @@ if [[ -n "${VERSION}" ]]; then
   update_avalanchego_mod_version "$PWD" "${VERSION}"
 fi
 
-# - Configure constants.sh to determine the full avalanche SHA if the version is not a tag.
-# - Determination of the full SHA requires querying the github API and is disabled by default
-#   to avoid unnecessary network calls.
-# - A full SHA is required for versioning a github custom action e.g. run-monitored-tmpnet-cmd
-SET_FULL_AVALANCHE_VERSION=1
-
-# Discover AVALANCHE_VERSION and FULL_AVALANCHE_VERSION
+# Discover AVALANCHE_VERSION
 . scripts/constants.sh
 
 # Update AvalancheGo version in examples/morpheusvm
 update_avalanchego_mod_version "$PWD/examples/morpheusvm" "$AVALANCHE_VERSION"
+
+# The full SHA is required for versioning custom actions.
+CURL_ARGS=(curl -s)
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  # Using an auth token avoids being rate limited when run in CI
+  CURL_ARGS+=(-H "Authorization: token ${GITHUB_TOKEN}")
+fi
+CURL_URL="https://api.github.com/repos/ava-labs/avalanchego/commits/${AVALANCHE_VERSION}"
+FULL_AVALANCHE_VERSION="$("${CURL_ARGS[@]}" "${CURL_URL}" | grep '"sha":' | head -n1 | cut -d'"' -f4)"
 
 # Ensure the custom action version matches the avalanche version
 WORKFLOW_PATH=".github/workflows/hypersdk-ci.yml"
