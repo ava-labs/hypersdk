@@ -10,8 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-
-	"github.com/ava-labs/hypersdk/internal/typedclient"
 )
 
 const (
@@ -23,24 +21,28 @@ type BlockParser[T Block] interface {
 	ParseBlock(ctx context.Context, blockBytes []byte) (T, error)
 }
 
+type NetworkBlockFetcher interface {
+	FetchBlocksFromPeers(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error)
+}
+
 // BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
 // blocks, it ensures we have at least min validity window of blocks so we can transition from state sync to normal operation faster
 type BlockFetcherClient[B Block] struct {
-	parser     BlockParser[B]
-	sampler    p2p.NodeSampler
-	syncClient *typedclient.SyncTypedClient[*BlockFetchRequest, *BlockFetchResponse, []byte]
-	lastBlock  Block
+	parser          BlockParser[B]
+	p2pBlockFetcher NetworkBlockFetcher
+	lastBlock       Block
+	sampler         p2p.NodeSampler
 }
 
 func NewBlockFetcherClient[B Block](
-	baseClient *p2p.Client,
+	p2pBlockFetcher NetworkBlockFetcher,
 	parser BlockParser[B],
 	sampler p2p.NodeSampler,
 ) *BlockFetcherClient[B] {
 	return &BlockFetcherClient[B]{
-		syncClient: typedclient.NewSyncTypedClient(baseClient, &blockFetcherMarshaler{}),
-		parser:     parser,
-		sampler:    sampler,
+		p2pBlockFetcher: p2pBlockFetcher,
+		parser:          parser,
+		sampler:         sampler,
 	}
 }
 
@@ -78,7 +80,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 			}
 
 			reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-			response, err := c.syncClient.SyncAppRequest(reqCtx, nodeID, req)
+			response, err := c.p2pBlockFetcher.FetchBlocksFromPeers(reqCtx, nodeID, req)
 			cancel()
 
 			if err != nil {
