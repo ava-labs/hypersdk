@@ -24,7 +24,6 @@ update_avalanchego_mod_version() {
 }
 
 if [[ -n "${VERSION}" ]]; then
-  echo "Ensuring AvalancheGo version to $VERSION in go.mod"
   update_avalanchego_mod_version "$PWD" "${VERSION}"
 fi
 
@@ -43,12 +42,12 @@ update_avalanchego_mod_version "$PWD/examples/morpheusvm" "$AVALANCHE_VERSION"
 # Ensure the custom action version matches the avalanche version
 WORKFLOW_PATH=".github/workflows/hypersdk-ci.yml"
 for custom_action in "run-monitored-tmpnet-cmd" "install-nix"; do
-  echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} in ${WORKFLOW_PATH} for ${custom_action}"
+  echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${custom_action} custom action in ${WORKFLOW_PATH} "
   sed -i "s|\(uses: ava-labs/avalanchego/.github/actions/${custom_action}\)@.*|\1@${FULL_AVALANCHE_VERSION}|g" "${WORKFLOW_PATH}"
 done
 
 # Ensure the flake version is the same as the avalanche version
 FLAKE_DEP="github:ava-labs/avalanchego"
 FLAKE_FILE=flake.nix
-echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${FLAKE_DEP} in ${FLAKE_FILE}"
+echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${FLAKE_DEP} input of ${FLAKE_FILE}"
 sed -i "s|\(${FLAKE_DEP}?ref=\).*|\1${FULL_AVALANCHE_VERSION}\";|g" "${FLAKE_FILE}"
