@@ -68,13 +68,15 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	// Start fetching from the tip
 	tip := validChain[len(validChain)-1]
 
-	var minTS atomic.Int64
+	var (
+		minTS             atomic.Int64
+		numExpectedBlocks = 7
+	)
 	minTS.Store(3)
-
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container], 7)
 
-	r.NoError(test.collectBlocksWithTimeout(ctx, resultChan, receivedBlocks))
+	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numExpectedBlocks)
+	r.NoError(err)
 
 	// Retrieve blocks from height 8 down to 2 (inclusive)
 	//nolint:dupword
@@ -97,7 +99,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	// we need the boundary block (block 2, the first block whose
 	// timestamp is strictly less than our minimum) to properly
 	// verify the entire validity window.
-	r.Len(receivedBlocks, 7, "Should receive 7 blocks")
+	r.Len(receivedBlocks, numExpectedBlocks, "Should receive 7 blocks")
 	for _, block := range validChain[2:9] {
 		received, ok := receivedBlocks[block.GetHeight()]
 		r.True(ok, "Block at height %d should be received", block.GetHeight())
@@ -128,7 +130,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 				8: chain[8],
 				9: chain[9],
 			},
-			blkControlChannel: make(chan struct{}, numReceivedBlocks), // blocks from 8 to 4
+			blkControl: make(chan struct{}, numReceivedBlocks), // blocks from 8 to 4
 		},
 		{
 			sampleOrder: 2,
@@ -144,7 +146,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 				8: chain[8],
 				9: chain[9],
 			},
-			blkControlChannel: make(chan struct{}),
+			blkControl: make(chan struct{}),
 		},
 	}
 
@@ -156,16 +158,8 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 
 	tip := chain[9]
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container], numReceivedBlocks)
 
-	go func() {
-		for blk := range resultChan {
-			height := blk.GetHeight()
-			receivedBlocks[height] = blk
-		}
-	}()
-
-	err := test.collectBlocksWithTimeout(ctx, resultChan, receivedBlocks)
+	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numReceivedBlocks)
 	// Due to the malicious node, we receive blocks 8-4 instead of 8-3.
 	// The timeout error forces a partial but valid response.
 	r.ErrorIs(err, errTimeout)
@@ -226,7 +220,10 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 
 	tip := validChain[len(validChain)-1]
 
-	var minTimestamp atomic.Int64
+	var (
+		minTimestamp      atomic.Int64
+		numExpectedBlocks = 5
+	)
 	minTimestamp.Store(3)
 
 	// Signal timestamp update
@@ -241,7 +238,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	}()
 
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container], 5)
+	receivedBlocks := make(map[uint64]ExecutionBlock[container], numExpectedBlocks)
 
 	success := make(chan struct{})
 	go func() {
@@ -262,7 +259,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 
 	select {
 	case <-success:
-		r.Len(receivedBlocks, 5)
+		r.Len(receivedBlocks, numExpectedBlocks)
 		for _, block := range validChain[4:9] {
 			_, ok := receivedBlocks[block.GetHeight()]
 			r.True(ok)
@@ -288,12 +285,12 @@ func generateTestChain(n int) []ExecutionBlock[container] {
 
 type nodeSetup struct {
 	nodeID ids.NodeID
-	// blkControlChannel is controlling how many block retrieval operations can occur.
+	// blkControl is controlling how many block retrieval operations can occur.
 	// With a buffer of N, exactly N blocks will be retrieved before blocking indefinitely,
 	// allowing tests to create predictable timeout scenarios with partial results.
-	blkControlChannel chan struct{}
-	blocks            map[uint64]ExecutionBlock[container] // in-memory blocks a node might have
-	sampleOrder       uint8                                // Order in which this node should be sampled
+	blkControl  chan struct{}
+	blocks      map[uint64]ExecutionBlock[container] // in-memory blocks a node might have
+	sampleOrder uint8                                // Order in which this node should be sampled
 }
 
 type testP2PBlockFetcher struct {
@@ -338,8 +335,8 @@ func newTestEnvironment(nodeScenarios []nodeSetup) *testEnvironment {
 		opts := make([]option, 3)
 		opts = append(opts, withBlocks(scenario.blocks), withNodeID(nodeID))
 
-		if scenario.blkControlChannel != nil {
-			opts = append(opts, withBufferedReads(scenario.blkControlChannel))
+		if scenario.blkControl != nil {
+			opts = append(opts, withBlockControl(scenario.blkControl))
 		}
 
 		blkRetriever := newTestBlockRetriever(opts...)
@@ -353,25 +350,42 @@ func newTestEnvironment(nodeScenarios []nodeSetup) *testEnvironment {
 	}
 }
 
-func (t *testEnvironment) collectBlocksWithTimeout(ctx context.Context, resultChan <-chan ExecutionBlock[container], receivedBlocks map[uint64]ExecutionBlock[container]) error {
-	success := make(chan struct{})
+func (t *testEnvironment) collectBlocksWithTimeout(ctx context.Context, resultChan <-chan ExecutionBlock[container], numRcvBlks int) (map[uint64]ExecutionBlock[container], error) {
+	receivedBlocks := make(map[uint64]ExecutionBlock[container], numRcvBlks)
+	done := make(chan struct{})
 
+	innerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go func() {
-		defer close(success)
-		for blk := range resultChan {
-			height := blk.GetHeight()
-			receivedBlocks[height] = blk
+		defer close(done)
+		for {
+			select {
+			case blk, ok := <-resultChan:
+				if !ok {
+					return
+				}
+				receivedBlocks[blk.GetHeight()] = blk
+			case <-innerCtx.Done():
+				return
+			}
 		}
 	}()
 
+	var err error
 	select {
-	case <-success:
-		return nil
-	case err := <-t.p2pBlockFetcher.err:
-		return err
+	case <-done:
+		return receivedBlocks, nil
+	case err = <-t.p2pBlockFetcher.err:
+		cancel()
 	case <-ctx.Done():
-		return ctx.Err()
+		cancel()
+		err = ctx.Err()
 	}
+
+	<-done
+
+	// We should allow partial responses
+	return receivedBlocks, err
 }
 
 // === BlockParser ===
