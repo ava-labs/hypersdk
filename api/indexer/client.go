@@ -5,10 +5,14 @@ package indexer
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/gorilla/rpc/v2/json2"
 
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
@@ -53,8 +57,8 @@ func (c *Client) GetBlockByHeight(ctx context.Context, height uint64, parser cha
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
-		"getBlockByHeight",
-		&GetBlockByHeightRequest{Height: height},
+		"getBlock",
+		&GetBlockRequest{BlockNumber: height},
 		&resp,
 	)
 	if err != nil {
@@ -67,8 +71,8 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	resp := GetBlockClientResponse{}
 	err := c.requester.SendRequest(
 		ctx,
-		"getLatestBlock",
-		nil,
+		"getBlock",
+		&GetBlockRequest{BlockNumber: math.MaxUint64},
 		&resp,
 	)
 	if err != nil {
@@ -77,7 +81,7 @@ func (c *Client) GetLatestBlock(ctx context.Context, parser chain.Parser) (*chai
 	return chain.UnmarshalExecutedBlock(resp.BlockBytes, parser)
 }
 
-func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, bool, error) {
+func (c *Client) GetTxResults(ctx context.Context, txID ids.ID) (GetTxResponse, bool, error) {
 	resp := GetTxResponse{}
 	err := c.requester.SendRequest(
 		ctx,
@@ -94,20 +98,58 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID) (GetTxResponse, bool, e
 		return GetTxResponse{}, false, err
 	}
 
+	resp.Result.CalculateCanotoCache()
 	return resp, true, nil
+}
+
+func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (GetTxResponse, *chain.Transaction, bool, error) {
+	resp := GetTxResponse{}
+	err := c.requester.SendRequest(
+		ctx,
+		"getTx",
+		&GetTxRequest{TxID: txID},
+		&resp,
+	)
+	switch {
+	// We use string parsing here because the JSON-RPC library we use may not
+	// allows us to perform errors.Is.
+	case err != nil && strings.Contains(err.Error(), ErrTxNotFound.Error()):
+		return GetTxResponse{}, nil, false, nil
+	case err != nil:
+		return GetTxResponse{}, nil, false, err
+	}
+
+	var tx *chain.Transaction
+	tx, err = chain.UnmarshalTx(resp.TxBytes, parser)
+	if err != nil {
+		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
+	}
+
+	resp.Result.CalculateCanotoCache()
+	return resp, tx, true, nil
 }
 
 func (c *Client) WaitForTransaction(ctx context.Context, txCheckInterval time.Duration, txID ids.ID) (bool, uint64, error) {
 	var success bool
 	var fee uint64
 	if err := jsonrpc.Wait(ctx, txCheckInterval, func(ctx context.Context) (bool, error) {
-		response, found, err := c.GetTx(ctx, txID)
+		resp := GetTxResponse{}
+		err := c.requester.SendRequest(
+			ctx,
+			"getTx",
+			&GetTxRequest{TxID: txID},
+			&resp,
+		)
+		var jsonErr *json2.Error
+		if errors.As(err, &jsonErr) && jsonErr.Message == ErrTxNotFound.Error() {
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
-		success = response.Success
-		fee = response.Fee
-		return found, nil
+		success = resp.Result.Success
+		fee = resp.Result.Fee
+		return true, nil
 	}); err != nil {
 		return false, 0, err
 	}
