@@ -9,12 +9,12 @@
         "narHash": "sha256-osqd4+o3Aj5wm3xZY9MsEhTxf4uZzg4KVmkluiLesMU=",
         "owner": "ava-labs",
         "repo": "avalanchego",
-        "rev": "6626b41b013f2365b96bd66dfc8499ee4861d25b",
+        "rev": "8551e1d96221c8a5c2c034c2bad0cd571610ad35",
         "type": "github"
       },
       "original": {
         "owner": "ava-labs",
-        "ref": "6626b41b013f2365b96bd66dfc8499ee4861d25b",
+        "ref": "8551e1d96221c8a5c2c034c2bad0cd571610ad35",
         "repo": "avalanchego",
         "type": "github"
       }
