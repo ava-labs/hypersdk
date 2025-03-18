@@ -361,18 +361,6 @@ func (vm *VM) initChain(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// requirements:
-	// chain index for validity window
-	// load latest block on init + state sync + load execution results
-	// switching to DSMR, there's less reason to defer state root within the block itself
-	// chain index > state height
-	// if state height == last indexed height, great
-	// if state height is less, load state (potentially write genesis), and re-execute up to chain index tip (we guarantee any other chain index is ahead)
-	// write block
-	// write state
-	//
-	// what's the easiest way to handle the chain index? maintain a single chain index that supports the validity window
-	// change ExecutedBlock to include ExecutionBlock instead of StatelessBlock
 
 	vm.chainIndex = chainIndex
 	chainIndexAdapter := validitywindow.NewChainIndexAdapter[*chain.ExecutedBlock, *chain.Transaction](
@@ -553,42 +541,71 @@ func initChainIndex[T chainindex.Block](
 	return chainIndex, nil
 }
 
+// initLastAccepted returns the latest output block that has been accepted
+//
+// Note: initLastAccepted will re-process blocks forward from the latest state height
+// to the latest chain index height.
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
-	lastAcceptedHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
-	if err != nil && err != database.ErrNotFound {
-		return nil, fmt.Errorf("failed to load genesis block: %w", err)
+	stateHeight, populated, err := vm.extractStateHeight()
+	if err != nil {
+		return nil, err
 	}
-	if err == database.ErrNotFound {
+	// If the height is not present, we must not have written the genesis state
+	// so we write and return the genesis state as the latest accepted block.
+	// XXX: after MerkleDB switches to amortizing writes, it's possible "writing"
+	// the initial genesis state will be deferred and held in-memory, such that we
+	// execute N blocks and have not written any state to disk when we restart.
+	// Depending on how MerkleDB handles this, we may want to re-process blocks.
+	if !populated {
 		return vm.initGenesisAsLastAccepted(ctx)
 	}
-	if lastAcceptedHeight == 0 {
-		chainGenesisBlock, err := vm.chainIndex.GetBlockByHeight(ctx, 0)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch genesis block: %w", err)
-		}
-		chainOuputGenesisBlock := &chain.OutputBlock{
-			ExecutionBlock:   chainGenesisBlock,
-			View:             vm.stateDB,
-			ExecutionResults: &chain.ExecutionResults{},
-		}
-		return chainOuputGenesisBlock, nil
+
+	// From the latest output block matching the current state height
+	blk, err := vm.chainIndex.GetBlockByHeight(ctx, stateHeight)
+	if err != nil {
+		return nil, err // Failure to fetch block matching the state is fatal
+	}
+	parentBlock := &chain.OutputBlock{
+		ExecutionBlock:   blk.Block,
+		View:             vm.stateDB,
+		ExecutionResults: blk.ExecutionResults,
 	}
 
-	// If the chain index is initialized, return the output block that matches with the latest
-	// state.
-	return vm.extractLatestOutputBlock(ctx)
+	// Fetch the latest height of any indexed block and re-process forward
+	// up to that block.
+	latestHeight, err := vm.chainIndex.GetLastAcceptedHeight(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for blk.GetHeight() < latestHeight {
+		nextBlk, err := vm.chainIndex.GetBlockByHeight(ctx, blk.GetHeight()+1)
+		if err != nil {
+			return nil, err
+		}
+
+		parentBlock, err = vm.executeBlock(ctx, parentBlock, nextBlk.Block)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parentBlock, nil
 }
 
-func (vm *VM) extractStateHeight() (uint64, error) {
+// extractStateHeight retturns the height reported by the current state and whether
+// the height has been populated (should always be populated after writing the genesis state)
+func (vm *VM) extractStateHeight() (uint64, bool, error) {
 	heightBytes, err := vm.stateDB.Get(chain.HeightKey(vm.metadataManager.HeightPrefix()))
+	if err == database.ErrNotFound {
+		return 0, false, nil
+	}
 	if err != nil {
-		return 0, fmt.Errorf("failed to get state height: %w", err)
+		return 0, false, fmt.Errorf("failed to get state height: %w", err)
 	}
 	stateHeight, err := database.ParseUInt64(heightBytes)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse state height: %w", err)
+		return 0, false, fmt.Errorf("failed to parse state height: %w", err)
 	}
-	return stateHeight, nil
+	return stateHeight, true, nil
 }
 
 // initGenesisAsLastAccepted writes the genesis block state diff to the stateDB, indexes the genesis block,
@@ -652,6 +669,10 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 		View:             vm.stateDB,
 		ExecutionResults: &chain.ExecutionResults{},
 	}, nil
+}
+
+func (vm *VM) executeBlock(ctx context.Context, parentBlock *chain.OutputBlock, block *chain.ExecutionBlock) (*chain.OutputBlock, error) {
+	panic("not implemented")
 }
 
 func (vm *VM) startNormalOp(ctx context.Context) error {
