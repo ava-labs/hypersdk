@@ -30,7 +30,8 @@ AVALANCHE_DOCKER_VERSION=${AVALANCHE_DOCKER_VERSION:-'v1.12.2'}
 
 # Shared between ./scripts/build_docker_image.sh and ./scripts/tests.build_docker_image.sh
 DEFAULT_VM_NAME="morpheusvm"
-DEFAULT_VM_ID="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+# This needs to match the ID defined in examples/morpheusvm/consts/consts.go
+DEFAULT_VM_ID="qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u"
 
 # Set the CGO flags to use the portable version of BLST
 #
