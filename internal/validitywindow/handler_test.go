@@ -61,21 +61,17 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			expectErr:    true,
 		},
 		{
-			// Tests timeout behavior by allowing exactly 3 block retrieval attempts before blocking.
-			// The buffer capacity of 3 ensures the 4th retrieval attempt will block indefinitely,
-			// triggering a context timeout error while still returning the first 3 blocks.
+			// Tests timeout behavior by retrieving exactly 3 blocks before canceling the context.
+			// When the context is canceled, it is expected to return a partial response
 			name: "should timeout",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
-				// Generate one more block than buffer capacity (4 vs 3)
-				// This forces a 4th retrieval that will block indefinitely,
-				// triggering context timeout in GetBlockHeight's select
-				return generateBlockChain(4, 3)
+				return generateBlockChain(10, 3)
 			},
 			blockHeight:    9,
 			minTimestamp:   3,
-			expectedBlocks: 3,                      // Expect to retrieve 3 blocks before timeout
-			blkControl:     make(chan struct{}, 3), // Limits to 3 retrieval attempts
-			expectErr:      true,                   // Expect timeout error after the buffer is full
+			expectedBlocks: 3,                      // Expect to retrieve exactly 3 blocks before context cancellation
+			blkControl:     make(chan struct{}, 3), // Used to trigger context cancellation after 3 blocks
+			// No expectErr flag as we don't treat partial results as an error case
 		},
 	}
 
@@ -86,15 +82,15 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 
 			blocks := tt.setupBlocks()
 
-			retriever := newTestBlockRetriever(withBlocks(blocks))
-			if tt.blkControl != nil {
-				retriever = newTestBlockRetriever(withBlocks(blocks), withBlockControl(tt.blkControl))
-			}
-
-			handler := NewBlockFetcherHandler(retriever)
 			fetchCtx, cancel := context.WithTimeout(ctx, maxProcessingDuration)
 			defer cancel()
 
+			retriever := newTestBlockRetriever(withBlocks(blocks))
+			if tt.blkControl != nil {
+				retriever = newTestBlockRetriever(withBlocks(blocks), withBlockControl(tt.blkControl), withCtxCancelFunc(cancel))
+			}
+
+			handler := NewBlockFetcherHandler(retriever)
 			fetchedBlocks, err := handler.fetchBlocks(fetchCtx, &BlockFetchRequest{
 				BlockHeight:  tt.blockHeight,
 				MinTimestamp: tt.minTimestamp,
@@ -166,8 +162,9 @@ func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 
 type optionsImpl struct {
 	nodeID       ids.NodeID
-	blocks       map[uint64]ExecutionBlock[container]
+	cancel       context.CancelFunc
 	blockControl chan struct{}
+	blocks       map[uint64]ExecutionBlock[container]
 }
 
 type option interface {
@@ -210,12 +207,30 @@ func withBlockControl(buffer chan struct{}) option {
 	return nil
 }
 
+type ctxCancelFunc context.CancelFunc
+
+func (c ctxCancelFunc) apply(opts *optionsImpl) {
+	opts.cancel = context.CancelFunc(c)
+}
+
+func withCtxCancelFunc(cancel context.CancelFunc) option {
+	return ctxCancelFunc(cancel)
+}
+
 func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
 	if r.options.blockControl != nil {
 		select {
 		case r.options.blockControl <- struct{}{}:
+			// Simulate context cancellation after N blocks for deterministic testing:
+			// - Channel tracks number of retrieved blocks
+			// - When a channel reaches capacity, trigger context cancellation
+			// - Avoids flaky timeout tests while testing the same code path
+
+			if len(r.options.blockControl) >= cap(r.options.blockControl) && r.options.cancel != nil {
+				// Cancel context after reaching channel capacity
+				r.options.cancel()
+			}
 		case <-ctx.Done():
-			// Context canceled, return error
 			return nil, ctx.Err()
 		}
 	}

@@ -24,7 +24,7 @@ func NewP2PBlockFetcher(p2pClient typedclient.P2PClient) *P2PBlockFetcher {
 	}
 }
 
-// FetchBlocksFromPeers sends a block fetch request to the specified peer and returns the response
-func (f *P2PBlockFetcher) FetchBlocksFromPeers(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error) {
+// FetchBlocksFromPeer sends a block fetch request to the specified peer and returns the response
+func (f *P2PBlockFetcher) FetchBlocksFromPeer(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error) {
 	return f.typedClient.SyncAppRequest(ctx, nodeID, request)
 }

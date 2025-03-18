@@ -22,7 +22,7 @@ type BlockParser[T Block] interface {
 }
 
 type NetworkBlockFetcher interface {
-	FetchBlocksFromPeers(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error)
+	FetchBlocksFromPeer(ctx context.Context, peerID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error)
 }
 
 // BlockFetcherClient fetches blocks from peers in a backward fashion (N, N-1, N-2, N-K) until it fills validity window of
@@ -80,7 +80,7 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 			}
 
 			reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-			response, err := c.p2pBlockFetcher.FetchBlocksFromPeers(reqCtx, nodeID, req)
+			response, err := c.p2pBlockFetcher.FetchBlocksFromPeer(reqCtx, nodeID, req)
 			cancel()
 
 			if err != nil {

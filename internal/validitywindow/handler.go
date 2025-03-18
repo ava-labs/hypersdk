@@ -5,6 +5,7 @@ package validitywindow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,6 +62,14 @@ func (b *BlockFetcherHandler[T]) AppRequest(
 	}
 
 	blocks, err := b.fetchBlocks(ctx, request)
+
+	if errors.Is(err, context.Canceled) {
+		return nil, &common.AppError{
+			Code:    ErrBlocksNotFound,
+			Message: fmt.Sprintf("no blocks found starting at height %d: %v", request.BlockHeight, err),
+		}
+	}
+
 	if err != nil {
 		return nil, &common.AppError{
 			Code:    ErrBlocksNotFound,
@@ -94,7 +103,7 @@ func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *Block
 	)
 
 	for {
-		block, err := b.retriever.GetBlockByHeight(ctx, height)
+		block, err := b.retriever.GetBlockByHeight(timeoutCtx, height)
 
 		switch {
 		case err != nil && len(blocks) == 0:

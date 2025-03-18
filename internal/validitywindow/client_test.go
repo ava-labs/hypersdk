@@ -298,7 +298,7 @@ type testP2PBlockFetcher struct {
 	err      chan error
 }
 
-func (t *testP2PBlockFetcher) FetchBlocksFromPeers(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error) {
+func (t *testP2PBlockFetcher) FetchBlocksFromPeer(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error) {
 	handler, ok := t.handlers[nodeID]
 	if !ok {
 		return nil, fmt.Errorf("handler %s not found", nodeID)
