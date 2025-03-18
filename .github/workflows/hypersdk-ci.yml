@@ -55,6 +55,12 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
+      - uses: ava-labs/avalanchego/.github/actions/install-nix@8551e1d96221c8a5c2c034c2bad0cd571610ad35
+      - name: Ensure consistent avalanchego version
+        shell: bash
+        run: |
+          nix develop --command bash -x scripts/update_avalanchego_version.sh
+          git diff --exit-code
 
   # This workflow job ensures generated code is up-to-date
   # It verifies developers have properly run code generation locally before committing, preventing inconsistencies between checked-in generated files and what the generator would produce.
@@ -147,13 +153,12 @@ jobs:
             go.sum
             examples/morpheusvm/go.sum
       - name: Run e2e tests
-        working-directory: ./examples/morpheusvm
-        shell: bash
-        run: scripts/run.sh
-        env:
-          MODE: 'test'
-      - name: Upload tmpnet network dir
-        uses: ava-labs/avalanchego/.github/actions/upload-tmpnet-artifact@v1-actions
-        if: always()
+        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@8551e1d96221c8a5c2c034c2bad0cd571610ad35
         with:
-          name: morpheusvm-e2e-tmpnet-data
+          run: ./examples/morpheusvm/scripts/run.sh
+          run_env: MODE='test'
+          artifact_prefix: morpheusvm-e2e
+          prometheus_username: ${{ secrets.PROMETHEUS_ID || '' }}
+          prometheus_password: ${{ secrets.PROMETHEUS_PASSWORD || '' }}
+          loki_username: ${{ secrets.LOKI_ID || '' }}
+          loki_password: ${{ secrets.LOKI_PASSWORD || '' }}
