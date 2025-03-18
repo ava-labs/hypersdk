@@ -495,7 +495,7 @@ func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 // and already cached in the internal bytes field.
 func (*Transaction) CalculateCanotoCache() {}
 
-func (t *Transaction) CachedCanotoSize() int { return t.size }
+func (t *Transaction) CachedCanotoSize() uint64 { return uint64(t.size) }
 
 func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	serializeTx := &SerializeTx{}
@@ -531,7 +531,7 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	if len(serializeTx.Auth) == 0 {
 		unsignedTxBytes = r.B
 	} else {
-		authSuffixSize := len(canoto__SerializeTx__Auth__tag) + canoto.SizeBytes(serializeTx.Auth)
+		authSuffixSize := len(canoto__SerializeTx__Auth__tag) + int(canoto.SizeBytes(serializeTx.Auth))
 		unsignedTxBytesLimit := len(r.B) - authSuffixSize
 		// Defensive: check to ensure the calculated auth suffix size is within expected bounds
 		// and return an error rather than panic on index out of bounds if not.
