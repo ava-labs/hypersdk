@@ -17,7 +17,7 @@ type testCases struct {
 	validityWindow  int64
 	numOfBlocks     int
 	setupChainIndex func([]ExecutionBlock[container]) *testChainIndex
-	setupFetcher    func(context.Context, []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]]
+	setupFetcher    func([]ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]]
 	verifyFunc      func(context.Context, *require.Assertions, []ExecutionBlock[container], *Syncer[container, ExecutionBlock[container]])
 }
 
@@ -29,7 +29,7 @@ func TestSyncer(t *testing.T) {
 				numOfBlocks:     15,
 				validityWindow:  5,
 				setupChainIndex: newTestChainIndex,
-				setupFetcher: func(_ context.Context, _ []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
+				setupFetcher: func(_ []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
 					// no need for fetcher
 					return nil
 				},
@@ -55,24 +55,7 @@ func TestSyncer(t *testing.T) {
 					// Add the most recent 5 blocks in-memory
 					return newTestChainIndex(blkChain[15:])
 				},
-				setupFetcher: func(ctx context.Context, blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
-					blocks := make(map[uint64]ExecutionBlock[container], len(blkChain))
-					for _, blk := range blkChain {
-						blocks[blk.GetHeight()] = blk
-					}
-
-					nodes := []nodeScenario{
-						{
-							blocks: blocks,
-						},
-					}
-
-					network := newTestNetwork(t, ctx, nodes)
-					blkParser := newParser(blkChain)
-					fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
-
-					return fetcher
-				},
+				setupFetcher: newFetcher,
 				verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
 					// we should have the most recent 5 blocks in-memory
 					// that is not enough to build full validity window, we need to fetch the rest from the network
@@ -97,24 +80,7 @@ func TestSyncer(t *testing.T) {
 				setupChainIndex: func(_ []ExecutionBlock[container]) *testChainIndex {
 					return &testChainIndex{}
 				},
-				setupFetcher: func(ctx context.Context, blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
-					blocks := make(map[uint64]ExecutionBlock[container], len(blkChain))
-					for _, blk := range blkChain {
-						blocks[blk.GetHeight()] = blk
-					}
-
-					nodes := []nodeScenario{
-						{
-							blocks: blocks,
-						},
-					}
-
-					network := newTestNetwork(t, ctx, nodes)
-					blkParser := newParser(blkChain)
-					fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
-
-					return fetcher
-				},
+				setupFetcher: newFetcher,
 				verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
 					target := blkChain[len(blkChain)-1]
 					err := syncer.Start(ctx, target)
@@ -144,20 +110,7 @@ func TestSyncer(t *testing.T) {
 					// Start with the most recent 5 blocks in cache
 					return newTestChainIndex(blkChain[20:])
 				},
-				setupFetcher: func(ctx context.Context, blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
-					blocks := make(map[uint64]ExecutionBlock[container])
-					for _, blk := range blkChain {
-						blocks[blk.GetHeight()] = blk
-					}
-
-					nodes := []nodeScenario{
-						{blocks: blocks},
-					}
-
-					network := newTestNetwork(t, ctx, nodes)
-					blkParser := newParser(blkChain)
-					return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
-				},
+				setupFetcher: newFetcher,
 				verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
 					// Perform initial sync with second-to-last block
 					initialTarget := blkChain[len(blkChain)-2]
@@ -190,20 +143,7 @@ func TestSyncer(t *testing.T) {
 				setupChainIndex: func(blkChain []ExecutionBlock[container]) *testChainIndex {
 					return newTestChainIndex(blkChain[20:])
 				},
-				setupFetcher: func(ctx context.Context, blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
-					blocks := make(map[uint64]ExecutionBlock[container])
-					for _, blk := range blkChain {
-						blocks[blk.GetHeight()] = blk
-					}
-
-					nodes := []nodeScenario{
-						{blocks: blocks},
-					}
-
-					network := newTestNetwork(t, ctx, nodes)
-					blkParser := newParser(blkChain)
-					return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
-				},
+				setupFetcher: newFetcher,
 				verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
 					// Start initial sync
 					initialTarget := blkChain[len(blkChain)-1]
@@ -247,20 +187,7 @@ func TestSyncer(t *testing.T) {
 				setupChainIndex: func(blkChain []ExecutionBlock[container]) *testChainIndex {
 					return newTestChainIndex(blkChain[20:])
 				},
-				setupFetcher: func(ctx context.Context, blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
-					blocks := make(map[uint64]ExecutionBlock[container])
-					for _, blk := range blkChain {
-						blocks[blk.GetHeight()] = blk
-					}
-
-					nodes := []nodeScenario{
-						{blocks: blocks},
-					}
-
-					network := newTestNetwork(t, ctx, nodes)
-					blkParser := newParser(blkChain)
-					return NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
-				},
+				setupFetcher: newFetcher,
 				verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]]) {
 					// Start initial sync
 					initialTarget := blkChain[len(blkChain)-1]
@@ -310,7 +237,7 @@ func runSyncerTest(t *testing.T, test testCases) {
 		func(_ int64) int64 { return test.validityWindow },
 	)
 
-	fetcher := test.setupFetcher(ctx, blkChain)
+	fetcher := test.setupFetcher(blkChain)
 	syncer := NewSyncer[container, ExecutionBlock[container]](
 		chainIndex,
 		validityWindow,
@@ -327,4 +254,19 @@ func newTestChainIndex(blocks []ExecutionBlock[container]) *testChainIndex {
 		ci.set(blk.GetID(), blk)
 	}
 	return ci
+}
+
+func newFetcher(blkChain []ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]] {
+	blocks := make(map[uint64]ExecutionBlock[container], len(blkChain))
+	for _, blk := range blkChain {
+		blocks[blk.GetHeight()] = blk
+	}
+
+	nodes := []nodeSetup{
+		{blocks: blocks},
+	}
+
+	test := newTestEnvironment(nodes)
+	blkParser := newParser(blkChain)
+	return NewBlockFetcherClient[ExecutionBlock[container]](test.p2pBlockFetcher, blkParser, test.sampler)
 }
