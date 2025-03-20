@@ -319,7 +319,7 @@ func (ce *TestConsensusEngine) acceptChain(ctx context.Context, chain []*Statefu
 		parent := ce.lastAccepted
 		ce.require.Equal(parent.ID(), blk.Parent())
 
-		ce.require.NoError(blk.Accept(ctx))
+		ce.require.NoError(blk.SyncAccept(ctx))
 		delete(ce.verified, blk.ID())
 		ce.lastAccepted = blk
 		ce.accepted = append(ce.accepted, blk)

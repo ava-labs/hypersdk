@@ -65,6 +65,7 @@ func (v *VM[I, O, A]) makeConsensusIndex(
 		lastAcceptedBlock = NewInputBlock(v, inputBlock)
 	}
 	v.setLastAccepted(lastAcceptedBlock)
+	v.setLastProcessed(lastAcceptedBlock)
 	v.preferredBlkID = lastAcceptedBlock.ID()
 	v.consensusIndex = &ConsensusIndex[I, O, A]{v}
 
@@ -172,7 +173,7 @@ func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) (A, error) {
 	c.vm.metaLock.Lock()
 	defer c.vm.metaLock.Unlock()
 
-	lastAccepted := c.vm.lastAcceptedBlock
+	lastAccepted := c.vm.lastProcessedBlock
 
 	if !lastAccepted.accepted {
 		return utils.Zero[A](), fmt.Errorf("last accepted block %s has not been populated", lastAccepted)

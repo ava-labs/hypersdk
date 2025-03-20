@@ -139,12 +139,13 @@ type VM[I Block, O Block, A Block] struct {
 	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
-	acceptedQueue   chan *StatefulBlock[I, O, A]
-	acceptedQueueWg sync.WaitGroup
+	acceptedQueueBlocksProcessedWg sync.WaitGroup
+	acceptedQueue                  chan *StatefulBlock[I, O, A]
+	acceptedQueueWg                sync.WaitGroup
 
 	metaLock sync.Mutex
 
-	// lastMarkedAcceptedBlock *StatefulBlock[I, O, A]
+	lastProcessedBlock *StatefulBlock[I, O, A]
 	// lastAcceptedBlock is the last block marked as accepted by consensus.
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
@@ -311,9 +312,10 @@ func (v *VM[I, O, A]) startAsyncAccepter(ctx context.Context) {
 		// Perform synchronous work of accepting blocks on a separate thread to reduce blocking the
 		// consensus engine's main thread.
 		for acceptedBlk := range v.acceptedQueue {
-			if err := acceptedBlk.syncAccept(ctx); err != nil {
+			if err := acceptedBlk.processAccept(ctx); err != nil {
 				panic(err)
 			}
+			v.setLastProcessed(acceptedBlk)
 		}
 	})
 }
@@ -325,6 +327,13 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.lastAcceptedBlock = lastAcceptedBlock
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
+}
+
+func (v *VM[I, O, A]) setLastProcessed(lastProcessedBlock *StatefulBlock[I, O, A]) {
+	v.metaLock.Lock()
+	defer v.metaLock.Unlock()
+
+	v.lastProcessedBlock = lastProcessedBlock
 }
 
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {

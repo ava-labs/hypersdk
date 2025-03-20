@@ -259,38 +259,6 @@ func verifyPChainCtx(providedCtx, innerCtx *block.Context) error {
 	}
 }
 
-// markAccepted marks the block and updates the required VM state.
-// iff parent is non-nil, it will request the chain to Accept the block.
-// The caller is responsible to provide the accepted parent if the VM is in a ready state.
-func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *StatefulBlock[I, O, A]) error {
-	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
-		return err
-	}
-
-	if parent != nil {
-		if err := b.accept(ctx, parent.Accepted); err != nil {
-			return err
-		}
-	}
-
-	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.GetID())
-	b.vm.verifiedL.Unlock()
-
-	b.vm.setLastAccepted(b)
-
-	return b.notifyAccepted(ctx)
-}
-
-func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
-	// If I was not actually marked accepted, notify pre ready subs
-	if !b.accepted {
-		return event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...)
-	}
-
-	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
-}
-
 // implements "snowman.Block.choices.Decidable"
 func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.chainLock.Lock()
@@ -309,7 +277,7 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	// If I'm not ready yet, mark myself as accepted, and return early.
 	isReady := b.vm.ready
 	if !isReady {
-		return b.markAccepted(ctx, nil)
+		return b.markAccepted(ctx, false)
 	}
 
 	// If I'm ready and not verified, then I or my ancestor must have failed
@@ -320,16 +288,57 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 		return errParentFailedVerification
 	}
 
-	// If I am verified and ready, fetch my parent and accept myself. I'm verified, which
-	// implies my parent is verified as well.
-	parent, err := b.vm.GetBlock(ctx, b.Parent())
-	if err != nil {
-		return fmt.Errorf("failed to fetch parent while accepting verified block %s: %w", b, err)
-	}
-	return b.markAccepted(ctx, parent)
+	// If I'm verified and ready, mark myself as accepted
+	return b.markAccepted(ctx, true)
 }
 
-func (b *StatefulBlock[I, O, A]) syncAccept(ctx context.Context) error {
+// markAccepted marks the block and updates the required VM state.
+// iff parent is non-nil, it will request the chain to Accept the block.
+// The caller is responsible to provide the accepted parent if the VM is in a ready state.
+func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, ready bool) error {
+	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
+		return err
+	}
+
+	// If I'm ready, defer processing accept and notifying subscribers to the async accepter
+	if ready {
+		b.queueAccept()
+	} else {
+		// If I'm not ready, send the pre-ready notification from the consensus thread.
+		if err := event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...); err != nil {
+			return err
+		}
+	}
+
+	b.vm.verifiedL.Lock()
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
+	b.vm.verifiedL.Unlock()
+
+	b.vm.setLastAccepted(b)
+	return nil
+}
+
+// SyncAccept marks the block as accepted and then waits for all blocks in the accepted queue to be
+// processed
+// This is useful for testing purposes to ensure that blocks have been fully processed before checking
+// to confirm their expected effects.
+func (b *StatefulBlock[I, O, A]) SyncAccept(ctx context.Context) error {
+	if err := b.Accept(ctx); err != nil {
+		return err
+	}
+	b.vm.acceptedQueueBlocksProcessedWg.Wait()
+	return nil
+}
+
+func (b *StatefulBlock[I, O, A]) queueAccept() {
+	b.vm.acceptedQueueBlocksProcessedWg.Add(1)
+	b.vm.acceptedQueue <- b
+}
+
+// processAccept processes the block as accepted by invoking Accept on the underlying chain
+func (b *StatefulBlock[I, O, A]) processAccept(ctx context.Context) error {
+	defer b.vm.acceptedQueueBlocksProcessedWg.Done()
+
 	parent, err := b.vm.GetBlock(ctx, b.Parent())
 	if err != nil {
 		return fmt.Errorf("failed to get %s while accepting %s: %w", b.Parent(), b, err)
@@ -337,7 +346,19 @@ func (b *StatefulBlock[I, O, A]) syncAccept(ctx context.Context) error {
 	if err := b.accept(ctx, parent.Accepted); err != nil {
 		return err
 	}
+	if err := event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...); err != nil {
+		return err
+	}
+	b.vm.setLastProcessed(b)
+
 	return nil
+}
+
+func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
+	if b.accepted {
+		return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
+	}
+	return event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...)
 }
 
 // implements "snowman.Block.choices.Decidable"
