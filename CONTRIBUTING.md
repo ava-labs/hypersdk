@@ -53,6 +53,19 @@ The `hypersdk` project also has a fixer that tries to help. To run the fixer, si
 ./scripts/fix.lint.sh
 ```
 
+## Starting a dev shell
+
+Some activities, such as collecting metrics and logs from the nodes targeted by an e2e
+test run, require binary dependencies. One way of making these dependencies available is
+to use a nix shell which will give access to the dependencies expected by the test
+tooling:
+
+ - Install [nix](https://nixos.org/). The [determinate systems
+   installer](https://github.com/DeterminateSystems/nix-installer?tab=readme-ov-file#install-nix)
+   is recommended.
+ - Use ./scripts/dev_shell.sh to start a nix shell
+ - Execute the dependency-requiring command (e.g. `ginkgo -v ./tests/e2e -- --start-collectors`)
+
 ## Contributing
 
 We welcome contributions to hypersdk! To contribute, please follow these steps:
