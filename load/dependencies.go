@@ -51,7 +51,6 @@ type Tracker[T comparable] interface {
 }
 
 type Orchestrator interface {
-	// Execute begins the load generation process and blocks until the
-	// orchestrator has finished or the context is done.
+	// Execute the load test
 	Execute(ctx context.Context) error
 }
