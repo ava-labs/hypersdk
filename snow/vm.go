@@ -31,6 +31,11 @@ import (
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
+const (
+	acceptedQueueSize = 16
+	snowNamespace     = "snow"
+)
+
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
 type ChainInput struct {
@@ -134,7 +139,13 @@ type VM[I Block, O Block, A Block] struct {
 	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
-	metaLock          sync.Mutex
+	acceptedQueue   chan *StatefulBlock[I, O, A]
+	acceptedQueueWg sync.WaitGroup
+
+	metaLock sync.Mutex
+
+	// lastMarkedAcceptedBlock *StatefulBlock[I, O, A]
+	// lastAcceptedBlock is the last block marked as accepted by consensus.
 	lastAcceptedBlock *StatefulBlock[I, O, A]
 	preferredBlkID    ids.ID
 
@@ -143,6 +154,8 @@ type VM[I Block, O Block, A Block] struct {
 	tracer  trace.Tracer
 
 	shutdownChan chan struct{}
+	shutdownOnce sync.Once
+	shutdownErr  error
 
 	healthCheckers sync.Map
 }
@@ -168,6 +181,7 @@ func (v *VM[I, O, A]) Initialize(
 ) error {
 	v.snowCtx = chainCtx
 	v.shutdownChan = make(chan struct{})
+	v.acceptedQueue = make(chan *StatefulBlock[I, O, A], acceptedQueueSize)
 
 	hconfig, err := hcontext.NewConfig(configBytes)
 	if err != nil {
@@ -191,7 +205,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to parse vm config: %w", err)
 	}
 
-	defaultRegistry, err := metrics.MakeAndRegister(v.snowCtx.Metrics, "snow")
+	defaultRegistry, err := metrics.MakeAndRegister(v.snowCtx.Metrics, snowNamespace)
 	if err != nil {
 		return err
 	}
@@ -267,8 +281,41 @@ func (v *VM[I, O, A]) Initialize(
 	if err := v.initHealthCheckers(); err != nil {
 		return err
 	}
+	// TODO:
+	// modify block accept to add to the queue and return early
+	// add alternative function to accept block and wait for queue to complete by waiting on vm wg
+
+	// startAsyncAccepter with a detached context (do not assume context passed into VM initialize persists past the call)
+	v.startAsyncAccepter(context.WithoutCancel(ctx))
 
 	return nil
+}
+
+func (v *VM[I, O, A]) startAsyncAccepter(ctx context.Context) {
+	v.acceptedQueueWg.Add(1)
+
+	go v.log.RecoverAndPanic(func() {
+		defer func() {
+			// Mark the wg as done to ensure Shutdown does not block waiting for it
+			v.acceptedQueueWg.Done()
+
+			// To more gracefully handle a fatal error in the async accepter, call Shutdown
+			// from the deferred function to attempt to clean up.
+			// On the happy path, where Shutdown is called from AvalancheGo, there will be
+			// duplicate calls both of which hit a nil error.
+			if err := v.Shutdown(ctx); err != nil {
+				v.log.Error("failed to shutdown VM from async accepter", zap.Error(err))
+			}
+		}()
+
+		// Perform synchronous work of accepting blocks on a separate thread to reduce blocking the
+		// consensus engine's main thread.
+		for acceptedBlk := range v.acceptedQueue {
+			if err := acceptedBlk.syncAccept(ctx); err != nil {
+				panic(err)
+			}
+		}
+	})
 }
 
 func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
@@ -454,17 +501,28 @@ func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler
 }
 
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
-	v.log.Info("Shutting down VM")
-	close(v.shutdownChan)
+	v.shutdownOnce.Do(func() {
+		v.log.Info("Shutting down VM")
 
-	errs := make([]error, len(v.closers))
-	for i, closer := range v.closers {
-		v.log.Info("Shutting down service", zap.String("service", closer.name))
-		start := time.Now()
-		errs[i] = closer.close()
-		v.log.Info("Finished shutting down service", zap.String("service", closer.name), zap.Duration("duration", time.Since(start)))
-	}
-	return errors.Join(errs...)
+		v.log.Info("Shutting down accepter queue")
+		close(v.acceptedQueue)
+		v.acceptedQueueWg.Wait()
+		v.log.Info("Finished accepter queue shutdown")
+
+		v.log.Info("Closing VM shutdown channel")
+		close(v.shutdownChan)
+
+		errs := make([]error, len(v.closers))
+		for i, closer := range v.closers {
+			v.log.Info("Shutting down service", zap.String("service", closer.name))
+			start := time.Now()
+			errs[i] = closer.close()
+			v.log.Info("Finished shutting down service", zap.String("service", closer.name), zap.Duration("duration", time.Since(start)))
+		}
+		v.shutdownErr = errors.Join(errs...)
+	})
+
+	return v.shutdownErr
 }
 
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {

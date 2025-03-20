@@ -329,6 +329,17 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	return b.markAccepted(ctx, parent)
 }
 
+func (b *StatefulBlock[I, O, A]) syncAccept(ctx context.Context) error {
+	parent, err := b.vm.GetBlock(ctx, b.Parent())
+	if err != nil {
+		return fmt.Errorf("failed to get %s while accepting %s: %w", b.Parent(), b, err)
+	}
+	if err := b.accept(ctx, parent.Accepted); err != nil {
+		return err
+	}
+	return nil
+}
+
 // implements "snowman.Block.choices.Decidable"
 func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")

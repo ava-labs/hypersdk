@@ -9,6 +9,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
+
+	"github.com/ava-labs/hypersdk/event"
 )
 
 // ChainIndex defines the generic on-disk index for the Input block type required
@@ -26,6 +28,14 @@ type ChainIndex[T Block] interface {
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 
+// makeConsensusIndex re-processes blocks from the output/accepted block to the latest possible
+// input block that has been added to the chain index if state ready is true.
+// Otherwise, initialize an incomplete consensus index that will be initialized when state sync
+// finishes.
+//
+// If the VM provides a last accepted block <= the last processed block (which should always be the case)
+// then the VM will re-process blocks from at least as far back as the last processed block and guarantee
+// event notifications for all downstream consumers.
 func (v *VM[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
 	chainIndex ChainIndex[I],
@@ -86,9 +96,15 @@ func (v *VM[I, O, A]) reprocessFromOutputToInput(ctx context.Context, targetInpu
 		if err != nil {
 			return nil, err
 		}
+		if err := event.NotifyAll[O](ctx, outputBlock, v.verifiedSubs...); err != nil {
+			return nil, fmt.Errorf("failed to notify verified subs during re-processing: %w", err)
+		}
 		acceptedBlock, err = v.chain.AcceptBlock(ctx, acceptedBlock, outputBlock)
 		if err != nil {
 			return nil, err
+		}
+		if err := event.NotifyAll[A](ctx, acceptedBlock, v.acceptedSubs...); err != nil {
+			return nil, fmt.Errorf("failed to notify accepted subs during re-processing: %w", err)
 		}
 	}
 
