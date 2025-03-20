@@ -282,9 +282,6 @@ func (v *VM[I, O, A]) Initialize(
 	if err := v.initHealthCheckers(); err != nil {
 		return err
 	}
-	// TODO:
-	// modify block accept to add to the queue and return early
-	// add alternative function to accept block and wait for queue to complete by waiting on vm wg
 
 	// startAsyncAccepter with a detached context (do not assume context passed into VM initialize persists past the call)
 	v.startAsyncAccepter(context.WithoutCancel(ctx))
