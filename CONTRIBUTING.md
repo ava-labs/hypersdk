@@ -53,7 +53,7 @@ The `hypersdk` project also has a fixer that tries to help. To run the fixer, si
 ./scripts/fix.lint.sh
 ```
 
-## Starting a dev shell
+## Optional Dev Shell
 
 Some activities, such as collecting metrics and logs from the nodes targeted by an e2e
 test run, require binary dependencies. One way of making these dependencies available is
