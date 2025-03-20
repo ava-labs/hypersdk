@@ -53,7 +53,6 @@ func init() {
 		keyCmd,
 		chainCmd,
 		actionCmd,
-		spamCmd,
 		prometheusCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
@@ -150,32 +149,6 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
-	)
-
-	runSpamCmd.PersistentFlags().BoolVar(
-		&spamDefaults,
-		"defaults",
-		false,
-		"use default spam parameters",
-	)
-
-	runSpamCmd.PersistentFlags().StringVar(
-		&clusterInfo,
-		"cluster-info",
-		"",
-		"output from avalanche-cli with cluster info",
-	)
-
-	runSpamCmd.PersistentFlags().StringVar(
-		&spamKey,
-		"key",
-		"",
-		"private key used to distribute funds",
-	)
-
-	// spam
-	spamCmd.AddCommand(
-		runSpamCmd,
 	)
 
 	// prometheus
