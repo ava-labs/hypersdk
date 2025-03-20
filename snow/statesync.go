@@ -32,7 +32,6 @@ func (v *VM[I, O, A]) StartStateSync(ctx context.Context, block I) error {
 	}
 	v.ready = false
 	v.setLastAccepted(NewInputBlock(v, block))
-	v.setLastProcessed(v.lastAcceptedBlock)
 	return nil
 }
 

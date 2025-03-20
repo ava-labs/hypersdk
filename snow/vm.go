@@ -100,13 +100,21 @@ type VM[I Block, O Block, A Block] struct {
 	onBootstrapStarted        []func(context.Context) error
 	onNormalOperationsStarted []func(context.Context) error
 
-	verifiedSubs         []event.Subscription[O]
-	rejectedSubs         []event.Subscription[O]
-	acceptedSubs         []event.Subscription[A]
+	// Consensus subscriptions (excludes dynamic state sync) notify subscribers
+	// of every successfully verified/accepted/rejected block.
+	verifiedSubs []event.Subscription[O]
+	rejectedSubs []event.Subscription[O]
+	// Note: acceptedSubs are guaranteed at least once delivery after restart as long as the VM
+	// executes blocks instead of falling back to dynamic state sync.
+	acceptedSubs []event.Subscription[A]
+
+	// Dynamic state sync subscriptions receive accept/reject notifications for
+	// every decided block prior to dynamic state sync completing and the state
+	// being marked as ready. Uses the Input type because the block will not have
+	// been verified/accepted during dynamic state sync.
 	preReadyAcceptedSubs []event.Subscription[I]
-	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
-	preRejectedSubs []event.Subscription[I]
-	version         string
+	preRejectedSubs      []event.Subscription[I]
+	version              string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
 	// To complete dynamic state sync, we must:
@@ -145,10 +153,12 @@ type VM[I Block, O Block, A Block] struct {
 
 	metaLock sync.Mutex
 
-	lastProcessedBlock *StatefulBlock[I, O, A]
 	// lastAcceptedBlock is the last block marked as accepted by consensus.
 	lastAcceptedBlock *StatefulBlock[I, O, A]
-	preferredBlkID    ids.ID
+	// lastProcessedBlock is the last block processed as accepted by the underlying chain.
+	// Initialized on startup or via FinishStateSync. If state is not ready, will be left nil.
+	lastProcessedBlock *StatefulBlock[I, O, A]
+	preferredBlkID     ids.ID
 
 	metrics *Metrics
 	log     logging.Logger

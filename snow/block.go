@@ -121,7 +121,8 @@ func (b *StatefulBlock[I, O, A]) verify(ctx context.Context, parentOutput O) err
 	}
 	b.Output = output
 	b.verified = true
-	return nil
+
+	return event.NotifyAll[O](ctx, b.Output, b.vm.verifiedSubs...)
 }
 
 // accept the block and set the required Accepted/accepted fields.
@@ -133,7 +134,8 @@ func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) e
 	}
 	b.Accepted = acceptedBlk
 	b.accepted = true
-	return nil
+
+	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
 func (*StatefulBlock[I, O, A]) ShouldVerifyWithContext(context.Context) (bool, error) {
@@ -220,10 +222,6 @@ func (b *StatefulBlock[I, O, A]) verifyWithContext(ctx context.Context, pChainCt
 		if err := b.verify(ctx, parent.Output); err != nil {
 			return err
 		}
-
-		if err := event.NotifyAll[O](ctx, b.Output, b.vm.verifiedSubs...); err != nil {
-			return err
-		}
 	}
 
 	b.vm.verifiedL.Lock()
@@ -274,37 +272,30 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 
 	defer b.vm.log.Info("accepting block", zap.Stringer("block", b))
 
-	// If I'm not ready yet, mark myself as accepted, and return early.
-	isReady := b.vm.ready
-	if !isReady {
-		return b.markAccepted(ctx, false)
-	}
-
 	// If I'm ready and not verified, then I or my ancestor must have failed
 	// verification after completing dynamic state sync. This indicates
 	// an invalid block has been accepted, which should be prevented by consensus.
 	// If we hit this case, return a fatal error here.
-	if !b.verified {
+	if b.vm.ready && !b.verified {
 		return errParentFailedVerification
 	}
 
-	// If I'm verified and ready, mark myself as accepted
-	return b.markAccepted(ctx, true)
+	return b.markAccepted(ctx)
 }
 
 // markAccepted marks the block and updates the required VM state.
 // iff parent is non-nil, it will request the chain to Accept the block.
 // The caller is responsible to provide the accepted parent if the VM is in a ready state.
-func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, ready bool) error {
+func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
 	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err
 	}
 
-	// If I'm ready, defer processing accept and notifying subscribers to the async accepter
-	if ready {
+	// If I'm ready, queue the block for processing
+	if b.vm.ready {
 		b.queueAccept()
 	} else {
-		// If I'm not ready, send the pre-ready notification from the consensus thread.
+		// If I'm not ready, send the pre-ready notification directly from the consensus thread.
 		if err := event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...); err != nil {
 			return err
 		}
@@ -344,9 +335,6 @@ func (b *StatefulBlock[I, O, A]) processAccept(ctx context.Context) error {
 		return fmt.Errorf("failed to get %s while accepting %s: %w", b.Parent(), b, err)
 	}
 	if err := b.accept(ctx, parent.Accepted); err != nil {
-		return err
-	}
-	if err := event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...); err != nil {
 		return err
 	}
 	b.vm.setLastProcessed(b)
