@@ -2,8 +2,6 @@
 # Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-# This script assumes a linux or nix userland. On macos, invoke `nix develop` before running this script.
-
 set -euo pipefail
 
 if ! [[ "$0" =~ scripts/update_avalanchego_version.sh ]]; then
