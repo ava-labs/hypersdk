@@ -68,28 +68,23 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 			i.tracker.ObserveFailed(txID)
 		}
 
-		i.lock.Lock()
-		i.heardTxs++
-		// if we've heard the status of all of our transactions, return nil
-		if i.stopped && i.numOfTxs == i.heardTxs {
-			i.lock.Unlock()
+		if i.isFinished() {
 			return nil
 		}
-		i.lock.Unlock()
 	}
 }
 
 func (i *DefaultIssuer) Stop() {
 	i.lock.Lock()
 	defer i.lock.Unlock()
-	
+
 	i.stopped = true
 }
 
 func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error {
 	i.lock.Lock()
 	defer i.lock.Unlock()
-	
+
 	if i.stopped {
 		return ErrIssuedAlreadyStopped
 	}
@@ -102,4 +97,13 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 	i.tracker.Issue(tx.GetID(), now)
 	i.numOfTxs++
 	return nil
+}
+
+// isFinished increments the number of transactions heard and returns true if all transactions have been heard
+func (i *DefaultIssuer) isFinished() bool {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	i.heardTxs++
+	return i.stopped && i.numOfTxs == i.heardTxs
 }

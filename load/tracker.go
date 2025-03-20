@@ -20,36 +20,42 @@ type DefaultTracker[T comparable] struct {
 
 func (t *DefaultTracker[T]) Issue(T, time.Time) {
 	t.Lock()
+	defer t.Unlock()
+
 	t.txIssuedCounter++
-	t.Unlock()
 }
 
 func (t *DefaultTracker[T]) ObserveConfirmed(T) {
 	t.Lock()
 	defer t.Unlock()
+
 	t.txConfirmedCounter++
 }
 
 func (t *DefaultTracker[T]) ObserveFailed(T) {
 	t.Lock()
 	defer t.Unlock()
+
 	t.txFailedCounter++
 }
 
 func (t *DefaultTracker[T]) GetObservedConfirmed() uint64 {
 	t.RLock()
 	defer t.RUnlock()
+
 	return t.txConfirmedCounter
 }
 
 func (t *DefaultTracker[T]) GetObservedFailed() uint64 {
 	t.RLock()
 	defer t.RUnlock()
+
 	return t.txFailedCounter
 }
 
 func (t *DefaultTracker[T]) GetObservedIssued() uint64 {
 	t.RLock()
 	defer t.RUnlock()
+
 	return t.txIssuedCounter
 }
