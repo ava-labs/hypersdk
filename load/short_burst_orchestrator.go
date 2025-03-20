@@ -94,26 +94,3 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 	// is cancelled signalling for early termination (with an error)
 	return o.observerGroup.Wait()
 }
-
-// replace Tx type constraint with T = comparable (GetID should not be needed?)
-// ✅
-
-// Update documentation / comments on dependencies ✅
-
-// Update TxGenerator to remove exhausted (if the tx generator does not signal
-// when it's done, then this should not exist) ✅
-
-// move issuer implementation into load/hyper/ package ie. hypersdk specific ✅
-
-// combine Start/Wait into a single Execute function for the orchestrator ✅
-
-// complete all TODOs throughout the change (ie. complete all TODO configurable
-// ie. number of txs, duration of issuance, timeout duration, etc.) ✅
-
-// create README + mermaid diagram explaining the architecture ✅
-
-// update CI throughput test to use load package instead of throughput
-
-// create draft PR and re-sync
-
-// implement gradual load orchestrator based on agreed on interfaces and re-sync
