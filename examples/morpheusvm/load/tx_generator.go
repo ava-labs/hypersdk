@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/fees"
-
 	"github.com/ava-labs/hypersdk/load"
 )
 
