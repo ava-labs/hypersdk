@@ -12,13 +12,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/fees"
 
-	hload "github.com/ava-labs/hypersdk/load"
+	"github.com/ava-labs/hypersdk/load"
 )
 
 var (
 	ErrTxGeneratorFundsExhausted = errors.New("tx generator funds exhausted")
 
-	_ hload.TxGenerator[*chain.Transaction] = (*TxGenerator)(nil)
+	_ load.TxGenerator[*chain.Transaction] = (*TxGenerator)(nil)
 )
 
 type TxGenerator struct {
