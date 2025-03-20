@@ -299,8 +299,9 @@ func (v *VM[I, O, A]) startAsyncAccepter(ctx context.Context) {
 
 			// To more gracefully handle a fatal error in the async accepter, call Shutdown
 			// from the deferred function to attempt to clean up.
-			// On the happy path, where Shutdown is called from AvalancheGo, there will be
-			// duplicate calls both of which hit a nil error.
+			// On the happy path, where Shutdown is called from AvalancheGo, shutdownOnce will
+			// de-duplicate these calls.
+			// If Shutdown returns an error, we'll see a duplicate log message.
 			if err := v.Shutdown(ctx); err != nil {
 				v.log.Error("failed to shutdown VM from async accepter", zap.Error(err))
 			}
@@ -312,7 +313,6 @@ func (v *VM[I, O, A]) startAsyncAccepter(ctx context.Context) {
 			if err := acceptedBlk.processAccept(ctx); err != nil {
 				panic(err)
 			}
-			v.setLastProcessed(acceptedBlk)
 		}
 	})
 }
