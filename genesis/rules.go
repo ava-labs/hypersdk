@@ -58,10 +58,8 @@ func NewDefaultRules() *Rules {
 		// Chain Fee Parameters
 		MinUnitPrice:               fees.Dimensions{100, 100, 100, 100, 100},
 		UnitPriceChangeDenominator: fees.Dimensions{48, 48, 48, 48, 48},
-		// WindowTargetUnits:          fees.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
-		// MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
-		WindowTargetUnits: fees.Dimensions{20_000_000, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64},
-		MaxBlockUnits:     fees.Dimensions{1_800_000, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64},
+		WindowTargetUnits:          fees.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
+		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
 		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
