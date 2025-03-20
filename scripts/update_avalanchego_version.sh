@@ -55,14 +55,14 @@ FULL_AVALANCHE_VERSION="$("${CURL_ARGS[@]}" "${CURL_URL}" | grep '"sha":' | head
 WORKFLOW_PATH=".github/workflows/hypersdk-ci.yml"
 for custom_action in "run-monitored-tmpnet-cmd" "install-nix"; do
   echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${custom_action} custom action in ${WORKFLOW_PATH} "
-  sed -i ".bak" "s|\(uses: ava-labs/avalanchego/.github/actions/${custom_action}\)@.*|\1@${FULL_AVALANCHE_VERSION}|g" "${WORKFLOW_PATH}" && rm -f "${WORKFLOW_PATH}.bak"
+  sed -i.bak "s|\(uses: ava-labs/avalanchego/.github/actions/${custom_action}\)@.*|\1@${FULL_AVALANCHE_VERSION}|g" "${WORKFLOW_PATH}" && rm -f "${WORKFLOW_PATH}.bak"
 done
 
 # Ensure the flake version is the same as the avalanche version
 FLAKE_DEP="github:ava-labs/avalanchego"
 FLAKE_FILE=flake.nix
 echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${FLAKE_DEP} input of ${FLAKE_FILE}"
-sed -i ".bak" "s|\(${FLAKE_DEP}?ref=\).*|\1${FULL_AVALANCHE_VERSION}\";|g" "${FLAKE_FILE}" && rm -f "${FLAKE_FILE}.bak"
+sed -i.bak "s|\(${FLAKE_DEP}?ref=\).*|\1${FULL_AVALANCHE_VERSION}\";|g" "${FLAKE_FILE}" && rm -f "${FLAKE_FILE}.bak"
 
 # Update the flake.lock file.
 nix flake update --extra-experimental-features nix-command --extra-experimental-features flakes
