@@ -60,12 +60,12 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	observerCtx, cancel := context.WithCancel(ctx)
 	o.cancel = cancel
 
-	// command issuers to start listening to their transactions
+	// start a goroutine to confirm each issuer's transactions
 	for _, issuer := range o.issuers {
 		o.observerGroup.Go(func() error { return issuer.Listen(observerCtx) })
 	}
 
-	// command issuers to start sending transactions
+	// start issuing transactions sequentially from each issuer
 	for i, issuer := range o.issuers {
 		generator := o.generators[i]
 		o.issuerGroup.Go(func() error {
