@@ -74,13 +74,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 func shortBurstComponentsGenerator(
 	ctx context.Context,
-	uris []string,
+	uri string,
 	authFactories []chain.AuthFactory,
-) ([]hload.TxGenerator[*chain.Transaction], []hload.Issuer[*chain.Transaction], hload.Tracker[ids.ID], error) {
-	lcli := vm.NewJSONRPCClient(uris[0])
+) ([]hload.TxGenerator[*chain.Transaction], hload.Tracker[ids.ID], error) {
+	lcli := vm.NewJSONRPCClient(uri)
 	ruleFactory, err := lcli.GetRuleFactory(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	numOfFactories := len(authFactories)
@@ -89,15 +89,15 @@ func shortBurstComponentsGenerator(
 	for i, factory := range authFactories {
 		balance, err := lcli.Balance(ctx, factory.Address())
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		balances[i] = balance
 	}
 
-	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	cli := jsonrpc.NewJSONRPCClient(uri)
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Create tx generator
@@ -106,30 +106,5 @@ func shortBurstComponentsGenerator(
 		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
 	}
 
-	tracker := &hload.DefaultTracker[ids.ID]{}
-
-	// Use only one issuer if each authFactories can't have its own issuer
-	if numOfFactories != len(uris) {
-		issuer, err := hload.NewDefaultIssuer(uris[0], tracker)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		issuers := make([]hload.Issuer[*chain.Transaction], numOfFactories)
-		for i := 0; i < numOfFactories; i++ {
-			issuers[i] = issuer
-		}
-
-		return txGenerators, issuers, tracker, nil
-	}
-
-	// Create issuers for each authFactory
-	issuers := make([]hload.Issuer[*chain.Transaction], len(uris))
-	for i := 0; i < len(uris); i++ {
-		issuer, err := hload.NewDefaultIssuer(uris[i], tracker)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		issuers[i] = issuer
-	}
-	return txGenerators, issuers, tracker, nil
+	return txGenerators, &hload.DefaultTracker[ids.ID]{}, nil
 }
