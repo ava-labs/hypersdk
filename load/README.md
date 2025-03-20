@@ -83,6 +83,6 @@ The short burst orchestator is used to send a fixed number ofs transactions to t
 once. This orchestrator is parameterizable via the following:
 
 - `N`: the number of transactions an issuer will send to the network.
-- `timeout`: the amount of time which, after all transactions have been sent,
+- `timeout`: the maximum amount of time which, after all transactions have been sent,
   the orchestrator will wait to hear the confirmation of all outstanding
   transactions. 
