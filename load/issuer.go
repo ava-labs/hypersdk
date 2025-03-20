@@ -16,7 +16,11 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-var ErrIssuedAlreadyStopped = errors.New("issuer already stopped")
+var (
+	_ Issuer[*chain.Transaction] = (*DefaultIssuer)(nil)
+
+	ErrIssuedAlreadyStopped = errors.New("issuer already stopped")
+)
 
 type DefaultIssuer struct {
 	client  *ws.WebSocketClient
@@ -68,13 +72,12 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 		// if we've heard the status of all of our transactions, return nil
 		if i.stopped && i.numOfTxs == i.heardTxs {
 			i.lock.Unlock()
-			return nil
+			return i.client.Close()
 		}
 		i.lock.Unlock()
 	}
 }
 
-// Stop notifies the DefaultIssuer that the current number of txs it has sent is final
 func (i *DefaultIssuer) Stop() {
 	i.lock.Lock()
 	defer i.lock.Unlock()

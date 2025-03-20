@@ -17,8 +17,8 @@ type ShortBurstOrchestratorConfig struct {
 	Timeout time.Duration
 }
 
-// ShortBurstOrchestrator is an orchestrator that orders issuers to continue
-// sending TXs until the tx generators have been exhausted or if an error occurs
+// ShortBurstOrchestrator tests the network by sending a fixed number of
+// transactions en masse in a short burst
 type ShortBurstOrchestrator[T, U comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]
@@ -46,7 +46,8 @@ func NewShortBurstOrchestrator[T, U comparable](
 	}
 }
 
-// The orchestrator is responsible for determining the number of TXs to send
+// Execute orders issuers to send a fixed number of transactions and then waits
+// for all of their statuses to be confirmed or for a timeout to occur.
 func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	observerCtx, cancel := context.WithCancel(ctx)
 	o.cancel = cancel
