@@ -4,6 +4,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -19,9 +20,9 @@ import (
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/load"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -31,18 +32,32 @@ var (
 	networkConfig workload.TestNetworkConfiguration
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
-	spamKey       chain.AuthFactory
-	spamHelper    throughput.SpamHelper
+
+	shortBurstComponentsGenerator ShortBurstComponentsGenerator
+	shortBurstConfig              load.ShortBurstOrchestratorConfig
 )
 
-func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key chain.AuthFactory) {
+// ShortBurstComponentsGenerator returns the components necessary to instantiate
+// a ShortBurstOrchestrator.
+// We use a generator here since the node URIs are not known until runtime.
+type ShortBurstComponentsGenerator func(
+	ctx context.Context,
+	uris []string,
+	authFactories []chain.AuthFactory,
+) ([]load.TxGenerator[*chain.Transaction], []load.Issuer[*chain.Transaction], load.Tracker, error)
+
+func SetWorkload(
+	networkConfigImpl workload.TestNetworkConfiguration,
+	workloadGenerator workload.TxGenerator,
+	abi abi.ABI,
+	generator ShortBurstComponentsGenerator,
+	config load.ShortBurstOrchestratorConfig,
+) {
 	networkConfig = networkConfigImpl
-	txWorkload = workload.TxWorkload{
-		Generator: generator,
-	}
+	txWorkload = workload.TxWorkload{Generator: workloadGenerator}
 	expectedABI = abi
-	spamHelper = sh
-	spamKey = key
+	shortBurstComponentsGenerator = generator
+	shortBurstConfig = config
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -111,26 +126,34 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
-	ginkgo.It("Spam Workload", func() {
-		if spamKey == nil || spamHelper == nil {
-			return
-		}
+var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
+	ginkgo.It("Short Burst Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
+		ctx := tc.DefaultContext()
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
-		key := spamKey
 
-		err := spamHelper.CreateClient(uris[0])
+		txGenerators, issuers, tracker, err := shortBurstComponentsGenerator(
+			ctx,
+			uris,
+			networkConfig.AuthFactories(),
+		)
 		require.NoError(err)
 
-		spamConfig := throughput.NewFastConfig(uris, key)
-		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
-		require.NoError(err)
+		orchestrator := load.NewShortBurstOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			shortBurstConfig,
+		)
 
-		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
-		require.NoError(err)
+		require.NoError(orchestrator.Execute(ctx))
+
+		numOfTxs := shortBurstConfig.N * uint64(len(issuers))
+		require.Equal(numOfTxs, tracker.GetObservedIssued())
+		require.Equal(numOfTxs, tracker.GetObservedConfirmed())
+		require.Equal(uint64(0), tracker.GetObservedFailed())
 	})
 })
 

@@ -95,20 +95,6 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 	return o.observerGroup.Wait()
 }
 
-// TODOs
-// create README that clearly describes breakdown of components
-// finish implementing the burst orchestrator - issue N txs from each issuer/generator and wait for all to complete
-// ensure high quality of logs and metrics
-// logs for issuance + confirmation + failure, startup/termination of each goroutine, and startup/termination of overall process
-// metrics as we defined:
-// txsIssued
-// txsConfirmed
-// txsFailed
-// this can be used to track issued outstanding as well
-// latency for confirmed/failed
-// Grafana dashboard for client side load generation metrics
-// Grafana dashboard for network side txs_accepted (TPS)
-
 // replace Tx type constraint with T = comparable (GetID should not be needed?)
 // ✅
 
@@ -122,9 +108,9 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 // combine Start/Wait into a single Execute function for the orchestrator ✅
 
 // complete all TODOs throughout the change (ie. complete all TODO configurable
-// ie. number of txs, duration of issuance, timeout duration, etc.)
+// ie. number of txs, duration of issuance, timeout duration, etc.) ✅
 
-// create README + mermaid diagram explaining the architecture
+// create README + mermaid diagram explaining the architecture ✅
 
 // update CI throughput test to use load package instead of throughput
 
