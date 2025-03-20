@@ -82,6 +82,7 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 func (i *DefaultIssuer) Stop() {
 	i.lock.Lock()
 	defer i.lock.Unlock()
+	
 	i.stopped = true
 }
 
