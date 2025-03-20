@@ -31,9 +31,6 @@ var (
 	validityWindow        int64
 	hideTxs               bool
 	checkAllChains        bool
-	spamDefaults          bool
-	spamKey               string
-	clusterInfo           string
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string

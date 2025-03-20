@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
@@ -108,9 +107,7 @@ func shortBurstComponentsGenerator(
 		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
 	}
 
-	// Create tracker
-	registry := prometheus.NewRegistry()
-	tracker := hload.NewPrometheusTracker(registry)
+	tracker := &hload.DefaultTracker{}
 
 	// Create issuers
 	issuers := make([]hload.Issuer[*chain.Transaction], numOfFactories)
