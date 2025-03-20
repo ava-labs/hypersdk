@@ -12,8 +12,8 @@ if ! [[ "$0" =~ scripts/update_avalanchego_version.sh ]]; then
 fi
 
 if ! nix --version > /dev/null 2>&1; then
-  echo "this script requires nix to be installed. Install nix by running "
-  echo "sh <(curl -L https://nixos.org/nix/install)"
+  echo "This script requires nix to be installed."
+  echo "See flake.nix for recommended installation instructions."
   exit 255
 fi
 
