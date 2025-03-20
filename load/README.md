@@ -19,13 +19,13 @@ to perform gradual load testing.
 graph
     A["Orchestrator"]
     subgraph B1["Issuer 1"]
-        TG1["TxGenerator"]
+        TG1["TxGenerator 1"]
     end
     subgraph B2["Issuer 2"]
-        TG2["TxGenerator"]
+        TG2["TxGenerator 2"]
     end
     subgraph B3["Issuer 3"]
-        TG3["TxGenerator"]
+        TG3["TxGenerator 3"]
     end
     C["Tracker"]
 
@@ -42,13 +42,18 @@ graph
 
 ### Orchestrator
 
-The role of the orchestrator is to lead the issuers and, when applicable,
-reading the tracker to get the current state of the network.
+The orchestrator is responsible for directing issuers to send transactions to
+the network. The strategy for how the orchestrator directs issuers varies
+between implementations (e.g. short burst vs gradual load).
+
+When applicable, the orchestrator can also query the tracker to make a decision
+(e.g. increase TPS or return).
 
 ### Transaction Generator
 
 The TX generator is responsible for generating a valid transaction which any
-issuer can send. 
+issuer can send. Each TX generator is assumed to have an associated account that
+will sign transactions and whose balance is monitored to err in the case of fund exhaustion.
 
 ### TX Issuer
 
@@ -64,7 +69,9 @@ The TX issuer also has the following obligations to the tracker:
 
 ### Tracker
 
-The role of the tracker is to record metrics for the TPS.
+The role of the tracker is to record metrics for the TPS. Since the tracker is
+used by both the issuers and the orchestrator, all methods of the tracker must
+be thread safe.
 
 ## Default Orchestrators
 
