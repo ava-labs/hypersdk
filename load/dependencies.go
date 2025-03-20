@@ -6,8 +6,6 @@ package load
 import (
 	"context"
 	"time"
-
-	"github.com/ava-labs/avalanchego/ids"
 )
 
 type TxGenerator[T comparable] interface {
@@ -32,14 +30,14 @@ type Issuer[T comparable] interface {
 
 // Tracker provides all client side load generation metrics.
 // This must be thread-safe, so it can be called in parallel by the issuer or orchestrator.
-type Tracker interface {
+type Tracker[T comparable] interface {
 	// Issue records a transaction that was submitted, but whose final status is
 	// not yet known.
-	Issue(id ids.ID, time time.Time)
+	Issue(T, time.Time)
 	// ObserveConfirmed records a transaction that was confirmed.
-	ObserveConfirmed(ids.ID)
+	ObserveConfirmed(T)
 	// ObserveFailed records a transaction that failed (e.g. expired)
-	ObserveFailed(ids.ID)
+	ObserveFailed(T)
 
 	// GetObservedIssued returns the number of transactions that the tracker has
 	// confirmed were issued.
@@ -52,7 +50,7 @@ type Tracker interface {
 	GetObservedFailed() uint64
 }
 
-type Orchestrator[T comparable] interface {
+type Orchestrator interface {
 	// Execute begins the load generation process and blocks until the
 	// orchestrator has finished or the context is done.
 	Execute(ctx context.Context) error

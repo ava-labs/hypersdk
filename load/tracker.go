@@ -6,13 +6,11 @@ package load
 import (
 	"sync"
 	"time"
-
-	"github.com/ava-labs/avalanchego/ids"
 )
 
-var _ Tracker = (*DefaultTracker)(nil)
+var _ Tracker[any] = (*DefaultTracker[any])(nil)
 
-type DefaultTracker struct {
+type DefaultTracker[T comparable] struct {
 	sync.RWMutex
 
 	txIssuedCounter    uint64
@@ -20,37 +18,37 @@ type DefaultTracker struct {
 	txFailedCounter    uint64
 }
 
-func (t *DefaultTracker) Issue(ids.ID, time.Time) {
+func (t *DefaultTracker[T]) Issue(T, time.Time) {
 	t.Lock()
 	t.txIssuedCounter++
 	t.Unlock()
 }
 
-func (t *DefaultTracker) ObserveConfirmed(ids.ID) {
+func (t *DefaultTracker[T]) ObserveConfirmed(T) {
 	t.Lock()
 	defer t.Unlock()
 	t.txConfirmedCounter++
 }
 
-func (t *DefaultTracker) ObserveFailed(ids.ID) {
+func (t *DefaultTracker[T]) ObserveFailed(T) {
 	t.Lock()
 	defer t.Unlock()
 	t.txFailedCounter++
 }
 
-func (t *DefaultTracker) GetObservedConfirmed() uint64 {
+func (t *DefaultTracker[T]) GetObservedConfirmed() uint64 {
 	t.RLock()
 	defer t.RUnlock()
 	return t.txConfirmedCounter
 }
 
-func (t *DefaultTracker) GetObservedFailed() uint64 {
+func (t *DefaultTracker[T]) GetObservedFailed() uint64 {
 	t.RLock()
 	defer t.RUnlock()
 	return t.txFailedCounter
 }
 
-func (t *DefaultTracker) GetObservedIssued() uint64 {
+func (t *DefaultTracker[T]) GetObservedIssued() uint64 {
 	t.RLock()
 	defer t.RUnlock()
 	return t.txIssuedCounter

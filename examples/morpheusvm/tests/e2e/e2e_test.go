@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +78,7 @@ func shortBurstComponentsGenerator(
 	ctx context.Context,
 	uris []string,
 	authFactories []chain.AuthFactory,
-) ([]hload.TxGenerator[*chain.Transaction], []hload.Issuer[*chain.Transaction], hload.Tracker, error) {
+) ([]hload.TxGenerator[*chain.Transaction], []hload.Issuer[*chain.Transaction], hload.Tracker[ids.ID], error) {
 	lcli := vm.NewJSONRPCClient(uris[0])
 	ruleFactory, err := lcli.GetRuleFactory(ctx)
 	if err != nil {
@@ -107,7 +108,7 @@ func shortBurstComponentsGenerator(
 		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
 	}
 
-	tracker := &hload.DefaultTracker{}
+	tracker := &hload.DefaultTracker[ids.ID]{}
 
 	// Create issuers
 	issuers := make([]hload.Issuer[*chain.Transaction], numOfFactories)

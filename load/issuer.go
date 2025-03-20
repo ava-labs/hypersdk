@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -18,7 +20,7 @@ var ErrIssuedAlreadyStopped = errors.New("issuer already stopped")
 
 type DefaultIssuer struct {
 	client  *ws.WebSocketClient
-	tracker Tracker
+	tracker Tracker[ids.ID]
 
 	lock     sync.Mutex
 	numOfTxs uint64
@@ -26,7 +28,7 @@ type DefaultIssuer struct {
 	stopped  bool
 }
 
-func NewDefaultIssuer(uri string, tracker Tracker) (*DefaultIssuer, error) {
+func NewDefaultIssuer(uri string, tracker Tracker[ids.ID]) (*DefaultIssuer, error) {
 	client, err := ws.NewWebSocketClient(
 		uri,
 		ws.DefaultHandshakeTimeout,

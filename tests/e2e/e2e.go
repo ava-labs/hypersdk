@@ -44,7 +44,7 @@ type ShortBurstComponentsGenerator func(
 	ctx context.Context,
 	uris []string,
 	authFactories []chain.AuthFactory,
-) ([]load.TxGenerator[*chain.Transaction], []load.Issuer[*chain.Transaction], load.Tracker, error)
+) ([]load.TxGenerator[*chain.Transaction], []load.Issuer[*chain.Transaction], load.Tracker[ids.ID], error)
 
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,

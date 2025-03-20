@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var _ Orchestrator[any] = (*ShortBurstOrchestrator[any])(nil)
+var _ Orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
 
 type ShortBurstOrchestratorConfig struct {
 	N       uint64
@@ -19,10 +19,10 @@ type ShortBurstOrchestratorConfig struct {
 
 // ShortBurstOrchestrator is an orchestrator that orders issuers to continue
 // sending TXs until the tx generators have been exhausted or if an error occurs
-type ShortBurstOrchestrator[T comparable] struct {
+type ShortBurstOrchestrator[T, U comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]
-	tracker    Tracker
+	tracker    Tracker[U]
 
 	issuerGroup   errgroup.Group
 	observerGroup errgroup.Group
@@ -32,13 +32,13 @@ type ShortBurstOrchestrator[T comparable] struct {
 	config ShortBurstOrchestratorConfig
 }
 
-func NewShortBurstOrchestrator[T comparable](
+func NewShortBurstOrchestrator[T, U comparable](
 	txGenerators []TxGenerator[T],
 	issuers []Issuer[T],
-	tracker Tracker,
+	tracker Tracker[U],
 	config ShortBurstOrchestratorConfig,
-) *ShortBurstOrchestrator[T] {
-	return &ShortBurstOrchestrator[T]{
+) *ShortBurstOrchestrator[T, U] {
+	return &ShortBurstOrchestrator[T, U]{
 		generators: txGenerators,
 		issuers:    issuers,
 		tracker:    tracker,
@@ -47,7 +47,7 @@ func NewShortBurstOrchestrator[T comparable](
 }
 
 // The orchestrator is responsible for determining the number of TXs to send
-func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
+func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	observerCtx, cancel := context.WithCancel(ctx)
 	o.cancel = cancel
 
