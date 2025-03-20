@@ -109,12 +109,17 @@ func shortBurstComponentsGenerator(
 	tracker := &hload.DefaultTracker[ids.ID]{}
 
 	// Use only one issuer if each authFactories can't have its own issuer
-	if len(authFactories) != len(uris) {
+	if numOfFactories != len(uris) {
 		issuer, err := hload.NewDefaultIssuer(uris[0], tracker)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return txGenerators, []hload.Issuer[*chain.Transaction]{issuer}, tracker, nil
+		issuers := make([]hload.Issuer[*chain.Transaction], numOfFactories)
+		for i := 0; i < numOfFactories; i++ {
+			issuers[i] = issuer
+		}
+
+		return txGenerators, issuers, tracker, nil
 	}
 
 	// Create issuers for each authFactory
