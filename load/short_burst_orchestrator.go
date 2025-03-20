@@ -18,7 +18,7 @@ type ShortBurstOrchestratorConfig struct {
 }
 
 // ShortBurstOrchestrator tests the network by sending a fixed number of
-// transactions en masse in a short burst
+// transactions en masse in a short timeframe.
 type ShortBurstOrchestrator[T, U comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]

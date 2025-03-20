@@ -28,8 +28,8 @@ type Issuer[T comparable] interface {
 	IssueTx(ctx context.Context, tx T) error
 }
 
-// Tracker provides all client side load generation metrics.
-// This must be thread-safe, so it can be called in parallel by the issuer or orchestrator.
+// Tracker keeps track of the status of transactions.
+// This must be thread-safe, so it can be called in parallel by the issuer(s) or orchestrator.
 type Tracker[T comparable] interface {
 	// Issue records a transaction that was submitted, but whose final status is
 	// not yet known.

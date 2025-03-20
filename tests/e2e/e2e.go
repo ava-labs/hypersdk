@@ -48,13 +48,13 @@ type ShortBurstComponentsGenerator func(
 
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
-	workloadGenerator workload.TxGenerator,
+	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
 	generator ShortBurstComponentsGenerator,
 	config load.ShortBurstOrchestratorConfig,
 ) {
 	networkConfig = networkConfigImpl
-	txWorkload = workload.TxWorkload{Generator: workloadGenerator}
+	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
 	shortBurstComponentsGenerator = generator
 	shortBurstConfig = config

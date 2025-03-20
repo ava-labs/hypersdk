@@ -22,8 +22,8 @@ var (
 
 type TxGenerator struct {
 	authFactory chain.AuthFactory
-	ruleFactory chain.RuleFactory
 	currBalance uint64
+	ruleFactory chain.RuleFactory
 	unitPrices  fees.Dimensions
 }
 
@@ -41,7 +41,7 @@ func NewTxGenerator(
 	}
 }
 
-func (t *TxGenerator) GenerateTx(_ context.Context) (*chain.Transaction, error) {
+func (t *TxGenerator) GenerateTx(context.Context) (*chain.Transaction, error) {
 	tx, err := chain.GenerateTransaction(
 		t.ruleFactory,
 		t.unitPrices,

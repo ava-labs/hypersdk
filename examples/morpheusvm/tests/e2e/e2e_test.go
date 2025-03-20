@@ -50,11 +50,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
-	// Import HyperSDK e2e test coverage and inject MorpheusVM name
-	// and workload factory to orchestrate the test.
 	authFactories := testingNetworkConfig.AuthFactories()
 	generator := workload.NewTxGenerator(authFactories[1])
-	tc := e2e.NewTestContext()
+
 	he2e.SetWorkload(
 		testingNetworkConfig,
 		generator,
@@ -66,7 +64,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		},
 	)
 
-	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

@@ -50,6 +50,7 @@ func NewDefaultIssuer(uri string, tracker Tracker[ids.ID]) (*DefaultIssuer, erro
 }
 
 func (i *DefaultIssuer) Listen(ctx context.Context) error {
+	defer i.client.Close()
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,7 +73,7 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 		// if we've heard the status of all of our transactions, return nil
 		if i.stopped && i.numOfTxs == i.heardTxs {
 			i.lock.Unlock()
-			return i.client.Close()
+			return nil
 		}
 		i.lock.Unlock()
 	}
