@@ -13,7 +13,7 @@ import (
 )
 
 type BlockFetcher[T Block] interface {
-	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan T
+	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64, blockResults chan<- T)
 }
 
 // Syncer ensures the node does not transition to normal operation
@@ -81,7 +81,8 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.cancel = cancel
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
-		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp)
+		resultChan := make(chan B)
+		s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp, resultChan)
 		for blk := range resultChan {
 			s.timeValidityWindow.AcceptHistorical(blk)
 		}

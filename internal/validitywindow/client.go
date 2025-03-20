@@ -51,9 +51,8 @@ func NewBlockFetcherClient[B Block](
 //   - Each request is limited by the node's max execution time (currently ~50ms),
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
-func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan B {
-	resultChan := make(chan B, 1)
-
+func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64, resultChan chan<- B) {
+	// TODO: create the goroutine via the caller
 	go func() {
 		c.lastBlock = blk
 		req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load(), BlockHeight: blk.GetHeight() - 1}
@@ -116,8 +115,6 @@ func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minT
 			time.Sleep(backoff)
 		}
 	}()
-
-	return resultChan
 }
 
 func (c *BlockFetcherClient[B]) sampleNodeID(ctx context.Context) (ids.NodeID, bool) {
