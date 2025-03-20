@@ -5,12 +5,17 @@ package load
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 )
 
-var _ Orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
+var (
+	ErrMismatchedGeneratorsAndIssuers = errors.New("number of generators and issuers must match")
+
+	_ Orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
+)
 
 type ShortBurstOrchestratorConfig struct {
 	N       uint64
@@ -37,13 +42,16 @@ func NewShortBurstOrchestrator[T, U comparable](
 	issuers []Issuer[T],
 	tracker Tracker[U],
 	config ShortBurstOrchestratorConfig,
-) *ShortBurstOrchestrator[T, U] {
+) (*ShortBurstOrchestrator[T, U], error) {
+	if len(txGenerators) != len(issuers) {
+		return nil, ErrMismatchedGeneratorsAndIssuers
+	}
 	return &ShortBurstOrchestrator[T, U]{
 		generators: txGenerators,
 		issuers:    issuers,
 		tracker:    tracker,
 		config:     config,
-	}
+	}, nil
 }
 
 // Execute orders issuers to send a fixed number of transactions and then waits

@@ -141,12 +141,13 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		)
 		require.NoError(err)
 
-		orchestrator := load.NewShortBurstOrchestrator(
+		orchestrator, err := load.NewShortBurstOrchestrator(
 			txGenerators,
 			issuers,
 			tracker,
 			shortBurstConfig,
 		)
+		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
