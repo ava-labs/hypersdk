@@ -3,10 +3,11 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.23.7
 
 require (
-	github.com/ava-labs/avalanchego v1.12.3-0.20250313214302-8551e1d96221
+	github.com/ava-labs/avalanchego v1.12.3-0.20250317160941-6626b41b013f
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
@@ -16,7 +17,7 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/StephenButtolph/canoto v0.13.3 // indirect
+	github.com/StephenButtolph/canoto v0.15.0 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -99,7 +100,6 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect

@@ -5,16 +5,16 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1741902182,
-        "narHash": "sha256-osqd4+o3Aj5wm3xZY9MsEhTxf4uZzg4KVmkluiLesMU=",
+        "lastModified": 1742227781,
+        "narHash": "sha256-qg/uyt15MDNshHF5R/kq4H9X17B++9ZQFcM5DWsCtmQ=",
         "owner": "ava-labs",
         "repo": "avalanchego",
-        "rev": "8551e1d96221c8a5c2c034c2bad0cd571610ad35",
+        "rev": "6626b41b013f2365b96bd66dfc8499ee4861d25b",
         "type": "github"
       },
       "original": {
         "owner": "ava-labs",
-        "ref": "8551e1d96221c8a5c2c034c2bad0cd571610ad35",
+        "ref": "6626b41b013f2365b96bd66dfc8499ee4861d25b",
         "repo": "avalanchego",
         "type": "github"
       }
