@@ -4,8 +4,8 @@ This package provides generic utilities for blockchain load testing. We break lo
 
 - tx generator(s)
 - tx issuer(s)
-- orchestrator
 - tracker
+- orchestrator
 
 The transaction generator(s) and issuer(s) may be VM specific and provide the
 necessary injected dependencies for the orchestrator. This enables us to
