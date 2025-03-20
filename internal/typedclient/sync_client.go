@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/utils"
 )
 
@@ -17,7 +16,7 @@ type SyncTypedClient[T any, U any, V any] struct {
 }
 
 // NewSyncTypedClient creates a new synchronous client
-func NewSyncTypedClient[T any, U any, V any](client *p2p.Client, marshaler Marshaler[T, U, V]) *SyncTypedClient[T, U, V] {
+func NewSyncTypedClient[T any, U any, V any](client P2PClient, marshaler Marshaler[T, U, V]) *SyncTypedClient[T, U, V] {
 	return &SyncTypedClient[T, U, V]{
 		client: NewTypedClient(client, marshaler),
 	}

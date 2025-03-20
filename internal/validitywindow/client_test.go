@@ -5,8 +5,8 @@ package validitywindow
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -14,29 +14,39 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/network/p2p/p2ptest"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	_       BlockParser[Block] = (*parser[Block])(nil)
-	_       p2p.NodeSampler    = (*testNodeSampler)(nil)
-	timeout                    = 5 * time.Second
+	_          BlockParser[Block]  = (*parser[Block])(nil)
+	_          p2p.NodeSampler     = (*controlledNodeSampler)(nil)
+	_          NetworkBlockFetcher = (*testP2PBlockFetcher)(nil)
+	timeout                        = 5 * time.Second
+	errTimeout                     = errors.New("handler timeout")
 )
 
 // The nodes have partial state, we're testing client's functionality to query different nodes
 // and construct valid state from partial states
 func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
-	t.Skip("FLAKY")
-
 	r := require.New(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	validChain := generateTestChain(10)
-	nodes := []nodeScenario{
+	nodeScenarios := []nodeSetup{
 		{
+			sampleOrder: 1,
+			blocks: map[uint64]ExecutionBlock[container]{
+				6: validChain[6],
+				7: validChain[7],
+				8: validChain[8],
+				9: validChain[9],
+			},
+		},
+		{
+			sampleOrder: 2,
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: validChain[0],
 				1: validChain[1],
@@ -46,33 +56,27 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 				5: validChain[5],
 			},
 		},
-		{
-			blocks: map[uint64]ExecutionBlock[container]{
-				6: validChain[6],
-				7: validChain[7],
-				8: validChain[8],
-				9: validChain[9],
-			},
-		},
 	}
 
-	network := newTestNetwork(t, ctx, nodes)
-	blkParser := newParser(validChain)
-	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
+	test := newTestEnvironment(nodeScenarios)
+	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](
+		test.p2pBlockFetcher,
+		newParser(validChain),
+		test.sampler,
+	)
 
-	// start fetching from the tip i.e. last known accepted block, this block will not be included
+	// Start fetching from the tip
 	tip := validChain[len(validChain)-1]
-	var minTS atomic.Int64
+
+	var (
+		minTS             atomic.Int64
+		numExpectedBlocks = 7
+	)
 	minTS.Store(3)
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	// Get a channel from fetcher
-	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTS)
-
-	// Collect all blocks from the channel
-	receivedBlocks := make(map[uint64]ExecutionBlock[container])
-	receive(fetchCtx, resultChan, receivedBlocks, nil)
+	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numExpectedBlocks)
+	r.NoError(err)
 
 	// Retrieve blocks from height 8 down to 2 (inclusive)
 	//nolint:dupword
@@ -95,28 +99,25 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	// we need the boundary block (block 2, the first block whose
 	// timestamp is strictly less than our minimum) to properly
 	// verify the entire validity window.
-	r.Len(receivedBlocks, 7)
+	r.Len(receivedBlocks, numExpectedBlocks, "Should receive 7 blocks")
 	for _, block := range validChain[2:9] {
 		received, ok := receivedBlocks[block.GetHeight()]
-		r.True(ok)
+		r.True(ok, "Block at height %d should be received", block.GetHeight())
 		r.Equal(block.GetID(), received.GetID())
 	}
 }
 
 func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
-	t.Skip("FLAKY")
-
 	r := require.New(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	chain := generateTestChain(20)
 	numReceivedBlocks := 5
 
-	// Buffered channel for fine-grained control of block retrieval
-	controlBuffer := make(chan struct{}, len(chain))
-	nodes := []nodeScenario{
+	nodeSetups := []nodeSetup{
 		{
-			// First node has almost full state of valid transactions
+			sampleOrder: 1,
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: chain[2],
 				1: chain[5],
@@ -129,9 +130,10 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 				8: chain[8],
 				9: chain[9],
 			},
-			bufferReads: controlBuffer,
+			blkControl: make(chan struct{}, numReceivedBlocks), // blocks from 8 to 4
 		},
 		{
+			sampleOrder: 2,
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: chain[2],
 				1: chain[5],
@@ -144,24 +146,24 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 				8: chain[8],
 				9: chain[9],
 			},
+			blkControl: make(chan struct{}),
 		},
 	}
 
-	network := newTestNetwork(t, ctx, nodes)
-	blockValidator := newParser(chain)
-	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blockValidator, network.sampler)
-	tip := chain[9]
+	test := newTestEnvironment(nodeSetups)
+	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](test.p2pBlockFetcher, newParser(chain), test.sampler)
+
 	var minTS atomic.Int64
 	minTS.Store(3)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTS)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container])
+	tip := chain[9]
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTS)
 
-	receive(fetchCtx, resultChan, receivedBlocks, nil)
+	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numReceivedBlocks)
+	// Due to the malicious node, we receive blocks 8-4 instead of 8-3.
+	// The timeout error forces a partial but valid response.
+	r.ErrorIs(err, errTimeout)
 
-	// We should have 5 blocks in our state instead of 6 since the last one is invalid. Partial commit of valid blocks
 	r.Len(receivedBlocks, numReceivedBlocks)
 
 	// Verify blocks from 8 to 4 have been received
@@ -170,7 +172,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 		h := expectedBlock.GetHeight()
 		receivedBlock, ok := receivedBlocks[h]
 		r.True(ok)
-		r.Equal(expectedBlock, receivedBlock)
+		r.EqualValues(expectedBlock, receivedBlock)
 	}
 }
 
@@ -180,25 +182,23 @@ Test demonstrates dynamic minTimestamp boundary updates during block fetching.
 Initial state:
 
 	Blocks (height -> minTimestamp):  0->0, 1->1, 2->2, 3->3, 4->4, 5->5, 6->6, 7->7, 8->8, 9->9
-	Initial minTS = 3, blkHeight=9: Should fetch blocks with timestamps > 3 (blocks 4-8)
+	Initial minTS = 3, blkHeight=9: Should fetch blocks with timestamps >= 2 and <9  (blocks 2-8)
 
 During execution:
-1. Node responds with a delay for each request
-2. After fetching some blocks minTS is updated to 5
-3. This updates the boundary - now only fetches blocks with timestamps > 5
+- After fetching some blocks, minTS is updated to 5
+- This updates the boundary - now only fetches blocks with timestamps >= 4 and < 9
 
 Expected outcome:
   - Only blocks 4 to 8 should be received (5 blocks total, 4th block being boundary block due to stricter adherence)
   - Blocks 0-3 should not be received as they're below the updated minTS
 */
 func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
-	t.Skip("FLAKY")
-
 	r := require.New(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	validChain := generateTestChain(10)
-	nodes := []nodeScenario{
+	nodeSetups := []nodeSetup{
 		{
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: validChain[0],
@@ -215,13 +215,15 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		},
 	}
 
-	network := newTestNetwork(t, ctx, nodes)
-	blkParser := newParser(validChain)
-	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](network.client, blkParser, network.sampler)
+	test := newTestEnvironment(nodeSetups)
+	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](test.p2pBlockFetcher, newParser(validChain), test.sampler)
 
 	tip := validChain[len(validChain)-1]
 
-	var minTimestamp atomic.Int64
+	var (
+		minTimestamp      atomic.Int64
+		numExpectedBlocks = 5
+	)
 	minTimestamp.Store(3)
 
 	// Signal timestamp update
@@ -235,24 +237,35 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		}
 	}()
 
-	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	resultChan := fetcher.FetchBlocks(fetchCtx, tip, &minTimestamp)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container])
+	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
+	receivedBlocks := make(map[uint64]ExecutionBlock[container], numExpectedBlocks)
 
-	recvCount := 0
-	receive(fetchCtx, resultChan, receivedBlocks, func() {
-		recvCount++
-		// After receiving some blocks signal to update the timestamp
-		if recvCount == 2 {
-			close(signalUpdate)
+	success := make(chan struct{})
+	go func() {
+		recvCount := 0
+		defer close(success)
+
+		for blk := range resultChan {
+			height := blk.GetHeight()
+			receivedBlocks[height] = blk
+
+			recvCount += 1
+			// After receiving some blocks signal to update the timestamp
+			if recvCount == 2 {
+				close(signalUpdate)
+			}
 		}
-	})
+	}()
 
-	r.Len(receivedBlocks, 5)
-	for _, block := range validChain[4:9] {
-		_, ok := receivedBlocks[block.GetHeight()]
-		r.True(ok)
+	select {
+	case <-success:
+		r.Len(receivedBlocks, numExpectedBlocks)
+		for _, block := range validChain[4:9] {
+			_, ok := receivedBlocks[block.GetHeight()]
+			r.True(ok)
+		}
+	case <-ctx.Done():
+		r.Fail("context timeout")
 	}
 }
 
@@ -270,43 +283,109 @@ func generateTestChain(n int) []ExecutionBlock[container] {
 	return validChain
 }
 
-// === Test Helpers ===
-type nodeScenario struct {
+type nodeSetup struct {
+	nodeID ids.NodeID
+	// blkControl is controlling how many block retrieval operations can occur.
+	// With a buffer of N, exactly N blocks will be retrieved before blocking indefinitely,
+	// allowing tests to create predictable timeout scenarios with partial results.
+	blkControl  chan struct{}
 	blocks      map[uint64]ExecutionBlock[container] // in-memory blocks a node might have
-	bufferReads chan struct{}
+	sampleOrder uint8                                // Order in which this node should be sampled
 }
 
-type testNetwork struct {
-	client  *p2p.Client
-	sampler *testNodeSampler
-	nodes   []ids.NodeID
+type testP2PBlockFetcher struct {
+	handlers map[ids.NodeID]*BlockFetcherHandler[ExecutionBlock[container]]
+	err      chan error
 }
 
-func newTestNetwork(t *testing.T, ctx context.Context, nodeScenarios []nodeScenario) *testNetwork {
-	clientNodeID := ids.GenerateTestNodeID()
-	handlers := make(map[ids.NodeID]p2p.Handler)
+func (t *testP2PBlockFetcher) FetchBlocksFromPeer(ctx context.Context, nodeID ids.NodeID, request *BlockFetchRequest) (*BlockFetchResponse, error) {
+	handler, ok := t.handlers[nodeID]
+	if !ok {
+		return nil, fmt.Errorf("handler %s not found", nodeID)
+	}
+
+	blocks, err := handler.fetchBlocks(ctx, request)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			t.err <- errTimeout
+			return nil, errTimeout
+		}
+		return nil, err
+	}
+
+	return &BlockFetchResponse{Blocks: blocks}, nil
+}
+
+type testEnvironment struct {
+	p2pBlockFetcher *testP2PBlockFetcher
+	sampler         *controlledNodeSampler
+	nodes           []ids.NodeID
+}
+
+func newTestEnvironment(nodeScenarios []nodeSetup) *testEnvironment {
+	handlers := make(map[ids.NodeID]*BlockFetcherHandler[ExecutionBlock[container]])
 	nodes := make([]ids.NodeID, len(nodeScenarios))
 
-	for _, scenario := range nodeScenarios {
-		nodeID := ids.GenerateTestNodeID()
+	for i, scenario := range nodeScenarios {
+		nodeScenarios[i].nodeID = ids.GenerateTestNodeID()
+
+		nodeID := nodeScenarios[i].nodeID
 		nodes = append(nodes, nodeID)
 
 		opts := make([]option, 3)
 		opts = append(opts, withBlocks(scenario.blocks), withNodeID(nodeID))
 
-		if scenario.bufferReads != nil {
-			opts = append(opts, withBufferedReads(scenario.bufferReads))
+		if scenario.blkControl != nil {
+			opts = append(opts, withBlockControl(scenario.blkControl))
 		}
 
 		blkRetriever := newTestBlockRetriever(opts...)
 		handlers[nodeID] = NewBlockFetcherHandler(blkRetriever)
 	}
 
-	return &testNetwork{
-		client:  p2ptest.NewClientWithPeers(t, ctx, clientNodeID, p2p.NoOpHandler{}, handlers),
-		sampler: &testNodeSampler{nodes: nodes},
-		nodes:   nodes,
+	return &testEnvironment{
+		p2pBlockFetcher: &testP2PBlockFetcher{handlers: handlers, err: make(chan error, 1)},
+		sampler:         newControlledNodeSampler(nodeScenarios),
+		nodes:           nodes,
 	}
+}
+
+func (t *testEnvironment) collectBlocksWithTimeout(ctx context.Context, resultChan <-chan ExecutionBlock[container], numRcvBlks int) (map[uint64]ExecutionBlock[container], error) {
+	receivedBlocks := make(map[uint64]ExecutionBlock[container], numRcvBlks)
+	done := make(chan struct{})
+
+	innerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case blk, ok := <-resultChan:
+				if !ok {
+					return
+				}
+				receivedBlocks[blk.GetHeight()] = blk
+			case <-innerCtx.Done():
+				return
+			}
+		}
+	}()
+
+	var err error
+	select {
+	case <-done:
+		return receivedBlocks, nil
+	case err = <-t.p2pBlockFetcher.err:
+		cancel()
+	case <-ctx.Done():
+		cancel()
+		err = ctx.Err()
+	}
+
+	<-done
+
+	// We should allow partial responses
+	return receivedBlocks, err
 }
 
 // === BlockParser ===
@@ -348,38 +427,43 @@ func (m *parser[T]) ParseBlock(_ context.Context, data []byte) (T, error) {
 	return block, nil
 }
 
-// === NODE SAMPLER ===
-type testNodeSampler struct {
-	nodes []ids.NodeID
+// controlledNodeSampler provides deterministic node sampling for tests
+// with explicit control over which node is sampled next
+type controlledNodeSampler struct {
+	nodesMap   map[uint8]ids.NodeID // Maps sampleOrder → nodeID
+	orders     []uint8              // Sorted list of orders
+	currentIdx int                  // Current index in orders slice
 }
 
-func (t *testNodeSampler) Sample(_ context.Context, num int) []ids.NodeID {
-	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
-	r.Shuffle(len(t.nodes), func(i, j int) {
-		t.nodes[i], t.nodes[j] = t.nodes[j], t.nodes[i]
+func newControlledNodeSampler(scenarios []nodeSetup) *controlledNodeSampler {
+	if len(scenarios) == 0 {
+		panic("scenarios cannot be empty")
+	}
+
+	// sort node scenarios by sampleOrder
+	sort.Slice(scenarios, func(i, j int) bool {
+		return scenarios[i].sampleOrder < scenarios[j].sampleOrder
 	})
-	if len(t.nodes) < num {
-		return t.nodes
+
+	nodesMap := make(map[uint8]ids.NodeID)
+	orders := make([]uint8, 0, len(scenarios))
+
+	// Collect the orders and node IDs
+	for _, scenario := range scenarios {
+		nodesMap[scenario.sampleOrder] = scenario.nodeID
+		orders = append(orders, scenario.sampleOrder)
 	}
-	return t.nodes[:num]
+
+	return &controlledNodeSampler{
+		nodesMap: nodesMap,
+		orders:   orders,
+	}
 }
 
-// receive collects blocks from resultChan until either:
-// 1. The context is canceled (ctx.Done), or
-// 2. The channel is closed by the sender
-func receive(ctx context.Context, resultChan <-chan ExecutionBlock[container], receivedBlocks map[uint64]ExecutionBlock[container], afterReceiveCallback func()) {
-	for {
-		select {
-		case blk, ok := <-resultChan:
-			if !ok {
-				return
-			}
-			receivedBlocks[blk.GetHeight()] = blk
-			if afterReceiveCallback != nil {
-				afterReceiveCallback()
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
+func (s *controlledNodeSampler) Sample(_ context.Context, _ int) []ids.NodeID {
+	order := s.orders[s.currentIdx]
+	nodeID := s.nodesMap[order]
+
+	s.currentIdx = (s.currentIdx + 1) % len(s.orders)
+	return []ids.NodeID{nodeID}
 }
