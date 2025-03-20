@@ -280,13 +280,9 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 		return errParentFailedVerification
 	}
 
-	return b.markAccepted(ctx)
-}
-
-// markAccepted marks the block and updates the required VM state.
-// iff parent is non-nil, it will request the chain to Accept the block.
-// The caller is responsible to provide the accepted parent if the VM is in a ready state.
-func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context) error {
+	// Update the chain index first to ensure the block is persisted and we can re-process if needed.
+	// This also guarantees the block is written to the chain index before we remove it from the set
+	// of verified blocks, so it does not "disappear" from view temporarily.
 	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
 		return err
 	}
