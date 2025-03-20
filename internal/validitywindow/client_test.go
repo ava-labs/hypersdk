@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -75,7 +74,7 @@ func TestBlockFetcherClient_FetchBlocks_PartialAndComplete(t *testing.T) {
 	)
 	minTS.Store(3)
 	resultChan := make(chan ExecutionBlock[container], 1)
-	fetcher.FetchBlocks(ctx, tip, &minTS, resultChan)
+	go fetcher.FetchBlocks(ctx, tip, &minTS, resultChan)
 
 	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numExpectedBlocks)
 	r.NoError(err)
@@ -160,7 +159,7 @@ func TestBlockFetcherClient_MaliciousNode(t *testing.T) {
 
 	tip := chain[9]
 	resultChan := make(chan ExecutionBlock[container], 1)
-	fetcher.FetchBlocks(ctx, tip, &minTS, resultChan)
+	go fetcher.FetchBlocks(ctx, tip, &minTS, resultChan)
 
 	receivedBlocks, err := test.collectBlocksWithTimeout(ctx, resultChan, numReceivedBlocks)
 	// Due to the malicious node, we receive blocks 8-4 instead of 8-3.
@@ -229,23 +228,21 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	minTimestamp.Store(3)
 
 	resultChan := make(chan ExecutionBlock[container])
-	fetcher.FetchBlocks(ctx, tip, &minTimestamp, resultChan)
-	// receivedBlocks := make(map[uint64]ExecutionBlock[container], numExpectedBlocks)
+	go fetcher.FetchBlocks(ctx, tip, &minTimestamp, resultChan)
 
-	receivedBlocksSlice := make([]ExecutionBlock[container], 0)
+	receivedBlocks := make(map[uint64]ExecutionBlock[container])
 	for blk := range resultChan {
-		receivedBlocksSlice = append(receivedBlocksSlice, blk)
-		if len(receivedBlocksSlice) == 2 {
+		receivedBlocks[blk.GetHeight()] = blk
+		if len(receivedBlocks) == 2 {
 			minTimestamp.Store(5)
 		}
 	}
-	slices.Reverse(receivedBlocksSlice)
-	r.Len(receivedBlocksSlice, numExpectedBlocks)
-
-	// TODO: check the exact results
-	// expectedBlocks := validChain[len(validChain)-numExpectedBlocks:]
-	// r.Equa(expectedBlocks, receivedBlocksSlice)
-	// r.Equal(validChain[len(validChain)-numExpectedBlocks:], receivedBlocksSlice)
+	r.Len(receivedBlocks, numExpectedBlocks)
+	for _, expectedBlock := range validChain[4:9] {
+		actualBlock, ok := receivedBlocks[expectedBlock.GetHeight()]
+		r.True(ok)
+		r.Equal(expectedBlock, actualBlock)
+	}
 }
 
 func generateTestChain(n int) []ExecutionBlock[container] {

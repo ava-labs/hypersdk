@@ -52,69 +52,66 @@ func NewBlockFetcherClient[B Block](
 //     meaning multiple requests may be needed to retrieve all required blocks.
 //   - If a peer is unresponsive or sends bad data, we retry with another
 func (c *BlockFetcherClient[B]) FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64, resultChan chan<- B) {
-	// TODO: create the goroutine via the caller
-	go func() {
-		c.lastBlock = blk
-		req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load(), BlockHeight: blk.GetHeight() - 1}
+	c.lastBlock = blk
+	req := &BlockFetchRequest{MinTimestamp: minTimestamp.Load(), BlockHeight: blk.GetHeight() - 1}
 
-		for {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// Multiple blocks can share the same timestamp, so we have not filled the validity window
+		// until we find and include the first block whose timestamp is strictly less than the minimum
+		// timestamp. This ensures we have a complete and verifiable validity window
+		if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
+			close(resultChan)
+			return
+		}
+
+		nodeID, ok := c.sampleNodeID(ctx)
+		if !ok {
+			time.Sleep(backoff)
+			continue
+		}
+
+		reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+		response, err := c.p2pBlockFetcher.FetchBlocksFromPeer(reqCtx, nodeID, req)
+		cancel()
+
+		if err != nil {
+			time.Sleep(backoff)
+			continue
+		}
+
+		expectedParentID := c.lastBlock.GetParent()
+		for _, raw := range response.Blocks {
+			block, err := c.parser.ParseBlock(ctx, raw)
+			if err != nil {
+				break
+			}
+
+			if expectedParentID != block.GetID() {
+				break
+			}
+			expectedParentID = block.GetParent()
+
 			select {
 			case <-ctx.Done():
 				return
-			default:
-			}
-
-			// Multiple blocks can share the same timestamp, so we have not filled the validity window
-			// until we find and include the first block whose timestamp is strictly less than the minimum
-			// timestamp. This ensures we have a complete and verifiable validity window
-			if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
-				close(resultChan)
-				return
-			}
-
-			nodeID, ok := c.sampleNodeID(ctx)
-			if !ok {
-				time.Sleep(backoff)
-				continue
-			}
-
-			reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-			response, err := c.p2pBlockFetcher.FetchBlocksFromPeer(reqCtx, nodeID, req)
-			cancel()
-
-			if err != nil {
-				time.Sleep(backoff)
-				continue
-			}
-
-			expectedParentID := c.lastBlock.GetParent()
-			for _, raw := range response.Blocks {
-				block, err := c.parser.ParseBlock(ctx, raw)
-				if err != nil {
-					break
-				}
-
-				if expectedParentID != block.GetID() {
-					break
-				}
-				expectedParentID = block.GetParent()
-
-				select {
-				case <-ctx.Done():
+			case resultChan <- block:
+				c.lastBlock = block
+				if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
+					close(resultChan)
 					return
-				case resultChan <- block:
-					c.lastBlock = block
-					if c.lastBlock.GetTimestamp() < minTimestamp.Load() {
-						close(resultChan)
-						return
-					}
-
-					req.BlockHeight = c.lastBlock.GetHeight() - 1
 				}
+
+				req.BlockHeight = c.lastBlock.GetHeight() - 1
 			}
-			time.Sleep(backoff)
 		}
-	}()
+		time.Sleep(backoff)
+	}
 }
 
 func (c *BlockFetcherClient[B]) sampleNodeID(ctx context.Context) (ids.NodeID, bool) {

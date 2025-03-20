@@ -13,6 +13,8 @@ import (
 )
 
 type BlockFetcher[T Block] interface {
+	// FetchBlocks fetches the ancestors of the provided block until it hits an ancestor whose timestamp
+	// is strictly less than minTimestamp, which may be atomically updated by the caller.
 	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64, blockResults chan<- T)
 }
 
@@ -82,7 +84,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
 		resultChan := make(chan B)
-		s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp, resultChan)
+		go s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp, resultChan)
 		for blk := range resultChan {
 			s.timeValidityWindow.AcceptHistorical(blk)
 		}
