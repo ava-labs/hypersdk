@@ -89,6 +89,7 @@ func (i *DefaultIssuer) Stop() {
 func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error {
 	i.lock.Lock()
 	defer i.lock.Unlock()
+	
 	if i.stopped {
 		return ErrIssuedAlreadyStopped
 	}
