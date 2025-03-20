@@ -26,10 +26,10 @@ type DefaultIssuer struct {
 	client  *ws.WebSocketClient
 	tracker Tracker[ids.ID]
 
-	lock     sync.Mutex
-	numOfTxs uint64
-	heardTxs uint64
-	stopped  bool
+	lock        sync.Mutex
+	issuedTxs   uint64
+	receivedTxs uint64
+	stopped     bool
 }
 
 func NewDefaultIssuer(uri string, tracker Tracker[ids.ID]) (*DefaultIssuer, error) {
@@ -95,7 +95,7 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 	// Update tracker
 	now := time.Now()
 	i.tracker.Issue(tx.GetID(), now)
-	i.numOfTxs++
+	i.issuedTxs++
 	return nil
 }
 
@@ -104,6 +104,6 @@ func (i *DefaultIssuer) isFinished() bool {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
-	i.heardTxs++
-	return i.stopped && i.numOfTxs == i.heardTxs
+	i.receivedTxs++
+	return i.stopped && i.issuedTxs == i.receivedTxs
 }

@@ -18,8 +18,8 @@ var (
 )
 
 type ShortBurstOrchestratorConfig struct {
-	N       uint64
-	Timeout time.Duration
+	TxsPerIssuer uint64
+	Timeout      time.Duration
 }
 
 // ShortBurstOrchestrator tests the network by sending a fixed number of
@@ -71,7 +71,7 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 		o.issuerGroup.Go(func() error {
 			defer issuer.Stop()
 
-			for range o.config.N {
+			for range o.config.TxsPerIssuer {
 				tx, err := generator.GenerateTx(ctx)
 				if err != nil {
 					return err

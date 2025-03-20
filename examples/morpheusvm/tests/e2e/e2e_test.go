@@ -59,8 +59,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		expectedABI,
 		shortBurstComponentsGenerator,
 		hload.ShortBurstOrchestratorConfig{
-			N:       1_000,
-			Timeout: 20 * time.Second,
+			TxsPerIssuer: 1_000,
+			Timeout:      20 * time.Second,
 		},
 	)
 
