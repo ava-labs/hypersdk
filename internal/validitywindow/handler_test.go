@@ -10,28 +10,27 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 	tests := []struct {
-		name          string
-		setupBlocks   func() map[uint64]ExecutionBlock[container]
-		blockHeight   uint64
-		minTimestamp  int64
-		expectErr     bool
-		wantBlocks    int
-		controlBuffer func() chan struct{}
+		name           string
+		setupBlocks    func() map[uint64]ExecutionBlock[container]
+		blockHeight    uint64
+		minTimestamp   int64
+		expectErr      bool
+		expectedBlocks int
+		blkControl     chan struct{} // control the number of returned blocks
 	}{
 		{
 			name: "happy path - fetch all blocks",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				return generateBlockChain(10, 3)
 			},
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   8,
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 8,
 		},
 		{
 			name: "partial response",
@@ -40,17 +39,17 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				delete(blocks, uint64(7))
 				return blocks
 			},
-			blockHeight:  9,
-			minTimestamp: 0,
-			wantBlocks:   2,
+			blockHeight:    9,
+			minTimestamp:   0,
+			expectedBlocks: 2,
 		},
 		{
-			name:         "no blocks - should error",
-			setupBlocks:  func() map[uint64]ExecutionBlock[container] { return nil },
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   0,
-			expectErr:    true,
+			name:           "no blocks - should error",
+			setupBlocks:    func() map[uint64]ExecutionBlock[container] { return nil },
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 0,
+			expectErr:      true,
 		},
 		{
 			name: "should error if block does not exist",
@@ -62,16 +61,17 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 			expectErr:    true,
 		},
 		{
+			// Tests timeout behavior by retrieving exactly 3 blocks before canceling the context.
+			// When the context is canceled, it is expected to return a partial response
 			name: "should timeout",
 			setupBlocks: func() map[uint64]ExecutionBlock[container] {
 				return generateBlockChain(10, 3)
 			},
-			blockHeight:  9,
-			minTimestamp: 3,
-			wantBlocks:   1,
-			controlBuffer: func() chan struct{} {
-				return make(chan struct{}, 1)
-			},
+			blockHeight:    9,
+			minTimestamp:   3,
+			expectedBlocks: 3,                      // Expect to retrieve exactly 3 blocks before context cancellation
+			blkControl:     make(chan struct{}, 3), // Used to trigger context cancellation after 3 blocks
+			// No expectErr flag as we don't treat partial results as an error case
 		},
 	}
 
@@ -82,15 +82,15 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 
 			blocks := tt.setupBlocks()
 
-			retriever := newTestBlockRetriever(withBlocks(blocks))
-			if tt.controlBuffer != nil {
-				retriever = newTestBlockRetriever(withBlocks(blocks), withBufferedReads(tt.controlBuffer()))
-			}
-
-			handler := NewBlockFetcherHandler(retriever)
 			fetchCtx, cancel := context.WithTimeout(ctx, maxProcessingDuration)
 			defer cancel()
 
+			retriever := newTestBlockRetriever(withBlocks(blocks))
+			if tt.blkControl != nil {
+				retriever = newTestBlockRetriever(withBlocks(blocks), withBlockControl(tt.blkControl), withCtxCancelFunc(cancel))
+			}
+
+			handler := NewBlockFetcherHandler(retriever)
 			fetchedBlocks, err := handler.fetchBlocks(fetchCtx, &BlockFetchRequest{
 				BlockHeight:  tt.blockHeight,
 				MinTimestamp: tt.minTimestamp,
@@ -100,7 +100,7 @@ func TestBlockFetcherHandler_FetchBlocks(t *testing.T) {
 				r.Error(err)
 			} else {
 				r.NoError(err)
-				r.Len(fetchedBlocks, tt.wantBlocks)
+				r.Len(fetchedBlocks, tt.expectedBlocks)
 			}
 
 			for _, blk := range fetchedBlocks {
@@ -123,10 +123,8 @@ func generateBlockChain(n int, containersPerBlock int) map[uint64]ExecutionBlock
 	for i := 1; i < n; i++ {
 		containers := make([]int64, containersPerBlock)
 		for j := 0; j < containersPerBlock; j++ {
-			containers[j] = int64(j + 1)
-			if containers[j] < int64(i) {
-				containers[j] = int64(i) + 1
-			}
+			expiry := int64((i * containersPerBlock) + j + 1)
+			containers[j] = expiry
 		}
 		b := newExecutionBlock(uint64(i), int64(i), containers)
 		b.Prnt = blks[uint64(i-1)].GetID()
@@ -163,9 +161,10 @@ func newTestBlockRetriever(opts ...option) *testBlockRetriever {
 }
 
 type optionsImpl struct {
-	nodeID      ids.NodeID
-	blocks      map[uint64]ExecutionBlock[container]
-	bufferReads chan struct{}
+	nodeID       ids.NodeID
+	cancel       context.CancelFunc
+	blockControl chan struct{}
+	blocks       map[uint64]ExecutionBlock[container]
 }
 
 type option interface {
@@ -194,33 +193,51 @@ func withBlocks(blocks map[uint64]ExecutionBlock[container]) option {
 	return blocksOption(blocks)
 }
 
-type bufferedReadsOption chan struct{}
+type blockControl chan struct{}
 
-func (b bufferedReadsOption) apply(opts *optionsImpl) {
-	opts.bufferReads = b
+func (b blockControl) apply(opts *optionsImpl) {
+	opts.blockControl = b
 }
 
-func withBufferedReads(buffer chan struct{}) option {
+func withBlockControl(buffer chan struct{}) option {
 	if buffer != nil {
-		return bufferedReadsOption(buffer)
+		return blockControl(buffer)
 	}
 
 	return nil
 }
 
+type ctxCancelFunc context.CancelFunc
+
+func (c ctxCancelFunc) apply(opts *optionsImpl) {
+	opts.cancel = context.CancelFunc(c)
+}
+
+func withCtxCancelFunc(cancel context.CancelFunc) option {
+	return ctxCancelFunc(cancel)
+}
+
 func (r *testBlockRetriever) GetBlockByHeight(ctx context.Context, blockHeight uint64) (ExecutionBlock[container], error) {
-	if r.options.bufferReads != nil {
+	if r.options.blockControl != nil {
 		select {
-		case r.options.bufferReads <- struct{}{}:
+		case r.options.blockControl <- struct{}{}:
+			// Simulate context cancellation after N blocks for deterministic testing:
+			// - Channel tracks number of retrieved blocks
+			// - When a channel reaches capacity, trigger context cancellation
+			// - Avoids flaky timeout tests while testing the same code path
+
+			if len(r.options.blockControl) >= cap(r.options.blockControl) && r.options.cancel != nil {
+				// Cancel context after reaching channel capacity
+				r.options.cancel()
+			}
 		case <-ctx.Done():
-			// Context canceled, return error
-			return utils.Zero[ExecutionBlock[container]](), ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 
 	block, ok := r.options.blocks[blockHeight]
 	if !ok {
-		return utils.Zero[ExecutionBlock[container]](), fmt.Errorf("%s: block height %d not found", r.options.nodeID, blockHeight)
+		return nil, fmt.Errorf("%s: block height %d not found", r.options.nodeID, blockHeight)
 	}
 	return block, nil
 }

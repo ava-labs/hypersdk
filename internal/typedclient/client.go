@@ -14,18 +14,35 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
+var _ P2PClient = (*p2p.Client)(nil)
+
+// P2PClient defines an interface for peer-to-peer communication.
+// This interface exists to:
+// 1. Enable easier testing by allowing p2p.Client to be mocked
+// 2. Provide a stable API boundary between our code and the upstream library
+type P2PClient interface {
+	AppRequestAny(ctx context.Context, appRequestBytes []byte, onResponse p2p.AppResponseCallback) error
+	AppRequest(ctx context.Context, nodeIDs set.Set[ids.NodeID], appRequestBytes []byte, onResponse p2p.AppResponseCallback) error
+	AppGossip(ctx context.Context, config common.SendConfig, appGossipBytes []byte) error
+}
+
 type Marshaler[T any, U any, V any] interface {
 	MarshalRequest(T) ([]byte, error)
 	UnmarshalResponse([]byte) (U, error)
 	MarshalGossip(V) ([]byte, error)
 }
 
+// TypedClient provides asynchronous type-safe wrapper around the P2PClient interface.
+// Type parameters:
+//   - T: Request type that gets marshaled and sent to peers
+//   - U: Response type that gets unmarshaled from peer responses
+//   - V: Gossip message type that gets marshaled and broadcast to peers
 type TypedClient[T any, U any, V any] struct {
-	client    *p2p.Client
+	client    P2PClient
 	marshaler Marshaler[T, U, V]
 }
 
-func NewTypedClient[T any, U any, V any](client *p2p.Client, marshaler Marshaler[T, U, V]) *TypedClient[T, U, V] {
+func NewTypedClient[T any, U any, V any](client P2PClient, marshaler Marshaler[T, U, V]) *TypedClient[T, U, V] {
 	return &TypedClient[T, U, V]{
 		client:    client,
 		marshaler: marshaler,
