@@ -4,22 +4,26 @@
 package e2e_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
 
 	"github.com/ava-labs/hypersdk/abi"
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/load"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/throughput"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/vm"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
+	hload "github.com/ava-labs/hypersdk/load"
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -46,22 +50,62 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
 	require.NoError(err)
 
-	// Import HyperSDK e2e test coverage and inject MorpheusVM name
-	// and workload factory to orchestrate the test.
-	spamHelper := throughput.SpamHelper{
-		KeyType: auth.ED25519Key,
-	}
-
 	authFactories := testingNetworkConfig.AuthFactories()
-	spamKey := authFactories[0]
 	generator := workload.NewTxGenerator(authFactories[1])
-	tc := e2e.NewTestContext()
-	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
-	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+	he2e.SetWorkload(
+		testingNetworkConfig,
+		generator,
+		expectedABI,
+		shortBurstComponentsGenerator,
+		hload.ShortBurstOrchestratorConfig{
+			TxsPerIssuer: 1_000,
+			Timeout:      20 * time.Second,
+		},
+		hload.DefaultGradualLoadOrchestratorConfig(),
+	)
+
+	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
 	// Initialize the local test environment from the global state
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
 })
+
+func shortBurstComponentsGenerator(
+	ctx context.Context,
+	uri string,
+	authFactories []chain.AuthFactory,
+) ([]hload.TxGenerator[*chain.Transaction], hload.Tracker[ids.ID], error) {
+	lcli := vm.NewJSONRPCClient(uri)
+	ruleFactory, err := lcli.GetRuleFactory(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	numOfFactories := len(authFactories)
+	balances := make([]uint64, numOfFactories)
+	// Get balances
+	for i, factory := range authFactories {
+		balance, err := lcli.Balance(ctx, factory.Address())
+		if err != nil {
+			return nil, nil, err
+		}
+		balances[i] = balance
+	}
+
+	cli := jsonrpc.NewJSONRPCClient(uri)
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create tx generator
+	txGenerators := make([]hload.TxGenerator[*chain.Transaction], numOfFactories)
+	for i := 0; i < numOfFactories; i++ {
+		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
+	}
+
+	return txGenerators, &hload.DefaultTracker[ids.ID]{}, nil
+}
