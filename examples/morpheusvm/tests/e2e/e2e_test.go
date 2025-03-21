@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
@@ -77,11 +76,11 @@ func shortBurstComponentsGenerator(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
-) ([]hload.TxGenerator[*chain.Transaction], hload.Tracker[ids.ID], error) {
+) ([]hload.TxGenerator[*chain.Transaction], error) {
 	lcli := vm.NewJSONRPCClient(uri)
 	ruleFactory, err := lcli.GetRuleFactory(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	numOfFactories := len(authFactories)
@@ -90,7 +89,7 @@ func shortBurstComponentsGenerator(
 	for i, factory := range authFactories {
 		balance, err := lcli.Balance(ctx, factory.Address())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		balances[i] = balance
 	}
@@ -98,7 +97,7 @@ func shortBurstComponentsGenerator(
 	cli := jsonrpc.NewJSONRPCClient(uri)
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create tx generator
@@ -107,5 +106,5 @@ func shortBurstComponentsGenerator(
 		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
 	}
 
-	return txGenerators, &hload.DefaultTracker[ids.ID]{}, nil
+	return txGenerators, nil
 }

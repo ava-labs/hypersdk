@@ -34,32 +34,32 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	componentsGenerator LoadComponentsGenerator
-	shortBurstConfig    load.ShortBurstOrchestratorConfig
-	gradualLoadConfig   load.GradualLoadOrchestratorConfig
+	loadTxGenerators  LoadTxGenerators
+	shortBurstConfig  load.ShortBurstOrchestratorConfig
+	gradualLoadConfig load.GradualLoadOrchestratorConfig
 )
 
-// LoadComponentsGenerator returns the components necessary to instantiate
-// a ShortBurstOrchestrator.
+// LoadTXGenerators returns the TXGenerators necessary to instantiate an
+// Orchestrator.
 // We use a generator here since the node URIs are not known until runtime.
-type LoadComponentsGenerator func(
+type LoadTxGenerators func(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
-) ([]load.TxGenerator[*chain.Transaction], load.Tracker[ids.ID], error)
+) ([]load.TxGenerator[*chain.Transaction], error)
 
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
-	generator LoadComponentsGenerator,
+	generator LoadTxGenerators,
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
-	componentsGenerator = generator
+	loadTxGenerators = generator
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
 }
@@ -138,12 +138,14 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		txGenerators, tracker, err := componentsGenerator(
+		txGenerators, err := loadTxGenerators(
 			ctx,
 			uris[0],
 			networkConfig.AuthFactories(),
 		)
 		require.NoError(err)
+
+		tracker := &load.DefaultTracker[ids.ID]{}
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
 		// Default to first URI if each issuer can't have a different URI
@@ -186,12 +188,14 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		txGenerators, tracker, err := componentsGenerator(
+		txGenerators, err := loadTxGenerators(
 			ctx,
 			uris[0],
 			networkConfig.AuthFactories(),
 		)
 		require.NoError(err)
+
+		tracker := &load.DefaultTracker[ids.ID]{}
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
 		// Default to first URI if each issuer can't have a different URI
