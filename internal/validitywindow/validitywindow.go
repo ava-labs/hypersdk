@@ -191,7 +191,7 @@ func (v *TimeValidityWindow[T]) isRepeat(
 
 		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
 		if err != nil {
-			return marker, err
+			return marker, fmt.Errorf("failed to fetch parent of ancestor %s: %w", ancestorBlk, err)
 		}
 	}
 }
