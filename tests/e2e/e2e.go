@@ -213,6 +213,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 			txGenerators,
 			issuers,
 			tracker,
+			tc.Log(),
 			gradualLoadConfig,
 		)
 		require.NoError(err)

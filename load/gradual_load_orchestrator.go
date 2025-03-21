@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -60,6 +62,8 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 	issuers    []Issuer[T]
 	tracker    Tracker[U]
 
+	log logging.Logger
+
 	maxObservedTPS uint64
 
 	observerGroup errgroup.Group
@@ -76,6 +80,7 @@ func NewGradualLoadOrchestrator[T, U comparable](
 	generators []TxGenerator[T],
 	issuers []Issuer[T],
 	tracker Tracker[U],
+	log logging.Logger,
 	config GradualLoadOrchestratorConfig,
 ) (*GradualLoadOrchestrator[T, U], error) {
 	if len(generators) != len(issuers) {
@@ -85,6 +90,7 @@ func NewGradualLoadOrchestrator[T, U comparable](
 		generators: generators,
 		issuers:    issuers,
 		tracker:    tracker,
+		log:        log,
 		config:     config,
 		done:       make(chan struct{}),
 	}, nil
@@ -119,9 +125,10 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	defer close(o.done)
 
 	var (
-		prevConfirmed = o.tracker.GetObservedConfirmed()
-		prevTime      = time.Now()
-		attempts      uint64
+		prevConfirmed  = o.tracker.GetObservedConfirmed()
+		prevTime       = time.Now()
+		achievedMaxTPS bool
+		attempts       uint64
 	)
 
 	currTargetTPS := atomic.Uint64{}
@@ -174,14 +181,37 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
 		if tps >= currTargetTPS.Load() {
 			if currTargetTPS.Load() >= o.config.MaxTPS {
+				o.log.Info(
+					"max TPS reached",
+					zap.Uint64("target TPS", currTargetTPS.Load()),
+					zap.Uint64("average TPS", tps),
+				)
+				achievedMaxTPS = true
 				break
 			}
+			o.log.Info(
+				"increasing TPS",
+				zap.Uint64("previous target TPS", currTargetTPS.Load()),
+				zap.Uint64("average TPS", tps),
+				zap.Uint64("new target TPS", currTargetTPS.Load()+o.config.Step),
+			)
 			currTargetTPS.Add(o.config.Step)
 			attempts = 0
 		} else {
 			if attempts >= o.config.MaxAttempts {
+				o.log.Info(
+					"max attempts reached",
+					zap.Uint64("target TPS", currTargetTPS.Load()),
+					zap.Uint64("number of attempts", attempts),
+				)
 				break
 			}
+			o.log.Info(
+				"failed to reach target TPS, retrying",
+				zap.Uint64("target TPS", currTargetTPS.Load()),
+				zap.Uint64("average TPS", tps),
+				zap.Uint64("attempt number", attempts),
+			)
 			attempts++
 		}
 
@@ -189,9 +219,13 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		prevTime = currTime
 	}
 
-	o.maxObservedTPS = currTargetTPS.Load() - o.config.Step
+	o.maxObservedTPS = currTargetTPS.Load()
+	if !achievedMaxTPS {
+		o.maxObservedTPS -= o.config.Step
+	}
 }
 
+// GetObservedIssued returns the max TPS the orchestrator observed (modulus the step size).
 func (o *GradualLoadOrchestrator[T, U]) GetMaxObservedTPS() uint64 {
 	return o.maxObservedTPS
 }
