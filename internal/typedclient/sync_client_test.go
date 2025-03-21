@@ -44,8 +44,6 @@ func TestSyncAppRequest(t *testing.T) {
 		},
 	}
 
-	// Enforce run in parallel
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := require.New(t)
@@ -82,7 +80,7 @@ func TestSyncAppRequest(t *testing.T) {
 	}
 }
 
-// testHandler simulates different response behaviors
+// testHandler simulates a server with different response behaviors
 type testHandler struct {
 	simulateError bool
 	responseDelay time.Duration

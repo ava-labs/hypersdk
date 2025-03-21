@@ -55,7 +55,7 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
-      - uses: ava-labs/avalanchego/.github/actions/install-nix@8551e1d96221c8a5c2c034c2bad0cd571610ad35
+      - uses: ava-labs/avalanchego/.github/actions/install-nix@6626b41b013f2365b96bd66dfc8499ee4861d25b
       - name: Ensure consistent avalanchego version
         shell: bash
         run: |
@@ -153,7 +153,7 @@ jobs:
             go.sum
             examples/morpheusvm/go.sum
       - name: Run e2e tests
-        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@8551e1d96221c8a5c2c034c2bad0cd571610ad35
+        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@6626b41b013f2365b96bd66dfc8499ee4861d25b
         with:
           run: ./examples/morpheusvm/scripts/run.sh
           run_env: MODE='test'

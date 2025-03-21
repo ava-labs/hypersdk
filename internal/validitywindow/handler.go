@@ -38,7 +38,7 @@ type BlockRetriever[T HandlerBlock] interface {
 }
 
 // BlockFetcherHandler handles incoming block fetch requests with a time limit
-// Each request returns blocks in descending nextHeight order until:
+// Each request returns blocks in descending height order until:
 // - maxProcessingDuration is reached
 // - minTimestamp is reached
 type BlockFetcherHandler[T HandlerBlock] struct {
@@ -94,7 +94,7 @@ func (b *BlockFetcherHandler[T]) fetchBlocks(ctx context.Context, request *Block
 	)
 
 	for {
-		block, err := b.retriever.GetBlockByHeight(ctx, height)
+		block, err := b.retriever.GetBlockByHeight(timeoutCtx, height)
 
 		switch {
 		case err != nil && len(blocks) == 0:
