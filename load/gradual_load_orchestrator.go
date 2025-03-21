@@ -42,7 +42,7 @@ type GradualLoadOrchestratorConfig struct {
 
 func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 	return GradualLoadOrchestratorConfig{
-		MaxTPS:        80_000,
+		MaxTPS:        5_000,
 		MinTPS:        1_000,
 		Step:          1_000,
 		TxMultiplier:  1.3,
