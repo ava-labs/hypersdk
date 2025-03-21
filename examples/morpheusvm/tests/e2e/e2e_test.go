@@ -56,7 +56,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		testingNetworkConfig,
 		generator,
 		expectedABI,
-		shortBurstComponentsGenerator,
+		loadTxGenerators,
 		hload.ShortBurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
@@ -72,7 +72,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
 })
 
-func shortBurstComponentsGenerator(
+func loadTxGenerators(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
