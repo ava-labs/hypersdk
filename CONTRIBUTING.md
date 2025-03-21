@@ -66,6 +66,10 @@ tooling:
  - Use ./scripts/dev_shell.sh to start a nix shell
  - Execute the dependency-requiring command (e.g. `ginkgo -v ./tests/e2e -- --start-collectors`)
 
+This repo also defines a `.envrc` file to configure [devenv](https://direnv.net/). With `devenv`
+and `nix` installed, a shell at the root of the hypersdk repo will automatically start a nix dev
+shell.
+
 ## Contributing
 
 We welcome contributions to hypersdk! To contribute, please follow these steps:
