@@ -198,8 +198,27 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	defer cancel()
 
 	validChain := generateTestChain(10)
+
+	node1Ctx, node1CtxCancel := context.WithCancel(context.Background())
 	nodeSetups := []nodeSetup{
 		{
+			cancelFunc: node1CtxCancel,
+			// First node is configured with blocks 6-9 and a blkControl channel with capacity 2.
+			// It will successfully return blocks 8 and 7, then attempt to fetch block 6.
+			// Since blkControl is configured to accept only 2 blocks, it will timeout and trigger
+			// an error that we use as a reliable signal to update minTimestamp from 3→5.
+			// This deterministically tests timestamp updates without relying on arbitrary timing.
+			sampleOrder: 1,
+			blocks: map[uint64]ExecutionBlock[container]{
+				6: validChain[6],
+				7: validChain[7],
+				8: validChain[8],
+				9: validChain[9],
+			},
+			blkControl: make(chan struct{}, 2),
+		},
+		{
+			sampleOrder: 2,
 			blocks: map[uint64]ExecutionBlock[container]{
 				0: validChain[0],
 				1: validChain[1],
@@ -208,10 +227,8 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 				4: validChain[4],
 				5: validChain[5],
 				6: validChain[6],
-				7: validChain[7],
-				8: validChain[8],
-				9: validChain[9],
 			},
+			blkControl: make(chan struct{}, 3),
 		},
 	}
 
@@ -226,46 +243,23 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	)
 	minTimestamp.Store(3)
 
-	// Signal timestamp update
-	signalUpdate := make(chan struct{})
 	go func() {
 		select {
-		case <-signalUpdate:
+		case <-node1Ctx.Done():
 			minTimestamp.Store(5)
+			return
 		case <-ctx.Done():
 			return
 		}
 	}()
 
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
-	receivedBlocks := make(map[uint64]ExecutionBlock[container], numExpectedBlocks)
+	receivedBlocks, _ := test.collectBlocksWithTimeout(ctx, resultChan, numExpectedBlocks)
 
-	success := make(chan struct{})
-	go func() {
-		recvCount := 0
-		defer close(success)
-
-		for blk := range resultChan {
-			height := blk.GetHeight()
-			receivedBlocks[height] = blk
-
-			recvCount += 1
-			// After receiving some blocks signal to update the timestamp
-			if recvCount == 2 {
-				close(signalUpdate)
-			}
-		}
-	}()
-
-	select {
-	case <-success:
-		r.Len(receivedBlocks, numExpectedBlocks)
-		for _, block := range validChain[4:9] {
-			_, ok := receivedBlocks[block.GetHeight()]
-			r.True(ok)
-		}
-	case <-ctx.Done():
-		r.Fail("context timeout")
+	r.Len(receivedBlocks, numExpectedBlocks)
+	for _, block := range validChain[4:9] {
+		_, ok := receivedBlocks[block.GetHeight()]
+		r.True(ok)
 	}
 }
 
@@ -284,7 +278,8 @@ func generateTestChain(n int) []ExecutionBlock[container] {
 }
 
 type nodeSetup struct {
-	nodeID ids.NodeID
+	cancelFunc context.CancelFunc
+	nodeID     ids.NodeID
 	// blkControl is controlling how many block retrieval operations can occur.
 	// With a buffer of N, exactly N blocks will be retrieved before blocking indefinitely,
 	// allowing tests to create predictable timeout scenarios with partial results.
@@ -332,11 +327,15 @@ func newTestEnvironment(nodeScenarios []nodeSetup) *testEnvironment {
 		nodeID := nodeScenarios[i].nodeID
 		nodes = append(nodes, nodeID)
 
-		opts := make([]option, 3)
+		opts := make([]option, 4)
 		opts = append(opts, withBlocks(scenario.blocks), withNodeID(nodeID))
 
 		if scenario.blkControl != nil {
 			opts = append(opts, withBlockControl(scenario.blkControl))
+		}
+
+		if scenario.cancelFunc != nil {
+			opts = append(opts, withCtxCancelFunc(scenario.cancelFunc))
 		}
 
 		blkRetriever := newTestBlockRetriever(opts...)
