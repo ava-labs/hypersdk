@@ -202,7 +202,7 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 	node1Ctx, node1CtxCancel := context.WithCancel(context.Background())
 	nodeSetups := []nodeSetup{
 		{
-			cancelFunc: node1CtxCancel,
+			cancel: node1CtxCancel,
 			// First node is configured with blocks 6-9 and a blkControl channel with capacity 2.
 			// It will successfully return blocks 8 and 7, then attempt to fetch block 6.
 			// Since blkControl is configured to accept only 2 blocks, it will timeout and trigger
@@ -278,8 +278,8 @@ func generateTestChain(n int) []ExecutionBlock[container] {
 }
 
 type nodeSetup struct {
-	cancelFunc context.CancelFunc
-	nodeID     ids.NodeID
+	cancel context.CancelFunc
+	nodeID ids.NodeID
 	// blkControl is controlling how many block retrieval operations can occur.
 	// With a buffer of N, exactly N blocks will be retrieved before blocking indefinitely,
 	// allowing tests to create predictable timeout scenarios with partial results.
@@ -334,8 +334,8 @@ func newTestEnvironment(nodeScenarios []nodeSetup) *testEnvironment {
 			opts = append(opts, withBlockControl(scenario.blkControl))
 		}
 
-		if scenario.cancelFunc != nil {
-			opts = append(opts, withCtxCancelFunc(scenario.cancelFunc))
+		if scenario.cancel != nil {
+			opts = append(opts, withCtxCancelFunc(scenario.cancel))
 		}
 
 		blkRetriever := newTestBlockRetriever(opts...)
