@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/go-errors/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
@@ -33,14 +34,15 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	shortBurstComponentsGenerator ShortBurstComponentsGenerator
-	shortBurstConfig              load.ShortBurstOrchestratorConfig
+	componentsGenerator LoadComponentsGenerator
+	shortBurstConfig    load.ShortBurstOrchestratorConfig
+	gradualLoadConfig   load.GradualLoadOrchestratorConfig
 )
 
-// ShortBurstComponentsGenerator returns the components necessary to instantiate
+// LoadComponentsGenerator returns the components necessary to instantiate
 // a ShortBurstOrchestrator.
 // We use a generator here since the node URIs are not known until runtime.
-type ShortBurstComponentsGenerator func(
+type LoadComponentsGenerator func(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
@@ -50,14 +52,16 @@ func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
-	generator ShortBurstComponentsGenerator,
-	config load.ShortBurstOrchestratorConfig,
+	generator LoadComponentsGenerator,
+	shortBurstConf load.ShortBurstOrchestratorConfig,
+	gradualLoadConf load.GradualLoadOrchestratorConfig,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
-	shortBurstComponentsGenerator = generator
-	shortBurstConfig = config
+	componentsGenerator = generator
+	shortBurstConfig = shortBurstConf
+	gradualLoadConfig = gradualLoadConf
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -134,7 +138,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		txGenerators, tracker, err := shortBurstComponentsGenerator(
+		txGenerators, tracker, err := componentsGenerator(
 			ctx,
 			uris[0],
 			networkConfig.AuthFactories(),
@@ -165,12 +169,59 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		)
 		require.NoError(err)
 
-		require.NoError(orchestrator.Execute(ctx))
+		if err := orchestrator.Execute(ctx); err != nil {
+			require.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+		}
 
 		numOfTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
 		require.Equal(numOfTxs, tracker.GetObservedIssued())
 		require.Equal(numOfTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
+	})
+
+	ginkgo.It("Gradual Load Workload", func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		ctx := tc.ContextWithTimeout(5 * time.Minute)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
+		uris := getE2EURIs(tc, blockchainID)
+
+		txGenerators, tracker, err := componentsGenerator(
+			ctx,
+			uris[0],
+			networkConfig.AuthFactories(),
+		)
+		require.NoError(err)
+
+		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
+		// Default to first URI if each issuer can't have a different URI
+		if len(txGenerators) != len(uris) {
+			for i := 0; i < len(txGenerators); i++ {
+				issuer, err := load.NewDefaultIssuer(uris[0], tracker)
+				require.NoError(err)
+				issuers[i] = issuer
+			}
+		} else {
+			for i := 0; i < len(txGenerators); i++ {
+				issuer, err := load.NewDefaultIssuer(uris[i], tracker)
+				require.NoError(err)
+				issuers[i] = issuer
+			}
+		}
+
+		orchestrator, err := load.NewGradualLoadOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			gradualLoadConfig,
+		)
+		require.NoError(err)
+
+		if err := orchestrator.Execute(ctx); err != nil {
+			require.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+		}
+
+		require.Equal(gradualLoadConfig.MaxTPS, orchestrator.GetMaxObservedTPS())
 	})
 })
 

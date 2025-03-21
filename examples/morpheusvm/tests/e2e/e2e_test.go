@@ -62,6 +62,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
 		},
+		hload.DefaultGradualLoadOrchestratorConfig(),
 	)
 
 	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
