@@ -232,11 +232,6 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 		},
 	}
 
-	test := newTestEnvironment(nodeSetups)
-	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](test.p2pBlockFetcher, newParser(validChain), test.sampler)
-
-	tip := validChain[len(validChain)-1]
-
 	var (
 		minTimestamp      atomic.Int64
 		numExpectedBlocks = 5
@@ -252,6 +247,11 @@ func TestBlockFetcherClient_FetchBlocksChangeOfTimestamp(t *testing.T) {
 			return
 		}
 	}()
+
+	test := newTestEnvironment(nodeSetups)
+	fetcher := NewBlockFetcherClient[ExecutionBlock[container]](test.p2pBlockFetcher, newParser(validChain), test.sampler)
+
+	tip := validChain[len(validChain)-1]
 
 	resultChan := fetcher.FetchBlocks(ctx, tip, &minTimestamp)
 	receivedBlocks, _ := test.collectBlocksWithTimeout(ctx, resultChan, numExpectedBlocks)
