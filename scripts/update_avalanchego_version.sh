@@ -2,18 +2,10 @@
 # Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-# This script assumes a linux or nix userland. On macos, invoke `nix develop` before running this script.
-
 set -euo pipefail
 
 if ! [[ "$0" =~ scripts/update_avalanchego_version.sh ]]; then
   echo "must be run from repository root"
-  exit 255
-fi
-
-if ! nix --version > /dev/null 2>&1; then
-  echo "This script requires nix to be installed."
-  echo "See flake.nix for recommended installation instructions."
   exit 255
 fi
 
@@ -53,16 +45,6 @@ FULL_AVALANCHE_VERSION="$("${CURL_ARGS[@]}" "${CURL_URL}" | grep '"sha":' | head
 
 # Ensure the custom action version matches the avalanche version
 WORKFLOW_PATH=".github/workflows/hypersdk-ci.yml"
-for custom_action in "run-monitored-tmpnet-cmd" "install-nix"; do
-  echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${custom_action} custom action in ${WORKFLOW_PATH} "
-  sed -i.bak "s|\(uses: ava-labs/avalanchego/.github/actions/${custom_action}\)@.*|\1@${FULL_AVALANCHE_VERSION}|g" "${WORKFLOW_PATH}" && rm -f "${WORKFLOW_PATH}.bak"
-done
-
-# Ensure the flake version is the same as the avalanche version
-FLAKE_DEP="github:ava-labs/avalanchego"
-FLAKE_FILE=flake.nix
-echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${FLAKE_DEP} input of ${FLAKE_FILE}"
-sed -i.bak "s|\(${FLAKE_DEP}?ref=\).*|\1${FULL_AVALANCHE_VERSION}\";|g" "${FLAKE_FILE}" && rm -f "${FLAKE_FILE}.bak"
-
-# Update the flake.lock file.
-nix flake update --extra-experimental-features nix-command --extra-experimental-features flakes
+CUSTOM_ACTION="ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd"
+echo "Ensuring AvalancheGo version ${FULL_AVALANCHE_VERSION} for ${CUSTOM_ACTION} custom action in ${WORKFLOW_PATH} "
+sed -i.bak "s|\(uses: ${CUSTOM_ACTION}\)@.*|\1@${FULL_AVALANCHE_VERSION}|g" "${WORKFLOW_PATH}" && rm -f "${WORKFLOW_PATH}.bak"
