@@ -4,18 +4,12 @@
 
 set -euo pipefail
 
-# Install only if needed
-# TODO(marun) Provide tmpnetctl via the nix devshell to ensure a version consistent with the avalanchego dep
-if ! command -v tmpnetctl > /dev/null; then
-  echo "Installing tmpnetctl..."
+# Ensure the go command is run from the root of the repository
+REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
+cd "${REPO_ROOT}"
 
-  # Ensure the go command is run from the root of the repository
-  REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
-  cd "${REPO_ROOT}"
+# Set AVALANCHE_VERSION
+. ./scripts/constants.sh
 
-  # Set AVALANCHE_VERSION
-  . ./scripts/constants.sh
-
-  go install github.com/ava-labs/avalanchego/tests/fixture/tmpnet/tmpnetctl@"${AVALANCHE_VERSION}"
-fi
-tmpnetctl "${@}"
+echo "Running tmpnetctl @ ${AVALANCHE_VERSION}"
+go run github.com/ava-labs/avalanchego/tests/fixture/tmpnet/tmpnetctl@"${AVALANCHE_VERSION}" "${@}"
