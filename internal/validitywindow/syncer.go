@@ -10,8 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ava-labs/hypersdk/internal/emap"
 	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/internal/emap"
 )
 
 type BlockFetcher[T Block] interface {
