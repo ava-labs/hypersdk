@@ -6,10 +6,12 @@ package validitywindow
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ava-labs/hypersdk/internal/emap"
+	"go.uber.org/zap"
 )
 
 type BlockFetcher[T Block] interface {
@@ -49,7 +51,6 @@ type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 
 	doneOnce sync.Once
 	doneChan chan struct{}
-	errChan  chan error
 	cancel   context.CancelFunc // For canceling backward sync
 }
 
@@ -60,7 +61,6 @@ func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeV
 		blockFetcherClient: blockFetcherClient,
 		getValidityWindow:  getValidityWindow,
 		doneChan:           make(chan struct{}),
-		errChan:            make(chan error, 1),
 	}
 }
 
@@ -81,11 +81,14 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	s.cancel = cancel
 	// Start fetching historical blocks from the peer starting from lastAccepted from cache/on-disk
 	go func() {
+		s.timeValidityWindow.log.Info("Starting historical block fetcher")
 		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp)
 		for blk := range resultChan {
+			s.timeValidityWindow.log.Info("Accepting historical block", zap.Any("block", blk))
 			s.timeValidityWindow.AcceptHistorical(blk)
 		}
 
+		s.timeValidityWindow.log.Info("Finished historical block fetching")
 		s.signalDone()
 	}()
 
@@ -96,8 +99,6 @@ func (s *Syncer[T, B]) Wait(ctx context.Context) error {
 	select {
 	case <-s.doneChan:
 		return nil
-	case err := <-s.errChan:
-		return fmt.Errorf("timve valdity syncer exited with error: %w", err)
 	case <-ctx.Done():
 		return fmt.Errorf("waiting for time validity syncer timed out: %w", ctx.Err())
 	}
@@ -121,6 +122,10 @@ func (s *Syncer[T, B]) UpdateSyncTarget(_ context.Context, target B) error {
 	// Update minimum timestamp based on new target
 	minTS := s.calculateMinTimestamp(target.GetTimestamp())
 	s.minTimestamp.Store(minTS)
+	s.timeValidityWindow.log.Info("Updated minTimestamp",
+		zap.Any("target", target),
+		zap.Int64("minTimestamp", minTS),
+	)
 
 	return nil
 }
@@ -132,6 +137,11 @@ func (s *Syncer[T, B]) accept(blk B) bool {
 		s.getValidityWindow(blk.GetTimestamp())
 
 	s.timeValidityWindow.Accept(blk)
+	s.timeValidityWindow.log.Info("accepting block to validity window syncer",
+		zap.Any("block", blk),
+		zap.Bool("seenValidityWindow", seenValidityWindow),
+		zap.Int64("minTimestamp", s.minTimestamp.Load()),
+	)
 	return seenValidityWindow
 }
 
@@ -145,10 +155,14 @@ func (s *Syncer[T, B]) backfillFromExisting(
 ) bool {
 	var (
 		parent             = block
-		parents            = []ExecutionBlock[T]{parent}
+		ancestors          = []ExecutionBlock[T]{parent}
 		seenValidityWindow = false
-		validityWindow     = s.getValidityWindow(block.GetTimestamp())
+		minTimestamp       = s.calculateMinTimestamp(block.GetTimestamp())
 		err                error
+	)
+	s.timeValidityWindow.log.Info("Attempting backfill from existing ChainIndex",
+		zap.Any("initialBlock", block),
+		zap.Int64("minTimestamp", minTimestamp),
 	)
 
 	// Keep fetching parents until we:
@@ -161,17 +175,23 @@ func (s *Syncer[T, B]) backfillFromExisting(
 		if err != nil {
 			break // This is expected when we run out of cached and/or on-disk blocks
 		}
-		parents = append(parents, parent)
+		ancestors = append(ancestors, parent)
 
-		seenValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > validityWindow
-		if seenValidityWindow {
+		if parent.GetTimestamp() < minTimestamp {
+			seenValidityWindow = true
 			break
 		}
 	}
 
-	s.oldestBlock = parents[len(parents)-1]
-	for i := len(parents) - 1; i >= 0; i-- {
-		s.timeValidityWindow.Accept(parents[i])
+	slices.Reverse(ancestors)
+	s.oldestBlock = ancestors[0] // Guaranteed to have at least one block from initial parent
+	s.timeValidityWindow.log.Info("Finished backfill from existing ChainIndex",
+		zap.Any("oldestBlock", s.oldestBlock),
+		zap.Any("latestBlock", ancestors[len(ancestors)-1]),
+		zap.Bool("seenValidityWindow", seenValidityWindow),
+	)
+	for _, ancestor := range ancestors {
+		s.timeValidityWindow.Accept(ancestor)
 	}
 	return seenValidityWindow
 }
