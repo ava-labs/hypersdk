@@ -135,7 +135,7 @@ func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 	oldestAllowed := v.calculateOldestAllowed(blk.GetTimestamp())
 	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.GetContainers(), true)
 	if err != nil {
-		return fmt.Errorf("failed to check for repeats of %s: %w", blk, err)
+		panic(fmt.Errorf("failed to check for repeats of %s: %w", blk, err))
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: contains %d duplicates out of %d containers", ErrDuplicateContainer, dup.BitLen(), len(blk.GetContainers()))
