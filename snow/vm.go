@@ -484,7 +484,7 @@ func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
 }
 
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
-	v.log.Info("Setting state to %s", zap.Stringer("state", state))
+	v.log.Info("Setting consensus state", zap.Stringer("state", state))
 	switch state {
 	case snow.StateSyncing:
 		for _, startStateSyncF := range v.onStateSyncStarted {

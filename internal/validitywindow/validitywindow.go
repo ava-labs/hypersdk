@@ -167,7 +167,6 @@ func (v *TimeValidityWindow[T]) isRepeat(
 	v.lock.Lock()
 	defer v.lock.Unlock()
 
-	var err error
 	for {
 		if ancestorBlk.GetTimestamp() < oldestAllowed {
 			return marker, nil
@@ -189,10 +188,11 @@ func (v *TimeValidityWindow[T]) isRepeat(
 			}
 		}
 
-		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
+		nextAncestor, err := v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
 		if err != nil {
 			return marker, fmt.Errorf("failed to fetch parent of ancestor %s: %w", ancestorBlk, err)
 		}
+		ancestorBlk = nextAncestor
 	}
 }
 
