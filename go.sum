@@ -62,10 +62,10 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
-github.com/ava-labs/avalanchego v1.12.3-0.20250317160941-6626b41b013f h1:K4LOeVz3V9fa14Kq3m6j/ZD/JXhO+8sY70IVHCcsqzM=
-github.com/ava-labs/avalanchego v1.12.3-0.20250317160941-6626b41b013f/go.mod h1:8eq+yF40tIMs1KAuSsS8h5VqT+kLMwyqliomV6RGpOo=
-github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990 h1:tMdOyCb0L5mbkesMCIvqeTPvQl3XzD0gEkbSkoMSBzk=
-github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990/go.mod h1:ilQRZoMu4fnSx5i8P+r/AhM+/WHhxm3n3tPQudoECb4=
+github.com/ava-labs/avalanchego v1.13.1-0.20250323225209-b12cdbb3e7f3 h1:Oj+1zyRC6id0FZd+MWoz9n9N+dac8W1fT2y/YiJzj00=
+github.com/ava-labs/avalanchego v1.13.1-0.20250323225209-b12cdbb3e7f3/go.mod h1:fpV/GmbfIB3P53gkq6zFpyeQtyAsJIuZCCKnm7TJ4sQ=
+github.com/ava-labs/coreth v0.15.0-rc.0 h1:wabaNbSXcqhhO6Qg/9fnrgDNCuP3StwB5sls45dHbiI=
+github.com/ava-labs/coreth v0.15.0-rc.0/go.mod h1:gIGr+5WDNX1DrFvUMy53AtTpkxlM/8cNOD/PDIChKfM=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=

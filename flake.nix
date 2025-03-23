@@ -8,7 +8,7 @@
 
   inputs = {
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.2405.*.tar.gz";
-    avalanchego.url = "github:ava-labs/avalanchego?ref=6626b41b013f2365b96bd66dfc8499ee4861d25b";
+    avalanchego.url = "github:ava-labs/avalanchego?ref=b12cdbb3e7f3779c2f0607a02b177f9fbdc383a3";
   };
 
   outputs = { self, nixpkgs, avalanchego, ... }:
