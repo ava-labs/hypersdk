@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/StephenButtolph/canoto"
@@ -49,6 +50,10 @@ func NewTxData(base Base, actions []Action) TransactionData {
 		Base:    base,
 		Actions: actions,
 	}
+	// Call CalculateCanotoCache so that equivalent blocks pass an equals check.
+	// Without calling this function, canoto's required internal field will cause equals
+	// checks to fail on otherwise identical blocks.
+	txData.Base.CalculateCanotoCache()
 
 	actionBytes := make([]codec.Bytes, len(txData.Actions))
 	for i, action := range txData.Actions {
@@ -490,7 +495,7 @@ func (t *Transaction) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 // and already cached in the internal bytes field.
 func (*Transaction) CalculateCanotoCache() {}
 
-func (t *Transaction) CachedCanotoSize() int { return t.size }
+func (t *Transaction) CachedCanotoSize() uint64 { return uint64(t.size) }
 
 func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	serializeTx := &SerializeTx{}
@@ -526,7 +531,7 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 	if len(serializeTx.Auth) == 0 {
 		unsignedTxBytes = r.B
 	} else {
-		authSuffixSize := len(canoto__SerializeTx__Auth__tag) + canoto.SizeBytes(serializeTx.Auth)
+		authSuffixSize := len(canoto__SerializeTx__Auth__tag) + int(canoto.SizeBytes(serializeTx.Auth))
 		unsignedTxBytesLimit := len(r.B) - authSuffixSize
 		// Defensive: check to ensure the calculated auth suffix size is within expected bounds
 		// and return an error rather than panic on index out of bounds if not.
@@ -557,6 +562,14 @@ func (t *Transaction) UnmarshalCanotoFrom(r canoto.Reader) error {
 }
 
 func (*Transaction) ValidCanoto() bool { return true }
+
+// CanotoSpec returns the specification of this canoto message.
+// Required for canoto.Field interface implementation.
+// Delegates to SerializeTx since Transaction uses it for serialization.
+func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
+	serializeTx := &SerializeTx{}
+	return serializeTx.CanotoSpec(types...)
+}
 
 func GenerateTransaction(
 	ruleFactory RuleFactory,

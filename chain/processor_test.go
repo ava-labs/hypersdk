@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/metadata"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -44,6 +46,9 @@ func TestProcessorExecute(t *testing.T) {
 	feeKey := string(chain.FeeKey(testMetadataManager.FeePrefix()))
 	heightKey := string(chain.HeightKey(testMetadataManager.HeightPrefix()))
 	timestampKey := string(chain.TimestampKey(testMetadataManager.TimestampPrefix()))
+	pk, err := ed25519.GeneratePrivateKey()
+	require.NoError(t, err)
+	balanceHandler := balance.NewPrefixBalanceHandler([]byte{0})
 
 	tests := []struct {
 		name           string
@@ -432,18 +437,20 @@ func TestProcessorExecute(t *testing.T) {
 			name:           "invalid transaction signature",
 			validityWindow: &validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
 			newViewF: func(r *require.Assertions) merkledb.View {
+				auth := auth.ED25519{
+					Signer: pk.PublicKey(),
+				}
 				v, err := createTestView(map[string][]byte{
 					heightKey:    binary.BigEndian.AppendUint64(nil, 0),
 					timestampKey: binary.BigEndian.AppendUint64(nil, 0),
 					feeKey:       {},
+					string(balanceHandler.BalanceKey(auth.Sponsor())): binary.BigEndian.AppendUint64(nil, math.MaxUint64),
 				})
+
 				r.NoError(err)
 				return v
 			},
 			newBlockF: func(r *require.Assertions, parentRoot ids.ID) *chain.StatelessBlock {
-				p, err := ed25519.GeneratePrivateKey()
-				r.NoError(err)
-
 				tx, err := chain.NewTransaction(
 					chain.Base{
 						Timestamp: utils.UnixRMilli(
@@ -453,7 +460,7 @@ func TestProcessorExecute(t *testing.T) {
 					},
 					[]chain.Action{},
 					&auth.ED25519{
-						Signer: p.PublicKey(),
+						Signer: pk.PublicKey(),
 					},
 				)
 				r.NoError(err)
@@ -486,9 +493,9 @@ func TestProcessorExecute(t *testing.T) {
 				&logging.NoLog{},
 				&genesis.ImmutableRuleFactory{Rules: testRules},
 				workers.NewSerial(),
-				chaintest.NewDummyTestAuthVM(),
+				chaintest.NewDummyTestAuthEngines(),
 				testMetadataManager,
-				&mockBalanceHandler{},
+				balanceHandler,
 				tt.validityWindow,
 				metrics,
 				chain.NewDefaultConfig(),
@@ -541,18 +548,9 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark{
-				MetadataManager: metadata.NewDefaultManager(),
-				BalanceHandler:  &mockBalanceHandler{},
-				AuthVM: &chaintest.TestAuthVM{
-					GetAuthBatchVerifierF: func(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-						bv, ok := auth.Engines()[authTypeID]
-						if !ok {
-							return nil, false
-						}
-						return bv.GetBatchVerifier(cores, count), ok
-					},
-					Log: logging.NoLog{},
-				},
+				MetadataManager:      metadata.NewDefaultManager(),
+				BalanceHandler:       &mockBalanceHandler{},
+				AuthEngines:          auth.DefaultEngines(),
 				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
 				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
 				Config: chain.Config{

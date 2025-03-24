@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -49,13 +48,10 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark{
-				MetadataManager: metadata.NewDefaultManager(),
-				BalanceHandler:  &storage.BalanceHandler{},
-				RuleFactory:     ruleFactory,
-				AuthVM: &chaintest.TestAuthVM{
-					GetAuthBatchVerifierF: getAuthBatchVerifier,
-					Log:                   logging.NoLog{},
-				},
+				MetadataManager:      metadata.NewDefaultManager(),
+				BalanceHandler:       &storage.BalanceHandler{},
+				RuleFactory:          ruleFactory,
+				AuthEngines:          auth.DefaultEngines(),
 				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
@@ -71,12 +67,4 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 			benchmark.Run(context.Background(), b)
 		})
 	}
-}
-
-func getAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	bv, ok := auth.Engines()[authTypeID]
-	if !ok {
-		return nil, false
-	}
-	return bv.GetBatchVerifier(cores, count), true
 }
