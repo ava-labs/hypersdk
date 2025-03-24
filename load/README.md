@@ -86,3 +86,45 @@ once. This orchestrator is parameterizable via the following:
 - `timeout`: the maximum amount of time which, after all transactions have been sent,
   the orchestrator will wait to hear the confirmation of all outstanding
   transactions. 
+
+### Gradual Load
+
+The gradual load orchestrator sends transactions at a initial rate (TPS) and
+increases that rate until hitting the maxiumum desired rate or until the
+orchestrator determines that it can no longer make progress. 
+
+The current TPS in the gradual load orchestrator is determined by taking the
+number of transactions confirmed in a given time window (`SustainedTime`) and
+diving it by `SustainedTime` (in terms of seconds) Furthermore, the orchestator
+has `maxAttempt` tries to try and achieve a given TPS before determining that
+the given TPS is not achievable.
+
+Below is the pseudocode for how the gradual load orchestrator determines TPS and
+for how it increases TPS:
+
+```
+currTargetTPS := current TPS we want to achieve
+maxAttempts := maximum number of attempts we have to achieve currTargetTPS
+
+txsPerIssuer := currTargetTPS / numOfIssuers
+attempts := 0
+
+for each issuer: // Async
+    send txsPerIssuer txs per second
+end for
+
+for
+    wait for SustainedTime
+
+    tps := number of accepted TXs in this time period
+    if tps >= currTargetTPS:
+        increase currTargerTPS by step
+        iters = 0
+    else:
+        if attempts >= maxAttempts:
+            fail
+        end if
+        iters += 1
+    end if
+end for
+```
