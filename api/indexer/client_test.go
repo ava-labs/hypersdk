@@ -125,6 +125,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 		getTxErr        error
 		found           bool
 		parser          *chain.TxTypeParser
+		malformedBlock  bool
 	}{
 		{
 			name:            "success",
@@ -134,6 +135,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 			getTxResultsErr: nil,
 			getTxErr:        nil,
 			parser:          parser,
+			malformedBlock:  false,
 		},
 		{
 			name:            "missing transaction",
@@ -143,6 +145,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 			getTxResultsErr: nil,
 			getTxErr:        nil,
 			parser:          parser,
+			malformedBlock:  false,
 		},
 		{
 			name:            "badparser",
@@ -152,6 +155,17 @@ func TestIndexerClientTransactions(t *testing.T) {
 			getTxResultsErr: nil,
 			getTxErr:        errTxUnmarshalingFailed,
 			parser:          badparser,
+			malformedBlock:  false,
+		},
+		{
+			name:            "malformed block",
+			blockIndex:      numExecutedBlocks - 1,
+			txIndex:         numTxs - 1,
+			found:           true,
+			getTxResultsErr: errTxResultNotFound,
+			getTxErr:        errTxResultNotFound,
+			parser:          parser,
+			malformedBlock:  true,
 		},
 	}
 
@@ -170,23 +184,35 @@ func TestIndexerClientTransactions(t *testing.T) {
 			})
 
 			client := NewClient(httpServer.URL)
+
 			executedBlock := executedBlocks[tt.blockIndex]
 			executedTx := executedBlock.Block.Txs[tt.txIndex]
 
+			if tt.malformedBlock {
+				// "damage" the last executed block by removing the last result.
+				executedBlock.ExecutionResults.Results = executedBlock.ExecutionResults.Results[1:]
+				r.NoError(indexer.Notify(context.Background(), executedBlock))
+			}
+
 			txResponse, found, err := client.GetTxResults(ctx, executedTx.GetID())
-			r.Equal(tt.getTxResultsErr, err)
-			r.Equal(tt.found, found)
-			if tt.found {
-				r.Equal(GetTxResponse{
-					TxBytes:   executedTx.Bytes(),
-					Timestamp: executedBlock.Block.Tmstmp,
-					Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
-				}, txResponse)
+			if tt.getTxResultsErr != nil {
+				r.ErrorContains(err, tt.getTxResultsErr.Error())
+			} else {
+				r.NoError(err)
+				r.Equal(tt.found, found)
+				if tt.found {
+					r.Equal(GetTxResponse{
+						TxBytes:   executedTx.Bytes(),
+						Timestamp: executedBlock.Block.Tmstmp,
+						Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
+					}, txResponse)
+				}
 			}
 
 			txResponse, tx, found, err := client.GetTx(ctx, executedTx.GetID(), tt.parser)
-			r.ErrorIs(err, tt.getTxErr)
-			if err == nil {
+			if tt.getTxErr != nil {
+				r.ErrorContains(err, tt.getTxErr.Error())
+			} else {
 				r.Equal(tt.found, found)
 				if tt.found {
 					r.Equal(GetTxResponse{
@@ -234,41 +260,4 @@ func TestIndexerClientWaitForTransaction(t *testing.T) {
 	r.NoError(err)
 	r.Equal(lastTxResult.Success, success)
 	r.Equal(lastTxResult.Fee, fee)
-}
-
-func TestIndexerClientMalformedBlock(t *testing.T) {
-	const (
-		numExecutedBlocks = 2
-		blockWindow       = 1
-		numTxs            = 3
-	)
-	r := require.New(t)
-	ctx := context.Background()
-	indexer, executedBlocks, _ := createTestIndexer(t, ctx, numExecutedBlocks, blockWindow, numTxs)
-
-	jsonHandler, err := api.NewJSONRPCHandler(Name, NewServer(trace.Noop, indexer))
-	r.NoError(err)
-
-	httpServer := httptest.NewServer(jsonHandler)
-	t.Cleanup(func() {
-		httpServer.Close()
-	})
-
-	lastExecutedBlock := executedBlocks[numExecutedBlocks-1]
-	// "damage" the last executed block by removing the last result.
-	lastExecutedBlock.ExecutionResults.Results = lastExecutedBlock.ExecutionResults.Results[1:]
-	r.NoError(indexer.Notify(context.Background(), lastExecutedBlock))
-
-	client := NewClient(httpServer.URL)
-
-	txID := lastExecutedBlock.Block.Txs[numTxs-1].GetID()
-	_, _, _, err = client.GetTx(context.Background(), txID, chaintest.NewTestParser())
-	// see that we get the expected error.
-	r.ErrorContains(err, errTxResultNotFound.Error())
-
-	_, _, err = client.GetTxResults(context.Background(), txID)
-	r.ErrorContains(err, errTxResultNotFound.Error())
-
-	_, _, err = client.WaitForTransaction(context.Background(), 1*time.Millisecond, txID)
-	r.ErrorContains(err, errTxResultNotFound.Error())
 }
