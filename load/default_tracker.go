@@ -25,14 +25,14 @@ func (t *DefaultTracker[T]) Issue(T, time.Time) {
 	t.txIssuedCounter++
 }
 
-func (t *DefaultTracker[T]) ObserveConfirmed(T) {
+func (t *DefaultTracker[T]) ObserveConfirmed(T, time.Time) {
 	t.Lock()
 	defer t.Unlock()
 
 	t.txConfirmedCounter++
 }
 
-func (t *DefaultTracker[T]) ObserveFailed(T) {
+func (t *DefaultTracker[T]) ObserveFailed(T, time.Time) {
 	t.Lock()
 	defer t.Unlock()
 

@@ -35,9 +35,9 @@ type Tracker[T comparable] interface {
 	// not yet known.
 	Issue(T, time.Time)
 	// ObserveConfirmed records a transaction that was confirmed.
-	ObserveConfirmed(T)
+	ObserveConfirmed(T, time.Time)
 	// ObserveFailed records a transaction that failed (e.g. expired)
-	ObserveFailed(T)
+	ObserveFailed(T, time.Time)
 
 	// GetObservedIssued returns the number of transactions that the tracker has
 	// confirmed were issued.

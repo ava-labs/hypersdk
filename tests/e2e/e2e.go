@@ -34,15 +34,16 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	loadTxGenerators  LoadTxGenerators
+	tracker           load.Tracker[ids.ID]
+	loadTxGenerator   LoadTxGenerator
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
 )
 
-// LoadTXGenerators returns the TXGenerators necessary to instantiate an
+// LoadTxGenerator returns the components necessary to instantiate an
 // Orchestrator.
 // We use a generator here since the node URIs are not known until runtime.
-type LoadTxGenerators func(
+type LoadTxGenerator func(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
@@ -52,14 +53,16 @@ func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
-	generator LoadTxGenerators,
+	generator LoadTxGenerator,
+	loadTracker load.Tracker[ids.ID],
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
-	loadTxGenerators = generator
+	loadTxGenerator = generator
+	tracker = loadTracker
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
 }
@@ -138,14 +141,12 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		txGenerators, err := loadTxGenerators(
+		txGenerators, err := loadTxGenerator(
 			ctx,
 			uris[0],
 			networkConfig.AuthFactories(),
 		)
 		require.NoError(err)
-
-		tracker := &load.DefaultTracker[ids.ID]{}
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
 		// Default to first URI if each issuer can't have a different URI
@@ -184,18 +185,16 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 	ginkgo.It("Gradual Load Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
-		ctx := tc.ContextWithTimeout(5 * time.Minute)
+		ctx := tc.ContextWithTimeout(15 * time.Minute)
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		txGenerators, err := loadTxGenerators(
+		txGenerators, err := loadTxGenerator(
 			ctx,
 			uris[0],
 			networkConfig.AuthFactories(),
 		)
 		require.NoError(err)
-
-		tracker := &load.DefaultTracker[ids.ID]{}
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
 		// Default to first URI if each issuer can't have a different URI

@@ -5,10 +5,19 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
@@ -29,7 +38,15 @@ import (
 
 const owner = "morpheusvm-e2e-tests"
 
-var flagVars *e2e.FlagVars
+const (
+	metricsURI      = "localhost:8080"
+	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
+)
+
+var (
+	flagVars *e2e.FlagVars
+	registry *prometheus.Registry
+)
 
 func TestE2e(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
@@ -52,11 +69,18 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	authFactories := testingNetworkConfig.AuthFactories()
 	generator := workload.NewTxGenerator(authFactories[1])
 
+	reg := prometheus.NewRegistry()
+	tracker, err := hload.NewPrometheusTracker[ids.ID](reg)
+	require.NoError(err)
+
+	registry = reg
+
 	he2e.SetWorkload(
 		testingNetworkConfig,
 		generator,
 		expectedABI,
 		loadTxGenerators,
+		tracker,
 		hload.ShortBurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
@@ -70,6 +94,43 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Initialize the local test environment from the global state
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+
+	tc := e2e.NewTestContext()
+	r := require.New(tc)
+
+	// Start metrics server
+	mux := http.NewServeMux()
+	mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		Registry: registry,
+	}))
+
+	metricsServer := &http.Server{ //nolint:gosec
+		Addr:    metricsURI,
+		Handler: mux,
+	}
+
+	go func() {
+		r.ErrorIs(
+			metricsServer.ListenAndServe(),
+			http.ErrServerClosed,
+		)
+	}()
+
+	// Generate collector config
+	collectorConfigBytes, err := generateCollectorConfig(
+		[]string{metricsURI},
+		e2e.GetEnv(tc).GetNetwork().UUID,
+	)
+	r.NoError(err)
+
+	r.NoError(writeCollectorConfig(collectorConfigBytes))
+
+	ginkgo.DeferCleanup(func() {
+		homeDir, err := os.UserHomeDir()
+		r.NoError(err)
+		r.NoError(os.Remove(filepath.Join(homeDir, metricsFilePath)))
+		r.NoError(metricsServer.Shutdown(context.Background()))
+	})
 })
 
 func loadTxGenerators(
@@ -107,4 +168,38 @@ func loadTxGenerators(
 	}
 
 	return txGenerators, nil
+}
+
+func generateCollectorConfig(targets []string, uuid string) ([]byte, error) {
+	nodeLabels := tmpnet.FlagsMap{
+		"network_owner": "hypersdk-e2e-tests",
+		"network_uuid":  uuid,
+	}
+	config := []tmpnet.FlagsMap{
+		{
+			"labels":  nodeLabels,
+			"targets": targets,
+		},
+	}
+
+	return json.Marshal(config)
+}
+
+func writeCollectorConfig(config []byte) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	fmt.Println(homeDir)
+	file, err := os.OpenFile(filepath.Join(homeDir, metricsFilePath), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := file.Write(config); err != nil {
+		return err
+	}
+
+	return nil
 }

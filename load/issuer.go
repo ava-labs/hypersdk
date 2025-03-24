@@ -61,11 +61,12 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		time := time.Now()
 		// accepted txs have a non-nil result
 		if result != nil {
-			i.tracker.ObserveConfirmed(txID)
+			i.tracker.ObserveConfirmed(txID, time)
 		} else {
-			i.tracker.ObserveFailed(txID)
+			i.tracker.ObserveFailed(txID, time)
 		}
 
 		if i.isFinished() {
