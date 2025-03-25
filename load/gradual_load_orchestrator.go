@@ -27,12 +27,12 @@ type GradualLoadOrchestratorConfig struct {
 
 	// the factor by which to pad the number of TXs an issuer sends per second
 	// for example, if targetTPS = 1000 and numOfIssuers = 10, then each issuer
-	// will send (1000/10)*TxMultiplier transactions per second.
+	// will send (1000/10)*TxRateMultiplier transactions per second.
 	//
 	// this is useful when the network can handle the current target TPS but it
 	// hasn't received enough transactions to achieve that TPS (as a result of
 	// latency + other factors).
-	TxMultiplier float64
+	TxRateMultiplier float64
 
 	// the time period which TPS is averaged over
 	// similarly, the time period which the orchestrator will wait before
@@ -44,12 +44,12 @@ type GradualLoadOrchestratorConfig struct {
 
 func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 	return GradualLoadOrchestratorConfig{
-		MaxTPS:        5_000,
-		MinTPS:        1_000,
-		Step:          1_000,
-		TxMultiplier:  1.3,
-		SustainedTime: 20 * time.Second,
-		MaxAttempts:   3,
+		MaxTPS:           5_000,
+		MinTPS:           1_000,
+		Step:             1_000,
+		TxRateMultiplier: 1.3,
+		SustainedTime:    20 * time.Second,
+		MaxAttempts:      3,
 	}
 }
 
@@ -148,7 +148,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 				default:
 				}
 				currTime := time.Now()
-				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxMultiplier)
+				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
 				for range txsPerIssuer {
 					tx, err := o.generators[i].GenerateTx(issuerCtx)
 					if err != nil {
