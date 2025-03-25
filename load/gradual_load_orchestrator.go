@@ -71,8 +71,6 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 
 	done chan struct{}
 
-	cancel context.CancelFunc
-
 	config GradualLoadOrchestratorConfig
 }
 
@@ -98,7 +96,6 @@ func NewGradualLoadOrchestrator[T, U comparable](
 
 func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
-	o.cancel = cancel
 
 	// start a goroutine to confirm each issuer's transactions
 	for _, issuer := range o.issuers {
@@ -111,7 +108,7 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 	<-o.done
 
 	// stop the observers and issuers
-	o.cancel()
+	cancel()
 
 	// block until both the observers and issuers have stopped
 	return errors.Join(o.issuerGroup.Wait(), o.observerGroup.Wait())
