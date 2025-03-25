@@ -116,7 +116,7 @@ end for
 for
     wait for SustainedTime
 
-    tps := number of accepted TXs in this time period
+    tps := number of accepted TXs divided by the SustainedTime
     if tps >= currTargetTPS:
         increase currTargerTPS by step
         iters = 0
