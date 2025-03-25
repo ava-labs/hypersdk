@@ -159,14 +159,18 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	// blocks until either 1) the max TPS target has been reached, 2) we've
 	// maxed out the number of attempts, or 3) an issuer has errored.
 	for {
-		time.Sleep(o.config.SustainedTime)
-
-		currConfirmed := o.tracker.GetObservedConfirmed()
-		currTime := time.Now()
+		// wait for the sustained time to pass or for the context to be cancelled
+		select {
+		case <-time.After(o.config.SustainedTime):
+		case <-issuerCtx.Done(): // the parent context was cancelled or an issuer errored
+		}
 
 		if issuerCtx.Err() != nil {
 			break
 		}
+
+		currConfirmed := o.tracker.GetObservedConfirmed()
+		currTime := time.Now()
 
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
 		if tps >= currTargetTPS.Load() {
