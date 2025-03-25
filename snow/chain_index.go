@@ -5,7 +5,6 @@ package snow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -26,8 +25,6 @@ type ChainIndex[T Block] interface {
 	GetBlockIDHeight(ctx context.Context, blkID ids.ID) (uint64, error)
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
-
-var ErrLastAcceptedBlockNotFound = errors.New("last accepted block has not been populated")
 
 func (v *VM[I, O, A]) makeConsensusIndex(
 	ctx context.Context,
@@ -162,7 +159,7 @@ func (c *ConsensusIndex[I, O, A]) GetLastAccepted(context.Context) (A, error) {
 	lastAccepted := c.vm.lastAcceptedBlock
 
 	if !lastAccepted.accepted {
-		return utils.Zero[A](), fmt.Errorf("%w: %s", ErrLastAcceptedBlockNotFound, lastAccepted)
+		return utils.Zero[A](), fmt.Errorf("last accepted block %s has not been populated", lastAccepted)
 	}
 	return lastAccepted.Accepted, nil
 }

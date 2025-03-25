@@ -301,9 +301,6 @@ func (vm *VM) Initialize(
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
 	}
 	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, getTimeValidityWindowFunc)
-	if err := vm.backfillValidityWindow(ctx, getTimeValidityWindowFunc); err != nil {
-		return nil, nil, nil, false, err
-	}
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
@@ -335,6 +332,10 @@ func (vm *VM) Initialize(
 	}
 
 	if err := vm.initStateSync(ctx); err != nil {
+		return nil, nil, nil, false, err
+	}
+
+	if err := vm.backfillValidityWindow(ctx, getTimeValidityWindowFunc); err != nil {
 		return nil, nil, nil, false, err
 	}
 
@@ -704,34 +705,30 @@ func (vm *VM) Submit(
 
 // backfillValidityWindow populates the VM's time validity window on startup,
 // ensuring it contains recent transactions even if state sync is skipped (e.g., due to restart).
-// This is necessary because a node might be in state with a few blocks behind or
-// even slightly ahead of the network, and thus opt to re-execute blocks instead
-// of triggering state sync. Without this backfill, the node's validity window could
-// miss transactions that have already been accepted by the network, leading to
-// duplicate acceptance and subsequent rejection by other nodes.
+// This is necessary because a node might restart with only a few blocks behind (or slightly ahead)
+// of the network, and thus opt not to trigger state sync. Without backfilling, the node's validity window
+// may be incomplete, causing the node to accept a duplicate transaction that the network already processed.
 func (vm *VM) backfillValidityWindow(ctx context.Context, getValidityWindow validitywindow.GetTimeValidityWindowFunc) error {
-	lastAcceptedBlock, err := vm.LastAcceptedBlock(ctx)
+	lastAcceptedBlkHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil {
-		// If the last accepted block is not found, we continue the execution flow instead of returning an error
-		// We assume the node needs to preform the state sync
-		if errors.Is(err, hsnow.ErrLastAcceptedBlockNotFound) {
+		if errors.Is(err, database.ErrNotFound) {
 			return nil
 		}
 		return err
 	}
-	// Initial time range for the validity window based on the last accepted block's timestamp.
-	validityWindowDuration := getValidityWindow(lastAcceptedBlock.GetTimestamp())
-
-	currentBlock, err := vm.GetExecutionBlock(ctx, lastAcceptedBlock.GetID())
+	lastAcceptedBlock, err := vm.chainStore.GetBlockByHeight(ctx, lastAcceptedBlkHeight)
 	if err != nil {
 		return err
 	}
-	executionBlocks := []validitywindow.ExecutionBlock[*chain.Transaction]{currentBlock}
 
-	// Walk backwards through the chain until the time difference between the last accepted block
-	// and the current parent block exceeds the validity window duration.
+	// Compute the validity window duration based on the last accepted block's timestamp.
+	validityWindowDuration := getValidityWindow(lastAcceptedBlock.GetTimestamp())
+
+	executionBlocks := []*chain.ExecutionBlock{lastAcceptedBlock}
+	currentBlock := lastAcceptedBlock
+
 	for {
-		parentBlock, err := vm.GetExecutionBlock(ctx, currentBlock.GetParent())
+		parentBlock, err := vm.chainStore.GetBlock(ctx, currentBlock.GetParent())
 		if err != nil {
 			return err
 		}
