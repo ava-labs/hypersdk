@@ -4,7 +4,7 @@ go 1.23.7
 
 require (
 	github.com/StephenButtolph/canoto v0.15.0
-	github.com/ava-labs/avalanchego v1.12.3-0.20250317160941-6626b41b013f
+	github.com/ava-labs/avalanchego v1.12.3-0.20250321175346-50f1601bf39a
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/go-errors/errors v1.4.2
 	github.com/gorilla/rpc v1.2.0
@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.14.1-rc.2.0.20250307191323-71558f89e990 // indirect
+	github.com/ava-labs/coreth v0.15.0-rc.0.0.20250320164322-dac35665f8fd // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
