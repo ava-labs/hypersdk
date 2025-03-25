@@ -276,10 +276,10 @@ type BlockBenchmark struct {
 	RuleFactory     chain.RuleFactory
 	AuthEngines     chain.AuthEngines
 
-	BlockBenchmarkHelper BlockBenchmarkHelper
-
 	Config                chain.Config
 	AuthVerificationCores int
+	
+	BlockBenchmarkHelper BlockBenchmarkHelper
 
 	// [NumOfBlocks] is set as a hyperparameter to avoid using [b.N] to generate
 	// the number of blocks to run the benchmark on.
