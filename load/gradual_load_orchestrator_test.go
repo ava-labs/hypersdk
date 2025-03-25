@@ -70,7 +70,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 
 			orchestrator, err := NewGradualLoadOrchestrator(
 				[]TxGenerator[ids.ID]{&mockTxGenerator{
-					GenerateTxF: func() (ids.ID, error) {
+					generateTxF: func() (ids.ID, error) {
 						return ids.GenerateTestID(), nil
 					},
 				}},
@@ -144,7 +144,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			name: "generator error",
 			generators: []TxGenerator[ids.ID]{
 				&mockTxGenerator{
-					GenerateTxF: func() (ids.ID, error) {
+					generateTxF: func() (ids.ID, error) {
 						return ids.Empty, errMockTxGenerator
 					},
 				},
@@ -156,7 +156,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			name: "issuer error",
 			generators: []TxGenerator[ids.ID]{
 				&mockTxGenerator{
-					GenerateTxF: func() (ids.ID, error) {
+					generateTxF: func() (ids.ID, error) {
 						return ids.GenerateTestID(), nil
 					},
 				},
@@ -196,11 +196,11 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 }
 
 type mockTxGenerator struct {
-	GenerateTxF func() (ids.ID, error)
+	generateTxF func() (ids.ID, error)
 }
 
 func (m *mockTxGenerator) GenerateTx(context.Context) (ids.ID, error) {
-	return m.GenerateTxF()
+	return m.generateTxF()
 }
 
 type mockIssuer struct {
