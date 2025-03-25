@@ -278,7 +278,7 @@ type BlockBenchmark struct {
 
 	Config                chain.Config
 	AuthVerificationCores int
-	
+
 	BlockBenchmarkHelper BlockBenchmarkHelper
 
 	// [NumOfBlocks] is set as a hyperparameter to avoid using [b.N] to generate
