@@ -32,8 +32,6 @@ type ShortBurstOrchestrator[T, U comparable] struct {
 	issuerGroup   errgroup.Group
 	observerGroup errgroup.Group
 
-	cancel context.CancelFunc
-
 	config ShortBurstOrchestratorConfig
 }
 
@@ -57,8 +55,8 @@ func NewShortBurstOrchestrator[T, U comparable](
 // Execute orders issuers to send a fixed number of transactions and then waits
 // for all of their statuses to be confirmed or for a timeout to occur.
 func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
-	observerCtx, cancel := context.WithCancel(ctx)
-	o.cancel = cancel
+	observerCtx, observerCancel := context.WithCancel(ctx)
+	defer observerCancel()
 
 	// start a goroutine to confirm each issuer's transactions
 	for _, issuer := range o.issuers {
@@ -89,14 +87,14 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 		return err
 	}
 
-	ctx, cancel = context.WithTimeout(ctx, o.config.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, o.config.Timeout)
 	defer cancel()
 
 	// start a goroutine that will cancel the observer group's context
 	// if either the parent context is cancelled or our timeout elapses
 	go func() {
 		<-ctx.Done()
-		o.cancel()
+		observerCancel()
 	}()
 
 	// blocks until either all of the issuers have finished or our context
