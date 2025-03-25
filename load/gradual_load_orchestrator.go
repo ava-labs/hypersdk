@@ -69,8 +69,6 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 	observerGroup errgroup.Group
 	issuerGroup   *errgroup.Group
 
-	done chan struct{}
-
 	config GradualLoadOrchestratorConfig
 }
 
@@ -90,7 +88,6 @@ func NewGradualLoadOrchestrator[T, U comparable](
 		tracker:    tracker,
 		log:        log,
 		config:     config,
-		done:       make(chan struct{}),
 	}, nil
 }
 
@@ -102,10 +99,8 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 		o.observerGroup.Go(func() error { return issuer.Listen(ctx) })
 	}
 
-	go o.run(ctx)
-
-	// wait for the test to finish
-	<-o.done
+	// start the test and block until it's done
+	o.run(ctx)
 
 	// stop the observers and issuers
 	cancel()
@@ -119,8 +114,6 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 //
 // run stops when the network can no longer make progress or if an issuer errors.
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
-	defer close(o.done)
-
 	var (
 		prevConfirmed  = o.tracker.GetObservedConfirmed()
 		prevTime       = time.Now()
