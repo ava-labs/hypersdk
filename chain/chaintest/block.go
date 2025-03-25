@@ -235,7 +235,7 @@ func GenerateExecutionBlocks(
 		}
 		tsv.Commit()
 
-		root, err := parentCtx.view.GetMerkleRoot(ctx)
+		parentRoot, err := parentCtx.view.GetMerkleRoot(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +253,7 @@ func GenerateExecutionBlocks(
 			timestamp,
 			height,
 			txs,
-			root,
+			parentRoot,
 			nil,
 		)
 		if err != nil {
