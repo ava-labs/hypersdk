@@ -297,10 +297,9 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	getTimeValidityWindowFunc := func(timestamp int64) int64 {
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
-	}
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, getTimeValidityWindowFunc)
+	})
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
@@ -335,7 +334,7 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.backfillValidityWindow(ctx, getTimeValidityWindowFunc); err != nil {
+	if err := vm.populateValidityWindow(ctx); err != nil {
 		return nil, nil, nil, false, err
 	}
 
@@ -703,12 +702,16 @@ func (vm *VM) Submit(
 	return errs
 }
 
-// backfillValidityWindow populates the VM's time validity window on startup,
+// populateValidityWindow populates the VM's time validity window on startup,
 // ensuring it contains recent transactions even if state sync is skipped (e.g., due to restart).
 // This is necessary because a node might restart with only a few blocks behind (or slightly ahead)
 // of the network, and thus opt not to trigger state sync. Without backfilling, the node's validity window
 // may be incomplete, causing the node to accept a duplicate transaction that the network already processed.
-func (vm *VM) backfillValidityWindow(ctx context.Context, getValidityWindow validitywindow.GetTimeValidityWindowFunc) error {
+
+// When Initialize is called, vm.consensusIndex is nil—it is set later via SetConsensusIndex.
+// Therefore, we must use the chainStore (which reads blocks from disk) to backfill the validity window.
+// This prepopulation ensures the validity window is complete, even if state sync is skipped.
+func (vm *VM) populateValidityWindow(ctx context.Context) error {
 	lastAcceptedBlkHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -721,28 +724,6 @@ func (vm *VM) backfillValidityWindow(ctx context.Context, getValidityWindow vali
 		return err
 	}
 
-	// Compute the validity window duration based on the last accepted block's timestamp.
-	validityWindowDuration := getValidityWindow(lastAcceptedBlock.GetTimestamp())
-
-	executionBlocks := []*chain.ExecutionBlock{lastAcceptedBlock}
-	currentBlock := lastAcceptedBlock
-
-	for {
-		parentBlock, err := vm.chainStore.GetBlock(ctx, currentBlock.GetParent())
-		if err != nil {
-			return err
-		}
-		executionBlocks = append(executionBlocks, parentBlock)
-
-		if lastAcceptedBlock.GetTimestamp()-parentBlock.GetTimestamp() > validityWindowDuration {
-			break
-		}
-		currentBlock = parentBlock
-	}
-
-	for i := len(executionBlocks) - 1; i >= 0; i-- {
-		vm.chainTimeValidityWindow.Accept(executionBlocks[i])
-	}
-
+	vm.chainTimeValidityWindow.PopulateValidityWindow(ctx, lastAcceptedBlock)
 	return nil
 }
