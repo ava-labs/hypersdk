@@ -112,7 +112,7 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TXGenerator is a function that generates a valid TX that contains
+// TxGenerator is a function that generates a valid TX that contains
 // [actions]. [factory] will be the signer of the TX.
 type TxGenerator func(actions []chain.Action, factory chain.AuthFactory) (*chain.Transaction, error)
 
