@@ -112,7 +112,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 	)
 
 	parser := chaintest.NewTestParser()
-	badparser := &chain.TxTypeParser{
+	badParser := &chain.TxTypeParser{
 		ActionRegistry: codec.NewTypeParser[chain.Action](),
 		AuthRegistry:   codec.NewTypeParser[chain.Auth](),
 	}
@@ -148,13 +148,13 @@ func TestIndexerClientTransactions(t *testing.T) {
 			malformedBlock:  false,
 		},
 		{
-			name:            "badparser",
+			name:            "badParser",
 			blockIndex:      numExecutedBlocks - 1,
 			txIndex:         numTxs - 1,
 			found:           true,
 			getTxResultsErr: nil,
 			getTxErr:        errTxUnmarshalingFailed,
-			parser:          badparser,
+			parser:          badParser,
 			malformedBlock:  false,
 		},
 		{
