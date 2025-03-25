@@ -4,58 +4,38 @@
 package load
 
 import (
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var _ Tracker[any] = (*DefaultTracker[any])(nil)
 
 type DefaultTracker[T comparable] struct {
-	sync.RWMutex
-
-	txIssuedCounter    uint64
-	txConfirmedCounter uint64
-	txFailedCounter    uint64
+	txIssuedCounter    atomic.Uint64
+	txConfirmedCounter atomic.Uint64
+	txFailedCounter    atomic.Uint64
 }
 
 func (t *DefaultTracker[T]) Issue(T, time.Time) {
-	t.Lock()
-	defer t.Unlock()
-
-	t.txIssuedCounter++
+	t.txIssuedCounter.Add(1)
 }
 
 func (t *DefaultTracker[T]) ObserveConfirmed(T, time.Time) {
-	t.Lock()
-	defer t.Unlock()
-
-	t.txConfirmedCounter++
+	t.txConfirmedCounter.Add(1)
 }
 
 func (t *DefaultTracker[T]) ObserveFailed(T, time.Time) {
-	t.Lock()
-	defer t.Unlock()
-
-	t.txFailedCounter++
+	t.txFailedCounter.Add(1)
 }
 
 func (t *DefaultTracker[T]) GetObservedConfirmed() uint64 {
-	t.RLock()
-	defer t.RUnlock()
-
-	return t.txConfirmedCounter
+	return t.txConfirmedCounter.Load()
 }
 
 func (t *DefaultTracker[T]) GetObservedFailed() uint64 {
-	t.RLock()
-	defer t.RUnlock()
-
-	return t.txFailedCounter
+	return t.txFailedCounter.Load()
 }
 
 func (t *DefaultTracker[T]) GetObservedIssued() uint64 {
-	t.RLock()
-	defer t.RUnlock()
-
-	return t.txIssuedCounter
+	return t.txIssuedCounter.Load()
 }
