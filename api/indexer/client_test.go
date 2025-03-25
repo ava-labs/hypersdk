@@ -79,7 +79,7 @@ func TestIndexerClientBlocks(t *testing.T) {
 				r.ErrorContains(err, tt.blkHeightErr.Error())
 			}
 
-			expectedBlkID := ids.GenerateTestID()
+			expectedBlkID := ids.Empty
 			if tt.blkHeight > 0 {
 				expectedBlock := executedBlocks[tt.blkHeight-1]
 				expectedBlkID = expectedBlock.Block.GetID()
@@ -191,7 +191,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 			if tt.malformedBlock {
 				// "damage" the last executed block by removing the last result.
 				executedBlock.ExecutionResults.Results = executedBlock.ExecutionResults.Results[1:]
-				r.NoError(indexer.Notify(context.Background(), executedBlock))
+				r.NoError(indexer.Notify(ctx, executedBlock))
 			}
 
 			txResponse, found, err := client.GetTxResults(ctx, executedTx.GetID())
@@ -256,7 +256,7 @@ func TestIndexerClientWaitForTransaction(t *testing.T) {
 	lastExecutedBlock := executedBlocks[numExecutedBlocks-1]
 	lastTx := lastExecutedBlock.Block.Txs[numTxs-1]
 	lastTxResult := lastExecutedBlock.ExecutionResults.Results[numTxs-1]
-	success, fee, err := client.WaitForTransaction(context.Background(), 1*time.Millisecond, lastTx.GetID())
+	success, fee, err := client.WaitForTransaction(ctx, 1*time.Millisecond, lastTx.GetID())
 	r.NoError(err)
 	r.Equal(lastTxResult.Success, success)
 	r.Equal(lastTxResult.Fee, fee)
