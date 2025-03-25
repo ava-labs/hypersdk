@@ -113,10 +113,10 @@ func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chai
 	return gen, txListGenerator, nil
 }
 
-func createGenesis(numFactories uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
-	factories := make([]chain.AuthFactory, numFactories)
-	customAllocs := make([]*genesis.CustomAllocation, numFactories)
-	for i := range numFactories {
+func createGenesis(numAccounts uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
+	factories := make([]chain.AuthFactory, numAccounts)
+	customAllocs := make([]*genesis.CustomAllocation, numAccounts)
+	for i := range numAccounts {
 		pk, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			return nil, nil, err
