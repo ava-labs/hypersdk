@@ -40,7 +40,7 @@ const owner = "morpheusvm-e2e-tests"
 
 const (
 	metricsURI      = "localhost:8080"
-	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
+	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-load-generator-metrics.json"
 )
 
 var (
