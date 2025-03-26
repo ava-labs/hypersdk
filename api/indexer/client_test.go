@@ -161,7 +161,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 			name:            "malformed block",
 			blockIndex:      numExecutedBlocks - 1,
 			txIndex:         numTxs - 1,
-			found:           true,
+			found:           false,
 			getTxResultsErr: errTxResultNotFound,
 			getTxErr:        errTxResultNotFound,
 			parser:          parser,
@@ -189,40 +189,43 @@ func TestIndexerClientTransactions(t *testing.T) {
 			executedTx := executedBlock.Block.Txs[tt.txIndex]
 
 			if tt.malformedBlock {
-				// "damage" the last executed block by removing the last result.
+				// create a malformed block and have the indexer add it.
+				// removing of the first result makes the length of the ExecutionResults differ from the
+				// transaction index within the block.
 				executedBlock.ExecutionResults.Results = executedBlock.ExecutionResults.Results[1:]
 				r.NoError(indexer.Notify(ctx, executedBlock))
 			}
 
 			txResponse, found, err := client.GetTxResults(ctx, executedTx.GetID())
-			if tt.getTxResultsErr != nil {
+			if tt.getTxResultsErr != nil || err != nil {
 				r.ErrorContains(err, tt.getTxResultsErr.Error())
-			} else {
-				r.NoError(err)
-				r.Equal(tt.found, found)
-				if tt.found {
-					r.Equal(GetTxResponse{
-						TxBytes:   executedTx.Bytes(),
-						Timestamp: executedBlock.Block.Tmstmp,
-						Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
-					}, txResponse)
-				}
+			}
+
+			r.Equal(tt.found, found)
+			if tt.found {
+				r.Equal(GetTxResponse{
+					TxBytes:   executedTx.Bytes(),
+					Timestamp: executedBlock.Block.Tmstmp,
+					Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
+				}, txResponse)
 			}
 
 			txResponse, tx, found, err := client.GetTx(ctx, executedTx.GetID(), tt.parser)
-			if tt.getTxErr != nil {
+			if tt.getTxErr != nil || err != nil {
 				r.ErrorContains(err, tt.getTxErr.Error())
-			} else {
-				r.Equal(tt.found, found)
-				if tt.found {
-					r.Equal(GetTxResponse{
-						TxBytes:   executedTx.Bytes(),
-						Timestamp: executedBlock.Block.Tmstmp,
-						Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
-					}, txResponse)
-					r.Equal(executedTx, tx)
-				}
+				return
 			}
+			r.Equal(tt.found, found)
+			if !tt.found {
+				return
+			}
+
+			r.Equal(GetTxResponse{
+				TxBytes:   executedTx.Bytes(),
+				Timestamp: executedBlock.Block.Tmstmp,
+				Result:    executedBlock.ExecutionResults.Results[tt.txIndex],
+			}, txResponse)
+			r.Equal(executedTx, tx)
 		})
 	}
 }
