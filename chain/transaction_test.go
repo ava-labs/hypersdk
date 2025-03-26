@@ -14,12 +14,10 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -37,32 +35,6 @@ func init() {
 		panic(err)
 	}
 	preSignedTxBytes = txBytes
-}
-
-type mockBalanceHandler struct {
-	addBalanceError error
-	canDeductError  error
-	deductError     error
-}
-
-func (m *mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	return m.addBalanceError
-}
-
-func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	return m.canDeductError
-}
-
-func (m *mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	return m.deductError
-}
-
-func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
-	return state.Keys{}
 }
 
 func TestTransactionJSON(t *testing.T) {

@@ -25,8 +25,10 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -545,13 +547,20 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		},
 	}
 
+	metadataManager := metadata.NewDefaultManager()
+	// modify default rules to avoid test failures due to fee spikes
+	rules := genesis.NewDefaultRules()
+	rules.WindowTargetUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+	rules.MaxBlockUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+	rules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
+
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark{
-				MetadataManager:      metadata.NewDefaultManager(),
-				BalanceHandler:       &mockBalanceHandler{},
+				MetadataManager:      metadataManager,
+				BalanceHandler:       balance.NewPrefixBalanceHandler(metadataManager.FeePrefix()),
 				AuthEngines:          auth.DefaultEngines(),
-				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: genesis.NewDefaultRules()},
+				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: rules},
 				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
