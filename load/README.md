@@ -57,16 +57,7 @@ will sign transactions and whose balance is monitored to err in the case of fund
 
 ### TX Issuer
 
-The TX issuer has two responsibilities:
-- Sending transactions to the network
-- Listening for the status of transactions it has sent
-
-The TX issuer also has the following obligations to the tracker:
-
-- Upon sending a TX, the issuer should call `Issue()`
-- Upon confirming an accepted TX, the issuer should call `ObserveConfirmed()`
-- Upon confirming a failed TX, the issuer should call `ObserveFailed()`
-
+The Tx issuer is responsible for sending and confirming transactions. As it issues/confirms transactions, it notifies the tracker, so that it can maintain metrics across the generated load.
 ### Tracker
 
 The role of the tracker is to record metrics for the TPS. Since the tracker is
