@@ -149,19 +149,10 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		// Default to first URI if each issuer can't have a different URI
-		if len(txGenerators) != len(uris) {
-			for i := 0; i < len(txGenerators); i++ {
-				issuer, err := load.NewDefaultIssuer(uris[0], tracker)
-				require.NoError(err)
-				issuers[i] = issuer
-			}
-		} else {
-			for i := 0; i < len(txGenerators); i++ {
-				issuer, err := load.NewDefaultIssuer(uris[i], tracker)
-				require.NoError(err)
-				issuers[i] = issuer
-			}
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
 		}
 
 		orchestrator, err := load.NewShortBurstOrchestrator(
@@ -197,19 +188,10 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		// Default to first URI if each issuer can't have a different URI
-		if len(txGenerators) != len(uris) {
-			for i := 0; i < len(txGenerators); i++ {
-				issuer, err := load.NewDefaultIssuer(uris[0], tracker)
-				require.NoError(err)
-				issuers[i] = issuer
-			}
-		} else {
-			for i := 0; i < len(txGenerators); i++ {
-				issuer, err := load.NewDefaultIssuer(uris[i], tracker)
-				require.NoError(err)
-				issuers[i] = issuer
-			}
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
 		}
 
 		orchestrator, err := load.NewGradualLoadOrchestrator(
