@@ -567,17 +567,17 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 	}
 }
 
-func parallelTxsBlockBenchmarkHelper(numOfTxs uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, genesis, err := createGenesis(numOfTxs, 1_000_000)
+func parallelTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Generate kv-pairs for testing
-	databaseKeys := make([]string, numOfTxs)
-	values := make([][]byte, numOfTxs)
+	databaseKeys := make([]string, numTxsPerBlock)
+	values := make([][]byte, numTxsPerBlock)
 
-	for i := range numOfTxs {
+	for i := range numTxsPerBlock {
 		key := string(binary.BigEndian.AppendUint16(
 			binary.BigEndian.AppendUint64(nil, i),
 			1,
@@ -588,9 +588,9 @@ func parallelTxsBlockBenchmarkHelper(numOfTxs uint64) (genesis.Genesis, chaintes
 
 	nonce := uint64(0)
 
-	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numOfTxsPerBlock)
-		for i := range numOfTxsPerBlock {
+	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
 			action := &chaintest.TestAction{
 				Nonce:                        nonce,
 				SpecifiedStateKeys:           []string{databaseKeys[i]},
@@ -616,8 +616,8 @@ func parallelTxsBlockBenchmarkHelper(numOfTxs uint64) (genesis.Genesis, chaintes
 	return genesis, txListGenerator, nil
 }
 
-func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+func serialTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -627,9 +627,9 @@ func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, ch
 
 	nonce := uint64(0)
 
-	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numOfTxsPerBlock)
-		for i := range numOfTxsPerBlock {
+	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
 			action := &chaintest.TestAction{
 				Nonce:                        nonce,
 				SpecifiedStateKeys:           []string{k},
@@ -654,17 +654,17 @@ func serialTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, ch
 	return genesis, txListGenerator, nil
 }
 
-func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, genesis, err := createGenesis(numOfTxsPerBlock, 1_000_000)
+func zipfTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Generate kv-pairs for testing
-	databaseKeys := make([]string, numOfTxsPerBlock)
-	values := make([][]byte, numOfTxsPerBlock)
+	databaseKeys := make([]string, numTxsPerBlock)
+	values := make([][]byte, numTxsPerBlock)
 
-	for i := range numOfTxsPerBlock {
+	for i := range numTxsPerBlock {
 		key := string(binary.BigEndian.AppendUint16(
 			binary.BigEndian.AppendUint64(nil, i),
 			1,
@@ -678,11 +678,11 @@ func zipfTxsBlockBenchmarkHelper(numOfTxsPerBlock uint64) (genesis.Genesis, chai
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	sZipf := 1.01
 	vZipf := 2.7
-	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numOfTxsPerBlock-1)
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxsPerBlock-1)
 
-	txListGenerator := func(numOfTxsPerBlock uint64, txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numOfTxsPerBlock)
-		for i := range numOfTxsPerBlock {
+	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
 			index := zipfGen.Uint64()
 			action := &chaintest.TestAction{
 				Nonce:                        nonce,

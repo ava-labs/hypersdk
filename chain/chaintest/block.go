@@ -118,15 +118,15 @@ type TxGenerator func(actions []chain.Action, factory chain.AuthFactory) (*chain
 
 // TxListGenerator is a function that should return a list of valid TXs of
 // length numOfTxsPerBlock.
-type TxListGenerator func(numOfTxsPerBlock uint64, txGenerator TxGenerator) ([]*chain.Transaction, error)
+type TxListGenerator func(txGenerator TxGenerator) ([]*chain.Transaction, error)
 
-func EmptyTxListGenerator(uint64, TxGenerator) ([]*chain.Transaction, error) {
+func EmptyTxListGenerator(TxGenerator) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
 // BlockBenchmarkHelper initializes a BlockBenchmark test by returning the
 // genesis and TxListGenerator to be used.
-type BlockBenchmarkHelper func(numOfTxsPerBlock uint64) (genesis.Genesis, TxListGenerator, error)
+type BlockBenchmarkHelper func(numTxsPerBlock uint64) (genesis.Genesis, TxListGenerator, error)
 
 func NoopBlockBenchmarkHelper(uint64) (genesis.Genesis, TxListGenerator, error) {
 	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), EmptyTxListGenerator, nil
@@ -197,7 +197,7 @@ func GenerateExecutionBlocks(
 			return txData.Sign(factory)
 		}
 
-		txs, err := txListGenerator(numOfTxsPerBlock, txGenerator)
+		txs, err := txListGenerator(txGenerator)
 		if err != nil {
 			return nil, err
 		}
