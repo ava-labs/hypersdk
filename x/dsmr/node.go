@@ -79,6 +79,19 @@ func (d DefaultRuleFactory) GetRules(int64) Rules {
 	return d.rules
 }
 
+// Assembler builds a block from the metadata of the DSMR block and the collected
+// chunks
+type Assembler[T any] interface {
+	BuildBlock(
+		ctx context.Context,
+		parentID ids.ID,
+		height uint64,
+		timestamp int64,
+		blockContext *block.Context,
+		chunks []*Chunk,
+	) (T, error)
+}
+
 type Node struct {
 	nodeID ids.NodeID
 

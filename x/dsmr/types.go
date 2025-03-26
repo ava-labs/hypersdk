@@ -71,6 +71,15 @@ func (u *Chunk) CreateReference() *ChunkReference {
 	return NewChunkReference(u.id, u.Builder, u.Expiry)
 }
 
+func (u *Chunk) String() string {
+	return fmt.Sprintf("Chunk(ID: %s, Builder: %s, Expiry: %d, Data: %x)",
+		u.id,
+		u.Builder,
+		u.Expiry,
+		u.Data,
+	)
+}
+
 type ChunkReference struct {
 	ChunkID ids.ID     `canoto:"fixed bytes,1"`
 	Builder ids.NodeID `canoto:"fixed bytes,2"`

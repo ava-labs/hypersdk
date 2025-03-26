@@ -140,7 +140,7 @@ func (p *Processor) Execute(
 		return nil, err
 	}
 
-	blockContext, err := p.createBlockContext(ctx, parentView, b, r)
+	blockContext, err := createBlockContext(ctx, p.tracer, p.metadataManager, parentView, b.Hght, b.Tmstmp, len(b.Txs) == 0, r)
 	if err != nil {
 		return nil, err
 	}
@@ -162,8 +162,9 @@ func (p *Processor) Execute(
 		state.ImmutableStorage(map[string][]byte{}),
 		0,
 	)
-	if err := p.writeBlockContext(
+	if err := writeBlockContext(
 		ctx,
+		p.metadataManager,
 		tsv,
 		blockContext,
 	); err != nil {
@@ -334,19 +335,16 @@ func (p *Processor) verifySignatures(ctx context.Context, block *ExecutionBlock)
 
 	// Setup signature verification job
 	_, sigVerifySpan := p.tracer.Start(ctx, "Chain.Execute.verifySignatures")
-
 	batchVerifier := NewAuthBatch(p.authVM, sigJob, block.authCounts)
-	// Make sure to always call [Done], otherwise we will block all future [Workers]
-	defer func() {
-		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-		// to the work queue async and that may not have completed by this point.
-		go batchVerifier.Done(func() { sigVerifySpan.End() })
-	}()
-
 	for _, tx := range block.StatelessBlock.Txs {
 		unsignedTxBytes := tx.UnsignedBytes()
 		batchVerifier.Add(unsignedTxBytes, tx.Auth)
 	}
+
+	// Make sure to always call [Done], otherwise we will block all future [Workers]
+	// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
+	// to the work queue async and that may not have completed by this point.
+	go batchVerifier.Done(func() { sigVerifySpan.End() })
 	return sigJob, nil
 }
 
@@ -364,87 +362,24 @@ func (p *Processor) waitSignatures(ctx context.Context, sigJob workers.Job) erro
 	return nil
 }
 
-// createBlockContext extracts and verifies the block context from the parent view
-// and provided block
-func (p *Processor) createBlockContext(
+func writeBlockContext(
 	ctx context.Context,
-	im state.Immutable,
-	block *ExecutionBlock,
-	r Rules,
-) (blockContext, error) {
-	_, span := p.tracer.Start(ctx, "Chain.Execute.createBlockContext")
-	defer span.End()
-
-	// Get parent height
-	heightKey := HeightKey(p.metadataManager.HeightPrefix())
-	parentHeightRaw, err := im.GetValue(ctx, heightKey)
-	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
-	}
-	parentHeight, err := database.ParseUInt64(parentHeightRaw)
-	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentHeight, err)
-	}
-	if block.Hght != parentHeight+1 {
-		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, block.Hght, parentHeight)
-	}
-
-	// Get parent timestamp
-	timestampKey := TimestampKey(p.metadataManager.TimestampPrefix())
-	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
-	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentTimestamp, err)
-	}
-	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
-	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentTimestamp, err)
-	}
-
-	// Confirm block timestamp is valid
-	//
-	// Parent may not be available (if we preformed state sync), so we
-	// can't rely on being able to fetch it during verification.
-	parentTimestamp := int64(parsedParentTimestamp)
-	if minBlockGap := r.GetMinBlockGap(); block.Tmstmp < parentTimestamp+minBlockGap {
-		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, block.Tmstmp, parentTimestamp, minBlockGap)
-	}
-	if len(block.StatelessBlock.Txs) == 0 && block.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, block.Tmstmp, parentTimestamp, r.GetMinEmptyBlockGap())
-	}
-
-	// Calculate fee manager for this block
-	feeKey := FeeKey(p.metadataManager.FeePrefix())
-	parentFeeRaw, err := im.GetValue(ctx, feeKey)
-	if err != nil {
-		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
-	}
-	parentFeeManager := fees.NewManager(parentFeeRaw)
-	blockFeeManager := parentFeeManager.ComputeNext(block.Tmstmp, r)
-
-	return blockContext{
-		height:     block.Hght,
-		timestamp:  block.Tmstmp,
-		feeManager: blockFeeManager,
-	}, nil
-}
-
-func (p *Processor) writeBlockContext(
-	ctx context.Context,
+	metadataManager MetadataManager,
 	mu state.Mutable,
-	blockCtx blockContext,
+	blockContext blockContext,
 ) error {
 	var (
-		heightKey    = HeightKey(p.metadataManager.HeightPrefix())
-		timestampKey = TimestampKey(p.metadataManager.TimestampPrefix())
-		feeKey       = FeeKey(p.metadataManager.FeePrefix())
+		heightKey    = HeightKey(metadataManager.HeightPrefix())
+		timestampKey = TimestampKey(metadataManager.TimestampPrefix())
+		feeKey       = FeeKey(metadataManager.FeePrefix())
 	)
-	if err := mu.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, blockCtx.height)); err != nil {
+	if err := mu.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, blockContext.height)); err != nil {
 		return fmt.Errorf("failed to insert height into state: %w", err)
 	}
-	if err := mu.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(blockCtx.timestamp))); err != nil {
+	if err := mu.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(blockContext.timestamp))); err != nil {
 		return fmt.Errorf("failed to insert timestamp into state: %w", err)
 	}
-	if err := mu.Insert(ctx, feeKey, blockCtx.feeManager.Bytes()); err != nil {
+	if err := mu.Insert(ctx, feeKey, blockContext.feeManager.Bytes()); err != nil {
 		return fmt.Errorf("failed to insert fee manager into state: %w", err)
 	}
 	return nil
@@ -474,6 +409,74 @@ func (p *Processor) verifyParentRoot(
 		)
 	}
 	return nil
+}
+
+// createBlockContext extracts and verifies the block context from the parent view
+// and provided block
+func createBlockContext(
+	ctx context.Context,
+	tracer trace.Tracer,
+	metadataManager MetadataManager,
+	im state.Immutable,
+	blockHeight uint64,
+	blockTimestamp int64,
+	emptyBlock bool,
+	r Rules,
+) (blockContext, error) {
+	_, span := tracer.Start(ctx, "Chain.Execute.createBlockContext")
+	defer span.End()
+
+	// Get parent height
+	heightKey := HeightKey(metadataManager.HeightPrefix())
+	parentHeightRaw, err := im.GetValue(ctx, heightKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentHeight, err)
+	}
+	parentHeight, err := database.ParseUInt64(parentHeightRaw)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentHeight, err)
+	}
+	if blockHeight != parentHeight+1 {
+		return blockContext{}, fmt.Errorf("%w: block height %d != parentHeight (%d) + 1", ErrInvalidBlockHeight, blockHeight, parentHeight)
+	}
+
+	// Get parent timestamp
+	timestampKey := TimestampKey(metadataManager.TimestampPrefix())
+	parentTimestampRaw, err := im.GetValue(ctx, timestampKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentTimestamp, err)
+	}
+	parsedParentTimestamp, err := database.ParseUInt64(parentTimestampRaw)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToParseParentTimestamp, err)
+	}
+
+	// Confirm block timestamp is valid
+	//
+	// Parent may not be available (if we preformed state sync), so we
+	// can't rely on being able to fetch it during verification.
+	parentTimestamp := int64(parsedParentTimestamp)
+	if minBlockGap := r.GetMinBlockGap(); blockTimestamp < parentTimestamp+minBlockGap {
+		return blockContext{}, fmt.Errorf("%w: block timestamp %d < parentTimestamp (%d) + minBlockGap (%d)", ErrTimestampTooEarly, blockTimestamp, parentTimestamp, minBlockGap)
+	}
+	if emptyBlock && blockTimestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
+		return blockContext{}, fmt.Errorf("%w: timestamp (%d) < parentTimestamp (%d) + minEmptyBlockGap (%d)", ErrTimestampTooEarlyEmptyBlock, blockTimestamp, parentTimestamp, r.GetMinEmptyBlockGap())
+	}
+
+	// Calculate fee manager for this block
+	feeKey := FeeKey(metadataManager.FeePrefix())
+	parentFeeRaw, err := im.GetValue(ctx, feeKey)
+	if err != nil {
+		return blockContext{}, fmt.Errorf("%w: %w", ErrFailedToFetchParentFee, err)
+	}
+	parentFeeManager := fees.NewManager(parentFeeRaw)
+	blockFeeManager := parentFeeManager.ComputeNext(blockTimestamp, r)
+
+	return blockContext{
+		height:     blockHeight,
+		timestamp:  blockTimestamp,
+		feeManager: blockFeeManager,
+	}, nil
 }
 
 func createView(ctx context.Context, tracer trace.Tracer, parentView state.View, stateDiff map[string]maybe.Maybe[[]byte]) (merkledb.View, error) {
