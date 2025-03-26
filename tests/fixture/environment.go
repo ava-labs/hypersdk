@@ -4,8 +4,6 @@
 package fixture
 
 import (
-	"fmt"
-
 	"github.com/ava-labs/avalanchego/api/admin"
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,8 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
-
-var StableNodeURI = fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
 
 func NewTestEnvironment(
 	testContext tests.TestContext,
@@ -36,24 +32,30 @@ func NewTestEnvironment(
 		networkConfig.GenesisBytes(),
 		nodes...,
 	)
-	network := NewTmpnetNetwork(owner, nodes, subnet)
+	desiredNetwork := NewTmpnetNetwork(owner, nodes, subnet)
 
 	testEnv := e2e.NewTestEnvironment(
 		testContext,
 		flagVars,
-		network,
+		desiredNetwork,
 	)
+	network := testEnv.GetNetwork()
 
-	chainID := testEnv.GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
-	setupDefaultChainAlias(testContext, chainID, networkConfig.Name())
+	// A local URI will work for both a process and a node running in a kube cluster
+	uri, cancel, err := network.Nodes[0].GetLocalURI(testContext.DefaultContext())
+	require.NoError(testContext, err)
+	defer cancel()
+
+	chainID := network.GetSubnet(networkConfig.Name()).Chains[0].ChainID
+	setupDefaultChainAlias(testContext, uri, chainID, networkConfig.Name())
 
 	return testEnv
 }
 
-func setupDefaultChainAlias(tc tests.TestContext, chainID ids.ID, vmName string) {
+func setupDefaultChainAlias(tc tests.TestContext, uri string, chainID ids.ID, vmName string) {
 	require := require.New(tc)
 
-	adminClient := admin.NewClient(StableNodeURI)
+	adminClient := admin.NewClient(uri)
 
 	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
 	require.NoError(err)

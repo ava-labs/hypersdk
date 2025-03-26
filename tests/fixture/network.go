@@ -28,7 +28,6 @@ func NewTmpnetNetwork(owner string, nodes []*tmpnet.Node, subnets ...*tmpnet.Sub
 			config.ConsensusAppConcurrencyKey:                  512,
 			config.ProfileContinuousEnabledKey:                 true,
 			config.ProfileContinuousFreqKey:                    "1m",
-			config.HTTPHostKey:                                 "",
 			config.HTTPAllowedHostsKey:                         "*",
 		},
 		Subnets: subnets,

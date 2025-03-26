@@ -55,13 +55,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	authFactories := testingNetworkConfig.AuthFactories()
 	spamKey := authFactories[0]
 	generator := workload.NewTxGenerator(authFactories[1])
-	tc := e2e.NewTestContext()
 	he2e.SetWorkload(testingNetworkConfig, generator, expectedABI, &spamHelper, spamKey)
 
+	tc := e2e.NewEventHandlerTestContext()
 	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
 	// Initialize the local test environment from the global state
-	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+	e2e.InitSharedTestEnvironment(e2e.NewEventHandlerTestContext(), envBytes)
 })
