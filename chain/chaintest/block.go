@@ -113,11 +113,11 @@ func GenerateEmptyExecutedBlocks(
 }
 
 // TxGenerator is a function that generates a valid TX that contains
-// [actions]. [factory] will be the signer of the TX.
+// actions. factory will be the signer of the TX.
 type TxGenerator func(actions []chain.Action, factory chain.AuthFactory) (*chain.Transaction, error)
 
 // TxListGenerator is a function that should return a list of valid TXs of
-// length [numOfTxsPerBlock].
+// length numOfTxsPerBlock.
 type TxListGenerator func(numOfTxsPerBlock uint64, txGenerator TxGenerator) ([]*chain.Transaction, error)
 
 func EmptyTxListGenerator(uint64, TxGenerator) ([]*chain.Transaction, error) {
@@ -141,8 +141,8 @@ type parentContext struct {
 	timestamp int64
 }
 
-// GenerateExecutionBlocks generates [numBlocks] execution blocks with
-// [txsPerBlock] transactions per block.
+// GenerateExecutionBlocks generates numBlocks execution blocks with
+// txsPerBlock transactions per block.
 //
 // Block production is a simplified version of Builder; we execute
 // transactions followed by writing the chain metadata to the state diff.
@@ -267,9 +267,9 @@ func GenerateExecutionBlocks(
 	return executionBlocks, nil
 }
 
-// BlockBenchmark is a parameterized benchmark. It generates [NumOfBlocks] blocks
-// with [NumOfTxsPerBlock] transactions per block, and then calls
-// Processor.Execute to process the block list [b.N] times.
+// BlockBenchmark is a parameterized benchmark. It generates NumOfBlocks blocks
+// with NumOfTxsPerBlock transactions per block, and then calls
+// Processor.Execute to process the block list b.N times.
 type BlockBenchmark struct {
 	MetadataManager chain.MetadataManager
 	BalanceHandler  chain.BalanceHandler
@@ -281,7 +281,7 @@ type BlockBenchmark struct {
 
 	BlockBenchmarkHelper BlockBenchmarkHelper
 
-	// [NumOfBlocks] is set as a hyperparameter to avoid using [b.N] to generate
+	// NumOfBlocks is set as a hyperparameter to avoid using b.N to generate
 	// the number of blocks to run the benchmark on.
 	NumOfBlocks      uint64
 	NumOfTxsPerBlock uint64
@@ -370,11 +370,11 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 				true,
 			)
 			r.NoError(err)
-			// we update [parentView] so that the view produced by [outputBlock]
+			// we update parentView so that the view produced by outputBlock
 			// is the parent view of the next block
 			parentView = outputBlock.View
 		}
-		// we reset [parentView] to the genesis view
+		// we reset parentView to the genesis view
 		parentView = db
 	}
 }
