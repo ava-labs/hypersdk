@@ -112,15 +112,14 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TxGenerator is a function that generates a valid TX that contains
-// actions. factory will be the signer of the TX.
-type TxGenerator func(actions []chain.Action, factory chain.AuthFactory) (*chain.Transaction, error)
+// TxBaseConstructor is a function that returns a valid TX base based off of actions.
+type TxBaseConstructor func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error)
 
 // TxListGenerator is a function that should return a list of valid TXs of
-// length numOfTxsPerBlock.
-type TxListGenerator func(txGenerator TxGenerator) ([]*chain.Transaction, error)
+// length numOfTxsPerBlock (derived from BlockBenchmark).
+type TxListGenerator func(txBaseConstructor TxBaseConstructor) ([]*chain.Transaction, error)
 
-func EmptyTxListGenerator(TxGenerator) ([]*chain.Transaction, error) {
+func EmptyTxListGenerator(TxBaseConstructor) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
@@ -174,30 +173,25 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txGenerator := func(actions []chain.Action, factory chain.AuthFactory) (*chain.Transaction, error) {
+		txBaseConstructor := func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error) {
 			units, err := chain.EstimateUnits(rules, actions, factory)
 			if err != nil {
-				return nil, err
+				return chain.Base{}, err
 			}
 
 			maxFee, err := fees.MulSum(unitPrices, units)
 			if err != nil {
-				return nil, err
+				return chain.Base{}, err
 			}
 
-			txData := chain.NewTxData(
-				chain.Base{
-					Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
-					ChainID:   rules.GetChainID(),
-					MaxFee:    maxFee,
-				},
-				actions,
-			)
-
-			return txData.Sign(factory)
+			return chain.Base{
+				Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
+				ChainID:   rules.GetChainID(),
+				MaxFee:    maxFee,
+			}, nil
 		}
 
-		txs, err := txListGenerator(txGenerator)
+		txs, err := txListGenerator(txBaseConstructor)
 		if err != nil {
 			return nil, err
 		}

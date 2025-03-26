@@ -597,7 +597,7 @@ func parallelTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, ch
 
 	nonce := uint64(0)
 
-	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
 		txs := make([]*chain.Transaction, numTxsPerBlock)
 		for i := range numTxsPerBlock {
 			action := &chaintest.TestAction{
@@ -612,7 +612,13 @@ func parallelTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, ch
 
 			nonce++
 
-			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txData := chain.NewTxData(txBase, []chain.Action{action})
+			tx, err := txData.Sign(factories[i])
 			if err != nil {
 				return nil, err
 			}
@@ -636,7 +642,7 @@ func serialTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chai
 
 	nonce := uint64(0)
 
-	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
 		txs := make([]*chain.Transaction, numTxsPerBlock)
 		for i := range numTxsPerBlock {
 			action := &chaintest.TestAction{
@@ -650,7 +656,13 @@ func serialTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chai
 
 			nonce++
 
-			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txData := chain.NewTxData(txBase, []chain.Action{action})
+			tx, err := txData.Sign(factories[i])
 			if err != nil {
 				return nil, err
 			}
@@ -689,7 +701,7 @@ func zipfTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaint
 	vZipf := 2.7
 	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxsPerBlock-1)
 
-	txListGenerator := func(txGenerator chaintest.TxGenerator) ([]*chain.Transaction, error) {
+	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
 		txs := make([]*chain.Transaction, numTxsPerBlock)
 		for i := range numTxsPerBlock {
 			index := zipfGen.Uint64()
@@ -705,7 +717,13 @@ func zipfTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaint
 
 			nonce++
 
-			tx, err := txGenerator([]chain.Action{action}, factories[i])
+			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
+			if err != nil {
+				return nil, err
+			}
+
+			txData := chain.NewTxData(txBase, []chain.Action{action})
+			tx, err := txData.Sign(factories[i])
 			if err != nil {
 				return nil, err
 			}
