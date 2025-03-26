@@ -334,6 +334,10 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
+	if err := vm.populateValidityWindow(ctx); err != nil {
+		return nil, nil, nil, false, err
+	}
+
 	snowApp.AddNormalOpStarter(func(_ context.Context) error {
 		if vm.SyncClient.Started() {
 			return nil
@@ -696,4 +700,30 @@ func (vm *VM) Submit(
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.mempool.Len(ctx)))
 	return errs
+}
+
+// populateValidityWindow populates the VM's time validity window on startup,
+// ensuring it contains recent transactions even if state sync is skipped (e.g., due to restart).
+// This is necessary because a node might restart with only a few blocks behind (or slightly ahead)
+// of the network, and thus opt not to trigger state sync. Without backfilling, the node's validity window
+// may be incomplete, causing the node to accept a duplicate transaction that the network already processed.
+
+// When Initialize is called, vm.consensusIndex is nil—it is set later via SetConsensusIndex.
+// Therefore, we must use the chainStore (which reads blocks from disk) to backfill the validity window.
+// This prepopulation ensures the validity window is complete, even if state sync is skipped.
+func (vm *VM) populateValidityWindow(ctx context.Context) error {
+	lastAcceptedBlkHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	lastAcceptedBlock, err := vm.chainStore.GetBlockByHeight(ctx, lastAcceptedBlkHeight)
+	if err != nil {
+		return err
+	}
+
+	vm.chainTimeValidityWindow.PopulateValidityWindow(ctx, lastAcceptedBlock)
+	return nil
 }
