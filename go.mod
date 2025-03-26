@@ -13,7 +13,7 @@ go 1.23.7
 
 require (
 	github.com/StephenButtolph/canoto v0.15.0
-	github.com/ava-labs/avalanchego v1.13.1-rc.0.0.20250414210208-c8b3f57d2a25
+	github.com/ava-labs/avalanchego v1.13.1-rc.0.0.20250418004108-9204753c4e57
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
