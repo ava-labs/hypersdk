@@ -377,4 +377,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		// we reset parentView to the genesis view
 		parentView = db
 	}
+
+	b.ReportMetric(float64(test.NumOfBlocks*test.NumOfTxsPerBlock*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "tps")
+	b.ReportMetric(float64(test.NumOfBlocks*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "blocks/s")
 }
