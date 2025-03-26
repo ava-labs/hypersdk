@@ -261,9 +261,9 @@ func GenerateExecutionBlocks(
 	return executionBlocks, nil
 }
 
-// BlockBenchmark is a parameterized benchmark. It generates NumBlocks blocks
-// with NumTxsPerBlock transactions per block, and then calls
-// Processor.Execute to process the block list b.N times.
+// BlockBenchmark is a parameterized benchmark. It generates NumBlocks
+// with NumTxsPerBlock, and then calls Processor.Execute to process the block
+// list b.N times.
 type BlockBenchmark struct {
 	MetadataManager chain.MetadataManager
 	BalanceHandler  chain.BalanceHandler
