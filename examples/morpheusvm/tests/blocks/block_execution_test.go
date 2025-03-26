@@ -65,8 +65,8 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 					TargetTxsSize:             1.5 * units.MiB,
 				},
 				AuthVerificationCores: 8,
-				NumOfBlocks:           10,
-				NumOfTxsPerBlock:      5_000,
+				NumBlocks:             10,
+				NumTxsPerBlock:        5_000,
 			}
 
 			benchmark.Run(context.Background(), b)

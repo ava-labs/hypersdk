@@ -524,7 +524,7 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 	benchmarks := []struct {
 		name                 string
 		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
-		numOfTxsPerBlock     uint64
+		numTxsPerBlock       uint64
 	}{
 		{
 			name:                 "empty blocks",
@@ -533,17 +533,17 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		{
 			name:                 "blocks with txs that do not have conflicting state keys",
 			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
-			numOfTxsPerBlock:     16,
+			numTxsPerBlock:       16,
 		},
 		{
 			name:                 "blocks with txs that all touch the same state key",
 			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
-			numOfTxsPerBlock:     16,
+			numTxsPerBlock:       16,
 		},
 		{
 			name:                 "blocks with txs whose state keys are zipf distributed",
 			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
-			numOfTxsPerBlock:     16,
+			numTxsPerBlock:       16,
 		},
 	}
 
@@ -568,8 +568,8 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 					StateFetchConcurrency:     4,
 					TargetTxsSize:             1.5 * units.MiB,
 				},
-				NumOfBlocks:      1_000,
-				NumOfTxsPerBlock: bm.numOfTxsPerBlock,
+				NumBlocks:      1_000,
+				NumTxsPerBlock: bm.numTxsPerBlock,
 			}
 			benchmark.Run(context.Background(), b)
 		})

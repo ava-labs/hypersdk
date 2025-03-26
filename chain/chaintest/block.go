@@ -116,7 +116,7 @@ func GenerateEmptyExecutedBlocks(
 type TxBaseConstructor func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error)
 
 // TxListGenerator is a function that should return a list of valid TXs of
-// length numOfTxsPerBlock (derived from BlockBenchmark).
+// length numTxsPerBlock (derived from BlockBenchmark).
 type TxListGenerator func(txBaseConstructor TxBaseConstructor) ([]*chain.Transaction, error)
 
 func EmptyTxListGenerator(TxBaseConstructor) ([]*chain.Transaction, error) {
@@ -153,11 +153,11 @@ func GenerateExecutionBlocks(
 	txListGenerator TxListGenerator,
 	parentCtx *parentContext,
 	numBlocks uint64,
-	numOfTxsPerBlock uint64,
+	numTxsPerBlock uint64,
 ) ([]*chain.ExecutionBlock, error) {
 	var timestampOffset int64
 	timestampOffset = rules.GetMinEmptyBlockGap()
-	if numOfTxsPerBlock > 0 {
+	if numTxsPerBlock > 0 {
 		timestampOffset = rules.GetMinBlockGap()
 	}
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
@@ -261,8 +261,8 @@ func GenerateExecutionBlocks(
 	return executionBlocks, nil
 }
 
-// BlockBenchmark is a parameterized benchmark. It generates NumOfBlocks blocks
-// with NumOfTxsPerBlock transactions per block, and then calls
+// BlockBenchmark is a parameterized benchmark. It generates NumBlocks blocks
+// with NumTxsPerBlock transactions per block, and then calls
 // Processor.Execute to process the block list b.N times.
 type BlockBenchmark struct {
 	MetadataManager chain.MetadataManager
@@ -275,10 +275,10 @@ type BlockBenchmark struct {
 
 	BlockBenchmarkHelper BlockBenchmarkHelper
 
-	// NumOfBlocks is set as a hyperparameter to avoid using b.N to generate
+	// NumBlocks is set as a hyperparameter to avoid using b.N to generate
 	// the number of blocks to run the benchmark on.
-	NumOfBlocks      uint64
-	NumOfTxsPerBlock uint64
+	NumBlocks      uint64
+	NumTxsPerBlock uint64
 }
 
 func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
@@ -297,11 +297,11 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	)
 	r.NoError(err)
 
-	numOfAuthVerificationJobs := 100
+	numAuthVerificationJobs := 100
 
 	processorWorkers := workers.NewSerial()
 	if test.AuthVerificationCores > 1 {
-		processorWorkers = workers.NewParallel(test.AuthVerificationCores, numOfAuthVerificationJobs)
+		processorWorkers = workers.NewParallel(test.AuthVerificationCores, numAuthVerificationJobs)
 	}
 
 	processor := chain.NewProcessor(
@@ -317,7 +317,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.Config,
 	)
 
-	genesis, txListGenerator, err := test.BlockBenchmarkHelper(test.NumOfTxsPerBlock)
+	genesis, txListGenerator, err := test.BlockBenchmarkHelper(test.NumTxsPerBlock)
 	r.NoError(err)
 
 	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
@@ -347,8 +347,8 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.BalanceHandler,
 		txListGenerator,
 		parentCtx,
-		test.NumOfBlocks,
-		test.NumOfTxsPerBlock,
+		test.NumBlocks,
+		test.NumTxsPerBlock,
 	)
 	r.NoError(err)
 
@@ -356,7 +356,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	parentView = db
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < int(test.NumOfBlocks); j++ {
+		for j := 0; j < int(test.NumBlocks); j++ {
 			outputBlock, err := processor.Execute(
 				ctx,
 				parentView,
@@ -372,6 +372,6 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		parentView = db
 	}
 
-	b.ReportMetric(float64(test.NumOfBlocks*test.NumOfTxsPerBlock*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "tps")
-	b.ReportMetric(float64(test.NumOfBlocks*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "blocks/s")
+	b.ReportMetric(float64(test.NumBlocks*test.NumTxsPerBlock*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "tps")
+	b.ReportMetric(float64(test.NumBlocks*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "blocks/s")
 }
