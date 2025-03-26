@@ -26,7 +26,7 @@ type GradualLoadOrchestratorConfig struct {
 	Step uint64
 
 	// the factor by which to pad the number of txs an issuer sends per second
-	// for example, if targetTPS = 1000 and numOfIssuers = 10, then each issuer
+	// for example, if targetTPS = 1000 and numIssuers = 10, then each issuer
 	// will send (1000/10)*TxRateMultiplier transactions per second.
 	//
 	// this is useful when the network can handle the current target TPS but it

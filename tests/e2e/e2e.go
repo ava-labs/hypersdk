@@ -167,9 +167,9 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 			require.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 		}
 
-		numOfTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
-		require.Equal(numOfTxs, tracker.GetObservedIssued())
-		require.Equal(numOfTxs, tracker.GetObservedConfirmed())
+		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
+		require.Equal(numTxs, tracker.GetObservedIssued())
+		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
 	})
 

@@ -153,8 +153,8 @@ func loadTxGenerators(
 		return nil, err
 	}
 
-	numOfFactories := len(authFactories)
-	balances := make([]uint64, numOfFactories)
+	numFactories := len(authFactories)
+	balances := make([]uint64, numFactories)
 	// Get balances
 	for i, factory := range authFactories {
 		balance, err := lcli.Balance(ctx, factory.Address())
@@ -171,8 +171,8 @@ func loadTxGenerators(
 	}
 
 	// Create tx generator
-	txGenerators := make([]hload.TxGenerator[*chain.Transaction], numOfFactories)
-	for i := 0; i < numOfFactories; i++ {
+	txGenerators := make([]hload.TxGenerator[*chain.Transaction], numFactories)
+	for i := 0; i < numFactories; i++ {
 		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
 	}
 
