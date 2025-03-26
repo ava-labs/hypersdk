@@ -79,7 +79,7 @@ This package comes with the following orchestrators:
 
 ### Short Burst
 
-The short burst orchestator is used to send a fixed number ofs transactions to the network at
+The short burst orchestator is used to send a fixed number of transactions to the network at
 once. This orchestrator is parameterizable via the following:
 
 - `N`: the number of transactions an issuer will send to the network.
