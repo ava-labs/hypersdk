@@ -16,4 +16,8 @@ source "$SCRIPT_DIR"/constants.sh
 # Start a dev shell with the avalanchego flake
 FLAKE="github:ava-labs/avalanchego?ref=${AVALANCHE_VERSION}"
 echo "Starting nix shell for ${FLAKE}"
-nix develop "${FLAKE}" "${@}"
+if [ "$#" -eq 0 ]; then
+    nix develop "${FLAKE}"
+else
+    nix develop "${FLAKE}" "${@}"
+fi
