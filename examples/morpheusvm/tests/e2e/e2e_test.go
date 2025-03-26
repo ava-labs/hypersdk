@@ -88,7 +88,15 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		hload.DefaultGradualLoadOrchestratorConfig(),
 	)
 
-	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+	vmConfig := `{
+		"statesync": {"minBlocks": 128},
+		"vm": {
+			"mempoolSize"       : 9223372036854775807,
+			"mempoolSponsorSize": 9223372036854775807
+		}
+	}`
+
+	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID, vmConfig).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

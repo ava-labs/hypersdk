@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chainindex"
-	"github.com/ava-labs/hypersdk/consts"
 
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
@@ -34,10 +33,10 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		MempoolSize:                      consts.MaxInt,
+		MempoolSize:                      2_048,
 		AuthVerificationCores:            1,
 		RootGenerationCores:              1,
-		MempoolSponsorSize:               consts.MaxInt,
+		MempoolSponsorSize:               32,
 		StateHistoryLength:               256,
 		IntermediateNodeCacheSize:        4 * units.GiB,
 		StateIntermediateWriteBufferSize: 32 * units.MiB,
