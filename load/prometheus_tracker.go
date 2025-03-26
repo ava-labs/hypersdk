@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const namespace = "hypersdk_prometheus_tracker"
+const namespace = "load"
 
 var _ Tracker[any] = (*PrometheusTracker[any])(nil)
 
