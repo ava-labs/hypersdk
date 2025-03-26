@@ -34,7 +34,7 @@ func NewChain(
 	metadataManager MetadataManager,
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
-	authVM AuthVM,
+	authEngines AuthEngines,
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
@@ -59,7 +59,7 @@ func NewChain(
 			logger,
 			ruleFactory,
 			authVerifiers,
-			authVM,
+			authEngines,
 			metadataManager,
 			balanceHandler,
 			validityWindow,

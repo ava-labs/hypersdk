@@ -74,7 +74,7 @@ func NewFactory() *vm.Factory {
 		ActionParser,
 		AuthParser,
 		OutputParser,
-		hauth.Engines(),
+		hauth.DefaultEngines(),
 		options...,
 	)
 }

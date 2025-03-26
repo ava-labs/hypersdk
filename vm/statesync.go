@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -21,14 +22,6 @@ import (
 )
 
 const StateSyncNamespace = "statesync"
-
-type validityWindowAdapter struct {
-	*validitywindow.Syncer[*chain.Transaction]
-}
-
-func (v validityWindowAdapter) Accept(ctx context.Context, blk *chain.ExecutionBlock) (bool, error) {
-	return v.Syncer.Accept(ctx, blk)
-}
 
 type StateSyncConfig struct {
 	MerkleSimultaneousWorkLimit int    `json:"merkleSimultaneousWorkLimit"`
@@ -65,10 +58,20 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		return err
 	}
 
-	vm.syncer = validitywindow.NewSyncer(vm, vm.chainTimeValidityWindow, func(time int64) int64 {
+	if err := vm.network.AddHandler(
+		blockFetchHandleID,
+		validitywindow.NewBlockFetcherHandler[*chain.ExecutionBlock](vm.chainStore)); err != nil {
+		return err
+	}
+
+	blockFetcherClient := validitywindow.NewBlockFetcherClient[*chain.ExecutionBlock](
+		validitywindow.NewP2PBlockFetcher(vm.network.NewClient(blockFetchHandleID)),
+		vm,
+		p2p.PeerSampler{Peers: vm.network.Peers},
+	)
+	syncer := validitywindow.NewSyncer[*chain.Transaction, *chain.ExecutionBlock](vm, vm.chainTimeValidityWindow, blockFetcherClient, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
-	blockWindowSyncer := statesync.NewBlockWindowSyncer[*chain.ExecutionBlock](validityWindowAdapter{vm.syncer})
 
 	merkleSyncer, err := statesync.NewMerkleSyncer[*chain.ExecutionBlock](
 		vm.snowCtx.Log,
@@ -101,7 +104,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		inputCovariantVM,
 		syncerDB,
 		[]statesync.Syncer[*chain.ExecutionBlock]{
-			blockWindowSyncer,
+			syncer,
 			merkleSyncer,
 		},
 		vm.snowApp.StartStateSync,

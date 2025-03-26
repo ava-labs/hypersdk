@@ -7,10 +7,9 @@ set -e
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
 MODE=${MODE:-run}
-if ! [[ "$0" =~ scripts/run.sh ]]; then
-  echo "must be run from hyperevm root"
-  exit 255
-fi
+
+# Ensure the hyperevm root as the working directory
+cd "$(dirname "${BASH_SOURCE[0]}")" && cd ..
 
 # shellcheck source=/scripts/constants.sh
 source ../../scripts/constants.sh

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,12 +14,10 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -28,14 +25,9 @@ import (
 	externalfees "github.com/ava-labs/hypersdk/fees"
 )
 
-const signedTxHex = "0a3208b0bbcac99732122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
+const signedTxHex = "0a3208e0f69493af64122001020304050607000000000000000000000000000000000000000000000000001987d612000000000012360000000000000000010000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff1a5c00000000000000000101020300000000000000000000000000000000000000000000000000000000000001020300000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffff"
 
-var (
-	_                chain.BalanceHandler = (*mockBalanceHandler)(nil)
-	preSignedTxBytes []byte
-
-	errMockInsufficientBalance = errors.New("mock insufficient balance error")
-)
+var preSignedTxBytes []byte
 
 func init() {
 	txBytes, err := hex.DecodeString(signedTxHex)
@@ -43,31 +35,6 @@ func init() {
 		panic(err)
 	}
 	preSignedTxBytes = txBytes
-}
-
-type mockBalanceHandler struct {
-	canDeductError error
-	deductError    error
-}
-
-func (*mockBalanceHandler) AddBalance(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	panic("unimplemented")
-}
-
-func (m *mockBalanceHandler) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	return m.canDeductError
-}
-
-func (m *mockBalanceHandler) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	return m.deductError
-}
-
-func (*mockBalanceHandler) GetBalance(_ context.Context, _ codec.Address, _ state.Immutable) (uint64, error) {
-	panic("unimplemented")
-}
-
-func (*mockBalanceHandler) SponsorStateKeys(_ codec.Address) state.Keys {
-	return state.Keys{}
 }
 
 func TestTransactionJSON(t *testing.T) {
@@ -142,7 +109,7 @@ func TestSignTransaction(t *testing.T) {
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
-	require := require.New(t)
+	r := require.New(t)
 
 	txData := chain.NewTxData(
 		chain.Base{
@@ -162,19 +129,19 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	parser := chaintest.NewTestParser()
 
 	signedTx, err := txData.Sign(factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	actionsBytes := make([][]byte, 0, len(signedTx.Actions))
 	for _, action := range signedTx.Actions {
 		actionsBytes = append(actionsBytes, action.Bytes())
 	}
 	rawSignedTxBytes, err := chain.SignRawActionBytesTx(txData.Base, actionsBytes, factory)
-	require.NoError(err)
+	r.NoError(err)
 
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
-	require.NoError(err)
+	r.NoError(err)
 
-	equalTx(require, signedTx, parseRawSignedTx)
+	equalTx(r, signedTx, parseRawSignedTx)
 }
 
 func TestUnmarshalTx(t *testing.T) {
@@ -261,13 +228,14 @@ func TestPreExecute(t *testing.T) {
 	testRules := genesis.NewDefaultRules()
 	differentChainID := ids.ID{1}
 
+	im := chaintest.NewInMemoryStore()
+
 	tests := []struct {
 		name      string
 		tx        *chain.Transaction
 		timestamp int64
 		err       error
 		fm        *fees.Manager
-		bh        chain.BalanceHandler
 	}{
 		{
 			name: "valid test case",
@@ -277,7 +245,6 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh: &mockBalanceHandler{},
 		},
 		{
 			name: "base transaction timestamp misaligned",
@@ -422,7 +389,6 @@ func TestPreExecute(t *testing.T) {
 				}
 				return fm
 			}(),
-			bh:  &mockBalanceHandler{},
 			err: safemath.ErrOverflow,
 		},
 		{
@@ -436,10 +402,14 @@ func TestPreExecute(t *testing.T) {
 				},
 				Auth: chaintest.NewDummyTestAuth(),
 			},
-			bh: &mockBalanceHandler{
-				canDeductError: errMockInsufficientBalance,
-			},
-			err: errMockInsufficientBalance,
+			fm: func() *fees.Manager {
+				fm := fees.NewManager([]byte{})
+				for i := 0; i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(externalfees.Dimension(i), 1)
+				}
+				return fm
+			}(),
+			err: balance.ErrInsufficientBalance,
 		},
 	}
 
@@ -451,17 +421,13 @@ func TestPreExecute(t *testing.T) {
 			if tt.fm == nil {
 				tt.fm = fees.NewManager([]byte{})
 			}
-			if tt.bh == nil {
-				tt.bh = &mockBalanceHandler{}
-			}
-
 			r.ErrorIs(
 				tt.tx.PreExecute(
 					ctx,
 					tt.fm,
-					tt.bh,
+					balance.NewPrefixBalanceHandler([]byte{0}),
 					testRules,
-					nil,
+					im,
 					tt.timestamp,
 				),
 				tt.err,

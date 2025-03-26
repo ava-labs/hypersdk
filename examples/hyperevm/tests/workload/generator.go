@@ -88,20 +88,21 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 }
 
 func confirmTx(ctx context.Context, require *require.Assertions, uri string, txID ids.ID, receiverAddr codec.Address, receiverExpectedBalance uint64) {
+	lcli := vm.NewJSONRPCClient(uri)
+	parser := lcli.GetParser()
 	indexerCli := indexer.NewClient(uri)
 	success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
 	require.NoError(err)
 	require.True(success)
-	lcli := vm.NewJSONRPCClient(uri)
 	balance, err := lcli.Balance(ctx, receiverAddr)
 	require.NoError(err)
 	require.Equal(receiverExpectedBalance, balance)
-	txRes, _, err := indexerCli.GetTx(ctx, txID)
+	txRes, _, _, err := indexerCli.GetTx(ctx, txID, parser)
 	require.NoError(err)
 	// TODO: perform exact expected fee, units check, and output check
-	require.NotZero(txRes.Fee)
-	require.Len(txRes.Outputs, 1)
-	evmCallOutputBytes := []byte(txRes.Outputs[0])
+	require.NotZero(txRes.Result.Fee)
+	require.Len(txRes.Result.Outputs, 1)
+	evmCallOutputBytes := []byte(txRes.Result.Outputs[0])
 	require.Equal(consts.EvmCallID, evmCallOutputBytes[0])
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(evmCallOutputBytes)
 	require.NoError(err)
