@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.23.7
 
 require (
-	github.com/ava-labs/avalanchego v1.13.1-rc.0.0.20250414210208-c8b3f57d2a25
+	github.com/ava-labs/avalanchego v1.13.1-rc.0.0.20250501032720-69be10a12a61
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
@@ -131,15 +131,15 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/term v0.30.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
