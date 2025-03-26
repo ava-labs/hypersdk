@@ -104,9 +104,10 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		Registry: registry,
 	}))
 
-	metricsServer := &http.Server{ //nolint:gosec
-		Addr:    metricsURI,
-		Handler: mux,
+	metricsServer := &http.Server{
+		Addr:              metricsURI,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
