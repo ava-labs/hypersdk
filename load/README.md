@@ -51,11 +51,11 @@ When applicable, the orchestrator can also query the tracker to make a decision
 
 ### Transaction Generator
 
-The TX generator is responsible for generating a valid transaction which any
-issuer can send. Each TX generator is assumed to have an associated account that
+The Tx generator is responsible for generating a valid transaction which any
+issuer can send. Each Tx generator is assumed to have an associated account that
 will sign transactions and whose balance is monitored to err in the case of fund exhaustion.
 
-### TX Issuer
+### Tx Issuer
 
 The Tx issuer is responsible for sending and confirming transactions. As it issues/confirms transactions, it notifies the tracker, so that it can maintain metrics across the generated load.
 ### Tracker
@@ -107,7 +107,7 @@ end for
 for
     wait for SustainedTime
 
-    tps := number of accepted TXs divided by the SustainedTime
+    tps := number of accepted txs divided by the SustainedTime
     if tps >= currTargetTPS:
         increase currTargerTPS by step
         iters = 0

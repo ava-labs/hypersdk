@@ -25,7 +25,7 @@ type GradualLoadOrchestratorConfig struct {
 	// the step size to increase the TPS by.
 	Step uint64
 
-	// the factor by which to pad the number of TXs an issuer sends per second
+	// the factor by which to pad the number of txs an issuer sends per second
 	// for example, if targetTPS = 1000 and numOfIssuers = 10, then each issuer
 	// will send (1000/10)*TxRateMultiplier transactions per second.
 	//
@@ -156,8 +156,10 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		})
 	}
 
-	// blocks until either 1) the max TPS target has been reached, 2) we've
-	// maxed out the number of attempts, or 3) an issuer has errored.
+	// blocks until either:
+	// 1. the max TPS target has been reached
+	// 2. we've maxed out the number of attempts
+	// 3. an issuer has errored.
 	for {
 		// wait for the sustained time to pass or for the context to be cancelled
 		select {
