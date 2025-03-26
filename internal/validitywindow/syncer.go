@@ -135,7 +135,7 @@ func (s *Syncer[T, B]) accept(blk B) bool {
 	return seenValidityWindow
 }
 
-// backfillFromExisting attempts to build validity window from existing blocks
+// backfillFromExisting attempts to build a validity window from existing blocks
 // Returns:
 // - The last accepted block (newest)
 // - Whether we saw the full validity window
@@ -143,36 +143,9 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
 ) bool {
-	var (
-		parent             = block
-		parents            = []ExecutionBlock[T]{parent}
-		seenValidityWindow = false
-		validityWindow     = s.getValidityWindow(block.GetTimestamp())
-		err                error
-	)
-
-	// Keep fetching parents until we:
-	// - Fill validity window, or
-	// - Can't find more blocks
-	// Descending order is guaranteed by the parent-based traversal method
-	for {
-		// Get execution block from cache or disk
-		parent, err = s.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
-		if err != nil {
-			break // This is expected when we run out of cached and/or on-disk blocks
-		}
-		parents = append(parents, parent)
-
-		seenValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > validityWindow
-		if seenValidityWindow {
-			break
-		}
-	}
+	parents, seenValidityWindow := s.timeValidityWindow.PopulateValidityWindow(ctx, block)
 
 	s.oldestBlock = parents[len(parents)-1]
-	for i := len(parents) - 1; i >= 0; i-- {
-		s.timeValidityWindow.Accept(parents[i])
-	}
 	return seenValidityWindow
 }
 
