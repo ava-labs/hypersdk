@@ -5,7 +5,9 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -354,4 +356,33 @@ func getE2EBaseURIs(tc tests.TestContext) []string {
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
+}
+
+func GenerateCollectorConfig(targets []string, uuid string) ([]byte, error) {
+	nodeLabels := tmpnet.FlagsMap{
+		"network_owner": "hypersdk-e2e-tests",
+		"network_uuid":  uuid,
+	}
+	config := []tmpnet.FlagsMap{
+		{
+			"labels":  nodeLabels,
+			"targets": targets,
+		},
+	}
+
+	return json.Marshal(config)
+}
+
+func WriteCollectorConfig(metricsFilePath string, config []byte) error {
+	file, err := os.OpenFile(metricsFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := file.Write(config); err != nil {
+		return err
+	}
+
+	return nil
 }

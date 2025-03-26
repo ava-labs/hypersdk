@@ -5,8 +5,6 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
@@ -39,7 +36,8 @@ import (
 const owner = "morpheusvm-e2e-tests"
 
 const (
-	metricsURI      = "localhost:8080"
+	metricsURI = "localhost:8080"
+	// relative to the user home directory
 	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-load-generator-metrics.json"
 )
 
@@ -126,18 +124,20 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}()
 
 	// Generate collector config
-	collectorConfigBytes, err := generateCollectorConfig(
+	collectorConfigBytes, err := he2e.GenerateCollectorConfig(
 		[]string{metricsURI},
 		e2e.GetEnv(tc).GetNetwork().UUID,
 	)
 	r.NoError(err)
 
-	r.NoError(writeCollectorConfig(collectorConfigBytes))
+	homedir, err := os.UserHomeDir()
+	r.NoError(err)
+	filePath := filepath.Join(homedir, metricsFilePath)
+
+	r.NoError(he2e.WriteCollectorConfig(filePath, collectorConfigBytes))
 
 	ginkgo.DeferCleanup(func() {
-		homeDir, err := os.UserHomeDir()
-		r.NoError(err)
-		r.NoError(os.Remove(filepath.Join(homeDir, metricsFilePath)))
+		r.NoError(os.Remove(filePath))
 		r.NoError(metricsServer.Shutdown(context.Background()))
 	})
 })
@@ -177,38 +177,4 @@ func loadTxGenerators(
 	}
 
 	return txGenerators, nil
-}
-
-func generateCollectorConfig(targets []string, uuid string) ([]byte, error) {
-	nodeLabels := tmpnet.FlagsMap{
-		"network_owner": "hypersdk-e2e-tests",
-		"network_uuid":  uuid,
-	}
-	config := []tmpnet.FlagsMap{
-		{
-			"labels":  nodeLabels,
-			"targets": targets,
-		},
-	}
-
-	return json.Marshal(config)
-}
-
-func writeCollectorConfig(config []byte) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	fmt.Println(homeDir)
-	file, err := os.OpenFile(filepath.Join(homeDir, metricsFilePath), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if _, err := file.Write(config); err != nil {
-		return err
-	}
-
-	return nil
 }
