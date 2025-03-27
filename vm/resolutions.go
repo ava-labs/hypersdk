@@ -80,11 +80,14 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 	_, span := vm.tracer.Start(ctx, "VM.GetExecutionBlock")
 	defer span.End()
 
-	blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
-	if err != nil {
-		return nil, err
+	if vm.consensusIndex != nil {
+		blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
+		if err == nil {
+			return blk, nil
+		}
 	}
-	return blk, nil
+
+	return vm.chainStore.GetBlock(ctx, blkID)
 }
 
 func (vm *VM) LastAcceptedBlock(ctx context.Context) (*chain.StatelessBlock, error) {
