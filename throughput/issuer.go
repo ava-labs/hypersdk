@@ -81,7 +81,7 @@ func (i *issuer) start(ctx context.Context) {
 func (i *issuer) send(actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
 	// Construct transaction
 	rules := i.ruleFactory.GetRules(time.Now().UnixMilli())
-	tx, err := chain.GenerateTransactionManual(rules, actions, factory, feePerTx)
+	tx, err := chain.GenerateTransactionManual(rules, time.Now().UnixMilli(), actions, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)
