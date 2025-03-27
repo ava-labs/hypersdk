@@ -59,6 +59,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	tx, err := chain.GenerateTransaction(
 		ruleFactory,
 		unitPrices,
+		time.Now().UnixMilli(),
 		[]chain.Action{&actions.Transfer{
 			To:    toAddress,
 			Value: 1,

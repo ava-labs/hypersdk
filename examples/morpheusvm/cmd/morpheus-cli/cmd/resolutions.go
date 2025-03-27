@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -34,7 +35,7 @@ func sendAndWait(
 		return false, ids.Empty, err
 	}
 
-	tx, err := chain.GenerateTransaction(ruleFactory, unitPrices, actions, authFactory)
+	tx, err := chain.GenerateTransaction(ruleFactory, unitPrices, time.Now().UnixMilli(), actions, authFactory)
 	if err != nil {
 		return false, ids.Empty, err
 	}
