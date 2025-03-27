@@ -133,7 +133,7 @@ func ExposeMetrics(
 		if metricsServerErr != http.ErrServerClosed {
 			return metricsServerErr
 		}
-		return os.Remove(metricsFilePath)
+		return os.Remove(filePath)
 	}, nil
 }
 
