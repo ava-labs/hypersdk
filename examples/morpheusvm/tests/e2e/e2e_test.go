@@ -41,10 +41,7 @@ const (
 	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-load-generator-metrics.json"
 )
 
-var (
-	flagVars *e2e.FlagVars
-	registry *prometheus.Registry
-)
+var flagVars *e2e.FlagVars
 
 func TestE2e(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
@@ -67,11 +64,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	authFactories := testingNetworkConfig.AuthFactories()
 	generator := workload.NewTxGenerator(authFactories[1])
 
-	reg := prometheus.NewRegistry()
-	tracker, err := hload.NewPrometheusTracker[ids.ID](reg)
+	registry := prometheus.NewRegistry()
+	tracker, err := hload.NewPrometheusTracker[ids.ID](registry)
 	require.NoError(err)
-
-	registry = reg
 
 	he2e.SetWorkload(
 		testingNetworkConfig,
@@ -94,15 +89,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		}
 	}`
 
-	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID, vmConfig).Marshal()
-}, func(envBytes []byte) {
-	// Run in every ginkgo process
-
-	// Initialize the local test environment from the global state
-	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
-
-	tc := e2e.NewTestContext()
-	r := require.New(tc)
+	env := fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID, vmConfig)
 
 	// Start metrics server
 	mux := http.NewServeMux()
@@ -117,7 +104,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 
 	go func() {
-		r.ErrorIs(
+		require.ErrorIs(
 			metricsServer.ListenAndServe(),
 			http.ErrServerClosed,
 		)
@@ -126,20 +113,27 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// Generate collector config
 	collectorConfigBytes, err := he2e.GenerateCollectorConfig(
 		[]string{metricsURI},
-		e2e.GetEnv(tc).GetNetwork().UUID,
+		env.GetNetwork().UUID,
 	)
-	r.NoError(err)
+	require.NoError(err)
 
 	homedir, err := os.UserHomeDir()
-	r.NoError(err)
+	require.NoError(err)
 	filePath := filepath.Join(homedir, metricsFilePath)
 
-	r.NoError(he2e.WriteCollectorConfig(filePath, collectorConfigBytes))
+	require.NoError(he2e.WriteCollectorConfig(filePath, collectorConfigBytes))
 
 	ginkgo.DeferCleanup(func() {
-		r.NoError(os.Remove(filePath))
-		r.NoError(metricsServer.Shutdown(context.Background()))
+		require.NoError(os.Remove(filePath))
+		require.NoError(metricsServer.Shutdown(context.Background()))
 	})
+
+	return env.Marshal()
+}, func(envBytes []byte) {
+	// Run in every ginkgo process
+
+	// Initialize the local test environment from the global state
+	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
 })
 
 func loadTxGenerators(
