@@ -37,15 +37,15 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
 	}{
 		{
-			name:                 "transfer txs with disjoint recipients",
+			name:                 "parallel transfers",
 			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
 		},
 		{
-			name:                 "transfer txs that all send to the same recipient",
+			name:                 "serial transfers",
 			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
 		},
 		{
-			name:                 "transfer txs whose recipient is sampled from the zipf distribution",
+			name:                 "zipf transfers",
 			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
 		},
 	}
