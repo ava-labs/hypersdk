@@ -527,21 +527,21 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		numTxsPerBlock       uint64
 	}{
 		{
-			name:                 "empty blocks",
+			name:                 "empty",
 			blockBenchmarkHelper: chaintest.NoopBlockBenchmarkHelper,
 		},
 		{
-			name:                 "blocks with txs that do not have conflicting state keys",
+			name:                 "parallel",
 			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
 			numTxsPerBlock:       16,
 		},
 		{
-			name:                 "blocks with txs that all touch the same state key",
+			name:                 "serial",
 			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
 			numTxsPerBlock:       16,
 		},
 		{
-			name:                 "blocks with txs whose state keys are zipf distributed",
+			name:                 "zipf",
 			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
 			numTxsPerBlock:       16,
 		},
