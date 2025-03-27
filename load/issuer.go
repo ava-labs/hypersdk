@@ -26,7 +26,7 @@ type DefaultIssuer struct {
 	client  *ws.WebSocketClient
 	tracker Tracker[ids.ID]
 
-	lock        sync.Mutex
+	lock        sync.RWMutex
 	issuedTxs   uint64
 	receivedTxs uint64
 	stopped     bool
@@ -69,6 +69,7 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 			i.tracker.ObserveFailed(txID, time)
 		}
 
+		i.incrementReceivedTxs()
 		if i.isFinished() {
 			return nil
 		}
@@ -100,11 +101,17 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 	return nil
 }
 
-// isFinished increments the number of transactions heard and returns true if all transactions have been heard
-func (i *DefaultIssuer) isFinished() bool {
+func (i *DefaultIssuer) incrementReceivedTxs() {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.receivedTxs++
+}
+
+// isFinished returns true if all transactions have been heard
+func (i *DefaultIssuer) isFinished() bool {
+	i.lock.RLock()
+	defer i.lock.RUnlock()
+
 	return i.stopped && i.issuedTxs == i.receivedTxs
 }
