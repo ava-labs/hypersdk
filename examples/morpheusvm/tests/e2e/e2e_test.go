@@ -5,8 +5,6 @@ package e2e_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,12 +30,6 @@ import (
 )
 
 const owner = "morpheusvm-e2e-tests"
-
-const (
-	metricsURI = "localhost:8080"
-	// relative to the user home directory
-	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-load-generator-metrics.json"
-)
 
 var flagVars *e2e.FlagVars
 
@@ -87,13 +79,16 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		}
 	}`
 
-	env := fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID, vmConfig)
+	env := fixture.NewTestEnvironment(
+		e2e.NewTestContext(),
+		flagVars,
+		owner,
+		testingNetworkConfig,
+		consts.ID,
+		vmConfig,
+	)
 
-	homedir, err := os.UserHomeDir()
-	require.NoError(err)
-	filePath := filepath.Join(homedir, metricsFilePath)
-
-	cleanUpFunc, err := he2e.ExposeMetrics(context.Background(), env, metricsURI, filePath, registry)
+	cleanUpFunc, err := he2e.ExposeMetrics(context.Background(), env, registry)
 	require.NoError(err)
 
 	ginkgo.DeferCleanup(func() {

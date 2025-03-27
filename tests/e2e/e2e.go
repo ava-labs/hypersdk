@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,6 +33,12 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const (
+	metricsURI = "localhost:8080"
+	// relative to the user home directory
+	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
 )
 
 var (
@@ -77,11 +84,10 @@ func SetWorkload(
 // server and scrape its metrics.
 // Returns a cleanup function which, when called, stops the server and removes
 // the collector config file.
+// ExposeMetrics his should be called at most once
 func ExposeMetrics(
 	ctx context.Context,
 	testEnv *e2e.TestEnvironment,
-	uri string,
-	metricsFilePath string,
 	registry *prometheus.Registry,
 ) (func() error, error) {
 	// Start metrics server
@@ -91,7 +97,7 @@ func ExposeMetrics(
 	}))
 
 	metricsServer := &http.Server{
-		Addr:              uri,
+		Addr:              metricsURI,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -103,13 +109,20 @@ func ExposeMetrics(
 
 	// Generate collector config
 	collectorConfigBytes, err := generateCollectorConfig(
-		[]string{uri},
+		[]string{metricsURI},
 		testEnv.GetNetwork().UUID,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := writeCollectorConfig(metricsFilePath, collectorConfigBytes); err != nil {
+
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	filePath := filepath.Join(homedir, metricsFilePath)
+
+	if err := writeCollectorConfig(filePath, collectorConfigBytes); err != nil {
 		return nil, err
 	}
 
