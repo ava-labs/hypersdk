@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -202,11 +203,11 @@ func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
 
 func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
 	var (
-		parent             = block
-		parents            = []ExecutionBlock[T]{parent}
-		seenValidityWindow = false
-		validityWindow     = v.getTimeValidityWindow(block.GetTimestamp())
-		err                error
+		parent               = block
+		parents              = []ExecutionBlock[T]{parent}
+		fullValidityWindow   = false
+		oldestAllowedBlockTS = v.calculateOldestAllowed(block.GetTimestamp())
+		err                  error
 	)
 
 	// Keep fetching parents until we:
@@ -221,16 +222,18 @@ func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, bloc
 		}
 		parents = append(parents, parent)
 
-		seenValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > validityWindow
-		if seenValidityWindow {
+		fullValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > oldestAllowedBlockTS
+		if fullValidityWindow {
 			break
 		}
 	}
 
-	for i := len(parents) - 1; i >= 0; i-- {
-		v.Accept(parents[i])
+	// Reverse blocks to process in chronological order
+	slices.Reverse(parents)
+	for _, blk := range parents {
+		v.Accept(blk)
 	}
-	return parents, seenValidityWindow
+	return parents, fullValidityWindow
 }
 
 func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {

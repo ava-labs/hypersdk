@@ -136,16 +136,14 @@ func (s *Syncer[T, B]) accept(blk B) bool {
 }
 
 // backfillFromExisting attempts to build a validity window from existing blocks
-// Returns:
-// - The last accepted block (newest)
-// - Whether we saw the full validity window
+// returns whether we saw the full validity window
 func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
 ) bool {
 	parents, seenValidityWindow := s.timeValidityWindow.PopulateValidityWindow(ctx, block)
 
-	s.oldestBlock = parents[len(parents)-1]
+	s.oldestBlock = parents[0]
 	return seenValidityWindow
 }
 

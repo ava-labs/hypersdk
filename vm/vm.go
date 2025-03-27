@@ -334,10 +334,6 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.populateValidityWindow(ctx); err != nil {
-		return nil, nil, nil, false, err
-	}
-
 	snowApp.AddNormalOpStarter(func(_ context.Context) error {
 		if vm.SyncClient.Started() {
 			return nil
@@ -521,6 +517,8 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	}, nil
 }
 
+// startNormalOp initializes components required for normal VM operation when transitioning
+// from bootstrapping or state sync
 func (vm *VM) startNormalOp(ctx context.Context) error {
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
@@ -546,7 +544,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 	vm.checkActivity(ctx)
 	vm.normalOp.Store(true)
 
-	return nil
+	return vm.populateValidityWindow(ctx)
 }
 
 func (vm *VM) applyOptions(o *Options) error {
@@ -713,12 +711,13 @@ func (vm *VM) Submit(
 // This prepopulation ensures the validity window is complete, even if state sync is skipped.
 func (vm *VM) populateValidityWindow(ctx context.Context) error {
 	lastAcceptedBlkHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			return nil
-		}
-		return err
+	if err == database.ErrNotFound {
+		return nil
 	}
+	if err != nil {
+		return fmt.Errorf("failed to fetch last accepted height to populate validity window: %w", err)
+	}
+
 	lastAcceptedBlock, err := vm.chainStore.GetBlockByHeight(ctx, lastAcceptedBlkHeight)
 	if err != nil {
 		return err
