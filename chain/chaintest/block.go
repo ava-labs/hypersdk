@@ -372,6 +372,8 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		parentView = db
 	}
 
-	b.ReportMetric(float64(test.NumBlocks*test.NumTxsPerBlock*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "tps")
-	b.ReportMetric(float64(test.NumBlocks*uint64(time.Second))/float64(int(b.Elapsed())*b.N), "blocks/s")
+	numBlocksExecuted := test.NumBlocks * uint64(b.N)
+	numTxsExecuted := numBlocksExecuted * test.NumTxsPerBlock
+	b.ReportMetric(float64(numTxsExecuted)/b.Elapsed().Seconds(), "tps")
+	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
 }
