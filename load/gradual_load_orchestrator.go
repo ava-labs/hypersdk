@@ -117,44 +117,17 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	var (
 		prevConfirmed  = o.tracker.GetObservedConfirmed()
 		prevTime       = time.Now()
+		currTargetTPS  = new(atomic.Uint64)
 		achievedMaxTPS bool
 		attempts       uint64
 	)
 
-	currTargetTPS := atomic.Uint64{}
 	currTargetTPS.Store(o.config.MinTPS)
 
 	issuerGroup, issuerCtx := errgroup.WithContext(ctx)
 	o.issuerGroup = issuerGroup
 
-	// start a goroutine to each issuer to continuously send transactions
-	// if an issuer errors, all other issuers will stop as well.
-	for i, issuer := range o.issuers {
-		o.issuerGroup.Go(func() error {
-			for {
-				select {
-				case <-issuerCtx.Done():
-					return issuerCtx.Err()
-				default:
-				}
-				currTime := time.Now()
-				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
-				for range txsPerIssuer {
-					tx, err := o.generators[i].GenerateTx(issuerCtx)
-					if err != nil {
-						return err
-					}
-					if err := issuer.IssueTx(ctx, tx); err != nil {
-						return err
-					}
-				}
-				diff := time.Second - time.Since(currTime)
-				if diff > 0 {
-					time.Sleep(diff)
-				}
-			}
-		})
-	}
+	o.issueTxs(issuerCtx, currTargetTPS)
 
 	// blocks until either:
 	// 1. the max TPS target has been reached
@@ -224,6 +197,37 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 // GetObservedIssued returns the max TPS the orchestrator observed (modulus the step size).
 func (o *GradualLoadOrchestrator[T, U]) GetMaxObservedTPS() uint64 {
 	return o.maxObservedTPS
+}
+
+// start a goroutine to each issuer to continuously send transactions
+// if an issuer errors, all other issuers will stop as well.
+func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTargetTPS *atomic.Uint64) {
+	for i, issuer := range o.issuers {
+		o.issuerGroup.Go(func() error {
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+				currTime := time.Now()
+				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
+				for range txsPerIssuer {
+					tx, err := o.generators[i].GenerateTx(ctx)
+					if err != nil {
+						return err
+					}
+					if err := issuer.IssueTx(ctx, tx); err != nil {
+						return err
+					}
+				}
+				diff := time.Second - time.Since(currTime)
+				if diff > 0 {
+					time.Sleep(diff)
+				}
+			}
+		})
+	}
 }
 
 func computeTPS(initial uint64, final uint64, duration time.Duration) uint64 {
