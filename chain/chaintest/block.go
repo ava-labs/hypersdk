@@ -173,25 +173,13 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txBaseConstructor := func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error) {
-			units, err := chain.EstimateUnits(rules, actions, factory)
-			if err != nil {
-				return chain.Base{}, err
-			}
-
-			maxFee, err := fees.MulSum(unitPrices, units)
-			if err != nil {
-				return chain.Base{}, err
-			}
-
-			return chain.Base{
-				Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
-				ChainID:   rules.GetChainID(),
-				MaxFee:    maxFee,
-			}, nil
-		}
-
-		txs, err := txListGenerator(txBaseConstructor)
+		txs, err := txListGenerator(
+			txBaseConstructorF(
+				rules,
+				unitPrices,
+				timestamp,
+			),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -376,4 +364,24 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	numTxsExecuted := numBlocksExecuted * test.NumTxsPerBlock
 	b.ReportMetric(float64(numTxsExecuted)/b.Elapsed().Seconds(), "tps")
 	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
+}
+
+func txBaseConstructorF(rules chain.Rules, unitPrices fees.Dimensions, timestamp int64) TxBaseConstructor {
+	return func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error) {
+		units, err := chain.EstimateUnits(rules, actions, factory)
+		if err != nil {
+			return chain.Base{}, err
+		}
+
+		maxFee, err := fees.MulSum(unitPrices, units)
+		if err != nil {
+			return chain.Base{}, err
+		}
+
+		return chain.Base{
+			Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
+			ChainID:   rules.GetChainID(),
+			MaxFee:    maxFee,
+		}, nil
+	}
 }
