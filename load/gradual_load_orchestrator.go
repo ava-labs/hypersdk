@@ -64,7 +64,7 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 
 	log logging.Logger
 
-	maxObservedTPS uint64
+	maxObservedTPS atomic.Uint64
 
 	observerGroup errgroup.Group
 	issuerGroup   *errgroup.Group
@@ -115,11 +115,10 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // run stops when the network can no longer make progress or if an issuer errors.
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	var (
-		prevConfirmed  = o.tracker.GetObservedConfirmed()
-		prevTime       = time.Now()
-		currTargetTPS  = new(atomic.Uint64)
-		achievedMaxTPS bool
-		attempts       uint64
+		prevConfirmed = o.tracker.GetObservedConfirmed()
+		prevTime      = time.Now()
+		currTargetTPS = new(atomic.Uint64)
+		attempts      uint64
 	)
 
 	currTargetTPS.Store(o.config.MinTPS)
@@ -148,6 +147,8 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		currTime := time.Now()
 
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
+		o.setMaxObservedTPS(tps)
+
 		if tps >= currTargetTPS.Load() {
 			if currTargetTPS.Load() >= o.config.MaxTPS {
 				o.log.Info(
@@ -155,7 +156,6 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 					zap.Uint64("target TPS", currTargetTPS.Load()),
 					zap.Uint64("average TPS", tps),
 				)
-				achievedMaxTPS = true
 				break
 			}
 			o.log.Info(
@@ -187,16 +187,11 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		prevConfirmed = currConfirmed
 		prevTime = currTime
 	}
-
-	o.maxObservedTPS = currTargetTPS.Load()
-	if !achievedMaxTPS {
-		o.maxObservedTPS -= o.config.Step
-	}
 }
 
 // GetObservedIssued returns the max TPS the orchestrator observed (modulus the step size).
 func (o *GradualLoadOrchestrator[T, U]) GetMaxObservedTPS() uint64 {
-	return o.maxObservedTPS
+	return o.maxObservedTPS.Load()
 }
 
 // start a goroutine to each issuer to continuously send transactions
@@ -227,6 +222,13 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 				}
 			}
 		})
+	}
+}
+
+// setMaxObservedTPS only if tps > the current max observed TPS.
+func (o *GradualLoadOrchestrator[T, U]) setMaxObservedTPS(tps uint64) {
+	if tps > o.maxObservedTPS.Load() {
+		o.maxObservedTPS.Store(tps)
 	}
 }
 
