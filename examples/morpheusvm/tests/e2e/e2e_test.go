@@ -5,7 +5,6 @@ package e2e_test
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
@@ -91,41 +89,15 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	env := fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID, vmConfig)
 
-	// Start metrics server
-	mux := http.NewServeMux()
-	mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
-		Registry: registry,
-	}))
-
-	metricsServer := &http.Server{
-		Addr:              metricsURI,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
-	go func() {
-		require.ErrorIs(
-			metricsServer.ListenAndServe(),
-			http.ErrServerClosed,
-		)
-	}()
-
-	// Generate collector config
-	collectorConfigBytes, err := he2e.GenerateCollectorConfig(
-		[]string{metricsURI},
-		env.GetNetwork().UUID,
-	)
-	require.NoError(err)
-
 	homedir, err := os.UserHomeDir()
 	require.NoError(err)
 	filePath := filepath.Join(homedir, metricsFilePath)
 
-	require.NoError(he2e.WriteCollectorConfig(filePath, collectorConfigBytes))
+	cleanUpFunc, err := he2e.ExposeMetrics(context.Background(), env, metricsURI, filePath, registry)
+	require.NoError(err)
 
 	ginkgo.DeferCleanup(func() {
-		require.NoError(os.Remove(filePath))
-		require.NoError(metricsServer.Shutdown(context.Background()))
+		require.NoError(cleanUpFunc())
 	})
 
 	return env.Marshal()

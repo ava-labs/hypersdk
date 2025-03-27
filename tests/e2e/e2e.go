@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -17,6 +18,8 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/go-errors/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
@@ -67,6 +70,58 @@ func SetWorkload(
 	tracker = loadTracker
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
+}
+
+// ExposeMetrics begins a HTTP server that exposes the metrics of registry and
+// writes the collector config to a file which tmpnet uses to discover the
+// server and scrape its metrics.
+// Returns a cleanup function which, when called, stops the server and removes
+// the collector config file.
+func ExposeMetrics(
+	ctx context.Context,
+	testEnv *e2e.TestEnvironment,
+	uri string,
+	metricsFilePath string,
+	registry *prometheus.Registry,
+) (func() error, error) {
+	// Start metrics server
+	mux := http.NewServeMux()
+	mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		Registry: registry,
+	}))
+
+	metricsServer := &http.Server{
+		Addr:              uri,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	var metricsServerErr error
+	go func() {
+		metricsServerErr = metricsServer.ListenAndServe()
+	}()
+
+	// Generate collector config
+	collectorConfigBytes, err := generateCollectorConfig(
+		[]string{uri},
+		testEnv.GetNetwork().UUID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := writeCollectorConfig(metricsFilePath, collectorConfigBytes); err != nil {
+		return nil, err
+	}
+
+	return func() error {
+		if err := metricsServer.Shutdown(ctx); err != nil {
+			return err
+		}
+		if metricsServerErr != http.ErrServerClosed {
+			return metricsServerErr
+		}
+		return os.Remove(metricsFilePath)
+	}, nil
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -356,7 +411,7 @@ func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
 }
 
-func GenerateCollectorConfig(targets []string, uuid string) ([]byte, error) {
+func generateCollectorConfig(targets []string, uuid string) ([]byte, error) {
 	nodeLabels := tmpnet.FlagsMap{
 		"network_owner": "hypersdk-e2e-tests",
 		"network_uuid":  uuid,
@@ -371,7 +426,7 @@ func GenerateCollectorConfig(targets []string, uuid string) ([]byte, error) {
 	return json.Marshal(config)
 }
 
-func WriteCollectorConfig(metricsFilePath string, config []byte) error {
+func writeCollectorConfig(metricsFilePath string, config []byte) error {
 	file, err := os.OpenFile(metricsFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
