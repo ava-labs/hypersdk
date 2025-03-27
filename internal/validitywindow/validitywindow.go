@@ -200,6 +200,39 @@ func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
 	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
 }
 
+func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
+	var (
+		parent             = block
+		parents            = []ExecutionBlock[T]{parent}
+		seenValidityWindow = false
+		validityWindow     = v.getTimeValidityWindow(block.GetTimestamp())
+		err                error
+	)
+
+	// Keep fetching parents until we:
+	// - Fill a validity window, or
+	// - Can't find more blocks
+	// Descending order is guaranteed by the parent-based traversal method
+	for {
+		// Get execution block from cache or disk
+		parent, err = v.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
+		if err != nil {
+			break // This is expected when we run out-of-cached and/or on-disk blocks
+		}
+		parents = append(parents, parent)
+
+		seenValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > validityWindow
+		if seenValidityWindow {
+			break
+		}
+	}
+
+	for i := len(parents) - 1; i >= 0; i-- {
+		v.Accept(parents[i])
+	}
+	return parents, seenValidityWindow
+}
+
 func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {
 	switch {
 	case containerTimestamp%divisor != 0:
