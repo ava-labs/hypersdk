@@ -20,6 +20,8 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 )
 
+var errTxUnmarshalingFailed = errors.New("transaction unmarshaling failed")
+
 func NewClient(uri string) *Client {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += Endpoint
@@ -122,7 +124,7 @@ func (c *Client) GetTx(ctx context.Context, txID ids.ID, parser chain.Parser) (G
 	var tx *chain.Transaction
 	tx, err = chain.UnmarshalTx(resp.TxBytes, parser)
 	if err != nil {
-		return GetTxResponse{}, nil, false, fmt.Errorf("failed to unmarshal tx %s: %w", txID, err)
+		return GetTxResponse{}, nil, false, fmt.Errorf("%w: tx %s: %w", errTxUnmarshalingFailed, txID, err)
 	}
 
 	resp.Result.CalculateCanotoCache()
