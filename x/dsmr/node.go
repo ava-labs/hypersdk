@@ -32,7 +32,7 @@ var (
 	ErrEarlyEmptyBlock              = errors.New("empty block too close to parent timestamp")
 	ErrNilBlockContext              = errors.New("nil block context")
 
-	_ HandlerBackend = (*Node)(nil)
+	_ HandlerBackend = (*Node[AssembledBlock])(nil)
 )
 
 type Rules struct {
@@ -79,12 +79,14 @@ func (d DefaultRuleFactory) GetRules(int64) Rules {
 	return d.rules
 }
 
+type AssembledBlock interface{}
+
 // Assembler builds a block from the metadata of the DSMR block and the collected
 // chunks
-type Assembler[T any] interface {
-	BuildBlock(
+type Assembler[T AssembledBlock] interface {
+	Assemble(
 		ctx context.Context,
-		parentID ids.ID,
+		parent T,
 		height uint64,
 		timestamp int64,
 		blockContext *block.Context,
@@ -92,7 +94,7 @@ type Assembler[T any] interface {
 	) (T, error)
 }
 
-type Node struct {
+type Node[T AssembledBlock] struct {
 	nodeID ids.NodeID
 
 	clock           mockable.Clock
@@ -105,22 +107,27 @@ type Node struct {
 	pendingChunks *pendingChunkStore
 	chunkPool     *chunkPool
 	networkClient Client
+
+	assembler    Assembler[T]
+	lastAccepted T
 }
 
-func NewNode(
+func NewNode[T AssembledBlock](
 	nodeID ids.NodeID,
 	chainState ChainState,
 	ruleFactory RuleFactory,
 	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk],
+	assembler Assembler[T],
+	lastAccepted T,
 	db database.Database,
 	networkClient Client,
-) (*Node, error) {
+) (*Node[T], error) {
 	pendingChunks, err := newPendingChunkStore(db, ruleFactory)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Node{
+	return &Node[T]{
 		nodeID:              nodeID,
 		chainState:          chainState,
 		ruleFactory:         ruleFactory,
@@ -128,10 +135,12 @@ func NewNode(
 		pendingChunks:       pendingChunks,
 		chunkPool:           newChunkPool(),
 		networkClient:       networkClient,
+		assembler:           assembler,
+		lastAccepted:        lastAccepted,
 	}, nil
 }
 
-func (n *Node) BuildChunk(
+func (n *Node[_]) BuildChunk(
 	ctx context.Context,
 	expiry int64,
 	data []byte,
@@ -160,7 +169,7 @@ func (n *Node) BuildChunk(
 	return unsignedChunk, chunkCert, nil
 }
 
-func (n *Node) BuildBlock(
+func (n *Node[_]) BuildBlock(
 	ctx context.Context,
 	pChainContext *block.Context,
 	parentBlock *Block,
@@ -199,7 +208,7 @@ func (n *Node) BuildBlock(
 	), nil
 }
 
-func (n *Node) VerifyBlock(
+func (n *Node[_]) VerifyBlock(
 	ctx context.Context,
 	parent *Block,
 	block *Block,
@@ -271,7 +280,7 @@ func (n *Node) VerifyBlock(
 	return nil
 }
 
-func (n *Node) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalValidatorSet, chunkCert *ChunkCertificate) error {
+func (n *Node[_]) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalValidatorSet, chunkCert *ChunkCertificate) error {
 	var (
 		networkID = rules.NetworkID
 		chainID   = rules.ChainID
@@ -291,25 +300,40 @@ func (n *Node) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalValida
 	)
 }
 
-func (n *Node) AcceptBlock(
+func (n *Node[T]) AcceptBlock(
 	ctx context.Context,
 	block *Block,
-) (*AssembledBlock, error) {
+) (T, error) {
+	var emptyT T
 	acceptedChunks, err := n.gatherAcceptedChunks(ctx, block.Chunks)
 	if err != nil {
-		return nil, err
+		return emptyT, err
 	}
 
 	n.chunkPool.updateHead(block)
 	if err := n.pendingChunks.setMin(block.Timestamp, acceptedChunks); err != nil {
-		return nil, err
+		return emptyT, err
 	}
 	n.chunkValidityWindow.Accept(newEChunkBlock(block))
 
-	return NewAssembledBlock(block, acceptedChunks), nil
+	// TODO: split into Async and Sync accept calls, so that we can start fetching
+	// accepted chunks without blocking on processing the previous block.
+	assembledBlock, err := n.assembler.Assemble(
+		ctx,
+		n.lastAccepted,
+		block.Height,
+		block.Timestamp,
+		block.BlockContext,
+		acceptedChunks,
+	)
+	if err != nil {
+		return emptyT, err
+	}
+	n.lastAccepted = assembledBlock
+	return assembledBlock, nil
 }
 
-func (n *Node) gatherAcceptedChunks(
+func (n *Node[_]) gatherAcceptedChunks(
 	ctx context.Context,
 	chunkCerts []*ChunkCertificate,
 ) ([]*Chunk, error) {
@@ -337,7 +361,7 @@ func (n *Node) gatherAcceptedChunks(
 	return chunks, nil
 }
 
-func (n *Node) CommitChunk(ctx context.Context, chunk *Chunk) error {
+func (n *Node[_]) CommitChunk(ctx context.Context, chunk *Chunk) error {
 	// Only commit chunks if our current estimate of the next P-Chain height / epoch indicates
 	// that node should be allowed to create the chunk.
 	// XXX: if the chain pauses, what's the worst that can happen here?
@@ -361,7 +385,7 @@ func (n *Node) CommitChunk(ctx context.Context, chunk *Chunk) error {
 	return n.pendingChunks.putPendingChunk(chunk)
 }
 
-func (n *Node) AddChunkCert(ctx context.Context, chunkCert *ChunkCertificate) error {
+func (n *Node[_]) AddChunkCert(ctx context.Context, chunkCert *ChunkCertificate) error {
 	if currentTime := n.clock.Time(); chunkCert.Reference.Expiry > currentTime.Add(FutureBound).UnixMilli() {
 		return fmt.Errorf(
 			"%w: chunkCertExpiry=%d > currentTime=%d + futureBound=%d",
@@ -388,6 +412,6 @@ func (n *Node) AddChunkCert(ctx context.Context, chunkCert *ChunkCertificate) er
 	return nil
 }
 
-func (n *Node) GetChunkBytes(_ context.Context, chunkRef *ChunkReference) ([]byte, error) {
+func (n *Node[_]) GetChunkBytes(_ context.Context, chunkRef *ChunkReference) ([]byte, error) {
 	return n.pendingChunks.getChunkBytes(chunkRef)
 }

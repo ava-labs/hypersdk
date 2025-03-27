@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/internal/executor"
 	"github.com/ava-labs/hypersdk/internal/fees"
 	"github.com/ava-labs/hypersdk/internal/fetcher"
-	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/tstate"
 	"github.com/ava-labs/hypersdk/x/dsmr"
@@ -24,20 +23,41 @@ import (
 )
 
 type Assembler struct {
-	tracer                  trace.Tracer
-	ruleFactory             RuleFactory
-	log                     logging.Logger
-	metadataManager         MetadataManager
-	balanceHandler          BalanceHandler
-	mempool                 Mempool
-	validityWindow          ValidityWindow
-	authVM                  AuthVM
-	authVerificationWorkers workers.Workers
-	metrics                 *ChainMetrics
-	config                  Config
+	tracer      trace.Tracer
+	log         logging.Logger
+	ruleFactory RuleFactory
 
-	txParser        Parser
 	batchedTxParser BatchedTransactionSerializer
+
+	metadataManager MetadataManager
+	balanceHandler  BalanceHandler
+	validityWindow  ValidityWindow
+	metrics         *ChainMetrics
+	config          Config
+}
+
+func NewAssembler(
+	tracer trace.Tracer,
+	log logging.Logger,
+	ruleFactory RuleFactory,
+	metadataManager MetadataManager,
+	balanceHandler BalanceHandler,
+	validityWindow ValidityWindow,
+	metrics *ChainMetrics,
+	config Config,
+	txParser Parser,
+) *Assembler {
+	return &Assembler{
+		tracer:          tracer,
+		log:             log,
+		ruleFactory:     ruleFactory,
+		metadataManager: metadataManager,
+		balanceHandler:  balanceHandler,
+		validityWindow:  validityWindow,
+		metrics:         metrics,
+		config:          config,
+		batchedTxParser: BatchedTransactionSerializer{txParser},
+	}
 }
 
 func (a *Assembler) Assemble(

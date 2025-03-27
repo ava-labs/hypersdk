@@ -282,18 +282,6 @@ func (Parser) ParseBlock(ctx context.Context, bytes []byte) (*Block, error) {
 	return ParseBlock(bytes)
 }
 
-type AssembledBlock struct {
-	Block          *Block
-	GatheredChunks []*Chunk
-}
-
-func NewAssembledBlock(block *Block, chunks []*Chunk) *AssembledBlock {
-	return &AssembledBlock{
-		Block:          block,
-		GatheredChunks: chunks,
-	}
-}
-
 type EChunk struct {
 	chunkID ids.ID
 	expiry  int64

@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
 
-func New(
+func New[T AssembledBlock](
 	nodeID ids.NodeID,
 	log logging.Logger,
 	warpSigner warp.Signer,
@@ -20,11 +20,13 @@ func New(
 	ruleFactory RuleFactory,
 	db database.Database,
 	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk],
+	assembler Assembler[T],
+	lastAccepted T,
 	network *p2p.Network,
 	getChunkProtocolID uint64,
 	broadcastChunkCertProtocolID uint64,
 	getChunkSignatureProtocolID uint64,
-) (*Node, error) {
+) (*Node[T], error) {
 	// Construct the AvalancheGo AppClient based injected dep
 	appClient := NewAppClient(
 		log,
@@ -36,11 +38,13 @@ func New(
 	)
 
 	// Construct the node
-	node, err := NewNode(
+	node, err := NewNode[T](
 		nodeID,
 		chainState,
 		ruleFactory,
 		chunkValidityWindow,
+		assembler,
+		lastAccepted,
 		db,
 		appClient,
 	)

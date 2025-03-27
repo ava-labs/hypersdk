@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/abi"
@@ -109,16 +108,18 @@ type VM struct {
 	options *Options
 
 	// Chain index components
-	chain                   *chain.Chain
+	chainIndex              *chainindex.ChainIndex[*chain.ExecutedBlock]
 	chainTimeValidityWindow *validitywindow.TimeValidityWindow[*chain.Transaction]
 	syncer                  *validitywindow.Syncer[*chain.Transaction]
-	chainIndex              *chainindex.ChainIndex[*chain.ExecutedBlock]
+	assembler               *chain.Assembler
+	preExecutor             *chain.PreExecutor
+
 	// TODO: switch and support DSMR block based state sync
 	SyncClient *statesync.Client[*chain.ExecutionBlock]
 
 	// DSMR Indexing components
 	dsmrChainIndex *chainindex.ChainIndex[*dsmr.Block]
-	dsmrNode       *dsmr.Node
+	dsmrNode       *dsmr.Node[*chain.OutputBlock]
 
 	consensusIndex *hsnow.ConsensusIndex[*dsmr.Block, *dsmr.Block, *chain.OutputBlock]
 
@@ -130,7 +131,6 @@ type VM struct {
 	vmAPIHandlerFactories []api.HandlerFactory[api.VM]
 	rawStateDB            database.Database
 	stateDB               merkledb.MerkleDB
-	executionResultsDB    database.Database
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	txParser              chain.Parser
@@ -346,16 +346,6 @@ func (vm *VM) initChain(ctx context.Context) error {
 		}
 		return nil
 	})
-	vm.executionResultsDB, err = storage.New(pebble.NewDefaultConfig(), vm.snowCtx.ChainDataDir, resultsDB, prometheus.NewRegistry() /* throwaway metrics registry */)
-	if err != nil {
-		return err
-	}
-	vm.snowApp.AddCloser(resultsDB, func() error {
-		if err := vm.executionResultsDB.Close(); err != nil {
-			return fmt.Errorf("failed to close execution results db: %w", err)
-		}
-		return nil
-	})
 
 	chainIndex, err := initChainIndex[*chain.ExecutedBlock](vm.snowApp, vm.snowInput, chain.NewExecutedBlockParser(vm.txParser), chainIndexNamespace)
 	if err != nil {
@@ -385,33 +375,28 @@ func (vm *VM) initChain(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get chain config: %w", err)
 	}
-	// Setup worker cluster for verifying signatures
-	//
-	// If [parallelism] is odd, we assign the extra
-	// core to signature verification.
-	authVerifiers := workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
-	vm.snowApp.AddCloser("auth verifiers", func() error {
-		authVerifiers.Stop()
-		return nil
-	})
 
-	vm.chain, err = chain.NewChain( // TODO: break up
-		vm.Tracer(),
-		chainRegistry,
-		vm.txParser,
-		vm.Mempool(),
-		vm.Logger(),
-		vm.ruleFactory,
-		vm.MetadataManager(),
-		vm.BalanceHandler(),
-		authVerifiers,
-		vm,
-		vm.chainTimeValidityWindow,
-		chainConfig,
-	)
+	chainMetrics, err := chain.NewMetrics(chainRegistry)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create chain metrics: %w", err)
 	}
+	vm.preExecutor = chain.NewPreExecutor(
+		vm.ruleFactory,
+		vm.chainTimeValidityWindow,
+		vm.metadataManager,
+		vm.balanceHandler,
+	)
+	vm.assembler = chain.NewAssembler(
+		vm.tracer,
+		vm.snowCtx.Log,
+		vm.ruleFactory,
+		vm.metadataManager,
+		vm.balanceHandler,
+		vm.chainTimeValidityWindow,
+		chainMetrics,
+		chainConfig,
+		vm.txParser,
+	)
 	return nil
 }
 
@@ -459,6 +444,8 @@ func (vm *VM) initDSMR() error {
 		dsmr.NewDefaultRuleFactory(vm.snowCtx.NetworkID, vm.snowCtx.SubnetID, vm.snowCtx.ChainID), // TODO: make configurable
 		chunkDB,
 		chunkValidityWindow,
+		vm.assembler,
+		nil, //TODO: populate last accepted block
 		vm.network,
 		getChunkProtocolID,
 		broadcastChunkCertProtocolID,
@@ -795,44 +782,8 @@ func (vm *VM) VerifyBlock(ctx context.Context, parent *dsmr.Block, block *dsmr.B
 	return block, nil
 }
 
-func (vm *VM) acceptChainBlock(ctx context.Context, block *chain.OutputBlock) error {
-	resultBytes := block.ExecutionResults.Marshal()
-	resultBytes = binary.BigEndian.AppendUint64(resultBytes, block.Hght)
-	if err := vm.executionResultsDB.Put([]byte{lastResultKey}, resultBytes); err != nil {
-		return fmt.Errorf("failed to write execution results: %w", err)
-	}
-
-	if err := vm.chain.AcceptBlock(ctx, block); err != nil {
-		return fmt.Errorf("failed to accept block %s: %w", block, err)
-	}
-	return nil
-}
-
 func (vm *VM) AcceptBlock(ctx context.Context, acceptedParent *chain.OutputBlock, block *dsmr.Block) (*chain.OutputBlock, error) {
-	assembledBlock, err := vm.dsmrNode.AcceptBlock(ctx, block)
-	if err != nil {
-		return nil, err
-	}
-
-	parentRoot, err := acceptedParent.View.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	blk, err := chain.NewStatelessBlock(
-		acceptedParent.GetID(),
-		assembledBlock.Block.GetTimestamp(),
-		acceptedParent.Hght+1,
-		nil,
-		parentRoot,
-		assembledBlock.Block.BlockContext,
-	)
-	if err != nil {
-		return nil, err
-	}
-	_ = blk
-
-	// TODO: Assemble + execute block
-	return nil, nil
+	return vm.dsmrNode.AcceptBlock(ctx, block)
 }
 
 func (vm *VM) Submit(
@@ -862,7 +813,7 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		if err := vm.chain.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
+		if err := vm.preExecutor.PreExecute(ctx, preferredBlk.ExecutionBlock, view, tx); err != nil {
 			errs = append(errs, err)
 			continue
 		}

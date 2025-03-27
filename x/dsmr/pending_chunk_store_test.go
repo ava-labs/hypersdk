@@ -143,7 +143,7 @@ func newRuleFactory(
 		rules: Rules{
 			MaxPendingBandwidthPerValidator: maxPendingBandwidthPerValidator,
 			ValidityWindow:                  validityWindow,
-			// TODO: fill remain
+			// TODO: fill remaining rules
 		},
 	}
 }
