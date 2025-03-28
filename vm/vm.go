@@ -42,6 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/statesync"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/x/dsmr"
+	"github.com/ava-labs/hypersdk/x/fortification"
 
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
@@ -106,6 +107,9 @@ type VM struct {
 
 	opts    []Option
 	options *Options
+
+	chainState  *PChainState
+	txPartition *fortification.TxPartition[*chain.Transaction]
 
 	// Chain index components
 	chainIndex              *chainindex.ChainIndex[*chain.ExecutedBlock]
@@ -242,6 +246,12 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
+	vm.chainState = NewPChainState(vm.snowCtx.SubnetID, vm.snowCtx.ValidatorState)
+	vm.txPartition, err = fortification.NewTxPartition[*chain.Transaction](vm.snowCtx.Log, vm.chainState)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+
 	if err := vm.initChain(ctx); err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -284,7 +294,6 @@ func (vm *VM) initLatestState(ctx context.Context) (*dsmr.Block, *chain.OutputBl
 }
 
 func (vm *VM) initMempool(ctx context.Context) {
-	// TODO: modify mempool + builder to depend only on accepted state
 	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 	vm.snowApp.AddAcceptedSub(event.SubscriptionFunc[*chain.OutputBlock]{
 		NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
@@ -293,21 +302,11 @@ func (vm *VM) initMempool(ctx context.Context) {
 				zap.Stringer("blkID", b.GetID()),
 				zap.Int("numTxs", len(droppedTxs)),
 			)
+			vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
 			return nil
 		},
 	})
-	// snowApp.AddVerifiedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-	// 	NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-	// 		vm.mempool.Remove(ctx, b.StatelessBlock.Txs)
-	// 		return nil
-	// 	},
-	// })
-	// snowApp.AddRejectedSub(event.SubscriptionFunc[*chain.OutputBlock]{
-	// 	NotifyF: func(ctx context.Context, b *chain.OutputBlock) error {
-	// 		vm.mempool.Add(ctx, b.StatelessBlock.Txs)
-	// 		return nil
-	// 	},
-	// })
+
 }
 
 func (vm *VM) initChain(ctx context.Context) error {
@@ -440,7 +439,7 @@ func (vm *VM) initDSMR() error {
 		vm.snowCtx.NodeID,
 		vm.snowCtx.Log,
 		vm.snowCtx.WarpSigner,
-		dsmr.NewPChainState(vm.snowCtx.SubnetID, vm.snowCtx.ValidatorState),
+		vm.chainState,
 		dsmr.NewDefaultRuleFactory(vm.snowCtx.NetworkID, vm.snowCtx.SubnetID, vm.snowCtx.ChainID), // TODO: make configurable
 		chunkDB,
 		chunkValidityWindow,
@@ -726,6 +725,11 @@ func (vm *VM) applyModuleOptions() error {
 			return fmt.Errorf("failed to create manual gossiper: %w", err)
 		}
 	} else {
+		partitionTarget, err := fortification.NewTxPartition[*chain.Transaction](vm.snowCtx.Log, vm.chainState)
+		if err != nil {
+			return fmt.Errorf("failed to create partition target: %w", err)
+		}
+		partitionAssigner := gossiper.NewTargetAssigner(vm.snowCtx.NodeID, partitionTarget)
 		txGossiper, err := gossiper.NewTarget[*chain.Transaction](
 			vm.tracer,
 			vm.snowCtx.Log,
@@ -735,10 +739,7 @@ func (vm *VM) applyModuleOptions() error {
 			vm,
 			vm,
 			vm.config.TargetGossipDuration,
-			&gossiper.TargetProposers[*chain.Transaction]{
-				Validators: vm,
-				Config:     gossiper.DefaultTargetProposerConfig(),
-			},
+			partitionAssigner,
 			gossiper.DefaultTargetConfig(),
 			vm.snowInput.Shutdown,
 		)

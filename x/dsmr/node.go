@@ -79,6 +79,19 @@ func (d DefaultRuleFactory) GetRules(int64) Rules {
 	return d.rules
 }
 
+// ChainState provides all information about the chain's validator set and P-Chain height (epoch)
+// required by DSMR.
+type ChainState interface {
+	// EstimatePChainHeight returns the estimated P-Chain height a correct node should use to build a new block
+	EstimatePChainHeight(ctx context.Context) (uint64, error)
+	// GetCanonicalValidatorSet returns the canonically ordered validator set of the chain at the provided P-Chain height
+	GetCanonicalValidatorSet(ctx context.Context, pChainHeight uint64) (validators warp.CanonicalValidatorSet, err error)
+	// IsNodeValidator returns whether nodeID is a validator at the provided P-Chain height
+	IsNodeValidator(ctx context.Context, nodeID ids.NodeID, pChainHeight uint64) (bool, error)
+	// SampleNodeID returns a random nodeID from the current validator set
+	SampleNodeID(ctx context.Context) (ids.NodeID, error)
+}
+
 type AssembledBlock interface{}
 
 // Assembler builds a block from the metadata of the DSMR block and the collected

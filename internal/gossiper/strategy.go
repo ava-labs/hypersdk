@@ -64,7 +64,7 @@ func (g *TargetProposers[T]) Target(ctx context.Context, txs []T) ([]GossipConta
 }
 
 type TxAssigner[T any] interface {
-	AssignTx(ctx context.Context, tx T) (ids.NodeID, bool)
+	AssignTx(ctx context.Context, tx T) []ids.NodeID
 }
 
 type TargetAssigner[T Tx] struct {
@@ -72,14 +72,23 @@ type TargetAssigner[T Tx] struct {
 	Assigner TxAssigner[T]
 }
 
+func NewTargetAssigner[T Tx](nodeID ids.NodeID, assigner TxAssigner[T]) *TargetAssigner[T] {
+	return &TargetAssigner[T]{
+		NodeID:   nodeID,
+		Assigner: assigner,
+	}
+}
+
 func (t *TargetAssigner[T]) Target(ctx context.Context, txs []T) ([]GossipContainer[T], error) {
 	targetedGossip := make(map[ids.NodeID][]T)
 	for _, tx := range txs {
-		nodeID, ok := t.Assigner.AssignTx(ctx, tx)
-		if !ok || nodeID == t.NodeID {
-			continue
+		nodeIDs := t.Assigner.AssignTx(ctx, tx)
+		for _, nodeID := range nodeIDs {
+			if nodeID == t.NodeID {
+				continue
+			}
+			targetedGossip[nodeID] = append(targetedGossip[nodeID], tx)
 		}
-		targetedGossip[nodeID] = append(targetedGossip[nodeID], tx)
 	}
 
 	gossipContainers := make([]GossipContainer[T], 0, len(targetedGossip))
