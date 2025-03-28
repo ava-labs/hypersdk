@@ -8,18 +8,14 @@ import (
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 )
 
-func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*tmpnet.Node) *tmpnet.Subnet {
+func NewHyperVMSubnet(name string, vmID ids.ID, vmConfig string, genesisBytes []byte, nodes ...*tmpnet.Node) *tmpnet.Subnet {
 	return &tmpnet.Subnet{
 		Name: name,
 		Chains: []*tmpnet.Chain{
 			{
 				VMID:    vmID,
 				Genesis: genesisBytes,
-				Config: `{
-					"statesync": {
-						"minBlocks": 128
-					}
-				}`,
+				Config:  vmConfig,
 			},
 		},
 		Config: tmpnet.FlagsMap{

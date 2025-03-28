@@ -4,7 +4,12 @@
 package e2e
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,36 +18,122 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/load"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const (
+	metricsURI = "localhost:8080"
+	// relative to the user home directory
+	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
 )
 
 var (
 	networkConfig workload.TestNetworkConfiguration
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
-	spamKey       chain.AuthFactory
-	spamHelper    throughput.SpamHelper
+
+	tracker           load.Tracker[ids.ID]
+	loadTxGenerator   LoadTxGenerator
+	shortBurstConfig  load.ShortBurstOrchestratorConfig
+	gradualLoadConfig load.GradualLoadOrchestratorConfig
 )
 
-func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key chain.AuthFactory) {
+// LoadTxGenerator returns the components necessary to instantiate an
+// Orchestrator.
+// We use a generator here since the node URIs are not known until runtime.
+type LoadTxGenerator func(
+	ctx context.Context,
+	uri string,
+	authFactories []chain.AuthFactory,
+) ([]load.TxGenerator[*chain.Transaction], error)
+
+func SetWorkload(
+	networkConfigImpl workload.TestNetworkConfiguration,
+	workloadTxGenerator workload.TxGenerator,
+	abi abi.ABI,
+	generator LoadTxGenerator,
+	loadTracker load.Tracker[ids.ID],
+	shortBurstConf load.ShortBurstOrchestratorConfig,
+	gradualLoadConf load.GradualLoadOrchestratorConfig,
+) {
 	networkConfig = networkConfigImpl
-	txWorkload = workload.TxWorkload{
-		Generator: generator,
-	}
+	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
-	spamHelper = sh
-	spamKey = key
+	loadTxGenerator = generator
+	tracker = loadTracker
+	shortBurstConfig = shortBurstConf
+	gradualLoadConfig = gradualLoadConf
+}
+
+// ExposeMetrics begins a HTTP server that exposes the metrics of registry and
+// writes the collector config to a file which tmpnet uses to discover the
+// server and scrape its metrics.
+// Returns a cleanup function which, when called, stops the server and removes
+// the collector config file.
+// ExposeMetrics his should be called at most once
+func ExposeMetrics(
+	ctx context.Context,
+	testEnv *e2e.TestEnvironment,
+	registry *prometheus.Registry,
+) (func() error, error) {
+	// Start metrics server
+	mux := http.NewServeMux()
+	mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		Registry: registry,
+	}))
+
+	metricsServer := &http.Server{
+		Addr:              metricsURI,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	var metricsServerErr error
+	go func() {
+		metricsServerErr = metricsServer.ListenAndServe()
+	}()
+
+	// Generate collector config
+	collectorConfigBytes, err := generateCollectorConfig(
+		[]string{metricsURI},
+		testEnv.GetNetwork().UUID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	filePath := filepath.Join(homedir, metricsFilePath)
+
+	if err := writeCollectorConfig(filePath, collectorConfigBytes); err != nil {
+		return nil, err
+	}
+
+	return func() error {
+		if err := metricsServer.Shutdown(ctx); err != nil {
+			return err
+		}
+		if metricsServerErr != http.ErrServerClosed {
+			return metricsServerErr
+		}
+		return os.Remove(filePath)
+	}, nil
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -111,26 +202,79 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
-	ginkgo.It("Spam Workload", func() {
-		if spamKey == nil || spamHelper == nil {
-			return
-		}
+var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
+	ginkgo.It("Short Burst Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
+		ctx := tc.DefaultContext()
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
-		key := spamKey
 
-		err := spamHelper.CreateClient(uris[0])
+		txGenerators, err := loadTxGenerator(
+			ctx,
+			uris[0],
+			networkConfig.AuthFactories(),
+		)
 		require.NoError(err)
 
-		spamConfig := throughput.NewFastConfig(uris, key)
-		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
+		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
+		}
+
+		orchestrator, err := load.NewShortBurstOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			shortBurstConfig,
+		)
 		require.NoError(err)
 
-		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+		require.NoError(orchestrator.Execute(ctx))
+
+		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
+		require.Equal(numTxs, tracker.GetObservedIssued())
+		require.Equal(numTxs, tracker.GetObservedConfirmed())
+		require.Equal(uint64(0), tracker.GetObservedFailed())
+	})
+
+	ginkgo.It("Gradual Load Workload", func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		ctx := tc.ContextWithTimeout(15 * time.Minute)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
+		uris := getE2EURIs(tc, blockchainID)
+
+		txGenerators, err := loadTxGenerator(
+			ctx,
+			uris[0],
+			networkConfig.AuthFactories(),
+		)
 		require.NoError(err)
+
+		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
+		}
+
+		orchestrator, err := load.NewGradualLoadOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			tc.Log(),
+			gradualLoadConfig,
+		)
+		require.NoError(err)
+
+		if err := orchestrator.Execute(ctx); err != nil {
+			require.ErrorIs(err, context.Canceled)
+		}
+
+		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 	})
 })
 
@@ -277,4 +421,35 @@ func getE2EBaseURIs(tc tests.TestContext) []string {
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
+}
+
+func generateCollectorConfig(targets []string, uuid string) ([]byte, error) {
+	nodeLabels := tmpnet.FlagsMap{
+		"network_owner": "hypersdk-e2e-tests",
+		"network_uuid":  uuid,
+	}
+	config := []tmpnet.FlagsMap{
+		{
+			"labels":  nodeLabels,
+			"targets": targets,
+		},
+	}
+
+	return json.Marshal(config)
+}
+
+func writeCollectorConfig(metricsFilePath string, config []byte) error {
+	file, err := os.OpenFile(metricsFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if _, err := file.Write(config); err != nil {
+		return err
+	}
+
+	return nil
 }
