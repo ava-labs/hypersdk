@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -115,22 +116,6 @@ func GenerateEmptyExecutedBlocks(
 // TxBaseConstructor is a function that returns a valid TX base based off of actions.
 type TxBaseConstructor func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error)
 
-// TxListGenerator is a function that should return a list of valid TXs of
-// length numTxsPerBlock (derived from BlockBenchmark).
-type TxListGenerator func(txBaseConstructor TxBaseConstructor) ([]*chain.Transaction, error)
-
-func EmptyTxListGenerator(TxBaseConstructor) ([]*chain.Transaction, error) {
-	return []*chain.Transaction{}, nil
-}
-
-// BlockBenchmarkHelper initializes a BlockBenchmark test by returning the
-// genesis and TxListGenerator to be used.
-type BlockBenchmarkHelper func(numTxsPerBlock uint64) (genesis.Genesis, TxListGenerator, error)
-
-func NoopBlockBenchmarkHelper(uint64) (genesis.Genesis, TxListGenerator, error) {
-	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), EmptyTxListGenerator, nil
-}
-
 // parentContext holds values relating to the parent block that is required
 // for producing the child block.
 type parentContext struct {
@@ -145,12 +130,15 @@ type parentContext struct {
 //
 // Block production is a simplified version of Builder; we execute
 // transactions followed by writing the chain metadata to the state diff.
-func GenerateExecutionBlocks(
+func GenerateExecutionBlocks[T any](
 	ctx context.Context,
 	rules chain.Rules,
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
-	txListGenerator TxListGenerator,
+	factories []chain.AuthFactory,
+	actionGenerator ActionConstructor[T],
+	txDistributor StateAccessDistributor[T],
+	keys []T,
 	parentCtx *parentContext,
 	numBlocks uint64,
 	numTxsPerBlock uint64,
@@ -173,12 +161,12 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txs, err := txListGenerator(
-			txBaseConstructorF(
-				rules,
-				unitPrices,
-				timestamp,
-			),
+		txs, err := txDistributor(
+			int(numTxsPerBlock),
+			factories,
+			keys,
+			actionGenerator,
+			txBaseConstructorF(rules, unitPrices, timestamp),
 		)
 		if err != nil {
 			return nil, err
@@ -252,7 +240,7 @@ func GenerateExecutionBlocks(
 // BlockBenchmark is a parameterized benchmark. It generates NumBlocks
 // with NumTxsPerBlock, and then calls Processor.Execute to process the block
 // list b.N times.
-type BlockBenchmark struct {
+type BlockBenchmark[T any] struct {
 	MetadataManager chain.MetadataManager
 	BalanceHandler  chain.BalanceHandler
 	RuleFactory     chain.RuleFactory
@@ -261,7 +249,9 @@ type BlockBenchmark struct {
 	Config                chain.Config
 	AuthVerificationCores int
 
-	BlockBenchmarkHelper BlockBenchmarkHelper
+	GenesisF               GenesisGenerator[T]
+	ActionConstructor      ActionConstructor[T]
+	StateAccessDistributor StateAccessDistributor[T]
 
 	// NumBlocks is set as a hyperparameter to avoid using b.N to generate
 	// the number of blocks to run the benchmark on.
@@ -269,7 +259,7 @@ type BlockBenchmark struct {
 	NumTxsPerBlock uint64
 }
 
-func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
+func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	r := require.New(b)
 
 	metrics, err := chain.NewMetrics(prometheus.NewRegistry())
@@ -305,7 +295,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.Config,
 	)
 
-	genesis, txListGenerator, err := test.BlockBenchmarkHelper(test.NumTxsPerBlock)
+	factories, keys, genesis, err := test.GenesisF(test.NumTxsPerBlock)
 	r.NoError(err)
 
 	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
@@ -333,7 +323,10 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.RuleFactory.GetRules(time.Now().UnixMilli()),
 		test.MetadataManager,
 		test.BalanceHandler,
-		txListGenerator,
+		factories,
+		test.ActionConstructor,
+		test.StateAccessDistributor,
+		keys,
 		parentCtx,
 		test.NumBlocks,
 		test.NumTxsPerBlock,
@@ -384,4 +377,127 @@ func txBaseConstructorF(rules chain.Rules, unitPrices fees.Dimensions, timestamp
 			MaxFee:    maxFee,
 		}, nil
 	}
+}
+
+type GenesisGenerator[T any] func(uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
+
+type ActionConstructor[T any] func(T, uint64) chain.Action
+
+type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error)
+
+func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error) {
+	return []*chain.Transaction{}, nil
+}
+
+func ParallelDistribution[T any](
+	numTxs int,
+	factories []chain.AuthFactory,
+	keys []T,
+	ac ActionConstructor[T],
+	txBaseConstructor TxBaseConstructor,
+) ([]*chain.Transaction, error) {
+	if numTxs != len(keys) || numTxs != len(factories) {
+		return nil, fmt.Errorf("number of transactions must be equal to the number of keys")
+	}
+
+	nonce := uint64(0)
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := ac(keys[i], nonce)
+
+		nonce++
+
+		txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txData := chain.NewTxData(txBase, []chain.Action{action})
+		tx, err := txData.Sign(factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
+}
+
+func SerialDistribution[T any](
+	numTxs int,
+	factories []chain.AuthFactory,
+	keys []T,
+	ac ActionConstructor[T],
+	txBaseConstructor TxBaseConstructor,
+) ([]*chain.Transaction, error) {
+	if len(keys) != 1 {
+		return nil, fmt.Errorf("number of keys must be 1")
+	}
+
+	nonce := uint64(0)
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := ac(keys[0], nonce)
+
+		nonce++
+
+		txBase, err := txBaseConstructor([]chain.Action{action}, factories[0])
+		if err != nil {
+			return nil, err
+		}
+
+		txData := chain.NewTxData(txBase, []chain.Action{action})
+		tx, err := txData.Sign(factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
+}
+
+func ZipfDistribution[T any](
+	numTxs int,
+	factories []chain.AuthFactory,
+	keys []T,
+	ac ActionConstructor[T],
+	txBaseConstructor TxBaseConstructor,
+) ([]*chain.Transaction, error) {
+	if numTxs != len(keys) || numTxs != len(factories) {
+		return nil, fmt.Errorf("number of transactions must be equal to the number of keys")
+	}
+
+	nonce := uint64(0)
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numTxs-1))
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := ac(keys[zipfGen.Uint64()], nonce)
+
+		nonce++
+
+		txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txData := chain.NewTxData(txBase, []chain.Action{action})
+		tx, err := txData.Sign(factories[i])
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
 }
