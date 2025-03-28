@@ -40,6 +40,9 @@ type GradualLoadOrchestratorConfig struct {
 	SustainedTime time.Duration
 	// the number of attempts to try achieving a given target TPS before giving up.
 	MaxAttempts uint64
+
+	// whether the orchestrator should return if the maxTPS has been reached
+	Terminate bool
 }
 
 func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
@@ -50,6 +53,7 @@ func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 		TxRateMultiplier: 1.3,
 		SustainedTime:    20 * time.Second,
 		MaxAttempts:      3,
+		Terminate:        true,
 	}
 }
 
@@ -115,10 +119,11 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // run stops when the network can no longer make progress or if an issuer errors.
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	var (
-		prevConfirmed = o.tracker.GetObservedConfirmed()
-		prevTime      = time.Now()
-		currTargetTPS = new(atomic.Uint64)
-		attempts      uint64
+		prevConfirmed  = o.tracker.GetObservedConfirmed()
+		prevTime       = time.Now()
+		currTargetTPS  = new(atomic.Uint64)
+		achievedMaxTPS bool
+		attempts       uint64
 	)
 
 	currTargetTPS.Store(o.config.MinTPS)
@@ -149,14 +154,32 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
 		o.setMaxObservedTPS(tps)
 
+		// if maxTPS has been reached and we don't terminate, then continue so
+		// that we do not manipulate TPS target
+		if achievedMaxTPS && !o.config.Terminate {
+			o.log.Info(
+				"current network state",
+				zap.Uint64("current TPS", tps),
+				zap.Uint64("max observed TPS", o.maxObservedTPS.Load()),
+			)
+			continue
+		}
+
 		if tps >= currTargetTPS.Load() {
 			if currTargetTPS.Load() >= o.config.MaxTPS {
+				achievedMaxTPS = true
 				o.log.Info(
 					"max TPS reached",
 					zap.Uint64("target TPS", currTargetTPS.Load()),
 					zap.Uint64("average TPS", tps),
 				)
-				break
+				if o.config.Terminate {
+					o.log.Info("terminating orchestrator")
+					break
+				} else {
+					o.log.Info("orchestrator will now continue running at max TPS")
+					continue
+				}
 			}
 			o.log.Info(
 				"increasing TPS",
