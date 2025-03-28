@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/go-errors/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
@@ -272,7 +271,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.NoError(err)
 
 		if err := orchestrator.Execute(ctx); err != nil {
-			require.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+			require.ErrorIs(err, context.Canceled)
 		}
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
@@ -444,7 +443,9 @@ func writeCollectorConfig(metricsFilePath string, config []byte) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if _, err := file.Write(config); err != nil {
 		return err
