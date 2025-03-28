@@ -2,10 +2,10 @@
 // See the file LICENSE for licensing terms.
 
 // Snow provides an adapter from the AvalancheGo [block.ChainVM] interface (the interface AvalancheGo VM developers must implement)
-// to provide a more ergonomic interface for VM developers.
+// to provide a more ergonomic interface to VM developers.
 //
-// The existing interface was largely defined for ease of use by the AvalancheGo consensus engine and as a single all access type for
-// anything required by AvalancheGo (APIs, health check, shutdown, etc.)
+// The existing interface was largely defined for ease of use by the AvalancheGo consensus engine. As a result,
+// all responsibilities are combined into a single, all-access type for anything required by AvalancheGo (APIs, health check, shutdown, etc.).
 //
 // # What does the original interface require that this package simplifies?
 //
