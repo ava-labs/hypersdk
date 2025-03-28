@@ -7,9 +7,9 @@
 //
 // What does the original interface require that this package simplifies?
 //
-// 1. Maintaining a [Processing Block Tree]
-// 2. Vacuous block verification and acceptance during [Dynamic State Sync]
-// 3. [common.VM] interface that we can replace with good, customizable defaults
+//  1. Maintaining a [Processing Block Tree]
+//  2. Vacuous block verification and acceptance during [Dynamic State Sync]
+//  3. [common.VM] interface that we can replace with good, customizable defaults
 //
 // This package defines a simpler to use interface for use within the HyperSDK and to eventually iterate from
 // an initial small, well-defined public API backwards to more layers of customizability including building directly on top of this package.
