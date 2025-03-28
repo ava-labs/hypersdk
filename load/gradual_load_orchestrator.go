@@ -31,7 +31,7 @@ type GradualLoadOrchestratorConfig struct {
 	//
 	// this is useful when the network can handle the current target TPS but it
 	// hasn't received enough transactions to achieve that TPS (as a result of
-	// latency + other factors).
+	// latency between individual issuers and the API nodes).
 	TxRateMultiplier float64
 
 	// the time period which TPS is averaged over
