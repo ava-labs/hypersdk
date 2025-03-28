@@ -397,6 +397,8 @@ func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T]
 	return []*chain.Transaction{}, nil
 }
 
+// ParallelDistribution generates a list of transactions that each touch a
+// different key in state, thus allowing for parallel execution of the transactions.
 func ParallelDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
@@ -433,6 +435,8 @@ func ParallelDistribution[T any](
 	return txs, nil
 }
 
+// SerialDistribution generates a list of transactions that each touch the same
+// key in state, which forces serial execution of the transactions.
 func SerialDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
@@ -469,6 +473,8 @@ func SerialDistribution[T any](
 	return txs, nil
 }
 
+// ZipfDistribution generates a list of transactions that each touch a
+// different key in state, but the keys are chosen based on a Zipf distribution.
 func ZipfDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
