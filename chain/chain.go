@@ -16,18 +16,21 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
+type ExecutionBlockParser interface {
+	ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error)
+}
+
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
 	preExecutor *PreExecutor
-	blockParser *BlockParser
+	blockParser ExecutionBlockParser
 	accepter    *Accepter
 }
 
 func NewChain(
 	tracer trace.Tracer,
 	registerer *prometheus.Registry,
-	parser Parser,
 	mempool Mempool,
 	logger logging.Logger,
 	ruleFactory RuleFactory,
@@ -35,6 +38,7 @@ func NewChain(
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authEngines AuthEngines,
+	executionBlockParser ExecutionBlockParser,
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
@@ -72,7 +76,7 @@ func NewChain(
 			metadataManager,
 			balanceHandler,
 		),
-		blockParser: NewBlockParser(tracer, parser),
+		blockParser: executionBlockParser,
 		accepter:    NewAccepter(tracer, validityWindow, metrics),
 	}, nil
 }

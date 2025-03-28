@@ -65,7 +65,7 @@ func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeV
 }
 
 func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
-	minTS := s.calculateMinTimestamp(target.GetTimestamp())
+	minTS := s.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp())
 	s.minTimestamp.Store(minTS)
 
 	// Try to build a partial validity window from existing blocks
@@ -118,8 +118,8 @@ func (s *Syncer[T, B]) UpdateSyncTarget(_ context.Context, target B) error {
 		return s.Close()
 	}
 
-	// Update minimum timestamp based on new target
-	minTS := s.calculateMinTimestamp(target.GetTimestamp())
+	// Update timestamp based on new target
+	minTS := s.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp())
 	s.minTimestamp.Store(minTS)
 
 	return nil
@@ -141,29 +141,14 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
 ) bool {
-	parents, seenValidityWindow := s.timeValidityWindow.PopulateValidityWindow(ctx, block)
+	validityBlocks, windowComplete := s.timeValidityWindow.populateValidityWindow(ctx, block)
 
-	s.oldestBlock = parents[0]
-	return seenValidityWindow
+	s.oldestBlock = validityBlocks[0]
+	return windowComplete
 }
 
 func (s *Syncer[T, B]) signalDone() {
 	s.doneOnce.Do(func() {
 		close(s.doneChan)
 	})
-}
-
-// calculateMinTimestamp determines the oldest allowable timestamp for blocks
-// in the validity window based on:
-// - target block's timestamp
-// - validity window duration from getValidityWindow
-// The minimum timestamp is used to determine when to stop fetching historical
-// blocks when backfilling the validity window.
-func (s *Syncer[T, B]) calculateMinTimestamp(targetTS int64) int64 {
-	validityWindow := s.getValidityWindow(targetTS)
-	minTS := targetTS - validityWindow
-	if minTS < 0 {
-		minTS = 0
-	}
-	return minTS
 }

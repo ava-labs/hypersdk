@@ -80,6 +80,19 @@ func NewTimeValidityWindow[T emap.Item](
 	}
 }
 
+func NewPopulatedTimeValidityWindow[T emap.Item](
+	ctx context.Context,
+	log logging.Logger,
+	tracer trace.Tracer,
+	chainIndex ChainIndex[T],
+	lastAcceptedBlock ExecutionBlock[T],
+	getTimeValidityWindowF GetTimeValidityWindowFunc,
+) *TimeValidityWindow[T] {
+	t := NewTimeValidityWindow(log, tracer, chainIndex, getTimeValidityWindowF)
+	t.populateValidityWindow(ctx, lastAcceptedBlock)
+	return t
+}
+
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 	// Grab the lock before modifiying seen
 	v.lock.Lock()
@@ -197,17 +210,13 @@ func (v *TimeValidityWindow[T]) isRepeat(
 	}
 }
 
-func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
-	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
-}
-
-func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
+func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
 	var (
-		parent               = block
-		parents              = []ExecutionBlock[T]{parent}
-		fullValidityWindow   = false
-		oldestAllowedBlockTS = v.calculateOldestAllowed(block.GetTimestamp())
-		err                  error
+		parent             = block
+		parents            = []ExecutionBlock[T]{parent}
+		fullValidityWindow = false
+		oldestAllowed      = v.calculateOldestAllowed(block.GetTimestamp())
+		err                error
 	)
 
 	// Keep fetching parents until we:
@@ -222,7 +231,7 @@ func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, bloc
 		}
 		parents = append(parents, parent)
 
-		fullValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > oldestAllowedBlockTS
+		fullValidityWindow = parent.GetTimestamp() < oldestAllowed
 		if fullValidityWindow {
 			break
 		}
@@ -234,6 +243,10 @@ func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, bloc
 		v.Accept(blk)
 	}
 	return parents, fullValidityWindow
+}
+
+func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
+	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
 }
 
 func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {
