@@ -6,7 +6,6 @@ package blocks
 import (
 	"context"
 	"encoding/binary"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
@@ -33,31 +31,41 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 	ruleFactory := &genesis.ImmutableRuleFactory{Rules: rules}
 
 	benchmarks := []struct {
-		name                 string
-		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
+		name                   string
+		genesisGenerator       chaintest.GenesisGenerator[codec.Address]
+		actionConstructor      chaintest.ActionConstructor[codec.Address]
+		stateAccessDistributor chaintest.StateAccessDistributor[codec.Address]
 	}{
 		{
-			name:                 "parallel transfers",
-			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
+			name:                   "parallel transfers",
+			genesisGenerator:       uniqueAddressGenesisF,
+			actionConstructor:      actionGenerator,
+			stateAccessDistributor: chaintest.ParallelDistribution[codec.Address],
 		},
 		{
-			name:                 "serial transfers",
-			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
+			name:                   "serial transfers",
+			genesisGenerator:       singleAddressGenesisF,
+			actionConstructor:      actionGenerator,
+			stateAccessDistributor: chaintest.SerialDistribution[codec.Address],
 		},
 		{
-			name:                 "zipf transfers",
-			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
+			name:                   "zipf transfers",
+			genesisGenerator:       uniqueAddressGenesisF,
+			actionConstructor:      actionGenerator,
+			stateAccessDistributor: chaintest.ZipfDistribution[codec.Address],
 		},
 	}
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			benchmark := &chaintest.BlockBenchmark{
-				MetadataManager:      metadata.NewDefaultManager(),
-				BalanceHandler:       &storage.BalanceHandler{},
-				RuleFactory:          ruleFactory,
-				AuthEngines:          auth.DefaultEngines(),
-				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
+			benchmark := &chaintest.BlockBenchmark[codec.Address]{
+				MetadataManager:        metadata.NewDefaultManager(),
+				BalanceHandler:         &storage.BalanceHandler{},
+				RuleFactory:            ruleFactory,
+				AuthEngines:            auth.DefaultEngines(),
+				GenesisF:               bm.genesisGenerator,
+				ActionConstructor:      bm.actionConstructor,
+				StateAccessDistributor: bm.stateAccessDistributor,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
 					TransactionExecutionCores: 4,
@@ -74,135 +82,33 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 	}
 }
 
-func parallelTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, gen, err := createGenesis(numTxsPerBlock, 1_000_000)
-	if err != nil {
-		return nil, nil, err
+func actionGenerator(k codec.Address, nonce uint64) chain.Action {
+	return &actions.Transfer{
+		To:    k,
+		Value: 1,
+		Memo:  binary.BigEndian.AppendUint64(nil, nonce),
 	}
-
-	nonce := uint64(0)
-
-	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numTxsPerBlock)
-		for i := 0; i < int(numTxsPerBlock); i++ {
-			action := &actions.Transfer{
-				To:    factories[i].Address(),
-				Value: 1,
-				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
-			}
-
-			nonce++
-
-			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txData := chain.NewTxData(txBase, []chain.Action{action})
-			tx, err := txData.Sign(factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txs[i] = tx
-		}
-
-		return txs, nil
-	}
-	return gen, txListGenerator, nil
 }
 
-func serialTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, gen, err := createGenesis(numTxsPerBlock, 1_000_000)
+func uniqueAddressGenesisF(numTxsPerBlock uint64) ([]chain.AuthFactory, []codec.Address, genesis.Genesis, error) {
+	factories, gen, err := chaintest.CreateGenesis(numTxsPerBlock, 1_000_000, chaintest.ED25519Factory)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	nonce := uint64(0)
-
-	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numTxsPerBlock)
-		for i := 0; i < int(numTxsPerBlock); i++ {
-			action := &actions.Transfer{
-				To:    codec.EmptyAddress,
-				Value: 1,
-				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
-			}
-
-			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txData := chain.NewTxData(txBase, []chain.Action{action})
-			tx, err := txData.Sign(factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txs[i] = tx
-		}
-
-		return txs, nil
+	keys := make([]codec.Address, len(factories))
+	for i, factory := range factories {
+		keys[i] = factory.Address()
 	}
-	return gen, txListGenerator, nil
+
+	return factories, keys, gen, err
 }
 
-func zipfTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
-	factories, gen, err := createGenesis(numTxsPerBlock, 1_000_000)
+func singleAddressGenesisF(numTxsPerBlock uint64) ([]chain.AuthFactory, []codec.Address, genesis.Genesis, error) {
+	factories, gen, err := chaintest.CreateGenesis(numTxsPerBlock, 1_000_000, chaintest.ED25519Factory)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	nonce := uint64(0)
-
-	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
-	sZipf := 1.01
-	vZipf := 2.7
-	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxsPerBlock-1)
-
-	txListGenerator := func(txBaseConstructor chaintest.TxBaseConstructor) ([]*chain.Transaction, error) {
-		txs := make([]*chain.Transaction, numTxsPerBlock)
-		for i := 0; i < int(numTxsPerBlock); i++ {
-			action := &actions.Transfer{
-				To:    factories[zipfGen.Uint64()].Address(),
-				Value: 1,
-				Memo:  binary.BigEndian.AppendUint64(nil, nonce),
-			}
-
-			txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txData := chain.NewTxData(txBase, []chain.Action{action})
-			tx, err := txData.Sign(factories[i])
-			if err != nil {
-				return nil, err
-			}
-
-			txs[i] = tx
-		}
-
-		return txs, nil
-	}
-	return gen, txListGenerator, nil
-}
-
-func createGenesis(numAccounts uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
-	factories := make([]chain.AuthFactory, numAccounts)
-	customAllocs := make([]*genesis.CustomAllocation, numAccounts)
-	for i := range numAccounts {
-		pk, err := ed25519.GeneratePrivateKey()
-		if err != nil {
-			return nil, nil, err
-		}
-		factory := auth.NewED25519Factory(pk)
-		factories[i] = factory
-		customAllocs[i] = &genesis.CustomAllocation{
-			Address: factory.Address(),
-			Balance: allocAmount,
-		}
-	}
-	return factories, genesis.NewDefaultGenesis(customAllocs), nil
+	return factories, []codec.Address{codec.EmptyAddress}, gen, err
 }
