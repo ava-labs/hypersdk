@@ -38,7 +38,7 @@ func NewChain(
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authEngines AuthEngines,
-	executionBlockParser ExecutionBlockParser,
+	blockParser ExecutionBlockParser,
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
@@ -76,7 +76,7 @@ func NewChain(
 			metadataManager,
 			balanceHandler,
 		),
-		blockParser: executionBlockParser,
+		blockParser: blockParser,
 		accepter:    NewAccepter(tracer, validityWindow, metrics),
 	}, nil
 }
