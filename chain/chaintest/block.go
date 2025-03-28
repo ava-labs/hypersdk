@@ -379,10 +379,18 @@ func txBaseConstructorF(rules chain.Rules, unitPrices fees.Dimensions, timestamp
 	}
 }
 
-type GenesisGenerator[T any] func(uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
+// GenesisGenerator should return the following:
+// 1. numTxsPerBlock auth factories
+// 2. the set of keys used for state access distribution
+// 3. the genesis used for the chain
+type GenesisGenerator[T any] func(numTxsPerBlock uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
 
+// ActionConstructor takes in a key and nonce and returns a valid action
 type ActionConstructor[T any] func(T, uint64) chain.Action
 
+// StateAccessDistributor is responsible for generating a list of transactions
+// whose state accesses vary depending on the distribution function (parallel,
+// serial, zipf, etc.)
 type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error)
 
 func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error) {
@@ -397,7 +405,7 @@ func ParallelDistribution[T any](
 	txBaseConstructor TxBaseConstructor,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
-		return nil, fmt.Errorf("number of transactions must be equal to the number of keys")
+		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
 
 	nonce := uint64(0)
@@ -433,7 +441,7 @@ func SerialDistribution[T any](
 	txBaseConstructor TxBaseConstructor,
 ) ([]*chain.Transaction, error) {
 	if len(keys) != 1 {
-		return nil, fmt.Errorf("number of keys must be 1")
+		return nil, ErrSingleKeyLengthOnly
 	}
 
 	nonce := uint64(0)
@@ -469,7 +477,7 @@ func ZipfDistribution[T any](
 	txBaseConstructor TxBaseConstructor,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
-		return nil, fmt.Errorf("number of transactions must be equal to the number of keys")
+		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
 
 	nonce := uint64(0)
