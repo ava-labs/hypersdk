@@ -46,23 +46,22 @@ The orchestrator is responsible for directing issuers to send transactions to
 the network. The strategy for how the orchestrator directs issuers varies
 between implementations (e.g. short burst vs gradual load).
 
-When applicable, the orchestrator can also query the tracker to make a decision
-(e.g. increase TPS or return).
-
 ### Transaction Generator
 
 The Tx generator is responsible for generating a valid transaction which any
-issuer can send. Each Tx generator is assumed to have an associated account that
-will sign transactions and whose balance is monitored to err in the case of fund exhaustion.
+issuer can send.
 
 ### Tx Issuer
 
-The Tx issuer is responsible for sending and confirming transactions. As it issues/confirms transactions, it notifies the tracker, so that it can maintain metrics across the generated load.
+The Tx issuer is responsible for tracking the status of all sent transactions. 
+As it issues/confirms transactions, it notifies the tracker, so that it can 
+maintain metrics across the generated load.
+
 ### Tracker
 
-The role of the tracker is to record metrics for the TPS. Since the tracker is
-used by both the issuers and the orchestrator, all methods of the tracker must
-be thread safe.
+The tracker is responsible for maintaining metrics for all sent txs. Since the 
+tracker is used by both the issuers and the orchestrator, all methods of the
+tracker must be thread safe.
 
 ## Default Orchestrators
 

@@ -50,6 +50,8 @@ type Tracker[T comparable] interface {
 	GetObservedFailed() uint64
 }
 
+// Orchestrator executes the load test by coordinating the issuers to send
+// transactions, in a manner depending on the implementation.
 type Orchestrator interface {
 	// Execute the load test
 	Execute(ctx context.Context) error
