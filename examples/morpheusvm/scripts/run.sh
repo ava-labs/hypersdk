@@ -16,56 +16,20 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-# build avalanchego
-# https://github.com/ava-labs/avalanchego/releases
-HYPERSDK_DIR=$HOME/.hypersdk
+# Ensure absolute paths to avoid dependency on the working directory
+AVALANCHEGO_PATH="$(realpath "${AVALANCHEGO_PATH:-../../scripts/run_avalanchego.sh}")"
+AVALANCHEGO_PLUGIN_DIR="${AVALANCHEGO_PLUGIN_DIR:-../../build/plugins}"
+mkdir -p "${AVALANCHEGO_PLUGIN_DIR}"
+AVALANCHEGO_PLUGIN_DIR=$(realpath "${AVALANCHEGO_PLUGIN_DIR}")
 
-echo "working directory: $HYPERSDK_DIR"
-
-AVALANCHEGO_PATH=${HYPERSDK_DIR}/avalanchego-${AVALANCHE_VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${HYPERSDK_DIR}/avalanchego-${AVALANCHE_VERSION}/plugins
-
-if [ ! -f "$AVALANCHEGO_PATH" ]; then
-  echo "building avalanchego"
-  CWD=$(pwd)
-
-  # Clear old folders
-  rm -rf "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
-  mkdir -p "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
-  rm -rf "${HYPERSDK_DIR}"/avalanchego-src
-  mkdir -p "${HYPERSDK_DIR}"/avalanchego-src
-
-  # Download src
-  cd "${HYPERSDK_DIR}"/avalanchego-src
-  git clone https://github.com/ava-labs/avalanchego.git
-  cd avalanchego
-  git checkout "${AVALANCHE_VERSION}"
-
-  # Build avalanchego
-  ./scripts/build.sh
-  mv build/avalanchego "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"
-
-  cd "${CWD}"
-
-  # Clear src
-  rm -rf "${HYPERSDK_DIR}"/avalanchego-src
-else
-  echo "using previously built avalanchego"
-fi
-
-############################
+echo "testing build of avalanchego"
+${AVALANCHEGO_PATH} --version
 
 echo "building morpheusvm"
 
-# delete previous (if exists)
-rm -f "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
-
 # rebuild with latest code
-go build \
--o "${HYPERSDK_DIR}"/avalanchego-"${AVALANCHE_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
+go build -o "${AVALANCHEGO_PLUGIN_DIR}"/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u ./cmd/morpheusvm
 
-############################
 echo "building e2e.test"
 
 prepare_ginkgo
