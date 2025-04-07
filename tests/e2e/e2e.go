@@ -49,6 +49,9 @@ var (
 	loadTxGenerator   LoadTxGenerator
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
+
+	fundDistributor  FundDistributor
+	fundConsolidator FundConsolidator
 )
 
 // LoadTxGenerator returns the components necessary to instantiate an
@@ -60,6 +63,13 @@ type LoadTxGenerator func(
 	authFactories []chain.AuthFactory,
 ) ([]load.TxGenerator[*chain.Transaction], error)
 
+// FundDistributor distributes funds from a funder account to a set of test accounts.
+type FundDistributor func(context.Context, string, chain.AuthFactory, uint64) ([]chain.AuthFactory, error)
+
+// FundConsolidator collects the funds from the test accounts and sends them
+// back to the funder account.
+type FundConsolidator func(context.Context, string, []chain.AuthFactory, chain.AuthFactory) error
+
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
@@ -68,6 +78,8 @@ func SetWorkload(
 	loadTracker load.Tracker[ids.ID],
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
+	distributor FundDistributor,
+	consolidator FundConsolidator,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
@@ -76,6 +88,8 @@ func SetWorkload(
 	tracker = loadTracker
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
+	fundDistributor = distributor
+	fundConsolidator = consolidator
 }
 
 // ExposeMetrics begins a HTTP server that exposes the metrics of registry and
@@ -210,10 +224,13 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
+		accounts, err := fundDistributor(ctx, uris[0], networkConfig.AuthFactories()[0], uint64(len(uris)))
+		require.NoError(err)
+
 		txGenerators, err := loadTxGenerator(
 			ctx,
 			uris[0],
-			networkConfig.AuthFactories(),
+			accounts,
 		)
 		require.NoError(err)
 
@@ -238,6 +255,8 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.Equal(numTxs, tracker.GetObservedIssued())
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
+
+		require.NoError(fundConsolidator(ctx, uris[0], accounts, networkConfig.AuthFactories()[0]))
 	})
 
 	ginkgo.It("Gradual Load Workload", func() {
@@ -247,10 +266,13 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
+		accounts, err := fundDistributor(ctx, uris[0], networkConfig.AuthFactories()[0], uint64(len(uris)))
+		require.NoError(err)
+
 		txGenerators, err := loadTxGenerator(
 			ctx,
 			uris[0],
-			networkConfig.AuthFactories(),
+			accounts,
 		)
 		require.NoError(err)
 
@@ -275,6 +297,8 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		}
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
+
+		require.NoError(fundConsolidator(ctx, uris[0], accounts, networkConfig.AuthFactories()[0]))
 	})
 })
 

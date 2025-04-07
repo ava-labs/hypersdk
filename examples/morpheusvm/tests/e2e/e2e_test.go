@@ -69,6 +69,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 			Timeout:      20 * time.Second,
 		},
 		hload.DefaultGradualLoadOrchestratorConfig(),
+		load.FundDistributor,
+		load.FundConsolidator,
 	)
 
 	vmConfig := `{
