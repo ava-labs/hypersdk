@@ -296,9 +296,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		)
 		require.NoError(err)
 
-		if err := orchestrator.Execute(ctx); err != nil {
-			require.ErrorIs(err, context.Canceled)
-		}
+		require.NoError(orchestrator.Execute(ctx))
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 

@@ -15,7 +15,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var _ Orchestrator = (*GradualLoadOrchestrator[any, any])(nil)
+var (
+	_ Orchestrator = (*GradualLoadOrchestrator[any, any])(nil)
+
+	ErrFailedToReachTargetTPS = errors.New("failed to reach target TPS")
+)
 
 type GradualLoadOrchestratorConfig struct {
 	// the maximum TPS the orchestrator should aim for.
@@ -104,13 +108,18 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 	}
 
 	// start the test and block until it's done
-	o.run(ctx)
+	success := o.run(ctx)
+
+	var err error
+	if !success {
+		err = ErrFailedToReachTargetTPS
+	}
 
 	// stop the observers and issuers
 	cancel()
 
 	// block until both the observers and issuers have stopped
-	return errors.Join(o.issuerGroup.Wait(), o.observerGroup.Wait())
+	return errors.Join(o.issuerGroup.Wait(), o.observerGroup.Wait(), err)
 }
 
 // run the gradual load test by continuously increasing the rate at which
@@ -121,7 +130,7 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // 1. an issuer has errored
 // 2. the max TPS target has been reached and we can terminate
 // 3. the maximum number of attempts to reach a target TPS has been reached
-func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
+func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 	var (
 		prevConfirmed  = o.tracker.GetObservedConfirmed()
 		prevTime       = time.Now()
@@ -210,6 +219,8 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		prevConfirmed = currConfirmed
 		prevTime = currTime
 	}
+
+	return achievedMaxTPS
 }
 
 // GetObservedIssued returns the max TPS the orchestrator observed
@@ -225,7 +236,7 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 			for {
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return nil
 				default:
 				}
 				currTime := time.Now()

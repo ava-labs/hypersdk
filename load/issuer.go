@@ -53,11 +53,11 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 		}
 		txID, result, err := i.client.ListenTx(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}
 		// accepted txs have a non-nil result
