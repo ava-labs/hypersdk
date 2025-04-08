@@ -97,7 +97,7 @@ func SetWorkload(
 // server and scrape its metrics.
 // Returns a cleanup function which, when called, stops the server and removes
 // the collector config file.
-// ExposeMetrics his should be called at most once
+// ExposeMetrics should be called at most once
 func ExposeMetrics(
 	ctx context.Context,
 	testEnv *e2e.TestEnvironment,
