@@ -569,7 +569,7 @@ func consolidateFunds(
 			continue
 		}
 		amount := balance - fee
-		action := createTransfer(accounts[i].Address(), amount, nonce)
+		action := createTransfer(to.Address(), amount, nonce)
 		nonce++
 		tx, err := chain.GenerateTransaction(
 			ruleFactory,
