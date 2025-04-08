@@ -116,7 +116,11 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // run the gradual load test by continuously increasing the rate at which
 // transactions are sent
 //
-// run stops when the network can no longer make progress or if an issuer errors.
+// run blocks until one of the following conditions is met:
+//
+// 1. an issuer has errored
+// 2. the max TPS target has been reached and we can terminate
+// 3. the maximum number of attempts to reach a target TPS has been reached
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	var (
 		prevConfirmed  = o.tracker.GetObservedConfirmed()
@@ -133,10 +137,6 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 
 	o.issueTxs(issuerCtx, currTargetTPS)
 
-	// blocks until either:
-	// 1. the max TPS target has been reached
-	// 2. we've maxed out the number of attempts
-	// 3. an issuer has errored.
 	for {
 		// wait for the sustained time to pass or for the context to be cancelled
 		select {
@@ -145,7 +145,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 		}
 
 		if issuerCtx.Err() != nil {
-			break
+			break // Case 1
 		}
 
 		currConfirmed := o.tracker.GetObservedConfirmed()
@@ -175,7 +175,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 				)
 				if o.config.Terminate {
 					o.log.Info("terminating orchestrator")
-					break
+					break // Case 2
 				} else {
 					o.log.Info("orchestrator will now continue running at max TPS")
 					continue
@@ -196,7 +196,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 					zap.Uint64("target TPS", currTargetTPS.Load()),
 					zap.Uint64("number of attempts", attempts),
 				)
-				break
+				break // Case 3
 			}
 			o.log.Info(
 				"failed to reach target TPS, retrying",
