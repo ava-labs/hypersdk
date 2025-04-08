@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,7 +27,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ava-labs/hypersdk/utils"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -112,14 +110,11 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TxBaseConstructor is a function that returns a valid TX base based off of actions.
-type TxBaseConstructor func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error)
-
 // TxListGenerator is a function that should return a list of valid TXs of
 // length numTxsPerBlock (derived from BlockBenchmark).
-type TxListGenerator func(txBaseConstructor TxBaseConstructor) ([]*chain.Transaction, error)
+type TxListGenerator func(chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error)
 
-func EmptyTxListGenerator(TxBaseConstructor) ([]*chain.Transaction, error) {
+func EmptyTxListGenerator(chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
@@ -147,7 +142,7 @@ type parentContext struct {
 // transactions followed by writing the chain metadata to the state diff.
 func GenerateExecutionBlocks(
 	ctx context.Context,
-	rules chain.Rules,
+	ruleFactory chain.RuleFactory,
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
 	txListGenerator TxListGenerator,
@@ -156,6 +151,7 @@ func GenerateExecutionBlocks(
 	numTxsPerBlock uint64,
 ) ([]*chain.ExecutionBlock, error) {
 	var timestampOffset int64
+	rules := ruleFactory.GetRules(parentCtx.timestamp)
 	timestampOffset = rules.GetMinEmptyBlockGap()
 	if numTxsPerBlock > 0 {
 		timestampOffset = rules.GetMinBlockGap()
@@ -173,13 +169,7 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txs, err := txListGenerator(
-			txBaseConstructorF(
-				rules,
-				unitPrices,
-				timestamp,
-			),
-		)
+		txs, err := txListGenerator(ruleFactory, unitPrices, timestamp)
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +320,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 
 	blocks, err := GenerateExecutionBlocks(
 		ctx,
-		test.RuleFactory.GetRules(time.Now().UnixMilli()),
+		test.RuleFactory,
 		test.MetadataManager,
 		test.BalanceHandler,
 		txListGenerator,
@@ -364,24 +354,4 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	numTxsExecuted := numBlocksExecuted * test.NumTxsPerBlock
 	b.ReportMetric(float64(numTxsExecuted)/b.Elapsed().Seconds(), "tps")
 	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
-}
-
-func txBaseConstructorF(rules chain.Rules, unitPrices fees.Dimensions, timestamp int64) TxBaseConstructor {
-	return func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error) {
-		units, err := chain.EstimateUnits(rules, actions, factory)
-		if err != nil {
-			return chain.Base{}, err
-		}
-
-		maxFee, err := fees.MulSum(unitPrices, units)
-		if err != nil {
-			return chain.Base{}, err
-		}
-
-		return chain.Base{
-			Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
-			ChainID:   rules.GetChainID(),
-			MaxFee:    maxFee,
-		}, nil
-	}
 }
