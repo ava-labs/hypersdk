@@ -24,15 +24,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
-	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/load"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
@@ -442,7 +443,21 @@ func distributeFunds(
 
 	uris := network.URIs()
 	cli := jsonrpc.NewJSONRPCClient(uris[0])
-	indexerCli := indexer.NewClient(uris[0])
+	ws, err := ws.NewWebSocketClient(
+		uris[0],
+		ws.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer ws.Close()
+
+	pacer := newPacer(ws, 100)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go pacer.run(cctx)
 
 	balance, err := cli.GetBalance(ctx, funder.Address())
 	if err != nil {
@@ -500,19 +515,16 @@ func distributeFunds(
 		if err != nil {
 			return nil, err
 		}
-		txID, err := cli.SubmitTx(ctx, tx.Bytes())
-		if err != nil {
-			return nil, err
-		}
 
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
-		if err != nil {
+		if err := pacer.add(tx); err != nil {
 			return nil, err
-		}
-		if !success {
-			return nil, ErrTxFailed
 		}
 	}
+
+	if err := pacer.wait(); err != nil {
+		return nil, err
+	}
+
 	return accounts, nil
 }
 
@@ -530,7 +542,21 @@ func consolidateFunds(
 
 	uris := network.URIs()
 	cli := jsonrpc.NewJSONRPCClient(uris[0])
-	indexerCli := indexer.NewClient(uris[0])
+	ws, err := ws.NewWebSocketClient(
+		uris[0],
+		ws.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return err
+	}
+	defer ws.Close()
+
+	pacer := newPacer(ws, 100)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go pacer.run(cctx)
 
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
@@ -585,21 +611,12 @@ func consolidateFunds(
 	}
 
 	for _, tx := range txs {
-		txID, err := cli.SubmitTx(ctx, tx.Bytes())
-		if err != nil {
+		if err := pacer.add(tx); err != nil {
 			return err
-		}
-
-		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
-		if err != nil {
-			return err
-		}
-		if !success {
-			return ErrTxFailed
 		}
 	}
 
-	return nil
+	return pacer.wait()
 }
 
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
