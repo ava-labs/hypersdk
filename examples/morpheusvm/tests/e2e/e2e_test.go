@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/load"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
@@ -69,8 +72,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 			Timeout:      20 * time.Second,
 		},
 		hload.DefaultGradualLoadOrchestratorConfig(),
-		load.FundDistributor,
-		load.FundConsolidator,
+		createTransfer,
 	)
 
 	env := fixture.NewTestEnvironment(
@@ -95,6 +97,14 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// Initialize the local test environment from the global state
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
 })
+
+func createTransfer(to codec.Address, amount uint64, nonce uint64) chain.Action {
+	return &actions.Transfer{
+		To:    to,
+		Value: amount,
+		Memo:  binary.BigEndian.AppendUint64(nil, nonce),
+	}
+}
 
 func loadTxGenerators(
 	ctx context.Context,

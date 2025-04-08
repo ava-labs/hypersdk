@@ -6,6 +6,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,9 +24,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/load"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -50,8 +56,10 @@ var (
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
 
-	fundDistributor  FundDistributor
-	fundConsolidator FundConsolidator
+	createTransfer CreateTransfer
+
+	ErrInsufficientFunds = errors.New("insufficient funds")
+	ErrTxFailed          = errors.New("transaction failed")
 )
 
 // LoadTxGenerator returns the components necessary to instantiate an
@@ -63,12 +71,8 @@ type LoadTxGenerator func(
 	authFactories []chain.AuthFactory,
 ) ([]load.TxGenerator[*chain.Transaction], error)
 
-// FundDistributor distributes funds from a funder account to a set of test accounts.
-type FundDistributor func(context.Context, string, chain.AuthFactory, uint64) ([]chain.AuthFactory, error)
-
-// FundConsolidator collects the funds from the test accounts and sends them
-// back to the funder account.
-type FundConsolidator func(context.Context, string, []chain.AuthFactory, chain.AuthFactory) error
+// CreateTransfer should return an action that transfers amount to the given address
+type CreateTransfer func(to codec.Address, amount uint64, nonce uint64) chain.Action
 
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
@@ -78,8 +82,7 @@ func SetWorkload(
 	loadTracker load.Tracker[ids.ID],
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
-	distributor FundDistributor,
-	consolidator FundConsolidator,
+	createTransferF CreateTransfer,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
@@ -88,8 +91,7 @@ func SetWorkload(
 	tracker = loadTracker
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
-	fundDistributor = distributor
-	fundConsolidator = consolidator
+	createTransfer = createTransferF
 }
 
 // ExposeMetrics begins a HTTP server that exposes the metrics of registry and
@@ -225,7 +227,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := fundDistributor(ctx, uris[0], networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -257,7 +259,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
 
-		require.NoError(fundConsolidator(ctx, uris[0], accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, accounts, networkConfig.AuthFactories()[0]))
 	})
 
 	ginkgo.It("Gradual Load Workload", func() {
@@ -267,7 +269,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := fundDistributor(ctx, uris[0], networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -299,7 +301,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 
-		require.NoError(fundConsolidator(ctx, uris[0], accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, accounts, networkConfig.AuthFactories()[0]))
 	})
 })
 
@@ -425,6 +427,180 @@ var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 		}
 	}
 })
+
+func distributeFunds(
+	ctx context.Context,
+	tc *e2e.GinkgoTestContext,
+	funder chain.AuthFactory,
+	numAccounts uint64,
+) ([]chain.AuthFactory, error) {
+	network := NewNetwork(tc)
+	ruleFactory, err := network.GetRuleFactory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	uris := network.URIs()
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	indexerCli := indexer.NewClient(uris[0])
+
+	balance, err := cli.GetBalance(ctx, funder.Address())
+	if err != nil {
+		return nil, err
+	}
+
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := uint64(0)
+
+	action := []chain.Action{createTransfer(funder.Address(), 1, nonce)}
+	units, err := chain.EstimateUnits(
+		ruleFactory.GetRules(time.Now().UnixMilli()),
+		action,
+		funder,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	fee, err := fees.MulSum(units, unitPrices)
+	if err != nil {
+		return nil, err
+	}
+
+	amountPerAccount := (balance - (numAccounts * fee)) / numAccounts
+	if amountPerAccount == 0 {
+		return nil, ErrInsufficientFunds
+	}
+
+	// Generate test accounts
+	accounts := make([]chain.AuthFactory, numAccounts)
+	for i := range numAccounts {
+		pk, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		accounts[i] = auth.NewED25519Factory(pk)
+	}
+
+	// Send and confirm funds to each account
+	for _, account := range accounts {
+		action := createTransfer(account.Address(), amountPerAccount, nonce)
+		nonce++
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			time.Now().UnixMilli(),
+			[]chain.Action{action},
+			funder,
+		)
+		if err != nil {
+			return nil, err
+		}
+		txID, err := cli.SubmitTx(ctx, tx.Bytes())
+		if err != nil {
+			return nil, err
+		}
+
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+		if err != nil {
+			return nil, err
+		}
+		if !success {
+			return nil, ErrTxFailed
+		}
+	}
+	return accounts, nil
+}
+
+func consolidateFunds(
+	ctx context.Context,
+	tc *e2e.GinkgoTestContext,
+	accounts []chain.AuthFactory,
+	to chain.AuthFactory,
+) error {
+	network := NewNetwork(tc)
+	ruleFactory, err := network.GetRuleFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	uris := network.URIs()
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	indexerCli := indexer.NewClient(uris[0])
+
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return err
+	}
+
+	nonce := uint64(0)
+
+	action := []chain.Action{createTransfer(to.Address(), 1, nonce)}
+	units, err := chain.EstimateUnits(
+		ruleFactory.GetRules(time.Now().UnixMilli()),
+		action,
+		to,
+	)
+	if err != nil {
+		return err
+	}
+
+	fee, err := fees.MulSum(units, unitPrices)
+	if err != nil {
+		return err
+	}
+
+	balances := make([]uint64, len(accounts))
+	for i, account := range accounts {
+		balance, err := cli.GetBalance(ctx, account.Address())
+		if err != nil {
+			return err
+		}
+		balances[i] = balance
+	}
+
+	txs := make([]*chain.Transaction, 0)
+	for i, balance := range balances {
+		if balance < fee {
+			continue
+		}
+		amount := balance - fee
+		action := createTransfer(accounts[i].Address(), amount, nonce)
+		nonce++
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			time.Now().UnixMilli(),
+			[]chain.Action{action},
+			accounts[i],
+		)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, tx)
+	}
+
+	for _, tx := range txs {
+		txID, err := cli.SubmitTx(ctx, tx.Bytes())
+		if err != nil {
+			return err
+		}
+
+		success, _, err := indexerCli.WaitForTransaction(ctx, txCheckInterval, txID)
+		if err != nil {
+			return err
+		}
+		if !success {
+			return ErrTxFailed
+		}
+	}
+
+	return nil
+}
 
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
 	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()
