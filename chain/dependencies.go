@@ -17,22 +17,32 @@ import (
 )
 
 type Parser interface {
+	// Parse marshaled action
 	ParseAction([]byte) (Action, error)
+	// Parse marshaled auth
 	ParseAuth([]byte) (Auth, error)
 }
 
 type Mempool interface {
-	Len(context.Context) int  // items
+	// Number of items
+	Len(context.Context) int
+	// Size of mempool in bytes
 	Size(context.Context) int // bytes
+	// Add a tx to the mempool
 	Add(context.Context, []*Transaction)
 
+	// Signal to mempool to prepare new stream of txs
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
+	// Signal to mempool to prepare new stream of count txs
+	PrepareStream(ctx context.Context, count int)
+	// Get txs from mempool
 	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	// Restore txs to mempool and clear streamed items
+	FinishStreaming(ctx context.Context, txs []*Transaction) int
 }
 
 type Genesis interface {
+	// Initialize state of the chain, which may including balance allocations
 	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler BalanceHandler) error
 }
 
@@ -40,20 +50,31 @@ type Genesis interface {
 type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
+	//
+	// network ID
 	GetNetworkID() uint32
+	// chain ID
 	GetChainID() ids.ID
 
-	GetMinBlockGap() int64      // in milliseconds
-	GetMinEmptyBlockGap() int64 // in milliseconds
-	GetValidityWindow() int64   // in milliseconds
+	// minimum gap between non-empty blocks (in milliseconds)
+	GetMinBlockGap() int64
+	// minimum gap between empty blocks (in milliseconds)
+	GetMinEmptyBlockGap() int64
+	// validity window for txs (in milliseconds)
+	GetValidityWindow() int64
 
+	// maximum number of actions per transaction
 	GetMaxActionsPerTx() uint8
 
+	// minimum unit price
 	GetMinUnitPrice() fees.Dimensions
+	// unit price change denominator
 	GetUnitPriceChangeDenominator() fees.Dimensions
+	// amount of units that block consumption should target
 	GetWindowTargetUnits() fees.Dimensions
+	// maximum amount of units that a block can consume
 	GetMaxBlockUnits() fees.Dimensions
-
+	// minimum amount of compute
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
@@ -62,24 +83,37 @@ type Rules interface {
 	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is
 	//   up to the controller to ensure multiple usage has some compute cost
-	GetSponsorStateKeysMaxChunks() []uint16
-	GetStorageKeyReadUnits() uint64
-	GetStorageValueReadUnits() uint64 // per chunk
-	GetStorageKeyAllocateUnits() uint64
-	GetStorageValueAllocateUnits() uint64 // per chunk
-	GetStorageKeyWriteUnits() uint64
-	GetStorageValueWriteUnits() uint64 // per chunk
 
+	// Maximum number of chunks associated with the sponsor account
+	GetSponsorStateKeysMaxChunks() []uint16
+	// Fixed cost of reading a kv-pair
+	GetStorageKeyReadUnits() uint64
+	// Variable cost of reading a kv-pair (per chunk)
+	GetStorageValueReadUnits() uint64
+	// Fixed cost of allocating a kv-pair
+	GetStorageKeyAllocateUnits() uint64
+	// Variable cost of allocating a kv-pair (per chunk)
+	GetStorageValueAllocateUnits() uint64
+	// Fixed cost of writing a kv-pair
+	GetStorageKeyWriteUnits() uint64
+	// Variable cost of writing a kv-pair (per chunk)
+	GetStorageValueWriteUnits() uint64
+
+	// Fetch a custom rule
 	FetchCustom(string) (any, bool)
 }
 
 type RuleFactory interface {
+	// Get rules at timestamp t
 	GetRules(t int64) Rules
 }
 
 type MetadataManager interface {
+	// Get prefix key for storing block height
 	HeightPrefix() []byte
+	// Get prefix key for storing block timestamp
 	TimestampPrefix() []byte
+	// Get prefix key for storing fees
 	FeePrefix() []byte
 }
 
@@ -107,6 +141,7 @@ type BalanceHandler interface {
 }
 
 type Action interface {
+	// Unique identifier for this action.
 	GetTypeID() uint8
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
@@ -208,23 +243,31 @@ type Auth interface {
 }
 
 type AuthBatchVerifier interface {
+	// Add a signature to batch verification.
+	// Returns a function if there's enough signatures to batch verify.
 	Add([]byte, Auth) func() error
+	// Returns a function to verify all outstanding signatures.
 	Done() []func() error
 }
 
 type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte) (Auth, error)
+	// Max bandwidth and compute units that this factory consumes
 	MaxUnits() (bandwidth uint64, compute uint64)
+	// Address of the factory
 	Address() codec.Address
 }
 
 type ValidityWindow interface {
+	// Verify that there are no repeats within blk and within the validity window.
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
 		blk validitywindow.ExecutionBlock[*Transaction],
 	) error
+	// Accept blk as most recent
 	Accept(blk validitywindow.ExecutionBlock[*Transaction])
+	// Check if txs are repeats within the validity window
 	IsRepeat(
 		ctx context.Context,
 		parentBlk validitywindow.ExecutionBlock[*Transaction],
