@@ -73,21 +73,12 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		load.FundConsolidator,
 	)
 
-	vmConfig := `{
-		"statesync": {"minBlocks": 128},
-		"vm": {
-			"mempoolSize"       : 9223372036854775807,
-			"mempoolSponsorSize": 9223372036854775807
-		}
-	}`
-
 	env := fixture.NewTestEnvironment(
 		e2e.NewTestContext(),
 		flagVars,
 		owner,
 		testingNetworkConfig,
 		consts.ID,
-		vmConfig,
 	)
 
 	cleanUpFunc, err := he2e.ExposeMetrics(context.Background(), env, registry)

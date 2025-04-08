@@ -25,7 +25,6 @@ func NewTestEnvironment(
 	owner string,
 	networkConfig workload.TestNetworkConfiguration,
 	vmID ids.ID,
-	vmConfig string,
 ) *e2e.TestEnvironment {
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
@@ -34,7 +33,6 @@ func NewTestEnvironment(
 	subnet := NewHyperVMSubnet(
 		networkConfig.Name(),
 		vmID,
-		vmConfig,
 		networkConfig.GenesisBytes(),
 		nodes...,
 	)
