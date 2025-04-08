@@ -99,11 +99,11 @@ maxAttempts := maximum number of attempts we have to achieve currTargetTPS
 txsPerIssuer := currTargetTPS / numOfIssuers
 attempts := 0
 
-for each issuer: // Async
+for each issuer { // Async
     send txsPerIssuer txs per second
-end for
+}
 
-for
+for {
     wait for SustainedTime
 
     tps := number of accepted txs divided by the SustainedTime
@@ -113,8 +113,6 @@ for
     else:
         if attempts >= maxAttempts:
             fail
-        end if
         iters += 1
-    end if
-end for
+}
 ```
