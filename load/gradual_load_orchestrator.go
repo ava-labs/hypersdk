@@ -212,7 +212,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) {
 	}
 }
 
-// GetObservedIssued returns the max TPS the orchestrator observed (modulus the step size).
+// GetObservedIssued returns the max TPS the orchestrator observed
 func (o *GradualLoadOrchestrator[T, U]) GetMaxObservedTPS() uint64 {
 	return o.maxObservedTPS.Load()
 }
