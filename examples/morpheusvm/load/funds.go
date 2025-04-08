@@ -95,6 +95,7 @@ func FundDistributor(
 		tx, err := chain.GenerateTransaction(
 			ruleFactory,
 			unitPrices,
+			time.Now().UnixMilli(),
 			[]chain.Action{action},
 			funder,
 		)
@@ -180,6 +181,7 @@ func FundConsolidator(
 		tx, err := chain.GenerateTransaction(
 			ruleFactory,
 			unitPrices,
+			time.Now().UnixMilli(),
 			[]chain.Action{action},
 			accounts[i],
 		)
