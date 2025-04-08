@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -61,12 +60,11 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		time := time.Now()
 		// accepted txs have a non-nil result
 		if result != nil {
-			i.tracker.ObserveConfirmed(txID, time)
+			i.tracker.ObserveConfirmed(txID)
 		} else {
-			i.tracker.ObserveFailed(txID, time)
+			i.tracker.ObserveFailed(txID)
 		}
 
 		i.incrementReceivedTxs()
@@ -95,8 +93,7 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 		return err
 	}
 	// Update tracker
-	now := time.Now()
-	i.tracker.Issue(tx.GetID(), now)
+	i.tracker.Issue(tx.GetID())
 	i.issuedTxs++
 	return nil
 }

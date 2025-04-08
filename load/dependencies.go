@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"time"
 )
 
 type TxGenerator[T comparable] interface {
@@ -33,11 +32,11 @@ type Issuer[T comparable] interface {
 type Tracker[T comparable] interface {
 	// Issue records a transaction that was submitted, but whose final status is
 	// not yet known.
-	Issue(T, time.Time)
+	Issue(T)
 	// ObserveConfirmed records a transaction that was confirmed.
-	ObserveConfirmed(T, time.Time)
+	ObserveConfirmed(T)
 	// ObserveFailed records a transaction that failed (e.g. expired)
-	ObserveFailed(T, time.Time)
+	ObserveFailed(T)
 
 	// GetObservedIssued returns the number of transactions that the tracker has
 	// confirmed were issued.

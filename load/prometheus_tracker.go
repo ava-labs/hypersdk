@@ -86,16 +86,16 @@ func (p *PrometheusTracker[T]) GetObservedIssued() uint64 {
 	return p.txsIssued
 }
 
-func (p *PrometheusTracker[T]) Issue(tx T, time time.Time) {
+func (p *PrometheusTracker[T]) Issue(tx T) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.outstandingTxs[tx] = time
+	p.outstandingTxs[tx] = time.Now()
 	p.txsIssued++
 	p.txsIssuedCounter.Inc()
 }
 
-func (p *PrometheusTracker[T]) ObserveConfirmed(tx T, time time.Time) {
+func (p *PrometheusTracker[T]) ObserveConfirmed(tx T) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -104,10 +104,10 @@ func (p *PrometheusTracker[T]) ObserveConfirmed(tx T, time time.Time) {
 
 	p.txsConfirmed++
 	p.txsConfirmedCounter.Inc()
-	p.txLatency.Observe(float64(time.Sub(startTime).Milliseconds()))
+	p.txLatency.Observe(float64(time.Since(startTime).Milliseconds()))
 }
 
-func (p *PrometheusTracker[T]) ObserveFailed(tx T, time time.Time) {
+func (p *PrometheusTracker[T]) ObserveFailed(tx T) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -116,5 +116,5 @@ func (p *PrometheusTracker[T]) ObserveFailed(tx T, time time.Time) {
 
 	p.txsFailed++
 	p.txsFailedCounter.Inc()
-	p.txLatency.Observe(float64(time.Sub(startTime).Milliseconds()))
+	p.txLatency.Observe(float64(time.Since(startTime).Milliseconds()))
 }
