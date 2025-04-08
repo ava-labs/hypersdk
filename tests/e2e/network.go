@@ -143,7 +143,7 @@ func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth c
 		return nil, err
 	}
 
-	return chain.GenerateTransaction(ruleFactory, unitPrices, actions, auth)
+	return chain.GenerateTransaction(ruleFactory, unitPrices, time.Now().UnixMilli(), actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {
