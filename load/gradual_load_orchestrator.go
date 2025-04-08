@@ -62,9 +62,9 @@ func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 }
 
 // GradualLoadOrchestrator tests the network by continuously sending
-// transactions at a given rate (targetTPS) and increasing that rate until it detects that
+// transactions at a given rate (currTargetTPS) and increasing that rate until it detects that
 // the network can no longer make progress (i.e. the rate at the network accepts
-// transactions is less than targetTPS).
+// transactions is less than currTargetTPS).
 type GradualLoadOrchestrator[T, U comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]
@@ -132,11 +132,12 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // 3. the maximum number of attempts to reach a target TPS has been reached
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 	var (
-		prevConfirmed  = o.tracker.GetObservedConfirmed()
-		prevTime       = time.Now()
-		currTargetTPS  = new(atomic.Uint64)
-		achievedMaxTPS bool
-		attempts       uint64
+		prevConfirmed = o.tracker.GetObservedConfirmed()
+		prevTime      = time.Now()
+		currTargetTPS = new(atomic.Uint64)
+		// true if the orchestrator has reached the max TPS target
+		achievedTargetTPS bool
+		attempts          uint64
 	)
 
 	currTargetTPS.Store(o.config.MinTPS)
@@ -163,9 +164,9 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
 		o.setMaxObservedTPS(tps)
 
-		// if maxTPS has been reached and we don't terminate, then continue so
+		// if max TPS target has been reached and we don't terminate, then continue so
 		// that we do not manipulate TPS target
-		if achievedMaxTPS && !o.config.Terminate {
+		if achievedTargetTPS && !o.config.Terminate {
 			o.log.Info(
 				"current network state",
 				zap.Uint64("current TPS", tps),
@@ -176,10 +177,10 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 
 		if tps >= currTargetTPS.Load() {
 			if currTargetTPS.Load() >= o.config.MaxTPS {
-				achievedMaxTPS = true
+				achievedTargetTPS = true
 				o.log.Info(
-					"max TPS reached",
-					zap.Uint64("target TPS", currTargetTPS.Load()),
+					"max TPS target reached",
+					zap.Uint64("max TPS target", currTargetTPS.Load()),
 					zap.Uint64("average TPS", tps),
 				)
 				if o.config.Terminate {
@@ -202,14 +203,14 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 			if attempts >= o.config.MaxAttempts {
 				o.log.Info(
 					"max attempts reached",
-					zap.Uint64("target TPS", currTargetTPS.Load()),
+					zap.Uint64("attempted target TPS", currTargetTPS.Load()),
 					zap.Uint64("number of attempts", attempts),
 				)
 				break // Case 3
 			}
 			o.log.Info(
 				"failed to reach target TPS, retrying",
-				zap.Uint64("target TPS", currTargetTPS.Load()),
+				zap.Uint64("current target TPS", currTargetTPS.Load()),
 				zap.Uint64("average TPS", tps),
 				zap.Uint64("attempt number", attempts),
 			)
@@ -220,7 +221,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 		prevTime = currTime
 	}
 
-	return achievedMaxTPS
+	return achievedTargetTPS
 }
 
 // GetObservedIssued returns the max TPS the orchestrator observed
