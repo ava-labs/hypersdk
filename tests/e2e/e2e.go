@@ -93,11 +93,12 @@ func SetWorkload(
 }
 
 // ExposeMetrics begins a HTTP server that exposes the metrics of registry and
-// writes the collector config to a file which tmpnet uses to discover the
+// writes the collector config to a unique file which tmpnet uses to discover the
 // server and scrape its metrics.
 // Returns a cleanup function which, when called, stops the server and removes
 // the collector config file.
-// ExposeMetrics should be called at most once
+// ExposeMetrics should be called at most once per test run, as ExposeMetrics
+// deletes any existing collector config file.
 func ExposeMetrics(
 	ctx context.Context,
 	testEnv *e2e.TestEnvironment,
