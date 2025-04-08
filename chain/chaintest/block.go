@@ -10,7 +10,6 @@ import (
 	"math"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
@@ -29,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/state/balance"
 	"github.com/ava-labs/hypersdk/state/tstate"
-	"github.com/ava-labs/hypersdk/utils"
 
 	internalfees "github.com/ava-labs/hypersdk/internal/fees"
 )
@@ -113,9 +111,6 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TxBaseConstructor is a function that returns a valid TX base based off of actions.
-type TxBaseConstructor func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error)
-
 // parentContext holds values relating to the parent block that is required
 // for producing the child block.
 type parentContext struct {
@@ -132,7 +127,7 @@ type parentContext struct {
 // transactions followed by writing the chain metadata to the state diff.
 func GenerateExecutionBlocks[T any](
 	ctx context.Context,
-	rules chain.Rules,
+	ruleFactory chain.RuleFactory,
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
 	factories []chain.AuthFactory,
@@ -144,6 +139,7 @@ func GenerateExecutionBlocks[T any](
 	numTxsPerBlock uint64,
 ) ([]*chain.ExecutionBlock, error) {
 	var timestampOffset int64
+	rules := ruleFactory.GetRules(parentCtx.timestamp)
 	timestampOffset = rules.GetMinEmptyBlockGap()
 	if numTxsPerBlock > 0 {
 		timestampOffset = rules.GetMinBlockGap()
@@ -166,7 +162,9 @@ func GenerateExecutionBlocks[T any](
 			factories,
 			keys,
 			actionGenerator,
-			txBaseConstructorF(rules, unitPrices, timestamp),
+			ruleFactory,
+			unitPrices,
+			timestamp,
 		)
 		if err != nil {
 			return nil, err
@@ -320,7 +318,7 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 
 	blocks, err := GenerateExecutionBlocks(
 		ctx,
-		test.RuleFactory.GetRules(time.Now().UnixMilli()),
+		test.RuleFactory,
 		test.MetadataManager,
 		test.BalanceHandler,
 		factories,
@@ -359,26 +357,6 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
 }
 
-func txBaseConstructorF(rules chain.Rules, unitPrices fees.Dimensions, timestamp int64) TxBaseConstructor {
-	return func(actions []chain.Action, factory chain.AuthFactory) (chain.Base, error) {
-		units, err := chain.EstimateUnits(rules, actions, factory)
-		if err != nil {
-			return chain.Base{}, err
-		}
-
-		maxFee, err := fees.MulSum(unitPrices, units)
-		if err != nil {
-			return chain.Base{}, err
-		}
-
-		return chain.Base{
-			Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
-			ChainID:   rules.GetChainID(),
-			MaxFee:    maxFee,
-		}, nil
-	}
-}
-
 // GenesisGenerator should return the following:
 // 1. numTxsPerBlock auth factories
 // 2. the set of keys used for state access distribution
@@ -391,9 +369,9 @@ type ActionConstructor[T any] func(T, uint64) chain.Action
 // StateAccessDistributor is responsible for generating a list of transactions
 // whose state accesses vary depending on the distribution function (parallel,
 // serial, zipf, etc.)
-type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error)
+type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error)
 
-func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], TxBaseConstructor) ([]*chain.Transaction, error) {
+func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
@@ -404,7 +382,9 @@ func ParallelDistribution[T any](
 	factories []chain.AuthFactory,
 	keys []T,
 	ac ActionConstructor[T],
-	txBaseConstructor TxBaseConstructor,
+	ruleFactory chain.RuleFactory,
+	unitPrices fees.Dimensions,
+	timestamp int64,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
@@ -418,13 +398,13 @@ func ParallelDistribution[T any](
 
 		nonce++
 
-		txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txData := chain.NewTxData(txBase, []chain.Action{action})
-		tx, err := txData.Sign(factories[i])
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -442,7 +422,9 @@ func SerialDistribution[T any](
 	factories []chain.AuthFactory,
 	keys []T,
 	ac ActionConstructor[T],
-	txBaseConstructor TxBaseConstructor,
+	ruleFactory chain.RuleFactory,
+	unitPrices fees.Dimensions,
+	timestamp int64,
 ) ([]*chain.Transaction, error) {
 	if len(keys) != 1 {
 		return nil, ErrSingleKeyLengthOnly
@@ -456,13 +438,13 @@ func SerialDistribution[T any](
 
 		nonce++
 
-		txBase, err := txBaseConstructor([]chain.Action{action}, factories[0])
-		if err != nil {
-			return nil, err
-		}
-
-		txData := chain.NewTxData(txBase, []chain.Action{action})
-		tx, err := txData.Sign(factories[i])
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -480,7 +462,9 @@ func ZipfDistribution[T any](
 	factories []chain.AuthFactory,
 	keys []T,
 	ac ActionConstructor[T],
-	txBaseConstructor TxBaseConstructor,
+	ruleFactory chain.RuleFactory,
+	unitPrices fees.Dimensions,
+	timestamp int64,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
@@ -499,13 +483,13 @@ func ZipfDistribution[T any](
 
 		nonce++
 
-		txBase, err := txBaseConstructor([]chain.Action{action}, factories[i])
-		if err != nil {
-			return nil, err
-		}
-
-		txData := chain.NewTxData(txBase, []chain.Action{action})
-		tx, err := txData.Sign(factories[i])
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
 		if err != nil {
 			return nil, err
 		}
