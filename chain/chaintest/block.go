@@ -110,9 +110,9 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TxListGenerator is a function that should return a list of valid TXs of
+// TxListGenerator is a function that should return a list of valid txs of
 // length numTxsPerBlock (derived from BlockBenchmark).
-type TxListGenerator func(chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error)
+type TxListGenerator func(ruleFactory chain.RuleFactory, unitPrices fees.Dimensions, numTxsPerBlock int64) ([]*chain.Transaction, error)
 
 func EmptyTxListGenerator(chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
