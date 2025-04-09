@@ -12,6 +12,8 @@ To contribute to `hypersdk`, you'll need:
 
 On MacOS, a modern version of bash is required (e.g. via [homebrew](https://brew.sh/) with `brew install bash`). The version installed by default is not compatible with HyperSDK's [shell scripts](scripts).
 
+An [optional dev shell](#optional-dev-shell) may be used to gain access to additional dependencies.
+
 ### Setting up your development environment
 
 1. Clone the repository:

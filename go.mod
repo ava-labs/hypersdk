@@ -1,7 +1,9 @@
 module github.com/ava-labs/hypersdk
 
 // - Changes to the minimum golang version must also be replicated in:
+//   - .devcontainer/default-go-env/devcontainer.json
 //   - CONTRIBUTING.md
+//   - Dockerfile
 //   - examples/morpheusvm/go.mod
 //   - go.mod (here)
 //
