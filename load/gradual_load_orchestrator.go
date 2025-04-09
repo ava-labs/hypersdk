@@ -164,8 +164,8 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
 		o.setMaxObservedTPS(tps)
 
-		// if max TPS target has been reached and we don't terminate, then continue so
-		// that we do not manipulate TPS target
+		// if max TPS target has been reached and we don't terminate, then continue here
+		// so we do not keep increasing the target TPS
 		if achievedTargetTPS && !o.config.Terminate {
 			o.log.Info(
 				"current network state",
