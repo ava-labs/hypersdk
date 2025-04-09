@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
+	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
 	"github.com/ava-labs/hypersdk/internal/workers"
 	"github.com/ava-labs/hypersdk/state"
@@ -282,6 +283,16 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		processorWorkers = workers.NewParallel(test.AuthVerificationCores, numAuthVerificationJobs)
 	}
 
+	chainIndex := &validitywindowtest.MockChainIndex[*chain.Transaction]{}
+	validityWindow := validitywindow.NewTimeValidityWindow(
+		logging.NoLog{},
+		trace.Noop,
+		chainIndex,
+		func(timestamp int64) int64 {
+			return test.RuleFactory.GetRules(timestamp).GetValidityWindow()
+		},
+	)
+
 	processor := chain.NewProcessor(
 		trace.Noop,
 		&logging.NoLog{},
@@ -290,7 +301,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.AuthEngines,
 		test.MetadataManager,
 		test.BalanceHandler,
-		&validitywindowtest.MockTimeValidityWindow[*chain.Transaction]{},
+		validityWindow,
 		metrics,
 		test.Config,
 	)
@@ -329,6 +340,12 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.NumTxsPerBlock,
 	)
 	r.NoError(err)
+
+	// Store all produced blocks to chainIndex
+	chainIndex.Set(genesisExecutionBlk.GetID(), genesisExecutionBlk)
+	for _, blk := range blocks {
+		chainIndex.Set(blk.GetID(), blk)
+	}
 
 	var parentView merkledb.View
 	parentView = db
