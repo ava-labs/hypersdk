@@ -547,7 +547,6 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		},
 	}
 
-	metadataManager := metadata.NewDefaultManager()
 	// modify default rules to avoid test failures due to fee spikes
 	rules := genesis.NewDefaultRules()
 	rules.WindowTargetUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
@@ -557,8 +556,8 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark{
-				MetadataManager:      metadataManager,
-				BalanceHandler:       balance.NewPrefixBalanceHandler(metadataManager.FeePrefix()),
+				MetadataManager:      metadata.NewDefaultManager(),
+				BalanceHandler:       balance.NewPrefixBalanceHandler([]byte{metadata.DefaultMinimumPrefix}),
 				AuthEngines:          auth.DefaultEngines(),
 				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: rules},
 				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
