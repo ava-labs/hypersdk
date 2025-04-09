@@ -11,5 +11,4 @@ cd "${REPO_ROOT}"
 # Set AVALANCHE_VERSION
 . ./scripts/constants.sh
 
-echo "Running tmpnetctl @ ${AVALANCHE_VERSION}"
 go run github.com/ava-labs/avalanchego/tests/fixture/tmpnet/tmpnetctl@"${AVALANCHE_VERSION}" "${@}"
