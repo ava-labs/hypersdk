@@ -79,7 +79,7 @@ once. This orchestrator is parameterizable via the following:
 
 ### Gradual Load
 
-The gradual load orchestrator sends transactions at a initial rate (TPS) and
+The gradual load orchestrator sends transactions at an initial rate (TPS) and
 increases that rate until hitting the maxiumum desired rate or until the
 orchestrator determines that it can no longer make progress. 
 
