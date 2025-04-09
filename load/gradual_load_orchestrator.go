@@ -22,30 +22,31 @@ var (
 )
 
 type GradualLoadOrchestratorConfig struct {
-	// the maximum TPS the orchestrator should aim for.
+	// The maximum TPS the orchestrator should aim for.
 	MaxTPS uint64
-	// the minimum TPS the orchestrator should start with.
+	// The minimum TPS the orchestrator should start with.
 	MinTPS uint64
-	// the step size to increase the TPS by.
+	// The step size to increase the TPS by.
 	Step uint64
 
-	// the factor by which to pad the number of txs an issuer sends per second
+	// The factor by which to pad the number of txs an issuer sends per second
 	// for example, if targetTPS = 1000 and numIssuers = 10, then each issuer
 	// will send (1000/10)*TxRateMultiplier transactions per second.
 	//
-	// this is useful when the network can handle the current target TPS but it
-	// hasn't received enough transactions to achieve that TPS (as a result of
-	// latency between individual issuers and the API nodes).
+	// Maintaining a multiplier above target provides a toggle to keep load
+	// persistently above instead of below target. This ensures load generation
+	// does not pause issuance at the target and persistently under-issue and
+	// fail to account for the time it takes to add more load.
 	TxRateMultiplier float64
 
-	// the time period which TPS is averaged over
-	// similarly, the time period which the orchestrator will wait before
+	// The time period which TPS is averaged over
+	// Similarly, the time period which the orchestrator will wait before
 	// computing the average TPS.
 	SustainedTime time.Duration
-	// the number of attempts to try achieving a given target TPS before giving up.
+	// The number of attempts to try achieving a given target TPS before giving up.
 	MaxAttempts uint64
 
-	// whether the orchestrator should return if the maxTPS has been reached
+	// Whether the orchestrator should return if the maxTPS has been reached
 	Terminate bool
 }
 
