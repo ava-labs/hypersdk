@@ -190,6 +190,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
       - name: useless-break
         disabled: false
+# https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#exported
       - name: exported
         disabled: false
         arguments:
