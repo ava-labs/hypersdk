@@ -22,7 +22,7 @@ AVALANCHEGO_PLUGIN_DIR="${AVALANCHEGO_PLUGIN_DIR:-../../build/plugins}"
 mkdir -p "${AVALANCHEGO_PLUGIN_DIR}"
 AVALANCHEGO_PLUGIN_DIR=$(realpath "${AVALANCHEGO_PLUGIN_DIR}")
 
-echo "testing build of avalanchego"
+echo "checking version of avalanchego"
 ${AVALANCHEGO_PATH} --version
 
 echo "building morpheusvm"
