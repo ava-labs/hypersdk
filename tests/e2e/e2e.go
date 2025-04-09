@@ -228,7 +228,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransfer, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -260,7 +260,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
 
-		require.NoError(consolidateFunds(ctx, tc, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransfer, accounts, networkConfig.AuthFactories()[0]))
 	})
 
 	ginkgo.It("Gradual Load Workload", func() {
@@ -270,7 +270,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransfer, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -300,7 +300,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 
-		require.NoError(consolidateFunds(ctx, tc, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransfer, accounts, networkConfig.AuthFactories()[0]))
 	})
 })
 
@@ -430,6 +430,7 @@ var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 func distributeFunds(
 	ctx context.Context,
 	tc *e2e.GinkgoTestContext,
+	createTransfer CreateTransfer,
 	funder chain.AuthFactory,
 	numAccounts uint64,
 ) ([]chain.AuthFactory, error) {
@@ -529,6 +530,7 @@ func distributeFunds(
 func consolidateFunds(
 	ctx context.Context,
 	tc *e2e.GinkgoTestContext,
+	createTransfer CreateTransfer,
 	accounts []chain.AuthFactory,
 	to chain.AuthFactory,
 ) error {
