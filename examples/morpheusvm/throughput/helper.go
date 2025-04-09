@@ -11,7 +11,7 @@ import (
 	"encoding/binary"
 	"sync/atomic"
 
-	"golang.org/x/exp/rand"
+	"math/rand"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
