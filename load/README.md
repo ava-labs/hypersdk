@@ -48,12 +48,12 @@ between implementations (e.g. short burst vs gradual load).
 
 ### Transaction Generator
 
-The Tx generator is responsible for generating a valid transaction which any
+The tx generator is responsible for generating a valid transaction which any
 issuer can send.
 
 ### Tx Issuer
 
-The Tx issuer is responsible for tracking the status of all sent transactions. 
+The tx issuer is responsible for tracking the status of all sent transactions. 
 As it issues/confirms transactions, it notifies the tracker, so that it can 
 maintain metrics across the generated load.
 
