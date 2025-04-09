@@ -14,7 +14,7 @@ import (
 const authWorkerBacklog = 16_384
 
 type AuthEngines interface {
-	// Get auth batch verifier for a specific auth type
+	// Get verifier for verifying signatures in batches for a specific auth type.
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 }
 
