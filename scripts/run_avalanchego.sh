@@ -16,4 +16,5 @@ cd "${REPO_ROOT}"
 # Set AVALANCHE_VERSION and ensure CGO is configured
 . ./scripts/constants.sh
 
+echo "Running avalanchego @ ${AVALANCHE_VERSION}"
 go run github.com/ava-labs/avalanchego/main@"${AVALANCHE_VERSION}" "${@}"
