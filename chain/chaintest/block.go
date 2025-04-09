@@ -138,7 +138,7 @@ type parentContext struct {
 // GenerateExecutionBlocks generates numBlocks execution blocks with
 // txsPerBlock transactions per block.
 //
-// Block production is a simplified version of Builder; we execute
+// Block production is a simplified version of Builder. We execute
 // transactions followed by writing the chain metadata to the state diff.
 func GenerateExecutionBlocks(
 	ctx context.Context,
