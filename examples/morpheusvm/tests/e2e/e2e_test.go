@@ -9,9 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
@@ -57,23 +55,17 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	authFactories := testingNetworkConfig.AuthFactories()
 	generator := workload.NewTxGenerator(authFactories[1])
 
-	registry := prometheus.NewRegistry()
-	tracker, err := hload.NewPrometheusTracker[ids.ID](registry)
-	require.NoError(err)
-
 	he2e.SetWorkload(
 		testingNetworkConfig,
 		generator,
 		expectedABI,
 		loadTxGenerators,
-		tracker,
 		hload.ShortBurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
 		},
 		hload.DefaultGradualLoadOrchestratorConfig(),
 		createTransfer,
-		registry,
 	)
 
 	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()

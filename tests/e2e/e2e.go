@@ -52,13 +52,11 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	tracker           load.Tracker[ids.ID]
 	loadTxGenerator   LoadTxGenerator
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
 
-	metricsRegistry *prometheus.Registry
-	createTransfer  CreateTransfer
+	createTransferF CreateTransfer
 
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrTxFailed          = errors.New("transaction failed")
@@ -81,21 +79,17 @@ func SetWorkload(
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
 	generator LoadTxGenerator,
-	loadTracker load.Tracker[ids.ID],
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
-	createTransferF CreateTransfer,
-	registry *prometheus.Registry,
+	createTransfer CreateTransfer,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
 	loadTxGenerator = generator
-	tracker = loadTracker
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
-	createTransfer = createTransferF
-	metricsRegistry = registry
+	createTransferF = createTransfer
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -165,6 +159,13 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
 })
 
 var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Serial, func() {
+	tc := e2e.NewTestContext()
+	r := require.New(tc)
+
+	registry := prometheus.NewRegistry()
+	tracker, err := load.NewPrometheusTracker[ids.ID](registry)
+	r.NoError(err)
+
 	ginkgo.BeforeAll(func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
@@ -172,8 +173,8 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		// Start metrics server
 		mux := http.NewServeMux()
-		mux.Handle("/ext/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{
-			Registry: metricsRegistry,
+		mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+			Registry: registry,
 		}))
 
 		metricsServer := &http.Server{
@@ -214,7 +215,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, createTransfer, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -246,7 +247,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
 
-		require.NoError(consolidateFunds(ctx, tc, createTransfer, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
 	})
 
 	ginkgo.It("Gradual Load Workload", func() {
@@ -256,7 +257,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, createTransfer, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -286,7 +287,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 
-		require.NoError(consolidateFunds(ctx, tc, createTransfer, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
 	})
 })
 
