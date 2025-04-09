@@ -73,24 +73,10 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		},
 		hload.DefaultGradualLoadOrchestratorConfig(),
 		createTransfer,
+		registry,
 	)
 
-	env := fixture.NewTestEnvironment(
-		e2e.NewTestContext(),
-		flagVars,
-		owner,
-		testingNetworkConfig,
-		consts.ID,
-	)
-
-	cleanUpFunc, err := he2e.ExposeMetrics(context.Background(), env, registry)
-	require.NoError(err)
-
-	ginkgo.DeferCleanup(func() {
-		require.NoError(cleanUpFunc())
-	})
-
-	return env.Marshal()
+	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

@@ -57,7 +57,8 @@ var (
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
 
-	createTransfer CreateTransfer
+	metricsRegistry *prometheus.Registry
+	createTransfer  CreateTransfer
 
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrTxFailed          = errors.New("transaction failed")
@@ -84,6 +85,7 @@ func SetWorkload(
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
 	createTransferF CreateTransfer,
+	registry *prometheus.Registry,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
@@ -93,65 +95,7 @@ func SetWorkload(
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
 	createTransfer = createTransferF
-}
-
-// ExposeMetrics begins a HTTP server that exposes the metrics of registry and
-// writes the collector config to a unique file which tmpnet uses to discover the
-// server and scrape its metrics.
-// Returns a cleanup function which, when called, stops the server and removes
-// the collector config file.
-// ExposeMetrics should be called at most once per test run, as ExposeMetrics
-// deletes any existing collector config file.
-func ExposeMetrics(
-	ctx context.Context,
-	testEnv *e2e.TestEnvironment,
-	registry *prometheus.Registry,
-) (func() error, error) {
-	// Start metrics server
-	mux := http.NewServeMux()
-	mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
-		Registry: registry,
-	}))
-
-	metricsServer := &http.Server{
-		Addr:              metricsURI,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
-	var metricsServerErr error
-	go func() {
-		metricsServerErr = metricsServer.ListenAndServe()
-	}()
-
-	// Generate collector config
-	collectorConfigBytes, err := generateCollectorConfig(
-		[]string{metricsURI},
-		testEnv.GetNetwork().UUID,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	filePath := filepath.Join(homedir, metricsFilePath)
-
-	if err := writeCollectorConfig(filePath, collectorConfigBytes); err != nil {
-		return nil, err
-	}
-
-	return func() error {
-		if err := metricsServer.Shutdown(ctx); err != nil {
-			return err
-		}
-		if metricsServerErr != http.ErrServerClosed {
-			return metricsServerErr
-		}
-		return os.Remove(filePath)
-	}, nil
+	metricsRegistry = registry
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -220,7 +164,49 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Serial, func() {
+var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Serial, func() {
+	ginkgo.BeforeAll(func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		ctx := context.Background()
+
+		// Start metrics server
+		mux := http.NewServeMux()
+		mux.Handle("/ext/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{
+			Registry: metricsRegistry,
+		}))
+
+		metricsServer := &http.Server{
+			Addr:              metricsURI,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		var metricsServerErr error
+		go func() {
+			metricsServerErr = metricsServer.ListenAndServe()
+		}()
+
+		// Generate collector config
+		collectorConfigBytes, err := generateCollectorConfig(
+			[]string{metricsURI},
+			e2e.GetEnv(tc).GetNetwork().UUID,
+		)
+		require.NoError(err)
+
+		homedir, err := os.UserHomeDir()
+		require.NoError(err)
+
+		filePath := filepath.Join(homedir, metricsFilePath)
+		require.NoError(writeCollectorConfig(filePath, collectorConfigBytes))
+
+		ginkgo.DeferCleanup(func() {
+			require.NoError(metricsServer.Shutdown(ctx))
+			require.ErrorIs(metricsServerErr, http.ErrServerClosed)
+			require.NoError(os.Remove(filePath))
+		})
+	})
+
 	ginkgo.It("Short Burst Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
