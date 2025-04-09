@@ -27,7 +27,7 @@ type Mempool interface {
 	// Number of items
 	Len(context.Context) int
 	// Size of mempool in bytes
-	Size(context.Context) int // bytes
+	Size(context.Context) int
 	// Add a tx to the mempool
 	Add(context.Context, []*Transaction)
 
@@ -51,30 +51,30 @@ type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
 	//
-	// network ID
+	// Network ID
 	GetNetworkID() uint32
-	// chain ID
+	// Chain ID
 	GetChainID() ids.ID
 
-	// minimum gap between non-empty blocks (in milliseconds)
+	// Minimum gap between non-empty blocks (in milliseconds)
 	GetMinBlockGap() int64
-	// minimum gap between empty blocks (in milliseconds)
+	// Minimum gap between empty blocks (in milliseconds)
 	GetMinEmptyBlockGap() int64
-	// validity window for txs (in milliseconds)
+	// Validity window for txs (in milliseconds)
 	GetValidityWindow() int64
 
-	// maximum number of actions per transaction
+	// Maximum number of actions per transaction
 	GetMaxActionsPerTx() uint8
 
-	// minimum unit price
+	// Minimum unit price
 	GetMinUnitPrice() fees.Dimensions
-	// unit price change denominator
+	// Unit price change denominator
 	GetUnitPriceChangeDenominator() fees.Dimensions
-	// amount of units that block consumption should target
+	// Amount of units that block consumption should target
 	GetWindowTargetUnits() fees.Dimensions
-	// maximum amount of units that a block can consume
+	// Maximum amount of units that a block can consume
 	GetMaxBlockUnits() fees.Dimensions
-	// minimum amount of compute
+	// Minimum amount of compute
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
