@@ -28,7 +28,7 @@ type Mempool interface {
 	Len(context.Context) int
 	// Size of mempool in bytes
 	Size(context.Context) int
-	// Add a tx to the mempool
+	// Add a list of txs to the mempool
 	Add(context.Context, []*Transaction)
 
 	// Signal to mempool to prepare new stream of txs
