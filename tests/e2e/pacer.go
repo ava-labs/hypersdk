@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package throughput
+package e2e
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func newPacer(ws *ws.WebSocketClient, maxPending int) *pacer {
 	}
 }
 
-func (p *pacer) Run(ctx context.Context) {
+func (p *pacer) run(ctx context.Context) {
 	defer close(p.done)
 
 	for range p.inflight {
@@ -49,7 +49,7 @@ func (p *pacer) Run(ctx context.Context) {
 	}
 }
 
-func (p *pacer) Add(tx *chain.Transaction) error {
+func (p *pacer) add(tx *chain.Transaction) error {
 	// If Run failed, return the first error immediately, otherwise register the next tx
 	select {
 	case <-p.done:
@@ -68,7 +68,7 @@ func (p *pacer) Add(tx *chain.Transaction) error {
 	}
 }
 
-func (p *pacer) Wait() error {
+func (p *pacer) wait() error {
 	close(p.inflight)
 	// Wait for Run to complete
 	<-p.done
