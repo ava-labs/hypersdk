@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
@@ -574,10 +573,11 @@ func (*Transaction) CanotoSpec(types ...reflect.Type) *canoto.Spec {
 func GenerateTransaction(
 	ruleFactory RuleFactory,
 	unitPrices fees.Dimensions,
+	timestamp int64,
 	actions []Action,
 	authFactory AuthFactory,
 ) (*Transaction, error) {
-	rules := ruleFactory.GetRules(time.Now().UnixMilli())
+	rules := ruleFactory.GetRules(timestamp)
 	units, err := EstimateUnits(rules, actions, authFactory)
 	if err != nil {
 		return nil, err
@@ -586,7 +586,7 @@ func GenerateTransaction(
 	if err != nil {
 		return nil, err
 	}
-	tx, err := GenerateTransactionManual(rules, actions, authFactory, maxFee)
+	tx, err := GenerateTransactionManual(rules, timestamp, actions, authFactory, maxFee)
 	if err != nil {
 		return nil, err
 	}
@@ -595,13 +595,14 @@ func GenerateTransaction(
 
 func GenerateTransactionManual(
 	rules Rules,
+	timestamp int64,
 	actions []Action,
 	authFactory AuthFactory,
 	maxFee uint64,
 ) (*Transaction, error) {
 	unsignedTx := NewTxData(
 		Base{
-			Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), rules.GetValidityWindow()),
+			Timestamp: utils.UnixRMilli(timestamp, rules.GetValidityWindow()),
 			ChainID:   rules.GetChainID(),
 			MaxFee:    maxFee,
 		},

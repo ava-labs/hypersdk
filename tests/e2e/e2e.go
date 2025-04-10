@@ -4,7 +4,13 @@
 package e2e
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,36 +19,77 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/api/state"
+	"github.com/ava-labs/hypersdk/api/ws"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/load"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/tests/registry"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/throughput"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
+)
+
+const (
+	metricsURI = "localhost:8080"
+	// relative to the user home directory
+	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
 )
 
 var (
 	networkConfig workload.TestNetworkConfiguration
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
-	spamKey       chain.AuthFactory
-	spamHelper    throughput.SpamHelper
+
+	loadTxGenerator   LoadTxGenerator
+	shortBurstConfig  load.ShortBurstOrchestratorConfig
+	gradualLoadConfig load.GradualLoadOrchestratorConfig
+
+	createTransferF CreateTransfer
+
+	ErrInsufficientFunds = errors.New("insufficient funds")
+	ErrTxFailed          = errors.New("transaction failed")
 )
 
-func SetWorkload(networkConfigImpl workload.TestNetworkConfiguration, generator workload.TxGenerator, abi abi.ABI, sh throughput.SpamHelper, key chain.AuthFactory) {
+// LoadTxGenerator returns the components necessary to instantiate an
+// Orchestrator.
+// We use a generator here since the node URIs are not known until runtime.
+type LoadTxGenerator func(
+	ctx context.Context,
+	uri string,
+	authFactories []chain.AuthFactory,
+) ([]load.TxGenerator[*chain.Transaction], error)
+
+// CreateTransfer should return an action that transfers amount to the given address
+type CreateTransfer func(to codec.Address, amount uint64, nonce uint64) chain.Action
+
+func SetWorkload(
+	networkConfigImpl workload.TestNetworkConfiguration,
+	workloadTxGenerator workload.TxGenerator,
+	abi abi.ABI,
+	generator LoadTxGenerator,
+	shortBurstConf load.ShortBurstOrchestratorConfig,
+	gradualLoadConf load.GradualLoadOrchestratorConfig,
+	createTransfer CreateTransfer,
+) {
 	networkConfig = networkConfigImpl
-	txWorkload = workload.TxWorkload{
-		Generator: generator,
-	}
+	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
-	spamHelper = sh
-	spamKey = key
+	loadTxGenerator = generator
+	shortBurstConfig = shortBurstConf
+	gradualLoadConfig = gradualLoadConf
+	createTransferF = createTransfer
 }
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
@@ -111,26 +158,136 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", ginkgo.Serial, func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Spam Workloads]", ginkgo.Serial, func() {
-	ginkgo.It("Spam Workload", func() {
-		if spamKey == nil || spamHelper == nil {
-			return
-		}
+var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Serial, func() {
+	tc := e2e.NewTestContext()
+	r := require.New(tc)
+
+	registry := prometheus.NewRegistry()
+	tracker, err := load.NewPrometheusTracker[ids.ID](registry)
+	r.NoError(err)
+
+	ginkgo.BeforeAll(func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
+		ctx := context.Background()
+
+		// Start metrics server
+		mux := http.NewServeMux()
+		mux.Handle("/ext/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+			Registry: registry,
+		}))
+
+		metricsServer := &http.Server{
+			Addr:              metricsURI,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		var metricsServerErr error
+		go func() {
+			metricsServerErr = metricsServer.ListenAndServe()
+		}()
+
+		// Generate collector config
+		collectorConfigBytes, err := generateCollectorConfig(
+			[]string{metricsURI},
+			e2e.GetEnv(tc).GetNetwork().UUID,
+		)
+		require.NoError(err)
+
+		homedir, err := os.UserHomeDir()
+		require.NoError(err)
+
+		filePath := filepath.Join(homedir, metricsFilePath)
+		require.NoError(writeCollectorConfig(filePath, collectorConfigBytes))
+
+		ginkgo.DeferCleanup(func() {
+			require.NoError(metricsServer.Shutdown(ctx))
+			require.ErrorIs(metricsServerErr, http.ErrServerClosed)
+			require.NoError(os.Remove(filePath))
+		})
+	})
+
+	ginkgo.It("Short Burst Workload", func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		ctx := tc.DefaultContext()
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
-		key := spamKey
 
-		err := spamHelper.CreateClient(uris[0])
+		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
 		require.NoError(err)
 
-		spamConfig := throughput.NewFastConfig(uris, key)
-		spammer, err := throughput.NewSpammer(spamConfig, spamHelper)
+		txGenerators, err := loadTxGenerator(
+			ctx,
+			uris[0],
+			accounts,
+		)
 		require.NoError(err)
 
-		err = spammer.Spam(tc.DefaultContext(), spamHelper, true, "AVAX")
+		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
+		}
+
+		orchestrator, err := load.NewShortBurstOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			shortBurstConfig,
+		)
 		require.NoError(err)
+
+		require.NoError(orchestrator.Execute(ctx))
+
+		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
+		require.Equal(numTxs, tracker.GetObservedIssued())
+		require.Equal(numTxs, tracker.GetObservedConfirmed())
+		require.Equal(uint64(0), tracker.GetObservedFailed())
+
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
+	})
+
+	ginkgo.It("Gradual Load Workload", func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
+		ctx := tc.ContextWithTimeout(15 * time.Minute)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
+		uris := getE2EURIs(tc, blockchainID)
+
+		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		require.NoError(err)
+
+		txGenerators, err := loadTxGenerator(
+			ctx,
+			uris[0],
+			accounts,
+		)
+		require.NoError(err)
+
+		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
+		for i := 0; i < len(txGenerators); i++ {
+			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
+			require.NoError(err)
+			issuers[i] = issuer
+		}
+
+		orchestrator, err := load.NewGradualLoadOrchestrator(
+			txGenerators,
+			issuers,
+			tracker,
+			tc.Log(),
+			gradualLoadConfig,
+		)
+		require.NoError(err)
+
+		require.NoError(orchestrator.Execute(ctx))
+
+		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
+
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
 	})
 })
 
@@ -257,6 +414,198 @@ var _ = ginkgo.Describe("[Custom VM Tests]", ginkgo.Serial, func() {
 	}
 })
 
+func distributeFunds(
+	ctx context.Context,
+	tc *e2e.GinkgoTestContext,
+	createTransfer CreateTransfer,
+	funder chain.AuthFactory,
+	numAccounts uint64,
+) ([]chain.AuthFactory, error) {
+	network := NewNetwork(tc)
+	ruleFactory, err := network.GetRuleFactory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	uris := network.URIs()
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	ws, err := ws.NewWebSocketClient(
+		uris[0],
+		ws.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer ws.Close()
+
+	pacer := newPacer(ws, 100)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go pacer.run(cctx)
+
+	balance, err := cli.GetBalance(ctx, funder.Address())
+	if err != nil {
+		return nil, err
+	}
+
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := uint64(0)
+
+	action := []chain.Action{createTransfer(funder.Address(), 1, nonce)}
+	units, err := chain.EstimateUnits(
+		ruleFactory.GetRules(time.Now().UnixMilli()),
+		action,
+		funder,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	fee, err := fees.MulSum(units, unitPrices)
+	if err != nil {
+		return nil, err
+	}
+
+	amountPerAccount := (balance - (numAccounts * fee)) / numAccounts
+	if amountPerAccount == 0 {
+		return nil, ErrInsufficientFunds
+	}
+
+	// Generate test accounts
+	accounts := make([]chain.AuthFactory, numAccounts)
+	for i := range numAccounts {
+		pk, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		accounts[i] = auth.NewED25519Factory(pk)
+	}
+
+	// Send and confirm funds to each account
+	for _, account := range accounts {
+		action := createTransfer(account.Address(), amountPerAccount, nonce)
+		nonce++
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			time.Now().UnixMilli(),
+			[]chain.Action{action},
+			funder,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := pacer.add(tx); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := pacer.wait(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+func consolidateFunds(
+	ctx context.Context,
+	tc *e2e.GinkgoTestContext,
+	createTransfer CreateTransfer,
+	accounts []chain.AuthFactory,
+	to chain.AuthFactory,
+) error {
+	network := NewNetwork(tc)
+	ruleFactory, err := network.GetRuleFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	uris := network.URIs()
+	cli := jsonrpc.NewJSONRPCClient(uris[0])
+	ws, err := ws.NewWebSocketClient(
+		uris[0],
+		ws.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return err
+	}
+	defer ws.Close()
+
+	pacer := newPacer(ws, 100)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go pacer.run(cctx)
+
+	unitPrices, err := cli.UnitPrices(ctx, false)
+	if err != nil {
+		return err
+	}
+
+	nonce := uint64(0)
+
+	action := []chain.Action{createTransfer(to.Address(), 1, nonce)}
+	units, err := chain.EstimateUnits(
+		ruleFactory.GetRules(time.Now().UnixMilli()),
+		action,
+		to,
+	)
+	if err != nil {
+		return err
+	}
+
+	fee, err := fees.MulSum(units, unitPrices)
+	if err != nil {
+		return err
+	}
+
+	balances := make([]uint64, len(accounts))
+	for i, account := range accounts {
+		balance, err := cli.GetBalance(ctx, account.Address())
+		if err != nil {
+			return err
+		}
+		balances[i] = balance
+	}
+
+	txs := make([]*chain.Transaction, 0)
+	for i, balance := range balances {
+		if balance < fee {
+			continue
+		}
+		amount := balance - fee
+		action := createTransfer(to.Address(), amount, nonce)
+		nonce++
+		tx, err := chain.GenerateTransaction(
+			ruleFactory,
+			unitPrices,
+			time.Now().UnixMilli(),
+			[]chain.Action{action},
+			accounts[i],
+		)
+		if err != nil {
+			return err
+		}
+		txs = append(txs, tx)
+	}
+
+	for _, tx := range txs {
+		if err := pacer.add(tx); err != nil {
+			return err
+		}
+	}
+
+	return pacer.wait()
+}
+
 func getE2EURIs(tc tests.TestContext, blockchainID ids.ID) []string {
 	nodeURIs := e2e.GetEnv(tc).GetNetwork().GetNodeURIs()
 	uris := make([]string, 0, len(nodeURIs))
@@ -277,4 +626,35 @@ func getE2EBaseURIs(tc tests.TestContext) []string {
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
+}
+
+func generateCollectorConfig(targets []string, uuid string) ([]byte, error) {
+	nodeLabels := tmpnet.FlagsMap{
+		"network_owner": "hypersdk-e2e-tests",
+		"network_uuid":  uuid,
+	}
+	config := []tmpnet.FlagsMap{
+		{
+			"labels":  nodeLabels,
+			"targets": targets,
+		},
+	}
+
+	return json.Marshal(config)
+}
+
+func writeCollectorConfig(metricsFilePath string, config []byte) error {
+	file, err := os.OpenFile(metricsFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if _, err := file.Write(config); err != nil {
+		return err
+	}
+
+	return nil
 }

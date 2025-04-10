@@ -1,5 +1,14 @@
 module github.com/ava-labs/hypersdk
 
+// - Changes to the minimum golang version must also be replicated in:
+//   - .devcontainer/default-go-env/devcontainer.json
+//   - CONTRIBUTING.md
+//   - Dockerfile
+//   - examples/morpheusvm/go.mod
+//   - go.mod (here)
+//
+// - If updating between minor versions (e.g. 1.23.x -> 1.24.x):
+//   - Consider updating the version of golangci-lint (in scripts/lint.sh).
 go 1.23.7
 
 require (
