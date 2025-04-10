@@ -191,15 +191,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 				tt.issuers,
 				tracker,
 				logging.NoLog{},
-				GradualLoadOrchestratorConfig{
-					MaxTPS:           1,
-					MinTPS:           1,
-					Step:             1,
-					TxRateMultiplier: 1,
-					SustainedTime:    time.Second,
-					MaxAttempts:      1,
-					Terminate:        true,
-				},
+				DefaultGradualLoadOrchestratorConfig(),
 			)
 			r.NoError(err)
 
