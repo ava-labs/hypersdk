@@ -405,10 +405,10 @@ func TestValidityWindowDuplicateProcessingAncestor(t *testing.T) {
 	network.ConfirmInvalidTx(ctx, tx0, chain.ErrDuplicateTx)
 
 	for i, blk := range vmBlk1s {
-		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+		r.NoError(blk.SyncAccept(ctx), "failed to accept block at VM index %d", i)
 	}
 	for i, blk := range vmBlk2s {
-		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+		r.NoError(blk.SyncAccept(ctx), "failed to accept block at VM index %d", i)
 	}
 }
 
@@ -689,7 +689,7 @@ func TestWebsocketAPI(t *testing.T) {
 	time.Sleep(time.Second)
 	blks := network.BuildBlockAndUpdateHead(ctx)
 	for i, blk := range blks {
-		r.NoError(blk.Accept(ctx), "failed to accept block at VM index %d", i)
+		r.NoError(blk.SyncAccept(ctx), "failed to accept block at VM index %d", i)
 	}
 
 	wsBlk, wsResults, wsUnitPrices, err := client.ListenBlock(ctx, network.VMs[0].VM.GetParser())
