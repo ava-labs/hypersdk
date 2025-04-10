@@ -5,6 +5,7 @@ package fixture
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/subnets"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 )
 
@@ -24,9 +25,9 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
 				}`,
 			},
 		},
-		Config: tmpnet.FlagsMap{
-			"proposerMinBlockDelay":       0,
-			"proposerNumHistoricalBlocks": 50_000,
+		Config: &subnets.Config{
+			ProposerMinBlockDelay:       0,
+			ProposerNumHistoricalBlocks: 50_000,
 		},
 		ValidatorIDs: tmpnet.NodesToIDs(nodes...),
 	}
