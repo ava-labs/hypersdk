@@ -13,7 +13,7 @@ go 1.23.7
 
 require (
 	github.com/StephenButtolph/canoto v0.15.0
-	github.com/ava-labs/avalanchego v1.12.3-0.20250321175346-50f1601bf39a
+	github.com/ava-labs/avalanchego v1.13.1-0.20250409201736-5ea90b6f2484
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
@@ -27,7 +27,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.10.0
-	github.com/supranational/blst v0.3.13
+	github.com/supranational/blst v0.3.14
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/trace v1.22.0
 	go.uber.org/atomic v1.11.0
@@ -47,7 +47,8 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.15.0-rc.0.0.20250320164322-dac35665f8fd // indirect
+	github.com/ava-labs/coreth v0.15.0-rc.1 // indirect
+	github.com/ava-labs/libevm v0.0.0-20250320152422-7be6bee7ab32 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect

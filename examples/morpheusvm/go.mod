@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.23.7
 
 require (
-	github.com/ava-labs/avalanchego v1.13.1-0.20250321175346-50f1601bf39a
+	github.com/ava-labs/avalanchego v1.13.1-0.20250409201736-5ea90b6f2484
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
@@ -17,7 +17,8 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/StephenButtolph/canoto v0.15.0 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
-	github.com/ava-labs/coreth v0.15.0-rc.0.0.20250320164322-dac35665f8fd // indirect
+	github.com/ava-labs/coreth v0.15.0-rc.1 // indirect
+	github.com/ava-labs/libevm v0.0.0-20250320152422-7be6bee7ab32 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
@@ -112,7 +113,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
-	github.com/supranational/blst v0.3.13 // indirect
+	github.com/supranational/blst v0.3.14 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
