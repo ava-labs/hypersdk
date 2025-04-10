@@ -16,8 +16,10 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
 				VMID:    vmID,
 				Genesis: genesisBytes,
 				Config: `{
-					"statesync": {
-						"minBlocks": 128
+					"statesync": {"minBlocks": 128},
+					"vm": {
+						"mempoolSize"       : 9223372036854775807,
+						"mempoolSponsorSize": 9223372036854775807
 					}
 				}`,
 			},
