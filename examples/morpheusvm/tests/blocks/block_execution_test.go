@@ -25,25 +25,21 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 	benchmarks := []struct {
 		name                   string
 		genesisGenerator       chaintest.GenesisGenerator[codec.Address]
-		actionConstructor      chaintest.ActionConstructor[codec.Address]
 		stateAccessDistributor chaintest.StateAccessDistributor[codec.Address]
 	}{
 		{
 			name:                   "parallel transfers",
 			genesisGenerator:       uniqueAddressGenesisF,
-			actionConstructor:      actionGenerator,
 			stateAccessDistributor: chaintest.ParallelDistribution[codec.Address],
 		},
 		{
 			name:                   "serial transfers",
 			genesisGenerator:       singleAddressGenesisF,
-			actionConstructor:      actionGenerator,
 			stateAccessDistributor: chaintest.SerialDistribution[codec.Address],
 		},
 		{
 			name:                   "zipf transfers",
 			genesisGenerator:       uniqueAddressGenesisF,
-			actionConstructor:      actionGenerator,
 			stateAccessDistributor: chaintest.ZipfDistribution[codec.Address],
 		},
 	}
@@ -56,7 +52,7 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 				RuleFactory:            chaintest.RuleFactory(),
 				AuthEngines:            auth.DefaultEngines(),
 				GenesisF:               bm.genesisGenerator,
-				ActionConstructor:      bm.actionConstructor,
+				ActionConstructor:      actionGenerator,
 				StateAccessDistributor: bm.stateAccessDistributor,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,

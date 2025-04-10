@@ -521,7 +521,6 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 	benchmarks := []struct {
 		name                   string
 		genesisGenerator       chaintest.GenesisGenerator[string]
-		actionConstructor      chaintest.ActionConstructor[string]
 		stateAccessDistributor chaintest.StateAccessDistributor[string]
 		numTxsPerBlock         uint64
 	}{
@@ -533,21 +532,18 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		{
 			name:                   "parallel",
 			genesisGenerator:       uniqueKeyGenesisGenerator,
-			actionConstructor:      actionConstructor,
 			stateAccessDistributor: chaintest.ParallelDistribution[string],
 			numTxsPerBlock:         16,
 		},
 		{
 			name:                   "serial",
 			genesisGenerator:       singleKeyGenesisGenerator,
-			actionConstructor:      actionConstructor,
 			stateAccessDistributor: chaintest.SerialDistribution[string],
 			numTxsPerBlock:         16,
 		},
 		{
 			name:                   "zipf",
 			genesisGenerator:       uniqueKeyGenesisGenerator,
-			actionConstructor:      actionConstructor,
 			stateAccessDistributor: chaintest.ZipfDistribution[string],
 			numTxsPerBlock:         16,
 		},
@@ -561,7 +557,7 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 				AuthEngines:            auth.DefaultEngines(),
 				RuleFactory:            chaintest.RuleFactory(),
 				GenesisF:               bm.genesisGenerator,
-				ActionConstructor:      bm.actionConstructor,
+				ActionConstructor:      actionConstructor,
 				StateAccessDistributor: bm.stateAccessDistributor,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
