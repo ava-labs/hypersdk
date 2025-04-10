@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/tests" // include the tests shared between integration and e2e
@@ -33,15 +32,7 @@ import (
 
 const owner = "morpheusvm-e2e-tests"
 
-const (
-	metricsURI      = "localhost:8080"
-	metricsFilePath = ".tmpnet/prometheus/file_sd_configs/hypersdk-e2e-metrics.json"
-)
-
-var (
-	flagVars *e2e.FlagVars
-	registry *prometheus.Registry
-)
+var flagVars *e2e.FlagVars
 
 func TestE2e(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
