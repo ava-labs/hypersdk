@@ -26,9 +26,10 @@ var (
 
 func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	tests := []struct {
-		name      string
-		serverTPS uint64
-		config    GradualLoadOrchestratorConfig
+		name        string
+		serverTPS   uint64
+		config      GradualLoadOrchestratorConfig
+		expectedErr error
 	}{
 		{
 			name:      "orchestrator achieves max TPS",
@@ -40,6 +41,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 				TxRateMultiplier: 1.3,
 				SustainedTime:    3 * time.Second,
 				MaxAttempts:      3,
+				Terminate:        true,
 			},
 		},
 		{
@@ -52,7 +54,9 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 				TxRateMultiplier: 1.3,
 				SustainedTime:    3 * time.Second,
 				MaxAttempts:      3,
+				Terminate:        true,
 			},
+			expectedErr: ErrFailedToReachTargetTPS,
 		},
 	}
 
@@ -84,11 +88,13 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			)
 			r.NoError(err)
 
-			if err := orchestrator.Execute(ctx); err != nil {
-				r.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
-			}
+			r.ErrorIs(orchestrator.Execute(ctx), tt.expectedErr)
 
-			r.Equal(tt.serverTPS, orchestrator.GetMaxObservedTPS())
+			if tt.expectedErr == nil {
+				r.GreaterOrEqual(orchestrator.GetMaxObservedTPS(), tt.config.MaxTPS)
+			} else {
+				r.Less(orchestrator.GetMaxObservedTPS(), tt.config.MaxTPS)
+			}
 		})
 	}
 }
@@ -192,6 +198,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 					TxRateMultiplier: 1,
 					SustainedTime:    time.Second,
 					MaxAttempts:      1,
+					Terminate:        true,
 				},
 			)
 			r.NoError(err)
@@ -236,7 +243,7 @@ func (m *mockIssuer) Listen(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case tx := <-m.incoming:
 			m.tracker.ObserveConfirmed(tx)
 		}
