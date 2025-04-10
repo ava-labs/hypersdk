@@ -146,6 +146,7 @@ func GenerateExecutionBlocks[T any](
 		timestampOffset = rules.GetMinBlockGap()
 	}
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
+	nonce := uint64(0)
 	for i := range executionBlocks {
 		timestamp := parentCtx.timestamp + timestampOffset*(int64(i)+1)
 		height := parentCtx.height + 1 + uint64(i)
@@ -166,10 +167,12 @@ func GenerateExecutionBlocks[T any](
 			ruleFactory,
 			unitPrices,
 			timestamp,
+			nonce,
 		)
 		if err != nil {
 			return nil, err
 		}
+		nonce += uint64(len(txs))
 
 		ts := tstate.New(0)
 		for _, tx := range txs {
@@ -386,9 +389,9 @@ type ActionConstructor[T any] func(T, uint64) chain.Action
 // StateAccessDistributor is responsible for generating a list of transactions
 // whose state accesses vary depending on the distribution function (parallel,
 // serial, zipf, etc.)
-type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error)
+type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64, uint64) ([]*chain.Transaction, error)
 
-func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error) {
+func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64, uint64) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
@@ -402,12 +405,11 @@ func ParallelDistribution[T any](
 	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
+	nonce uint64,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
-
-	nonce := uint64(0)
 
 	txs := make([]*chain.Transaction, numTxs)
 	for i := range numTxs {
@@ -442,12 +444,11 @@ func SerialDistribution[T any](
 	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
+	nonce uint64,
 ) ([]*chain.Transaction, error) {
 	if len(keys) != 1 {
 		return nil, ErrSingleKeyLengthOnly
 	}
-
-	nonce := uint64(0)
 
 	txs := make([]*chain.Transaction, numTxs)
 	for i := range numTxs {
@@ -482,12 +483,11 @@ func ZipfDistribution[T any](
 	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
+	nonce uint64,
 ) ([]*chain.Transaction, error) {
 	if numTxs != len(keys) || numTxs != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
-
-	nonce := uint64(0)
 
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	sZipf := 1.01
