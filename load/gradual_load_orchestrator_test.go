@@ -223,7 +223,7 @@ type mockIssuer struct {
 	tracker  Tracker[ids.ID]
 }
 
-// newMockIssuer creates an issuer that is already connected to the server
+// newMockIssuer creates an issuer that is connected to the server
 func newMockIssuer(name string, server *mockServer, tracker Tracker[ids.ID]) *mockIssuer {
 	return &mockIssuer{
 		name:     name,
@@ -234,7 +234,7 @@ func newMockIssuer(name string, server *mockServer, tracker Tracker[ids.ID]) *mo
 }
 
 func (m *mockIssuer) IssueTx(_ context.Context, tx ids.ID) error {
-	m.server.send(tx, m.name)
+	m.server.submit(tx, m.name)
 	m.tracker.Issue(tx)
 	return nil
 }
@@ -285,9 +285,8 @@ func newMockServer(tps uint64) *mockServer {
 }
 
 // connect a client to the server
-// returns a channel that the server will use to send confirmed txs to the
-// client
-// the client should read from this channel to hear about confirmed txs
+// returns a read-only channel that the server will use to notify the client about its
+// accepted txs
 func (m *mockServer) connect(client string) <-chan ids.ID {
 	m.Lock()
 	defer m.Unlock()
@@ -297,8 +296,8 @@ func (m *mockServer) connect(client string) <-chan ids.ID {
 	return out
 }
 
-// send a tx to the server
-func (m *mockServer) send(tx ids.ID, client string) {
+// submit a tx to the server
+func (m *mockServer) submit(tx ids.ID, client string) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -306,8 +305,8 @@ func (m *mockServer) send(tx ids.ID, client string) {
 	m.incoming <- tx
 }
 
-// run simulates a network running at maxTPS
-// each second, the server will send maxTPS txs to the clients
+// run a network that accepts txs at a rate of tps
+// each second, the server will send tps txs to the clients
 // if there are not enough txs to send, the server will sleep until the next second
 func (m *mockServer) run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
