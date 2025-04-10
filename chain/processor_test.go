@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -23,8 +25,10 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 	"github.com/ava-labs/hypersdk/internal/validitywindow/validitywindowtest"
@@ -514,6 +518,239 @@ func TestProcessorExecute(t *testing.T) {
 			r.ErrorIs(err, tt.expectedErr)
 		})
 	}
+}
+
+func BenchmarkExecuteBlocks(b *testing.B) {
+	benchmarks := []struct {
+		name                 string
+		blockBenchmarkHelper chaintest.BlockBenchmarkHelper
+		numTxsPerBlock       uint64
+	}{
+		{
+			name:                 "empty",
+			blockBenchmarkHelper: chaintest.NoopBlockBenchmarkHelper,
+		},
+		{
+			name:                 "parallel",
+			blockBenchmarkHelper: parallelTxsBlockBenchmarkHelper,
+			numTxsPerBlock:       16,
+		},
+		{
+			name:                 "serial",
+			blockBenchmarkHelper: serialTxsBlockBenchmarkHelper,
+			numTxsPerBlock:       16,
+		},
+		{
+			name:                 "zipf",
+			blockBenchmarkHelper: zipfTxsBlockBenchmarkHelper,
+			numTxsPerBlock:       16,
+		},
+	}
+
+	// modify default rules to avoid test failures due to fee spikes
+	rules := genesis.NewDefaultRules()
+	rules.WindowTargetUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+	rules.MaxBlockUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
+	rules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			benchmark := &chaintest.BlockBenchmark{
+				MetadataManager:      metadata.NewDefaultManager(),
+				BalanceHandler:       balance.NewPrefixBalanceHandler([]byte{metadata.DefaultMinimumPrefix}),
+				AuthEngines:          auth.DefaultEngines(),
+				RuleFactory:          &genesis.ImmutableRuleFactory{Rules: rules},
+				BlockBenchmarkHelper: bm.blockBenchmarkHelper,
+				Config: chain.Config{
+					TargetBuildDuration:       100 * time.Millisecond,
+					TransactionExecutionCores: 4,
+					StateFetchConcurrency:     4,
+					TargetTxsSize:             1.5 * units.MiB,
+				},
+				NumBlocks:      1_000,
+				NumTxsPerBlock: bm.numTxsPerBlock,
+			}
+			benchmark.Run(context.Background(), b)
+		})
+	}
+}
+
+func parallelTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Generate kv-pairs for testing
+	databaseKeys := make([]string, numTxsPerBlock)
+	values := make([][]byte, numTxsPerBlock)
+
+	for i := range numTxsPerBlock {
+		key := string(binary.BigEndian.AppendUint16(
+			binary.BigEndian.AppendUint64(nil, i),
+			1,
+		))
+		databaseKeys[i] = key
+		values[i] = binary.BigEndian.AppendUint64(nil, i)
+	}
+
+	nonce := uint64(0)
+
+	txListGenerator := func(ruleFactory chain.RuleFactory, unitPrices fees.Dimensions, timestamp int64) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[i]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[i])},
+				WriteValues:                  [][]byte{values[i]},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := chain.GenerateTransaction(
+				ruleFactory,
+				unitPrices,
+				timestamp,
+				[]chain.Action{action},
+				factories[i],
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func serialTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	k := string(binary.BigEndian.AppendUint16(nil, 1))
+	v := binary.BigEndian.AppendUint64(nil, 1)
+
+	nonce := uint64(0)
+
+	txListGenerator := func(ruleFactory chain.RuleFactory, unitPrices fees.Dimensions, timestamp int64) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{k},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{v},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := chain.GenerateTransaction(
+				ruleFactory,
+				unitPrices,
+				timestamp,
+				[]chain.Action{action},
+				factories[i],
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func zipfTxsBlockBenchmarkHelper(numTxsPerBlock uint64) (genesis.Genesis, chaintest.TxListGenerator, error) {
+	factories, genesis, err := createGenesis(numTxsPerBlock, 1_000_000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Generate kv-pairs for testing
+	databaseKeys := make([]string, numTxsPerBlock)
+	values := make([][]byte, numTxsPerBlock)
+
+	for i := range numTxsPerBlock {
+		key := string(binary.BigEndian.AppendUint16(
+			binary.BigEndian.AppendUint64(nil, i),
+			1,
+		))
+		databaseKeys[i] = key
+		values[i] = binary.BigEndian.AppendUint64(nil, i)
+	}
+
+	nonce := uint64(0)
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxsPerBlock-1)
+
+	txListGenerator := func(ruleFactory chain.RuleFactory, unitPrices fees.Dimensions, timestamp int64) ([]*chain.Transaction, error) {
+		txs := make([]*chain.Transaction, numTxsPerBlock)
+		for i := range numTxsPerBlock {
+			index := zipfGen.Uint64()
+			action := &chaintest.TestAction{
+				Nonce:                        nonce,
+				SpecifiedStateKeys:           []string{databaseKeys[index]},
+				SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+				WriteKeys:                    [][]byte{[]byte(databaseKeys[index])},
+				WriteValues:                  [][]byte{values[index]},
+				Start:                        -1,
+				End:                          -1,
+			}
+
+			nonce++
+
+			tx, err := chain.GenerateTransaction(
+				ruleFactory,
+				unitPrices,
+				timestamp,
+				[]chain.Action{action},
+				factories[i],
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			txs[i] = tx
+		}
+		return txs, nil
+	}
+
+	return genesis, txListGenerator, nil
+}
+
+func createGenesis(numAccounts uint64, allocAmount uint64) ([]chain.AuthFactory, genesis.Genesis, error) {
+	factories := make([]chain.AuthFactory, numAccounts)
+	customAllocs := make([]*genesis.CustomAllocation, numAccounts)
+	for i := range numAccounts {
+		pk, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, nil, err
+		}
+		factory := auth.NewED25519Factory(pk)
+		factories[i] = factory
+		customAllocs[i] = &genesis.CustomAllocation{
+			Address: factory.Address(),
+			Balance: allocAmount,
+		}
+	}
+	return factories, genesis.NewDefaultGenesis(customAllocs), nil
 }
 
 func createTestView(mp map[string][]byte) (merkledb.View, error) {

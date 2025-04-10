@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -45,6 +46,7 @@ func (t *TxGenerator) GenerateTx(context.Context) (*chain.Transaction, error) {
 	tx, err := chain.GenerateTransaction(
 		t.ruleFactory,
 		t.unitPrices,
+		time.Now().UnixMilli(),
 		[]chain.Action{
 			&actions.Transfer{
 				To:    t.authFactory.Address(),

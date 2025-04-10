@@ -33,24 +33,24 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			name:      "orchestrator achieves max TPS",
 			serverTPS: 4_000,
 			config: GradualLoadOrchestratorConfig{
-				MaxTPS:        4_000,
-				MinTPS:        1_000,
-				Step:          1_000,
-				TxMultiplier:  1.3,
-				SustainedTime: 3 * time.Second,
-				MaxAttempts:   3,
+				MaxTPS:           4_000,
+				MinTPS:           1_000,
+				Step:             1_000,
+				TxRateMultiplier: 1.3,
+				SustainedTime:    3 * time.Second,
+				MaxAttempts:      3,
 			},
 		},
 		{
 			name:      "orchestrator TPS limited by network",
 			serverTPS: 3_000,
 			config: GradualLoadOrchestratorConfig{
-				MaxTPS:        4_000,
-				MinTPS:        1_000,
-				Step:          1_000,
-				TxMultiplier:  1.3,
-				SustainedTime: 3 * time.Second,
-				MaxAttempts:   3,
+				MaxTPS:           4_000,
+				MinTPS:           1_000,
+				Step:             1_000,
+				TxRateMultiplier: 1.3,
+				SustainedTime:    3 * time.Second,
+				MaxAttempts:      3,
 			},
 		},
 	}
@@ -62,7 +62,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			defer cancel()
 
 			server := newMockServer(tt.serverTPS)
-			tracker := &DefaultTracker[ids.ID]{}
+			tracker := &PrometheusTracker[ids.ID]{}
 			issuer := newMockIssuer("issuer1", server, tracker)
 
 			// Start server
@@ -177,15 +177,15 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			orchestrator, err := NewGradualLoadOrchestrator(
 				tt.generators,
 				tt.issuers,
-				&DefaultTracker[ids.ID]{},
+				&PrometheusTracker[ids.ID]{},
 				logging.NoLog{},
 				GradualLoadOrchestratorConfig{
-					MaxTPS:        1,
-					MinTPS:        1,
-					Step:          1,
-					TxMultiplier:  1,
-					SustainedTime: time.Second,
-					MaxAttempts:   1,
+					MaxTPS:           1,
+					MinTPS:           1,
+					Step:             1,
+					TxRateMultiplier: 1,
+					SustainedTime:    time.Second,
+					MaxAttempts:      1,
 				},
 			)
 			r.NoError(err)
@@ -222,7 +222,7 @@ func newMockIssuer(name string, server *mockServer, tracker Tracker[ids.ID]) *mo
 
 func (m *mockIssuer) IssueTx(_ context.Context, tx ids.ID) error {
 	m.server.send(tx, m.name)
-	m.tracker.Issue(tx, time.Now())
+	m.tracker.Issue(tx)
 	return nil
 }
 
@@ -232,7 +232,7 @@ func (m *mockIssuer) Listen(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case tx := <-m.incoming:
-			m.tracker.ObserveConfirmed(tx, time.Now())
+			m.tracker.ObserveConfirmed(tx)
 		}
 	}
 }

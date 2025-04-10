@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -26,7 +25,7 @@ type DefaultIssuer struct {
 	client  *ws.WebSocketClient
 	tracker Tracker[ids.ID]
 
-	lock        sync.Mutex
+	lock        sync.RWMutex
 	issuedTxs   uint64
 	receivedTxs uint64
 	stopped     bool
@@ -54,21 +53,21 @@ func (i *DefaultIssuer) Listen(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 		}
 		txID, result, err := i.client.ListenTx(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}
-		time := time.Now()
 		// accepted txs have a non-nil result
 		if result != nil {
-			i.tracker.ObserveConfirmed(txID, time)
+			i.tracker.ObserveConfirmed(txID)
 		} else {
-			i.tracker.ObserveFailed(txID, time)
+			i.tracker.ObserveFailed(txID)
 		}
 
+		i.incrementReceivedTxs()
 		if i.isFinished() {
 			return nil
 		}
@@ -94,17 +93,22 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 		return err
 	}
 	// Update tracker
-	now := time.Now()
-	i.tracker.Issue(tx.GetID(), now)
+	i.tracker.Issue(tx.GetID())
 	i.issuedTxs++
 	return nil
 }
 
-// isFinished increments the number of transactions heard and returns true if all transactions have been heard
-func (i *DefaultIssuer) isFinished() bool {
+func (i *DefaultIssuer) incrementReceivedTxs() {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.receivedTxs++
+}
+
+// isFinished returns true if all transactions have been heard
+func (i *DefaultIssuer) isFinished() bool {
+	i.lock.RLock()
+	defer i.lock.RUnlock()
+
 	return i.stopped && i.issuedTxs == i.receivedTxs
 }
