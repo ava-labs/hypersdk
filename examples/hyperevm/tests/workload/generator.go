@@ -75,6 +75,7 @@ func (g *TxGenerator) GenerateTx(ctx context.Context, uri string) (*chain.Transa
 	tx, err := chain.GenerateTransaction(
 		ruleFactory,
 		unitPrices,
+		time.Now().UnixMilli(),
 		[]chain.Action{action},
 		g.factory,
 	)
@@ -102,7 +103,7 @@ func confirmTx(ctx context.Context, require *require.Assertions, uri string, txI
 	// TODO: perform exact expected fee, units check, and output check
 	require.NotZero(txRes.Result.Fee)
 	require.Len(txRes.Result.Outputs, 1)
-	evmCallOutputBytes := []byte(txRes.Result.Outputs[0])
+	evmCallOutputBytes := txRes.Result.Outputs[0]
 	require.Equal(consts.EvmCallID, evmCallOutputBytes[0])
 	transferOutputTyped, err := vm.OutputParser.Unmarshal(evmCallOutputBytes)
 	require.NoError(err)

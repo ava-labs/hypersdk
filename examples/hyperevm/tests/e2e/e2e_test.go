@@ -5,22 +5,28 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/binary"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/ava-labs/subnet-evm/core"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/api/jsonrpc"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	_ "github.com/ava-labs/hypersdk/examples/hyperevm/tests" // include the tests shared between integration and e2e
 
 	"github.com/ava-labs/hypersdk/abi"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/hyperevm/actions"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/consts"
+	"github.com/ava-labs/hypersdk/examples/hyperevm/load"
+	"github.com/ava-labs/hypersdk/examples/hyperevm/storage"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/tests/workload"
 	"github.com/ava-labs/hypersdk/examples/hyperevm/vm"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	hload "github.com/ava-labs/hypersdk/load"
@@ -74,11 +80,31 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
 })
 
-func createTransfer(to codec.Address, amount uint64, nonce uint64) chain.Action {
-	return &actions.Transfer{
-		To:    to,
-		Value: amount,
-		Memo:  binary.BigEndian.AppendUint64(nil, nonce),
+func createTransfer(from codec.Address, to codec.Address, amount uint64, _ uint64) chain.Action {
+	toAddr := storage.ToEVMAddress(to)
+	fromAddr := storage.ToEVMAddress(from)
+
+	stateKeys := state.Keys{
+		string(storage.AccountKey(fromAddr)): state.Write,
+		string(storage.AccountKey(toAddr)):   state.All,
+		string(storage.CodeKey(toAddr)):      state.Read,
+		// Coinbase address
+		string(storage.AccountKey(common.Address{})): state.All,
+	}
+
+	gas, err := core.IntrinsicGas([]byte{}, nil, false, consts.DefaultRules)
+	if err != nil {
+		fmt.Println("error calculating gas:", err) // TODO: handle error
+		return nil
+	}
+
+	return &actions.EvmCall{
+		To:       toAddr,
+		From:     fromAddr,
+		Value:    amount,
+		GasLimit: gas,
+		Data:     []byte{},
+		Keys:     stateKeys,
 	}
 }
 
