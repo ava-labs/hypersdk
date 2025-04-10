@@ -185,7 +185,7 @@ func GenerateExecutionBlocks(
 			if err := tx.PreExecute(ctx, feeManager, balanceHandler, rules, tsv, timestamp); err != nil {
 				return nil, err
 			}
-			result, err := tx.Execute(ctx, feeManager, balanceHandler, rules, tsv, timestamp)
+			result, err := tx.Execute(ctx, chain.NewActionContext(height, timestamp, tx.GetID()), feeManager, balanceHandler, rules, tsv)
 			if err != nil {
 				return nil, err
 			}
