@@ -15,21 +15,13 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state/metadata"
 )
 
 func BenchmarkMorpheusBlocks(b *testing.B) {
-	rules := genesis.NewDefaultRules()
-	// we maximize the window target units and max block units to avoid fund exhaustion from fee spikes.
-	rules.WindowTargetUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
-	rules.MaxBlockUnits = fees.Dimensions{20_000_000, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64, consts.MaxUint64}
-	ruleFactory := &genesis.ImmutableRuleFactory{Rules: rules}
-
 	benchmarks := []struct {
 		name                   string
 		genesisGenerator       chaintest.GenesisGenerator[codec.Address]
@@ -61,7 +53,7 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark[codec.Address]{
 				MetadataManager:        metadata.NewDefaultManager(),
 				BalanceHandler:         &storage.BalanceHandler{},
-				RuleFactory:            ruleFactory,
+				RuleFactory:            chaintest.RuleFactory(),
 				AuthEngines:            auth.DefaultEngines(),
 				GenesisF:               bm.genesisGenerator,
 				ActionConstructor:      bm.actionConstructor,
