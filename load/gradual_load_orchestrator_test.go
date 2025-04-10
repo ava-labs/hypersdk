@@ -298,7 +298,7 @@ func (m *mockServer) submit(tx ids.ID, client string) {
 }
 
 // run a network that accepts txs at a rate of tps
-// each second, the server will send tps txs to the clients
+// each second, the server will accept tps txs and notify the relevant clients
 // if there are not enough txs to send, the server will sleep until the next second
 func (m *mockServer) run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
