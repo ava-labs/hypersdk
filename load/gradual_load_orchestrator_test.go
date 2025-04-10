@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,8 +62,10 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
+			r.NoError(err)
+
 			server := newMockServer(tt.serverTPS)
-			tracker := &PrometheusTracker[ids.ID]{}
 			issuer := newMockIssuer("issuer1", server, tracker)
 
 			// Start server
@@ -174,10 +177,13 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
+			r.NoError(err)
+
 			orchestrator, err := NewGradualLoadOrchestrator(
 				tt.generators,
 				tt.issuers,
-				&PrometheusTracker[ids.ID]{},
+				tracker,
 				logging.NoLog{},
 				GradualLoadOrchestratorConfig{
 					MaxTPS:           1,
