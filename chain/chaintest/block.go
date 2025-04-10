@@ -377,26 +377,48 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
 }
 
-// GenesisGenerator should return the following:
+// GenesisGenerator is a helper function that returns the following:
+//
 // 1. numTxsPerBlock auth factories
 // 2. the set of keys used for state access distribution
-// 3. the genesis used for the chain
+// 3. the genesis of the chain
+//
+// The state access set is returned here since its possible that the state
+// access set is derived from the generated auth factories
 type GenesisGenerator[T any] func(numTxsPerBlock uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
 
-// ActionConstructor takes in a key and nonce and returns a valid action
-type ActionConstructor[T any] func(T, uint64) chain.Action
+// ActionConstructor takes in a key from the state access set and
+// returns an action. The action returned should be unique relative to the state
+// access key.
+type ActionConstructor[T any] func(k T, nonce uint64) chain.Action
 
-// StateAccessDistributor is responsible for generating a list of transactions
-// whose state accesses vary depending on the distribution function (parallel,
-// serial, zipf, etc.)
-type StateAccessDistributor[T any] func(int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64, uint64) ([]*chain.Transaction, error)
+// StateAccessDistributor generates a list of transactions whose state accesses
+// vary depending on the implementation.
+//
+// For each transaction, StateAccessDistributor selects a key from the state
+// access set (keys) and constructs an action. This action is then used to
+// create a transaction.
+//
+// Implementations of StateAccessDistribution will vary in the way they select
+// state access keys (e.g. using unique keys, using the same key, etc.).
+type StateAccessDistributor[T any] func(
+	numTxs int,
+	factories []chain.AuthFactory,
+	keys []T,
+	actionConstructor ActionConstructor[T],
+	ruleFactory chain.RuleFactory,
+	unitPrices fees.Dimensions,
+	timestamp int64,
+	nonce uint64,
+) ([]*chain.Transaction, error)
 
 func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64, uint64) ([]*chain.Transaction, error) {
 	return []*chain.Transaction{}, nil
 }
 
-// ParallelDistribution generates a list of transactions that each touch a
-// different key in state, thus allowing for parallel execution of the transactions.
+// ParallelDistribution generates a list of transactions that are each assigned
+// a unique state access key. When using pessimistic concurrency control, this
+// allows for the transactions to be executed in parallel.
 func ParallelDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
@@ -434,8 +456,8 @@ func ParallelDistribution[T any](
 	return txs, nil
 }
 
-// SerialDistribution generates a list of transactions that each touch the same
-// key in state, which forces serial execution of the transactions.
+// SerialDistribution generates a list of transactions that are each assigned
+// the same state access key. As a result, the transactions must be executed serially.
 func SerialDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
@@ -473,8 +495,8 @@ func SerialDistribution[T any](
 	return txs, nil
 }
 
-// ZipfDistribution generates a list of transactions that each touch a
-// different key in state, but the keys are chosen based on a Zipf distribution.
+// ZipfDistribution generates a list of transactions whose state access key is
+// sampled from a zipf distribution.
 func ZipfDistribution[T any](
 	numTxs int,
 	factories []chain.AuthFactory,
