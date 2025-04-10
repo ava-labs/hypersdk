@@ -47,7 +47,7 @@ type ChainInput struct {
 // only needs to provide a way to initialize itself with all of the provided inputs, define concrete types
 // for each state that a block could be in from the perspective of the consensus engine, and state
 // transition functions between each of those types.
-type Chain[I Block, O Block, A Block] interface {
+type Chain[Input Block, Output Block, Accepted Block] interface {
 	// Initialize initializes the chain, optionally configures the VM via app, and returns
 	// a persistent index of the chain's input block type, the last output and accetped block,
 	// and whether or not the VM is currently in a valid state. If stateReady is false, the VM
@@ -55,29 +55,29 @@ type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		vm *VM[I, O, A],
-	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
+		vm *VM[Input, Output, Accepted],
+	) (inputChainIndex ChainIndex[Input], lastOutput Output, lastAccepted Accepted, stateReady bool, err error)
 	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
 	// VM with:
 	// 1. A cached index of the chain
 	// 2. The ability to fetch the latest consensus state (preferred output block and last accepted block)
-	SetConsensusIndex(consensusIndex *ConsensusIndex[I, O, A])
+	SetConsensusIndex(consensusIndex *ConsensusIndex[Input, Output, Accepted])
 	// BuildBlock returns a new input and output block built on top of the provided parent.
 	// The provided parent will be the current preference of the consensus engine.
-	BuildBlock(ctx context.Context, blockContext *block.Context, parent O) (I, O, error)
+	BuildBlock(ctx context.Context, blockContext *block.Context, parent Output) (Input, Output, error)
 	// ParseBlock parses the provided bytes into an input block.
-	ParseBlock(ctx context.Context, bytes []byte) (I, error)
+	ParseBlock(ctx context.Context, bytes []byte) (Input, error)
 	// VerifyBlock verifies the provided block is valid given its already verified parent
 	// and returns the resulting output of executing the block.
 	VerifyBlock(
 		ctx context.Context,
-		parent O,
-		block I,
-	) (O, error)
+		parent Output,
+		block Input,
+	) (Output, error)
 	// AcceptBlock marks block as accepted and returns the resulting Accepted block type.
 	// AcceptBlock is guaranteed to be called after the input block has been persisted
 	// to disk.
-	AcceptBlock(ctx context.Context, acceptedParent A, block O) (A, error)
+	AcceptBlock(ctx context.Context, acceptedParent Accepted, block Output) (Accepted, error)
 }
 
 type namedCloser struct {
@@ -85,7 +85,7 @@ type namedCloser struct {
 	close func() error
 }
 
-type VM[I Block, O Block, A Block] struct {
+type VM[Input Block, Output Block, Accepted Block] struct {
 	handlers        map[string]http.Handler
 	network         *p2p.Network
 	stateSyncableVM block.StateSyncableVM
@@ -95,12 +95,12 @@ type VM[I Block, O Block, A Block] struct {
 	onBootstrapStarted        []func(context.Context) error
 	onNormalOperationsStarted []func(context.Context) error
 
-	verifiedSubs         []event.Subscription[O]
-	rejectedSubs         []event.Subscription[O]
-	acceptedSubs         []event.Subscription[A]
-	preReadyAcceptedSubs []event.Subscription[I]
+	verifiedSubs         []event.Subscription[Output]
+	rejectedSubs         []event.Subscription[Output]
+	acceptedSubs         []event.Subscription[Accepted]
+	preReadyAcceptedSubs []event.Subscription[Input]
 	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
-	preRejectedSubs []event.Subscription[I]
+	preRejectedSubs []event.Subscription[Input]
 	version         string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
@@ -111,31 +111,31 @@ type VM[I Block, O Block, A Block] struct {
 	//
 	// During this time, we must not allow any new blocks to be verified/accepted.
 	chainLock sync.Mutex
-	chain     Chain[I, O, A]
+	chain     Chain[Input, Output, Accepted]
 	ready     bool
 
-	inputChainIndex ChainIndex[I]
-	consensusIndex  *ConsensusIndex[I, O, A]
+	inputChainIndex ChainIndex[Input]
+	consensusIndex  *ConsensusIndex[Input, Output, Accepted]
 
 	snowCtx  *snow.Context
 	hconfig  hcontext.Config
 	vmConfig VMConfig
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]
+	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[Input, Output, Accepted]]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*StatefulBlock[I, O, A]
+	verifiedBlocks map[ids.ID]*StatefulBlock[Input, Output, Accepted]
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[Input, Output, Accepted]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	metaLock          sync.Mutex
-	lastAcceptedBlock *StatefulBlock[I, O, A]
+	lastAcceptedBlock *StatefulBlock[Input, Output, Accepted]
 	preferredBlkID    ids.ID
 
 	metrics *Metrics
