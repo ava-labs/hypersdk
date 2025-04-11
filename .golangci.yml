@@ -16,6 +16,36 @@ run:
   modules-download-mode: readonly
 
 issues:
+  # List of regexps of issue texts to exclude.
+  #
+  # But independently of this option we use default exclude patterns,
+  # it can be disabled by `exclude-use-default: false`.
+  # To list all excluded by default patterns execute `golangci-lint run --help`
+  #
+  # Default: https://golangci-lint.run/usage/false-positives/#exclusion-presets
+  exclude:
+    - 'Error return value of
+    .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv).
+    is not checked'
+    - '(comment on exported (method|function|type|const)|should have( a
+    package)? comment|comment should be of the form)'
+    - 'func name will be used as test\.Test.* by other packages, and that
+    stutters; consider calling this'
+    - '(possible misuse of unsafe.Pointer|should have signature)'
+    - 'SA4011'
+    - 'G103: Use of unsafe calls should be audited'
+    - 'G204: Subprocess launched with variable'
+    - 'G104'
+    - '(G301|G302|G307): Expect (directory permissions to be 0750|file
+    permissions to be 0600) or less'
+    - 'G304: Potential file inclusion via variable'
+
+  # Independently of option `exclude` we use default exclude patterns,
+  # it can be disabled by this option.
+  # To list all excluded by default patterns execute `golangci-lint run --help`.
+  # Default: true
+  exclude-use-default: false
+
   # Maximum issues count per one linter.
   # Set to 0 to disable.
   # Default: 50
@@ -190,6 +220,43 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
       - name: useless-break
         disabled: false
+# https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#exported
+      - name: exported
+        disabled: false
+        arguments:
+          - "sayRepetitiveInsteadOfStutters"
+          - "checkPublicInterface"
+        exclude: 
+          - "**/abi/**/*.go"
+          - "**/api/**/*.go"
+          - "**/auth/**/*.go"
+          - "**/chainindexer/**/*.go"
+          - "**/cli/**/*.go"
+          - "**/cmd/**/*.go"
+          - "**/codec/**/*.go"
+          - "**/consts/**/*.go"
+          - "**/context/**/*.go"
+          - "**/crypto/**/*.go"
+          - "**/event/**/*.go"
+          - "**/examples/**/*.go"
+          - "**/extension/**/*.go"
+          - "**/fees/**/*.go"
+          - "**/genesis/**/*.go"
+          - "**/internal/**/*.go"
+          - "**/keys/**/*.go"
+          - "**/proto/**/*.go"
+          - "**/pubsub/**/*.go"
+          - "**/requester/**/*.go"
+          - "**/snow/**/*.go"
+          - "**/state/**/*.go"
+          - "**/statesync/**/*.go"
+          - "**/storage/**/*.go"
+          - "**/tests/**/*.go"
+          - "**/throughput/**/*.go"
+          - "**/utils/**/*.go"
+          - "**/vm/**/*.go"
+          - "**/x/**/*.go"
+          - "TEST"
   spancheck:
     # https://github.com/jjti/go-spancheck#checks
     checks:
