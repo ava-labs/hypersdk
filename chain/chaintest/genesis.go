@@ -13,12 +13,12 @@ import (
 func CreateGenesis(
 	numAccounts uint64,
 	allocAmount uint64,
-	factory func() (chain.AuthFactory, error),
+	factoryF func() (chain.AuthFactory, error),
 ) ([]chain.AuthFactory, genesis.Genesis, error) {
 	factories := make([]chain.AuthFactory, numAccounts)
 	customAllocs := make([]*genesis.CustomAllocation, numAccounts)
 	for i := range numAccounts {
-		factory, err := factory()
+		factory, err := factoryF()
 		if err != nil {
 			return nil, nil, err
 		}
