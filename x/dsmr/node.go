@@ -12,13 +12,15 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/internal/validitywindow"
 )
 
 const (
-	FutureBound = time.Second
+	FutureBound                = time.Second
+	maxFetchBlockChunksPending = 10
 )
 
 var (
@@ -121,6 +123,12 @@ type Node[T AssembledBlock] struct {
 	chunkPool     *chunkPool
 	networkClient Client
 
+	// XXX: this pattern enables us to fetch the missing chunks for blocks that we've accepted
+	// async and process them in order. There's no need to wait to fetch the chunks of block N+1
+	// until we have finished processing block N.
+	// Is this a reasonable optimization?
+	gatheredBlocks chan chan *GatheredBlock
+
 	assembler    Assembler[T]
 	lastAccepted T
 }
@@ -150,6 +158,7 @@ func NewNode[T AssembledBlock](
 		networkClient:       networkClient,
 		assembler:           assembler,
 		lastAccepted:        lastAccepted,
+		gatheredBlocks:      make(chan chan *GatheredBlock, maxFetchBlockChunksPending),
 	}, nil
 }
 
@@ -313,19 +322,87 @@ func (n *Node[_]) verifyChunkCert(rules Rules, canonicalVdrSet warp.CanonicalVal
 	)
 }
 
+type GatheredBlock struct {
+	Block          *Block
+	GatheredChunks []*Chunk
+	Err            error
+}
+
+func (n *Node[T]) StartAccept(
+	ctx context.Context,
+	block *Block,
+) error {
+	// Add result in order, so that we can complete work out of order
+	// and process in order.
+	res := make(chan *GatheredBlock, 1)
+	n.gatheredBlocks <- res
+
+	// Fetch async and add to the result channel
+	go func() {
+		acceptedChunks, err := n.gatherAcceptedChunks(ctx, block.Chunks)
+		res <- &GatheredBlock{
+			Block:          block,
+			GatheredChunks: acceptedChunks,
+			Err:            err,
+		}
+	}()
+
+	return nil
+}
+
+func (n *Node[T]) CompleteAccept(
+	ctx context.Context,
+	block *Block,
+) (T, error) {
+	// Block until we've fetched the chunks of the block
+	resCh := <-n.gatheredBlocks
+	gatheredBlock := <-resCh
+	if err := gatheredBlock.Err; err != nil {
+		return utils.Zero[T](), err
+	}
+	if gatheredBlock.Block.id != block.id {
+		return utils.Zero[T](), fmt.Errorf(
+			"unexpected block out of order %s, got gathered block %s",
+			block,
+			gatheredBlock.Block,
+		)
+	}
+
+	// Perform all work except for chunk fetching synchronously.
+	if err := n.pendingChunks.setMin(block.Timestamp, gatheredBlock.GatheredChunks); err != nil {
+		return utils.Zero[T](), err
+	}
+
+	n.chunkPool.updateHead(block)
+	n.chunkValidityWindow.Accept(newEChunkBlock(block))
+
+	assembledBlock, err := n.assembler.Assemble(
+		ctx,
+		n.lastAccepted,
+		block.Height,
+		block.Timestamp,
+		block.BlockContext,
+		gatheredBlock.GatheredChunks,
+	)
+	if err != nil {
+		return utils.Zero[T](), err
+	}
+	n.lastAccepted = assembledBlock
+	return assembledBlock, nil
+}
+
 func (n *Node[T]) AcceptBlock(
 	ctx context.Context,
 	block *Block,
 ) (T, error) {
-	var emptyT T
 	acceptedChunks, err := n.gatherAcceptedChunks(ctx, block.Chunks)
 	if err != nil {
-		return emptyT, err
+		return utils.Zero[T](), err
 	}
 
 	n.chunkPool.updateHead(block)
 	if err := n.pendingChunks.setMin(block.Timestamp, acceptedChunks); err != nil {
-		return emptyT, err
+		return utils.Zero[T](), err
 	}
 	n.chunkValidityWindow.Accept(newEChunkBlock(block))
 
@@ -340,7 +417,7 @@ func (n *Node[T]) AcceptBlock(
 		acceptedChunks,
 	)
 	if err != nil {
-		return emptyT, err
+		return utils.Zero[T](), err
 	}
 	n.lastAccepted = assembledBlock
 	return assembledBlock, nil
