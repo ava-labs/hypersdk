@@ -17,64 +17,65 @@ import (
 )
 
 type Parser interface {
-	// Parse marshaled action
+	// ParseAction parses a marshaled action
 	ParseAction([]byte) (Action, error)
-	// Parse marshaled auth
+	// ParseAuth parses a marshaled auth
 	ParseAuth([]byte) (Auth, error)
 }
 
 type Mempool interface {
-	// Number of items
+	// Len returns the number of items in the mempool
 	Len(context.Context) int
 	// Size of mempool in bytes
 	Size(context.Context) int
 	// Add a list of txs to the mempool
 	Add(context.Context, []*Transaction)
 
-	// Signal to mempool to prepare new stream of txs
+	// StartStreaming signals to the mempool to prepare a new stream of txs
 	StartStreaming(context.Context)
-	// Signal to mempool to prepare new stream of count txs
+	// PrepareStream signals to the mempool to prepare a new stream of count txs
 	PrepareStream(ctx context.Context, count int)
-	// Get txs from mempool
+	// Stream returns a list of txs from the mempool
 	Stream(context.Context, int) []*Transaction
-	// Restore txs to mempool and clear streamed items
+	// FinishStreaming signals to the mempool that stream is finished and
+	// restores txs to the mempool
 	FinishStreaming(ctx context.Context, txs []*Transaction) int
 }
 
 type Genesis interface {
-	// Initialize state of the chain, which may including balance allocations
+	// InitializeState sets the initial state diff of the chain
 	InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, balanceHandler BalanceHandler) error
 }
 
 // TODO: add fixed rules as a subset of this interface
 type Rules interface {
+	// GetNetworkID returns the network ID of the chain
+	//
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
-	//
-	// Network ID
 	GetNetworkID() uint32
-	// Chain ID
+	// GetChainID returns the chain ID
 	GetChainID() ids.ID
 
-	// Minimum gap between non-empty blocks (in milliseconds)
+	// GetMinBlockGap returns the minimum gap between non-empty blocks (in milliseconds)
 	GetMinBlockGap() int64
-	// Minimum gap between empty blocks (in milliseconds)
+	// GetMinEmptyBlockGap returns the minimum gap between empty blocks (in milliseconds)
 	GetMinEmptyBlockGap() int64
-	// Validity window for txs (in milliseconds)
+	// GetValidityWindow returns the validity window for txs (in milliseconds)
 	GetValidityWindow() int64
 
-	// Maximum number of actions per transaction
+	// GetMaxActionsPerTx returns the maximum number of actions per tx
 	GetMaxActionsPerTx() uint8
 
-	// Minimum unit price
+	// GetMinUnitPrice returns the minimum unit price
 	GetMinUnitPrice() fees.Dimensions
-	// Unit price change denominator
+	// GetUnitPriceChangeDenominator returns the denominator for unit price changes
 	GetUnitPriceChangeDenominator() fees.Dimensions
-	// Amount of units that block consumption should target
+	// GetWindowTargetUnits returns the target units for the window
 	GetWindowTargetUnits() fees.Dimensions
-	// Maximum amount of units that a block can consume
+	// GetMaxBlockUnits returns the maximum amount of units that a block can consume
 	GetMaxBlockUnits() fees.Dimensions
-	// Minimum amount of compute
+	// GetBaseComputeUnits returns the minimum amount of compute
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
@@ -84,36 +85,40 @@ type Rules interface {
 	// * Keys are only charged once per transaction (even if used multiple times), it is
 	//   up to the controller to ensure multiple usage has some compute cost
 
-	// Maximum number of chunks associated with the sponsor account
+	// GetSponsorStateKeysMaxChunks returns the maximum number of chunks that
+	// can be associated with the sponsor account
 	GetSponsorStateKeysMaxChunks() []uint16
-	// Fixed cost of reading a kv-pair
+	// GetStorageKeyReadUnits returns the fixed cost of reading a kv-pair
 	GetStorageKeyReadUnits() uint64
-	// Variable cost of reading a kv-pair (per chunk)
+	// GetStorageValueReadUnits returns the variable cost of reading a kv-pair (per chunk)
 	GetStorageValueReadUnits() uint64
-	// Fixed cost of allocating a kv-pair
+	// GetStorageKeyAllocateUnits returns the fixed cost of allocating a kv-pair
 	GetStorageKeyAllocateUnits() uint64
-	// Variable cost of allocating a kv-pair (per chunk)
+	// GetStorageValueAllocateUnits returns the variable cost of allocating a kv-pair (per chunk)
 	GetStorageValueAllocateUnits() uint64
-	// Fixed cost of writing a kv-pair
+	// GetStorageKeyWriteUnits returns the fixed cost of writing a kv-pair
 	GetStorageKeyWriteUnits() uint64
-	// Variable cost of writing a kv-pair (per chunk)
+	// GetStorageValueWriteUnits returns the variable cost of writing a kv-pair (per chunk)
 	GetStorageValueWriteUnits() uint64
 
-	// Fetch a custom rule
+	// FetchCustom returns a custom rule
+	// This is used to fetch rules that are not part of the standard rule interface
+	// The first return value is the value of the rule, and the second return
+	// value indicates whether the rule exists.
 	FetchCustom(string) (any, bool)
 }
 
 type RuleFactory interface {
-	// Get rules at timestamp t
+	// GetRules returns the rules at timestamp t
 	GetRules(t int64) Rules
 }
 
 type MetadataManager interface {
-	// Get prefix key for storing block height
+	// HeightPrefix returns the prefix key for storing block height
 	HeightPrefix() []byte
-	// Get prefix key for storing block timestamp
+	// TimestampPrefix returns the prefix key for storing block timestamp
 	TimestampPrefix() []byte
-	// Get prefix key for storing fees
+	// FeePrefix returns the prefix key for storing fees
 	FeePrefix() []byte
 }
 
@@ -141,7 +146,7 @@ type BalanceHandler interface {
 }
 
 type Action interface {
-	// Unique identifier for this action.
+	// GetTypeID returns the unique identifier for this action.
 	GetTypeID() uint8
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
@@ -244,30 +249,32 @@ type Auth interface {
 
 type AuthBatchVerifier interface {
 	// Add a signature to batch verification.
-	// Returns a function if there's enough signatures to batch verify.
+	// If there are enough signatures for a full batch, Add will return a
+	// function which, when called, verifies the batch
 	Add([]byte, Auth) func() error
-	// Returns a function to verify all outstanding signatures.
+	// Done returns a function that verifies the current batch
 	Done() []func() error
 }
 
 type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte) (Auth, error)
-	// Max bandwidth and compute units that this factory consumes
+	// MaxUnits returns the bandwidth and compute units that this factory consumes
 	MaxUnits() (bandwidth uint64, compute uint64)
 	// Address of the factory
 	Address() codec.Address
 }
 
 type ValidityWindow interface {
-	// Verify that there are no repeats within blk and within the validity window.
+	// VerifyExpiryReplayProtection is used to verify that there are no repeats
+	// within blk and within the validity window
 	VerifyExpiryReplayProtection(
 		ctx context.Context,
 		blk validitywindow.ExecutionBlock[*Transaction],
 	) error
 	// Accept blk as most recent
 	Accept(blk validitywindow.ExecutionBlock[*Transaction])
-	// Check if txs are repeats within the validity window
+	// IsRepeat checks if the txs are repeats within the validity window
 	IsRepeat(
 		ctx context.Context,
 		parentBlk validitywindow.ExecutionBlock[*Transaction],

@@ -7,13 +7,16 @@ import "errors"
 
 var (
 	// Parsing
+
 	ErrInvalidObject = errors.New("invalid object")
 
 	// Genesis Correctness
+
 	ErrInvalidChainID   = errors.New("invalid chain ID")
 	ErrInvalidBlockRate = errors.New("invalid block rate")
 
 	// Block Correctness
+
 	ErrTimestampTooEarly           = errors.New("timestamp too early")
 	ErrTimestampTooEarlyEmptyBlock = errors.New("timestamp too early for empty block")
 	ErrTimestampTooLate            = errors.New("timestamp too late")
@@ -31,6 +34,7 @@ var (
 	ErrInvalidBlockHeight          = errors.New("invalid block height")
 
 	// Tx Correctness
+
 	ErrInvalidSignature     = errors.New("invalid signature")
 	ErrDuplicateTx          = errors.New("duplicate transaction")
 	ErrInsufficientPrice    = errors.New("insufficient price")
@@ -53,10 +57,12 @@ var (
 	ErrTooManyActions       = errors.New("too many actions")
 
 	// Execution Correctness
+
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
 	// State Correctness
+
 	ErrFailedToFetchParentHeight    = errors.New("failed to fetch height from state")
 	ErrFailedToFetchParentTimestamp = errors.New("failed to fetch timestamp from state")
 	ErrFailedToFetchParentFee       = errors.New("failed to fetch fee manager from state")
@@ -64,6 +70,7 @@ var (
 	ErrFailedToParseParentTimestamp = errors.New("failed to parse timestamp")
 
 	// Misc
+
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")
 	ErrInvalidKeyValue        = errors.New("invalid key or value")

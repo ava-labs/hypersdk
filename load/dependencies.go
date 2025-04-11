@@ -22,7 +22,7 @@ type Issuer[T comparable] interface {
 	// If a transaction is issued after Stop has been called, the issuer should error.
 	Stop()
 
-	// Issue sends a tx to the network, and informs the tracker that its sent
+	// IssueTx sends a tx to the network, and informs the tracker that its sent
 	// said transaction.
 	IssueTx(ctx context.Context, tx T) error
 }
