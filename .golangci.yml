@@ -39,7 +39,6 @@ issues:
     - '(G301|G302|G307): Expect (directory permissions to be 0750|file
     permissions to be 0600) or less'
     - 'G304: Potential file inclusion via variable'
-    - '(ST1000|ST1020|ST1021|ST1022)'
 
   # Independently of option `exclude` we use default exclude patterns,
   # it can be disabled by this option.
