@@ -72,7 +72,7 @@ type LoadTxGenerator func(
 ) ([]load.TxGenerator[*chain.Transaction], error)
 
 // CreateTransfer should return an action that transfers amount to the given address
-type CreateTransfer func(to codec.Address, amount uint64, nonce uint64) chain.Action
+type CreateTransfer func(from codec.Address, to codec.Address, amount uint64, nonce uint64) chain.Action
 
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
@@ -457,7 +457,7 @@ func distributeFunds(
 
 	nonce := uint64(0)
 
-	action := []chain.Action{createTransfer(funder.Address(), 1, nonce)}
+	action := []chain.Action{createTransfer(funder.Address(), funder.Address(), 1, nonce)}
 	units, err := chain.EstimateUnits(
 		ruleFactory.GetRules(time.Now().UnixMilli()),
 		action,
@@ -472,7 +472,7 @@ func distributeFunds(
 		return nil, err
 	}
 
-	amountPerAccount := (balance - (numAccounts * fee)) / numAccounts
+	amountPerAccount := (balance - (numAccounts * fee) - 21_000) / numAccounts
 	if amountPerAccount == 0 {
 		return nil, ErrInsufficientFunds
 	}
@@ -489,7 +489,7 @@ func distributeFunds(
 
 	// Send and confirm funds to each account
 	for _, account := range accounts {
-		action := createTransfer(account.Address(), amountPerAccount, nonce)
+		action := createTransfer(funder.Address(), account.Address(), amountPerAccount, nonce)
 		nonce++
 		tx, err := chain.GenerateTransaction(
 			ruleFactory,
@@ -552,7 +552,7 @@ func consolidateFunds(
 
 	nonce := uint64(0)
 
-	action := []chain.Action{createTransfer(to.Address(), 1, nonce)}
+	action := []chain.Action{createTransfer(to.Address(), to.Address(), 1, nonce)}
 	units, err := chain.EstimateUnits(
 		ruleFactory.GetRules(time.Now().UnixMilli()),
 		action,
@@ -581,8 +581,8 @@ func consolidateFunds(
 		if balance < fee {
 			continue
 		}
-		amount := balance - fee
-		action := createTransfer(to.Address(), amount, nonce)
+		amount := (balance - fee) - 21_000
+		action := createTransfer(accounts[i].Address(), to.Address(), amount, nonce)
 		nonce++
 		tx, err := chain.GenerateTransaction(
 			ruleFactory,
