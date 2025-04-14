@@ -173,9 +173,9 @@ linters:
       # https://staticcheck.io/docs/options#checks
       checks:
         - all
-        - "-SA1019" # Using a deprecated function, variable, constant or field
-        - "-SA6002" # Storing non-pointer values in sync.Pool allocates memory
-        - "-QF1008"
+        - -SA1019 # Using a deprecated function, variable, constant or field
+        - -SA6002 # Storing non-pointer values in sync.Pool allocates memory
+        - -QF1008
     tagalign:
       align: true
       sort: true
