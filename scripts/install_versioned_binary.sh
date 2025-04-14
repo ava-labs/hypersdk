@@ -27,7 +27,7 @@ function install_versioned_binary() {
   local package_name
   package_name="$(basename "${binary_url}")"
   if [[ "${package_name}" != "${binary_name}" ]]; then
-    mv ./build/"${package_name}" "${binary_file}"
+    mv "${repo_root}/build/${package_name}" "${binary_file}"
   fi
 
   echo "${version}" > "${version_file}"
