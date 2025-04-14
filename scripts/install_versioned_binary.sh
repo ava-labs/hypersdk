@@ -4,34 +4,31 @@
 
 set -euo pipefail
 
-REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
-
-# Set AVALANCHE_VERSION and ensure CGO is configured
-. "${REPO_ROOT}"/scripts/constants.sh
-
 function install_versioned_binary() {
-  local binary_name="${1}"
-  local binary_url="${2}"
+  local repo_root="${1}"
+  local binary_name="${2}"
+  local binary_url="${3}"
+  local version="${4}"
 
-  local binary_file="${REPO_ROOT}/build/${binary_name}"
-  local version_file="${REPO_ROOT}/build/${binary_name}.version"
+  local binary_file="${repo_root}/build/${binary_name}"
+  local version_file="${repo_root}/build/${binary_name}.version"
 
   # Check if the binary exists and was built for the current version
-  local build_required=1
   if [[ -f "${binary_file}" && -f "${version_file}" ]]; then
-    if [[ "$(cat "${version_file}")" == "${AVALANCHE_VERSION}" ]]; then
-      build_required=
+    if [[ "$(cat "${version_file}")" == "${version}" ]]; then
+      return
     fi
   fi
 
-  if [[ -n "${build_required}" ]]; then
-    echo "installing ${binary_name} @ ${AVALANCHE_VERSION}"
-    GOBIN="${REPO_ROOT}"/build go install "${binary_url}@${AVALANCHE_VERSION}"
-    local package_name
-    package_name="$(basename "${binary_url}")"
-    if [[ "${package_name}" != "${binary_name}" ]]; then
-      mv ./build/"${package_name}" "${binary_file}"
-    fi
-    echo "${AVALANCHE_VERSION}" > "${version_file}"
+  echo "installing ${binary_name} @ ${version}"
+  GOBIN="${repo_root}"/build go install "${binary_url}@${version}"
+
+  # Rename the binary if the package name doesn't match
+  local package_name
+  package_name="$(basename "${binary_url}")"
+  if [[ "${package_name}" != "${binary_name}" ]]; then
+    mv ./build/"${package_name}" "${binary_file}"
   fi
+
+  echo "${version}" > "${version_file}"
 }

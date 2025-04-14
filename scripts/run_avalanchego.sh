@@ -6,7 +6,10 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 
+# Set AVALANCHE_VERSION and ensure CGO is configured
+. "${REPO_ROOT}"/scripts/constants.sh
+
 . "${REPO_ROOT}"/scripts/install_versioned_binary.sh
-install_versioned_binary avalanchego github.com/ava-labs/avalanchego/main
+install_versioned_binary "${REPO_ROOT}" avalanchego github.com/ava-labs/avalanchego/main "${AVALANCHE_VERSION}"
 
 "${REPO_ROOT}"/build/avalanchego "${@}"
