@@ -13,23 +13,25 @@ function install_versioned_binary() {
   local binary_name="${1}"
   local binary_url="${2}"
 
+  local binary_file="${REPO_ROOT}/build/${binary_name}"
+  local version_file="${REPO_ROOT}/build/${binary_name}.version"
+
   # Check if the binary exists and was built for the current version
   local build_required=1
-  if [[ -f "${REPO_ROOT}/build/${binary_name}" && -f "${REPO_ROOT}/build/${binary_name}.version" ]]; then
-    if [[ "$(cat "${REPO_ROOT}/build/${binary_name}.version")" == "${AVALANCHE_VERSION}" ]]; then
+  if [[ -f "${binary_file}" && -f "${version_file}" ]]; then
+    if [[ "$(cat "${version_file}")" == "${AVALANCHE_VERSION}" ]]; then
       build_required=
     fi
   fi
 
   if [[ -n "${build_required}" ]]; then
-    cd "${REPO_ROOT}"
     echo "installing ${binary_name} @ ${AVALANCHE_VERSION}"
     GOBIN="${REPO_ROOT}"/build go install "${binary_url}@${AVALANCHE_VERSION}"
     local package_name
     package_name="$(basename "${binary_url}")"
     if [[ "${package_name}" != "${binary_name}" ]]; then
-      mv ./build/"${package_name}" ./build/"${binary_name}"
+      mv ./build/"${package_name}" "${binary_file}"
     fi
-    echo "${AVALANCHE_VERSION}" > "${REPO_ROOT}"/build/"${binary_name}".version
+    echo "${AVALANCHE_VERSION}" > "${version_file}"
   fi
 }
