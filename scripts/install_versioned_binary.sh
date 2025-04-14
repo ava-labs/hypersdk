@@ -25,7 +25,8 @@ function install_versioned_binary() {
     cd "${REPO_ROOT}"
     echo "installing ${binary_name} @ ${AVALANCHE_VERSION}"
     GOBIN="${REPO_ROOT}"/build go install "${binary_url}@${AVALANCHE_VERSION}"
-    local package_name=$(basename "${binary_url}")
+    local package_name
+    package_name="$(basename "${binary_url}")"
     if [[ "${package_name}" != "${binary_name}" ]]; then
       mv ./build/"${package_name}" ./build/"${binary_name}"
     fi
