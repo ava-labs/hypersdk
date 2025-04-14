@@ -175,7 +175,7 @@ linters:
         - all
         - -SA1019 # Using a deprecated function, variable, constant or field
         - -SA6002 # Storing non-pointer values in sync.Pool allocates memory
-        - -QF1008
+        - -QF1008 # Omit embedded fields from selector expression
     tagalign:
       align: true
       sort: true

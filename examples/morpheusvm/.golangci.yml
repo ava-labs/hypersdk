@@ -93,7 +93,7 @@ linters:
         - all
         - -SA1019 # deprecated packages e.g., golang.org/x/crypto/ripemd160
         - -SA6002 # argument should be pointer-like to avoid allocation, for sync.Pool
-        - -QF1008
+        - -QF1008 # omit embedded fields from selector expression
   exclusions:
     generated: lax
     presets:
