@@ -4,11 +4,9 @@
 
 set -euo pipefail
 
-# Ensure the go command is run from the root of the repository
 REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
-cd "${REPO_ROOT}"
 
-# Set AVALANCHE_VERSION
-. ./scripts/constants.sh
+. ./scripts/install_versioned_binary.sh
+install_versioned_binary tmpnetctl github.com/ava-labs/avalanchego/tests/fixture/tmpnet/tmpnetctl
 
-go run github.com/ava-labs/avalanchego/tests/fixture/tmpnet/tmpnetctl@"${AVALANCHE_VERSION}" "${@}"
+"${REPO_ROOT}"/build/tmpnetctl "${@}"
