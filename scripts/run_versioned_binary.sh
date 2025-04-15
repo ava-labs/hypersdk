@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
+
 function install_versioned_binary() {
   local repo_root="${1}"
   local binary_name="${2}"
@@ -33,3 +35,27 @@ function install_versioned_binary() {
   mkdir -p "${repo_root}/build"
   ln -sf "${binary_file}" "${repo_root}/build/${binary_name}"
 }
+
+# The first 2 arguments are for this script, the rest are for invoking binary
+BINARY_URL="${1}"
+VERSION="${2}"
+shift 2
+
+if [[ -z "${BINARY_URL}" ]]; then
+  echo "Usage: $0 <binary_url> <version> [<args>]"
+  echo "binary_url is required"
+  exit 1
+fi
+
+if [[ -z "${VERSION}" || "${VERSION}" == "latest" ]]; then
+  echo "Usage: $0 <binary_url> <version> [<args>]"
+  echo "version is required and cannot be 'latest'"
+  exit 1
+fi
+
+# The binary name is the last part of the URL, or can be overridden by the caller
+BINARY_NAME="${GOLANG_BINARY_NAME:-$(basename "${BINARY_URL}")}"
+
+install_versioned_binary "${REPO_ROOT}" "${BINARY_NAME}" "${BINARY_URL}" "${VERSION}"
+
+"${REPO_ROOT}/build/${BINARY_NAME}" "${@}"
