@@ -10,25 +10,26 @@ function install_versioned_binary() {
   local binary_url="${3}"
   local version="${4}"
 
-  local binary_file="${repo_root}/build/${binary_name}"
-  local version_file="${repo_root}/build/${binary_name}.version"
+  # Install to central location to avoid having to rebuild across git worktrees or repos.
+  local versioned_binary_root="${HOME}/.cache/versioned-binaries"
 
-  # Check if the binary exists and was built for the current version
-  if [[ -f "${binary_file}" && -f "${version_file}" ]]; then
-    if [[ "$(cat "${version_file}")" == "${version}" ]]; then
-      return
+  local gobin="${versioned_binary_root}/${binary_name}/${version}"
+  local binary_file="${gobin}/${binary_name}"
+
+  # Check if the binary exists for the current version
+  if [[ ! -f "${binary_file}" ]]; then
+    echo "installing ${binary_name} @ ${version}"
+    GOBIN="${gobin}" go install "${binary_url}@${version}"
+
+    # Rename the binary if the package name doesn't match
+    local package_name
+    package_name="$(basename "${binary_url}")"
+    if [[ "${package_name}" != "${binary_name}" ]]; then
+      mv "${gobin}/${package_name}" "${binary_file}"
     fi
   fi
 
-  echo "installing ${binary_name} @ ${version}"
-  GOBIN="${repo_root}"/build go install "${binary_url}@${version}"
-
-  # Rename the binary if the package name doesn't match
-  local package_name
-  package_name="$(basename "${binary_url}")"
-  if [[ "${package_name}" != "${binary_name}" ]]; then
-    mv "${repo_root}/build/${package_name}" "${binary_file}"
-  fi
-
-  echo "${version}" > "${version_file}"
+  # Symlink the binary to the local path to ensure a stable target for the caller
+  mkdir -p "${repo_root}/build"
+  ln -sf "${binary_file}" "${repo_root}/build/${binary_name}"
 }
