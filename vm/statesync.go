@@ -130,6 +130,11 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			if err := vm.snowApp.FinishStateSync(ctx, outputBlock.ExecutionBlock, outputBlock, outputBlock); err != nil {
 				return err
 			}
+
+			if !vm.chainTimeValidityWindow.Populated() {
+				return fmt.Errorf("critical error: validity window's partial state may lead to incosistencies")
+			}
+
 			vm.snowInput.ToEngine <- common.StateSyncDone
 			return vm.startNormalOp(ctx)
 		},

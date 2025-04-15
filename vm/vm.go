@@ -303,9 +303,14 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.initValidityWindow(ctx); err != nil {
-		return nil, nil, nil, false, err
+	lastAccepted, err := vm.initLastAccepted(ctx)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to initialize last accepted block: %w", err)
 	}
+
+	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow[*chain.Transaction](ctx, vm.snowCtx.Log, vm.tracer, vm, lastAccepted, func(timestamp int64) int64 {
+		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
+	})
 
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
@@ -354,13 +359,11 @@ func (vm *VM) Initialize(
 	}
 
 	stateReady := !vm.SyncClient.MustStateSync()
-	var lastAccepted *chain.OutputBlock
-	if stateReady {
-		lastAccepted, err = vm.initLastAccepted(ctx)
-		if err != nil {
-			return nil, nil, nil, false, err
-		}
+	// The branch is executed when the VM must preform state sync
+	if !stateReady {
+		lastAccepted = nil
 	}
+
 	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
 }
 
@@ -368,7 +371,7 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 	vm.consensusIndex = consensusIndex
 }
 
-func (vm *VM) initChainStore(executionBlockParser chain.ExecutionBlockParser) error {
+func (vm *VM) initChainStore(executionBlockParser *chain.BlockParser) error {
 	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
@@ -390,6 +393,11 @@ func (vm *VM) initChainStore(executionBlockParser chain.ExecutionBlockParser) er
 	return nil
 }
 
+// initLastAccepted determines and loads the last accepted block during VM initialization.
+// It serves three critical purposes:
+// 1. For a fresh chain: Creates and commits genesis block
+// 2. For an existing chain: Load the last accepted block that corresponds to current state
+// 3. Ensures state consistency between the chain store and state database
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
@@ -702,54 +710,4 @@ func (vm *VM) Submit(
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.mempool.Len(ctx)))
 	return errs
-}
-
-// initValidityWindow populates the VM's time validity window on startup
-//
-// During initialization, there are two scenarios:
-//  1. First startup or state sync needed: Create an empty validity window that will be
-//     populated during bootstrapping/state sync.
-//  2. Normal operation or restart: Initialize with populated validity window using the
-//     last known block as the starting point.
-//
-// The populated validity window will use the last accepted block as its anchor point,
-// then scan the ancestry to build a complete validity window. This handles cases where
-// a node restarts with an incomplete validity window that could allow duplicate transactions.
-func (vm *VM) initValidityWindow(ctx context.Context) error {
-	getWindowSize := func(timestamp int64) int64 {
-		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
-	}
-
-	// If we don't have a last accepted block or we're not in normal operation,
-	// initialize with empty validity window to be populated later
-	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
-	normalOp := vm.normalOp.Load()
-	if err == database.ErrNotFound || !normalOp {
-		vm.snowCtx.Log.Debug("initializing empty validity window", zap.Bool("normalOp", normalOp))
-		vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(
-			vm.snowCtx.Log,
-			vm.tracer,
-			vm,
-			getWindowSize,
-		)
-		return nil
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to read last accepted height: %w", err)
-	}
-
-	// Fetch the last accepted block to anchor our validity window from disk (we might have restarted)
-	lastAcceptedBlock, err := vm.chainStore.GetBlockByHeight(ctx, lastAcceptedHeight)
-	if err != nil {
-		return fmt.Errorf("failed to fetch last accepted block: %w", err)
-	}
-
-	vm.snowCtx.Log.Debug("initializing populated validity window",
-		zap.Uint64("height", lastAcceptedHeight),
-		zap.Stringer("blockID", lastAcceptedBlock.GetID()),
-	)
-	vm.chainTimeValidityWindow = validitywindow.NewPopulatedTimeValidityWindow(ctx, vm.snowCtx.Log, vm.tracer, vm, lastAcceptedBlock, getWindowSize)
-
-	return nil
 }
