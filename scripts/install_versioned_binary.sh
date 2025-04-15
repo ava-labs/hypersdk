@@ -13,7 +13,7 @@ function install_versioned_binary() {
   # Install to central location to avoid having to rebuild across git worktrees or repos.
   local versioned_binary_root="${HOME}/.cache/versioned-binaries"
 
-  local gobin="${versioned_binary_root}/${binary_name}/${version}"
+  local gobin="${versioned_binary_root}/${binary_url}/${version}"
   local binary_file="${gobin}/${binary_name}"
 
   # Check if the binary exists for the current version
