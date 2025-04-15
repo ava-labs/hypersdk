@@ -63,24 +63,10 @@ type TimeValidityWindow[T emap.Item] struct {
 	seen                    *emap.EMap[T]
 	lastAcceptedBlockHeight uint64
 	getTimeValidityWindow   GetTimeValidityWindowFunc
+	populated               bool
 }
 
 func NewTimeValidityWindow[T emap.Item](
-	log logging.Logger,
-	tracer trace.Tracer,
-	chainIndex ChainIndex[T],
-	getTimeValidityWindowF GetTimeValidityWindowFunc,
-) *TimeValidityWindow[T] {
-	return &TimeValidityWindow[T]{
-		log:                   log,
-		tracer:                tracer,
-		chainIndex:            chainIndex,
-		seen:                  emap.NewEMap[T](),
-		getTimeValidityWindow: getTimeValidityWindowF,
-	}
-}
-
-func NewPopulatedTimeValidityWindow[T emap.Item](
 	ctx context.Context,
 	log logging.Logger,
 	tracer trace.Tracer,
@@ -88,9 +74,22 @@ func NewPopulatedTimeValidityWindow[T emap.Item](
 	lastAcceptedBlock ExecutionBlock[T],
 	getTimeValidityWindowF GetTimeValidityWindowFunc,
 ) *TimeValidityWindow[T] {
-	t := NewTimeValidityWindow(log, tracer, chainIndex, getTimeValidityWindowF)
-	t.populateValidityWindow(ctx, lastAcceptedBlock)
+	t := &TimeValidityWindow[T]{
+		log:                   log,
+		tracer:                tracer,
+		chainIndex:            chainIndex,
+		seen:                  emap.NewEMap[T](),
+		getTimeValidityWindow: getTimeValidityWindowF,
+		populated:             false,
+	}
+	if lastAcceptedBlock != nil {
+		t.populateValidityWindow(ctx, lastAcceptedBlock)
+	}
 	return t
+}
+
+func (v *TimeValidityWindow[T]) Populated() bool {
+	return v.populated
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
@@ -215,7 +214,8 @@ func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, bloc
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
 		fullValidityWindow = false
-		oldestAllowed      = v.calculateOldestAllowed(block.GetTimestamp())
+		ts                 = block.GetTimestamp()
+		oldestAllowed      = v.calculateOldestAllowed(ts)
 		err                error
 	)
 
@@ -242,6 +242,8 @@ func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, bloc
 	for _, blk := range parents {
 		v.Accept(blk)
 	}
+
+	v.populated = fullValidityWindow
 	return parents, fullValidityWindow
 }
 

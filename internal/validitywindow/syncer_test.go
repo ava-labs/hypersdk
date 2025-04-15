@@ -231,9 +231,11 @@ func runSyncerTest(t *testing.T, test testCases) {
 	chainIndex := test.setupChainIndex(blkChain)
 
 	validityWindow := NewTimeValidityWindow(
+		ctx,
 		&logging.NoLog{},
 		trace.Noop,
 		chainIndex,
+		nil,
 		func(_ int64) int64 { return test.validityWindow },
 	)
 

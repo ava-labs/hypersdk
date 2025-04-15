@@ -285,9 +285,11 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 
 	chainIndex := &validitywindowtest.MockChainIndex[*chain.Transaction]{}
 	validityWindow := validitywindow.NewTimeValidityWindow(
+		ctx,
 		logging.NoLog{},
 		trace.Noop,
 		chainIndex,
+		nil,
 		func(timestamp int64) int64 {
 			return test.RuleFactory.GetRules(timestamp).GetValidityWindow()
 		},

@@ -116,9 +116,10 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
 			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 				return test.validityWindow
 			})
 			for i, blk := range test.blocks {
@@ -272,9 +273,10 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
 			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 				return test.validityWindow
 			})
 			for i, blk := range test.blocks {
@@ -360,10 +362,11 @@ func TestVerifyTimestamp(t *testing.T) {
 // seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
 func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
 
 	chainIndex := &testChainIndex{}
 	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+	validityWindow := NewTimeValidityWindow[container](ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 		return validityWindowDuration
 	})
 
@@ -397,10 +400,11 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 
 func TestAcceptHistorical(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
 
 	chainIndex := &testChainIndex{}
 	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+	validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 		return validityWindowDuration
 	})
 
