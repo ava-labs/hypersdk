@@ -65,12 +65,6 @@ type Interface[T emap.Item] interface {
 //  4. Maintains consensus safety across nodes i.e.;
 //     if different nodes had different rules for transaction uniqueness,
 //     they would disagree about the state of the blockchain.
-//
-// The validity window population requirements depend on the node's startup path:
-//   - Normal startup (non-state sync): Can operate with a partially populated window
-//     as the network itself may not have full transaction history yet.
-//   - After state sync: Must have a fully populated validity window before entering
-//     normal operation.
 type TimeValidityWindow[T emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
@@ -239,10 +233,17 @@ func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, bloc
 	)
 
 	// Keep fetching parents until we:
+	// - Reach block height 0 (Genesis) at that point we have a full validity window,
+	// and we can correctly preform replay protection
 	// - Fill a validity window, or
 	// - Can't find more blocks
 	// Descending order is guaranteed by the parent-based traversal method
 	for {
+		if parent.GetHeight() == 0 {
+			fullValidityWindow = true
+			break
+		}
+
 		// Get execution block from cache or disk
 		parent, err = v.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
