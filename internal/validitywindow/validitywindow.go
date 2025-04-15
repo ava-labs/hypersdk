@@ -74,7 +74,6 @@ type TimeValidityWindow[T emap.Item] struct {
 	seen                    *emap.EMap[T]
 	lastAcceptedBlockHeight uint64
 	getTimeValidityWindow   GetTimeValidityWindowFunc
-	populated               bool
 }
 
 func NewTimeValidityWindow[T emap.Item](
@@ -91,18 +90,11 @@ func NewTimeValidityWindow[T emap.Item](
 		chainIndex:            chainIndex,
 		seen:                  emap.NewEMap[T](),
 		getTimeValidityWindow: getTimeValidityWindowF,
-		populated:             false,
 	}
 	if lastAcceptedBlock != nil {
-		t.populateValidityWindow(ctx, lastAcceptedBlock)
+		t.Populate(ctx, lastAcceptedBlock)
 	}
 	return t
-}
-
-// Populated reports whether a complete validity window has been observed,
-// it's critical for nodes transitioning to normal operation after state sync
-func (v *TimeValidityWindow[T]) Populated() bool {
-	return v.populated
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
@@ -222,7 +214,11 @@ func (v *TimeValidityWindow[T]) isRepeat(
 	}
 }
 
-func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
+// Populate fills the validity window with blocks from cache/on-disk and reports if a full window was observed.
+// Returns:
+//   - []ExecutionBlock[T]: accepted blocks in validity window
+//   - bool: True if a full validity window was observed
+func (v *TimeValidityWindow[T]) Populate(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
 	var (
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
@@ -263,7 +259,6 @@ func (v *TimeValidityWindow[T]) populateValidityWindow(ctx context.Context, bloc
 		v.Accept(blk)
 	}
 
-	v.populated = fullValidityWindow
 	return parents, fullValidityWindow
 }
 

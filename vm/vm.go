@@ -347,7 +347,7 @@ func (vm *VM) Initialize(
 		if vm.SyncClient.Started() {
 			return nil
 		}
-		return vm.startNormalOp(ctx)
+		return vm.startNormalOp(ctx, lastAccepted)
 	})
 
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
@@ -531,11 +531,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 
 // startNormalOp initializes components required for normal VM operation when transitioning
 // from bootstrapping or state sync
-func (vm *VM) startNormalOp(ctx context.Context) error {
-	if !vm.chainTimeValidityWindow.Populated() {
-		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
-	}
-
+func (vm *VM) startNormalOp(ctx context.Context, lastAcceptedBlock *chain.OutputBlock) error {
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
 		vm.builder.Done()
@@ -558,8 +554,13 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 		return fmt.Errorf("failed to add tx gossip handler: %w", err)
 	}
 	vm.checkActivity(ctx)
-	vm.normalOp.Store(true)
 
+	_, fullyPopulated := vm.chainTimeValidityWindow.Populate(ctx, lastAcceptedBlock)
+	if !fullyPopulated {
+		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
+	}
+
+	vm.normalOp.Store(true)
 	return nil
 }
 

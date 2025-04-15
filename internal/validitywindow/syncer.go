@@ -141,7 +141,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
 ) bool {
-	validityBlocks, windowComplete := s.timeValidityWindow.populateValidityWindow(ctx, block)
+	validityBlocks, windowComplete := s.timeValidityWindow.Populate(ctx, block)
 
 	s.oldestBlock = validityBlocks[0]
 	return windowComplete

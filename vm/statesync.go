@@ -131,7 +131,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 				return err
 			}
 			vm.snowInput.ToEngine <- common.StateSyncDone
-			return vm.startNormalOp(ctx)
+			return vm.startNormalOp(ctx, outputBlock)
 		},
 		stateSyncConfig.MinBlocks,
 	)
