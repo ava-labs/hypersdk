@@ -532,6 +532,10 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 // startNormalOp initializes components required for normal VM operation when transitioning
 // from bootstrapping or state sync
 func (vm *VM) startNormalOp(ctx context.Context) error {
+	if !vm.chainTimeValidityWindow.Populated() {
+		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
+	}
+
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
 		vm.builder.Done()
