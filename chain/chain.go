@@ -16,15 +16,11 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type ExecutionBlockParser interface {
-	ParseBlock(ctx context.Context, bytes []byte) (*ExecutionBlock, error)
-}
-
 type Chain struct {
 	builder     *Builder
 	processor   *Processor
 	preExecutor *PreExecutor
-	blockParser ExecutionBlockParser
+	blockParser *BlockParser
 	accepter    *Accepter
 }
 
@@ -38,7 +34,7 @@ func NewChain(
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authEngines AuthEngines,
-	blockParser ExecutionBlockParser,
+	blockParser *BlockParser,
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
