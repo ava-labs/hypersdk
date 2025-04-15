@@ -132,6 +132,10 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 				return err
 			}
 
+			// This check ensures the validity window is fully populated after state sync completes.
+			// After state sync, we must have complete validity.
+			// A partial validity window is only acceptable during initial network startup,
+			// not after syncing from an established network state.
 			if !vm.chainTimeValidityWindow.Populated() {
 				return errors.New("critical error: validity window's partial state may lead to inconsistencies")
 			}

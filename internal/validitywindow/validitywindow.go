@@ -54,6 +54,23 @@ type Interface[T emap.Item] interface {
 	IsRepeat(ctx context.Context, parentBlk ExecutionBlock[T], currentTimestamp int64, containers []T) (set.Bits, error)
 }
 
+// TimeValidityWindow is a time-based transaction uniqueness mechanism that prevents replay attacks.
+// It maintains a record of transactions that have been seen within a
+// configurable time window and rejects any duplicates.
+//
+// This component is critical as it:
+//  1. Prevents transaction replay attacks
+//  2. Enforces double-spend protection
+//  3. Provides temporal validation boundaries
+//  4. Maintains consensus safety across nodes i.e.;
+//     if different nodes had different rules for transaction uniqueness,
+//     they would disagree about the state of the blockchain.
+//
+// The validity window population requirements depend on the node's startup path:
+//   - Normal startup (non-state sync): Can operate with a partially populated window
+//     as the network itself may not have full transaction history yet.
+//   - After state sync: Must have a fully populated validity window before entering
+//     normal operation.
 type TimeValidityWindow[T emap.Item] struct {
 	log    logging.Logger
 	tracer trace.Tracer
@@ -88,6 +105,8 @@ func NewTimeValidityWindow[T emap.Item](
 	return t
 }
 
+// Populated reports whether a complete validity window has been observed,
+// it's critical for nodes transitioning to normal operation after state sync
 func (v *TimeValidityWindow[T]) Populated() bool {
 	return v.populated
 }
