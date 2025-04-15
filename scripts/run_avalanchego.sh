@@ -9,7 +9,6 @@ REPO_ROOT=$(cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 # Set AVALANCHE_VERSION and ensure CGO is configured
 . "${REPO_ROOT}"/scripts/constants.sh
 
-. "${REPO_ROOT}"/scripts/install_versioned_binary.sh
-install_versioned_binary "${REPO_ROOT}" avalanchego github.com/ava-labs/avalanchego/main "${AVALANCHE_VERSION}"
-
-"${REPO_ROOT}"/build/avalanchego "${@}"
+# Need to set the binary name or the name will be 'main'
+GOLANG_BINARY_NAME=avalanchego \
+  "${REPO_ROOT}"/scripts/run_versioned_binary.sh github.com/ava-labs/avalanchego/main "${AVALANCHE_VERSION}" "${@}"

@@ -32,9 +32,7 @@ go build -o "${AVALANCHEGO_PLUGIN_DIR}"/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP
 
 echo "building e2e.test"
 
-prepare_ginkgo
-
-ACK_GINKGO_RC=true ginkgo build ./tests/e2e
+ACK_GINKGO_RC=true ../../bin/ginkgo build ./tests/e2e
 ./tests/e2e/e2e.test --help
 
 args=(
