@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
@@ -132,7 +133,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 			}
 
 			if !vm.chainTimeValidityWindow.Populated() {
-				return fmt.Errorf("critical error: validity window's partial state may lead to incosistencies")
+				return errors.New("critical error: validity window's partial state may lead to incosistencies")
 			}
 
 			vm.snowInput.ToEngine <- common.StateSyncDone
