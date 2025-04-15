@@ -82,10 +82,9 @@ func (vm *VM) GetExecutionBlock(ctx context.Context, blkID ids.ID) (validitywind
 
 	if vm.consensusIndex != nil {
 		blk, err := vm.consensusIndex.GetBlock(ctx, blkID)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			return blk, nil
 		}
-		return blk, nil
 	}
 
 	return vm.chainStore.GetBlock(ctx, blkID)
