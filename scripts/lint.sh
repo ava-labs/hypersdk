@@ -10,7 +10,7 @@ if ! [[ "$0" =~ scripts/lint.sh ]]; then
 fi
 
 # Default version of golangci-lint
-GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v1.64.5"}
+GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v2.0.2"}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/scripts/common/utils.sh
@@ -32,7 +32,7 @@ TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
+  go install -v github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
 
   golangci-lint run --config .golangci.yml
 }
