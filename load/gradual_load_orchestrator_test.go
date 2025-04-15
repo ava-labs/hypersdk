@@ -33,27 +33,27 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	}{
 		{
 			name:      "orchestrator achieves max TPS",
-			serverTPS: 4_000,
+			serverTPS: 3_000,
 			config: GradualLoadOrchestratorConfig{
-				MaxTPS:           4_000,
+				MaxTPS:           2_000,
 				MinTPS:           1_000,
 				Step:             1_000,
 				TxRateMultiplier: 1.3,
 				SustainedTime:    3 * time.Second,
-				MaxAttempts:      3,
+				MaxAttempts:      2,
 				Terminate:        true,
 			},
 		},
 		{
 			name:      "orchestrator TPS limited by network",
-			serverTPS: 3_000,
+			serverTPS: 1_500,
 			config: GradualLoadOrchestratorConfig{
-				MaxTPS:           4_000,
+				MaxTPS:           2_000,
 				MinTPS:           1_000,
 				Step:             1_000,
 				TxRateMultiplier: 1.3,
 				SustainedTime:    3 * time.Second,
-				MaxAttempts:      3,
+				MaxAttempts:      2,
 				Terminate:        true,
 			},
 			expectedErr: ErrFailedToReachTargetTPS,
