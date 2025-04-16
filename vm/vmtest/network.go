@@ -422,7 +422,7 @@ func (n *TestNetwork) ConfirmTxs(ctx context.Context, txs []*chain.Transaction) 
 
 	for i, blk := range blks {
 		n.VMs[i].snowCtx.Lock.Lock()
-		err := blk.Accept(ctx)
+		err := blk.SyncAccept(ctx)
 		n.VMs[i].snowCtx.Lock.Unlock()
 		n.require.NoError(err, "failed to accept block at VM index %d", i)
 	}
@@ -482,7 +482,7 @@ func (n *TestNetwork) SynchronizeNetwork(ctx context.Context) {
 			n.require.NoError(err)
 
 			parsedBlk := vm.ParseAndSetPreference(ctx, blk.GetBytes())
-			n.require.NoError(parsedBlk.Accept(ctx))
+			n.require.NoError(parsedBlk.SyncAccept(ctx))
 			lastAcceptedHeight++
 		}
 	}
