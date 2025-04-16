@@ -6,7 +6,6 @@ package load
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,12 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const chanSize = 1_000_000
-
 var (
 	_ TxGenerator[ids.ID] = (*mockTxGenerator)(nil)
 	_ Issuer[ids.ID]      = (*mockIssuer)(nil)
-	_ Issuer[ids.ID]      = (*mockErrIssuer)(nil)
+	_ Tracker[any]        = (*mockTracker)(nil)
 )
 
 func TestGradualLoadOrchestratorTPS(t *testing.T) {
@@ -39,7 +36,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 				MinTPS:           1_000,
 				Step:             1_000,
 				TxRateMultiplier: 1.3,
-				SustainedTime:    3 * time.Second,
+				SustainedTime:    time.Second,
 				MaxAttempts:      2,
 				Terminate:        true,
 			},
@@ -52,7 +49,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 				MinTPS:           1_000,
 				Step:             1_000,
 				TxRateMultiplier: 1.3,
-				SustainedTime:    3 * time.Second,
+				SustainedTime:    time.Second,
 				MaxAttempts:      2,
 				Terminate:        true,
 			},
@@ -66,29 +63,20 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
-			r.NoError(err)
-
-			server := newMockServer(tt.serverTPS)
-			issuer := newMockIssuer("issuer1", server, tracker)
-
-			// Start server
-			go server.run(ctx)
-
 			orchestrator, err := NewGradualLoadOrchestrator(
 				[]TxGenerator[ids.ID]{&mockTxGenerator{
 					generateTxF: func() (ids.ID, error) {
 						return ids.GenerateTestID(), nil
 					},
 				}},
-				[]Issuer[ids.ID]{issuer},
-				tracker,
+				[]Issuer[ids.ID]{&mockIssuer{}},
+				newMockTracker(tt.serverTPS, tt.config.SustainedTime),
 				logging.NoLog{},
 				tt.config,
 			)
 			r.NoError(err)
 
-			r.ErrorIs(orchestrator.Execute(ctx), tt.expectedErr)
+			r.ErrorIs(orchestrator.Execute(ctx), tt.expectedErr, "got %v TPS", orchestrator.GetMaxObservedTPS())
 
 			if tt.expectedErr == nil {
 				r.GreaterOrEqual(orchestrator.GetMaxObservedTPS(), tt.config.MaxTPS)
@@ -170,8 +158,8 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 					},
 				},
 			},
-			issuers: []Issuer[ids.ID]{&mockErrIssuer{
-				err: errMockIssuer,
+			issuers: []Issuer[ids.ID]{&mockIssuer{
+				issueTxErr: errMockIssuer,
 			}},
 			expectedErr: errMockIssuer,
 		},
@@ -200,6 +188,39 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 	}
 }
 
+type mockTracker struct {
+	observedConfirmed uint64
+	tps               uint64
+	sustainedTime     time.Duration
+}
+
+func newMockTracker(tps uint64, sustainedTime time.Duration) *mockTracker {
+	return &mockTracker{
+		tps:           tps,
+		sustainedTime: sustainedTime,
+	}
+}
+
+func (m *mockTracker) GetObservedConfirmed() uint64 {
+	oc := m.observedConfirmed
+	m.observedConfirmed += (m.tps * uint64(m.sustainedTime.Seconds()))
+	return oc
+}
+
+func (*mockTracker) GetObservedFailed() uint64 {
+	return 0
+}
+
+func (*mockTracker) GetObservedIssued() uint64 {
+	return 0
+}
+
+func (*mockTracker) Issue(any) {}
+
+func (*mockTracker) ObserveConfirmed(any) {}
+
+func (*mockTracker) ObserveFailed(any) {}
+
 type mockTxGenerator struct {
 	generateTxF func() (ids.ID, error)
 }
@@ -209,126 +230,15 @@ func (m *mockTxGenerator) GenerateTx(context.Context) (ids.ID, error) {
 }
 
 type mockIssuer struct {
-	name     string
-	server   *mockServer
-	incoming <-chan ids.ID
-	tracker  Tracker[ids.ID]
+	issueTxErr error
 }
 
-// newMockIssuer creates an issuer that is connected to the server
-func newMockIssuer(name string, server *mockServer, tracker Tracker[ids.ID]) *mockIssuer {
-	return &mockIssuer{
-		name:     name,
-		server:   server,
-		tracker:  tracker,
-		incoming: server.connect(name),
-	}
+func (m *mockIssuer) IssueTx(context.Context, ids.ID) error {
+	return m.issueTxErr
 }
 
-func (m *mockIssuer) IssueTx(_ context.Context, tx ids.ID) error {
-	m.server.submit(tx, m.name)
-	m.tracker.Issue(tx)
+func (*mockIssuer) Listen(context.Context) error {
 	return nil
 }
 
-func (m *mockIssuer) Listen(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case tx := <-m.incoming:
-			m.tracker.ObserveConfirmed(tx)
-		}
-	}
-}
-
 func (*mockIssuer) Stop() {}
-
-type mockErrIssuer struct {
-	mockIssuer
-	err error
-}
-
-func (m *mockErrIssuer) IssueTx(context.Context, ids.ID) error {
-	return m.err
-}
-
-// mockServer simulates a network that confirms transactions at a fixed rate
-type mockServer struct {
-	// number of transactions to "confirm" each second
-	tps uint64
-
-	sync.RWMutex
-	// maps txs to sender
-	outstandingTxs map[ids.ID]string
-	// connections to clients
-	conns map[string]chan ids.ID
-	// txs from clients
-	incoming chan ids.ID
-}
-
-func newMockServer(tps uint64) *mockServer {
-	return &mockServer{
-		outstandingTxs: make(map[ids.ID]string),
-		conns:          make(map[string]chan ids.ID),
-		incoming:       make(chan ids.ID, chanSize),
-		tps:            tps,
-	}
-}
-
-// connect a client to the server
-// returns a read-only channel that the server will use to notify the client about its
-// accepted txs
-func (m *mockServer) connect(client string) <-chan ids.ID {
-	m.Lock()
-	defer m.Unlock()
-
-	out := make(chan ids.ID, chanSize)
-	m.conns[client] = out
-	return out
-}
-
-// submit a tx to the server
-func (m *mockServer) submit(tx ids.ID, client string) {
-	m.Lock()
-	defer m.Unlock()
-
-	m.outstandingTxs[tx] = client
-	m.incoming <- tx
-}
-
-// run a network that accepts txs at a rate of tps
-// each second, the server will accept tps txs and notify the relevant clients
-// if there are not enough txs to send, the server will sleep until the next second
-func (m *mockServer) run(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
-
-	go func() {
-		<-ctx.Done()
-		ticker.Stop()
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			for range m.tps {
-				select {
-				case tx := <-m.incoming:
-					m.notify(tx)
-				default:
-				}
-			}
-		}
-	}
-}
-
-// notify the tx sender of the tx's status
-func (m *mockServer) notify(tx ids.ID) {
-	m.Lock()
-	defer m.Unlock()
-
-	sender := m.outstandingTxs[tx]
-	m.conns[sender] <- tx
-}
